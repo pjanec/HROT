@@ -115,7 +115,10 @@ public sealed class MultiActionBoundTests
 
         var blob        = BuildSequenceBlob(actionKey1, actionKey2);
         var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
-        var bb          = new BrainBlackboard();
+        // ⭐ P4-②: the params region is a plain byte buffer this test owns — the interpreter takes
+        //   a `ref byte` base now, and these are pure offset-projection unit tests with no world.
+        var bbBuf       = new byte[64];
+        ref byte bb     = ref bbBuf[0];
         var ctx         = new BTreeContext();
         var state       = new BehaviorTreeState();
 
@@ -136,7 +139,8 @@ public sealed class MultiActionBoundTests
         // Read raw byte at offset 8 before action2 would have set it:
         // We can't un-run action2, but we CAN verify that action1 at offset 0 didn't
         // bleed into offset 8 by re-running only action1 on a fresh blackboard.
-        var bb2   = new BrainBlackboard();
+        var bb2Buf = new byte[64];
+        ref byte bb2 = ref bb2Buf[0];
         var state2 = new BehaviorTreeState();
         var singleActionReg = new ActionRegistry<byte, BTreeContext>();
         singleActionReg.Register(actionKey1,
@@ -157,7 +161,7 @@ public sealed class MultiActionBoundTests
 
         // After running ONLY action1, the flag region (offset 8) must remain zero.
         ref var flagAfterOnly1 = ref Unsafe.As<byte, FlagParams>(
-            ref Unsafe.AddByteOffset(ref bb2.BehaviorParameters[0], (nint)8));
+            ref Unsafe.AddByteOffset(ref bb2, (nint)8));
         Assert.False(flagAfterOnly1.Done,
             "action1 (offset 0) must not touch the flag region at offset 8");
     }
@@ -223,7 +227,8 @@ public sealed class MultiActionBoundTests
             });
 
         var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
-        var bb    = new BrainBlackboard();
+        var bbBuf = new byte[64];
+        ref byte bb = ref bbBuf[0];
         var ctx   = new BTreeContext();
         var state = new BehaviorTreeState();
 

@@ -156,7 +156,7 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
@@ -189,7 +189,7 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

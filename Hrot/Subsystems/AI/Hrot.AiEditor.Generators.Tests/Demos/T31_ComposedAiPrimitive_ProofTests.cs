@@ -95,7 +95,7 @@ public sealed class T31_ComposedAiPrimitive_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         NodeStatus Tick()
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState();
             return interpreter.Tick(ref bb, ref state, ref ctx);
         }

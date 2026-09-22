@@ -317,7 +317,7 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
 
         var ctx = new BTreeContext { Self = commander, World = world };
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(commander);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, commander);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state = new BehaviorTreeState();
             def.BTreeInterpreter!.Tick(ref bb, ref state, ref ctx);
         }

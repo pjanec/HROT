@@ -29,7 +29,7 @@ public static class T10_MultiActionRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = T10_MultiAction.Build();
@@ -39,7 +39,7 @@ public static class T10_MultiActionRegistrar
         // S1-3: baked-offset action thunks for managed blackboard.
         // Key = {MethodFqn}@{offset} — matches blob key from topology emit.
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter@0",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -49,7 +49,7 @@ public static class T10_MultiActionRegistrar
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AddStepToSum@8",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -61,7 +61,7 @@ public static class T10_MultiActionRegistrar
 
         // S1-3: baked-offset condition thunks for managed blackboard.
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Condition_CounterBelowThreshold@0",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -72,7 +72,7 @@ public static class T10_MultiActionRegistrar
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.

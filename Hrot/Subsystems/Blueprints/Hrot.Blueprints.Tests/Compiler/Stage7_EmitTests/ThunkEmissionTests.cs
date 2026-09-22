@@ -54,8 +54,11 @@ public sealed class ThunkEmissionTests
 
         // BTree action thunk method should be present.
         Assert.Contains("BTreeTick", src);
-        // BrainBlackboard parameter should use correct namespace.
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.BrainBlackboard", src);
+        // ⭐ P4-②: the BTree dispatch blackboard is `byte` — the ROOT PARAMS SLOT BASE that
+        //   BTreeTickSystem resolves once per entity per tick and hands to the interpreter.
+        Assert.Contains("ref byte bb", src);
+        // ⛔ and the retired component must not come back as the dispatch type.
+        Assert.DoesNotContain("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb", src);
         // BehaviorTreeState should use Fbt namespace.
         Assert.Contains("global::Fbt.BehaviorTreeState", src);
     }
@@ -73,7 +76,8 @@ public sealed class ThunkEmissionTests
         var src = EmitAndGetSource(asset);
 
         Assert.Contains("BTreeEvaluate", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.BrainBlackboard", src);
+        // ⭐ P4-②: same for the condition thunk — `ref byte`, not the retired component.
+        Assert.Contains("ref byte bb", src);
     }
 
     [Fact]

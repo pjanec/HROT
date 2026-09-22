@@ -390,7 +390,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
     private static unsafe Interpreter<byte, BTreeContext> BuildPatrolAndEngageInterpreter()
     {
         // Condition: return Success when the entity's TargetMemory has at least one entry.
-        NodeLogicDelegate<BrainBlackboard, BTreeContext> condition_HasTarget =
+        NodeLogicDelegate<byte, BTreeContext> condition_HasTarget =
             (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<TargetMemory>(ctx.Self)) return NodeStatus.Failure;
@@ -399,7 +399,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
             };
 
         // Action: write AimAndFire to WeaponChannel when a target is present.
-        NodeLogicDelegate<BrainBlackboard, BTreeContext> action_AimAndFire =
+        NodeLogicDelegate<byte, BTreeContext> action_AimAndFire =
             (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))  return NodeStatus.Failure;
@@ -424,7 +424,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
                 return NodeStatus.Running;
             };
 
-        var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+        var builder = new BTreeBuilder<byte, BTreeContext>();
         var blob = builder
             .Selector(sel => sel
                 .Sequence(seq => seq

@@ -370,13 +370,14 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         stagingRegistry.TryGetDefinition(id, out var def).Should().BeTrue();
 
         var interpreter = def!.BTreeInterpreter!;
-        var bb    = default(BrainBlackboard);
+        // ⭐ P4-②: a params region this test owns — the interpreter takes a `ref byte` base.
+        var bbBuf = new byte[64];   // ⚠ no `ref` local: it cannot be captured by the lambda below
         var state = new BehaviorTreeState();
         var ctx   = default(BTreeContext);
 
         // Tick must NOT throw (SampleScout uses only Wait nodes — no action lookups)
         NodeStatus status = default;
-        var act = () => { status = interpreter.Tick(ref bb, ref state, ref ctx); };
+        var act = () => { status = interpreter.Tick(ref bbBuf[0], ref state, ref ctx); };
         act.Should().NotThrow("ticking a Wait-only tree must not throw");
 
         // Status must be Running or Success (Wait returns Running until timer expires)

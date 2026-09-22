@@ -501,7 +501,7 @@ namespace Hrot.SimHost.Tests
                 out var thunk));
 
             // BTreeTickSystem:123 — the kernel is handed the entity's live BrainBlackboard component.
-            ref var bb    = ref repo.GetComponentRW<BrainBlackboard>(tank);
+            ref byte bb    = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(repo, tank);
             var     state = new BehaviorTreeState();
             var     ctx   = new BTreeContext { Self = tank, World = repo };
 

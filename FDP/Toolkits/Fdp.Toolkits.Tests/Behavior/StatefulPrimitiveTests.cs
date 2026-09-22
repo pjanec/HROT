@@ -141,7 +141,13 @@ public sealed unsafe class StatefulPrimitiveTests
         var interpreter = new Interpreter<byte, BTreeContext>(blob, actionReg);
 
         // Set Limit=5 in BrainBlackboard params.
-        ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+        // ⭐⭐ P4-②: the interpreter takes the params region as a `ref byte`. This test owns its
+        //   own region because its thunk (registered above) reads the HANDED-IN base — that is what
+        //   makes it a unit test of DISPATCH rather than of ingress.
+        // ⛔ It used to borrow `BrainBlackboard` as that buffer. Borrowing an ECS component for a
+        //   scratch region is the habit that hid CE-310 and CE-311, so it is not repeated here.
+        var paramsRegion = new byte[64];
+        ref byte bb = ref paramsRegion[0];
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(
@@ -217,7 +223,7 @@ public sealed unsafe class StatefulPrimitiveTests
         string thunkKeyB = $"IndSlotTest.NodeB@{paramOffset}@{slotKeyB}";
 
         // Helper: build an adapter for a given slot key.
-        Func<int, NodeLogicDelegate<BrainBlackboard, BTreeContext>> makeThunk = (sk) =>
+        Func<int, NodeLogicDelegate<byte, BTreeContext>> makeThunk = (sk) =>
             (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
@@ -240,7 +246,13 @@ public sealed unsafe class StatefulPrimitiveTests
             };
 
         // Set Limit=100 so all nodes keep returning Running (cursor < Limit).
-        ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+        // ⭐⭐ P4-②: the interpreter takes the params region as a `ref byte`. This test owns its
+        //   own region because its thunk (registered above) reads the HANDED-IN base — that is what
+        //   makes it a unit test of DISPATCH rather than of ingress.
+        // ⛔ It used to borrow `BrainBlackboard` as that buffer. Borrowing an ECS component for a
+        //   scratch region is the habit that hid CE-310 and CE-311, so it is not repeated here.
+        var paramsRegion = new byte[64];
+        ref byte bb = ref paramsRegion[0];
         unsafe
         {
             ref var pParams = ref Unsafe.As<byte, DemoCounterNodes.DemoCursorParams>(

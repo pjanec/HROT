@@ -381,7 +381,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
         var world  = CreateWorld();
         var entity = RootParamsTestHarness.NewBrainEntity(world);
-        var bb  = new BrainBlackboard();
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
         var ctx = new BTreeContext { Self = entity, World = world };
 
         // DEBT-AIB-013: seed Threshold and Step manually.
@@ -441,7 +441,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
         var world  = CreateWorld();
         var entity = RootParamsTestHarness.NewBrainEntity(world);
-        var bb  = new BrainBlackboard();
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
         var ctx = new BTreeContext { Self = entity, World = world };
 
         // Seed: Threshold=3, Step=7.
@@ -510,7 +510,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
         var world  = CreateWorld();
         var entity = RootParamsTestHarness.NewBrainEntity(world);
-        var bb  = new BrainBlackboard();
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
         var ctx = new BTreeContext { Self = entity, World = world };
 
         // T11 has no condition; Sequence[IncrementCounter_A, IncrementCounter_B] always runs both.

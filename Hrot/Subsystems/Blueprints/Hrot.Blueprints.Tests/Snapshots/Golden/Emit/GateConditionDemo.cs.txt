@@ -54,7 +54,7 @@ public static class GateConditionDemo_CDFE149C_Bp
     }
     
     public static unsafe bool BTreeEvaluate(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
@@ -87,7 +87,7 @@ public static class GateConditionDemo_CDFE149C_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_GateConditionDemo_CDFE149C_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(GateConditionDemo_CDFE149C_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {
@@ -102,6 +102,6 @@ public static class BlueprintRegistrar_GateConditionDemo_CDFE149C_Bp
                 ["LastEvaluated"] = new global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor("LastEvaluated", typeof(bool), 0, 1, ""),
             },
         });
-        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.GateConditionDemo_CDFE149C_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => GateConditionDemo_CDFE149C_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.GateConditionDemo_CDFE149C_Bp.BTreeEvaluate@0", static (ref byte bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => GateConditionDemo_CDFE149C_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }
 }

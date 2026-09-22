@@ -417,7 +417,10 @@ public sealed unsafe class HostedSubtreeCursorTests
     /// <summary>A BTree behaviour whose only stateful slot is a hosted occurrence's cursor.</summary>
     private static BehaviorDefinition HostingBehavior(string name)
     {
-        var b = new BTreeBuilder<BrainBlackboard, BTreeContext>()
+        // ⭐ P4-②: the builder's generic must agree with the Interpreter it feeds below — both `byte`.
+        //   ⚠ A builder generic is BUILD-TIME only (Compile() returns an untyped blob), so this is
+        //     free HERE precisely because the tree binds a raw delegate, not a selector.
+        var b = new BTreeBuilder<byte, BTreeContext>()
             .Sequence(seq => seq.Action(
                 static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext c, int pi)
                     => NodeStatus.Running));

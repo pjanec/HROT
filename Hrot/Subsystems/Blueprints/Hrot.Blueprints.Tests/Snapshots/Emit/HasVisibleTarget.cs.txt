@@ -52,7 +52,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
     }
     
     public static unsafe bool BTreeEvaluate(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
@@ -85,7 +85,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(HasVisibleTarget_96FB0E6E_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {
@@ -96,6 +96,6 @@ public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
             AssetId = new Guid("00000004-0000-0000-0000-000000000001"),
             StateClrType = typeof(HasVisibleTarget_96FB0E6E_Bp.WorkingState),
         });
-        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate@0", static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
+        actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate@0", static (ref byte bb, ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => HasVisibleTarget_96FB0E6E_Bp.BTreeEvaluate(ref bb, ref st, ref ctx, pi) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);
     }
 }

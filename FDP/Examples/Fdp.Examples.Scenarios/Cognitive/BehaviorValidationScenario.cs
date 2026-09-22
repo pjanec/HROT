@@ -193,8 +193,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
                         $"expected 0 at tick {tick}");
 
                 // Inject threat — BTree will pick it up from kernel.Update(tick 10) onwards.
-                ref var bb = ref world.GetComponentRW<BrainBlackboard>(_agent);
-                bb.BehaviorParameters[MemThreatVisible] = 1;
+                ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, _agent);
+                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)MemThreatVisible) = 1;
             }
 
             // ── Phase 2 (tick 20): threat + ammo → agent engages ──────────────
@@ -211,8 +211,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
                         $"expected ActionIdAimAndFire={CombatConstants.ActionIdAimAndFire} at tick {tick}");
 
                 // Deplete ammo — BTree will detect Condition_HasAmmo fails next tick.
-                ref var bb = ref world.GetComponentRW<BrainBlackboard>(_agent);
-                fixed (byte* mem = bb.BehaviorParameters)
+                ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, _agent);
+                fixed (byte* mem = &bb)
                     *(int*)(mem + MemAmmoCount) = 0;
             }
 
@@ -259,16 +259,18 @@ namespace Fdp.Examples.Scenarios.Cognitive
             world.AddComponent(e, new BrainBTreeState());
 
             // Initialise blackboard: ThreatVisible=false, AmmoCount=InitialAmmo.
-            var bb = new BrainBlackboard();
+            // ⭐ P4-②: a params region this example owns — the base is a `ref byte` now.
+            var bbBuf = new byte[128];
+            ref byte bb = ref bbBuf[0];
             // Memory[0] = 0 (ThreatVisible = false) — already zero from default struct.
             // Write InitialAmmo as a little-endian int at offset MemAmmoCount=4.
             unsafe
             {
                 int val = InitialAmmo;
-                bb.BehaviorParameters[MemAmmoCount]     = (byte)val;
-                bb.BehaviorParameters[MemAmmoCount + 1] = (byte)(val >> 8);
-                bb.BehaviorParameters[MemAmmoCount + 2] = (byte)(val >> 16);
-                bb.BehaviorParameters[MemAmmoCount + 3] = (byte)(val >> 24);
+                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)MemAmmoCount)     = (byte)val;
+                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 1)) = (byte)(val >> 8);
+                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 2)) = (byte)(val >> 16);
+                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 3)) = (byte)(val >> 24);
             }
             world.AddComponent(e, bb);
 
@@ -291,7 +293,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            return bb.BehaviorParameters[MemThreatVisible] != 0
+            return global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)MemThreatVisible) != 0
                 ? NodeStatus.Success
                 : NodeStatus.Failure;
         }
@@ -303,7 +305,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             ref BTreeContext ctx,
             int payloadIndex)
         {
-            fixed (byte* mem = bb.BehaviorParameters)
+            fixed (byte* mem = &bb)
             {
                 int ammo = *(int*)(mem + MemAmmoCount);
                 return ammo > 0 ? NodeStatus.Success : NodeStatus.Failure;

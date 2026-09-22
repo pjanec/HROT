@@ -203,7 +203,7 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         NodeStatus Tick()
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState();
             return interpreter.Tick(ref bb, ref state, ref ctx);
         }
@@ -242,7 +242,7 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
         var interpreter = InterpreterFor();
 
         var ctx = new BTreeContext { Self = entity, World = world };
-        ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
         var state  = new BehaviorTreeState();
         interpreter.Tick(ref bb, ref state, ref ctx);
 

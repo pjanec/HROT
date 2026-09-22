@@ -29,7 +29,7 @@ public static class T35_SharedWorkingStateRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = T35_SharedWorkingState.Build();
@@ -45,7 +45,7 @@ public static class T35_SharedWorkingStateRegistrar
                 ") != predicted 4 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@1452493810",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -73,7 +73,7 @@ public static class T35_SharedWorkingStateRegistrar
                 ") != predicted 4 bytes baked at offset 4. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@4@1452493810",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -101,7 +101,7 @@ public static class T35_SharedWorkingStateRegistrar
                 ") != predicted 4 bytes baked at offset 8. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@8@935647214",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -124,7 +124,7 @@ public static class T35_SharedWorkingStateRegistrar
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.

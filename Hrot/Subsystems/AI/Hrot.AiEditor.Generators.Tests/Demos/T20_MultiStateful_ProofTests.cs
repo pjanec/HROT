@@ -334,7 +334,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         for (int tick = 1; tick <= 7; tick++)
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState(); // fresh per tick (restart from root)
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
@@ -415,7 +415,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         for (int tick = 1; tick <= 7; tick++)
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState();
             interpreter.Tick(ref bb, ref state, ref ctx);
         }

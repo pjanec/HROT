@@ -109,7 +109,13 @@ public sealed class Stage7Tests
         Assert.Contains("HsmActivity", src);
 
         // Registrar takes the FastBTree ActionRegistry (has BTreeAction hosting) — I1.
-        Assert.Contains("ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry", src);
+        // ⭐ P4-②: the registrar is typed on the DISPATCH blackboard, which is `byte` for every
+        //   tree — the root params slot base. ⛔ This must move in LOCKSTEP with the three runtime
+        //   typeof filters (BTreeActionRegistryFactory:64, BlueprintRegistrarScanner:126,
+        //   AiHotReloadCoordinator:433): they compare typeof(ActionRegistry<...>) and CONTINUE on a
+        //   mismatch, so a disagreement silently skips RegisterAll and every action falls back to
+        //   Failure. This assertion is one half of that guard.
+        Assert.Contains("ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry", src);
 
         // No HsmActionDispatcher parameter in Register() -- it is a static class (Patch C1).
         Assert.DoesNotContain("HsmActionDispatcher hsmDispatcher", src);

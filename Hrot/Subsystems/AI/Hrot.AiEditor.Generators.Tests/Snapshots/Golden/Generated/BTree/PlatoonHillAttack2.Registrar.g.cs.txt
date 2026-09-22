@@ -29,7 +29,7 @@ public static class PlatoonHillAttack2Registrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = PlatoonHillAttack2.Build();
@@ -45,7 +45,7 @@ public static class PlatoonHillAttack2Registrar
                 ") != predicted 20 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@719287041",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -73,7 +73,7 @@ public static class PlatoonHillAttack2Registrar
                 ") != predicted 16 bytes baked at offset 24. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.TickCore@24@668954184",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -101,7 +101,7 @@ public static class PlatoonHillAttack2Registrar
                 ") != predicted 8 bytes baked at offset 40. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IRequestAreaQuery_61F115B4_Bp.TickCore@40@450845137",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -123,7 +123,7 @@ public static class PlatoonHillAttack2Registrar
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IIsAreaQueryResolved_62F11747_Bp.TickCore@48@400512280",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -151,7 +151,7 @@ public static class PlatoonHillAttack2Registrar
                 ") != predicted 40 bytes baked at offset 48. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IDispatchWaveWithTargets_60F11421_Bp.TickCore@48@417289899",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -173,7 +173,7 @@ public static class PlatoonHillAttack2Registrar
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.HillAssault2IIsWaveCompleted_CDAC491D_Bp.TickCore@88@501177994",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -198,7 +198,7 @@ public static class PlatoonHillAttack2Registrar
         // E2: blueprint AiPrimitive condition thunks — Params at baked offset + WorkingState from
         // partition slot, dispatched to the blueprint's generated TickCore. Key = {MethodFqn}@{offset}@{slotKey}.
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Generated.HillAssault2AreAllAtBaseline_4CDE3A29_Bp.TickCore@40@685731803",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
@@ -221,7 +221,7 @@ public static class PlatoonHillAttack2Registrar
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
