@@ -180,8 +180,13 @@ namespace Fdp.Toolkit.Squad
     }
 
     /// <summary>
-    /// Full squad working state projected onto a commander's <see cref="Blackboard1024"/>.
-    /// A single contiguous 1024-byte claim; use <see cref="Project"/> to obtain a ref.
+    /// Full squad working state for a commander — <b>its own ECS component</b>.
+    /// <para>⛔ It used to be "projected onto a commander's <c>Blackboard1024</c>", a single
+    /// contiguous 1024-byte claim reached through a <c>Project</c> helper. <c>O1</c>
+    /// (<c>2026-09-20</c>) ended that, because it made <i>"has a <c>Blackboard1024</c>"</i> an
+    /// accidental proxy for <i>"is a commander with squad state"</i>; <c>P4</c>-① then retired the
+    /// component outright. ⇒ this is now a plain component with its own <c>[ComponentId]</c>,
+    /// provisioned by <c>SquadStateProvisioning</c>.</para>
     /// </summary>
     /// <remarks>
     /// Sub-region byte offsets (verified by <c>SquadCognitiveStateLayoutTests</c>):
@@ -270,8 +275,9 @@ namespace Fdp.Toolkit.Squad
     // ── SquadStateMarker — ECS tag component ────────────────────────────────────
 
     /// <summary>
-    /// Zero-data ECS tag marking an entity that carries a <see cref="SquadCognitiveState"/>
-    /// projected onto its <see cref="Blackboard1024"/>.
+    /// Zero-data ECS tag marking an entity that carries a <see cref="SquadCognitiveState"/>.
+    /// ⛔ The words "projected onto its <c>Blackboard1024</c>" were here and are no longer true —
+    /// <c>O1</c> made the state its own component and <c>P4</c>-① retired that one.
     /// Required for component-ID determinism across assemblies (Phase R0).
     /// </summary>
     [ComponentId(GlobalComponentIds.SquadStateMarker)]

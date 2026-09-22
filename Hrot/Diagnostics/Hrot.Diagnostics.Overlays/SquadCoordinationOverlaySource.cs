@@ -19,7 +19,7 @@ namespace Hrot.Diagnostics.Overlays
     /// Surfaces maneuver state: per-member element coloring + role labels (P7-01),
     /// assignment-vs-actual divergence lines + veto labels (P7-02),
     /// and phase label + dwell-entry tick + merged contact-pool markers (P7-03).
-    /// Requires both <see cref="UnitRoster"/> and <see cref="Blackboard1024"/> on the commander.
+    /// Requires both <see cref="UnitRoster"/> and <see cref="SquadCognitiveState"/> on the commander.
     /// </summary>
     internal sealed unsafe class SquadCoordinationOverlaySource : IGizmoSource
     {

@@ -1013,7 +1013,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// <summary>
     /// 🔴🔴 <b><c>CE-310</c> / <c>P4</c>-① (<c>2026-09-22</c>) — THIS ARM WAS DEAD AND NOBODY NOTICED.</b>
     ///
-    /// <para>📐 It read <see cref="Blackboard1024"/>, whose AiPrimitive working state moved to the
+    /// <para>📐 It read <c>Blackboard1024</c> — ⚠ a <c>&lt;c&gt;</c>, not a <c>cref</c>, because
+    /// <c>P4</c>-① deleted that type and a cref to it no longer resolves — whose working state moved to the
     /// Blueprint tier ladder in <c>SLICE2</c> — ⛔ <b>and nothing has added that component since.</b>
     /// So <c>HasComponent</c> was false on every call and this returned <c>null</c> every time:
     /// AiPrimitive working-state editing was broken in the editor <b>and</b> in the debug API, with no

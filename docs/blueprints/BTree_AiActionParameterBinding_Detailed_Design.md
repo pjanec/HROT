@@ -1,3 +1,24 @@
+<!--STATUS
+state: SUPERSEDED
+updated: 2026-09-22
+current-answer: ⛔ DO NOT QUOTE THIS FILE'S MEMORY MODEL. It describes the pre-occurrence
+  design: params inline in BrainBlackboard with overflow spilling to Blackboard1024 via
+  HeavyDtoType / [SharedAiHeavyAction]. ⭐ The CURRENT model is
+  DESIGN_Occurrence_Scoped_Storage.md §30.15 — there is no "heavy" tier at all; params and
+  working state are both OCCURRENCE SLOTS in the BlueprintBlackboard tier ladder.
+stale-below: §1's memory model and §8's overflow rule (line 16: "Overflow beyond 100 B inline
+  -> Blackboard1024 heavy tier"). Blackboard1024 was DELETED by P4-① on 2026-09-22.
+superseded-by: DESIGN_Occurrence_Scoped_Storage.md
+known-rot: ① the 100-byte inline cap is being retired (CE-307 / P4-④) — the real structural
+  ceiling is 16096 B, the 16384 tier's whole payload. ② "exactly one stateful AiPrimitive per
+  entity" was lifted by SLICE2 and again by CE-311. ③ HeavyDtoType was NEVER ADOPTED: null at
+  every production site and in all 30 shipped assets.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the CURRENT storage model; §30.13 argues why
+    Blackboard1024 could be retired and §30.15 what replaced the heavy-DTO concept.
+  - DESIGN_Parameter_Model.md — owns WHAT a parameter is, as opposed to where it lives.
+-->
+
 # BTree AI Action/Condition Parameter Binding — Detailed Design
 
 > **Status:** architect-approved (Slice 1 and Slice 2, 2026-06-15). Describes the **future state** after both slices are implemented.

@@ -1,3 +1,20 @@
+<!--STATUS
+state: SUPERSEDED
+updated: 2026-09-22
+current-answer: ⛔ THE RUNTIME-TIER PROSE HERE IS DEAD. § lines 71/163/215 describe an
+  "on-demand Blackboard1024 heavy component, provisioned via [BTreeDefinition(HeavyDtoType=...)]".
+  ⭐ Blackboard1024 was DELETED by P4-① (2026-09-22); the current model is
+  DESIGN_Occurrence_Scoped_Storage.md §30.15.
+  ⚠ The JSON/PERSISTENCE half of this document is NOT superseded — asset schema, round-trip and
+  the editor flow still describe live behaviour. Read it for persistence, never for storage.
+stale-below: every mention of Blackboard1024, HeavyDtoType and the inline/heavy tier split.
+superseded-by: DESIGN_Occurrence_Scoped_Storage.md
+known-rot: the asset field "HeavyDtoType": null is still EMITTED in all 30 shipped assets and is
+  now vestigial — harmless to leave, but it names a storage tier that no longer exists.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the storage model this file's runtime prose predates.
+-->
+
 # BTree / HSM JSON Persistence — Detailed Design (Thread 1)
 
 > **Status:** Detailed design. Grounded in read-only verification of the `blueprint-integ-1` sources (8 verification passes, all cited inline). Ready for batch breakdown.

@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Utility
     /// <summary>
     /// Scores each (member, target) pair using a registered decision definition and
     /// greedily assigns members to targets while respecting the focus-fire cap.
-    /// Writes results into the leader's <see cref="Blackboard1024"/> via
+    /// Writes results into the leader's <see cref="SquadCognitiveState"/> via
     /// <see cref="ThreatMatrixAssignmentState"/>.
     /// <para>
     /// Algorithm: for each squad member in roster order, iterate all targets from

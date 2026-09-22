@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Utility
         /// else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander with a
-        /// <see cref="Blackboard1024"/>. Returns 0f if any prerequisite is missing.
+        /// <see cref="SquadCognitiveState"/>. Returns 0f if any prerequisite is missing.
         /// </para>
         /// </summary>
         [UtilityInput("SquadKnowsContact")]
@@ -225,7 +225,7 @@ namespace Fdp.Toolkit.Utility
         /// <summary>
         /// Returns the aggregate threat across all contacts in the squad's contact pool,
         /// normalised to [0, 1] (max 16 contacts * 1.0f each = 16.0f).
-        /// Returns 0f when ctx.Self has no <see cref="Blackboard1024"/>.
+        /// Returns 0f when ctx.Self has no <see cref="SquadCognitiveState"/>.
         /// </summary>
         [UtilityInput("SquadPoolThreatAggregate")]
         public static float SquadPoolThreatAggregate(in UtilityInputCtx ctx)
@@ -247,7 +247,7 @@ namespace Fdp.Toolkit.Utility
         /// encoded in <c>ctx.Params.BlueprintId</c> (low byte), else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander
-        /// with a <see cref="Blackboard1024"/> and <see cref="UnitRoster"/>.
+        /// with a <see cref="SquadCognitiveState"/> and <see cref="UnitRoster"/>.
         /// Returns 0f if any prerequisite is missing or the member is not in the roster.
         /// </para>
         /// </summary>
@@ -285,7 +285,7 @@ namespace Fdp.Toolkit.Utility
         /// the slot kind encoded in <c>ctx.Params.BlueprintId</c> (low byte), else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander
-        /// with a <see cref="Blackboard1024"/> and <see cref="UnitRoster"/>.
+        /// with a <see cref="SquadCognitiveState"/> and <see cref="UnitRoster"/>.
         /// Returns 0f if any prerequisite is missing or the member is not in the roster.
         /// </para>
         /// </summary>

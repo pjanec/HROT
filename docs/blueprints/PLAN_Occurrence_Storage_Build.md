@@ -182,7 +182,7 @@ if (freshlyAttached) {
 | ~~`P4`-②b~~ | ⛔ **WITHDRAWN** — the blob is type-erased, so `BTreeBuilder<T>` is build-time only and the wrapper structs cost nothing. Deleting them is **unsafe** for `HideInCover` *(§30.18)* | ⛔ withdrawn |
 | **`P4`-③** | re-home the **SIX** identity-keyed surfaces *(`CE-303`, + `CE-308`: `BlackboardTarget` is **RE-POINTED**, two regions still exist)* | ✅ cleared |
 | **`P4`-④** | retire the 100-byte cap *(`CE-307`)* — ⭐ now argued from the measured **16 096 B** real ceiling *(§30.15)* | ⚠ with/after ② |
-| **`P4`-⑤** | fix the stale corpus — two heavy-overflow design docs with **no STATUS block**, + 24 files of stale `<see cref>` prose | ✅ cleared |
+| **`P4`-⑤** | fix the stale corpus | ✅ **BUILT `2026-09-22`** — STATUS blocks on both heavy-overflow designs; 9 stale crefs corrected; a NO-OP builder with 2 live call sites deleted |
 
 #### ⭐⭐⭐ THE THREE "HOLDS" WERE TESTED FOR A **NEED** AND NONE SURVIVED *(user ruling, `2026-09-21`)*
 

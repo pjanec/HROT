@@ -152,7 +152,7 @@ with its own mirror)* · `BehaviorRegistry.cs:319` *(runtime throw)*.
 | `Fdp.Toolkits.Tests` | **2303 / 0** | |
 | `Hrot.Blueprints.Tests` | **4017 / 0** *(18 skipped)* | |
 | `Hrot.AiEditor.Generators.Tests` | **279 / 4** | the four are PRE-EXISTING: `S3_BehaviorScopedThunkTests`, `S3_SharedSlotProvisioningTests` ×2, `T30_BehaviorScopedShared_ProofTests` |
-| `Hrot.SimHost.Tests` | **1003 / 3–5** | ⚠ **FLAKY UNDER LOAD.** In isolation exactly **3**: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` · `MapPresentationParityRails…EditorStrideSubsystem.cs` · `FullBranchPipelineTests.BranchedRecording…`. ⭐ `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` is **`BP-534`**, appearing only while a cluster runs concurrently |
+| `Hrot.SimHost.Tests` | **1003 / 3–5** | ⚠ **FLAKY UNDER LOAD.** In isolation exactly **3**: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` · `MapPresentationParityRails…EditorStrideSubsystem.cs` · `FullBranchPipelineTests.BranchedRecording…`. ⭐ The LOAD-FLAKY family is **larger than 1**: `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` (**`BP-534`**, appears while a cluster runs concurrently) **and** `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` (observed `2026-09-22` during `P4`-⑥; ✅ **3/3 twice in isolation**). ⚠ Confirm a 4th red in ISOLATION before calling it a regression |
 | `Hrot.IG.Tests` | ⛔ cannot build here | `NETSDK1004`, unrestored |
 
 ### ⭐⭐ THE ACCEPTANCE — **`hill-attack-close` must stay 2/2 gold**

@@ -188,7 +188,6 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Unit_TankPlatoon, 1)
                 .WithBehavior(TkbEntityTypes.Unit_TankPlatoon)
-                .WithHeavyMemory(TkbEntityTypes.Unit_TankPlatoon)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
@@ -227,7 +226,6 @@ namespace Hrot.Map.Definitions.Tkb
                 })
                 .WithFaction(TkbEntityTypes.Unit_TankPlatoon_Auto, 1)
                 .WithBehavior(TkbEntityTypes.Unit_TankPlatoon_Auto)
-                .WithHeavyMemory(TkbEntityTypes.Unit_TankPlatoon_Auto)
                 .AsComposite(TkbEntityTypes.Unit_TankPlatoon_Auto, comp =>
                 {
                     comp.Subordinates.Add(new TkbChildSlot { TkbType = TkbEntityTypes.Tank_M1Abrams, Count = 4, Designation = TacticalDesignation.Wingman });
