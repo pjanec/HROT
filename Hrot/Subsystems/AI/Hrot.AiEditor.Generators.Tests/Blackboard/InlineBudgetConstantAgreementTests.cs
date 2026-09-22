@@ -28,6 +28,12 @@ namespace Hrot.AiEditor.Generators.Tests.Blackboard;
 ///   <item><c>BTreeBlackboardPackHelper.MaxInlineBytes</c> — the build-time packer inside the
 ///   generator, which is netstandard2.0 for the same reason as (2).</item>
 /// </list>
+/// ⭐⭐ <b><c>CE-314</c> (2026-09-22) restored the FOURTH row.</b> <c>CE-307</c> had to leave
+/// <c>BlackboardBinPacker.MaxInlineBytes</c> at 100 — there the number was also the inline/heavy SPLIT
+/// POINT — and pinned that exception with a dedicated test. ⭐ <c>CE-314</c> removed the split, raised
+/// the copy, deleted that test and folded the mirror back into the agreement above, <b>which is exactly
+/// the failure the exception-test was written to force.</b>
+///
 /// ⚠ <b>And a fifth that this test cannot reach:</b> <c>BlueprintVariablesWindow:414</c> compares against
 /// a bare <c>100</c> literal in an expression rather than a named constant. Filed, not fixed here.
 /// </para>
@@ -76,30 +82,10 @@ public sealed class InlineBudgetConstantAgreementTests
         //   `const` reference and demands it sit in the `expected` slot, which would read as "the
         //   mirror is the truth". BehaviorConstants is the truth; the others are the values under test.
         Assert.Equal(truth, AnalyzerConstant());
+        Assert.Equal(truth, Mirror(BlackboardBinPacker.MaxInlineBytes));
         Assert.Equal(truth, Mirror(BTreeBlackboardPackHelper.MaxInlineBytes));
     }
 
-    /// <summary>
-    /// 🔴🔴 <b><c>BlackboardBinPacker.MaxInlineBytes</c> is the ONE copy that deliberately does NOT
-    /// agree — and this pins the exception so it cannot become an accident.</b>
-    ///
-    /// <para>⛔ In the editor packer the number is not only a ceiling: it is also the <b>INLINE/HEAVY
-    /// SPLIT POINT</b>, and the heavy side addresses <c>Blackboard1024</c>, which <c>P4</c>-① deleted.
-    /// ⇒ <c>CE-307</c> left it at 100 because raising it makes the spill unreachable and leaves four
-    /// tests exercising a dead arm. ⭐ <b><c>CE-314</c> removes the split and raises it</b>; at that
-    /// point this test FAILS and is replaced by a third row in the agreement above.</para>
-    ///
-    /// <para>⚠ That failure is the POINT — ⛔ an excluded mirror with only a comment to explain it is
-    /// how a deliberate exception rots into an undetected drift.</para>
-    /// </summary>
-    [Fact]
-    public void TheEditorPackersCopy_IsTheKnownException_UntilCe314()
-    {
-        Assert.NotEqual(BehaviorConstants.MaxRootParamsByteSize,
-                        Mirror(BlackboardBinPacker.MaxInlineBytes));
-        Assert.Equal(BehaviorConstants.MaxBehaviorParamByteSize,
-                     Mirror(BlackboardBinPacker.MaxInlineBytes));
-    }
 
     /// <summary>Identity — see the comment above; it only stops the constant being folded.</summary>
     private static int Mirror(int value) => value;

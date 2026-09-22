@@ -5473,3 +5473,52 @@ could emit** — a new instance of *"a reload is not a reset"*.
 asset still declares `Stub.StubBb`**, which asserts the separation directly. ⛔ `DtoParamAction`
 *(param 0 a DTO struct)* is unchanged and still refused — **the negative control that proves `CE-316`
 moved the check's source of truth rather than removing the check.**
+
+---
+
+### 30.27 ⭐⭐ `CE-314` — **THE INLINE/HEAVY SPLIT IS REMOVED, AND THE REMOVAL HAD TO ROUTE** *(`2026-09-22`)*
+
+⭐ Closes the exception `CE-307` §30.25 ⑥ declared: `BlackboardBinPacker.MaxInlineBytes` is **16 096**,
+and the editor no longer refuses a blackboard the generator accepts.
+
+#### ⛔ ① WHAT WENT
+
+`PackTier` *(a two-valued enum whose second value named `Blackboard1024`)* · `PackedVariable.Tier` ·
+`PackWarning.HeavyMemoryExceeded` · `PackResult.TotalHeavyBytes` / `RequiresHeavyComponent` ·
+`MaxHeavyBytes` · the spill branch · the view model's three heavy members and their **three JSON export
+keys** · the panel's two-line *Inline / Heavy* header.
+
+⭐ **The `Pack` loop collapsed to one path.** Master and aggregated variables differed *only* by the
+spill branch, so with it gone the two near-identical loop bodies became one `Place` helper — ⚠ two
+copies of an alignment calculation are one edit away from drifting.
+
+#### ⭐⭐⭐ ② THE PART THAT WAS NOT DELETION — **three deleted tests were the ONLY cover for surviving behaviour**
+
+📐 Nine packer tests went with the heavy tier. ⛔ **Three of them were not really about the heavy tier
+at all:** `Pack_heavy_offset_starts_at_zero` · `Pack_heavy_alignment_respected` ·
+`Pack_master_overflow_does_not_trigger_heavy_placement` were the only place asserting that aggregated
+variables **continue the master region's offsets**, **align across the master/aggregated boundary**, and
+that an **over-budget pack still resolves every variable's offset** *(the panel draws the rows either
+way)*.
+
+⇒ ⭐ each got a direct replacement rail. 🔒 **This is the checkable form of "prefer ROUTING to
+DELETING": before deleting a test, ask which of its assertions are about the thing being removed and
+which merely used it as a fixture.** ⛔ A green suite after a deletion proves nothing about what the
+deletion silently stopped covering.
+
+#### ⚠ ③ AND THE BOUNDARY FIXTURES WERE ALREADY DEAD
+
+📐 `ExactlyAtCeiling_NoWarning` packed **25 ints** and asserted **100**; `OverCeiling_…` packed **26**.
+⛔ When `CE-307` moved the ceiling to 16 096 both fixtures fell far below it — **they stopped being
+boundary tests the moment the boundary moved, while still passing.** ⭐ Both are now sized *from* the
+constant. 🔒 **A boundary test that hard-codes the boundary has a silent expiry date.**
+
+#### ⭐ ④ THE EXCEPTION-TEST DID ITS JOB BY FAILING
+
+`CE-307` left this one mirror out of the agreement rail and pinned the gap with
+`TheEditorPackersCopy_IsTheKnownException_UntilCe314`. ⭐ `CE-314` raised the copy, which **broke that
+test** — and deleting it is the completion of the handshake, not a workaround. ⛔ Had the exception been
+carried as a comment instead, nothing would have announced that the gap had closed.
+
+⚠ **`heavyBudget` / `requiresHeavyComponent` are asserted ABSENT** in `PanelGoldenRails` rather than
+simply dropped, so a revival is caught. ⛔ `T3`, so it does not gate here.

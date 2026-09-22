@@ -214,9 +214,6 @@ public sealed record VariablesPanelSection(
     IVariablesSchemaSource Schema,
     int TotalInlineBytes,
     int InlineBudget,
-    int TotalHeavyBytes,
-    int HeavyBudget,
-    bool RequiresHeavyComponent,
     PackWarning Warning,
     bool AliasingEnabled
 );
@@ -280,22 +277,13 @@ public sealed class VariablesPanelControl
     {
         var schema = section.Schema;
 
-        // Memory budget header
-        if (section.RequiresHeavyComponent)
-        {
-            ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Inline: {section.TotalInlineBytes} / {section.InlineBudget} B");
-            ImGui.SameLine();
-            ImGui.TextColored(BudgetColor(section.TotalHeavyBytes, section.HeavyBudget), $"  Heavy: {section.TotalHeavyBytes} / {section.HeavyBudget} B");
-        }
-        else
-        {
-            ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
-        }
+        // Memory budget header.
+        // ⭐ CE-314: ONE line, always. The two-line Inline/Heavy form reported a Blackboard1024 budget
+        //   that P4-① deleted — an authoring surface for storage that cannot exist.
+        ImGui.TextColored(BudgetColor(section.TotalInlineBytes, section.InlineBudget), $"Memory: {section.TotalInlineBytes} / {section.InlineBudget} B");
 
         if (section.Warning == PackWarning.InlineMemoryExceeded)
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Inline memory exceeded!");
-        else if (section.Warning == PackWarning.HeavyMemoryExceeded)
-            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Heavy memory exceeded!");
+            ImGui.TextColored(new System.Numerics.Vector4(1f, 0.3f, 0.3f, 1f), "Memory budget exceeded!");
 
         ImGui.Separator();
 

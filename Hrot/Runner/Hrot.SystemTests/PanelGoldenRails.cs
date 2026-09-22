@@ -198,10 +198,14 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
     }
 
     /// <summary>
-    /// ⭐⭐ <b>The blackboard budgets — and this pairing is load-bearing beyond the panel.</b>
-    /// 📌 <c>R-39</c> is an UNRECONCILED ruling: the param region is *documented* as 60 bytes and *enforced*
-    /// as 100 by analyzer <c>FDP_001</c>. ⇒ ⭐ pinning what the panel PUBLISHES *(<c>inlineBudget</c>)* means
-    /// the day that number moves, a rail says so instead of a doc drifting further from the analyzer.
+    /// ⭐⭐ <b>The blackboard budget the panel PUBLISHES.</b> ⭐ Pinning it means the day that number
+    /// moves, a rail says so instead of a doc drifting further from the analyzer.
+    ///
+    /// <para>✅ <b>It moved, and this rail is the record of it.</b> <c>CE-307</c> retired the 100-byte
+    /// cap — the param region is its own occurrence slot now, so the bound is the largest tier's
+    /// payload (<b>16 096</b>). <c>CE-314</c> then removed the inline/heavy split and with it
+    /// <c>heavyBudget</c>, which reported a budget for <c>Blackboard1024</c> — a component
+    /// <c>P4</c>-① deleted.</para>
     /// </summary>
     [SystemSmokeTheory]
     [InlineData("BTree", "ai_blackboard_variables_btree")]
@@ -210,8 +214,12 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
     {
         var m = await DumpAsync(perspective, panelId);
 
-        Assert.Equal(100, m!["inlineBudget"]!.GetValue<int>());
-        Assert.Equal(928, m["heavyBudget"]!.GetValue<int>());
+        Assert.Equal(16096, m!["inlineBudget"]!.GetValue<int>());
+        // ⛔ CE-314: `heavyBudget` / `totalHeavyBytes` / `requiresHeavyComponent` are GONE from the
+        //    panel's published model. Asserted as ABSENT rather than simply dropped, so a revival
+        //    would be caught.
+        Assert.False(m.ContainsKey("heavyBudget"));
+        Assert.False(m.ContainsKey("requiresHeavyComponent"));
         // ⚠ No asset is open (no API can open one — MX-013), so the count is 0 BY CONSTRUCTION. Asserted so
         //   the golden's emptiness is a stated premise rather than an accident nobody noticed.
         Assert.Equal(0, m["variableCount"]!.GetValue<int>());

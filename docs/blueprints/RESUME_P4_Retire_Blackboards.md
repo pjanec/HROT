@@ -4,19 +4,21 @@ doc-type: RESUMPTION for P4 — retiring BrainBlackboard and Blackboard1024.
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30;
-  §30.18 is the slice table, and §30.22/§30.23/§30.24 are the P4-③ as-built (they SUPERSEDE
-  parts of §30.14 and §30.18 — read them before quoting either).
-current-answer: ⭐ START AT §2 ⓪ — 🔴 **A LIVE REGRESSION FROM `P4`-② IS THE FIRST THING TO FIX:
-  six BTree assets silently stopped generating.** ALL FIVE SLICES are otherwise DONE (`P4`-④
-  landed 2026-09-22, §30.25). What remains is that regression, which IS §2 ③'s
-  `BlackboardTypeName` blocker already biting, and then the BrainBlackboard struct itself (§2 ②).
-  §1 is what is done. §3 traps. §4 gates + the cluster harness. §5 open + the pending fork decision.
+  §30.18 is the slice table, and §30.22..§30.27 are the as-built (they SUPERSEDE parts of §30.14,
+  §30.15 and §30.18 — read them before quoting any of those).
+current-answer: ⭐ START AT §2 ② — DELETING THE `BrainBlackboard` STRUCT. That is ALL that is left of
+  `P4`. All five slices are DONE (`P4`-④ = `CE-307` §30.25), and so are the two things it uncovered:
+  `CE-316` (§30.26 — six BTree assets had silently stopped generating since `P4`-②) and `CE-314`
+  (§30.27 — the bin packer's dead heavy arm; editor and generator now agree on one ceiling).
+  ⛔ §2 ③ (`BlackboardTypeName`) NO LONGER BLOCKS the deletion — `CE-316` measured that nothing
+  resolves that string to a Type any more. ⭐ §6 has the exact first action; §3 traps; §4 gates +
+  the cluster harness; §5 the fork decision, the only item still genuinely open.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the slice table · §30.20 P4-① · §30.21 P4-②
     (the zero-fallback rail) · §30.22 CE-312 · §30.23 CE-308 · §30.24 CE-313. It wins on any
     disagreement with this file.
   - RESUME_Occurrence_Storage.md — the PROGRAMME-level resume (P0–P4).
-  - Blueprint_Issues_Tracker.md — CE-303/CE-307 open; CE-308, CE-310, CE-311, CE-312, CE-313 DONE.
+  - Blueprint_Issues_Tracker.md — CE-303 open; CE-307, CE-308, CE-310..CE-316 DONE.
 -->
 
 # RESUME — `P4`: retire `BrainBlackboard` and `Blackboard1024`
@@ -208,9 +210,9 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | `Hrot.Blueprints.Tests` | **4025 / 0** *(**10** skipped, total 4035)* ⭐⭐ **`CE-316` MOVED 8 TESTS FROM SKIPPED TO PASSING** — was 4017/0 with **18** skipped, **same total 4035** ⇒ no test was added or removed, 8 simply stopped skipping. ⚠ Consistent with the six un-skipped assets *(a test that needs generated output skips when the generator emitted none)* — 📐 the totals prove the accounting; the mechanism is inferred, not separately measured. ⛔⛔ **A SKIP COUNT IS A SIGNAL, NOT NOISE:** 18 skips were the regression's THIRD footprint, and nobody read them |
 | `Hrot.SimHost.Tests` | **1005 / 3** *(+3 skipped, total 1011)*. ⭐⭐ **THE 3 ARE NAMED NOW** *(`2026-09-22` — the row used to say only "the 3 documented", which costs a session every time)*: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` · `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)` · `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A full run typically shows 6** — the extra three are the load-flaky family *(`EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch`)*, ⭐ **measured `2026-09-22`: all three PASS in isolation while the 3 above still FAIL** — which is how to tell them apart in one command |
 | `Hrot.Presentation.Tests` | **299 / 0** |
-| `Hrot.AiEditor.Generators.Tests` | **283 / 4** *(the 4 documented — total **287**)* ⚠ was 281/4 total 285; **+1 = `NoTierIsLargerThanTheCeiling`**, **+1 = a golden case for an asset `CE-316` un-skipped**. ⭐⭐ **The 4 are NAMED:** `T30_BehaviorScopedShared_ProofTests.HillAttack_SharedState_PersistsAcrossNodes` · `S3_BehaviorScopedThunkTests.BehaviorScoped_TwoNodes_ShareOneSlot` · `S3_SharedSlotProvisioningTests.Assign_BehaviorScoped_ProvisionsOneSlot_ForSharedVar` · `S3_SharedSlotProvisioningTests.Assign_MixedNodeAndBehaviorScope_SlotCountsCorrect`. ⛔ **A REGEN run (`AI_REGENERATE_SNAPSHOTS=1`) reports 6 — goldens are rewritten mid-run; ALWAYS re-run without the flag before believing a count.** ⛔ **`CE-307` re-pointed two rails that PINNED the retired cap** — `ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped` and `StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002`; their fixtures now size themselves FROM the constant, so the skip-on-overflow MECHANISM is still tested and the threshold can move again without a hand edit |
+| `Hrot.AiEditor.Generators.Tests` | **282 / 4** *(the 4 documented — total **286**)* ⚠ `CE-314` removed one test — `CE-307`'s pinned exception `TheEditorPackersCopy_IsTheKnownException_UntilCe314`, whose whole purpose was to fail when `CE-314` landed. ⚠ was 281/4 total 285; **+1 = `NoTierIsLargerThanTheCeiling`**, **+1 = a golden case for an asset `CE-316` un-skipped**. ⭐⭐ **The 4 are NAMED:** `T30_BehaviorScopedShared_ProofTests.HillAttack_SharedState_PersistsAcrossNodes` · `S3_BehaviorScopedThunkTests.BehaviorScoped_TwoNodes_ShareOneSlot` · `S3_SharedSlotProvisioningTests.Assign_BehaviorScoped_ProvisionsOneSlot_ForSharedVar` · `S3_SharedSlotProvisioningTests.Assign_MixedNodeAndBehaviorScope_SlotCountsCorrect`. ⛔ **A REGEN run (`AI_REGENERATE_SNAPSHOTS=1`) reports 6 — goldens are rewritten mid-run; ALWAYS re-run without the flag before believing a count.** ⛔ **`CE-307` re-pointed two rails that PINNED the retired cap** — `ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped` and `StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002`; their fixtures now size themselves FROM the constant, so the skip-on-overflow MECHANISM is still tested and the threshold can move again without a hand edit |
 | `Fdp.Presentation.Tests` | ⛔ **filter only** — `--filter "FullyQualifiedName~ReplayBrowser"` ⇒ **93 / 0** |
-| ⭐ `Hrot.Editor.AiShared.Tests` | **2058 / 0** — ⚠ **NEW gate row `2026-09-22`.** It was never gated because the project was **unrestored** *(`NETSDK1004`)*; `dotnet restore` once and it runs. ⭐⭐ **It is the bin packer's own suite, so `CE-314` must run it** |
+| ⭐ `Hrot.Editor.AiShared.Tests` | **2048 / 0** *(was 2058 — `CE-314` deleted 13 heavy-tier tests and added 3 replacement rails)* — ⚠ **NEW gate row `2026-09-22`.** It was never gated because the project was **unrestored** *(`NETSDK1004`)*; `dotnet restore` once and it runs. ⭐⭐ **It is the bin packer's own suite, so `CE-314` must run it** |
 | docs | `design-digest --check` · `rulings-check` **38/38** · `tracker-counts --check` · `mermaid-check` |
 
 ⭐ **Golden regeneration switches:** `BLUEPRINT_REGENERATE_SNAPSHOTS=1` *(Blueprints)* ·
@@ -259,7 +261,7 @@ claim, observed on the running product.
 | ✅ **`G4` — CLOSED** | `Idle` registers with no `ParseParams`, no `BlackboardLayoutType`, no manifest ⇒ `RootParamsBytes` = **0** |
 | ✅ **`G5` — ANSWERED, and LATENT** | `subBb` is **`master.{VarName}`** — a *field* of the master struct, so orchestration needs a struct, not `byte`. `BTreeOrchestratorEmitCore:108` types `master` on the **asset's** type *(not `byte`)*, which is why the solution builds. 📐 **Zero** generated `HostedSubtree.Tick` sites ⇒ nothing orchestrates today. ⚠ §2 ③ would trip it |
 | ✅ **`BehaviorValidationScenario` excluded from the BTree tick** | **FILED as `CE-315`** `2026-09-22`. ⭐ Closes for free when §2 ② deletes the struct; filed separately because the scenario is wrong TODAY and the lesson is its own: **dead storage used as a QUERY PREDICATE fails as silent NON-EXECUTION**, which no value-asserting rail can see |
-| 🔴 **`CE-314` — the bin packer's HEAVY arm still targets the deleted `Blackboard1024`** | filed `2026-09-22`. ⭐ **Unreachable since `CE-307`** raised the ceiling, so the PATH is closed — ⛔ the code, `PackTier.Heavy`, `MaxHeavyBytes`, and the authoring window's `RequiresHeavyComponent` *(view model + JSON export key)* are not. ⚠ **Low severity, and the reason is `CE-312`'s generalisation:** the one production caller reads only `ByteSize` — `Tier`/`ByteOffset` are discarded — so no offset into the dead component is ever used. What leaks is a **misleading UI claim**, not corrupt data. ⇒ its own slice, its own rails |
+| ✅ **`CE-314` — DONE `2026-09-22`** *(§30.27)* — the bin packer's heavy arm is REMOVED and `MaxInlineBytes` is **16 096**, so **the editor and the generator finally agree on one ceiling**. ⭐⭐ **The reusable lesson is about the DELETION, not the arm:** of 9 packer tests deleted, **three were the only cover for behaviour that SURVIVES** *(aggregated variables continue the master region's offsets, align across the boundary, and an over-budget pack still resolves every offset)* ⇒ 🔒 **before deleting a test, ask which assertions are about the thing being removed and which merely USED it as a fixture** — a green suite after a deletion proves nothing about what the deletion stopped covering. ⚠ And the boundary fixtures had **already** expired: they hard-coded 25/26 ints against 100, so `CE-307` silently turned them into non-boundary tests that still passed | originally filed `2026-09-22`. ⭐ **Unreachable since `CE-307`** raised the ceiling, so the PATH is closed — ⛔ the code, `PackTier.Heavy`, `MaxHeavyBytes`, and the authoring window's `RequiresHeavyComponent` *(view model + JSON export key)* are not. ⚠ **Low severity, and the reason is `CE-312`'s generalisation:** the one production caller reads only `ByteSize` — `Tier`/`ByteOffset` are discarded — so no offset into the dead component is ever used. What leaks is a **misleading UI claim**, not corrupt data. ⇒ its own slice, its own rails |
 | ⚠ **the two §29 unknowns** | the failing runs reaching the firing line with no spawn-time writer; the 100-byte probe passing 2/2 *before* the fix. ⛔ Neither blocks — ⭐ re-read if `P4` reddens the cluster in a way the unit rails miss |
 
 ---
@@ -274,10 +276,8 @@ claim, observed on the running product.
      | grep -cE "BTREE0002"      # ⭐ expect 0
    ```
    ⚠ **Make this the habit after ANY change to a `[BTreeAction]` signature or to an emitter's `bbShort`.**
-3. ⭐⭐ **Then `CE-314`** *(the packer's dead heavy arm)* — ⛔ it is what holds the LAST copy of the
-   `CE-307` ceiling at 100, so until it lands **the editor refuses a >100-byte authored blackboard while
-   the generator accepts one**. 📐 Only 2 production consumers; its tracker row carries the full worklist.
-   ⚠ Run `Hrot.Editor.AiShared.Tests` *(2058/0)* — it is the packer's own suite.
+3. ✅ **`CE-314` is DONE** — the heavy arm is gone and the editor/generator ceiling inconsistency is
+   closed. ⛔ Nothing to do here.
 4. **Then delete `BrainBlackboard`** *(§2 ②)* — ⛔ **re-run §3's dead-storage check FIRST**; it is what
    found `CE-310`, `CE-311` and `CE-312`. ⭐ It also closes `CE-315` for free.
 5. **§2 ③ and the fork decision *(§5)* are the two that need the USER** — both still open, neither blocking.
