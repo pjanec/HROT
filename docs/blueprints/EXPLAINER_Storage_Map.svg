@@ -90,7 +90,7 @@
   <rect x="350" y="320" width="310" height="26" class="hd"/>
   <text x="358" y="337" class="m">header 32 B + slot table 4×16 B = 96</text>
   <rect x="350" y="350" width="310" height="26" class="box"/>
-  <text x="358" y="367" class="m">payload 928 / 3936 / 16368 B</text>
+  <text x="358" y="367" class="m">payload 176 / 800 / 3808 / 16096 B</text>
   <text x="350" y="392" class="s">ChooseTier(def.StateSize) picks the smallest fit.</text>
   <text x="350" y="410" class="tb">A real allocator:</text>
   <text x="440" y="410" class="s">TryAttach reserves a slot keyed</text>

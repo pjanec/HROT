@@ -142,7 +142,7 @@ graph TB
     end
 
     subgraph "Data"
-        BPBB[BlueprintBlackboard1024/4096/16384<br/>partition-allocated tiers]
+        BPBB[BlueprintBlackboard256/1024/4096/16384<br/>partition-allocated tiers]
         ROOT[root params slot<br/>per behaviour]
         WORK[working-state slots<br/>per stateful node]
 

@@ -446,7 +446,7 @@ everything it needs:
 [ComponentId(GlobalComponentIds.BlueprintBlackboard1024)]
 public unsafe struct BlueprintBlackboard1024
 {
-    public fixed byte Memory[1024];   // 32 B header + slot table + 928 B payload
+    public fixed byte Memory[1024];   // 32 B header + 12-slot table + 800 B payload
 }
 // ...and BlueprintBlackboard256 / 4096 / 16384 for entities that need less or more.
 ```
@@ -481,7 +481,7 @@ and friends) that know nothing about which behaviour is running. See Section 8.
 There is no fixed cap. The bound is **per behaviour** — `RootParamsBytes(def)`, the packed size of
 that behaviour's own variable table — and it is enforced **structurally**: the allocator either finds
 room in the entity's tier or promotes the entity to a larger one. The structural ceiling is the
-largest tier's payload, **16 368 bytes**.
+largest tier's payload, **16 096 bytes**.
 
 ### Why Not Use a Regular Managed Object?
 
@@ -911,9 +911,9 @@ current tier, or promotes the entity to a larger one:
 | tier component | payload available for slots |
 |---|---|
 | `BlueprintBlackboard256` | 176 B |
-| `BlueprintBlackboard1024` | 928 B |
-| `BlueprintBlackboard4096` | 3 936 B |
-| `BlueprintBlackboard16384` | 16 368 B |
+| `BlueprintBlackboard1024` | 800 B |
+| `BlueprintBlackboard4096` | 3 808 B |
+| `BlueprintBlackboard16384` | 16 096 B |
 
 ⭐ That last figure is the **structural ceiling** — and it is enforced by the allocator itself, not by
 a constant anyone has to remember. Overrunning a slot is impossible: the slot table carries each
@@ -2174,7 +2174,7 @@ what is some behavior ever needed a very large parameter structure or a large wo
 A behaviour with a large parameter payload — a high-resolution heat map, deep historical tactical
 context, a pre-computed pathing array — does **not** need anything special: its root params slot is
 sized to the behaviour, and the allocator promotes the entity to a larger tier if the current one
-cannot hold it, up to the 16 368-byte ceiling.
+cannot hold it, up to the 16 096-byte ceiling.
 
 What *does* deserve its own component is data with its own **lifecycle, alignment or network
 replication rules** — data the entity owns rather than the behaviour. That is a Data-Oriented Design

@@ -36,7 +36,7 @@ This DD predates the **Persistence Unification** thread, which makes **JSON the 
 - **Blittable + fixed-size invariant:** editor-owned blackboards (and any embedded Category-1 struct) contain only blittable value types + fixed-length inline arrays — so every occurrence slot is byte-copyable for AAR replay and network replication.
 - **Arrays (Exotic fields, editor-authorable):** `fixed {prim}[N]` for primitives, `[InlineArray(N)]` for blittable structs. Generator must replicate `Sequential` alignment (natural align, capped at 8; pad to 8 before a `fixed long[]`) or editor offsets diverge from the compiler → flight-recorder corruption. **`[InlineArray]` mutation trap:** generated accessors must mutate via `Span<T>` / `MemoryMarshal.CreateSpan` / `Unsafe.As` (never direct index → `ldobj` defensive copy silently lost). Genuinely-exotic layouts (`[FieldOffset]`, unions, interop) stay **Category-1**.
 - **Defaults (editor-authored):** applied in the generated `ParseParamsDelegate` — instantiate DTO → apply defaults → overlay JSON params → `Unsafe.Write`. **Inline tier** only is covered by `BehaviorIngressSystem`; **heavy-tier** defaults need an inline init-check in the execution thunks (verify the 8-byte `StructureHash`; apply if uninitialized), mirroring Blueprint `InitDefaultWorkingState`.
-- **Ceiling:** none below the tier payload — **176 / 928 / 3 936 / 16 368 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`. The bin-packer sizes each slot from its own declaration and lets the allocator promote the entity when a tier fills.
+- **Ceiling:** none below the tier payload — **176 / 800 / 3 808 / 16 096 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`. The bin-packer sizes each slot from its own declaration and lets the allocator promote the entity when a tier fills.
 - **Registration:** the generator emits a per-asset isolated class tagged **`[BlueprintRegistrar]`** (NOT `[FbtRegistrar]`/`[HsmActionRegistrar]`) with a `Register(BehaviorRegistry, BlueprintRegistryStaging)` signature; it compiles+registers the definition and the blackboard struct's offset thunks — BTree via `BehaviorRegistry.RegisterAction/RegisterCondition(…BlueprintBTree{Action,Condition}Delegate)`, HSM via static `HsmActionDispatcher.RegisterAction/RegisterGuard`. Discovered by `AiHotReloadCoordinator` on both full rebuild and in-process quick reload — **no HR-001 change**. (Kernel hooks `BlackboardManaged`, `[BlackboardDtoStruct]`, `[BlackboardReadOnly/ReadWrite]` already exist.)
 
 **Sequencing:** the Persistence-Unification thread lands the JSON substrate first; this feature (the Slice 1.5 tasks below) is implemented/activated **on top of it**. The slice-plan §15 task list stays valid except the persistence-coupled tasks (the `.Blackboard.cs` emitter, source-text parser/classification, State-B/C handling, layout-method order/sync entries), which are **superseded** by the JSON substrate.
@@ -358,7 +358,7 @@ A new docked window registered as `ai_blackboard_variables`, available in both B
 │       Required by: [Reload_BT (Subtree)]                  │
 │                                                           │
 ├──────────────────────────────────────────────────────────┤
-│ Params:  root params slot          (48 / 928 B)          │
+│ Params:  root params slot          (48 / 800 B)          │
 │ State:   working-state slots       (none declared)       │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -427,9 +427,9 @@ If a hand-introduced read-only field carries a `[FieldOffset]` attribute, the fi
 
 ### 4.7 Memory budget indicator
 
-The header shows `Memory: X / Y B` where X is the total the asset's slots use and Y is the payload the entity's current tier can still allocate (**176 / 928 / 3 936 / 16 368 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`).
+The header shows `Memory: X / Y B` where X is the total the asset's slots use and Y is the payload the entity's current tier can still allocate (**176 / 800 / 3 808 / 16 096 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`).
 
-The bar visually fills as variables are added. At 80% of the current tier it turns amber; when the declaration no longer fits, the allocator promotes the entity to the next tier and the budget figure steps up. There is no hard authoring ceiling below **16 368 B**.
+The bar visually fills as variables are added. At 80% of the current tier it turns amber; when the declaration no longer fits, the allocator promotes the entity to the next tier and the budget figure steps up. There is no hard authoring ceiling below **16 096 B**.
 
 ---
 
@@ -624,7 +624,7 @@ public sealed record PackResult(
     IReadOnlyList<PackedVariable> StateFields,     // go to working-state slots
     int ParamsBytesUsed,
     int StateBytesUsed,
-    int TierPayloadAvailable,    // 176 / 928 / 3936 / 16368
+    int TierPayloadAvailable,    // 176 / 800 / 3808 / 16096
     bool RequiresHeavyComponent,
     IReadOnlyList<PackWarning> Warnings);
 
@@ -649,7 +649,7 @@ The bin-packer promotes to heavy as a last resort, but the promotion is transpar
 ```
 Params: 78 B
 State:  240 B
-Tier:   318 / 928 B (BlueprintBlackboard1024)
+Tier:   318 / 800 B (BlueprintBlackboard1024)
 ```
 
 …and the editor handles the rest: emitting the state struct and registering it with the source generator so the thunk that owns it attaches its slot on first dispatch.

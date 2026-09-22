@@ -61,7 +61,7 @@ Investigated 2026-08-03 — captured so the relationship isn't re-derived later.
   the method a live reinterpret-cast `ref`. So an array field is read/written exactly like any field —
   `p.field.Items[i] = x;` mutates in place, zero copy. **A component collection is reachable the same way** via
   `ctx.World.GetComponentRW<C>()`.
-- **There isn't one blackboard — there is one tiered, slot-partitioned home.** `BlueprintBlackboard1024/4096/16384`
+- **There isn't one blackboard — there is one tiered, slot-partitioned home.** `BlueprintBlackboard256/1024/4096/16384`
   holds blueprint `State`/`WorkingState` **and** BTree/HSM *stateful* working-state **and** `GetShared`/`SetShared`
   **and** an action's root params, each in its own keyed occurrence slot. So a **blueprint variable collection**
   lives in a `BlueprintBlackboard*` slot; an **action collection** lives in the action's root params occurrence

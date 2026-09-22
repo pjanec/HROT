@@ -54,9 +54,9 @@ related-designs:
 
 | the wrong conclusion | the truth | evidence |
 |---|---|---|
-| *"the 100-byte region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.BlackboardLayoutType` *(named `ParamsDtoType` until `CE-235`)* is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
-| *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in the same 100 bytes | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
-| *"the heavy tier moves params"* | ⛔ **heavy extends STATE, never INPUT** | `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy from the component |
+| *"the params region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.BlackboardLayoutType` *(named `ParamsDtoType` until `CE-235`)* is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
+| *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in that root behaviour's own root params slot, same as any other | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
+| *"a larger tier moves params"* | ⛔ **there is no heavy tier — an occurrence's params and its working state are both ordinary occurrence slots, differing only in key** | `EmitHeavySharedAiAdapter` emits **both**: params from the root params slot, "heavy" from an ordinary extra ECS component |
 | *"`BP1031` means nothing supplies params"* | ⛔⛔ **RETIRED — the rail is GONE.** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*. ⚠ It was true of `Instance` dispatch only, and that is why it went | `Stage2_Validate.cs:168` · `BP-278` |
 | *"`Q-k` means blueprint variables differ"* | ⛔ **It describes a MISSING MOVE IMPLEMENTATION**, not a semantic difference | §5.2 |
 | *"copy the whole occurrence-scoped region per occurrence"* | ⛔ **params area only** — interrupts/soft-advice are entity facts, in `BrainInterrupts` | §4.3 |
@@ -220,7 +220,7 @@ public unsafe delegate void ParseParamsDelegate(string json, byte* memory, Entit
 
 | caller | passes as `memory` |
 |---|---|
-| `BehaviorIngressSystem` | `&bb.BehaviorParameters[0]` |
+| `BehaviorIngressSystem` | byte 0 of the **root params slot** (`RootParamsAccess.RootRef`/`ResolveOrAttachRoot`) |
 | ⭐ **an Instance attach** | **`slotPayload + paramsOffset`** — its own slot |
 
 ⇒ **the pipeline is reused UNCHANGED; only the pointer differs.**
@@ -404,7 +404,7 @@ VALUES are `E3b`** — `Q41-C1′`'s resolve hook, then `C2′` — both approve
 `IHostVariableAccess` is still **zero-implementer**, and this section does not change that.
 
 ⭐ **The seed and its re-supply** are §28.4 there: the slot is seeded from
-`BehaviorParameters[0] + 0` on first attach — *the exact bytes the thunk read before* — and
+the root params slot on first attach — *the exact bytes the thunk read before* — and
 `BehaviorIngressSystem.DetachHostedOccurrenceSlots` drops it on re-assign so new JSON still lands.
 ⛔ **Without that detach the move would be a REGRESSION**, because the thunk used to read the
 blackboard live.
@@ -415,7 +415,7 @@ blackboard live.
 
 | | |
 |---|---|
-| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch the blackboard's members ⇒ `ref bb.BehaviorParameters` → `ref bb` at 3 generator emit sites, the interpreter type argument, one line in `BTreeTickSystem` |
+| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch a blackboard component's members ⇒ swap the root-slot base expression at 3 generator emit sites, the interpreter type argument, one line in `BTreeTickSystem` |
 | **Blueprint** | ⚠ moderate — `BlueprintSlotEntry`, `TryAttach`, `TryGetSlotOffset`, attach/detach events, `FieldLayout`. **No kernel change.** ⚠ `InstanceVersion` is **NOT free** — it is the latent-cursor staleness token |
 | **HSM** | ⚠ larger, ✅ **user accepted** — ⭐ **`r` (region) and `current` (state) are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening + thunk regeneration, **not** a data-flow redesign. ⚠ a `FastHSM` `ExtDeps` change. ⭐ **The params-base change folds into the same seam** |
 

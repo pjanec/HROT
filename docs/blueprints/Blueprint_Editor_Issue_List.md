@@ -168,10 +168,11 @@ Verified asymmetry — the two hosts have **opposite** halves of the solution:
 | **BTree** | ✅ 16 refs in `BTreeBridgeEmitCore` | ❌ none (only `NestedParallel`) |
 | **HSM** | ❌ **0 refs** in `HsmBridgeEmitCore`; no compose command | ✅ `CheckConcurrentStatefulSubtrees` + `CheckConcurrentSharedScopeKeys` |
 
-- **BP-30 (REAL WORK):** HSM-hosted AiPrimitives still resolve to a single occurrence slot keyed by asset
-  only (no per-node-instance key), guarded by one `StructureHash`. Two stateful AiPrimitives on one HSM
-  entity alternately `InitBlock`-zero and re-init each other every tick — **neither retains state**.
-  Reuses the FNV key math verbatim; needs a new emitter surface + compose command.
+- **BP-30 (RESOLVED):** HSM-hosted AiPrimitives key their occurrence slot on the **(region, state)**
+  pair the kernel stamps on `HsmCommandWriter` before every dispatch, combined with the asset id —
+  `HsmOccurrence.KeyFor(instance, AssetId, writer)`, emitted at `AiPrimitiveEmitter.cs:623`. Two
+  stateful AiPrimitives on one HSM entity therefore occupy **distinct slots** and each retains its own
+  state. The thunk throws rather than guessing if it is ever dispatched without an occurrence stamp.
 - **BP-31 (SMALL):** port HSM's concurrent-stateful validators to `BTreeValidator` — a Subtree
   referenced twice under a `Parallel` is currently unguarded.
 - **Test gap:** no test covers *two different* blueprint-authored AiPrimitive assets concurrently on one

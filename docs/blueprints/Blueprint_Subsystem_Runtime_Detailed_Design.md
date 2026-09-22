@@ -48,7 +48,7 @@ The runtime layer is the engine-side machinery that makes generated Blueprint co
 Specifically, the runtime owns:
 
 - **`BlueprintRegistry`** — the in-memory store of compiled `BlueprintDefinition`s, populated by `[BlueprintRegistrar]` classes during hot reload, queried by tick systems.
-- **`BlueprintBlackboard{256,1024,4096,16384}` components** — the three storage tiers for Instance-dispatch state.
+- **`BlueprintBlackboard{256,1024,4096,16384}` components** — the four storage tiers for Instance-dispatch state.
 - **`BlueprintBlackboardPartitions`** — the partition allocator that slices a tier component into per-Blueprint slots.
 - **`BlueprintTickSystem`** — the Simulation-phase system that ticks all Instance Blueprints across all entities, with per-slot reload reconciliation.
 - **`BlueprintMaintenanceSystem`** — the BeforeSync-phase system that performs tier upgrades.

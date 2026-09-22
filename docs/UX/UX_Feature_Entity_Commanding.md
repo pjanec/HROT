@@ -214,7 +214,7 @@ not touch these:**
 >
 > | Owner | What it holds |
 > |---|---|
-> | the **root-params occurrence slot** | `BehaviorParameters` — a **polymorphic per-behavior region**, projected via `Unsafe.As`, sized per-behaviour by `RootParamsBytes(def)` |
+> | the **root-params occurrence slot** | the active behavior's params DTO — a **polymorphic per-behavior region**, projected via `Unsafe.As`, sized per-behaviour by `RootParamsBytes(def)` |
 > | `BrainInterrupts` *(a small, dedicated per-entity component — entity facts, never per-occurrence)* | `ExpectedThreatLevel` — 🔴 written by **`RouteContextSystem`** (`:190`), on its own cadence — and `Interrupt_MobilityLost` / reserved — 🔴 `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears |
 >
 > ⇒ **The new behavior redefines the params region completely**; anything past its DTO is outside its

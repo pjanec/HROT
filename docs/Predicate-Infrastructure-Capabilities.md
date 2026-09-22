@@ -3,9 +3,9 @@
 > ## Storage model — occurrence slots
 >
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** is
-> authoritative for WHERE bytes live: the per-entity brain-state components (`BrainBTreeState`,
-> `BrainHsm64/128`) and the behaviour's params and working state all address into **per-occurrence
-> slots** of the partition allocator, over the same `BlueprintBlackboard{256,1024,4096,16384}` tier
+> authoritative for WHERE bytes live: the behaviour's params and its nodes' working state address into **per-occurrence slots** of the
+> partition allocator. ⚠ The per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
+> are **not** in slots — they are still their own components; moving them is designed, not built, over the same `BlueprintBlackboard{256,1024,4096,16384}` tier
 > components. This is the build-out of
 > [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 >
@@ -88,7 +88,7 @@ These are normally nested inside a parent matcher's `Predicate` field, never use
 | DTO | What it inspects |
 |---|---|
 | **`BehaviorParamPredicateDto`** | A typed field projected over the **root params occurrence slot** (behaviour params) **or** a **node working-state occurrence slot** (AiPrimitive / shared-AI state), selected by an `int WorkingSlotKey` (`0` = root params slot, otherwise a `StatefulSlotInfo.SlotKey`) and resolved through the same occurrence slot-table walk `BlueprintVariablePredicateDto` uses. Carries a `BehaviorId` hash so the compiler can short-circuit when the active behaviour doesn't match, then `Unsafe.AsRef<T>` over the correct DTO type. |
-| **`BlueprintVariablePredicateDto`** | A named variable inside a dynamically-allocated slot of `BlueprintBlackboard1024/4096/16384`. Compiler emits IL that walks the slot table at `BlueprintBlackboardPartitions.TryGetSlotOffset`, short-circuits on miss, then reads at `payloadOffset + fieldOffset`. Tier upgrades don't invalidate the compiled delegate — the slot lookup runs every evaluation. |
+| **`BlueprintVariablePredicateDto`** | A named variable inside a dynamically-allocated slot of `BlueprintBlackboard256/1024/4096/16384`. Compiler emits IL that walks the slot table at `BlueprintBlackboardPartitions.TryGetSlotOffset`, short-circuits on miss, then reads at `payloadOffset + fieldOffset`. Tier upgrades don't invalidate the compiled delegate — the slot lookup runs every evaluation. |
 | **`TraceBufferScanPredicateDto`** | Any record in `BTreeTraceWorkingMemory1024` or `HsmTraceWorkingMemory1024` (16-byte stride ring buffer, up to 63 records). Matches on `OpCode` plus optional `IndexField` (node/state index), `StatusField` (NodeStatus or GuardResult), `TriggerEventId`. Lets you express "did B-Tree node X enter Running this tick?", "did HSM exit state Y?", "was transition Z fired?". |
 
 ### 2.5 Event-bus matchers
@@ -250,7 +250,7 @@ A condition over entity state and AI memory can be expressed as one of these sha
 | "Did the entity enter `LocomotionAction.Flee`?" | `PropertyMatchDto(Locomotion, "ActiveAction", Numeric{Min=Max=(int)Flee})` |
 | "Did B-Tree node 7 just enter Running?" | `TraceBufferScanPredicateDto(BTreeTraceWorkingMemory1024, OpCode=NodeEvaluated, IndexField=7, StatusField=Running)` |
 | "Did HSM transition fire on event 42?" | `TraceBufferScanPredicateDto(HsmTraceWorkingMemory1024, OpCode=Transition, TriggerEventId=42)` |
-| "Is `BehaviorState.ActiveBehaviorHash` == HillAttack AND `BehaviorParameters.Aggression > 0.8`?" | `BehaviorParamPredicateDto(WorkingSlotKey=0, BehaviorId=HillAttack.Hash, "Aggression", Numeric{Min=0.8})` (the behaviour-hash check is implicit; `WorkingSlotKey=0` selects the root params slot) |
+| "Is `BehaviorState.ActiveBehaviorHash` == HillAttack AND the active behavior's root-params `Aggression` field > 0.8?" | `BehaviorParamPredicateDto(WorkingSlotKey=0, BehaviorId=HillAttack.Hash, "Aggression", Numeric{Min=0.8})` (the behaviour-hash check is implicit; `WorkingSlotKey=0` selects the root params slot) |
 | "Did a Blueprint variable `AmmoCount` reach 0?" | `BlueprintVariablePredicateDto(MyAsset.Guid, "AmmoCount", Numeric{Min=Max=0})` |
 | "Has a `HitEvent` with `Damage > 50` been published this tick?" | `TransientEventPredicateDto(HitEvent, AnyOccurrence=false, "Damage", >, "50")` |
 | "Did the entity enter the polygon over there?" | `SpatialBoundingPredicateDto(SimTransform, "Position.X", "Position.Y", bounds=…, Entry)` |

@@ -19,10 +19,11 @@ No `README.md` exists in the project folder. This document serves as the primary
 FDP-specific rules at **compile time** and generates **boilerplate registration code** so that
 no runtime reflection or hand-written dispatch tables are needed.
 
-The project contains **one pure diagnostic analyzer** and **six source generators**:
+The project contains **two pure diagnostic analyzers** and **six source generators**:
 
 | Component                    | Kind                   | Primary concern                                          |
 |------------------------------|------------------------|----------------------------------------------------------|
+| `BehaviorParameterSizeAnalyzer` | DiagnosticAnalyzer  | `FDP_001` — a 100-byte ceiling on a root behaviour's params DTO |
 | `BTreeActionGenerator`       | IIncrementalGenerator  | Emit `FbtActionRegistrar.g.cs` for BTree action dispatch |
 | `BTreeDefinitionGenerator`   | IIncrementalGenerator  | Emit `FbtTreeCatalog.g.cs` for named tree catalog        |
 | `HsmActionGenerator`         | IIncrementalGenerator  | Emit `HsmActionDispatcher/Registrar.g.cs` for HSM        |
@@ -37,7 +38,15 @@ The project contains **one pure diagnostic analyzer** and **six source generator
 component (`BlueprintBlackboard256/1024/4096/16384`) the entity's partition allocator chose
 for it. A DTO too large for its tier's remaining payload fails **at attach time**, loudly, in
 `BehaviorIngressSystem` — there is no fixed-size adjacent region for it to silently overflow
-into.
+into, and the real ceiling is the largest tier's payload, **16 096 bytes**.
+
+⚠ **`BehaviorParameterSizeAnalyzer` still enforces a 100-byte ceiling on a root behaviour's
+params DTO** (`FDP_001`), mirroring `BehaviorConstants.MaxBehaviorParamByteSize` in its own
+`private const`. That ceiling predates the allocator and its stated justification no longer
+holds — its message warns about corrupting adjacent registers that are now a separate
+component, `BrainInterrupts` — so it is **160× below the structural bound and scheduled for
+retirement** (`CE-307`). Until it is removed, an oversized root params DTO is still a build
+error, so size against **100 bytes**, not against the tier payload.
 
 The source generators eliminate a class of maintenance problems:
 
@@ -261,7 +270,12 @@ Fires on every method symbol.  For each `[SharedAiActionAttribute]` or
 
 Size computation is intentionally duplicated from `BTreeActionGenerator` and `HsmActionGenerator`
 because the analyzer targets `netstandard2.0` and cannot reference the runtime assembly that
-defines `BehaviorConstants.MaxBehaviorParamByteSize`.
+defines `BehaviorConstants.MaxBehaviorParamByteSize`. ⚠ **This 100-byte check is a legacy holdover
+from the deleted `BrainBlackboard` layout and is scheduled for retirement** — the storage model it
+was guarding no longer has a fixed cap (params live in a per-behaviour root-params occurrence slot,
+structurally bounded by the tier ladder up to 16 096 bytes; see
+`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15). The analyzer still enforces
+100 bytes today; it has not yet been removed.
 
 **Struct layout rules implemented**:
 - Sequential: fields are packed with natural alignment; total size rounded up to struct alignment.
@@ -327,7 +341,8 @@ Recognized attributes (all from `Fbt.Kernel` namespace):
 
 - **SharedAi**: attribute carries `(dtoType, fieldName)`.  Generator resolves the byte offset
   of `fieldName` inside `dtoType` at compile time, emits a lambda that projects
-  `bb.BehaviorParameters[offset]` as `ref fieldType` and calls the user method.
+  `ref bb` at `+offset` as `ref fieldType`, where `bb` is byte 0 of the root params occurrence
+  slot the tick system resolved, and calls the user method.
   Key: `"{FQN}@{offset}"`.
 
 - **SharedAiHeavy**: additionally fetches a second ECS component (`heavyCompType`).
@@ -573,7 +588,7 @@ source while the output assembly remains `netstandard2.0`-compatible.
 **Before (compile error)**:
 
 ```csharp
-// MyDto is 104 bytes - exceeds the 100-byte BehaviorParameters limit
+// MyDto is 104 bytes - exceeds the analyzer's legacy 100-byte root-params cap
 [StructLayout(LayoutKind.Sequential)]
 public struct MyDto
 {
@@ -808,8 +823,10 @@ BehaviorTreeBlob patrolBlob = MyAssembly.Generated.FbtTreeCatalog.GetPatrol();
    by multiple generators.  Duplicating a `DiagnosticDescriptor` with the same ID across
    classes triggers RS1019.
 
-10. **Do not suppress FDP_001 without a code review**.  This diagnostic exists to prevent
-    silent memory corruption.  Any suppression must be reviewed and justified in a comment.
+10. **Do not suppress FDP_001 without a code review**.  It is a legacy 100-byte cap pending
+    retirement (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.11) but is still the
+    only compile-time guard on params DTO size until then.  Any suppression must be reviewed
+    and justified in a comment.
 
 ---
 

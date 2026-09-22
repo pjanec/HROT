@@ -460,7 +460,7 @@ cluster and fully populated on the editor, which reads exactly like *"the params
 ⛔ **False.** The dump decodes that blob against the **active behaviour's** params DTO; once
 `ActiveBehaviorHash` is `0` there is no DTO, so it renders empty **whatever the bytes hold.** Stepping the
 same node from `t=0` showed the cluster's params byte-identical to the editor's from the first frame.
-⇒ ⭐⭐ **an empty `BehaviorParameters` next to `ActiveBehaviorHash: 0` is a rendering artefact, not a
+⇒ ⭐⭐ **an empty root params slot next to `ActiveBehaviorHash: 0` is a rendering artefact, not a
 measurement.**
 
 ### 9.3 ⭐⭐ THE TRANSLATOR COUNTERS ANSWER *"DID IT EVEN LEAVE?"* IN ONE CALL

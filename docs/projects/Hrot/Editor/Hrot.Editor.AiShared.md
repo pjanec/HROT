@@ -824,7 +824,8 @@ public sealed record ActionSchemaEntry(
     string          ShortName,     // "FireAtTarget"
     Type            DtoType,       // first ref parameter type
     ActionHosting   Hostings,      // BTreeAction | HsmAction | SharedAi | Heavy
-    BlackboardAccess ParamAccess); // ReadOnly | ReadWrite | Unknown
+    BlackboardAccess ParamAccess,  // ReadOnly | ReadWrite | Unknown
+    Type?           HeavyDtoType); // the extra component's DTO for [SharedAiHeavyAction]; null otherwise
 
 [Flags]
 public enum ActionHosting

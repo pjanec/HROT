@@ -177,7 +177,7 @@ noted. All are named constants in code (cite shown).
 |---|---|---|---|
 | Registered component types (`BitMask512`) | **511** max ID | out-of-range, guarded only in `FDP_PARANOID_MODE` | `FDP/Engine/Fdp.Core/ComponentIdAttribute.cs:20` |
 | ECB unmanaged component payload | **1024 B** | throws `ArgumentException` at record | `FDP/Engine/Fdp.Core/EntityCommandBuffer.cs:35` |
-| `BehaviorParameters` DTO | **100 B** | compile error FDP_001 / startup throw | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26` |
+| Root params occurrence slot (analyzer-enforced, not structural — see note below) | **100 B** | compile error FDP_001 / startup throw | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26` |
 | Channel `Params` / `State` buffers | **32 B each** (≤96 B struct) | corrupts adjacent state | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:10-16` |
 | Action types per dispatcher channel | **64** (0 = none) | — | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:31` |
 | Mission plan phases | **8** | excess tasks dropped + Warn | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/MissionComponents.cs:143` |
@@ -215,9 +215,14 @@ noted. All are named constants in code (cite shown).
 >   while `CODE-STANDARDS.md:94` and the architecture narrative still say **256 / `BitMask256`**.
 >   `BitMask256` exists and is the 32-byte query/header mask, but the registrable-ID ceiling
 >   the runtime enforces is 511. Treat 511 as authoritative; fix the docs.
-> - The behavior-parameter cap is **100 B** in code (FDP_001 + `BehaviorConstants.cs:27`),
->   while `AI_DEV_GUIDE.md:859` describes a **60-byte** parameter region in a 128-byte
->   blackboard. Treat **100 B** as authoritative.
+> - The behavior-parameter cap enforced at compile time is **100 B** (FDP_001 +
+>   `BehaviorConstants.cs:27`), while `AI_DEV_GUIDE.md:859` describes a **60-byte** parameter
+>   region. Both numbers describe the deleted fixed-size blackboard model and neither is the
+>   structural bound any more: params live in a per-behaviour root-params occurrence slot,
+>   sized by `RootParamsBytes(def)` and capped only by the tier ladder (up to 16 096 B). The
+>   100 B analyzer check is a legacy holdover pending retirement
+>   (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.11) — until then, **100 B** is
+>   what actually gates a build.
 
 ---
 

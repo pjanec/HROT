@@ -15,7 +15,7 @@ The WorkingState `Type` is known at codegen (`WorkingStateTypeId` FQN) but dropp
 
 ## Reusable read idiom (proven — `RootParamsProjection`)
 For an entity + its active `BehaviorDefinition`:
-- **Params (stateless / Slice-1):** for each `ManagedBlackboardVariable`, `Marshal.PtrToStructure((IntPtr)(bb.BehaviorParameters + ByteOffset), v.Type)` → `ImGuiPropertyTree.Render`.
+- **Params (stateless / Slice-1):** for each `ManagedBlackboardVariable`, `Marshal.PtrToStructure((IntPtr)(ref bb + ByteOffset), v.Type)` → `ImGuiPropertyTree.Render`, where `bb` is byte 0 of the entity's root params occurrence slot, resolved via `RootParamsAccess`.
 - **WorkingState (Slice-2):** for each `StatefulSlotInfo`, `TryGetSlotOffset(memory, SlotKey, out off)` on whichever `BlueprintBlackboard*` tier the entity carries, then `Marshal.PtrToStructure((IntPtr)(memory + off), WorkingStateType)` → `ImGuiPropertyTree.Render`. Active behavior via `BehaviorState.ActiveBehaviorHash` + `BehaviorRegistry`.
 
 ---

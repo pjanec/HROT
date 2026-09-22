@@ -997,9 +997,9 @@ blackboard at all** (`Method(ref field, ctx.Self, ctx.World)`). ⇒ the blackboa
 locate the params. Interrupts and soft advice stay on the component.
 
 ⭐⭐ **Cheaper than the whole-struct version I first leaned to:** ⭐ **BTree needs NO `ExtDeps` change** —
-`NodeLogicDelegate`/`Interpreter` are generic and never touch the blackboard's members, so the edit is
-`ref bb.BehaviorParameters` → `ref bb` at three generator emit sites, the interpreter's type argument,
-and one line in `BTreeTickSystem`. ⭐ **HSM folds into the `ExecuteAction` signature widening
+`NodeLogicDelegate`/`Interpreter` are generic and never touch a blackboard component's members, so the
+edit is swapping the root-slot base expression at three generator emit sites, the interpreter's type
+argument, and one line in `BTreeTickSystem`. ⭐ **HSM folds into the `ExecuteAction` signature widening
 occurrence-keying already needs** — one seam, two problems.
 
 📌 **Multiple BTrees/HSMs per entity: ⛔ not as PEERS** *(root exclusivity is what preemption is defined

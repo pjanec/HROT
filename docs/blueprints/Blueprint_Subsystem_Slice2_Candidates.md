@@ -103,7 +103,7 @@ Authoring tools that perform structural transformations across multiple assets. 
 
 The Slice-1/Slice-2 authoring surface exposes several concepts that are individually reasonable but collectively opaque to a non-programmer author:
 
-- **Params vs WorkingState** — sync-in inputs (baked into `BehaviorParameters`, `Role=Input`) versus per-tick mutable state (`Role=State`), and why a composed node auto-creates *two* blackboard variables.
+- **Params vs WorkingState** — sync-in inputs (baked into the root params occurrence slot, `Role=Input`) versus per-tick mutable state (`Role=State`), and why a composed node auto-creates *two* blackboard variables.
 - **`WorkingStateScope` = Node / Behavior / Entity** — private-per-node vs shared-across-co-bound-nodes vs shared-across-behavior-switches/entities, and the slot-key math each implies (`FNV(assetId++nodeVisualId)` / `FNV(assetId++variableId)` / `FNV(variableId)`).
 - **`GetShared`/`SetShared`** — the second-slot accessor, its named-`variableId` keying, the `[BlackboardDtoStruct]` Category-1 shared struct contract, cross-entity read (target-`Entity` pin), and the owner-provisions / members-read / not-ready→`false` protocol.
 - **Default values** — where blueprint Param defaults come from vs host-BTree variable defaults.

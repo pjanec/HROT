@@ -4,9 +4,10 @@
 >
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** §30 is the build-out
 > of this question. The root behaviour's params and per-node AiPrimitive working state now live in
-> **per-occurrence slots** of the partition allocator, inside the same three tier components
-> (`BlueprintBlackboard1024`/`4096`/`16384` — **no rename**; there is no separate per-entity brain-state
-> component any more). It is the answer to **this question**, which the user parked on `2026-08-17` and
+> **per-occurrence slots** of the partition allocator, inside the same four tier components
+> (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). ⚠ `BrainBTreeState` /
+> `BrainHsm64` / `BrainHsm128` are still separate per-entity components; moving them into slots is
+> designed but not built. It is the answer to **this question**, which the user parked on `2026-08-17` and
 > reopened on `2026-09-19`.
 >
 > ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT RESOLVES.** ⛔ The PARKED banner below is HISTORY: the
@@ -48,7 +49,7 @@
 | | measured |
 |---|---|
 | ✅ **hardcoded behaviours would NOT be harmed** | 📐 **every direct `bb.BehaviorParameters[0]` reference in the repo is inside an EMITTER.** Hand-written node methods take `ref dto`; hand-written resolvers take a destination `byte*`. ⭐ **Both are already base-agnostic** — 📄 `DESIGN_Parameter_Model.md` §4.2 says so and the code matches ⇒ **the change is "emitters emit a different base expression"** |
-| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all three `BlueprintBlackboard{256,1024,4096,16384}` are `[DataPolicy(NoScenario)]` — **snapshotted AND recorded alike** |
+| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all four `BlueprintBlackboard{256,1024,4096,16384}` are `[DataPolicy(NoScenario)]` — **snapshotted AND recorded alike** |
 
 ### ⚠ The two costs that are real
 
@@ -82,7 +83,7 @@ component")*, just resolved by removing the component rather than narrowing it.
 |---|---|
 | ⭐ **`Q36-C`** *(never written)* | *"where does a hosted child's params base come from"* — ⛔ **stops being a separate question**: if params always come from the allocator, there is one answer |
 | ⭐⭐ **`E3`'s scope** | `E3` is *"resolve the base instead of baking it"*. ⭐ **Under `A`/`B` that IS the change**, with no root/child branch ⇒ ⚠ **`E3` built before this decision would be partly rework** |
-| ⚠ **the 100-byte cap** | dissolves for children — their region comes from a 928 / 3936 / 16368-byte tier |
+| ⚠ **the fixed cap** | ⭐ **already dissolved** — every occurrence's region comes from its tier's payload (176 / 800 / 3 808 / 16 096 B, `DESIGN_Occurrence_Scoped_Storage.md` §30.15), not a fixed constant |
 
 ---
 

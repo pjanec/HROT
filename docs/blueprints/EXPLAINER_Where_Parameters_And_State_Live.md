@@ -37,7 +37,7 @@ Everything an entity's brain owns lives in **one** component — the smallest
 | ⭐ **an Instance blueprint slot** | Instance blueprint state | the blueprint's state struct | `BlueprintInstanceService.AttachToEntity` |
 | a managed heavy component *(outside the store)* | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
 
-The tier payloads are **176 / 928 / 3 936 / 16 368 B**; the allocator promotes an entity to a larger tier
+The tier payloads are **176 / 800 / 3 808 / 16 096 B**; the allocator promotes an entity to a larger tier
 rather than refusing an allocation.
 
 ⭐ **The store is `[DataPolicy(NoScenario)]`.** Nothing here is serialised — inputs are **re-supplied at

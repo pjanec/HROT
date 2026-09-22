@@ -119,4 +119,4 @@ user's instinct *"are we building authoring for a not-ready runtime?"* was corre
 | ✅ **class ② stays shared** | `State@Behavior`/`@Entity` are **meant** to be one region per behaviour/entity. ⛔ **Adding an occurrence to their key would be a bug, not an improvement** |
 | ✅ **hand-written DTOs are untouched** | 📄 `DESIGN_Parameter_Model.md` §4.2 — a DTO's offsets are **relative to the struct base** ⇒ **same offsets, different instance** |
 | ✅ **`StructureHash` / `persistence-shape`** | ⛔ **must not move** — this is runtime storage and thunk text. ⭐ **Batch 73's generated-code tier is what watches it** |
-| ⛔ **the 100-byte tail** | interrupts and soft advices have **no relation to params** — 📄 §4.3, user correction. **Carry the params area only** |
+| ⛔ **the interrupt tail** *(now its own `BrainInterrupts` component)* | interrupts and soft advices have **no relation to params** — 📄 §4.3, user correction. **Carry the params area only** |

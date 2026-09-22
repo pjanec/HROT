@@ -575,8 +575,9 @@ See [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md).
    ```
 
 3. Use the `Hrot.BTree.Editor` canvas to compose the tree visually, or write it using
-   the `BTreeBuilder<byte, BTreeContext>` fluent API directly — the tree ticks against a
-   `byte` ref into the entity's root params occurrence slot.
+   the `BTreeBuilder<MyPatrolParams, BTreeContext>` fluent API directly (the builder's own DTO type
+   is a build-time-only key for `Marshal.OffsetOf` in selector-form bindings; the compiled tree ticks
+   against the root params occurrence slot regardless of what you name it here).
 
 4. Register the behavior in `AiBehaviorFactory` with a unique integer ID (use 3000+
    range per project convention):
@@ -794,8 +795,10 @@ predictable 60 Hz tick latency regardless of tree complexity.
 BTree action dispatch tables, HSM action dispatch tables, gizmo registrar tables, and
 TKB descriptor registrations are all emitted by Roslyn source generators. Adding a new
 behavior, gizmo, or descriptor DTO requires only the domain attribute -- no manual
-registration. The generators also enforce invariants at compile time (e.g. `FDP_001`
-enforces the 100-byte `BehaviorParameters` limit).
+registration. The generators also enforce invariants at compile time (e.g. `FDP_001`,
+a legacy 100-byte cap on `[SharedAiAction]`/`[SharedAiCondition]` DTOs pending retirement
+— the actual root-params slot has no fixed size; it is bounded per-behaviour by the
+occurrence-slot tier ladder, up to 16 096 B).
 
 **8. Blueprint scripting as a compile-time and runtime concern**
 Blueprint `.bp.json` assets can be compiled at MSBuild time (via

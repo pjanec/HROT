@@ -686,8 +686,7 @@ AssignmentSlot (64 bytes, Sequential):
 Access:
 
 ```csharp
-ref var bb    = ref repo.GetComponentRW<SquadCognitiveState>(leader);
-ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+ref var state = ref repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
 long target   = state.GetAssignedTarget(memberRosterIndex);
 ```
 
