@@ -3,10 +3,12 @@
 > ## Storage model — occurrence slots
 >
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** is
-> authoritative for WHERE bytes live: the behaviour's params and its nodes' working state address into **per-occurrence slots** of the
-> partition allocator. ⚠ The per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> are **not** in slots — they are still their own components; moving them is designed, not built, over the same `BlueprintBlackboard{256,1024,4096,16384}` tier
-> components. This is the build-out of
+> authoritative for WHERE bytes live: **every occurrence's storage is a per-occurrence slot** of the
+> partition allocator, over the `BlueprintBlackboard{256,1024,4096,16384}` tier components — the
+> behaviour's params, its nodes' working state, and the kernel's own tree/HSM instance state alike.
+> ⭐ `O4` gives the root behaviour's state its own slot and `O7c` moves the HSM instance into one,
+> **deleting `BrainHsm64`/`BrainHsm128`**; those two slices are the remaining build.
+> This is the build-out of
 > [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 >
 > ⚠ **`BehaviorParamPredicateDto`'s two buffers — the root params occurrence slot and a node

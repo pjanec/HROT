@@ -5,10 +5,12 @@
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** §30 is the build-out
 > of this question. The root behaviour's params and per-node AiPrimitive working state now live in
 > **per-occurrence slots** of the partition allocator, inside the same four tier components
-> (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). ⚠ `BrainBTreeState` /
-> `BrainHsm64` / `BrainHsm128` are still separate per-entity components; moving them into slots is
-> designed but not built. It is the answer to **this question**, which the user parked on `2026-08-17` and
-> reopened on `2026-09-19`.
+> (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). It is the answer to **this question**,
+> which the user parked on `2026-08-17` and reopened on `2026-09-19`.
+>
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
+> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
+> Those two slices are the remaining build.
 >
 > ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT RESOLVES.** ⛔ The PARKED banner below is HISTORY: the
 > user reopened it on `2026-09-19` and chose **option `B`** *(unify AND add a smaller tier)*. ⭐ The

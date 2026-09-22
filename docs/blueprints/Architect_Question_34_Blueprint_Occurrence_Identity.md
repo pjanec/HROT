@@ -6,9 +6,14 @@
 > behaviour params component and the AiPrimitive working-state component entirely — there is no
 > per-entity blackboard component of any kind any more — moving both **the root params** (keyed by
 > `OccurrenceSlotKey.ComputeRootParamsKey`) and every node's working state into **per-occurrence
-> slots** of the partition allocator. ⚠ The per-entity brain-state components (`BrainBTreeState`,
-> `BrainHsm64/128`) are **not** part of that move — they are still their own components today. The
-> tier components keep their names, `BlueprintBlackboard{256,1024,4096,16384}`. It is the build-out of
+> slots** of the partition allocator. The tier components keep their names,
+> `BlueprintBlackboard{256,1024,4096,16384}`.
+>
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
+> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
+> Those two slices are the remaining build.
+>
+> It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
 >

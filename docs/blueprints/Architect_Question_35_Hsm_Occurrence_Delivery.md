@@ -5,10 +5,12 @@
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** §30 is the build-out
 > of [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md). The root behaviour's
 > params and per-node working state now live in **per-occurrence slots** of the partition allocator,
-> inside the same four tier components (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). ⚠ `BrainBTreeState` /
-> `BrainHsm64` / `BrainHsm128` are still separate per-entity components; moving them into slots is
-> designed but not built. The user parked that question on
-> `2026-08-17` and reopened it on `2026-09-19`.
+> inside the same four tier components (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**).
+> The user parked that question on `2026-08-17` and reopened it on `2026-09-19`.
+>
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
+> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
+> Those two slices are the remaining build.
 >
 > ⭐⭐ **§7's ruling is IMPLEMENTED there, not re-decided** — `HsmCommandWriter` + the
 > `(regionSlotIndex, stateId)` pair, one path, guards unserved. ⚠ An early draft of that design
