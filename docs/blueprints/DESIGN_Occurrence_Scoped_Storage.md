@@ -5287,3 +5287,306 @@ reason to exist rather than being deleted as "about a retired type".
 ⚠ **A load flake, confirmed not a regression:** `T35_SharedWorkingState_ProofTests` reddened in the
 full run and passed **2/2 in isolation** — the documented rotating family. The suite returned to
 **281 / 4** with the 4 documented reds.
+
+---
+
+### 30.25 ⭐⭐⭐ `P4`-④ AS BUILT — **the cap was never a deletion, and the ORDER was the whole problem** *(`CE-307`, `2026-09-22`)*
+
+> 🔒 **User:** *"Capping no longer needed as we allocate as much as we need, no?"* — ⭐ **correct, and
+> §30.15 had already measured the real ceiling at 16 096. What §30.15 did NOT have is the list of
+> sites, and two of them read 100 as a WIDTH.**
+
+#### 🔴🔴🔴 ① THE SURFACE WAS SEVEN SITES, NOT THREE — **and `CE-307`'s own row named only three**
+
+| # | site | what it did with `100` | after |
+|---|---|---|---|
+| 1 | `BehaviorConstants.MaxBehaviorParamByteSize` | source of truth | ⭐ **KEPT AT 100** — see ③ |
+| 2 | `BehaviorParameterSizeAnalyzer` | 🔴 **compile ERROR** on a `[SharedAiAction]` DTO | repointed → 16 096 |
+| 3 | `BehaviorRegistry.Register` | 🔴 **runtime THROW** at registration | repointed → 16 096 |
+| 4 | `BlackboardBinPacker.MaxInlineBytes` | editor warn **+ spill to a deleted component** | 🔴 **LEFT AT 100 — the one copy not raised.** See ⑥ |
+| 5 | 🔴 `BTreeBlackboardPackHelper.MaxInlineBytes` | **`BTreeJsonGenerator:257` skips the WHOLE ASSET** — no generated code at all | repointed → 16 096 |
+| 6 | 🔴🔴 `BehaviorIngressSystem:57,97,98` | **a WIDTH** — `stackalloc byte[100]` parse shadow | ⭐ **sized per behaviour** |
+| 7 | `RootParamsAccess.RootParamsBytes:298` | **a WIDTH** — the under-declared escape hatch | ⭐ unchanged, deliberately |
+
+⭐⭐ **Rows 5 and 6 are why this could not be done by deleting a constant.** Row 5 means the cap was a
+**hard authoring limit** — an over-budget blackboard produced *silence*, not a diagnostic you could
+ignore. Row 6 means removing the cap **first** would have been a live defect.
+
+#### 🔒 ② THE ORDER, AND WHY IT IS LOAD-BEARING
+
+📐 The shadow was `stackalloc byte[BehaviorConstants.BrainBlackboardByteSize]` — the width of the
+component being retired — and `def.ParseParams` writes into it. ⇒ for a behaviour whose packed table
+exceeds 100 bytes, **`ParseParams` writes past the end of a stack buffer**, and the carry-over seed
+clamps to a constant rather than to the region. ⛔⛔ **Both were unreachable ONLY because the analyzer
+capped at 100.**
+
+⇒ 🔒 **Remove the guard first and an impossible fault becomes a live one.** The shadow landed first:
+
+```csharp
+private byte[] _shadow = Array.Empty<byte>();            // grows; never a bound
+private Span<byte> EnsureShadow(int bytes) { … }         // widened to RootParamsBytes(def)
+// in the loop, hoisted so the shadow and the commit copy cannot drift:
+int rootBytes = def.ParseParams != null ? RootParamsAccess.RootParamsBytes(def) : 0;
+int copy = Math.Min(prevLen, shadow.Length);             // ⭐ the region's width, not a constant
+```
+
+⚠ **An instance field, not a `stackalloc`** — the width is a RUNTIME value now, and a `stackalloc`
+inside the event loop is the `CA2014` hazard the original comment was avoiding. ⭐ It only grows, so
+the steady state allocates nothing; `Execute` is not re-entrant (Input phase), which is what makes
+per-system scratch safe.
+
+#### ⭐⭐ ③ WHAT THE NUMBER BECAME — **a CAPACITY bound, not a corruption guard**
+
+`BehaviorConstants.MaxRootParamsByteSize = BlueprintTierLadder.Tier16384PayloadSize` = **16 096**,
+mirrored in the analyzer and the **build-time** packer, pinned by `InlineBudgetConstantAgreementTests`.
+⚠ **Three copies, not four** — see ⑥.
+
+⛔ **`MaxBehaviorParamByteSize` was NOT revalued and NOT renamed.** It is the declared width of
+`BrainBlackboard.BehaviorParameters` (a `fixed byte[]`) and the escape-hatch reservation in
+`RootParamsBytes`; revaluing it would have silently resized a struct field and several test scratch
+buffers. ⭐ **It dies with the struct** (§2 ② of the `P4` resume).
+
+⚠ **DEVIATION FROM §30.15, argued rather than silent.** §30.15 row 3 says the bound *"becomes true by
+construction instead of by a constant"* — i.e. the allocator alone. ⭐ **The build-time and
+registration-time checks were KEPT, repointed to the true structural maximum**, because a DTO wider
+than the largest tier's whole payload can never be stored by any tier: that case is worth refusing
+before it runs, and the `W5` mirror apparatus already exists to keep the copies honest. ⚠ **Below the
+ceiling is NOT a guarantee of fit** — the region shares its tier with the behaviour's stateful slots —
+and that case stays exactly where §30.15 put it: a loud ingress throw naming `CE-302`.
+
+#### ⭐⭐⭐ ④ THE RAILS — **POSITIVE, in the feature's own suite**
+
+`BehaviorIngressSystemTests` (`T-1`: the feature's own suite, not a parallel class) gains three, each
+pinning a *different* one of the seven sites:
+
+| rail | what it would have hit before |
+|---|---|
+| `…ParamsWiderThanTheRetiredCap_RoundTripInFull` | 256-byte behaviour; ⭐ **the assertion that matters is bytes at offsets ≥ 100** |
+| `BehaviorRegistry_AcceptsALayoutTypeWiderThanTheRetiredCap` | row 3's throw |
+| `…SwitchingFromWideToNarrow_ClampsTheCarryOverToTheNewWidth` | 🔴 with the constant clamp, that switch wrote **84 bytes past the shadow** |
+
+⛔ **`InlineBudgetConstantAgreementTests` had to change its ANCHOR, not just its number.** Its second
+test asserted *"the budget is the declared length of the buffer it bounds"* — pointing at
+`BrainBlackboard.BehaviorParameters`. ⚠ That buffer stopped being what the budget bounds at `P3-C`, so
+the rail was **true and meaningless**. ⭐ It now pins the ceiling to the largest tier's payload, plus a
+new rail asserting **no tier may exceed it** — otherwise adding a bigger tier would leave four mirrors
+agreeing with each other about a tier that is no longer the largest.
+
+#### 🔴🔴🔴 ⑤ WHAT THIS SLICE UNCOVERED — **`P4`-② SILENTLY STOPPED GENERATING SIX ASSETS**
+
+📐 Found by reading a build log, not by a rail. `P4`-② changed hand-written `[BTreeAction]` methods in
+`CgfNodes.cs` to `ref byte`; **the 26 asset `.json` files still declare
+`"BlackboardTypeName": "…BrainBlackboard"`**, and `BTreeMethodCompatibilityValidator` compares the two.
+⇒ `BTREE0002`, and `BTreeJsonGenerator` treats an incompatible leaf as a **whole-asset skip**:
+
+`BTreeRenderShowcase` · `CombatShowcase` · `T04_DecoratorRepeater` · `T05_DecoratorStack` ·
+`T06_ObserverSelector` · `T08_ActionLeaf` — all six bind `Action_Wander`.
+
+| ⛔ why nothing caught it | |
+|---|---|
+| 🔴 **the warnings appear only on a REAL recompile** | an incremental build prints nothing; the file must be touched |
+| 🔴 **`P4`-②'s zero-fallback rail cannot see it** | it asserts *every REGISTERED node binds*. ⭐ **A skipped asset never registers** ⇒ the rail is green **by construction** — the same shape as `CE-312`'s six refusal-only rails |
+| ⚠ **goldens exist for the skipped assets** | `Snapshots/Golden/Generated/BTree/T08_ActionLeaf.g.cs.txt`, `CombatShowcase.g.cs.txt` — so they demonstrably generated before |
+
+⇒ ⭐⭐⭐ **This is §2 ③'s `BlackboardTypeName` blocker, already biting.** It is no longer *"a decision
+needed before the struct can go"* — it is a **live regression to repair**, and it raises the priority
+of settling what a BTree asset's `BlackboardTypeName` points at.
+
+#### 🔴🔴 ⑥ THE ONE COPY `CE-307` DID **NOT** RAISE — **and why that is a decision, not an omission**
+
+📐 **Raising `BlackboardBinPacker.MaxInlineBytes` reddened 11 tests**, and reading them is what produced
+this decision rather than a fixture scaling. ⭐ **In the EDITOR packer the number is not only a ceiling
+— it is the INLINE/HEAVY SPLIT POINT**, and the heavy side writes offsets into `Blackboard1024`, which
+`P4`-① deleted (`CE-314`).
+
+| ⛔ the two options, and why one is wrong | |
+|---|---|
+| **scale the heavy fixtures past 16 096** | ⛔ that means authoring ~670-variable fixtures **to exercise code that addresses a component which does not exist.** ⚠ It would make a dead arm *better tested* |
+| ⭐ **remove the split** | ✅ **`CE-314`** — and §30.15 already ruled it: *"the 'heavy vs inline' split does not exist"*, `HeavyDtoType` is *"a vestige of the old split"* |
+
+⇒ ⭐⭐ **The constant is raised in `CE-314`, in the same change that removes the concept it splits on.**
+⚠ **Until then the EDITOR refuses a >100-byte authored blackboard while the GENERATOR accepts one** — a
+stated, temporary inconsistency.
+
+⛔⛔ **The exception is PINNED, not commented.** `InlineBudgetConstantAgreementTests` carries
+`TheEditorPackersCopy_IsTheKnownException_UntilCe314`, which asserts the copy **disagrees** with the
+ceiling and **equals** the legacy width. ⭐ `CE-314` makes that test fail, which is the point: 🔒 **an
+excluded mirror with only a comment to explain it is how a deliberate exception rots into an undetected
+drift** — exactly how the four copies came to agree on 100 long after 100 stopped meaning anything.
+
+⚠ **One more consumer, outside every unit gate:** `Hrot.SystemTests/PanelGoldenRails.cs:213` asserts the
+panel publishes `inlineBudget: 100` and `heavyBudget: 928`. ⭐ Its own comment says *"the day that number
+moves, a rail says so"* — ⇒ it moves in `CE-314`, and that rail is part of that change. ⛔ It is a `T3`
+E2E suite and does not gate here.
+
+---
+
+### 30.26 🔴🔴🔴 `CE-316` — **`CE-313` HAD AN UNFIXED TWIN, AND IT COST SIX ASSETS** *(`2026-09-22`)*
+
+> ⚠ **This supersedes §30.25 ⑤'s framing.** That section reported the six skipped assets as *"§2 ③'s
+> `BlackboardTypeName` blocker, already biting"* — implying the repair needed the asset-schema decision.
+> ⛔ **It did not.** Measuring the validator showed a one-line source-of-truth error.
+
+#### ⭐⭐⭐ ① THE DEFECT — **`TBB` was read from the ASSET, not from the EMITTER**
+
+| what emits `TBB` | value |
+|---|---|
+| `BTreeBridgeEmitCore.cs:328` | `var bbShort = "byte";` — the registrar is `ActionRegistry<byte, TCtx>` |
+| `BTreeEmitCore` *(`CE-313`, §30.24)* | `byte` |
+| 🔴 `BTreeMethodCompatibilityValidator.cs:45` | **`dto.BlackboardTypeName`** — the asset's declared type |
+
+⇒ the validator checked every bound method's param 0 against **`BrainBlackboard`**, while the code it
+would be assigned into takes **`byte`**. ⛔ So every method `P4`-② converted to `ref byte` was refused —
+and `BTreeJsonGenerator:257` turns a refused leaf into a **whole-asset skip**, not a warning.
+
+⭐ **The check itself was never wrong.** A method whose param 0 is `ref SomeDto` genuinely would not
+compile in the emitted registrar. **Only its source of truth was.** ⇒ 🔒 **a validator must be keyed on
+what the emitter WRITES, never on what the asset DECLARES** — the two were the same thing until
+`CE-313`, which is exactly why the coupling went unnoticed.
+
+⛔⛔ **`dto.BlackboardTypeName` is deliberately UNTOUCHED.** It is a persisted input to
+`SubtreeSyncIdentity.Derive`, which **matches subtrees** (§30.19); retargeting it renames structs across
+the corpus and breaks matching silently. ⇒ ⭐ **the §2 ③ decision is NOT a prerequisite for this repair**
+— it remains open on its own merits *(the namespace collector and the orchestrator still read the field)*.
+
+#### 🔴🔴 ② WHY THREE LAYERS OF GATING MISSED IT
+
+| layer | why it was blind |
+|---|---|
+| **the build** | ⛔ `BTREE0002` is emitted **only on a real recompile**. Every incremental build printed nothing. ⭐ `touch` the changed source first |
+| 🔴🔴 **`P4`-②'s zero-fallback rail** | it asserts *every REGISTERED node binds*. ⭐⭐ **A skipped asset never registers** ⇒ green **by construction** — the `CE-312` shape one level up. 🔒 **A rail over a DERIVED collection cannot see items that never entered it** |
+| **the golden suite** | it left the six goldens **stale** rather than failing on them |
+
+⭐⭐⭐ **And the staleness is what proved the causation, for free.** `CE-313` regenerated goldens;
+**exactly 6 of 26 still read `Interpreter<BrainBlackboard`, and they were exactly the 6 skipped assets.**
+⇒ *"which goldens did NOT move when they should have"* answered a question a build could not.
+
+⚠ **A worktree build at the pre-`P4`-② commit was attempted and DISCARDED**: it emitted
+`Interpreter<byte, …>`, a shape that commit's source cannot produce, so generator output was leaking
+across trees. 🔒 **Before trusting a historical build, check its output for something only the NEW code
+could emit** — a new instance of *"a reload is not a reset"*.
+
+#### ⭐⭐ ③ THE RAIL — **the fixture WAS the old rule, so fixing it IS the rail**
+
+`ValidMethodStubs.CompatAction` took `ref StubBb` while its asset declared `BlackboardTypeName =
+"Stub.StubBb"` — i.e. the suite encoded the retired coupling. ⭐ It now takes **`ref byte` while the
+asset still declares `Stub.StubBb`**, which asserts the separation directly. ⛔ `DtoParamAction`
+*(param 0 a DTO struct)* is unchanged and still refused — **the negative control that proves `CE-316`
+moved the check's source of truth rather than removing the check.**
+
+---
+
+### 30.27 ⭐⭐ `CE-314` — **THE INLINE/HEAVY SPLIT IS REMOVED, AND THE REMOVAL HAD TO ROUTE** *(`2026-09-22`)*
+
+⭐ Closes the exception `CE-307` §30.25 ⑥ declared: `BlackboardBinPacker.MaxInlineBytes` is **16 096**,
+and the editor no longer refuses a blackboard the generator accepts.
+
+#### ⛔ ① WHAT WENT
+
+`PackTier` *(a two-valued enum whose second value named `Blackboard1024`)* · `PackedVariable.Tier` ·
+`PackWarning.HeavyMemoryExceeded` · `PackResult.TotalHeavyBytes` / `RequiresHeavyComponent` ·
+`MaxHeavyBytes` · the spill branch · the view model's three heavy members and their **three JSON export
+keys** · the panel's two-line *Inline / Heavy* header.
+
+⭐ **The `Pack` loop collapsed to one path.** Master and aggregated variables differed *only* by the
+spill branch, so with it gone the two near-identical loop bodies became one `Place` helper — ⚠ two
+copies of an alignment calculation are one edit away from drifting.
+
+#### ⭐⭐⭐ ② THE PART THAT WAS NOT DELETION — **three deleted tests were the ONLY cover for surviving behaviour**
+
+📐 Nine packer tests went with the heavy tier. ⛔ **Three of them were not really about the heavy tier
+at all:** `Pack_heavy_offset_starts_at_zero` · `Pack_heavy_alignment_respected` ·
+`Pack_master_overflow_does_not_trigger_heavy_placement` were the only place asserting that aggregated
+variables **continue the master region's offsets**, **align across the master/aggregated boundary**, and
+that an **over-budget pack still resolves every variable's offset** *(the panel draws the rows either
+way)*.
+
+⇒ ⭐ each got a direct replacement rail. 🔒 **This is the checkable form of "prefer ROUTING to
+DELETING": before deleting a test, ask which of its assertions are about the thing being removed and
+which merely used it as a fixture.** ⛔ A green suite after a deletion proves nothing about what the
+deletion silently stopped covering.
+
+#### ⚠ ③ AND THE BOUNDARY FIXTURES WERE ALREADY DEAD
+
+📐 `ExactlyAtCeiling_NoWarning` packed **25 ints** and asserted **100**; `OverCeiling_…` packed **26**.
+⛔ When `CE-307` moved the ceiling to 16 096 both fixtures fell far below it — **they stopped being
+boundary tests the moment the boundary moved, while still passing.** ⭐ Both are now sized *from* the
+constant. 🔒 **A boundary test that hard-codes the boundary has a silent expiry date.**
+
+#### ⭐ ④ THE EXCEPTION-TEST DID ITS JOB BY FAILING
+
+`CE-307` left this one mirror out of the agreement rail and pinned the gap with
+`TheEditorPackersCopy_IsTheKnownException_UntilCe314`. ⭐ `CE-314` raised the copy, which **broke that
+test** — and deleting it is the completion of the handshake, not a workaround. ⛔ Had the exception been
+carried as a comment instead, nothing would have announced that the gap had closed.
+
+⚠ **`heavyBudget` / `requiresHeavyComponent` are asserted ABSENT** in `PanelGoldenRails` rather than
+simply dropped, so a revival is caught. ⛔ `T3`, so it does not gate here.
+
+---
+
+### 30.28 ⭐⭐⭐ `P4` §2 ② — **`BrainBlackboard` IS DELETED** *(`2026-09-22`)*
+
+⭐ **The last slice of `P4`.** Two moves had already emptied the component: `O2` split the entity-fact
+tail into `BrainInterrupts`, and `P3-C` moved the params into the root occurrence slot. ⇒ what was
+deleted here is a component **nothing had filled for a month**.
+
+#### 📐 ① THE SURFACE — **26 production lines, 18 files, and only 13 were code**
+
+| deleted | |
+|---|---|
+| the struct + `BehaviorConstants.BrainBlackboardByteSize` | ⚠ `CE-307` had already taken the constant's OTHER consumer (the parse shadow); the `[StructLayout(Size=…)]` was its last reader |
+| 🔴 `BTreeTickSystem`'s `.With<BrainBlackboard>()` | **`CE-315`** — see ③ |
+| `BehaviorTkbTranslator`'s declare + attach | the ONE site that attached it, and it attached an **empty** one |
+| 4 registration sites · the `HrotRoleComponentSets` read-bit | ⭐ replicating a permanently-zero region to every brain node |
+| `GlobalComponentIds.BrainBlackboard` → **`BrainBlackboard_RESERVED`** | ⛔ id **23** is never reused — same rule `P4`-① applied to 74 |
+
+⭐ **KEPT, deliberately: `BrainBlackboardTranslator`.** 🔴 It has not touched the component since
+`P3-C` — `P4`-③ re-keyed it to `BehaviorState` + `BrainInterrupts` + the root slot — so what it
+produces is a **live, wanted diagnostic dump** wearing a stale name. ⛔ Deleting it with the component
+would have been the classic misclassification: 🔒 **a surface whose NAME went stale is not a dead
+surface.** ⚠ Renaming it and its `"BrainBlackboard"` DOM key changes a diagnostic output contract that
+scenario files already carry ⇒ **`CE-317`**, not a rider here.
+
+#### ⚠ ② THE TEST SURFACE — **measured, because `HN-037` says a deletion is not "mechanical" until it is**
+
+📐 **196 test references.** ⭐ **All 30 `BrainBlackboard.BehaviorParameters` usages turned out to be
+COMMENTS**, and most of the rest were `AddComponent`/`RegisterComponent` lines or **string literals**
+(`BlackboardTypeName = "…BrainBlackboard"`) that never referenced the type at all. ⇒ **112 lines across
+43 files deleted mechanically; 5 compile errors left**, each needing judgement:
+
+| site | call |
+|---|---|
+| `FdpAutoSerializerFixedBufferTests` | ⭐⭐ **RE-HOMED, not deleted** — the claim under test is the serializer's `DataPolicy.NoScenario` exclusion; the retired component was only its FIXTURE. Retargeted onto `BehaviorState`, which carries the same attribute. 🔒 `CE-314`'s lesson, applied again |
+| `SharedAiAdapterCompilesTests` | the type was only a handle on an ASSEMBLY for Roslyn references ⇒ any type in it does |
+| `CognitiveRuntimeModuleTests` | one `SetAuthority` line |
+| 🔴 `LiveBlackboardValueProviderTests` | see ④ |
+
+🔴🔴 **AND THE SCRIPTED SWEEP CREATED ONE DEFECT, which is why the rule to check exists.** Deleting an
+`AddComponent` line that was an **unbraced `if` body** left `BlueprintTestFixture` with a dangling
+`if` swallowing the next statement — `EnsureOccurrenceStore` would have run only when the component was
+ABSENT. ⭐ Found by diffing for deleted lines preceded by a control statement; **exactly one site**.
+🔒 *"Always check what a scripted edit did to the line ABOVE."*
+
+#### 🔴 ③ `CE-315` — **dead storage as a QUERY PREDICATE**
+
+`BTreeTickSystem` gated on `.With<BrainBlackboard>()`. ⚠ Redundant in production — the translator added
+it unconditionally — ⛔ **but `BehaviorValidationScenario` only REGISTERED it and never attached it**,
+so that example's agent was silently **excluded from the BTree tick entirely**. 🔒 **The fourth
+dead-storage shape, and the only one that fails as NON-EXECUTION**: no rail asserting VALUES can see it,
+because the code never runs to produce a wrong one.
+
+#### 🔴🔴 ④ WHAT THE DELETION EXPOSED — **a suite that had been feeding a channel nothing read**
+
+`LiveBlackboardValueProviderTests` handed its fake session a `BrainBlackboard` and asserted **positive**
+formatted values. ⛔ But `LiveBlackboardValueProvider` has reached params through
+`RootParamsProjection.TryCopyRootParams` — the root slot — since `P3-C`, and **never asks a session for
+that component**. ⇒ the fixture was inert and the assertion could not have been doing its job.
+
+⭐ **Fixed properly rather than deleted:** the fake now supplies a **boxed tier component holding a real
+occurrence store**, with the behaviour's root params slot attached and the DTO written into it — which
+works because `RootParamsProjection` **pins** the component the session hands back, so genuine store
+bytes need no world. ⇒ a positive rail that means something.
+
+⚠ **This is the same shape as `CE-312` and `CE-316` a third time:** the surface moved, the test's
+fixture did not, and nothing failed loudly enough to notice.

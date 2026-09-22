@@ -23,7 +23,7 @@ The project contains **two pure diagnostic analyzers** and **six source generato
 
 | Component                    | Kind                   | Primary concern                                          |
 |------------------------------|------------------------|----------------------------------------------------------|
-| `BehaviorParameterSizeAnalyzer` | DiagnosticAnalyzer  | `FDP_001` — a 100-byte ceiling on a root behaviour's params DTO |
+| `BehaviorParameterSizeAnalyzer` | DiagnosticAnalyzer  | `FDP_001` — a root params DTO must fit the largest occurrence tier's payload |
 | `BTreeActionGenerator`       | IIncrementalGenerator  | Emit `FbtActionRegistrar.g.cs` for BTree action dispatch |
 | `BTreeDefinitionGenerator`   | IIncrementalGenerator  | Emit `FbtTreeCatalog.g.cs` for named tree catalog        |
 | `HsmActionGenerator`         | IIncrementalGenerator  | Emit `HsmActionDispatcher/Registrar.g.cs` for HSM        |
@@ -40,13 +40,14 @@ for it. A DTO too large for its tier's remaining payload fails **at attach time*
 `BehaviorIngressSystem` — there is no fixed-size adjacent region for it to silently overflow
 into, and the real ceiling is the largest tier's payload, **16 096 bytes**.
 
-⚠ **`BehaviorParameterSizeAnalyzer` still enforces a 100-byte ceiling on a root behaviour's
-params DTO** (`FDP_001`), mirroring `BehaviorConstants.MaxBehaviorParamByteSize` in its own
-`private const`. That ceiling predates the allocator and its stated justification no longer
-holds — its message warns about corrupting adjacent registers that are now a separate
-component, `BrainInterrupts` — so it is **160× below the structural bound and scheduled for
-retirement** (`CE-307`). Until it is removed, an oversized root params DTO is still a build
-error, so size against **100 bytes**, not against the tier payload.
+⭐ **`BehaviorParameterSizeAnalyzer` enforces exactly that ceiling** (`FDP_001`), mirroring
+`BehaviorConstants.MaxRootParamsByteSize` — itself `BlueprintTierLadder.Tier16384PayloadSize` — in
+its own `private const MaxRootParamsByteSize = 16096`. `CE-307` (`2026-09-22`) converted it from a
+100-byte **corruption guard** into a **capacity bound**: params used to sit inline in a fixed-layout
+struct with neighbours after them, so an overrun silently overwrote unrelated state. They now land in
+an occurrence slot sized to fit, promoted up the ladder, with `TryAttach` failing structurally — no
+neighbours, nothing to corrupt. What remains is worth refusing at build time only because no tier
+could store such a region at all.
 
 The source generators eliminate a class of maintenance problems:
 
@@ -266,16 +267,14 @@ Fires on every method symbol.  For each `[SharedAiActionAttribute]` or
 1. Extracts the DTO type from the first constructor argument.
 2. Computes the unmanaged struct size by walking all instance fields, respecting both
    sequential layout (default) and `LayoutKind.Explicit` with `[FieldOffset]`.
-3. If the computed size exceeds `MaxBehaviorParamByteSize` (100), it reports `FDP_001`.
+3. If the computed size exceeds `MaxRootParamsByteSize` (16 096), it reports `FDP_001`.
 
 Size computation is intentionally duplicated from `BTreeActionGenerator` and `HsmActionGenerator`
 because the analyzer targets `netstandard2.0` and cannot reference the runtime assembly that
-defines `BehaviorConstants.MaxBehaviorParamByteSize`. ⚠ **This 100-byte check is a legacy holdover
-from the deleted `BrainBlackboard` layout and is scheduled for retirement** — the storage model it
-was guarding no longer has a fixed cap (params live in a per-behaviour root-params occurrence slot,
-structurally bounded by the tier ladder up to 16 096 bytes; see
-`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15). The analyzer still enforces
-100 bytes today; it has not yet been removed.
+defines `BehaviorConstants.MaxRootParamsByteSize` — so the two numbers are kept in agreement by
+`InlineBudgetConstantAgreementTests` rather than by a project reference. ⭐ Both resolve to
+`BlueprintTierLadder.Tier16384PayloadSize`, so re-picking the ladder moves the analyzer with it
+(see `docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.25).
 
 **Struct layout rules implemented**:
 - Sequential: fields are packed with natural alignment; total size rounded up to struct alignment.
@@ -588,27 +587,27 @@ source while the output assembly remains `netstandard2.0`-compatible.
 **Before (compile error)**:
 
 ```csharp
-// MyDto is 104 bytes - exceeds the analyzer's legacy 100-byte root-params cap
+// MyDto is 16 200 bytes - wider than any occurrence tier's payload (16 096 B)
 [StructLayout(LayoutKind.Sequential)]
 public struct MyDto
 {
     public float X;     // 4 bytes
     public float Y;     // 4 bytes
-    public float Z;     // 4 bytes
-    // ...24 more floats... (96 bytes total)
-    public float Extra; // 4 bytes -> total 104 bytes
+    // ...a fixed buffer of 4 048 floats... (16 192 bytes total)
 }
 
 public static class MyActions
 {
-    // FDP_001 error: MyDto requires 104 bytes, exceeds 100-byte region
+    // FDP_001 error: MyDto requires 16200 bytes, exceeding 16096 - the payload of the
+    //            largest occurrence storage tier. No tier can hold a root params region this wide.
     [SharedAiAction(typeof(MyDto), "X")]
     public static NodeStatus SetX(ref float x, Entity self, EntityRepository repo)
         => NodeStatus.Success;
 }
 ```
 
-**Fix -- reduce DTO size to <= 100 bytes**:
+**Fix -- keep the region within a tier's payload (<= 16 096 bytes)**, or move the bulk into its own
+ECS component with its own lifecycle:
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
@@ -617,7 +616,7 @@ public struct MyDto
     public float X;
     public float Y;
     public float Z;
-    // ... keep total <= 100 bytes
+    // ... keep total <= 16 096 bytes
 }
 ```
 
@@ -823,9 +822,9 @@ BehaviorTreeBlob patrolBlob = MyAssembly.Generated.FbtTreeCatalog.GetPatrol();
    by multiple generators.  Duplicating a `DiagnosticDescriptor` with the same ID across
    classes triggers RS1019.
 
-10. **Do not suppress FDP_001 without a code review**.  It is a legacy 100-byte cap pending
-    retirement (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.11) but is still the
-    only compile-time guard on params DTO size until then.  Any suppression must be reviewed
+10. **Do not suppress FDP_001 without a code review**.  It is the only compile-time guard that a
+    root params DTO can be stored at all (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md`
+    §30.25); suppressing it moves the failure to attach time.  Any suppression must be reviewed
     and justified in a comment.
 
 ---

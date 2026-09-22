@@ -326,7 +326,7 @@ A new docked window registered as `ai_blackboard_variables`, available in both B
 ┌──────────────────────────────────────────────────────────┐
 │ ≡ BLACKBOARD VARIABLES — OrcGuard_BT                      │
 ├──────────────────────────────────────────────────────────┤
-│  Layout: Sequential                    Memory: 78 / 100 B │
+│  Layout: Sequential                  Memory: 78 / 16096 B │
 ├──────────────────────────────────────────────────────────┤
 │ ▼ DEFINED VARIABLES                                       │
 │                                                           │
@@ -358,7 +358,7 @@ A new docked window registered as `ai_blackboard_variables`, available in both B
 │       Required by: [Reload_BT (Subtree)]                  │
 │                                                           │
 ├──────────────────────────────────────────────────────────┤
-│ Params:  root params slot          (48 / 100 B)          │
+│ Params:  root params slot        (48 / 16096 B)          │
 │ State:   working-state slots       (none declared)       │
 └──────────────────────────────────────────────────────────┘
 ```
@@ -431,15 +431,14 @@ The header shows `Memory: X / Y B` for the asset's **params region**. Y is the b
 enforces — `BlackboardBinPacker.MaxInlineBytes`, **100 bytes** today. The bar fills as variables are
 added, turns amber at 80%, and red when the packer would refuse.
 
-⚠ **That budget is an authoring-time constant, not the storage bound.** At runtime the params region
-is an occurrence slot sized to `RootParamsBytes(def)`, seated by the partition allocator in whichever
-tier fits — **176 / 800 / 3 808 / 16 096 B** of payload for `BlueprintBlackboard256 / 1024 / 4096 /
-16384`, with promotion up the ladder rather than refusal. The 100 survives from the retired fixed
-params region and is enforced in six places *(this packer, `BTreeBlackboardPackHelper`,
-`BehaviorConstants`, the `FDP_001` analyzer, `BP1200`, and a runtime throw)*. ⚠ The packer also still
-carries `MaxHeavyBytes = 928` and a `HeavyMemoryExceeded` warning — a second survival, and its figure
-is the **pre-`B3②`** 1024-tier payload, stale by 128 bytes even for the arrangement it describes. `CE-307` retires them;
-when it lands, this bar's Y becomes the tier payload and the panel gains the tier it is sizing for.
+⭐ **That budget IS the storage bound.** `CE-307` (`2026-09-22`) set `MaxInlineBytes` to the largest
+tier's payload, so the bar refuses exactly what no tier could seat. At runtime the params region is an
+occurrence slot sized to `RootParamsBytes(def)`, placed by the partition allocator in whichever tier
+fits — **176 / 800 / 3 808 / 16 096 B** of payload for `BlueprintBlackboard256 / 1024 / 4096 / 16384`,
+promoted up the ladder rather than refused.
+
+⭐ `CE-314` removed the packer's inline/heavy split in the same pass: `MaxHeavyBytes` and the
+`HeavyMemoryExceeded` warning are gone, and `PackResult` no longer carries a heavy arm.
 
 ---
 

@@ -483,10 +483,10 @@ exactly `RootParamsBytes(def)` bytes — the packed size of its own variable tab
 either finds room in the entity's tier or promotes it to a larger one. The only real ceiling is the
 largest tier's payload, **16 096 bytes**.
 
-⚠ **One leftover to know about while it lasts:** a 100-byte constant from the retired fixed params
-region still gates the build (`FDP_001` in the analyzer, `BP1200` in the blueprint compiler). It is
-~160× below what a slot holds and it is being removed — `CE-307`. Until then a params DTO over 100
-bytes is a build error, so if the analyzer stops you, that is why.
+⭐ `FDP_001` enforces exactly that ceiling and nothing tighter: `CE-307` turned it from a 100-byte
+corruption guard into a **capacity bound** — *"exceeding the payload of the largest occurrence storage
+tier. No tier can hold a root params region this wide."* Worth refusing at build time rather than at
+attach time, but it is not a budget you design against.
 
 ### Why Not Use a Regular Managed Object?
 
@@ -575,7 +575,7 @@ Important rules:
 - The struct must be `unmanaged` (no managed references).
 - Use `[StructLayout(LayoutKind.Sequential)]` to guarantee deterministic field ordering.
 - The struct is placed at **offset 0** of the behaviour's root params slot, and the allocator
-  reserves the slot at exactly its size — but **`FDP_001` still caps it at 100 bytes** (see §3).
+  reserves the slot at exactly its size (see §3 for the only ceiling).
 
 ### Writing the ParseParamsDelegate
 
@@ -923,10 +923,11 @@ promotes the entity up the tier ladder to fit:
 a constant anyone has to remember. Overrunning a slot is impossible: the slot table carries each
 slot's offset *and* size, and every projection is made relative to that.
 
-⚠ **Two build-time leftovers, until `CE-307` removes them:** a params DTO over **100 B** is refused
-(`FDP_001` · `BP1200`) and an AiPrimitive `WorkingState` over **1 016 B** is refused (`BP1201`). Both
-are constants inherited from the storage that was retired — the Instance arm (`BP1210`) already reads
-the ladder instead, which is the shape the other two are moving to.
+⚠ **One place still carries the old constants:** the *blueprint compiler* refuses an AiPrimitive
+asset whose `Params` exceed **100 B** (`BP1200`) or whose `WorkingState` exceeds **1 016 B**
+(`BP1201`). `CE-307` retired the equivalent bounds on the FDP behaviour path but did not reach these,
+and the Instance arm (`BP1210`) already reads the ladder — so that is the shape they are moving to.
+⛔ This does **not** affect hand-written `[SharedAiAction]` DTOs; those answer to `FDP_001` above.
 
 ⭐ Soft advice and the edge-triggered interrupt registers are **not** behaviour-scoped at all — they
 live in their own component, `BrainInterrupts`, as named fields, because they are facts about the

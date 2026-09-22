@@ -796,7 +796,7 @@ BTree action dispatch tables, HSM action dispatch tables, gizmo registrar tables
 TKB descriptor registrations are all emitted by Roslyn source generators. Adding a new
 behavior, gizmo, or descriptor DTO requires only the domain attribute -- no manual
 registration. The generators also enforce invariants at compile time (e.g. `FDP_001`,
-a legacy 100-byte cap on `[SharedAiAction]`/`[SharedAiCondition]` DTOs pending retirement
+a capacity bound on `[SharedAiAction]`/`[SharedAiCondition]` DTOs — the largest tier's payload
 — the actual root-params slot has no fixed size; it is bounded per-behaviour by the
 occurrence-slot tier ladder, up to 16 096 B).
 

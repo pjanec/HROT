@@ -239,7 +239,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `BlackboardAliasBinding.cs` | `record BlackboardAliasBinding` | Records a sub-tree requirement bound to a variable: `RequiringAssetId`, `RequiringElementId`, `RequiringAssetName`, `RequiredByPath`, `DtoType`. |
 | `BlackboardLoadState.cs` | `enum BlackboardLoadState` | Load-time health: `Clean`, `SpanCaptureFailed`, `StructParseFailed`, `AssemblyFailed`. Drives banner display and save-gate logic in `BlackboardAuthoringWindow`. |
 | `BlackboardDiagnosticCode.cs` | `enum BlackboardDiagnosticCode` | Three codes: `UnusedVariable` (Info), `VariableTypeNotFound` (Warning), `CrossRegionConflict` (Error). |
-| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Classifies variables into `Inline` vs `Heavy` tiers, computes byte sizes, and emits `PackWarning` when budgets are exceeded. Constants: `MaxInlineBytes = 100`, `MaxHeavyBytes` TBD per tier. |
+| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Computes byte sizes and sequential offsets for the asset's variables, emitting `PackWarning` when the total exceeds what any occurrence tier could seat. Constant: `MaxInlineBytes = 16096` (the largest tier's payload). ⭐ `CE-314` removed the inline/heavy split — there is one region, not two. |
 | `BlackboardVariableDescriptor.cs` | `record BlackboardVariableDescriptor` | `Name` + `FieldType`; packing input. |
 | `BlackboardFieldClassifier.cs` | `static class BlackboardFieldClassifier` | Maps a CLR type to a `BlackboardFieldKind` for display in the Variables panel. |
 | `BlackboardNameValidator.cs` | `static class BlackboardNameValidator` | Validates that a proposed variable name is a legal C# identifier and does not collide with existing names. |
