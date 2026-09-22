@@ -4579,18 +4579,44 @@ says so itself: `BlueprintDebugSession.cs:1518` is commented **"legacy: one work
 | `LiveBlackboardValueProvider` | reads the **tier** component from `IDebugSession`, walks to the key, projects at its offset |
 | `BlueprintDebugSession` | ⭐ **already correct** — delete the legacy `Blackboard1024` arm at `:1518` and the `ResolveAiPrimitiveField` gate at `:1016`; `CaptureAiPrimitiveOccurrences` is the whole answer |
 | 🔴 `HillAttackGizmo` | body already correct; **re-gate** `[GizmoProjector]` on `BehaviorState` + `SimTransform` *(⛔ NOT on a tier — a tier component is not a proxy for "is a brain", which is the exact mistake `O1` deleted `Project(ref Blackboard1024)` for)* |
-| 🔴 `PredicateCompiler` + `SearchPredicateDto` | ⭐⭐ **`BlackboardTarget` collapses to a single root-params target.** `Blackboard1024` was never reachable; `BrainBlackboard` becomes the slot ⇒ the enum's two members answer one question now. ⚠ **Needs a deserialisation migration** so saved predicates keep resolving — ⛔ the one place in `P4` where "ABI can and must change" costs more than a recompile |
+| 🔴 `PredicateCompiler` + `SearchPredicateDto` | ⭐⭐ **`BlackboardTarget` is RE-POINTED, not removed** — its two members become **root params slot** and **node working-state slot** *(§30.15)*. ⛔ **An earlier revision said "collapses to a single target" and then "a straight collapse, drop the enum" — BOTH WITHDRAWN**, see the note under §30.14 |
 | `BrainBlackboardTranslator` | `Extract` is **already** root-slot-based; re-key `CanTranslate` + `GetConsumedComponentsMask` off `BehaviorState`, drop the component. ⚠ §5 class 7's *"measured harmless"* was about the **wire format** — it does **not** mean deletion-safe |
 
 *Caption — what this table shows that §30.2's class diagram hid: the diagram drew "no arrow from a thunk
 to a lookup" for the SIM path, and that is true. ⛔ But every DEBUG reader still performs a lookup — it is
 just the **same two** lookups instead of nine different component projections.*
 
-⛔ **`SearchPredicateDto.BlackboardTarget` needs NO migration** — 🔒 **user, `2026-09-22`:** *"no one
-using it yet besides rails, no migration needed."* ⇒ ⭐ a straight collapse onto the root params slot,
-rails updated. ⚠ **§30.12 ⑤'s "the one place ABI costs more than a recompile" is WITHDRAWN** — the enum
-is genuinely serialised, but nothing outside the rails has ever authored one. 📌 `R-139`: the row was
-measured on the code while *"does anyone actually author these?"* was never measured at all.
+#### ⛔⛔⛔ `SearchPredicateDto.BlackboardTarget` — **TWO corrections, in opposite directions, same day**
+
+> 🔒 **User ①:** *"no one using it yet besides rails, no migration needed."*
+> 🔒 **User ②:** *"'no real users' does not mean 'not needed', be cautious before deleting anything."*
+
+| what I claimed | verdict |
+|---|---|
+| *"the one place in `P4` where ABI costs more than a recompile"* — a deserialisation migration | ⛔ **WITHDRAWN.** Nothing outside the rails authors one. 📌 `R-139`: measured that the enum **is** serialised, never measured **whether anyone writes one** |
+| then *"a straight collapse — drop `BlackboardTarget`"* | ⛔⛔ **ALSO WITHDRAWN, and it is the worse error.** I let *"no migration burden"* slide into *"therefore delete."* ⚠ Those are different questions and `CLAUDE.md`'s **UNREFERENCED IS NOT UNINTENTIONAL** owns the second: ⭐ prefer **ROUTING** |
+
+⭐⭐⭐ **The answer the second correction produces is better than either:** `BlackboardTarget` answers
+*"which memory region does this predicate read?"* — and **after `P4` there are still TWO regions**, just
+different ones: the **root params slot** and the **node working-state slots** *(§30.15)*. ⇒ **re-point
+the members; keep the axis.** ⛔ Deleting it would silently remove the ability to break on **working
+state** — a capability `Blackboard1024` used to provide and the occurrence store still does.
+
+#### ⭐⭐ THE STANDING TEST FOR EVERY `P4` DELETION — **apply it per item, in the report**
+
+🔒 **User, `2026-09-22`:** *"be cautious before deleting anything."* ⇒ ⛔ **no `P4` item is cut until it
+is classified out loud** *(`CLAUDE.md`'s three-way test)*:
+
+| class | action | `P4` examples |
+|---|---|---|
+| **duplicate CODE** | ⭐ **ROUTE** | `BlackboardTarget` · the seven wrapper structs · `BrainBlackboardTranslator`'s gate |
+| **duplicate SURFACE** | ⚠ **usually KEEP** — surfaces differ by context | the tier renderers vs the root-params arm |
+| **genuinely DEAD, and the design record AGREES** | ✅ delete | `Blackboard1024` *(§30.13 — all three tenants left by a NAMED decision)* · `HeavyDtoType` |
+
+⛔⛔ **Items I have called "already dead" that have NOT yet passed this test** — ⚠ each needs a corpus
+search before it is cut, not an in-degree of zero: `CommanderNodes.IssueTacticalIntentBlackboard`
+*(declared, never used as a `TBlackboard`)* · `BlueprintDebugSession`'s legacy `Blackboard1024` arm ·
+`Blackboard1024Tests` · `BlueprintCompilerContracts.BlackboardTier.Blackboard1024`.
 
 ### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
 
