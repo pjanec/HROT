@@ -4875,7 +4875,23 @@ already keys this exact asset's working state with `OccurrenceSlots.StandaloneSt
 | ⭐⭐ **two different primitives now get two slots** | 🔴 **this LIFTS `SLICE1-DESIGN.md:27`'s "exactly one stateful AiPrimitive per entity"**, which existed *only* because one entity had one hash-guarded block. ⇒ a strict improvement, and the one `SLICE2` was for |
 | ⚠ **the hash guard survives** | `ResolveOrAttach` resets the slot on a `StructureHash` mismatch ⇒ the manual `InitBlock` **and** the `fixed` pin both go, and the defence lives in its one owner |
 
-#### ⚠ WHAT `P4`-① STILL HAS TO DO
+#### ✅ `P4`-① IS COMPLETE AND LIVE-VALIDATED — **`hill-attack-close` is 2/2 GOLD** *(`2026-09-22`)*
+
+📐 **Run on `--mode all` against the post-deletion build**, both trials to the acceptance in §30.8 ②:
+
+| trial | `1001` | `1002` | `1003` | `1004` | locomotion | `1006`/`1007` |
+|---|---|---|---|---|---|---|
+| **1** | **523.03** | **525.25** | **529.14** | **531.37** | all `Success` | `Health 0` |
+| **2** | **523.03** | **525.26** | **529.44** | **531.37** | all `Success` | `Health 0` |
+
+⭐ Every tank inside the 523–531 baseline band, both targets dead, and **entity count 8** — the dead
+bodies stay, as `CE-272` requires. ⚠ Compare the pre-existing gold record *(`521.7 525.7 528.2 532.2`
+and `523.0 525.3 529.2 531.0`, §29.12a)*: **trial-for-trial indistinguishable**, which is the point —
+`P4`-① is a retirement, and the simulation must not move at all.
+
+⛔ **The component is gone.** What remains of `P4`-① is nothing; the table below is now HISTORY.
+
+#### ⛔ HISTORY — WHAT `P4`-① STILL HAD TO DO
 
 ⭐ Both routes are landed and green. ⛔ **The component itself is NOT yet deleted** — the remaining
 surfaces are the mechanical ones §30.12 ① enumerates, plus two that need a decision recorded first:
