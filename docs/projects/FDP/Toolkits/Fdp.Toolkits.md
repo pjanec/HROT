@@ -1,18 +1,14 @@
 # Fdp.Toolkits
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## ⭐ RESOLVED — folded into `DESIGN_Occurrence_Scoped_Storage.md`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](../../../blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> [`Architect_Question_37`](../../../blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
-> `2026-08-17` and reopened on `2026-09-19`.
->
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
->
-> ⚠ Reference doc — the component inventory here is the BEFORE state.
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](../../../blueprints/DESIGN_Occurrence_Scoped_Storage.md)** §30 is
+> the build-out of
+> [`Architect_Question_37`](../../../blueprints/Architect_Question_37_Unify_On_The_Allocator.md). The root
+> behaviour's params and per-node AiPrimitive working state now live in **per-occurrence slots** of the
+> partition allocator, inside the same three tier components (`BlueprintBlackboard1024`/`4096`/`16384` —
+> **no rename**; there is no separate per-entity brain-state component any more). The user parked the
+> question on `2026-08-17` and reopened it on `2026-09-19`.
 
 
 **Project file**: `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj`
@@ -197,7 +193,9 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 
 #### Components (`Behavior/Components/`)
 - `BehaviorState` -- active behavior name, brain tier, instance ID
-- `BrainBlackboard` -- inline byte array carrying behavior parameters
+- `BrainInterrupts` -- interrupt/threat registers (`ExpectedThreatLevel`, `Interrupt_MobilityLost`,
+  `Interrupt_Reserved`), set by `CognitiveInterruptSystem` and cleared by `CognitiveCleanupSystem` (behavior
+  parameters themselves live in the root params occurrence slot, not a component here)
 - `BrainBTreeState` -- FastBTree working state struct (per-entity BTree execution cursor)
 - `BrainHsmState` -- FastHSM working state struct
 - `ChannelComponents` -- locomotion, weapon, interaction channel structs
@@ -1273,7 +1271,7 @@ repo.Bus.Publish(new AssignBehaviorEvent
 
 // The BehaviorIngressSystem (next frame) picks up the event,
 // looks up "Patrol" in BehaviorRegistry, writes ParseParams into
-// BrainBlackboard, and sets BehaviorState.BrainTier = BrainTierBTree.
+// the root params occurrence slot, and sets BehaviorState.BrainTier = BrainTierBTree.
 // The BTreeTickSystem then steps the interpreter every frame.
 ```
 

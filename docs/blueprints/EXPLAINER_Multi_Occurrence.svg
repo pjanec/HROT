@@ -97,7 +97,7 @@
   <rect x="426" y="284" width="280" height="92" class="bad"/>
   <text x="436" y="302" class="tb">⛔ per-behaviour only</text>
   <text x="436" y="320" class="s">ONE params struct in the shared</text>
-  <text x="436" y="333" class="s">100-byte BrainBlackboard region</text>
+  <text x="436" y="333" class="s">the entity's root params slot</text>
   <text x="436" y="352" class="s">two nodes of the same action bind</text>
   <text x="436" y="365" class="s">the SAME field ⇒ same bytes</text>
 

@@ -894,7 +894,7 @@ Immutable value type carried by both history trackers.
 | `Hrot.AI.Behaviors` | via `Hrot.CGF` (AI behavior gizmo registrar) |
 | `Hrot.IG` | via `Hrot.SimHost` (SelectionState, MapOverlayStyle components) |
 | `Hrot.ScenarioEditor` | via `Hrot.SimHost` (SelectionInteractionSystem, ScenarioEditor gizmos) |
-| `Hrot.Presentation` | via `Hrot.SimHost` (BrainBlackboardRenderer, BTreeVisualizerRenderer, etc.) |
+| `Hrot.Presentation` | via `Hrot.SimHost` (the tier renderers' `RootParamsProjection` section, BTreeVisualizerRenderer, etc.) |
 
 ### InternalsVisibleTo
 

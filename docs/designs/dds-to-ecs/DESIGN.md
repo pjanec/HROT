@@ -501,7 +501,8 @@ draw the menu. The ECS state is populated but never shown.
 - **IOS `MissionEditorService`**: Sends `MissionControlRequest` messages (`CMD_REPLACE_MISSION`,
   `CMD_JUMP_TO_TASK`, `CMD_ABORT_ALL`) and awaits `MissionControlAck`.
 - **SimHost `MissionAdapterSystem`**: Executes missions from `EntityMissionHolder` by mapping
-  task `BehaviorId` → `BehaviorHash` and pushing `BehaviorParams` JSON to `BrainBlackboard`.
+  task `BehaviorId` → `BehaviorHash` and pushing `BehaviorParams` JSON into the entity's root
+  params occurrence slot.
 - **🚨 Critical gap:** SimHost has **no translator or system that reads `MissionControlRequest`
   or writes `MissionControlAck`**. IOS commands go into the DDS void — SimHost never applies them.
   A `MissionControlRequestSystem` must be implemented in SimHost.
@@ -636,8 +637,8 @@ update that reference to `MissionPlanQueue` as part of S16T1.
 | DDS2ECS-S16T1 | Delete `EntityMissionHolder.cs`; replace `RegisterManagedComponent<EntityMissionHolder>()` with `RegisterComponent<MissionPlanQueue>()` in `SimHostApp.cs` |
 | DDS2ECS-S16T2 | Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` (resolve `BehaviorId` → `behaviorId` via `BehaviorRegistry.TryGetId`; map trigger strings → `MissionTrigger` enum); update `EntityMissionTranslatorTests.cs` |
 | DDS2ECS-S16T3 | Delete `MissionAdapterSystem.cs`; in `SimulationLogicModule.RegisterSystems()` replace `new MissionAdapterSystem(...)` with `new MissionDirectorSystem()` |
-| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `BehaviorDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
-| DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so `BrainBlackboard.Memory` is hydrated with target coordinates on phase activation |
+| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<byte,BTreeContext>` in each `BehaviorDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
+| DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so the entity's root params occurrence slot is hydrated with target coordinates on phase activation |
 
 ---
 
@@ -689,17 +690,17 @@ logic through the GC every frame — the exact same anti-pattern as `WorldPos` (
 ### 10.2 Brain Deviation — Null `BTreeInterpreter`
 
 **Golden standard (`UrbanCombat`):** Every BTree behavior is compiled from JSON and registered
-with a real `Interpreter<BrainBlackboard,BTreeContext>`:
+with a real `Interpreter<byte,BTreeContext>` (the tree ticks against the root params slot's bytes):
 
 ```csharp
 var blob = TreeCompiler.CompileFromJson(InfantryCombatJson);
-var reg  = new ActionRegistry<BrainBlackboard, BTreeContext>();
+var reg  = new ActionRegistry<byte, BTreeContext>();
 reg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
 _behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
     new BehaviorDefinition {
         Name             = "InfantryCombat",
         BrainTier        = BehaviorConstants.BrainTierBTree,
-        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, reg),
+        BTreeInterpreter = new Interpreter<byte, BTreeContext>(blob, reg),
     });
 ```
 

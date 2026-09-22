@@ -10,7 +10,7 @@ build-state: BUILT — slices 94a-94f, the finalization (BP-499..BP-502), the en
   scenario reload yet). 🔴 Deviation 5 of THAT section carries a CORRECTION: its claim that
   DebugSessionPersistence.Save had no production caller was FALSE. Then read the SECOND AS-BUILT
   section (BP-505..BP-507) — it supersedes the first where they disagree.
-updated: 2026-08-25
+updated: 2026-09-22
 current-answer: this whole file - it is the consolidated design, written to be built from
 stale-below: nothing. History and the decision trail live in Architect_Question_40, which
   accumulated four rounds of correction and must NOT be read as a spec.
@@ -153,7 +153,7 @@ state: `BlueprintSharedState` is *"an **ENTITY-scoped** shared working-state slo
 
 | ✅ already shared | the store · the window · the table · the formatter · the dialog · the row identity · the tick seam · **watch AND breakpoint content across perspectives** *(one `_bpManager`, all three registrars)* |
 |---|---|
-| ⭐ **host-specific — DATA, not machinery** | ① the **blackboard base offset** *(`Blackboard1024` is ONE component shared at disjoint offsets — `R-65`)* · ② where the **field layout** comes from |
+| ⭐ **host-specific — DATA, not machinery** | ① the **blackboard base offset** *(each stateful node's occurrence slot has its own `PayloadOffset` inside the entity's `BlueprintBlackboard{tier}` component, resolved via `BlueprintBlackboardPartitions`)* · ② where the **field layout** comes from |
 | ⚠ **not needed for the poll** | 📌 **`R-70`: `HsmDebugSession`/`BTreeDebugSession` are built and never constructed** — ⛔ that blocks **breakpoints, pause, step** on BTree/HSM, ⭐ **not this** |
 
 ⭐⭐⭐ **The base offset must be owned in ONE place** — 📌 the same *"whoever computes the offset must own

@@ -19,7 +19,7 @@ new C# project assemblies.
 
 | Tier     | Node Role      | Owns                                                       | Emits                          |
 |----------|----------------|------------------------------------------------------------|--------------------------------|
-| Brain    | CGF / ExCon    | `BrainBlackboard`, `BrainHsm*`, `BehaviorState`, `NavigationIntent` | Intents (commands)  |
+| Brain    | CGF / ExCon    | `BrainInterrupts`, `BrainHsm*`, `BehaviorState`, `NavigationIntent` | Intents (commands)  |
 | Muscle   | SimHost        | `NavState`, `SimTransform`, `VehicleState`, `Health`       | Status/State events            |
 | Network  | Translator Pack | `DdsReader<T>` / `DdsWriter<T>`, `NetworkEntityMap`       | External DDS messages          |
 
@@ -47,10 +47,10 @@ on Brain-only nodes in a distributed cluster.
 `RouteContextSystem` (`Hrot.SimHost/Systems/Routing/RouteContextSystem.cs`) queries:
 
 ```
-_vehicleQuery: .With<NavState>().With<BrainBlackboard>()
+_vehicleQuery: .With<NavState>().With<BrainInterrupts>()
 ```
 
-`NavState` is owned by the Muscle tier; `BrainBlackboard` is owned by the Brain tier. In a
+`NavState` is owned by the Muscle tier; `BrainInterrupts` is owned by the Brain tier. In a
 distributed cluster, no single node holds both, so this system silently produces no output. It
 reads `nav.Mode`, `nav.TrajectoryId`, and `nav.ProgressS` directly from `NavState`.
 
@@ -85,7 +85,7 @@ feedback channel `NavigationStatus`, which already crosses the network via trans
 - Read `mode` and `trajectoryId` from `NavigationIntent` (instead of `NavState`).
 - Read route progress from `NavigationStatus.ProgressS` (instead of `NavState.ProgressS`).
 - Pass `status.ProgressS` into the existing `ResolveSegmentIndex` logic to look up
-  `ExtensionJson` from the `RoutePlan`, then write to `BrainBlackboard`.
+  `ExtensionJson` from the `RoutePlan`, then write to `BrainInterrupts.ExpectedThreatLevel`.
 
 ---
 

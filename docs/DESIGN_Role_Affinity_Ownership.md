@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-13
-build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainBlackboard checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoScenario governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
+build-state: BUILT (for the two-node Brain/Muscle case) — steps 0a, 0, 1a, 1, 2, 3, 3b(b), §3.9's two-set model AND ⭐⭐⭐ STEP 4 (§6i: CGF holds a Brain policy, SimHost a Muscle policy, and gateOnAuthority is ON) are done. ⛔⛔ CORRECTED 2026-09-13: an earlier version of THIS LINE listed "3b(a) THE REGISTRATION NARROWING (§6h)" as DONE. That is FALSE and it contradicted both the step table's 3b row and §6h's own headline — §6h shipped the missing PERCEPTION REGISTRY, i.e. the PREREQUISITE for the narrowing, not the narrowing. ⛔⛔ CORRECTED AGAIN 2026-09-13 (§6j): the line above ALSO mis-stated 3b(a) as open. 📐 MEASURED: SimHostComponentRegistry does NOT call CognitiveComponentRegistry and DOES call MuscleRoleComponentRegistry — the narrowing IS BUILT; and muscleRead = {NavigationIntent, MissionPlanQueue} IS populated, so the READ table is filled too. ⇒ ✅ 3b(a) and the read table are DONE. ⛔ STILL OPEN: step 3c (the boot warning); IG / Stride / the Editor / the test harnesses still run a null policy DELIBERATELY (§6i says why); the role tables are COMPLEMENTS and that is now a RULING, not a stopgap (§3.9c, 2026-09-13): the positive enumeration is NOT the upgrade path and NOT a gating item — it fails toward UN-ownership (CE-256) where the complement fails toward inert over-ownership. Revisit ONLY on the trigger §3.9c names. ⛔⛔ AND READ §3.6 BEFORE REASONING ABOUT WHAT AUTHORITY DOES: re-measured 2026-09-13, the per-component AuthorityMask is read by NO egress translator — only by SimTransform/BehaviorState/BrainInterrupts checks and WithOwned<T> queries. An earlier version of §3.1 and §3.6 said "every egress translator gates on HasAuthority"; that was FALSE and both now carry the correction. ⛔⛔ §3.9 IS LOAD-BEARING AND IS NOW MODELLED IN CODE: REGISTER = ownedComponentSet ∪ readComponentSet, AUTHORITY = ownedComponentSet — read it before touching registration, and ⛔⛔ an earlier version said "NO HOST FILLS THE READ TABLE YET" — FALSE, HrotRoleComponentSets fills it (§6j). ⚠ What IS true: RegisterComponentSet is READ BY NOTHING in production and cannot drive registration while the tables are COMPLEMENTS — see §6j. ✅ §3.9a IS NEW (2026-09-12): the per-component classification for SimHost is MEASURED and CONFIRMS the set of six, adding four more (the three channels + PreviousCapabilities) for TEN droppable. ⚠ It carries a RETRACTION — an intermediate version claimed scenario persistence required three of them; that was false (DataPolicy.NoScenario governs scenario exclusion, and three of the translators are extract-only clipboard dumps). ⛔ 3b(a) is NOT blocked on persistence; what remains is that CognitiveComponentRegistry is SHARED with CGF, so the narrowing must move to MuscleRoleComponentRegistry. ⛔ NOT "BUILT": open-risk below still binds (§3.5 / step 3b).
 verified: ⭐⭐ THE WHOLE DESIGN WAS RE-MEASURED AGAINST THE TREE ON 2026-09-12 before step 0 was built
   (user: "verify design before, might be stale"). VERDICT: every DECISION holds and nothing load-bearing
   is stale — the six unbuilt types are still at ZERO .cs occurrences, the blanket grant is byte-identical,
@@ -327,7 +327,7 @@ wrong, and the architect named the exact flaw: applied to kinematics it would ma
 
 | category | can it start empty? | ⇒ ownership pattern |
 |---|---|---|
-| ⭐ **cognitive** — `BehaviorState`, `BrainBlackboard`, `BrainBTreeState` | ✅ **yes.** An idle blackboard on tick 0 is correct; starting to think a frame later is invisible | ⭐⭐ **ROLE AFFINITY** — the creator declines, the role-holder claims on promotion |
+| ⭐ **cognitive** — `BehaviorState`, the `BlueprintBlackboard*` occurrence store, `BrainBTreeState` | ✅ **yes.** An idle blackboard on tick 0 is correct; starting to think a frame later is invisible | ⭐⭐ **ROLE AFFINITY** — the creator declines, the role-holder claims on promotion |
 | ⭐ **spatial / kinematic** — `SimTransform`, `SimVelocity` | ⛔ **no.** `(0,0,0)` is an origin flash, a wrong spatial-hash cell and a bogus first path query | ⭐⭐ **CREATOR BIRTHRIGHT** — the creator **always** owns at birth, then hands off via the existing `DeferredTakeOwnership` → `OwnershipUpdate` path |
 
 ⭐ **The generalised rule, stated once:**
@@ -582,7 +582,7 @@ acts on it. A Muscle node that stopped registering *"brain components"* would st
 
 | relationship | example *(measured)* | REGISTER? | OWN? |
 |---|---|---|---|
-| ⭐ **OWNED** — I have authority; I write it, I publish it | Muscle ↔ `SimTransform` · Brain ↔ `BrainBlackboard` | ✅ | ✅ |
+| ⭐ **OWNED** — I have authority; I write it, I publish it | Muscle ↔ `SimTransform` · Brain ↔ the occurrence store | ✅ | ✅ |
 | 🔴 **READ** — owned elsewhere, **replicated IN**, my systems consume it | ⭐⭐ **Muscle ↔ `NavigationIntent`, `MissionPlanQueue`** | ✅ **MUST** | ⛔ **never** |
 | ⛔ **ABSENT** — never mine, never arrives, nothing here reads it | Muscle ↔ `BrainBTreeState`, `BrainHsm128` | ⛔ | ⛔ |
 
@@ -606,7 +606,7 @@ CLASSIFICATION does.
 | ⭐⭐ **`NavigationIntent`** | **16** *(`NavigationIntentIngressTranslator` + `…EgressTranslator`)* | 🔴 **READ — must register** |
 | ⭐ **`MissionPlanQueue`** | **9** *(`EntityMissionIngressTranslator` writes the component)* | 🔴 **READ — must register** |
 | `BehaviorState` | 1 — ⚠ and it is `TacticalIntentEgressTranslator`'s `HasAuthority<>` **gate**, not a replication | ⛔ never arrives over the wire |
-| `BrainBTreeState` · `BrainBlackboard` · `Blackboard1024` · `BrainHsm128` · `BrainHsm64` | **0** | ⛔ **ABSENT — safe to drop** *(confirmed §3.9a: all four are `DataPolicy.NoScenario`, so none reaches a scenario)* |
+| `BrainBTreeState` · `BrainInterrupts` · the `BlueprintBlackboard*` tiers · `BrainHsm128` · `BrainHsm64` | **0** | ⛔ **ABSENT — safe to drop** *(confirmed §3.9a: all are `DataPolicy.NoScenario`, so none reaches a scenario)* |
 | the three channels · `ActorCapabilityState` · `PreviousCapabilities` · `SimTier` · `PassengerBuffer` · `IsEmbarkedTag` | **0** | ⚠ unclassified here; ✅ **CLASSIFIED in §3.9a** |
 
 ⇒ ✅ **The SAFE-TO-DROP set for a Muscle node is these six** — the five brain internals plus
@@ -623,14 +623,14 @@ a grep.
 ### 3.9a ✅ THE CLASSIFICATION, MEASURED `2026-09-12` — **SimHost (`MuscleGround` + `Perception` + `NavigationSolver`, never `Brain`)**
 
 > ⛔⛔ **A RETRACTION FIRST, BECAUSE IT WAS PUBLISHED FOR ONE COMMIT.** An earlier version of this section
-> claimed *"the safe-to-drop set is THREE, not six — `BehaviorState`, `BrainBlackboard` and `Blackboard1024`
+> claimed *"the safe-to-drop set is THREE, not six — `BehaviorState` and the cognitive scratch components
 > are REQUIRED for scenario persistence."* 🔴 **FALSE, and the design said so in the very files I cited.**
 > 📄 [`docs/designs/cgf-scn-3/DESIGN.md`](designs/cgf-scn-3/DESIGN.md) Architectural Boundary 3 — *"Runtime
-> execution scratch-pads (`BrainBlackboard`, channel arbitration state) **must be excluded from scenario
+> execution scratch-pads (the occurrence store, channel arbitration state) **must be excluded from scenario
 > serialization**. They are deterministically reconstructed from the `ActiveMissionPlan` during load"* — and
 > [`cgf-scn-2`](designs/cgf-scn-2/DESIGN.md) §Phase 1: *"`DataPolicy.NoScenario` governs scenario exclusion."*
-> 📐 **In code:** `BehaviorState` *(`BehaviorComponents.cs:43`)*, `BrainBlackboard` *(`:60`)*,
-> `Blackboard1024` *(`:102`)* and `PreviousCapabilities` *(`:28`)* all carry `[DataPolicy(NoScenario)]`, and
+> 📐 **In code:** `BehaviorState`, `BrainInterrupts`, the `BlueprintBlackboard*` tiers and
+> `PreviousCapabilities` *(`BehaviorComponents.cs:28`)* all carry `[DataPolicy(NoScenario)]`, and
 > each of the three translators states in its own `<remarks>` that **`Inject` is a deliberate no-op** and it
 > *"exists solely to produce a readable clipboard dump."*
 >
@@ -659,7 +659,7 @@ a grep.
 | `PassengerBuffer` · `IsEmbarkedTag` | ✅ **OWNED** | `GenesisMaterializationSystem` *(SimHost's own)* writes them; both have real scenario translators |
 | `ActorCapabilityState` | ✅ **OWNED** | `HealthApplicationSystem` + `DamageSystem` read it and SimHost runs `CombatModule`; ⭐ **not** `NoScenario`, so it is saved |
 | `EqsSensor` · `EqsCognitiveBuffer` · `SensorEvalState` | ✅ **OWNED** | SimHost registers `EqsModule` — the Perception role |
-| ⛔ `BehaviorState` · `BrainBlackboard` · `Blackboard1024` · `BrainBTreeState` · `BrainHsm128` · `BrainHsm64` | ⛔ **ABSENT** | no SimHost system · 0 wire refs · `NoScenario` ⇒ never in a scenario. ⚠ **The only cost is named below** |
+| ⛔ `BehaviorState` · `BrainInterrupts` · the `BlueprintBlackboard*` tiers · `BrainBTreeState` · `BrainHsm128` · `BrainHsm64` | ⛔ **ABSENT** | no SimHost system · 0 wire refs · `NoScenario` ⇒ never in a scenario. ⚠ **The only cost is named below** |
 | ⛔ the three channels *(`Locomotion` · `Weapon` · `Interaction`)* | ⛔ **ABSENT** | only `ActionDispatchModule` + `ChannelArbitrationSystem` touch them, both CGF-only |
 | ⛔ `PreviousCapabilities` | ⛔ **ABSENT** | `NoScenario`; read only by `CognitiveInterruptSystem` *(CGF)* and the Stride animation reactor |
 | ⚠ `SimTier` | ⚠ **WRITE-ONLY** | stamped by `BehaviorTkbTranslator:30`, and its **only** reader anywhere is `TrafficBrainSystem` in `FDP/Examples` ⇒ nothing in production reads it on any node. ⛔ A finding in its own right *(`CE-259bj`)*, not a narrowing decision |
@@ -671,7 +671,7 @@ and `PreviousCapabilities` — for **ten** droppable on SimHost.
 
 | what | ⭐ verdict |
 |---|---|
-| `BrainBlackboardTranslator` · `Blackboard1024Translator` · the two trace translators stop producing a **clipboard dump** of brain state on SimHost | ⭐ **acceptable, arguably correct** — dumping a blackboard from a node that never ticks a brain shows a value nothing on that node produced |
+| the occurrence-store and the two trace translators stop producing a **clipboard dump** of brain state on SimHost | ⭐ **acceptable, arguably correct** — dumping brain state from a node that never ticks a brain shows a value nothing on that node produced |
 | `AiTraceContextMenu.cs:26` gates its `ToggleAiTrace` on `HasComponent<BehaviorState>` ⇒ the toggle no-ops on SimHost | ✅ **CORRECT BEHAVIOUR, NOT A DEFECT — 🔒 user ruling `2026-09-12`: *"Ai debug toggle was meant host local, no routing tje toggle elsewhere needed"*.** ⛔⛔ **RETRACTED:** an earlier version of this row called it *"the same defect as `CE-259bg`'s `brainActive`"* and said *"it must become a request to the node that runs the brain"*. 🔴 **Wrong, and the two cases are NOT alike:** `brainActive` used a local component to answer a **CLUSTER** question *(does this entity's brain — wherever it runs — have a behaviour?)*; the trace toggle asks a **HOST-LOCAL** question *(trace the brain running HERE)*. ⇒ ⭐ on a node with no brain there is nothing to trace, so the toggle having no effect is the **right** answer and no routing work exists. ⚠ `HasComponent<T>` on an unregistered type returns **false**, it does not throw — `HasUnmanagedComponent` reads a mask bit via `ComponentType<T>.ID` *(`EntityRepository.cs:1010`)* ⇒ a clean no-op |
 
 ### 3.9b ⭐⭐⭐ REGISTRATION IS ALREADY ROLE-DERIVED — **it is ~80% BUILT AND UNDER-ADOPTED** *(user question, `2026-09-12`)*
@@ -927,7 +927,7 @@ third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `Bi
 | | |
 |---|---|
 | ⭐⭐ **replication never reads that bit** | `EntityInfoEgressTranslator.cs:116` gates on the **entity-level** `NetworkAuthority`/`DescriptorOwnership`; ⛔ **no egress translator reads the per-component `AuthorityMask` at all.** The promoter is not `PrimaryOwner`, so it publishes nothing |
-| ⭐ **nothing else reads it either** | the mask's whole production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard` |
+| ⭐ **nothing else reads it either** | the mask's whole production readership is `SimTransform`, `BehaviorState`, `BrainInterrupts` |
 
 ⇒ ⭐ **for anything that ACTS on it, the creator owns `EntityInfo`.** ⚠ The duplicated bit is the
 imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
@@ -955,7 +955,7 @@ entity lifetime"* is preserved — this design only fixes the **initial** value,
 var q = repo.Query()
     .With<BehaviorState>()
     .With<BrainBTreeState>()
-    .With<BrainBlackboard>();      // ⛔ no authority filter of any kind
+    .With<BrainInterrupts>();      // ⛔ no authority filter of any kind
 ```
 
 ⇒ ⛔⛔ **Declining the authority bits does NOT stop a node ticking the brain.** Authority today governs
@@ -972,13 +972,13 @@ var q = repo.Query()
 | *(implied)* the filter might cost per-frame time — §5 ①c's escape clause | ⭐⭐ **NOT a risk, measured at the enumerator.** `EntityQuery.cs:157-158` applies the authority masks as **step 4**, *after* the hot component-mask filter *and after* the cold `meta` fetch that the liveness check (`:145`) already pays. ⇒ the added cost is **two `BitMask512` ops on an already-loaded cache line**, and `CarKinematicsSystem` already pays it every frame in production. ⛔ **§5 ①c's *"if `.WithAuthority` proves to have a measurable per-frame cost"* is therefore CLOSED — it does not** |
 
 ⛔⛔⛔ **AND THE BIGGER FINDING: THIS SECTION NAMES ONE SYSTEM; THERE ARE SEVEN.**
-📐 `grep -rln "With<BehaviorState>\|With<BrainBlackboard>\|With<BrainBTreeState>"` over `FDP/`+`Hrot/`,
+📐 `grep -rln "With<BehaviorState>\|With<BrainInterrupts>\|With<BrainBTreeState>"` over `FDP/`+`Hrot/`,
 tests excluded — **every one un-gated**:
 
 | system | why it matters |
 |---|---|
 | 🔴🔴 **`HsmTickSystem.cs:110-113`** *(`.With<BehaviorState>().With<T>()`)* | ⭐⭐⭐ **the exact sibling of `BTreeTickSystem`.** `BehaviorState.BrainTier` selects which tier ticks *(`BTreeTickSystem:78-80` skips non-BTree)* ⇒ **gating only the BTree system leaves every HSM-tier ghost double-ticked.** ⛔ Non-negotiable: it ships with (b) or (b) is half a fix |
-| 🔴 `CognitiveCleanupSystem.cs:26-32` | **WRITES** — `GetComponentRW<BrainBlackboard>` on **every** entity holding a blackboard, clearing interrupt bits ⇒ a node clobbers a blackboard another node owns |
+| 🔴 `CognitiveCleanupSystem.cs:26-32` | **WRITES** — `GetComponentRW<BrainInterrupts>` on **every** entity holding the component, clearing interrupt bits ⇒ a node clobbers registers another node owns |
 | 🔴 `ChannelArbitrationSystem.cs:23-44` · `CognitiveInterruptSystem.cs:59-79` | both **WRITE** cognitive state on un-gated queries |
 | ⚠ `TraceBufferLifecycleSystem.cs:46-49` · `MissionDirectorSystem.cs:91-94` · `Hrot.CGF` `MissionAdapterSystem` · `RouteContextSystem` | ⭐ read-mostly and/or Brain-only by composition ⇒ **judge each**, do not blanket-gate. ⛔ But judging each is the work, and it is not one line |
 
@@ -991,7 +991,7 @@ never registers is skipped by the translator, so the query never matches and not
 
 | ⭐ closure | |
 |---|---|
-| **(a) PRIMARY — registration** | narrow a Muscle-only node's `CognitiveComponentRegistry` so brain components are never registered. ⭐ Zero runtime cost, uses the architecture's own narrowing lever. 📐 Today `Hrot/Subsystems/Hrot.SimHost/CognitiveComponentRegistry.cs:32-40` registers `BehaviorState`, `LocomotionChannel`, `BrainBTreeState`, `BrainBlackboard` |
+| **(a) PRIMARY — registration** | narrow a Muscle-only node's `CognitiveComponentRegistry` so brain components are never registered. ⭐ Zero runtime cost, uses the architecture's own narrowing lever. 📐 Today `Hrot/Subsystems/Hrot.SimHost/CognitiveComponentRegistry.cs:32-40` registers `BehaviorState`, `LocomotionChannel`, `BrainBTreeState`, `BrainInterrupts` |
 | **(b) ALSO REQUIRED — the tick gate** | add **`.WithOwned<BehaviorState>()`** *(the real method name — see the correction above)* to `BTreeTickSystem`'s query **AND `HsmTickSystem`'s**, then judge the other five. ⚠ **(a) alone is not sufficient**: a node that legitimately registers brain components *(all-in-one, or a Muscle node running its own brains per `R-138`)* and then receives a ghost whose brain another node owns would **double-tick**. Authority is the only thing that can separate *"my brain"* from *"someone else's brain"* on such a node |
 
 ### 3.6 ⚠ TWO different "authority" concepts — do not confuse them
@@ -1016,7 +1016,7 @@ never registers is skipped by the translator, so the query never matches and not
 |---|---|---|
 | ⭐ `SimTransform` | `CarKinematicsSystem.cs:73` · four Stride physics systems · **`GeoSpatialIngressTranslator.cs:90`** | SimHost · Stride · any NED node |
 | ⭐ `BehaviorState` | `TacticalIntentEgressTranslator.cs:72` · `TacticalIntentResolutionSystem.cs:95` · 4 of the 6 gated cognitive systems | SimHost · CGF |
-| ⭐ `BrainBlackboard` | `CognitiveInterruptSystem` · `CognitiveCleanupSystem` *(gated)* | CGF |
+| ⭐ `BrainInterrupts` | `CognitiveInterruptSystem` · `CognitiveCleanupSystem` *(gated)* | CGF |
 | ⛔ `Position` *(geographic)* | `CoordinateTransformSystem.cs:29` | ⚠ **matches ZERO HROT entities** — `PositionGeodetic` has **0** production references in `Hrot/`+`Stride/`, and the query requires it |
 
 ⇒ ⭐⭐⭐ **THE CONSEQUENCE FOR THIS DESIGN, STATED PLAINLY: narrowing the `AuthorityMask` does NOT change
@@ -1300,7 +1300,7 @@ they are not redrawn here.
 | ⭐ what was measured | result |
 |---|---|
 | **distributed genesis** | `entityCount: 8` on **BOTH** nodes, `sawWorldChange`+`hadWorldAnchor` true ⇒ CGF created, SimHost ghosted **and promoted** all 8 |
-| ⭐⭐⭐ **the role split, as component sets** | SimHost carries `VehicleParams`/`NavState`/`FormationController`/`PhysicsCollider`/`WeaponState`/`Health` and **NO** `BehaviorState`, `BrainBlackboard` or `BrainBTreeState`. CGF carries the cognitive set. ⇒ §6h's registration narrowing is visible in production, per entity |
+| ⭐⭐⭐ **the role split, as component sets** | SimHost carries `VehicleParams`/`NavState`/`FormationController`/`PhysicsCollider`/`WeaponState`/`Health` and **NO** `BehaviorState`, occurrence store or `BrainBTreeState`. CGF carries the cognitive set. ⇒ §6h's registration narrowing is visible in production, per entity |
 | ⭐⭐ **the creator's birthright, on the wire** | `WorldPos` on CGF: **egress exactly `8`** *(one guaranteed baseline per entity)*, then **ingress `18 064`** as SimHost's kinematics take over. ⭐ That is `[PerInstanceValue]`'s ADDITION RULE *(§6.6a of `designs/tkb-1`)* observable end to end |
 | ⭐⭐ **deferred takeover** | `DeferredTakeOwnership` recv `8` · `SST_OwnershipUpdate` `16` · per-entity `DescriptorOwnership.Map` names SimHost as owner of 2 descriptors |
 | ⭐ **the full kill chain** | advance → `SensorContactList.Count` 2 → `ActiveSensorTracks` → `WeaponChannel.Status: Running` → `WeaponFireRequest` egress `84` → `EntityHitDamage` SimHost→CGF `47/47` → **both hostiles `Health.Current == 0`** *(`t=44.4` and `t=161.0`)* |
@@ -1404,12 +1404,12 @@ freeze**. ⇒ §3.1 now carries the corrected mechanism, and the old one — *"e
 ### ⚠⚠ HOW BIG THIS ACTUALLY IS — **stated honestly, because §3.6's correction shrinks it**
 
 ⛔ **Narrowing the `AuthorityMask` changes what a node EXECUTES, not what it PUBLISHES.** 📐 §3.6: the mask's
-entire production readership is `SimTransform`, `BehaviorState`, `BrainBlackboard`, and a `Position` query
+entire production readership is `SimTransform`, `BehaviorState`, `BrainInterrupts`, and a `Position` query
 that matches zero HROT entities. ⇒ ⭐ the observable delta of this step is:
 
 | | |
 |---|---|
-| ✅ SimHost stops owning `BehaviorState`/`BrainBlackboard` on entities it creates | the ruling |
+| ✅ SimHost stops owning `BehaviorState`/the occurrence store on entities it creates | the ruling |
 | ✅ CGF claims them when it promotes the ghost | ⇒ exactly one node owns them, and `TacticalIntentResolutionSystem.cs:95` passes on that one |
 | ✅ CGF's six cognitive systems now gate on authority | so a future second Brain, an all-in-one host, or `R-138`'s Muscle-runs-brains case cannot double-tick |
 | ⚠ CGF's promote leg also claims the unclassified remainder on ghosts | ⛔ **no observable effect** — nothing reads those bits *(§3.6)*, and the two that would are excluded |
@@ -1445,7 +1445,7 @@ narrowing makes that translator correct **by construction** rather than by luck.
 | *"steps 3c and 4 remain unbuilt"* | ⚠ half false | step 4 shipped (§6i) |
 
 ⭐⭐ **And the live run had already shown it:** §6i-a records SimHost carrying no `BehaviorState`,
-`BrainBlackboard` or `BrainBTreeState`. ⛔ That was the narrowing working in production, mis-attributed to
+an occurrence store or `BrainBTreeState`. ⛔ That was the narrowing working in production, mis-attributed to
 §6h — which shipped only its PREREQUISITE, the Perception registry.
 
 ### 🔴🔴 THE GAP THAT IS REAL — **the narrowing and the role table are TWO PRODUCERS OF ONE FACT**
@@ -1568,7 +1568,7 @@ answer is that the loss is the **SimHost half of the AI-TRACE / diagnostics feat
 | ⚠ `BrainHsm128` | `Modules/CombatModule.cs` — ⭐ **a DOC-COMMENT only**, saying `HsmDamageBridgeSystem` was RELOCATED to the Brain | ✅ free |
 | 🔴 `BehaviorState` | `AiTraceContextMenu.cs:26` gates `ToggleAiTrace` on it ⇒ **the toggle silently no-ops** · 4 scenario translators use it as their `CanTranslate` gate · `SimHostVisualization`'s **dead** `HandleRightClickForEntity` | ⚠ the real cost |
 | 🔴 `BTreeTraceWorkingMemory1024` · `HsmTraceWorkingMemory1024` | **`AiDiagnosticsTkbTranslator.cs:47-58` STAMPS them on every SimHost spawn** *(guarded by `IsComponentTypeRegistered`, so it silently skips)* — plus their two dump translators | ⚠ the real cost |
-| 🔴 `BrainBlackboard` · `Blackboard1024` | their two **extract-only** clipboard-dump translators | ⚠ the real cost |
+| 🔴 the `BlueprintBlackboard*` occurrence store | its **extract-only** clipboard-dump translator | ⚠ the real cost |
 | ⛔ all **6 events** | **NONE** | ✅ free |
 
 ⇒ ⭐⭐⭐ **The loss is exactly ONE FEATURE, in four places: AI-trace on SimHost** — the menu toggle, the
@@ -1588,7 +1588,7 @@ nothing ticks a tree ⇒ **the buffers stamped there are always empty and the du
 work on this node**, which is the `CE-259bg` `brainActive` defect in another costume.
 
 ⚠⚠ **The one stale INTENT to retire with it:** `SimHostScenarioManager`'s header claims each spawned entity
-carries `BehaviorState` + `BrainBlackboard` *"so the BTree cognitive tier drives its behaviour autonomously
+carries `BehaviorState` + an occurrence store *"so the BTree cognitive tier drives its behaviour autonomously
 from the first frame."* 📐 **No SimHost composition delivers that** — same shape as `BD1`'s dead routing.
 
 ### ✅✅✅ SLICE 3b SHIPPED — **SimHost no longer registers a brain** *(user ruling, `2026-09-12`)*
@@ -1755,11 +1755,11 @@ defaults to `false` and one flag threads to both cognitive modules from `CgfLogi
 | | |
 |---|---|
 | ⭐⭐ **the other writers make it half a fix** | `ChannelArbitrationSystem`, `CognitiveInterruptSystem` and `CognitiveCleanupSystem` all **WRITE** cognitive state on un-gated queries. ⛔ Gating only the ticks leaves a node clobbering a brain another node owns — and the red-proof confirms it: leaving **one** system un-gated reddens the gate rail |
-| 🔴 **two of them never queried `BehaviorState` at all** | `CognitiveInterruptSystem` and `CognitiveCleanupSystem` key on `BrainBlackboard`. ⇒ gating them on `BehaviorState` would have added a `With<BehaviorState>` they did not have and **silently NARROWED the matched set even with the gate OFF** — a behaviour change wearing a feature flag. ⭐ **The rule applied instead: gate each system on a component it ALREADY requires**, so the only change is the authority bit |
+| 🔴 **two of them never queried `BehaviorState` at all** | `CognitiveInterruptSystem` and `CognitiveCleanupSystem` key on `BrainInterrupts`. ⇒ gating them on `BehaviorState` would have added a `With<BehaviorState>` they did not have and **silently NARROWED the matched set even with the gate OFF** — a behaviour change wearing a feature flag. ⭐ **The rule applied instead: gate each system on a component it ALREADY requires**, so the only change is the authority bit |
 
 ⭐ **Gated (6):** `BTreeTickSystem`, `HsmTickSystem<T>`, `ChannelArbitrationSystem` *(both queries)* and
 `MissionDirectorSystem` on `BehaviorState`; `CognitiveInterruptSystem` *(both queries)* and
-`CognitiveCleanupSystem` on `BrainBlackboard`.
+`CognitiveCleanupSystem` on `BrainInterrupts`.
 ⛔ **Deliberately NOT gated:** `TraceBufferLifecycleSystem` and `BehaviorFrameSystem` *(diagnostics /
 pulse, no cognitive writes)*; `MissionAdapterSystem` and `RouteContextSystem` *(in `Hrot.CGF`, so they can
 only ever run on a Brain host)*; `Fdp.Examples`' `TelemetryReporterSystem` *(not production)*.
@@ -1840,7 +1840,7 @@ receiving its own orders.**
 ⇒ ⭐ **Order when this is built:** ① add `readComponentSet` to the role model *(§3.9)* · ② re-home the
 routing proxy *(`CE-259bg`)* · ③ then narrow *(`CE-259bf`)*.
 ⛔ **The measured SAFE-TO-DROP set for Muscle is SIX, not fourteen:** `BrainBTreeState`,
-`BrainBlackboard`, `Blackboard1024`, `BrainHsm128`, `BrainHsm64` and `BehaviorState` — all with **zero**
+`BrainInterrupts`, the `BlueprintBlackboard*` tiers, `BrainHsm128`, `BrainHsm64` and `BehaviorState` — all with **zero**
 wire references. ⚠ Nine more are **unclassified**, and zero wire references does NOT prove nothing local
 reads them: a component can be produced by a system this node schedules. ⇒ classify **per component
 against the systems the role RUNS**, never against a grep of `Hrot.SimHost`.

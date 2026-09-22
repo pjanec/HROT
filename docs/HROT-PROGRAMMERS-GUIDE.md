@@ -511,8 +511,10 @@ noted. All are named constants in code (cite shown).
   `WhenNode(EventFired)` + `FallingEdge` never fires. `.../Stage2_Validate.cs:829-838,813-818`
 
 ### 6.3 Roslyn generators & analyzers (compile-time invariants)
-- 🔴 **FDP_001** errors if any `[SharedAiAction]`/`[SharedAiCondition]` DTO > **100 B** (would
-  overrun `BrainBlackboard`). Keep that analyzer in the FDP Behavior domain — never in generic
+- 🔴 **An oversized `[SharedAiAction]`/`[SharedAiCondition]` DTO fails at ATTACH, structurally** — a
+  behaviour's params must fit its occurrence-slot tier (`RootParamsBytes(def)`); the partition
+  allocator's `TryAttach` refuses a payload that will not fit any tier, up to 16 096 B at the top
+  tier (`BlueprintBlackboard16384`). Keep that bound in the FDP Behavior domain — never in generic
   FastBTree/FastHSM. `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26`
 - 🔴 **Never add/remove ECS components inside HSM/BTree `SharedAi` thunks** — they write
   directly during chunk iteration; structural mutation corrupts the chunk arrays. `FDP/Toolkits/Fdp.Toolkits.Analyzers/HsmActionGenerator.cs:695`

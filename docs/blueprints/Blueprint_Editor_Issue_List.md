@@ -156,7 +156,7 @@ but a real surprise if an author expects to breakpoint a Library graph. Architec
 
 **Built for BTree, still broken for HSM.** BTree-composed AiPrimitives get per-node FNV-1a slot keys
 (`FNV(assetId, nodeVisualId)`, or `FNV(assetId, variableId)` for Behavior scope) over the
-`BlueprintBlackboard{1024,4096,16384}` partition tiers, and `BTreeCommandSink.ComposeAiPrimitiveAction`
+`BlueprintBlackboard{256,1024,4096,16384}` partition tiers, and `BTreeCommandSink.ComposeAiPrimitiveAction`
 auto-creates a distinct `Role=State, Scope=Node` host variable per placement — so two blueprints, or
 one placed twice, separate correctly. Option β's Fix-1/Fix-2/`ClearBehaviorEvent` detach are all shipped
 and tested.
@@ -168,18 +168,19 @@ Verified asymmetry — the two hosts have **opposite** halves of the solution:
 | **BTree** | ✅ 16 refs in `BTreeBridgeEmitCore` | ❌ none (only `NestedParallel`) |
 | **HSM** | ❌ **0 refs** in `HsmBridgeEmitCore`; no compose command | ✅ `CheckConcurrentStatefulSubtrees` + `CheckConcurrentSharedScopeKeys` |
 
-- **BP-30 (REAL WORK):** HSM-hosted AiPrimitives still use the legacy fixed offset (`Blackboard1024`+8,
-  one 8-byte `StructureHash`). Two stateful AiPrimitives on one HSM entity alternately `InitBlock`-zero
-  and re-init each other every tick — **neither retains state**. Reuses the FNV key math verbatim; needs
-  a new emitter surface + compose command.
+- **BP-30 (REAL WORK):** HSM-hosted AiPrimitives still resolve to a single occurrence slot keyed by asset
+  only (no per-node-instance key), guarded by one `StructureHash`. Two stateful AiPrimitives on one HSM
+  entity alternately `InitBlock`-zero and re-init each other every tick — **neither retains state**.
+  Reuses the FNV key math verbatim; needs a new emitter surface + compose command.
 - **BP-31 (SMALL):** port HSM's concurrent-stateful validators to `BTreeValidator` — a Subtree
   referenced twice under a `Parallel` is currently unguarded.
 - **Test gap:** no test covers *two different* blueprint-authored AiPrimitive assets concurrently on one
   entity. Coverage is by analogy (`T20` uses hardcoded actions on the same rail; `T35` uses the same
   blueprint 3×). Worth a direct proof test.
 - **Doc drift:** `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md`
-  §1/§5 still describe AiPrimitive working state as living only in `Blackboard1024` — true for the
-  legacy/HSM path, wrong for BTree-composed nodes.
+  §1/§5 still describe AiPrimitive working state as living in a fixed per-entity blackboard component —
+  wrong everywhere now: that component is gone, and working state is node working-state occurrence
+  slots in the tier ladder for every host, BTree and HSM alike.
 
 ## Suggested order
 

@@ -20,7 +20,7 @@ The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented D
 |---|---|
 | `FastBTree` (`BrainTierBTree = 2`) | Sequential multi-phase logic for both commander and tank behaviors |
 | `UnitRoster` / `UnitSubordinate` (Fdp.Core) | Native commander-subordinate relationships; no custom roster components |
-| `Blackboard1024` (component ID 74) | Heavy mutable working memory for the commander, projected via `Unsafe.As` |
+| Node working-state occurrence slot (`BlueprintBlackboard{256,1024,4096,16384}` tier ladder) | Commander mutable working memory, allocated as an occurrence slot and projected at the slot's `PayloadOffset` |
 | `AssignTacticalIntentEvent` | Top-down order dispatch from commander to subordinates |
 | `TacticalIntentResolutionSystem` (Hrot.CGF) | Bridges intent strings to `AssignBehaviorEvent` via `ITacticalOrderMapper` |
 | `BehaviorIngressSystem` (Fdp.Toolkits) | Atomically updates `BehaviorState`, resets BTree execution pointer, parses JSON params |
@@ -33,7 +33,7 @@ The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented D
 ### Invariants
 
 - Behavior nodes never mutate physics transforms or ECS structure directly.
-- All heavy state that cannot fit in the 60-byte parameter region uses `Blackboard1024`.
+- All working state that does not fit in the root params occurrence slot is held in a node working-state occurrence slot in the Blueprint tier ladder.
 - No custom channel types beyond the three standard CQRS actuator channels.
 - No phantom/satellite entities. Spatial awareness is provided by the EQS infrastructure.
 - No managed heap allocations in hot-path behavior nodes.
@@ -156,8 +156,8 @@ Four translator classes in `Hrot.Network.NED`, mirroring the pathfinding transla
 ## Phase 2: Hill Attack Data Contracts
 
 **Goal:** Define the unmanaged DTOs that govern both behaviors' memory layouts, fitting
-all static configuration within the strict 60-byte `BrainBlackboard` parameter region
-and all mutable working state into the `Blackboard1024` component.
+all static configuration within the 60-byte root params occurrence slot
+and all mutable working state into a node working-state occurrence slot in the Blueprint tier ladder.
 
 ### 2.1 Commander DTOs
 
@@ -171,7 +171,7 @@ and all mutable working state into the `Blackboard1024` component.
 **`PlatoonHillAttackBlackboard`** — single-field wrapper used as `TBlackboard` type in
 the `BTreeBuilder` expression-binding overloads. Contains one field: `Params`.
 
-**`HillAttackMutableState`** (projected onto `Blackboard1024.Memory`):
+**`HillAttackMutableState`** (a node working-state occurrence slot, keyed `{fqn}@{offset}@{slotKey}` in the Blueprint tier ladder):
 - `int TotalSlots` — computed from segment length / `TankSpacing`.
 - `byte CurrentWave` — 0 or 1.
 - `long CachedEqsRequestId` — stores the request ID between `Action_RequestAreaQuery`
@@ -354,7 +354,7 @@ Sequence
 
 | Node | Attribute |
 |---|---|
-| `Action_CalculateSegments` | `[SharedAiHeavyAction]` (5-arg, projects Blackboard1024 -> HillAttackMutableState) |
+| `Action_CalculateSegments` | `[SharedAiAction]` (4-arg: `ref PlatoonHillAttackParams`, `ref HillAttackMutableState` from its own occurrence slot, `ref BehaviorTreeState`, `ref BTreeContext`) |
 | `Action_DispatchAllToBaseline` | `[SharedAiHeavyAction]` |
 | `Condition_AreAllAtBaseline` | `[SharedAiCondition]` (reads UnitRoster + NavigationStatus via repo) |
 | `Action_RequestAreaQuery` | `[SharedAiHeavyAction]` (writes CachedEqsRequestId) |
@@ -417,14 +417,14 @@ end-to-end behavior correctness through scenario-based integration tests.
 ### 5.1 TKB Blueprint Requirements
 
 The commander entity blueprint (TKB definition) must include:
-- `BrainBlackboard` — standard behavior bus (already present on AI entities).
-- `Blackboard1024` — heavy working memory for `HillAttackMutableState`.
+- `BehaviorState` — carries `ActiveBehaviorHash`, which locates the root params occurrence slot (`RootParamsAccess.KeyFor`); already present on AI entities.
+- A `BlueprintBlackboard{256,1024,4096,16384}` tier component (chosen by the partition allocator) — holds the `HillAttackMutableState` node working-state occurrence slot.
 - `UnitRoster` — commander-subordinate hierarchy (already standard on platoon commanders).
 - `TargetMemory` — required if the commander also has a perception role; not needed for
   hill attack commander logic itself.
 
 Subordinate tank entities must include:
-- `BrainBlackboard`, `BehaviorState`, `BrainBTreeState`
+- `BehaviorState`, `BrainBTreeState`
 - `LocomotionChannel`, `WeaponChannel`
 - `NavState` (for `ReverseAllowed` support in reverse locomotion)
 - `NavigationStatus` (CQRS feedback component read by `Condition_AreAllAtBaseline`;
@@ -455,7 +455,7 @@ A scenario-based integration test in `Hrot.SimHost.Tests` or `Hrot.CGF` tests sh
 | EQS uses `NativeArray` batch singleton, not managed components | Consistent with `PathfindingBatchData`/`RaycastBatchData`; zero GC pressure; no structural ECS mutations |
 | 1D slot indices stored, not 2D coordinates | Eliminates `fixed float` arrays; bitmask suffices for 16 slots; JIT interpolation at dispatch |
 | SoA tracker decoupled from `UnitRoster` | `UnitHierarchySystem` compacts `UnitRoster` on entity destruction; SoA tracker remains stable |
-| `Blackboard1024` reused (not a new component) | Preserves the 256 component-type budget |
+| Node working-state occurrence slot reused (not a new component) | Preserves the 256 component-type budget |
 | Wave assignment by `Entity.Index % 2`, not roster index | `UnitHierarchySystem` compacts `UnitRoster` on death, shifting indices; `Entity.Index` is immutable for the entity lifetime |
 | `HasStartedRun` flag guards wave completion | `AssignTacticalIntentEvent` takes one frame to propagate through ingress pipeline; a premature hash check would falsely signal completion before the behavior starts |
 | `Action_AbortEngagement` no-op in BTree | Guarantees `Action_ReverseToBaseline` runs even when `Action_CreepToAndBeyondSlot` fails on overshoot; avoids stranded tanks |

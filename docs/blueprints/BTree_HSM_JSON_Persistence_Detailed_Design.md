@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-22
+current-answer: this document specifies the JSON persistence architecture (schema, save/load,
+  generator wiring) for BTree/HSM assets. Runtime storage for behaviour params and AiPrimitive
+  working state is occurrence slots, owned by DESIGN_Occurrence_Scoped_Storage.md §30 — read that
+  document for storage, this one for persistence.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the occurrence-slot storage model referenced here.
+-->
+
 # BTree / HSM JSON Persistence — Detailed Design (Thread 1)
 
 > **Status:** Detailed design. Grounded in read-only verification of the `blueprint-integ-1` sources (8 verification passes, all cited inline). Ready for batch breakdown.
@@ -68,7 +79,7 @@ Under `Hrot/Subsystems/Hrot.AI.Behaviors/`: `Blueprints/**/*.bp.json` (fed to th
 ### 2.9 Blackboard: feature is BUILT but DORMANT (not dead, not wired)
 - The **Blackboard Authoring DD** (`.dev/_DONE/ai-hsm-btree-vis-edit/`) is design-reviewed; its TASK-TRACKER shows **all 44 tasks `[x]`** — but our verification found **no production callers**, **no `*.Blackboard.cs` on disk**, vars populated **UI-only**, and **no asset adopts it**. Conclusion: components built + unit-tested, **never engine-wired**.
 - Both editor models already carry `IsBlackboardEditorManaged` ([BehaviorTreeAsset.cs:205](Hrot/Subsystems/AI/Hrot.BTree.Editor/Model/BehaviorTreeAsset.cs#L205), [HsmAsset.cs:60](Hrot/Subsystems/AI/Hrot.Hsm.Editor/Model/HsmAsset.cs#L60)) and `BlackboardLoadState`; vars are `List<BlackboardVariableEntry>` (record `Name`, `System.Type FieldType`, `Comment` — **not JSON-friendly**, not persisted today).
-- Runtime tiers: inline `BrainBlackboard.BehaviorParameters` (ceiling = `MaxBehaviorParamByteSize`; see §8 note) + on-demand `Blackboard1024` heavy component, provisioned via `[BTreeDefinition(HeavyDtoType=…)]`. Real heavy DTOs use `fixed`-buffer SoA arrays ([HillAttackDtos.cs:94 `HillAttackMutableState`](Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackDtos.cs#L94)).
+- Runtime storage: behaviour params live in the **root params occurrence slot** (`RootParamsAccess`, keyed by `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`; see §8 note) and AiPrimitive working state lives in **node working-state occurrence slots**, both in the `BlueprintBlackboard{256,1024,4096,16384}` tier ladder. There is no separate overflow path — large DTOs are ordinary slots in a larger tier ([HillAttackDtos.cs:94 `HillAttackMutableState`](Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackDtos.cs#L94)).
 - **Do NOT delete any blackboard scaffolding.** It is reused (logic is persistence-agnostic) when Slice 1.5 is activated on JSON.
 
 ---
@@ -85,7 +96,7 @@ Under `Hrot/Subsystems/Hrot.AI.Behaviors/`: `Blueprints/**/*.bp.json` (fed to th
 | D6 | **Path-at-creation** for all three kinds: `<root>/<user subfolder>/<name>.<ext>`. No more `SourceFilePath = ""`. | Onboarding Task 3. |
 | D7 | **Rename/refactor works across `.json` and `.cs`.** Editor-owned → JSON-aware mutation; hand-authored → existing `.cs` string-replace. | User directive; extends existing `IRefactorService`. |
 | D8 | **Editor-owned files are 100% editor-controlled** — no hand edits, no read-only-passthrough *inside* editor-owned files. Exotic needs are met by **extending the editor** or by **Category-1 composition** (hand-written struct embedded by reference). | User directive. Drops the DD's fragile in-file passthrough mechanism; its own §2.4/§4a.4 composition path is the replacement. |
-| D9 | **Blackboard = blittable + fixed-size invariant.** Editor-owned blackboards (and any Category-1 struct embedded in one) contain **only** blittable value types and **fixed-length inline arrays** of them. Type picker/generator reject `System.String`/managed arrays/object refs. **Strings are supported via `Fdp.Core.FixedString32`/`FixedString64`** (unmanaged UTF-8 inline value structs, ≤31/≤63 chars). | The whole `BrainBlackboard`+`Blackboard1024` region must be byte-copyable into **AAR recordings**, replayed, and network-replicated — a managed `string` would break zero-alloc, replay, and replication. |
+| D9 | **Blackboard = blittable + fixed-size invariant.** Editor-owned blackboards (and any Category-1 struct embedded in one) contain **only** blittable value types and **fixed-length inline arrays** of them. Type picker/generator reject `System.String`/managed arrays/object refs. **Strings are supported via `Fdp.Core.FixedString32`/`FixedString64`** (unmanaged UTF-8 inline value structs, ≤31/≤63 chars). | The whole occurrence-slot region (root params + node working state, held in the `BlueprintBlackboard*` tier component) must be byte-copyable into **AAR recordings**, replayed, and network-replicated — a managed `string` would break zero-alloc, replay, and replication. |
 | D10 | **Defaults are editor-authored** on blackboard vars (mirrors blueprint `DefaultValueJson`); generator emits the initializer applied at ingress. | Avoids setting defaults later in hand code (e.g. `-1` inits). |
 | D11 | **Full feature set is preserved; only ordering changes.** JSON substrate first (this thread); then the *complete* Blackboard Authoring DD (Slice 1.5+) is revised for JSON and activated, reusing the built components. | User directive — nothing simplified or dropped. |
 | D12 | **Dual-path compilation (mirror Blueprint).** The shared `netstandard2.0` emit core is driven by BOTH an **in-process Roslyn quick-reload** path (editor, ≤100 ms target) AND the **MSBuild IncrementalGenerator** (full rebuild). | The ≤100 ms target is documented for BTree/HSM (host §1.3) but unmet today; MSBuild-only would never meet it. Latency-neutral vs today regardless, so PU-09 may be sequenced as a follow-on without regressing. |
@@ -159,8 +170,7 @@ Node types use `[JsonPolymorphic(TypeDiscriminatorPropertyName="kind")]`. Action
 ```jsonc
 "Blackboard": {
   "Managed": false,                 // false = Category-1 (reflect hand-written struct, read-only)
-  "TypeName": "BrainBlackboard",    // Category-1: the referenced struct; Category-2: the generated struct name
-  "HeavyDtoType": null,             // set when Blackboard1024 heavy tier is used
+  "TypeName": "PlatoonHillAttackParams",  // Category-1: the referenced struct; Category-2: the generated struct name
   "Variables": [
     { "Name": "AmmoCount", "Type": { "TypeId": "System.Int32", "IsArray": false, "FixedLength": null },
       "DefaultValueJson": "0", "Comment": "Bullets remaining" },
@@ -212,9 +222,9 @@ This preserves the `VisualId → KernelBlobIndex` mapping the debug overlay (rec
 ## 7. Blackboard handling (this thread's slice)
 
 - **Category 1 (hand-written, read-only):** unchanged — reflect the user's blittable struct via `ActionSchemaExporter` / `[BlackboardDtoStruct]`; surface read-only; editor never writes it.
-- **Category 2 (editor-owned):** schema serialized into the asset JSON (§5.4). **In this thread:** round-trip only. **In Slice 1.5 (later):** the JSON generator emits the `TBlackboard` struct (+ heavy struct + `HeavyDtoType` registration) and offset thunks; panel/aggregation/aliasing/sync/bin-packing/validation are activated.
+- **Category 2 (editor-owned):** schema serialized into the asset JSON (§5.4). **In this thread:** round-trip only. **In Slice 1.5 (later):** the JSON generator emits the root-params occurrence-slot layout struct and offset thunks; panel/aggregation/aliasing/sync/bin-packing/validation are activated.
 - **Invariants enforced (fully in Slice 1.5):** blittable value types only (strings → `FixedString32/64`); arrays are fixed-length inline buffers — `fixed {prim}[N]` for primitives, `[InlineArray(N)]` for blittable structs (both AAR/replication-safe). Generator must replicate `Sequential` alignment math (natural alignment capped at 8; pad to 8 before a `fixed long[]`) or editor offset calc diverges from the C# compiler → flight-recorder schema corruption.
-- **Defaults (architect Q4):** applied inside the generated `ParseParamsDelegate` — instantiate DTO → apply editor-authored defaults → overlay JSON params (overrides win) → `Unsafe.Write`. **Inline tier only** is covered by `BehaviorIngressSystem`. **Heavy-tier defaults** (`Blackboard1024`) need an inline init-check in the execution thunks (verify the 8-byte `StructureHash` header; apply if uninitialized), mirroring Blueprint's `InitDefaultWorkingState`.
+- **Defaults (architect Q4):** applied inside the generated `ParseParamsDelegate` — instantiate DTO → apply editor-authored defaults → overlay JSON params (overrides win) → `Unsafe.Write`. **Root-params slot defaults** are covered by `BehaviorIngressSystem`. **Node working-state slot defaults** need an inline init-check in the execution thunks (verify the slot's `StructureHash` guard; `ResolveOrAttach` re-initializes on mismatch), mirroring Blueprint's `InitDefaultWorkingState`.
 - **`[InlineArray]` mutation trap (architect Q5):** generated consuming/accessor code must mutate via `Span<T>` / `MemoryMarshal.CreateSpan` / `Unsafe.As` (or Get-Mutate-Set), never direct index — direct indexing emits `ldobj` (defensive copy) and silently loses the write to the ECS chunk.
 - **No blackboard scaffolding is deleted.** The DD revision (separate, post-this-thread) flips Category-2 persistence from `.Blackboard.cs` to JSON, deleting only the fragile source-text-parser/verbatim-span/State-B-C machinery; all logic components survive.
 
@@ -226,7 +236,7 @@ This preserves the `VisualId → KernelBlobIndex` mapping the debug overlay (rec
 - Wire **Save All** (toolbar + `Ctrl+Shift+S`, hooking `CommandCatalog.SaveAll = "editor.save-all"`) and **flush-on-close**. `Ctrl+S` = active-only (recommended).
 - C# regeneration stays a separate build/on-demand step.
 
-> **Note — inline param ceiling (resolved):** authoritative value is **`BehaviorConstants.MaxBehaviorParamByteSize = 100`** bytes; `BrainBlackboard` total = `BrainBlackboardByteSize = 128`; the param region is `[FieldOffset(0)] fixed byte BehaviorParameters[100]`, with reserved tail registers `ExpectedThreatLevel` (offset 120), `Interrupt_MobilityLost` (126), `Interrupt_Reserved` (127) and a soft-advice gap at 100–119 ([BehaviorConstants.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs), [BehaviorComponents.cs:58](FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs#L58)). The `HillAttackDtos.cs` "60-byte" comment is **stale**. The bin-packer must use **100** (Slice 1.5).
+> **Note — root-params ceiling (resolved):** there is no fixed per-brain byte cap any more. Each behaviour's params region is sized to `RootParamsBytes(def)` and enforced structurally by the tier allocator; the structural ceiling is the largest tier's payload, **16 096 bytes** (`BlueprintBlackboard16384` — see `DESIGN_Occurrence_Scoped_Storage.md` §30.15). The interrupt registers `ExpectedThreatLevel`, `Interrupt_MobilityLost`, `Interrupt_Reserved` live in their own `BrainInterrupts` component, untouched by this move ([BehaviorConstants.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs)). The `HillAttackDtos.cs` "60-byte" comment is **stale**. The bin-packer must size per behaviour via `RootParamsBytes(def)`, not a fixed constant (Slice 1.5).
 
 ## 9. Path-at-creation & roots
 Three fixed roots (`Trees/`, `Machines/`, `Blueprints/`) under `Hrot.AI.Behaviors`; user subfolders+names. New-asset flow assigns `SourceFilePath` at creation for all kinds. Add the **base-name collision guard** (D5). Add `<AdditionalFiles>` globs for `Trees/**/*.btree.json` and `Machines/**/*.hsm.json`; ensure generated `.cs` lands in `obj/GeneratedFiles` and committed `Trees/*.cs`/`Machines/*.cs` are migrated out (§11).

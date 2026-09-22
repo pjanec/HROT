@@ -210,7 +210,7 @@ architect ruling.
 
 ✅ **Both halves verified against emitted code.** A suspension is `return NodeStatus.Running`; the C#
 frame dies and a stack local with it — **coordinator-probed, and the value silently reverts to its
-default.** `WorkingState` is literally blackboard memory (`Blackboard1024.Memory` + 8), so
+default.** `WorkingState` is literally the bytes of a node working-state occurrence slot, so
 *"blackboard-allocated"* is the emitted reality, not an analogy.
 
 ⭐ **A3 was rejected on 2026-08-11 for one reason — *"the storage class becomes a derived property, and

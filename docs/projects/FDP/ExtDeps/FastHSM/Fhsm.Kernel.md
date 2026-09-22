@@ -371,8 +371,10 @@ public sealed class HsmDefinitionAttribute : Attribute
     public bool BlackboardManaged { get; set; }
 
     /// <summary>
-    /// When set, the source generator wires BehaviorIngressSystem to provision a
-    /// Blackboard1024 component for this behavior. Null means no heavy component.
+    /// Vestigial. Previously wired BehaviorIngressSystem to provision a heavy-state
+    /// component for this behavior when set; that overflow path no longer exists — a DTO
+    /// needing more room than the inline case simply lands on a larger occurrence-store
+    /// tier automatically. This property has no runtime effect.
     /// </summary>
     public Type? HeavyDtoType { get; set; }
 

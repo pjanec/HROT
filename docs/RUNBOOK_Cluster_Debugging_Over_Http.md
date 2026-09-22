@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-16
+updated: 2026-09-22
 current-answer: the whole file — it is a procedure, not a design; every section is current.
   §5a (added 2026-09-16) is the DDS wire-capture recipe (ddsmonitor sniff-to-JSON).
 stale-below: nothing
@@ -345,15 +345,26 @@ your defect:
 ⭐ **Stopping without acquiring is out of spec** — the entities are supposed to keep closing until they
 see. ⛔ Do not explain a halt away as "out of range".
 
-#### ⭐⭐⭐ LINK ⑤ — **the run must END** *(added `2026-09-13` with `CE-267`'s fix)*
+#### ⭐⭐⭐ LINK ⑤ — **the run must END** *(added `2026-09-13`; ⑤ CORRECTED `2026-09-21`)*
 
 | # | link | observable |
 |---|---|---|
-| ⑤ | the targets are **DESTROYED**, not merely at 0 HP | they **disappear from `GET /entities`** |
+| ⑤ | the targets are **DEAD** — `Health.Current: 0` — and they **STAY IN THE WORLD** | ⭐ `GET /entities/<id>` ▸ `Components.Health.Current == 0`. ⛔⛔ **The entity COUNT does NOT fall** — `--mode all` stays at **8** |
 | ⑥ | every attacker is **home on the baseline** and stationary | `LocomotionChannel.Status: Success`, `NavigationIntent.FinalDestination` ≈ its own position, `WeaponState.Ammo` STOPS changing |
 
+> 🔴🔴 **⑤ USED TO SAY *"they disappear from `GET /entities`"* AND THAT IS NOW WRONG.** It was written
+> with `CE-267`, which destroyed an entity at 0 HP — and **`CE-272` REVERTED `CE-267`** on an explicit
+> ruling. 🔒 **User, `2026-09-13`:** *"dead entity should not vanish, it should stay dead in the world,
+> every entity (no magic dead body vanishing)."*
+> ⇒ ⭐⭐ **a steady entity count is the CORRECT observation, not a broken run.** `CE-272`'s own live
+> verification records it: *"`--mode all` — Muscle Health 3000→25→0, attacker withdrew … and STAYED
+> stopped, **count steady at 8**"*.
+> ⚠ 📌 **Measured `2026-09-21`:** waiting for the count to fall reads a healthy run as a hung one — both
+> `hill-attack` and `hill-attack-close` sat at 8 entities with both hostiles at `Health 0` and zero
+> exceptions, which is exactly right. ⭐ **Assert `Health.Current == 0`, never the count.**
+
 ⛔⛔ **DO NOT measure "on the baseline" as distance to ONE POINT.** 📌 That mistake was made on
-`2026-09-13` and read as a half-failure: `BrainBlackboard.BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
+`2026-09-13` and read as a half-failure: the root params occurrence slot's `BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
 a line**, and four tanks park abreast along it ~50 m apart, so the outer two are legitimately **~75 m** from
 that point. ⭐ **Compare each tank to its OWN `NavigationIntent.FinalDestination` instead** — it matches its
 position within a metre when the tank is home.
@@ -444,7 +455,7 @@ curl -s --noproxy '*' http://localhost:8131/entities/1000   # editor
 
 ### 9.2 ⛔⛔⛔ READ A BLACKBOARD **BEFORE** THE BEHAVIOUR IS CLEARED — **or the instrument lies**
 
-📌 **`CE-172` cost a wrong lean to this.** `BrainBlackboard.BehaviorParameters` came back `{}` on the
+📌 **`CE-172` cost a wrong lean to this.** The root params occurrence slot came back `{}` on the
 cluster and fully populated on the editor, which reads exactly like *"the params never resolved."*
 ⛔ **False.** The dump decodes that blob against the **active behaviour's** params DTO; once
 `ActiveBehaviorHash` is `0` there is no DTO, so it renders empty **whatever the bytes hold.** Stepping the

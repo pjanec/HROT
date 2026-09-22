@@ -1,14 +1,36 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D as
   written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
   in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
 stale-below: nothing.
-known-rot: none.
+known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
+  MakeStruct/SetMembers still live, IHostVariableAccess still zero-implementer). But C1'/C2'
+  resolve PER VARIABLE, and a site reaches a variable via ExpressionTargetField - which HSM
+  STATES do not have (only BTree nodes and HSM transitions do). So this question's answers do
+  NOT reach the HSM parallel-regions case that CE-298 was filed for. That needs E3b-0 first:
+  a target field on the state's four action slots. See DESIGN_Occurrence_Scoped_Storage.md 28.6.
+  This is a premise that became load-bearing only when E3a made the HSM path per-occurrence -
+  not an error in the answers, which were framed from a BTree question.
 known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
   resolver tier turns out to be unreachable for managed assets; that is a finding,
   not a disagreement between documents.
+  2026-09-21 UPDATE to the known-rot above: E3b-0 HAS since given an HSM state's four
+  action slots an ExpressionTargetField, so the premise that blocked C1'/C2' from the
+  HSM parallel-regions case is CLOSED (DESIGN_Occurrence_Scoped_Storage.md 28.6).
+  And C2' (the per-variable resolver PICKER) is now split in two: the DATA half is
+  R-149's selection property, which lands without the editor; the PICKER half stays
+  held with the UI lane. See DESIGN_Resolver_World_Reach.md 7.2.
+related-designs:
+  - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - C3' promoted; owns WHAT a
+    resolver blueprint is.
+  - DESIGN_Resolver_World_Reach.md - owns what a resolver graph can REACH (R4), the publishing
+    currency, and the SELECTION ruling itself (R-149, section 7.2).
+  - DESIGN_Per_Variable_Param_Resolver.md - owns C2's DATA half: the per-VARIABLE ref on a
+    blackboard params variable and the Step-3 emit. The PICKER half of C2' stays here and stays
+    held with the UI lane.
+  - DESIGN_Parameter_Model.md - owns the bake/overlay/resolve/write order this hooks into.
 -->
 # ⭐ Architect Question 41 — **can a blueprint drive a BTree node's parameters?**
 
@@ -43,14 +65,14 @@ known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
 
 | memory | who writes | who reads |
 |---|---|---|
-| **`BrainBlackboard`** *(BTree/HSM params + variables, bin-packed, baked offsets)* | `ParseParams` at assignment · any node holding a `ref` · a `FourParamFull` action | every BTree action, by **baked offset** |
+| **root-params / node working-state occurrence slots** *(BTree/HSM params + variables, in the tier ladder, baked offsets within the slot)* | `ParseParams` at assignment · any node holding a `ref` · a `FourParamFull` action | every BTree action, by **baked offset** |
 | **`BlueprintBlackboard{16384,4096,1024}`** *(blueprint WorkingState + shared state, partition slots by key)* | a blueprint's `TickCore` · `BlueprintSharedState.TrySetShared*` | anything with `world` + `self` + **the name** |
 
 📐 **Measured — the composed thunk** *(`BTreeBridgeEmitCore.AppendReusableStatefulThunk`)*:
 
 ```csharp
 TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime)
-//       ↑ ref into BrainBlackboard at ITS OWN baked offset
+//       ↑ ref into its own root-params/working-state occurrence slot, at ITS OWN baked offset
 //              ↑ ref into a BlueprintBlackboard partition slot
 ```
 
@@ -62,7 +84,7 @@ variable is *reachable* (the component is on the same entity) but **not addressa
 ### ⭐ What ALREADY bridges the two — **and it is not nothing**
 
 ⭐⭐ **A `FourParamFull` action** receives `(ref TBB, ref BehaviorTreeState, ref TCtx, int)` — the
-**whole `BrainBlackboard`** *and* `ctx.World`/`ctx.Self`. ⇒ it can call
+**whole root-params occurrence slot's bytes** *and* `ctx.World`/`ctx.Self`. ⇒ it can call
 `BlueprintSharedState.TryGetShared(world, self, "name", out v)` and write the result into any host
 variable. ⛔ **It is hand-written C#, per case.**
 

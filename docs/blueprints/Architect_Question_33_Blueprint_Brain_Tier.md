@@ -188,7 +188,7 @@ contract to carry a status?"*
 |---|---|---|---|---|
 | **Instance** | `BlueprintBlackboard` partition slot | `blueprintId` | ✅ **16 B** | ⛔ *(ruled: add)* |
 | ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | `bb.BehaviorParameters` |
-| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | `Blackboard1024 + 8` | ⛔ **unkeyed — one per entity** | ⛔ | `bb.BehaviorParameters[0]` |
+| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | occurrence slot in the tier ladder (`BlueprintBlackboard{256,1024,4096,16384}`) | ✅ **`{fqn}@{offset}@{slotKey}`** | ⛔ | root params occurrence slot (`RootParamsAccess`, index 0) |
 
 ```csharp
 // StatefulBTreeActionBinder — the composition path

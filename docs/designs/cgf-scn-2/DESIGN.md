@@ -144,8 +144,8 @@ and will be correctly serialized.
 ## Phase 3: FdpAutoSerializer Upgrade for Unmanaged Memory Layouts
 
 **Goal:** Teach `FdpAutoSerializer` to correctly iterate `fixed` buffers and `[InlineArray]`
-types for **pure scalar** payloads, so components like `BrainBlackboard` are serialized
-without truncation.
+types for **pure scalar** payloads, so components like the occurrence-store tiers
+(`BlueprintBlackboard{256,1024,4096,16384}`) are serialized without truncation.
 
 ### Root Cause
 
@@ -176,15 +176,17 @@ unmanaged buffer contains entity references must be intercepted by a custom
 **Scope:** Only public fields of value-type components registered as `SaveableTypeIds` are
 affected.  Managed classes (like `ActiveMissionPlan`) remain outside the auto-serializer scope.
 
-### Impact on BrainBlackboard
+### Impact on the occurrence-store tier components
 
-`BrainBlackboard` has `fixed byte Memory[...]`.  After this upgrade, the auto-serializer will
-emit the full byte array as a JSON array.  Behaviors that cache entity handles as packed `long`
-values inside this buffer MUST NOT do so — `Build()` will throw `InvalidOperationException` if
-it detects an `Entity`-typed fixed buffer; and any raw-`long` entity handles packed inside a
-`byte` buffer are invisible to the constraint check and will silently become stale after a
-scenario round-trip.  Cross-entity AI state must be stored in dedicated components
-(e.g., `TargetMemory`) with a custom Intent-pattern translator, not packed inside `BrainBlackboard`.
+`BlueprintBlackboard{256,1024,4096,16384}` each have a `fixed byte` payload holding the entity's
+occurrence slots (root behaviour params and node working state).  After this upgrade, the
+auto-serializer will emit the full byte array as a JSON array.  Behaviors that cache entity
+handles as packed `long` values inside an occurrence slot's bytes MUST NOT do so —
+`Build()` will throw `InvalidOperationException` if it detects an `Entity`-typed fixed buffer;
+and any raw-`long` entity handles packed inside a `byte` buffer are invisible to the constraint
+check and will silently become stale after a scenario round-trip.  Cross-entity AI state must be
+stored in dedicated components (e.g., `TargetMemory`) with a custom Intent-pattern translator,
+not packed inside an occurrence slot.
 
 ---
 

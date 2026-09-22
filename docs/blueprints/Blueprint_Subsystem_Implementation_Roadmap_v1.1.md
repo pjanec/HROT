@@ -510,7 +510,7 @@ Tests:
 **Entry:** M2, M8 complete.
 
 **Acceptance:**
-- `BlueprintBlackboard{1024,4096,16384}` defined, `ComponentId` attributes, `GlobalComponentIds` updated.
+- `BlueprintBlackboard{256,1024,4096,16384}` defined, `ComponentId` attributes, `GlobalComponentIds` updated.
 - Headers and slot entries with correct layout.
 - `BlueprintBlackboardPartitions` static helpers correct: Initialize, TryGetSlotOffset, TryAttach, TryDetach, ResetSlot, CopyToLargerTier.
 - `PartitionAllocatorTests`, `MultiBlueprintTests` pass.

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILDING
-updated: 2026-08-22
+updated: 2026-09-22
 current-answer: sections 1-7. Section 1 is the PLACEMENT SPEC (where every type lives and
   who owns it); section 6 is the task breakdown; SECTION 7 IS THE TARGET STATE for the one shell
   (user ruling 2026-08-22) and re-stages BP-399 against it. L0-L5 are BUILT (L3 partial: 4 views
@@ -16,6 +16,17 @@ known-conflict: Q38's live answer says "RuntimeInspectorWindow IS the shell". Se
   places the shell in AiDetailsWindow's line instead: the WINDOW's chrome is reusable, its
   PANE REGISTRY keys on asset kind, and R-112 rules that a feed difference. Stated here
   rather than silently changed.
+known-rot: ⭐ RESOLVED 2026-09-21 — §4's closed question Q-iii ("RuntimeInspectorWindow DISSOLVES:
+  3 panes -> 3 predicated views") had been only HALF applied: the three views existed AND the
+  window still drew the same panes by an AssetKind lookup. CE-303 deleted the window, moved
+  RegisterPane to PerspectiveWorkspaceRegistrar.RegisterRuntimePane, and gave
+  IRuntimeInspectorPane.Draw a DetailsContext — which is what lets a pinned runtime view honour
+  its frozen entity. As-built in DESIGN_Editor_Entity_Selection_Source.md §12.
+related-designs:
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — names WHAT FILLS the Live arm of
+    IDetailsContextSource (the unified entity selection) and carries the ruling that two more
+    surfaces become details views. It does NOT redraw this file's Live/Frozen mechanism.
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11, the unified entity selection those views follow.
 -->
 # ⭐⭐⭐ DESIGN — **the Details panel: one shell, N views, chosen by a predicate**
 
@@ -940,7 +951,7 @@ against a test fixture:**
 |---|---|
 | the panel offers `subAsset.BlackboardVariables` and refuses without them | `ParameterSyncSource.ModelFor:219` |
 | corpus split — **managed ⟺ has variables** | **15** managed *(all with variables)* · **11** not *(all without)*, no mixed case |
-| ⇒ ⭐ **the panel can only author against a Category-2 callee** | its blackboard type is `BrainBlackboard` = **128 bytes** |
+| ⇒ ⭐ **the panel can only author against a Category-2 callee** | its params live in the root params occurrence slot, still capped at **100 bytes** by the compile-time analyzer (`DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15) |
 | ⛔ the master's inline budget is **100 bytes** | ⇒ **the generator skips every such asset** with a `BTREE0002` |
 
 ⇒ 🔴 **the authorable set and the emittable set are DISJOINT today.** ⭐ 📄 The full measurement, the three

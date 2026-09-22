@@ -718,18 +718,16 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
-                int paramsSize = ComputeStructSize(asset.Parameters, ctx);
-                if (paramsSize > 100)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
-                        $"AiPrimitive Parameters total {paramsSize} bytes; max is 100 " +
-                        "(BrainBlackboard.BehaviorParameters slice).",
-                        asset.AssetId));
-
+                // The bound is the LARGEST tier's payload, not a per-behaviour constant:
+                // the allocator promotes the entity between tiers, so only an asset that
+                // cannot fit the top tier is a compile error.
+                int paramsSize  = ComputeStructSize(asset.Parameters, ctx);
                 int workingSize = ComputeStructSize(asset.WorkingState, ctx);
-                if (workingSize > 1024 - 8)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
-                        $"AiPrimitive WorkingState total {workingSize} bytes; max is " +
-                        $"{1024 - 8} (Blackboard1024 minus 8-byte StructureHash header).",
+                if (paramsSize + workingSize > OccurrenceTiers.MaxSlotPayload - 8)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
+                        $"AiPrimitive slot total {paramsSize + workingSize} bytes; max is " +
+                        $"{OccurrenceTiers.MaxSlotPayload - 8} (the largest tier's payload " +
+                        "minus the 8-byte StructureHash header).",
                         asset.AssetId));
                 break;
 
@@ -1349,7 +1347,7 @@ internal static class FieldLayout
 
 For Instance dispatch, the `State` struct's first 16 bytes are reserved for `BlueprintLatentCursor`; user variables start at offset 16.
 
-For AiPrimitive dispatch, `Params` starts at offset 0 (mapped into BehaviorParameters slice), and `WorkingState` starts at offset 8 (after the 8-byte StructureHash header in Blackboard1024).
+For AiPrimitive dispatch the occurrence's slot is laid out `[StructureHash 8][WorkingState][Params]`: `WorkingState` starts at offset 8, and `Params` follows it.
 
 ### 9.4 StructureHash computation
 
@@ -1860,31 +1858,25 @@ public static class {SanitizedName}_Bp
     // Per declared hosting, emit one thunk:
 
     // If BTreeAction or BTreeCondition in hostings:
-    public static NodeStatus BTreeTick(
-        ref BrainBlackboard bb,
+    public static unsafe NodeStatus BTreeTick(
+        ref byte bb,                      // byte 0 of the entity's ROOT PARAMS SLOT
         ref BehaviorTreeState state,
         ref BTreeContext ctx,
         int paramIndex)
     {
-        ref var p = ref Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
+        // This asset's own params + working state, in its own occurrence slot.
+        int occurrenceKey = OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* p);
 
-        ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-        unsafe
+        if (freshlyAttached)
         {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
-            }
+            *p = Unsafe.As<byte, Params>(ref bb);   // seed from the root params slot
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         }
+
+        return TickCore(ref *p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
     }
 
     // If HsmAction in hostings:
@@ -1892,19 +1884,15 @@ public static class {SanitizedName}_Bp
     {
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-        ref var p = ref *(Params*)instance;
 
-        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
-        fixed (byte* memory = bb1024.Memory)
+        int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, writer);
+        ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash,
+            out bool freshlyAttached, out Params* p);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         {
-            if (*(ulong*)memory != StructureHash)
-            {
-                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                *(ulong*)memory = StructureHash;
-                InitDefaultWorkingState((WorkingState*)(memory + 8));
-            }
-            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-            TickCore(ref p, ref ws, bridge->Self, world, world.Time);  // status discarded
+            TickCore(ref *p, ref ws, bridge->Self, world, world.Time);  // status discarded
         }
     }
 
@@ -1913,19 +1901,15 @@ public static class {SanitizedName}_Bp
     {
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-        ref var p = ref *(Params*)instance;
 
-        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
-        fixed (byte* memory = bb1024.Memory)
+        int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, writer);
+        ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash,
+            out bool freshlyAttached, out Params* p);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         {
-            if (*(ulong*)memory != StructureHash)
-            {
-                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                *(ulong*)memory = StructureHash;
-                InitDefaultWorkingState((WorkingState*)(memory + 8));
-            }
-            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-            return TickCore(ref p, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
+            return TickCore(ref *p, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
         }
     }
 
@@ -1936,7 +1920,7 @@ public static class {SanitizedName}_Bp
         Entity self,
         EntityRepository world,
         float time)
-        => TickCore(ref p, ref ws, self, world, time);
+        => TickCore(ref *p, ref ws, self, world, time);
 }
 ```
 
@@ -3295,31 +3279,25 @@ public static class MoveToAndFire_Bp
         }
     }
 
-    public static NodeStatus BTreeTick(
-        ref BrainBlackboard bb,
+    public static unsafe NodeStatus BTreeTick(
+        ref byte bb,                      // byte 0 of the entity's ROOT PARAMS SLOT
         ref BehaviorTreeState state,
         ref BTreeContext ctx,
         int paramIndex)
     {
-        ref var p = ref Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
+        // This asset's own params + working state, in its own occurrence slot.
+        int occurrenceKey = OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* p);
 
-        ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-        unsafe
+        if (freshlyAttached)
         {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
-            }
+            *p = Unsafe.As<byte, Params>(ref bb);   // seed from the root params slot
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         }
+
+        return TickCore(ref *p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
     }
 
     public static unsafe void HsmActivity(void* instance, void* context, HsmCommandWriter* writer)
@@ -3327,19 +3305,15 @@ public static class MoveToAndFire_Bp
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)System.Runtime.InteropServices.GCHandle
             .FromIntPtr(bridge->WorldHandle).Target!;
-        ref var p = ref *(Params*)instance;
 
-        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
-        fixed (byte* memory = bb1024.Memory)
+        int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, writer);
+        ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash,
+            out bool freshlyAttached, out Params* p);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         {
-            if (*(ulong*)memory != StructureHash)
-            {
-                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                *(ulong*)memory = StructureHash;
-                InitDefaultWorkingState((WorkingState*)(memory + 8));
-            }
-            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-            TickCore(ref p, ref ws, bridge->Self, world, world.Time);
+            TickCore(ref *p, ref ws, bridge->Self, world, world.Time);
         }
     }
 }
@@ -3416,7 +3390,7 @@ A BTree action wired to call `MoveToAndFire_Bp.BTreeTick`:
 
 If at any point the LocomotionChannel returns Failure (unreachable, blocked), phase resets to 0 and we return Failure immediately. Same for WeaponChannel.
 
-Hot reload: if the asset is recompiled with the same StructureHash (e.g., adding only comments or whitespace), all live entities continue from their current phase. If the StructureHash changes (e.g., adding a new working-state field), the next `TickCore` call will see `*(ulong*)memory != StructureHash`, zero the Blackboard1024 payload, and restart at phase 0.
+Hot reload: if the asset is recompiled with the same StructureHash (e.g., adding only comments or whitespace), all live entities continue from their current phase. If the StructureHash changes (e.g., adding a new working-state field), the next `TickCore` call will see the stored hash differ, zero **that slot** (and only that slot), and restart at phase 0.
 
 ---
 
@@ -3585,12 +3559,12 @@ public static class BlueprintRegistrar_HealthRegen_B2C3D4E5_Bp
 | Aspect | MoveToAndFire (AiPrimitive) | HealthRegen (Instance) |
 |---|---|---|
 | Dispatch model | BTree-callable + HSM-callable | BlueprintTickSystem-driven |
-| State location | `BrainBlackboard.BehaviorParameters` + `Blackboard1024` | Slot in `BlueprintBlackboard1024` |
+| State location | its own occurrence slot, seeded from the root params slot | Slot in `BlueprintBlackboard1024` |
 | Latent mechanism | Phase byte in WorkingState; returns `NodeStatus.Running` | `BlueprintLatentCursor.ResumeAt` + `WaitUntilTime`; returns void |
 | Event subscription | None (BTree/HSM kernels poll us, not vice versa) | `view.ReadEvents<T>()` loops in `Tick` |
 | Cross-Blueprint calls | Not in this demo | Possible via `callablePeers` (also not in this demo) |
 | Registration | `BehaviorRegistry` + static `HsmActionDispatcher` + `BlueprintRegistryStaging` | `BlueprintRegistryStaging` only |
-| Cleanup on reload | Inline StructureHash check on `Blackboard1024` first 8 bytes | Per-slot in `BlueprintBlackboardPartitions` |
+| Cleanup on reload | Inline StructureHash check on the slot's first 8 bytes | Per-slot in `BlueprintBlackboardPartitions` |
 
 Both share the same underlying compiler pipeline (Stages 1-5), diverge in Stage 6 (lowering), and produce structurally different but conceptually parallel C# in Stage 7.
 
@@ -3963,8 +3937,7 @@ public class MoveToAndFire_EndToEndTests
         fixture.CompileAndLoad(asset);
 
         var entity = fixture.World.CreateEntity();
-        fixture.World.AddComponent(entity, new BrainBlackboard());
-        fixture.World.AddComponent(entity, new Blackboard1024());
+        fixture.World.AddComponent(entity, new BlueprintBlackboard1024());
         fixture.World.AddComponent(entity, new LocomotionChannel());
         fixture.World.AddComponent(entity, new WeaponChannel());
 
@@ -4007,7 +3980,7 @@ public class MoveToAndFire_EndToEndTests
     {
         // Compile, attach to entity, tick once (phase advances to 1),
         // recompile from identical asset (StructureHash unchanged),
-        // verify phase still equals 1 in Blackboard1024.
+        // verify phase still equals 1 in the occurrence slot.
     }
 
     [Fact]
@@ -4015,7 +3988,7 @@ public class MoveToAndFire_EndToEndTests
     {
         // Compile, attach to entity, tick once,
         // recompile with modified asset (e.g., add WorkingState field),
-        // verify Blackboard1024 was zeroed and phase = 0.
+        // verify the slot was zeroed and phase = 0.
     }
 }
 ```

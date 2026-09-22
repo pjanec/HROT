@@ -34,13 +34,14 @@ Variables vs WorkingState is not cosmetic: **Variables** = Instance persistent s
 > **different storage**, and `Q39` rules they are **one concept** whose merge is stage `D` — ⛔ but
 > mixing them is no longer a diagnostic.
 
-> ⚠ **"host-provisioned" WorkingState means different things per host — and only one of them works
-> for multiple AiPrimitives on an entity.** (BP-48; failure mode is **BP-30**.)
-> **BTree** provisions a real partition slot: `ComposeAiPrimitiveAction` auto-creates a distinct
+> ⚠ **"host-provisioned" WorkingState now works uniformly across hosts** — both key AiPrimitive
+> working state by occurrence rather than by a shared fixed offset. (BP-48; the earlier HSM
+> collision, **BP-30**, is closed.)
+> **BTree** provisions a real occurrence slot: `ComposeAiPrimitiveAction` auto-creates a distinct
 > `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice —
-> separate correctly. **HSM does not**: it still uses the legacy fixed offset (`Blackboard1024`+8,
-> one `StructureHash`) with no compose command, so two stateful AiPrimitives on one HSM entity
-> `InitBlock`-zero and re-init each other every tick and **neither retains state**.
+> separate correctly. **HSM does too**: it keys its slot via `HsmOccurrence.KeyFor(instance, …)`,
+> one slot per `(region, state)` placement, so two stateful AiPrimitives on one HSM entity no
+> longer collide.
 > See [Runtime DD §9.6](Blueprint_Subsystem_Runtime_Detailed_Design.md) for the mechanism.
 
 ---

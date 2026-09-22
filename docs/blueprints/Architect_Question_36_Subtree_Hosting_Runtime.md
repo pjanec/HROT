@@ -1,16 +1,14 @@
 # Architect Question #36 — **what RUNS a hosted subtree, and how is it RESOLVED?**
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## Storage model — per-occurrence slots in the tier ladder
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** is the authority for
+> where behaviour params and AiPrimitive working state live: **per-occurrence slots**, allocated by the
+> partition allocator inside the tier components this document specifies. There is no per-entity
+> brain-state component — every occurrence (a Blueprint Instance, a BTree stateful node, an HSM region)
+> gets its own slot. It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
->
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
 >
 > ⭐ That design owns the hosted child's **storage**; this question still owns **which brain runs it**
 > and **how it is resolved**.

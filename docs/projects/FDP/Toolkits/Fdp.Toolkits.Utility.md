@@ -59,8 +59,8 @@ scoring.
 |                                                                  |
 |  Leader entity (virtual)                                         |
 |    +-- ThreatMatrixAssignmentSystem (greedy focus-fire assign.)  |
-|         +-- writes per-member assignments --> Blackboard1024     |
-|              (ThreatMatrixAssignmentState, 1024 bytes)           |
+|         +-- writes per-member assignments -> SquadCognitiveState |
+|              (Assignment sub-region, own ECS component)          |
 |                                                                  |
 |  Member entity                                                   |
 |    +-- ThreatRankingDecision   (candidate scorer)                |
@@ -86,7 +86,7 @@ scoring.
 | **Scoring core** | consideration -> curve -> aggregate | single 0--1 score for one option |
 | **Candidate scorer** | core run over a dynamic list (targets, weapons) | ranked Top-N in `UtilityResultBuffer` |
 | **UtilitySelector / PostureSelect** | core run over a fixed authored set | one winning posture byte |
-| **Group layer** | leader greedy assignment over (member x target) matrix | per-member target written to `Blackboard1024` |
+| **Group layer** | leader greedy assignment over (member x target) matrix | per-member target written to `SquadCognitiveState` |
 
 ---
 
@@ -664,12 +664,13 @@ system.Run(repo, leaderEntity);
 1. Read `UnitRoster` (member list) and `TargetMemory` (contact list) from the leader.
 2. For each member in roster order, score all targets using `LeaderAssignmentDecision`.
 3. Assign the member to the highest-scoring target whose `focusFireCount` is below the cap.
-4. Write all assignments into `ThreatMatrixAssignmentState` projected onto the leader's
-   `Blackboard1024`.
+4. Write all assignments into the `Assignment` sub-region of the leader's own
+   `SquadCognitiveState` component.
 
 ### ThreatMatrixAssignmentState
 
-Overlay on the squad leader's `Blackboard1024` (all 1024 bytes used):
+The `Assignment` sub-region of the squad leader's `SquadCognitiveState` (§3.1 of
+`Hrot.SquadCoordination.md`):
 
 ```
 ThreatMatrixAssignmentState = 16 x AssignmentSlot (64 bytes each = 1024 bytes)
@@ -685,8 +686,8 @@ AssignmentSlot (64 bytes, Sequential):
 Access:
 
 ```csharp
-ref var bb    = ref repo.GetComponentRW<Blackboard1024>(leader);
-ref var state = ref ThreatMatrixAssignmentState.Project(ref bb);
+ref var bb    = ref repo.GetComponentRW<SquadCognitiveState>(leader);
+ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
 long target   = state.GetAssignedTarget(memberRosterIndex);
 ```
 
@@ -805,7 +806,7 @@ Utility/
 | `Fdp.ModuleHost.Abstractions` | `ISimulationView` (Blueprint bridge) |
 | `Fdp.Toolkit.Combat.Components` | `WeaponState` (ammo, cooldown) |
 | `Fdp.Toolkit.Perception` / `.Components` | `TargetMemory`, `EqsCognitiveBuffer` |
-| `Fdp.Toolkit.Behavior.Components` | `Blackboard1024`, `UnitRoster` |
+| `Fdp.Toolkit.Behavior.Components` | `SquadCognitiveState`, `UnitRoster` |
 | `Fdp.Toolkit.Geographic.Components` | `Position` (distance inputs) |
 | `Fdp.Toolkit.Replication.Components` | `Health` |
 | `Fdp.Toolkit.Spatial.Eqs` | `EqsCognitiveBuffer` read in EQS input readers |
@@ -823,7 +824,7 @@ FNV-1a-16 identifiers for squad-tier input readers:
 
 | Constant | ID | Source |
 |---|---|---|
-| `SquadKnowsContact` | `0xBA51` | merged contact pool in commander `Blackboard1024` |
+| `SquadKnowsContact` | `0xBA51` | merged contact pool in commander `SquadCognitiveState` |
 | `SquadContactThreatLevel` | `0x2457` | threat score for Context in the squad pool |
 | `SquadStrengthRatio` | `0x6EDF` | live-member count / (live-member + contact count) |
 | `SquadAmmoRollup` | `0x8501` | fraction of squad members with ammo > 0 |

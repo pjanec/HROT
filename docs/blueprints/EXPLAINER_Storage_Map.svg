@@ -20,17 +20,17 @@
   <!-- ROW 1 : INPUT -->
   <rect x="16" y="58" width="470" height="176" class="in"/>
   <rect x="16" y="58" width="470" height="18" fill="#2f6fbf" rx="4"/>
-  <text x="24" y="71" class="h2">BrainBlackboard — 128 B — THE ONLY HOME FOR INPUTS</text>
+  <text x="24" y="71" class="h2">ROOT PARAMS SLOT — THE HOME FOR A BEHAVIOUR'S INPUTS</text>
 
   <rect x="28" y="86" width="330" height="34" class="box"/>
-  <text x="36" y="100" class="tb">BehaviorParameters[100] @ 0</text>
+  <text x="36" y="100" class="tb">Params DTO @ 0, sized RootParamsBytes(def)</text>
   <text x="36" y="114" class="s">every behavior's params DTO projects here — light AND heavy tier alike</text>
 
   <rect x="366" y="86" width="108" height="34" class="no"/>
   <text x="374" y="100" class="tb">tail 28 B</text>
   <text x="374" y="114" class="s">threat + interrupts</text>
 
-  <text x="28" y="140" class="tb">Cap 100 B, enforced 3×</text>
+  <text x="28" y="140" class="tb">No cap; allocator promotes tier</text>
   <text x="176" y="140" class="s">BehaviorParameterSizeAnalyzer · BTreeBuilder · BehaviorRegistry.Register (throws)</text>
   <text x="28" y="160" class="tb">ONE struct per behavior</text>
   <text x="176" y="160" class="s">ParamsDtoType is singular; an action BINDS A FIELD of it, it owns no allocation</text>
@@ -38,7 +38,7 @@
   <text x="176" y="180" class="s">at activation, by BehaviorIngressSystem — see the supply diagram</text>
 
   <rect x="28" y="192" width="446" height="32" class="box"/>
-  <text x="36" y="205" class="m">ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset)</text>
+  <text x="36" y="205" class="m">ref Unsafe.AddByteOffset(ref bb, (nint)offset)   // bb = slot byte 0</text>
   <text x="36" y="218" class="s">the offset is baked at compile time — and for hand-written actions it is also IN the registry key</text>
 
   <!-- ROW 1 right : who lays it out -->
@@ -71,7 +71,7 @@
 
   <rect x="16" y="276" width="310" height="192" class="st"/>
   <rect x="16" y="276" width="310" height="18" fill="#4a8a3c" rx="4"/>
-  <text x="24" y="289" class="h2">Blackboard1024 — 1024 B</text>
+  <text x="24" y="289" class="h2">WORKING-STATE SLOTS — one per stateful node</text>
   <text x="26" y="312" class="tb">AiPrimitives + shared AI actions</text>
   <rect x="26" y="320" width="290" height="26" class="hd"/>
   <text x="34" y="337" class="m">@0  StructureHash (8 B)</text>
@@ -108,7 +108,7 @@
   <text x="694" y="378" class="s">allocated, no byte layout to agree on.</text>
   <text x="694" y="400" class="tb">Still state-only.</text>
   <text x="694" y="418" class="s">The heavy adapter emits BOTH: params from</text>
-  <text x="694" y="432" class="s">bb.BehaviorParameters, heavy state from the</text>
+  <text x="694" y="432" class="s">the params slot, extra state from the</text>
   <text x="694" y="446" class="s">component. Going heavy never moves inputs.</text>
 
   <!-- FOOTER -->

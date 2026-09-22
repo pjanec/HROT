@@ -3,7 +3,7 @@ state: LIVE
 build-state: BUILT (option A approved by the user 2026-08-22 and shipped, BP-444..447) — WITH A
   LIMIT that RE-MEASUREMENT on 2026-08-22 showed is BIGGER and DIFFERENT than first recorded, and
   which the user has POSTPONED on this record. See "THE LIMIT — re-measured".
-updated: 2026-08-22
+updated: 2026-09-22
 stale-below: the "## ⛔ HISTORY" section at the foot of this file — it names the WRONG cause for the
   Category-2 limit (resolution, not the byte budget) and proposes a fix that would not have worked.
 known-rot: DESIGN_Details_Panel_View_Switching.md §7.6 ④ said S4's bindings "reach the runtime";
@@ -134,21 +134,24 @@ require: 📌 ruling 9, and it makes *"a group without its field"* — the non-c
 | is that type resolvable from the master's compilation? | ✅ **yes** — it is an ordinary referenced toolkit type |
 
 ⇒ ⛔⛔ **a Category-2 callee never hits the "cannot be resolved" skip.** ⭐ And it cannot: the callee's own
-interpreter is built as `BTreeBuilder<BrainBlackboard, …>` *(`BTreeEmitCore:377`)*, so the **blob is the
-blackboard the sub-tick wants** — the generated `{Name}_BrainBlackboard` struct is the *named view* of
-what is packed inside it, not the interpreter's parameter type.
+interpreter ticks against `byte` — its **root-params occurrence slot**, keyed by
+`OccurrenceSlotKey.ComputeRootParamsKey` off the callee's own `ActiveBehaviorHash` — so the **slot's bytes
+are what the sub-tick wants**; the generated `{Name}_{BlackboardTypeName}` struct is the *named view*
+projected over that slot by an emitted thunk, not a component field the interpreter is parameterised on.
 
-#### ② What it hits instead — ⭐⭐ **the byte budget, and this is architectural**
+#### ② What it hits instead — ⭐⭐ **there is no fixed-width field to embed it into any more**
 
-| | |
-|---|---|
-| `BrainBlackboard` | **128 bytes** *(`BehaviorConstants:19`)* |
-| the master's inline budget | **100 bytes** *(`BTreeBlackboardPackHelper:20`)* |
-
-⇒ ⭐⭐⭐ **embedding it as a field ALWAYS overflows** ⇒ the asset is skipped with the *budget* `BTREE0002`,
-not the resolution one. ⛔⛔ **So option A's "the master DECLARES the slice as a field" can never hold a
-Category-2 callee** — ⚠ **that is a property of the model, not a missing helper**, and ⛔ **the fix this
-section previously recorded *(a size fallback mirroring `TryResolveParamsSize`)* would not change it.**
+📐 `DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15 retired the fixed inline budget this section
+originally measured (`BTreeBlackboardPackHelper:20`'s hard-coded 100, the same constant as
+`MaxBehaviorParamByteSize`) — the bound is now per-behaviour (`RootParamsBytes(def)`) and enforced
+**structurally** by the partition allocator, up to the 16384 tier's 16 096 B payload. ⇒ ⭐⭐⭐
+**option A's failure mode — "declaring the slice as a field always overflows" — no longer applies as
+stated**, because nothing is embedded as a fixed-width field any more: the callee's packed variables land
+in their **own root-params occurrence slot**, promoted up the tier ladder if they do not fit the entity's
+current tier, never rejected by a constant. ⚠ **This removes the OLD blocking reason; it does not by
+itself re-derive the emitted body that would read that slot for a hosted callee — that wiring is the
+still-open call in §30.18's `G5`** (`DESIGN_Occurrence_Scoped_Storage.md`, "where a hosted subtree's own
+params come from today").
 
 #### ③ ⛔⛔ THE REACH — **the authorable set and the emittable set are DISJOINT**
 
@@ -176,19 +179,24 @@ whose type is resolvable **and** fits the budget **and** lacks the bound names e
 **text**, ⛔ never on compilation. ⇒ **unreachable through the UI** *(③ makes the authorable set skip first)*,
 ⛔ **but reachable by hand-edited JSON**, and a build break is the one outcome worse than a skip.
 
-### ⭐⭐ THE OPEN DESIGN CALL — **where a Category-2 callee's blackboard LIVES during the sub-tick**
+### ⭐⭐ THE OPEN DESIGN CALL — **where a Category-2 callee's occurrence slot LIVES during the sub-tick**
 
-⛔ Its variables are packed **inside** the blob; `BrainBlackboard` exposes only `BehaviorParameters` plus
-three interrupt bytes ⇒ ⭐ **the copy is a projection, not field assignment.**
+⛔ Its variables are packed **inside** the blob; there is no separate component exposing named fields —
+the entity's root-params occurrence slot *is* the packed bytes ⇒ ⭐ **the copy is a projection between two
+slots, not field assignment.**
 
 | # | route | ⭐ pro | ⛔ con |
 |---|---|---|---|
-| **A′** | **project, don't embed** — tick the callee against the entity's own `BrainBlackboard` component, copy through `Unsafe.As<BrainBlackboard, {Callee}_{TypeName}>` *(the idiom already at `BTreeOrchestratorEmitCore:142`)* | ⭐ no layout change, no budget problem, existing idiom | ⚠ callee and master then **share one blackboard** ⇒ needs an aliasing / re-entrancy ruling |
-| **B′** | **embed the NAMED struct** and cast up to `ref BrainBlackboard` for the Tick | ⭐ fits the budget; sub-state isolated per call site | ⛔⛔ **memory-unsafe** — the interpreter reads 128 bytes off a ~12-byte field. **Not recommended** |
-| ⭐ **C′** | **declare the slice `Role = State`** — `Pack:140` and `WouldOverflow:188` **already** exclude State-role variables from the inline layout *and* the budget, sizing them at runtime in the partition tier | ⭐⭐ **reuses a seam built for exactly this class of thing** — a sub-tree's whole blackboard is per-behaviour state, not inline params | ⚠ a State-role variable is not a field of the emitted struct ⇒ `ref master.{slice}` **changes shape**; the emitted body must reach it through the partition accessor |
+| **A′** | **project, don't embed** — tick the callee against a projection of the entity's own root-params occurrence slot, copy through `Unsafe.As<byte, {Callee}_{TypeName}>` *(the idiom already at `BTreeOrchestratorEmitCore:142`)* | ⭐ no layout change, no budget problem, existing idiom | ⚠ callee and master then **share one slot** ⇒ needs an aliasing / re-entrancy ruling |
+| **B′** | **embed the NAMED struct** inline and cast up to `ref byte` for the Tick | ⭐ sub-state isolated per call site | ⛔⛔ **memory-unsafe** — the interpreter would read past a smaller embedded field's bounds. **Not recommended** |
+| ⭐ **C′** | **declare the slice `Role = State`** — `Pack:140` and `WouldOverflow:188` **already** exclude State-role variables from the inline layout, sizing them at runtime in the partition tier | ⭐⭐ **reuses a seam built for exactly this class of thing** — a sub-tree's whole blackboard is per-behaviour state, exactly what an **occurrence slot** already is | ⚠ a State-role variable is not a field of the emitted struct ⇒ `ref master.{slice}` **changes shape**; the emitted body must reach it through the occurrence-slot accessor (`RootParamsAccess`-style), keyed for the hosting site |
 
-⭐ **Recommended lean: `C′`.** ⛔ It is not a code detail — it moves the emitted body — so it wants an
-explicit nod before anything is built.
+⭐ **Recommended lean: `C′`** — it is the general occurrence-slot model this whole design already ships for
+every other kind of behaviour state. ⛔ **The exact key** (a fresh root-params key on the callee's own hash,
+vs a nested key through `OccurrenceSlotKey.ComputeNested` off the hosting site) **is still open** — tracked
+as `G5` in `DESIGN_Occurrence_Scoped_Storage.md` §30.18 ("where a hosted subtree's own params come from
+today"). ⛔ It is not a code detail — it moves the emitted body — so it wants an explicit nod before
+anything is built.
 
 ### ⭐ POSTPONED — **user, `2026-08-22`, on this record**
 

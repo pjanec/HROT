@@ -9,7 +9,7 @@
 
 ## 1. Motivation
 
-The framework currently provides rich diagnostic facilities for FastHSM (a 64KB managed `HsmTraceBuffer` driven by a process-static pointer in [HsmKernelCore.cs:13](FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernelCore.cs#L13) and `HsmKernelCore.SetTraceBuffer`) but **no equivalent for FastBTree** — BTree diagnosis today relies on the live `BTreeVisualizerRenderer`, manual `BehaviorLog` calls inside condition/action nodes, and post-hoc inspection of `BrainBlackboard` values. A fleeting condition flip cannot be reconstructed during replay.
+The framework currently provides rich diagnostic facilities for FastHSM (a 64KB managed `HsmTraceBuffer` driven by a process-static pointer in [HsmKernelCore.cs:13](FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernelCore.cs#L13) and `HsmKernelCore.SetTraceBuffer`) but **no equivalent for FastBTree** — BTree diagnosis today relies on the live `BTreeVisualizerRenderer`, manual `BehaviorLog` calls inside condition/action nodes, and post-hoc inspection of the root params occurrence slot's values. A fleeting condition flip cannot be reconstructed during replay.
 
 Even the HSM trace path is unsuitable for replay scrubbing: it routes through a single global managed buffer that cannot record into the `.fdp` flight recorder and forbids concurrent per-entity tracing.
 
@@ -549,7 +549,7 @@ The `InstanceFlags.DebugTrace` bit is set when `EnableTraceBuffer` is on so exis
 
 ### 9.1 `BTreeTraceWorkingMemoryRenderer` (`Hrot.Presentation`)
 
-Implements `IEntityAwareImGuiRenderer`, decorated with `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Pattern mirrors [BrainBlackboardRenderer.cs](Hrot/Engine/Hrot.Presentation/Renderers/BrainBlackboardRenderer.cs):
+Implements `IEntityAwareImGuiRenderer`, decorated with `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Pattern mirrors the tier renderers' `RootParamsProjection` section, e.g. [BlueprintBlackboard1024Renderer.cs](Hrot/Engine/Hrot.Presentation/Renderers/BlueprintBlackboard1024Renderer.cs):
 
 - Static `BehaviorRegistry? BehaviorRegistryAccessor` set at composition root.
 - Resolves the entity's `BehaviorState.ActiveBehaviorHash` via `IInspectableSession.GetComponent(entity, typeof(BehaviorState))`.

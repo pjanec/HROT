@@ -15,7 +15,7 @@
 
   <!-- column headers -->
   <text x="250" y="80" class="lbl" text-anchor="middle">① Role=Input — the params</text>
-  <text x="250" y="95" class="sub" text-anchor="middle">BrainBlackboard.BehaviorParameters[100]</text>
+  <text x="250" y="95" class="sub" text-anchor="middle">root params slot (RootParamsAccess)</text>
   <text x="520" y="80" class="lbl" text-anchor="middle">② Role=State @Behavior/Entity</text>
   <text x="520" y="95" class="sub" text-anchor="middle">partition allocator slot</text>
   <text x="780" y="80" class="lbl" text-anchor="middle">③ per-OCCURRENCE bytes</text>

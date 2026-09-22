@@ -27,7 +27,7 @@
 | 2 | `MissionControlExecutionSystem` applies it. ⚠ Requires a **live** `EntityRepository`; waits **10 frames** for the entity then NAKs `EntityNotFound` | `Hrot.Common/Systems/MissionControlExecutionSystem.cs:42-46,87-90` |
 | 3 | `MissionPlanQueue` — **≤ 8 phases**, `DataPolicy.NoScenario` | `Fdp.Toolkits/Behavior/Components/MissionComponents.cs:140-163` |
 | 4 | `MissionDirectorSystem` evaluates the phase trigger and publishes the transition | `Fdp.Toolkits/Behavior/Systems/MissionDirectorSystem.cs:27-41` |
-| 5 | `MissionAdapterSystem` detects the phase change and publishes an **`AssignTacticalIntentEvent`**. 🔒 It *"intentionally does **not** mutate `BehaviorState` or `BrainBlackboard` directly"* | `Hrot.CGF/Systems/MissionAdapterSystem.cs` |
+| 5 | `MissionAdapterSystem` detects the phase change and publishes an **`AssignTacticalIntentEvent`**. 🔒 It intentionally does **not** mutate `BehaviorState` or the root params occurrence slot directly — it acts purely as a change-detector and dispatcher | `Hrot.CGF/Systems/MissionAdapterSystem.cs` |
 | 6 | ⭐ **`AssignTacticalIntentEvent { Entity, string IntentId, string JsonParams }`** — the choke point | `Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs:23-43` |
 | 7 | **Complementary authority gates** — `TacticalIntentResolutionSystem` runs `if (!HasAuthority<BehaviorState>) continue`; `TacticalIntentEgressTranslator` runs `if (HasAuthority<BehaviorState>) continue` and writes `TacticalIntentRequest` | `TacticalIntentResolutionSystem.cs:93-95` · `TacticalIntentEgressTranslator.cs:72` |
 | 8 | `ITacticalOrderMapper.TryMap(self, repo, jsonParams, out AssignBehaviorEvent)` — or **pass-through**, treating `IntentId` as a behavior name | `ITacticalOrderMapper.cs:23-55` |

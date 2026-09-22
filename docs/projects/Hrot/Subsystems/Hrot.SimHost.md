@@ -221,8 +221,7 @@ Hrot.SimHost.Orchestration.Handlers
 
 Hrot.SimHost.Serializers
   HrotScenarioSerializerFactory  -- builds ScenarioSerializer with all HROT translators
-  BrainBlackboardTranslator      -- serializes BrainBlackboard (read-only; no Inject)
-  Blackboard1024Translator       -- serializes Blackboard1024
+  BrainBlackboardTranslator      -- serializes the root-params occurrence slot (read-only; no Inject)
   MissionPlanTranslator          -- serializes MissionPlanQueue
   TargetMemoryTranslator         -- serializes TargetMemory
   PassengerBufferTranslator      -- serializes PassengerBuffer
@@ -251,8 +250,8 @@ Hrot.SimHost.UI
   SimHostSimulationControlsPanel -- Play/Pause/Step/TimeScale ImGui panel
   SimHostSpawnPanel              -- vehicle spawn ImGui panel
   SimHostScenarioManager         -- GUI-driven entity spawning and scenario utilities
-  SimHostSelectionManager        -- entity selection/hover state tracker
-  SimHostInspectorAdapter        -- bridges SelectionManager to IInspectorContext/ISelectionState
+  (SimHostSelectionManager       -- DELETED 2026-09-20 by UXI-11 S-3b; see below)
+  (SimHostInspectorAdapter       -- DELETED 2026-09-20 by UXI-11 S-3b; see below)
   SimHostPanelColors             -- red title-bar theme constants + Push/Pop helpers
 
 Hrot.SimHost.Visualization
@@ -629,30 +628,23 @@ Self-contained graphical layer. Lifecycle: `Initialize`, `Update`, `DrawWorld`, 
 
 | Member | Description |
 |---|---|
-| `Selection` | `SimHostSelectionManager?` |
+| `Selection` | `ISelectionState?` — a view over the ECS `SelectionState` component (`SimHostVisualization.cs:108`) |
 | `GetMapCamera()` | `MapCamera?` |
 
-#### `SimHostSelectionManager`
+#### ⛔ `SimHostSelectionManager` / `SimHostInspectorAdapter` — **DELETED `2026-09-20`**
 
-Multi-entity selection tracker with primary-entity concept.
+⭐ **`UXI-11` S-3b, on the user's ruling *"simhost is not special"*.** Both files are gone. SimHost held
+**two extra selection stores** — a `HashSet` in `SimHostSelectionManager` reached through
+`SimHostInspectorAdapter`, plus `_fdpInspectorState` — while `SelectionInteractionSystem` wrote the ECS
+`SelectionState` component and a hand-written callback tried to keep them agreeing
+(`SimHostVisualization.cs:66-69`).
 
-| Member | Description |
-|---|---|
-| `SelectedEntities` | `IReadOnlyCollection<Entity>` |
-| `PrimarySelected` / `SelectedEntity` | `Entity?` |
-| `HoveredEntity` | `Entity?` |
-| `Count` | int |
-| `SelectionChanged` | `event Action?` |
-| `Set(Entity)` | Replaces selection |
-| `Add(Entity)` | Adds to selection |
-| `Clear()` | Clears all |
-| `SetMultiple(IEnumerable<Entity>)` | Bulk selection |
-| `Remove(Entity)` | Removes one |
-| `Contains(Entity)` | bool |
+⇒ **Today there is one store and SimHost holds a view of it:** `EcsSelectionState`
+(`Hrot.Presentation/ScenarioEditor/Selection/`), **constructed by `MapInteractionPack.Build` for all five
+hosts**, not by this window (`SimHostVisualization.cs:174-196`).
 
-#### `SimHostInspectorAdapter : IInspectorContext, ISelectionState`
-
-Bridges `SimHostSelectionManager` to FDP framework inspector interfaces.
+📄 **Owning design: [`docs/UX/UX_Feature_Selection.md`](../../../UX/UX_Feature_Selection.md)** §2.7.9 (S-3b
+as-built) — ⛔ that design, not this reference doc, is the source for how selection works.
 
 #### `SimHostScenarioManager`
 
@@ -779,8 +771,7 @@ registered (see table below).
 | `PersonalRouteRefTranslator` | `PersonalRouteRef` | |
 | `UnitSubordinateTranslator` | `UnitSubordinate` | |
 | `EditablePolylineTranslator` | `EditablePolyline` | |
-| `BrainBlackboardTranslator` | `BrainBlackboard` | Serialize-only (Inject is no-op) |
-| `Blackboard1024Translator` | `Blackboard1024` | |
+| `BrainBlackboardTranslator` | the root-params occurrence slot | Serialize-only (Inject is no-op) |
 | `BTreeTraceWorkingMemoryTranslator` | `BTreeTraceWorkingMemory1024` | |
 | `HsmTraceWorkingMemoryTranslator` | `HsmTraceWorkingMemory1024` | |
 
@@ -1039,9 +1030,9 @@ via `IEntityCommandBuffer.PublishEvent`.
 
 ### 6. Scenario serializers are for persistence, not runtime state
 
-`BrainBlackboardTranslator.Inject` is intentionally a no-op because `BrainBlackboard`
-is transient execution state (`DataPolicy.NoScenario`). Do not attempt to restore
-blackboard state from a scenario file. Add `DataPolicy.NoScenario` annotations to any
+`BrainBlackboardTranslator.Inject` is intentionally a no-op because the root-params
+occurrence slot is transient execution state (`DataPolicy.NoScenario`). Do not attempt to
+restore behaviour params from a scenario file. Add `DataPolicy.NoScenario` annotations to any
 new translator that serializes transient runtime state.
 
 ### 7. Config file over code for deployment changes

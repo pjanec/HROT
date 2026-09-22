@@ -302,7 +302,7 @@ Complement the existing `HrotSharedComponentRegistry` with domain-scoped registr
 
 ```
 HrotSharedComponentRegistry   — SimTransform, SimVelocity, network identity, lifecycle
-CognitiveComponentRegistry       — BehaviorState, BrainBlackboard, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
+CognitiveComponentRegistry       — BehaviorState, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
 KinematicComponentRegistry       — VehicleState, VehicleParams, NavState, FormationMember, FormationRoster, FormationTarget, NavigationStatus
 CombatComponentRegistry          — Faction, PerceptionReceptor, TargetMemory, WeaponState, Health, HealthData, BallisticProjectile, PhysicsCollider
 ```

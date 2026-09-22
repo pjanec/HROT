@@ -2265,8 +2265,7 @@ public void MoveToAndFire_BTreeHosted_CompletesInFiveTicks()
     fixture.CompileAndLoad(asset);
 
     var entity = fixture.World.CreateEntity();
-    fixture.World.AddComponent(entity, new BrainBlackboard());
-    fixture.World.AddComponent(entity, new Blackboard1024());
+    fixture.World.AddComponent(entity, new BlueprintBlackboard1024());
     fixture.World.AddComponent(entity, new LocomotionChannel());
     fixture.World.AddComponent(entity, new WeaponChannel());
 
@@ -2647,7 +2646,7 @@ public void Dispose()
 public NodeStatus InvokeBTreeAction(BlueprintAsset asset, Entity entity, int paramIndex = 0)
 {
     var ctx = new BTreeContext { World = _repo, Self = entity, Time = View.Time };
-    ref var bb = ref _repo.GetComponentRW<BrainBlackboard>(entity);
+    ref var bb = ref RootParamsAccess.RootRef(_repo, entity);
     ref var state = ref _repo.GetComponentRW<BehaviorTreeState>(entity);
     var thunk = ResolveBTreeTickMethod(asset);
     return thunk(ref bb, ref state, ref ctx, paramIndex);

@@ -56,18 +56,20 @@ The library implements eight behaviors across two tiers:
 The simulation ticks behaviors through an ECS (Entity-Component-System) world.
 Each entity that has an active behavior carries:
 
-- `BrainBlackboard` -- a fixed-size struct holding the current behavior's
-  parameter DTO (60-byte param region) and a separate 1024-byte heavy-state
-  component (`Blackboard1024`) for complex commander behaviors.
+- a `BlueprintBlackboard256` / `1024` / `4096` / `16384` occurrence store -- one
+  partition-allocated component holding the current behavior's **root params
+  slot** (its parameter DTO) plus a **working-state slot** for each stateful
+  node, including the heavy mutable state of complex commander behaviors.
 - `BehaviorState` -- the current behavior hash (integer ID), behavior instance
   counter, and tick counter.
 - `LocomotionChannel` / `WeaponChannel` -- write-only command channels consumed
   by downstream executor systems.
 
-The behavior interpreter is `Interpreter<BrainBlackboard, BTreeContext>` from
+The behavior interpreter is `Interpreter<byte, BTreeContext>` from
 FastBTree. Each simulation tick the ECS calls `Interpreter.Tick()`, which walks
 the pre-compiled BTree blob and dispatches action/condition delegates registered
-in the `ActionRegistry<BrainBlackboard, BTreeContext>`.
+in the `ActionRegistry<byte, BTreeContext>`; the `byte` is byte 0 of the root
+params slot the tick system resolved for that entity.
 
 Action delegates write to `LocomotionChannel` or `WeaponChannel`; they never
 directly move entities. Locomotion and weapon executor systems consume those
@@ -108,17 +110,17 @@ TacticalIntentResolutionSystem
       |
       v
 BehaviorIngressSystem
-  parses JsonParams -> BrainBlackboard.BehaviorParameters
+  parses JsonParams -> the entity's root params slot
   activates Interpreter
 ```
 
-### Blackboard Memory Layout
+### Slot Memory Layout
 
 All parameter DTOs are `[StructLayout(LayoutKind.Sequential)]` structs written
-directly into `BrainBlackboard.BehaviorParameters` via `Unsafe.Write`. The source
+directly into the entity's root params slot via `Unsafe.Write`. The source
 generator (`Fbt.SourceGen`) computes byte offsets at compile time and emits
-bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
-`BrainBlackboard` to the typed DTO using `Unsafe.As`.
+bridge closures in `FbtActionRegistrar.g.cs` that project the slot's bytes to the
+typed DTO using `Unsafe.As`.
 
 ---
 
@@ -138,7 +140,7 @@ bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
    |        |                      (Entity, EntityRepository)
    |        |
    |        +------------------ Fdp.Toolkits
-   |                               (BrainBlackboard, BTreeContext,
+   |                               (RootParamsAccess, BTreeContext,
    |                                LocomotionChannel, WeaponChannel,
    |                                BehaviorRegistry, BehaviorDefinition,
    |                                NavigationConstants, MoveToParams,
@@ -170,7 +172,7 @@ bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
 | BuildRegistrationAction()|                | bridge closures
 |   [background thread]    |                v
 |   1. create ActionRegistry              ActionRegistry
-|   2. RegisterAll(actions)              <BrainBlackboard,
+|   2. RegisterAll(actions)              <byte,
 |   3. GetXxx() BTree blobs               BTreeContext>
 |   4. Build/Emit HSM blob                                  |
 |   5. return Action<BehaviorRegistry>                      |
@@ -315,7 +317,7 @@ bridge closures in `FbtActionRegistrar.g.cs` that project the runtime
 | `Brains/CommanderNodes.cs` | `CommanderNodes.IssueTacticalIntentParams` | Blackboard DTO (SubordinatePacked, IntentTypeOrdinal) |
 | `Brains/HillAttackDtos.cs` | `PlatoonHillAttackParams` (struct) | Static config for commander (52 bytes: firing-line, baseline, attack direction, spacing) |
 | `Brains/HillAttackDtos.cs` | `PlatoonHillAttackBlackboard` (struct) | Single-field blackboard wrapper |
-| `Brains/HillAttackDtos.cs` | `HillAttackMutableState` (unsafe struct) | Mutable working state projected onto `Blackboard1024` (120 bytes; SoA per-attacker arrays) |
+| `Brains/HillAttackDtos.cs` | `HillAttackMutableState` (unsafe struct) | Mutable working state projected onto its own occurrence slot (120 bytes; SoA per-attacker arrays) |
 | `Brains/HillAttackDtos.cs` | `HullDownAttackParams` (struct) | Per-tank config (52 bytes: slot position, baseline, attack dir, speeds, target, rounds) |
 | `Brains/HillAttackDtos.cs` | `HullDownAttackBlackboard` (struct) | Single-field blackboard wrapper |
 | `Brains/HillAttackCommanderNodes.cs` | `HillAttackCommanderNodes` (public static unsafe) | All BTree node delegates for PlatoonHillAttack plus `BuildPlatoonHillAttackTree()` |
@@ -439,10 +441,10 @@ public static class CgfNodes
 | `Action_WriteMoveToChannel(ref MoveToLocationParams, ref BehaviorTreeState, ref BTreeContext)` | `NodeStatus` | Writes `MoveTo` to `LocomotionChannel`; forwards executor status. |
 | `Action_WriteFollowRouteChannel(ref FollowRouteParams, ref BehaviorTreeState, ref BTreeContext)` | `NodeStatus` | Writes `FollowRoute` to `LocomotionChannel`. |
 | `Action_WriteJoinFormationChannel(ref JoinFormationParams, ref BehaviorTreeState, ref BTreeContext)` | `NodeStatus` | Writes `JoinFormation` to `LocomotionChannel`. |
-| `Action_Wander(ref BrainBlackboard, ref BehaviorTreeState, ref BTreeContext, int)` | `NodeStatus` | Picks random destination within 1000 m radius; always returns Running. |
+| `Action_Wander(ref byte, ref BehaviorTreeState, ref BTreeContext, int)` | `NodeStatus` | Picks random destination within 1000 m radius; always returns Running. |
 | `Condition_TargetAliveAndVisible(ref FireAtTargetParams, ref BehaviorTreeState, ref BTreeContext)` | `NodeStatus` | Success=visible, Running=alive but unseen, Failure=dead. |
 | `Action_FireAtTarget(ref FireAtTargetParams, ref BehaviorTreeState, ref BTreeContext)` | `NodeStatus` | Writes `AimAndFire` to `WeaponChannel`; counts rounds via `WeaponState.CooldownSecondsRemaining`. |
-| `Action_HoldPosition(ref BrainBlackboard, ref BehaviorTreeState, ref BTreeContext, int)` | `NodeStatus` | Always Running; holds entity in place. |
+| `Action_HoldPosition(ref byte, ref BehaviorTreeState, ref BTreeContext, int)` | `NodeStatus` | Always Running; holds entity in place. |
 
 **BTree definition methods** (`[BTreeDefinition("Name")]`):
 
@@ -472,7 +474,7 @@ public static unsafe class HillAttackCommanderNodes
 | `Condition_IsAreaQueryResolved(ref PlatoonHillAttackParams, ...)` | Polls batch result; 5-second timeout; Failure if area clear; Success caches `TargetGroupHandle`. |
 | `Action_DispatchWaveWithTargets(ref PlatoonHillAttackParams, ...)` | Assigns firing/baseline slots per attacker; publishes `"HullDownAttack"` intent; toggles `CurrentWave`. |
 | `Condition_IsWaveCompleted(ref PlatoonHillAttackParams, ...)` | Monitors `BehaviorState.ActiveBehaviorHash` of each attacker; burns slots on death; swap-removes completed. |
-| `Deactivate_RequestAreaQuery(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — resets `HillAttackMutableState.CachedEqsRequestId` to `-1` when mission-level abort orphans an in-flight EQS query slot. |
+| `Deactivate_RequestAreaQuery(ref byte, ...)` | `[BTreeDeactivator]` — resets `HillAttackMutableState.CachedEqsRequestId` to `-1` when mission-level abort orphans an in-flight EQS query slot. |
 | `ParsePlatoonHillAttackParams(string json, byte* ptr, IGeographicTransform?, NetworkEntityMap)` | Deserializes JSON; converts geodetic to Cartesian; computes attack direction automatically. |
 | `BuildPlatoonHillAttackTree()` | `[BTreeDefinition("PlatoonHillAttack")]` BTree builder. |
 
@@ -489,9 +491,9 @@ public static class HillAttackTankNodes
 |--------|-------------|
 | `Condition_HasTarget(ref HullDownAttackParams, ...)` | Resolves `TargetNetworkId` via `NetworkEntityMap`; scans `TargetMemory` for positive threat score. |
 | `Action_CreepToAndBeyondSlot(ref HullDownAttackParams, ...)` | Two-phase movement: approach at `ApproachSpeed`, then creep at `CreepSpeed`; Failure on overshoot > 50 m. |
-| `Deactivate_CreepToAndBeyondSlot(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — clears `LocomotionChannel.ActiveAction` on branch abort (the Failure path clears it explicitly; this covers the abort path). |
+| `Deactivate_CreepToAndBeyondSlot(ref byte, ...)` | `[BTreeDeactivator]` — clears `LocomotionChannel.ActiveAction` on branch abort (the Failure path clears it explicitly; this covers the abort path). |
 | `Action_AimAndFireSpecific(ref HullDownAttackParams, ...)` | Resolves target entity; writes `AimAndFire` to `WeaponChannel`; tracks rounds via ammo delta. |
-| `Deactivate_AimAndFireSpecific(ref BrainBlackboard, ...)` | `[BTreeDeactivator]` — clears `WeaponChannel.ActiveAction` on branch abort (the MaxRounds path calls `ClearWeaponActionIfActive` explicitly; this covers the abort path). |
+| `Deactivate_AimAndFireSpecific(ref byte, ...)` | `[BTreeDeactivator]` — clears `WeaponChannel.ActiveAction` on branch abort (the MaxRounds path calls `ClearWeaponActionIfActive` explicitly; this covers the abort path). |
 | `Action_ReverseToBaseline(ref HullDownAttackParams, ...)` | Reverse `MoveTo (BaselineX, BaselineY)`; publishes `ClearBehaviorEvent` on arrival. |
 | `Action_AbortEngagement(ref HullDownAttackParams, ...)` | Always Success; overshoot fallback node in Selector. |
 | `ParseHullDownAttackParams(string json, byte* ptr)` | Deserializes JSON; resets `RoundsFired=0`, `LastObservedAmmo=-1`. |
@@ -678,13 +680,13 @@ public sealed class HullDownAttackMapper : ITacticalOrderMapper
 
 ```csharp
 namespace Hrot.AI.Behaviors.Gizmos
-[GizmoProjector(typeof(BrainBlackboard), typeof(BehaviorState), typeof(SimTransform))]
+[GizmoProjector(typeof(BehaviorState), typeof(SimTransform))]
 public sealed class HillAttackGizmo : IStatelessGizmo
 ```
 
 | Member | Description |
 |--------|-------------|
-| `Draw(ISimulationView, Entity, IDebugDrawBuilder)` | Projects `BrainBlackboard` to `PlatoonHillAttackParams`; draws firing-line (blue) and baseline (green); optionally draws slot spheres and labels. |
+| `Draw(ISimulationView, Entity, IDebugDrawBuilder)` | Projects the root params slot to `PlatoonHillAttackParams` via `RootParamsAccess.TryGetRootBytesInView`; draws firing-line (blue) and baseline (green); optionally draws slot spheres and labels. |
 
 ---
 
@@ -694,7 +696,7 @@ public sealed class HillAttackGizmo : IStatelessGizmo
 
 | Referenced Project | Type | Purpose |
 |-------------------|------|---------|
-| `Fdp.Toolkits` | Runtime | Core runtime types: `BrainBlackboard`, `BTreeContext`, `LocomotionChannel`, `WeaponChannel`, `BehaviorRegistry`, `BehaviorDefinition`, `BehaviorState`, `NavigationConstants`, `MoveToParams`, `TargetMemory`, `WeaponState`, `CarKinem.*`, `Blackboard1024`, `UnitRoster`, etc. |
+| `Fdp.Toolkits` | Runtime | Core runtime types: `RootParamsAccess`, `OccurrenceSlotKey`, `BTreeContext`, `LocomotionChannel`, `WeaponChannel`, `BehaviorRegistry`, `BehaviorDefinition`, `BehaviorState`, `NavigationConstants`, `MoveToParams`, `TargetMemory`, `WeaponState`, `CarKinem.*`, `UnitRoster`, etc. |
 | `Fdp.Toolkits.Analyzers` | Roslyn Analyzer | Emits `FbtActionRegistrar.g.cs`, `FbtTreeCatalog.g.cs`, `HsmActionRegistrar.g.cs`, `GizmoRegistrar.g.cs` from `[BTreeAction]`, `[BTreeDefinition]`, `[HsmAction]`, `[GizmoProjector]` attributes. |
 | `Fdp.Core` | Runtime | `Entity`, `EntityRepository`, `FixedString32`, serialization helpers. |
 | `Hrot.Core` | Runtime | `TkbEntityTypes` constants for entity-type dispatch in mappers. |
@@ -758,7 +760,8 @@ string json = """
 // unsafe context inside BehaviorIngressSystem:
 unsafe
 {
-    fixed (byte* ptr = &brainBlackboard.BehaviorParameters[0])
+    // RootParamsAccess.ResolveOrAttachRoot gives the base of this entity's root params slot.
+    byte* ptr = RootParamsAccess.ResolveOrAttachRoot(world, entity, behaviorHash, paramBytes);
     {
         CgfNodes.ParseMoveToParams(json, ptr, geoTransform);
     }
@@ -786,7 +789,8 @@ string json = """
 // The ingress system calls (unsafe context):
 unsafe
 {
-    fixed (byte* ptr = &brainBlackboard.BehaviorParameters[0])
+    // RootParamsAccess.ResolveOrAttachRoot gives the base of this entity's root params slot.
+    byte* ptr = RootParamsAccess.ResolveOrAttachRoot(world, entity, behaviorHash, paramBytes);
     {
         HillAttackCommanderNodes.ParsePlatoonHillAttackParams(
             json, ptr, geoTransform, entityMap);
@@ -859,10 +863,10 @@ Every `[BTreeAction]` and `[BTreeCondition]` method is called at simulation rate
 closures, and boxing in these methods. Gate all log statements behind level
 probes (`BehaviorLog.IsDebugEnabled`).
 
-**Use `Unsafe.As` for blackboard projection, not pointer casts.**
-The bridge closures in `FbtActionRegistrar.g.cs` use `Unsafe.As` to project
-`BrainBlackboard` to a typed DTO. Do not bypass this by casting `&BehaviorParameters[0]`
-directly in action methods -- the source generator owns that contract.
+**Use `Unsafe.As` for slot projection, not pointer casts.**
+The bridge closures in `FbtActionRegistrar.g.cs` use `Unsafe.As` to project the
+root params slot to a typed DTO. Do not bypass this by taking the slot's base
+pointer directly in action methods -- the source generator owns that contract.
 
 **Write channels only when the activation state changes.**
 All action nodes in this assembly check `channel.ActiveAction != desiredAction
@@ -870,10 +874,12 @@ All action nodes in this assembly check `channel.ActiveAction != desiredAction
 cause `ChannelArbitrationSystem` to treat the command as a new intent every frame
 and reset executor state.
 
-**Keep `HillAttackMutableState` within 1024 bytes.**
-`Blackboard1024` has a fixed 1024-byte `ByteSize`. `HillAttackMutableState` is
-120 bytes; the 8-entry SoA arrays are sized to `UnitRoster.MaxSubordinates / 2`.
-Adding fields or growing arrays requires verifying the total size.
+**Keep `HillAttackMutableState` compact.**
+It occupies one working-state slot in the entity's occurrence store, so its size
+is what the allocator reserves. `HillAttackMutableState` is 120 bytes; the 8-entry
+SoA arrays are sized to `UnitRoster.MaxSubordinates / 2`. Growing it is safe --
+the allocator promotes the entity to a larger tier -- but it costs payload every
+other occurrence on that entity then cannot use.
 
 **Cap `TotalSlots` at 16.**
 `BurnedSlotsMask`, `WaveUsedSlotsMask`, and `BaselineReservedMask` are all
@@ -921,7 +927,7 @@ that return a new `BTreeBuilder` without writing to any shared state.
 |---------|-------------|
 | `Hrot.CGF` | Consumer of `AiBehaviorFactory`; hosts `CgfBehaviorSetup`, `TacticalIntentResolutionSystem`, `BehaviorIngressSystem`. Mirrors `CgfNodes` and `CgfBehaviorIds`. |
 | `Hrot.Core` | Provides `TkbEntityTypes` used by both mapper classes. |
-| `Fdp.Toolkits` | Provides all ECS channel types, behavior framework contracts (`BrainBlackboard`, `BehaviorRegistry`, `BehaviorDefinition`, `ITacticalOrderMapper`, etc.), and toolkit navigation/combat types. |
+| `Fdp.Toolkits` | Provides all ECS channel types, behavior framework contracts (`RootParamsAccess`, `BehaviorRegistry`, `BehaviorDefinition`, `ITacticalOrderMapper`, etc.), and toolkit navigation/combat types. |
 | `Fdp.Toolkits.Analyzers` | Roslyn source generator that produces `FbtActionRegistrar.g.cs`, `FbtTreeCatalog.g.cs`, `HsmActionRegistrar.g.cs`, `GizmoRegistrar.g.cs`. These generated files are written to `obj/GeneratedFiles` for debugger source resolution. |
 | `FDP/ExtDeps/FastBTree` | BTree runtime: `Interpreter<TBlackboard, TContext>`, `ActionRegistry`, `NodeStatus`, `BTreeContext`, `[BTreeAction]`, `[BTreeCondition]`, `[BTreeDefinition]`. |
 | `FDP/ExtDeps/FastHSM` | HSM runtime and compiler: `HsmBuilder`, `HsmEmitter`, `HsmDefinitionBlob`, `MachineMetadata`, `HsmActionDispatcher`. |
@@ -938,7 +944,7 @@ The Roslyn analyzers emit the following generated files to
 
 | Generated File | Emitter | Contents |
 |---------------|---------|----------|
-| `FbtActionRegistrar.g.cs` | `Fdp.Toolkits.Analyzers` | `RegisterAll(ActionRegistry<BrainBlackboard, BTreeContext>)` with bridge closures for every `[BTreeAction]` / `[BTreeCondition]` in the assembly. |
+| `FbtActionRegistrar.g.cs` | `Fdp.Toolkits.Analyzers` | `RegisterAll(ActionRegistry<byte, BTreeContext>)` with bridge closures for every `[BTreeAction]` / `[BTreeCondition]` in the assembly. |
 | `FbtTreeCatalog.g.cs` | `Fdp.Toolkits.Analyzers` | `Get<Name>()` methods that lazily compile and cache BTree blobs for each `[BTreeDefinition]` method. |
 | `HsmActionRegistrar.g.cs` | `Fdp.Toolkits.Analyzers` | `RegisterAll()` for every `[HsmAction]` delegate. |
 | `GizmoRegistrar.g.cs` | `Fdp.Toolkits.Analyzers` | Registration glue for `[GizmoProjector]`-annotated gizmo classes. |
@@ -966,7 +972,7 @@ Per-Entity Activation (BehaviorIngressSystem)
   BehaviorState.ActiveBehaviorHash = behaviorId
 
 Per-Tick (BrainTickSystem, ~10-60 Hz)
-  Interpreter.Tick(ref brainBlackboard, ref behaviorTreeState, ref btreeContext)
+  Interpreter.Tick(ref rootParamsByte0, ref behaviorTreeState, ref btreeContext)
     -> walks compiled BTree blob
     -> dispatches action/condition delegates via ActionRegistry
     -> delegates write to LocomotionChannel / WeaponChannel

@@ -1,20 +1,17 @@
 # Predicate Infrastructure — Capabilities & Reuse Surface
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## Storage model — occurrence slots
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
-> `2026-08-17` and reopened on `2026-09-19`.
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** is
+> authoritative for WHERE bytes live: the per-entity brain-state components (`BrainBTreeState`,
+> `BrainHsm64/128`) and the behaviour's params and working state all address into **per-occurrence
+> slots** of the partition allocator, over the same `BlueprintBlackboard{256,1024,4096,16384}` tier
+> components. This is the build-out of
+> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 >
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
->
-> ⚠ **`BehaviorParamPredicateDto`'s two buffers (`BrainBlackboard.BehaviorParameters`,
-> `Blackboard1024.Memory`) both become occurrence slots** — the predicate then resolves through the
-> same slot-table walk `BlueprintVariablePredicateDto` already uses.
+> ⚠ **`BehaviorParamPredicateDto`'s two buffers — the root params occurrence slot and a node
+> working-state occurrence slot — both resolve through the same occurrence slot-table walk
+> `BlueprintVariablePredicateDto` already uses.**
 
 
 **Purpose.** Frame what is already available in the codebase for **building, serialising, JIT-compiling, and editing condition trees over entity state, AI memory, and the event bus**. Two systems already consume this infrastructure end-to-end (the Replay Browser's search panel and the Universal Breakpoints subsystem). A third consumer — for example a "When …" BTree node that fires when an entity-state condition becomes true — can be built on top with no new compiler, DTO, or UI plumbing.
@@ -90,7 +87,7 @@ These are normally nested inside a parent matcher's `Predicate` field, never use
 
 | DTO | What it inspects |
 |---|---|
-| **`BehaviorParamPredicateDto`** | A typed field projected over the untyped `BrainBlackboard.BehaviorParameters` buffer (60 B inline) **or** the `Blackboard1024.Memory` buffer (1024 B). Carries a `BehaviorId` hash so the compiler can short-circuit when the active behaviour doesn't match, then `Unsafe.AsRef<T>` over the correct DTO type. |
+| **`BehaviorParamPredicateDto`** | A typed field projected over the **root params occurrence slot** (behaviour params) **or** a **node working-state occurrence slot** (AiPrimitive / shared-AI state), selected by an `int WorkingSlotKey` (`0` = root params slot, otherwise a `StatefulSlotInfo.SlotKey`) and resolved through the same occurrence slot-table walk `BlueprintVariablePredicateDto` uses. Carries a `BehaviorId` hash so the compiler can short-circuit when the active behaviour doesn't match, then `Unsafe.AsRef<T>` over the correct DTO type. |
 | **`BlueprintVariablePredicateDto`** | A named variable inside a dynamically-allocated slot of `BlueprintBlackboard1024/4096/16384`. Compiler emits IL that walks the slot table at `BlueprintBlackboardPartitions.TryGetSlotOffset`, short-circuits on miss, then reads at `payloadOffset + fieldOffset`. Tier upgrades don't invalidate the compiled delegate — the slot lookup runs every evaluation. |
 | **`TraceBufferScanPredicateDto`** | Any record in `BTreeTraceWorkingMemory1024` or `HsmTraceWorkingMemory1024` (16-byte stride ring buffer, up to 63 records). Matches on `OpCode` plus optional `IndexField` (node/state index), `StatusField` (NodeStatus or GuardResult), `TriggerEventId`. Lets you express "did B-Tree node X enter Running this tick?", "did HSM exit state Y?", "was transition Z fired?". |
 
@@ -253,7 +250,7 @@ A condition over entity state and AI memory can be expressed as one of these sha
 | "Did the entity enter `LocomotionAction.Flee`?" | `PropertyMatchDto(Locomotion, "ActiveAction", Numeric{Min=Max=(int)Flee})` |
 | "Did B-Tree node 7 just enter Running?" | `TraceBufferScanPredicateDto(BTreeTraceWorkingMemory1024, OpCode=NodeEvaluated, IndexField=7, StatusField=Running)` |
 | "Did HSM transition fire on event 42?" | `TraceBufferScanPredicateDto(HsmTraceWorkingMemory1024, OpCode=Transition, TriggerEventId=42)` |
-| "Is `BehaviorState.ActiveBehaviorHash` == HillAttack AND `BehaviorParameters.Aggression > 0.8`?" | `BehaviorParamPredicateDto(BrainBlackboard, BehaviorId=HillAttack.Hash, "Aggression", Numeric{Min=0.8})` (the behaviour-hash check is implicit) |
+| "Is `BehaviorState.ActiveBehaviorHash` == HillAttack AND `BehaviorParameters.Aggression > 0.8`?" | `BehaviorParamPredicateDto(WorkingSlotKey=0, BehaviorId=HillAttack.Hash, "Aggression", Numeric{Min=0.8})` (the behaviour-hash check is implicit; `WorkingSlotKey=0` selects the root params slot) |
 | "Did a Blueprint variable `AmmoCount` reach 0?" | `BlueprintVariablePredicateDto(MyAsset.Guid, "AmmoCount", Numeric{Min=Max=0})` |
 | "Has a `HitEvent` with `Damage > 50` been published this tick?" | `TransientEventPredicateDto(HitEvent, AnyOccurrence=false, "Damage", >, "50")` |
 | "Did the entity enter the polygon over there?" | `SpatialBoundingPredicateDto(SimTransform, "Position.X", "Position.Y", bounds=…, Entry)` |

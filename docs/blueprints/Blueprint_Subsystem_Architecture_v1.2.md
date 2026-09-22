@@ -21,8 +21,8 @@ Three classes of change:
 - **NEW dispatch kind**: `AiPrimitive` (replaces `BehaviorAction`). One graph can host as BTree action, BTree condition, HSM action, HSM guard, and/or as a callable from other Blueprints, by declaring `hostings`.
 - **`intent` flag** (`Action` | `Condition`) on AI primitives, with strict validator rules. **Conditions cannot be latent.**
 - **Wait-node lowering is dispatch-aware**: AiPrimitive emits `return NodeStatus.Running`; Instance emits `BlueprintLatentCursor` switch.
-- **AI primitive working state** lives in `Blackboard1024` (engine's existing component), not `BlueprintBlackboard*`.
-- **Slice 1 constraint**: one AiPrimitive working-state Blueprint per entity (`Blackboard1024` partition allocator deferred to Slice 2).
+- **AI primitive working state** lives in its own **occurrence slot** of the entity's `BlueprintBlackboard*` tier, keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`.
+- Any number of AiPrimitive working-state Blueprints may coexist on one entity — each owns a distinct slot.
 - **Channel Command Catalog** + **Wait Primitive Catalog**: new authoring catalogs alongside the Engine Event Catalog. Slice 1 hand-curated; Slice 2 attribute-driven.
 
 **C. Engine-direct interface model (substantial reshuffle)**
@@ -47,7 +47,7 @@ A Blueprint-like visual scripting subsystem for the Hrot/FDP engine, with:
   - **Library** — stateless utility functions.
   - **AiPrimitive** — single-method graph hosted by BTree and/or HSM (replacing v1.1's BehaviorAction with multi-host capability).
   - **Instance** — entity-bound (or world-singleton) script with state, events, optional tick, latent execution.
-- **Multi-Blueprint per entity** for Instance dispatch via partition allocator on `BlueprintBlackboard*`. AI primitives use `Blackboard1024` directly (one per entity in Slice 1).
+- **Multi-Blueprint per entity** for Instance dispatch via partition allocator on `BlueprintBlackboard*`. AI primitives use the same allocator, one slot per node.
 - **Cross-Blueprint composition** via declared `callablePeers` — synchronous in-frame calls between Blueprints on the same entity.
 - **Channel command authoring** — visual "Command Channel" nodes (e.g., `Locomotion / MoveTo`) compile to the engine's CQRS pattern (`ActiveAction`, `Params`, `ActionInstanceId++`). Removes the most common BTree-authoring boilerplate.
 - **Wait primitive authoring** — visual "Wait For Channel" / "Wait For Event" nodes, with dispatch-aware lowering.
@@ -71,7 +71,6 @@ A Blueprint-like visual scripting subsystem for the Hrot/FDP engine, with:
 - Visual debugger UI (canvas-aware) — protocol exists; UI is Slice 3.
 - Defragmentation pass for blackboard payloads.
 - `[BlueprintExposedEvent]` / `[BlueprintExposedChannelCommand]` attribute-driven catalogs — Slice 1 uses hand-curated catalogs; Slice 2 evolves.
-- **Partition allocator on `Blackboard1024`** for multi-AiPrimitive working-state per entity (Slice 1 = one AiPrimitive working-state Blueprint per entity).
 - Multiple world-singleton Blueprints per tier.
 - Integration test harness with `clusterop` scripts — Slice 1 ships unit-level tests only.
 
@@ -108,7 +107,7 @@ graph TB
 
     subgraph "Hrot.AI.Behaviors.csproj — the single reloadable DLL"
         ADDFILES[AdditionalFiles: .bp.json]
-        HANDCODE[Hand-written .cs<br/>BTree, HSM, [SharedAi*] methods]
+        HANDCODE["Hand-written .cs<br/>BTree, HSM, SharedAi* methods"]
         GEN[Roslyn generators:<br/>Hrot.Blueprints.Generators<br/>Fdp.Toolkits.Analyzers]
         ROSLYN[Roslyn compile<br/>PE + Portable PDB]
         DLL[Hrot.AI.Behaviors.dll]
@@ -143,12 +142,14 @@ graph TB
     end
 
     subgraph "Data"
-        BB[BrainBlackboard 100B params<br/>existing]
-        BB1024[Blackboard1024<br/>existing - now used by AiPrimitive working state]
-        BPBB[BlueprintBlackboard1024/4096/16384<br/>NEW partition-allocated]
+        BPBB[BlueprintBlackboard1024/4096/16384<br/>partition-allocated tiers]
+        ROOT[root params slot<br/>per behaviour]
+        WORK[working-state slots<br/>per stateful node]
 
-        BTREE --> BB
-        BTREE --> BB1024
+        BPBB --> ROOT
+        BPBB --> WORK
+        BTREE --> ROOT
+        BTREE --> WORK
         BPTICK --> BPBB
         BPMAINT --> BPBB
     end
@@ -227,7 +228,7 @@ Fdp.Toolkits.Blueprints              — net8.0 library  (consolidates the engin
                Fdp.Toolkits
                Fdp.ModuleHost.Abstractions
   contains:    BlueprintRegistry (concrete class)
-               BlueprintBlackboard{1024,4096,16384} component definitions
+               BlueprintBlackboard{256,1024,4096,16384} component definitions
                BlueprintBlackboardPartitions (allocator static helpers)
                BlueprintTickSystem (IEcsModuleSystem, Simulation phase)
                BlueprintMaintenanceSystem (IEcsModuleSystem, BeforeSync phase)
@@ -346,8 +347,8 @@ A unified Blueprint compiler with three lowering targets. Each lowering produces
 | Call into peer Instance (declared callablePeers) | ✗ | ✗ | ✓ |
 | Call into AiPrimitive with `BlueprintCall` hosting | ✓ | ✓ | ✓ |
 | Returns NodeStatus | ✗ | ✓ (Success/Failure/Running for Action; Success/Failure for Condition) | ✗ |
-| State storage | none | `BrainBlackboard.BehaviorParameters` (params) + `Blackboard1024` (working state, if any) | `BlueprintBlackboard*` slot |
-| Hot-reload soft/hard | n/a | per-slot in `Blackboard1024` | per-slot in `BlueprintBlackboard*` |
+| State storage | none | root params slot (params) + a working-state slot (if any) | `BlueprintBlackboard*` slot |
+| Hot-reload soft/hard | n/a | per-slot in `BlueprintBlackboard*` | per-slot in `BlueprintBlackboard*` |
 
 ### 4.3 Spec — Library
 
@@ -380,8 +381,8 @@ An AiPrimitive asset has these declarations:
 
 - `intent`: `Action` or `Condition`
 - `hostings`: subset of `{BTreeAction, BTreeCondition, HsmAction, HsmGuard, BlueprintCall}`
-- `parameters`: typed list (fit within `BrainBlackboard.BehaviorParameters` = 100 B)
-- `workingState`: typed list (lives in `Blackboard1024`; optional)
+- `parameters`: typed list (occupies the behaviour's root params slot; no fixed cap)
+- `workingState`: typed list (lives in the node's own working-state slot; optional)
 
 The compiler emits one shared core method plus host-specific thunks.
 
@@ -428,35 +429,28 @@ public static class HasVisibleTarget_Bp
         return NodeStatus.Failure;
     }
 
-    // BTree thunk — exact NodeLogicDelegate signature
+    // BTree thunk — exact NodeLogicDelegate signature.
+    // `bb` is byte 0 of the entity's ROOT PARAMS SLOT.
     public static NodeStatus BTreeTick(
-        ref BrainBlackboard bb, ref BehaviorTreeState state,
+        ref byte bb, ref BehaviorTreeState state,
         ref BTreeContext ctx, int paramIndex)
     {
-        // Parameters: project from BrainBlackboard.BehaviorParameters slice
-        ref var p = ref Unsafe.As<byte, Params>(
-            ref bb.BehaviorParameters[paramIndex * sizeof(Params)]);
+        // This asset's OWN params and working state, in its own occurrence slot.
+        // The key is per-node, so any number of stateful primitives coexist on one entity.
+        int occurrenceKey = OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* @params);
 
-        // Working state: inline projection over Blackboard1024 with hash check
-        ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-        unsafe
+        if (freshlyAttached)
         {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                // Header at first 8 bytes
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    // Hard reset: zero everything, write our hash, run init
-                    Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-
-                ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.Time);
-            }
+            // Seed the params from the behaviour's root params slot, then init working state.
+            ref byte rootParams = ref RootParamsAccess.RootRef(ctx.World, ctx.Self);
+            *@params = Unsafe.As<byte, Params>(ref rootParams);
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
         }
+
+        return TickCore(ref *@params, ref ws, ctx.Self, ctx.World, ctx.World.Time);
     }
 
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
@@ -470,20 +464,16 @@ public static class HasVisibleTarget_Bp
     {
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-        ref var p = ref *(Params*)instance;
 
-        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
-        fixed (byte* memory = bb1024.Memory)
-        {
-            if (*(ulong*)memory != StructureHash)
-            {
-                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                *(ulong*)memory = StructureHash;
-                InitDefaultWorkingState((WorkingState*)(memory + 8));
-            }
-            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-            TickCore(ref p, ref ws, bridge->Self, world, world.Time);  // status discarded
-        }
+        // This occurrence's own slot, keyed by the (region, state) the kernel is dispatching.
+        int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, writer);
+        ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash,
+            out bool freshlyAttached, out Params* @params);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
+
+        TickCore(ref *@params, ref ws, bridge->Self, world, world.Time);  // status discarded
     }
 
     // HSM guard thunk — bool return
@@ -491,20 +481,15 @@ public static class HasVisibleTarget_Bp
     {
         var bridge = (HsmKernelBridge*)context;
         var world = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-        ref var p = ref *(Params*)instance;
 
-        ref var bb1024 = ref world.GetComponentRW<Blackboard1024>(bridge->Self);
-        fixed (byte* memory = bb1024.Memory)
-        {
-            if (*(ulong*)memory != StructureHash)
-            {
-                Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-                *(ulong*)memory = StructureHash;
-                InitDefaultWorkingState((WorkingState*)(memory + 8));
-            }
-            ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-            return TickCore(ref p, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
-        }
+        int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, eventId);
+        ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash,
+            out bool freshlyAttached, out Params* @params);
+        if (freshlyAttached)
+            InitDefaultWorkingState((WorkingState*)Unsafe.AsPointer(ref ws));
+
+        return TickCore(ref *@params, ref ws, bridge->Self, world, world.Time) == NodeStatus.Success;
     }
 
     // BlueprintCall — for direct invocation from other Blueprint code
@@ -539,7 +524,7 @@ public static unsafe class BlueprintRegistrar_HasVisibleTarget_C7145A20_Bp
 
 **Validator constraints (AiPrimitive):**
 - `Params` total size ≤ 100 bytes (BTree's `BehaviorParameters` slice).
-- `WorkingState` total size ≤ remaining `Blackboard1024` capacity (Slice 1: full 1024 minus header, but in practice a single asset).
+- `WorkingState` total size ≤ the payload the entity's tier can still allocate (the allocator promotes the entity to a larger tier rather than refusing).
 - `intent: Action`: terminal nodes are `Return Success/Failure/Running`.
 - `intent: Condition`:
   - Terminal nodes are `Return Success/Failure` **only**. `Running` is forbidden.
@@ -890,12 +875,12 @@ public sealed class WaitForEventNode : Node
 
 ### 6.1 Design rationale
 
-Two storage stories, one per dispatch kind:
+**One storage story for both dispatch kinds:**
 
-- **Instance dispatch** uses the new `BlueprintBlackboard{1024,4096,16384}` components with partition allocator. Multi-Blueprint per entity supported from Slice 1.
-- **AiPrimitive dispatch** uses the engine's existing `Blackboard1024` for working state. **Slice 1 constraint:** one AiPrimitive working-state Blueprint per entity (Slice 2 lifts this via Option β — partitioning into the `BlueprintBlackboard*` tiers, **not** the engine `Blackboard1024`; see `BTree_AiActionParameterBinding_Detailed_Design.md` §4).
+- **Instance dispatch** uses the `BlueprintBlackboard{256,1024,4096,16384}` components with the partition allocator. Multi-Blueprint per entity supported.
+- **AiPrimitive dispatch** uses the *same* allocator for its working state, keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`. Any number of stateful AiPrimitives may coexist on one entity, each owning a distinct slot.
 
-The architect's clarification settled this: AiPrimitives reuse the existing `[SharedAiHeavy*]` projection pattern over `Blackboard1024`. They do not use `BlueprintBlackboard*`. This keeps storage stories cleanly separated and avoids retrofitting.
+One allocator, one slot table, one hot-reload story — which is exactly why the earlier plan to retrofit a second allocator onto a dedicated AI component was rejected: it would have rippled through the FastHSM/BTree kernels for no capability the tiers do not already provide.
 
 ### 6.2 Spec — `BlueprintBlackboard*` components (Instance dispatch only)
 
@@ -1008,23 +993,21 @@ public static unsafe class BlueprintBlackboardPartitions
 
 Fast path (per-tick lookup) is a linear scan over ≤16 slot entries — cache-friendly, sub-microsecond, JIT-inlined.
 
-### 6.5 Spec — `Blackboard1024` memory layout for AiPrimitive working state
+### 6.5 Spec — slot layout for AiPrimitive working state
 
 AiPrimitive working state is accessed via **inline projection** in each generated thunk — no separate helper class.
 
 **Memory layout (compile-time documented):**
 
 ```
-Blackboard1024.Memory layout when hosting an AiPrimitive working state:
+An AiPrimitive working-state slot, inside the entity's BlueprintBlackboard* payload:
   Offset 0..7   : ulong  StructureHash    (8 bytes)
   Offset 8..    : T      WorkingState     (struct of the asset's declared working-state fields)
 ```
 
-The first 8 bytes are reserved for the StructureHash header. The working-state struct projects starting at offset 8. Each thunk checks and resets the header inline (see §4.4 for the generated thunk pattern).
+The slot's first 8 bytes carry the StructureHash header; the working-state struct projects at offset 8. On a hash mismatch the thunk resets **that slot only** — the reset is bounded by the slot's own size from the slot table, so it can never disturb a neighbouring occurrence (see §4.4 for the generated thunk pattern).
 
-**Implicit Slice 1 constraint:** Only one AiPrimitive working-state Blueprint can occupy an entity's `Blackboard1024` at a time, because the StructureHash header is at a fixed location. If two AiPrimitives with working state are attached to the same entity, the second one's first invocation will overwrite the first's hash and zero the working memory. **⚠ Lifted in Slice 2 via Option β** — AiPrimitive working state is partitioned into the existing `BlueprintBlackboard*` tiers (keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`), **not** a `Blackboard1024` allocator. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4.
-
-**Detection:** The compiler can detect static conflicts (one BTree references two AiPrimitives with `WorkingState != null` and both can target the same entity) and emit a warning diagnostic. Runtime detection is not free; documenting it as authoring discipline for Slice 1.
+⭐ Because the key is per node, two AiPrimitives with working state on one entity get two distinct slots and cannot collide. No authoring discipline and no conflict diagnostic are required.
 
 ### 6.6 Spec — `BlueprintRegistry`
 
@@ -1399,7 +1382,7 @@ hard (changed hash):
   - slot.InstanceVersion++.  (invalidates any latent cursors)
 ```
 
-For AiPrimitive working state: same mechanism, except the "slot" is the single entry inside `Blackboard1024` (Slice 1), with the StructureHash header at offset 0 and the working-state struct at offset 8. The thunk checks the hash inline on every invocation and performs a hard reset if it differs (see §4.4 for the generated thunk pattern; §6.5 for the memory layout).
+For AiPrimitive working state: the same mechanism, on that node's own slot — the StructureHash header at the slot's offset 0 and the working-state struct at offset 8. The thunk checks the hash on every invocation and hard-resets that slot if it differs (see §4.4 for the generated thunk pattern; §6.5 for the layout).
 
 ### 8.3 Managed-delegates-only rule
 
@@ -1666,7 +1649,7 @@ Hrot.Blueprints.Tests/
     PartitionAllocatorTests.cs     — attach, detach, coalesce, full, upgrade
     MultiBlueprintTests.cs         — two Instances same entity, peer call
     WorldSingletonTests.cs
-    Blackboard1024AccessTests.cs   — AiPrimitive working state attach
+    AiWorkingSlotAccessTests.cs    — AiPrimitive working state attach
     TierUpgradeTests.cs            — BlueprintMaintenanceSystem upgrades 1024→4096
   HotReload/
     SoftReloadTests.cs
@@ -1829,11 +1812,9 @@ public interface IEntityCommandBuffer
 }
 ```
 
-### 13.6 New: Slice-2-anticipated `Blackboard1024` partition allocator
+### 13.6 AiPrimitive working state on the shared allocator
 
-The Slice 1 constraint "one AiPrimitive working-state Blueprint per entity" exists because `Blackboard1024` is currently a single-typed projection slot. **Slice 2 lifts this via Option β** — partitioning AiPrimitive working state into the existing `BlueprintBlackboard*` tiers (reusing the proven `BlueprintBlackboardPartitions` allocator), keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`. Retrofitting an allocator onto the engine `Blackboard1024` (or adding a new `BlueprintAiWorking1024`) was **rejected** — it would ripple through the FastHSM/BTree kernels. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4 (incl. the three mandated fixes).
-
-Not blocking Slice 1.
+AiPrimitive working state is partitioned into the `BlueprintBlackboard*` tiers by the same `BlueprintBlackboardPartitions` allocator Instance dispatch uses, keyed per node by `FNV-1a(BehaviorAssetId, NodeVisualId)`. Adding a *second*, dedicated allocator for AI working state was **rejected** — it would ripple through the FastHSM/BTree kernels and buy nothing the tiers do not already provide. See `BTree_AiActionParameterBinding_Detailed_Design.md` §4 (incl. the three mandated fixes).
 
 ### 13.7 No engine changes that block Slice 1
 
@@ -1843,7 +1824,6 @@ If engine team pushes back on any of the above:
 - `CreateExtended`: ergonomic only.
 - `BlueprintBlackboard*` ComponentIds: three IDs of 256, non-negotiable.
 - `AddEmptyComponent`: engine team has confirmed.
-- Slice 2 `Blackboard1024` partition allocator: not in Slice 1 critical path.
 
 ---
 
@@ -1861,7 +1841,6 @@ If engine team pushes back on any of the above:
 | Visual debugger UI (canvas-aware) | Protocol exists; UI is canvas work | 3 |
 | Defragmentation pass for blackboards | Free-list sufficient until fragmentation pain | 2 if needed |
 | `[BlueprintExposedEvent]` / `[BlueprintExposedChannelCommand]` attribute-driven catalogs | Curated suffices for Slice 1 | 2 |
-| **Partition allocator on `Blackboard1024`** | Single-slot per entity sufficient for Slice 1 | 2 |
 | Multiple world-singleton Blueprints per tier | One per tier sufficient | 2 |
 | Integration test harness with clusterop | Defer until real Hrot integration | post-Slice 1 |
 | Latent execution in AiPrimitive graphs hosted as BTree Condition | Validator forbids in Slice 1 (correct per architect); reconsider if needed | n/a (architectural) |
@@ -2124,13 +2103,12 @@ That's it. No structural questions remain. The architecture is implementable.
 - Dispatch kind renamed: `BehaviorAction` → `AiPrimitive`. `BlueprintBlackboard*` reserved for Instance dispatch.
 - AiPrimitive `intent`: `Action` (Success/Failure/Running) or `Condition` (Success/Failure, no latent nodes).
 - AiPrimitive `hostings`: `{BTreeAction, BTreeCondition, HsmAction, HsmGuard, BlueprintCall}` — declared subset.
-- AiPrimitive parameters in `BrainBlackboard.BehaviorParameters` (100 B), working state in `Blackboard1024`.
-- Slice 1 constraint: one AiPrimitive working-state Blueprint per entity (Slice 2 adds partition allocator to `Blackboard1024`).
+- AiPrimitive parameters in the behaviour's root params slot, working state in the node's own occurrence slot.
 - Three catalogs: Engine Event, Channel Command, Wait Primitive — hand-curated in Slice 1.
 - `ChannelCommandNode`, `WaitForChannelNode`, `WaitForEventNode` node kinds.
 - Wait lowering is dispatch-aware: AiPrimitive emits `Running` return; Instance emits `BlueprintLatentCursor` switch.
 - Each AiPrimitive Wait costs one tick in the host kernel (no within-tick fall-through optimization in Slice 1).
-- Q-OPEN-D resolved: one AiPrimitive working-state Blueprint per entity in Slice 1; `Blackboard1024` partition allocator deferred to Slice 2.
+- Q-OPEN-D resolved: AiPrimitive working state is partition-allocated per node, so any number may coexist on one entity.
 - Q-OPEN-E resolved: MoveToAndFire AiPrimitive scenario is a required Slice 1 acceptance demo.
 - **No `IBlueprint*` wrapper interfaces.** Generated code uses Fdp.Core types directly.
 - **`Hrot.Blueprints.Core` references `Fdp.Core`.** Decoupling rule: core uses Fdp.Core schema/interfaces only, never Fdp.Toolkits runtime.

@@ -4,7 +4,7 @@ build-state: BUILT (2026-08-25, backend/CGF lane, ids CE-019..CE-024). Carries c
   sequenceDiagram (§4/§5). Slice 3 of cgf==editor (CE-011): editing + hot reload on CGF. Take the windows'
   native editing WHOLESALE (per the 2026-08-25 steer); wire the reload pipeline + save path; add a MINIMAL
   MCP save/reload trigger so it is testable headlessly.
-updated: 2026-08-27  (was 2026-08-25; phase-2 slice I / CE-078 folded in at §10.7)
+updated: 2026-09-22  (was 2026-08-27; phase-2 slice I / CE-078 folded in at §10.7)
 current-answer: ⚠ READ §10.7 FIRST — phase-2 slice ① (CE-078, 2026-08-27) moved the reload POLICY and
   the save BODIES out of this host into Hrot.Editor.AiShared (AiAssetReload / AiAssetSavers); §4's diagram
   is edited to match and the owning design for the shared code is
@@ -56,13 +56,14 @@ known-conflict: ⚠ SHARES the DebugApi surface with the PARALLEL MCP-authoring 
 ⇒ ⭐⭐ **The reload + save machinery EXISTS and is per-host-triggered; CGF just does not wire the triggers.**
 This is wiring + a minimal MCP trigger, not new capability. ⚠ **The asset save→reload path is DISTINCT from
 the live value-write (R-52)** — editing a param changes the ASSET FILE and hot-reloads; it does NOT go
-through the staged `Blackboard1024` write. That is what keeps R-52 out of this slice.
+through the staged occurrence-slot write (the tier component at the slot's `PayloadOffset`). That is
+what keeps R-52 out of this slice.
 
 ## 3. ⭐⭐ EDITING IS WHOLESALE, BUT TWO WRITE PATHS STAY DISTINCT
 | path | this slice? | why |
 |---|---|---|
 | ⭐ **asset/graph authoring** *(edit nodes/params → save file → hot reload)* | ✅ **wholesale** | the steer; the reload pipeline is its runtime effect |
-| 🔴 **live variable-VALUE edit** *(watch/Details → staged `Blackboard1024` write)* | ⛔ **OFF** | R-52 clobber; variable-model lane's frozen path |
+| 🔴 **live variable-VALUE edit** *(watch/Details → staged occurrence-slot write)* | ⛔ **OFF** | R-52 clobber; variable-model lane's frozen path |
 
 ## 4. ⭐⭐⭐ CLASS DIAGRAM
 
@@ -214,7 +215,7 @@ OPEN document — could not exist on CGF; ⇒ `CE-009` removed that blocker and 
 
 ⚠ **The two write paths stay distinct, and a rail now enforces it**
 *(`The_live_variable_value_write_is_still_off_on_the_cluster`)*: the asset path writes a FILE and
-recompiles; the live variable-VALUE path stages a `Blackboard1024` write and stays **OFF** *(`R-52`)*.
+recompiles; the live variable-VALUE path stages an occurrence-slot write and stays **OFF** *(`R-52`)*.
 
 ### 10.2 ⚠ Deviation ① — **save resolves the path from `SourceFilePath`, not from `AssetRoots`**
 

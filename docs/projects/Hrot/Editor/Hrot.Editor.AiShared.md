@@ -824,8 +824,7 @@ public sealed record ActionSchemaEntry(
     string          ShortName,     // "FireAtTarget"
     Type            DtoType,       // first ref parameter type
     ActionHosting   Hostings,      // BTreeAction | HsmAction | SharedAi | Heavy
-    BlackboardAccess ParamAccess,  // ReadOnly | ReadWrite | Unknown
-    Type?           HeavyDtoType); // set for [SharedAiHeavyAction]; null otherwise
+    BlackboardAccess ParamAccess); // ReadOnly | ReadWrite | Unknown
 
 [Flags]
 public enum ActionHosting
@@ -952,16 +951,14 @@ requirements from action nodes. Results populate the "Unbound Sub-Tree Requireme
 panel section. Designers bind these to master variables via drag-drop (Approach A
 aliasing) or promote them to new standalone variables.
 
-### Memory tier bin-packing
+### Occurrence-slot allocation
 
-`BlackboardBinPacker` partitions variables between:
-- **Inline tier:** `BrainBlackboard.BehaviorParameters` — 100 bytes max.
-- **Heavy tier:** `Blackboard1024.Memory` — 928 usable bytes, allocated on demand.
-
-Master variables always stay inline. Aggregated sub-tree variables fill remaining
-inline space first, then overflow to heavy. When heavy variables exist, the asset's
-`[BTreeDefinition]` / `[HsmDefinition]` attribute carries `HeavyDtoType = typeof(X)`
-so the source generator wires up the `Blackboard1024` component provisioning.
+`BlackboardBinPacker` places variables into occurrence slots in the tier ladder
+(`BlueprintBlackboard{256,1024,4096,16384}`). Master variables and aggregated sub-tree
+variables are both ordinary occurrence slots — there is no separate inline/heavy split.
+`BlueprintTierTable.ResolveTier` picks the smallest tier whose payload and slot count both
+fit the asset's requirements (up to 16 096 usable bytes across ≤16 slots at the top tier),
+promoting up the ladder as needed.
 
 ---
 

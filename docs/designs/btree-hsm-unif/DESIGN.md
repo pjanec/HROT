@@ -1,15 +1,12 @@
 # BTree + HSM Unification Design
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
->
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](../../blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> [`Architect_Question_37`](../../blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
-> `2026-08-17` and reopened on `2026-09-19`.
->
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
+> ⭐ **Storage model:** a behaviour's parameters live in the entity's **root params slot** and a
+> stateful node's scratch in its own **working-state slot**, both inside the entity's
+> `BlueprintBlackboard{256,1024,4096,16384}` occurrence store. The interrupt registers are their own
+> component, `BrainInterrupts`. 📄
+> [`DESIGN_Occurrence_Scoped_Storage.md`](../../blueprints/DESIGN_Occurrence_Scoped_Storage.md) owns
+> that model; it builds out
+> [`Architect_Question_37`](../../blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 > ⭐ Everything else in it stands.
 >
 > ⭐⭐ **Two of this document's open questions are CLOSED by that design rather than inherited:**
@@ -134,7 +131,7 @@ unimplemented stub.
 `Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj`
 
 References only BTree libraries:
-- `Fdp.Toolkits` (BrainBlackboard, channels, etc.)
+- `Fdp.Toolkits` (RootParamsAccess, BrainInterrupts, channels, etc.)
 - `Fdp.Core` (Entity type)
 - `Fbt.Compiler` (BTreeBuilder)
 - `Fbt.SourceGen` (analyzer, no output assembly ref)
@@ -410,17 +407,17 @@ The design talk identifies this as the "separate bridge → shared blackboard" m
 
 ### Design
 
-#### 3.1 — Reserved Interrupt Registers in `BrainBlackboard`
+#### 3.1 — The Interrupt Registers: `BrainInterrupts`
 
-`BrainBlackboard.Memory` is a 128-byte fixed buffer. The last two bytes are reserved for
-interrupt signals:
+`BrainInterrupts` is a small per-entity component whose named fields carry the interrupt signals:
 
-| Byte index | Signal            | Written by                  | Read by |
-|------------|-------------------|-----------------------------|---------|
-| 126        | MobilityLost (1=set, 0=clear) | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
-| 127        | (reserved for future interrupts) | — | — |
+| Field | Signal | Written by | Read by |
+|---|---|---|---|
+| `Interrupt_MobilityLost` | MobilityLost (1=set, 0=clear) | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
+| `Interrupt_Reserved` | (reserved for future interrupts) | — | — |
 
-The reserved layout must be documented in `BrainBlackboard`'s source file comment.
+They live in their own component rather than in a behaviour's slot because they are facts about the
+**entity**, not about whichever behaviour is running: a behaviour switch must not carry them.
 
 Interrupt bytes behave as **single-frame pulses**: they are written to `1` by
 `CognitiveInterruptSystem` on the frame an edge is detected (capability transitions from
@@ -441,11 +438,11 @@ set the interrupt byte only on the frame a capability is lost — not every fram
 unit remains incapacitated:
 
 ```csharp
-// Single query: all entities with BrainBlackboard + ActorCapabilityState + PreviousCapabilities
+// Single query: all entities with BrainInterrupts + ActorCapabilityState + PreviousCapabilities
 // (covers BOTH BTree and HSM units)
-foreach (var entity in world.Query<BrainBlackboard, ActorCapabilityState, PreviousCapabilities>())
+foreach (var entity in world.Query<BrainInterrupts, ActorCapabilityState, PreviousCapabilities>())
 {
-    ref var bb   = ref entity.Get<BrainBlackboard>();
+    ref var ints = ref entity.Get<BrainInterrupts>();
     ref var curr = ref entity.Get<ActorCapabilityState>();
     ref var prev = ref entity.Get<PreviousCapabilities>();
 
@@ -471,10 +468,10 @@ set. Do NOT clear the byte here — clearing is handled by `CognitiveCleanupSyst
 all tick systems have run (§ 3.5):
 
 ```csharp
-ref var bb = ref entity.Get<BrainBlackboard>();
-if (bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] == 1)
+ref var ints = ref entity.Get<BrainInterrupts>();
+if (ints.Interrupt_MobilityLost == 1)
     HsmEventQueue.TryEnqueue(ref component, EventId_MobilityLost);
-// Byte 126 is zeroed by CognitiveCleanupSystem at end of frame.
+// The register is zeroed by CognitiveCleanupSystem at end of frame.
 ```
 
 `EventId_MobilityLost` is the same constant already used by `HsmDamageBridgeSystem`.
@@ -496,7 +493,7 @@ After:  ChannelArbitrationSystem, CognitiveInterruptSystem, BTreeTickSystem, Hsm
 
 Runs last in `CognitiveRuntimeModule`, after both `BTreeTickSystem` and all
 `HsmTickSystem<T>` registrations. Unconditionally zeros all interrupt register bytes
-for every entity with a `BrainBlackboard`, making them single-frame pulses regardless of
+for every entity with a `BrainInterrupts`, making them single-frame pulses regardless of
 brain tier:
 
 ```csharp
@@ -504,11 +501,11 @@ internal sealed class CognitiveCleanupSystem : ISystem
 {
     public void Update(EntityRepository world, float deltaTime)
     {
-        foreach (var entity in world.Query<BrainBlackboard>())
+        foreach (var entity in world.Query<BrainInterrupts>())
         {
-            ref var bb = ref entity.Get<BrainBlackboard>();
-            bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 0;
-            bb.Memory[127] = 0; // reserved; cleared proactively
+            ref var ints = ref entity.Get<BrainInterrupts>();
+            ints.Interrupt_MobilityLost = 0;
+            ints.Interrupt_Reserved     = 0; // reserved; cleared proactively
         }
     }
 }
@@ -598,10 +595,10 @@ struct layout via Roslyn's semantic model, then emits:
 // Offset resolved at generation time from CombatParams.Weapon field layout
 actionRegistry.RegisterCondition(
     "ConditionName@16",      // compound key: "{MethodName}@{computedOffset}"
-    static (ref BrainBlackboard bb, BTreeContext ctx) =>
+    static (ref byte bb, BTreeContext ctx) =>   // bb = byte 0 of the root params slot
     {
         ref WeaponParams dto = ref Unsafe.As<byte, WeaponParams>(
-            ref Unsafe.AddByteOffset(ref bb.Memory[0], (nint)16));
+            ref Unsafe.AddByteOffset(ref bb, (nint)16));
         return ConditionName(ref dto, ctx.Self, ctx.Repo);
     });
 ```
@@ -636,9 +633,9 @@ private static unsafe bool Guard_ConditionName_At16(
     var bridge = (HsmKernelBridge*)contextPtr;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
     var entity = bridge->Entity;
-    ref var bb = ref entity.Get<BrainBlackboard>();
+    RootParamsAccess.TryGetRootBytes(repo, entity, out byte* root, out _);
     ref WeaponParams dto = ref Unsafe.As<byte, WeaponParams>(
-        ref Unsafe.AddByteOffset(ref bb.Memory[0], (nint)16));
+        ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(root), (nint)16));
     return ConditionName(ref dto, entity, repo);
 }
 ```
@@ -720,7 +717,7 @@ For a BTree `[BTreeAction]` method annotated with `[WritesChannel(ChannelKind.Lo
 ```csharp
 actionRegistry.RegisterAction(
     "MoveTo",
-    static (ref BrainBlackboard bb, BTreeContext ctx) =>
+    static (ref byte bb, BTreeContext ctx) =>
     {
         var status = MoveTo(ref bb, ctx);
         if (status == NodeStatus.Failure)
@@ -825,10 +822,10 @@ Hot Reload (Phase 1)
 
 Frame tick (Phase 2 + 3)
   CognitiveInterruptSystem:
-    -> read ActorCapabilityState (edge-triggered), write interrupt bytes to BrainBlackboard
+    -> read ActorCapabilityState (edge-triggered), write interrupt registers to BrainInterrupts
   BTreeTickSystem:
     -> tick BTree, publish BehaviorFinishedEvent on Success/Failure
-    -> BTree Observer nodes poll blackboard interrupt bytes natively
+    -> BTree Observer nodes poll the BrainInterrupts registers natively
   HsmTickSystem<T>:
     -> read blackboard interrupt bytes -> inject HsmEvents (Phase 3)
     -> HsmKernel.Update()

@@ -109,7 +109,7 @@ The Slice-1/Slice-2 authoring surface exposes several concepts that are individu
 - **Default values** — where blueprint Param defaults come from vs host-BTree variable defaults.
 
 **Deliverable:** author-facing conceptual documentation that leans on **visuals (SVG and/or Mermaid diagrams, schemas, memory-layout illustrations)** rather than prose. Candidate diagrams:
-1. A memory-layout schematic: entity → `BrainBlackboard.BehaviorParameters` (Params, Input) vs `BlueprintBlackboard{1024,4096,16384}` partition slots (WorkingState, State), keyed by scope.
+1. A memory-layout schematic: entity → one `BlueprintBlackboard{256,1024,4096,16384}` tier → the root params slot (Params, Input) and the working-state slots (WorkingState, State), keyed by scope.
 2. A scope decision tree / matrix: "I want state that is private to this node / shared between these nodes / shared with another entity → pick this Scope."
 3. A `GetShared`/`SetShared` data-flow diagram across two entities (commander provisions, member reads, ≤1-frame latency).
 4. A "Params vs WorkingState" side-by-side (sync-in vs per-tick-mutable, who writes, when it resets).
@@ -161,81 +161,68 @@ Same as B7 — listed in §14 but not yet in any concrete planning. Replay-safet
 
 ## 4. Theme C — Performance and runtime polish
 
-### C1. AiPrimitive concurrent working-state per entity **[HIGH | M]**
+### C1. AiPrimitive concurrent working-state per entity — ✅ **DELIVERED**
 
-> **Note:** the original wording of this item conflated two different `Blackboard1024` components and over-stated the constraint. The corrected framing below is narrower and more precise.
->
-> **Design pass (2026-06):** the per-node case is realized by Slice-2 (`BTree_AiActionParameterBinding_Detailed_Design.md §4.1–4.3`); its generalization to **scoped local/shared working state** (`Node`/`Behavior`/`Entity`, plus the `GetShared/GetSharedRW` accessor for cross-entity/commander sharing) is designed in **`§4.4`** of that doc — which also subsumes §A10 (promote-local-to-shared). MVP = `Behavior` scope. Pending architect review.
+> **Design pass (2026-06):** the per-node case is realized by Slice-2
+> (`BTree_AiActionParameterBinding_Detailed_Design.md §4.1–4.3`); its generalization to **scoped
+> local/shared working state** (`Node`/`Behavior`/`Entity`, plus the `GetShared/GetSharedRW`
+> accessor for cross-entity/commander sharing) is designed in **`§4.4`** of that doc — which also
+> subsumes §A10 (promote-local-to-shared). MVP = `Behavior` scope.
 
-#### The two `Blackboard1024`s in play
+#### The outcome
 
-The system has two ECS components with similar names and overlapping size, but different ownership and different roles:
+**Any number of stateful AiPrimitive Blueprints may be simultaneously active on one entity.** Each
+owns a distinct **working-state occurrence slot**, keyed per node by
+`FNV-1a(BehaviorAssetId, NodeVisualId)` and baked into the per-node adapter thunk. On a
+`StructureHash` mismatch the thunk resets **that slot only**, bounded by the slot's own size from
+the slot table, so it can never disturb a neighbour.
 
-| Component | Owner | Purpose | Has partition allocator? |
-|---|---|---|---|
-| **`Blackboard1024`** *(engine type, no prefix)* | FastHSM kernel + BTree kernel | Per-entity scratchpad for HSM `AiActivity` working state and BTree node working state. Single-typed projection slot. | **No.** |
-| **`BlueprintBlackboard1024`** / `BlueprintBlackboard4096` / `BlueprintBlackboard16384` *(Blueprint-owned)* | Blueprint subsystem (Runtime DD §4) | Instance dispatch storage; tiered allocator across three component types. | **Yes** — full partition allocator already in Slice 1. |
+#### One store, one allocator
 
-These are different ECS components with different ComponentIds and coexist on the same entity. A character can simultaneously carry:
-- The engine's `Blackboard1024` (holding e.g. HSM state for its current `AiActivity`).
-- A `BlueprintBlackboard1024` (holding three Instance Blueprints via the partition allocator).
+Everything a brain owns — the root behaviour's params, each stateful node's working state, and each
+Instance Blueprint's state — lives in the entity's single occurrence-store component:
+`BlueprintBlackboard256`, `1024`, `4096` or `16384`, partitioned by
+`BlueprintBlackboardPartitions`. There is no second, AI-specific allocator and no separate
+per-entity scratchpad component.
 
-#### What's not constrained in Slice 1
+A character therefore carries **one** tier component holding, for example, its root params slot,
+two node working-state slots and three Instance Blueprint slots — all addressed the same way.
 
-Three things people might intuit as "blocked" — they're not:
+#### What this makes possible
 
-- **Stacking Instance Blueprints on one entity.** Multiple Instance Blueprints attached to a single entity, each with its own state, calling each other via `CallPeerBlueprint`. This works in Slice 1 already, using `BlueprintBlackboard*`'s partition allocator. No constraint to lift.
-- **Calling Blueprints from BTree or HSM.** AiPrimitive Blueprints are designed to be hostable as `BTreeAction` / `BTreeCondition` / `HsmAction` / `HsmGuard`. The host kernel invokes the thunk; the thunk runs. Slice 1 capability.
-- **Mixing Instance and AiPrimitive Blueprints on one entity.** Different storage components, no conflict.
+- **Stacking Instance Blueprints on one entity**, each with its own state, calling each other via
+  `CallPeerBlueprint`.
+- **Calling Blueprints from BTree or HSM** — AiPrimitive Blueprints are hostable as `BTreeAction` /
+  `BTreeCondition` / `HsmAction` / `HsmGuard`; the host kernel invokes the thunk, the thunk resolves
+  its own slot.
+- **Mixing Instance and AiPrimitive Blueprints on one entity** — same store, different slots, no
+  conflict.
 
-#### What IS constrained in Slice 1
+#### How it was decided
 
-Specifically: **only one AiPrimitive working-state Blueprint can be simultaneously active per entity.**
+> ✅ **RESOLVED (architect + user, 2026-06-15): Option β, approved & built.** Merging AiPrimitive
+> working state into the existing tier ladder was chosen over adding a second, AI-specific
+> allocator (Option α), which would have rippled into the FastHSM and BTree kernels for no
+> capability the tiers do not already provide. Three mandated fixes shipped with it: tier-upgrade
+> race → synchronous `Input`-phase provisioning; hot-reload ghost slot → re-publish
+> `AssignBehaviorEvent` (not inline `ResetSlot`); concurrent stateful Subtree → cross-region
+> validator hard-error. Full design: **`BTree_AiActionParameterBinding_Detailed_Design.md` §4**.
 
-The reason: an AiPrimitive Blueprint hosted as `HsmAction` or `BTreeAction` doesn't use `BlueprintBlackboard*`. Its generated thunk projects working state **inline over the engine's `Blackboard1024`**, which is where HSM and BTree already keep their per-entity activity state. From Runtime DD §13.5:
+The FastHSM and BTree kernels are unchanged: the thunk has the entity reference already
+(`HsmKernelBridge.Self` or `BTreeContext.Self`) and does a partition-allocator lookup to find its
+slot before projecting. The cost is one slot lookup per AiPrimitive tick — the same path Instance
+dispatch uses.
 
-> AiPrimitive working state lives in `Blackboard1024`, not in `BlueprintBlackboard*`. The reconciliation logic is different — it's *inline* in the generated thunk.
-
-This was a deliberate Slice 1 economy: piggyback on the slot HSM/BTree already provide, avoid touching the engine's component layout. The cost is that `Blackboard1024` is single-typed — if two AiPrimitives wrote to it simultaneously, they'd trash each other's bytes. The 8-byte `StructureHash` header at offset 0 detects mismatched layout and re-initializes, which makes single-active-AiPrimitive safe but two-concurrent unsafe.
-
-In practice Slice 1 lives with this because:
-- HSM has only one active `AiActivity` at a time per state (the kernel guarantees this).
-- BTree conditions are typically stateless evaluators (no working state to collide).
-- Most AI behaviors don't need two stateful AiPrimitive Blueprints competing on one entity.
-
-#### What Slice 2 should do (corrected)
-
-The right Slice 2 move is **not** to retrofit a partition allocator onto the engine's `Blackboard1024`. That component is the engine's own, used by HSM and BTree internals; changing its layout would ripple into the FastHSM kernel and BTree kernel. Wrong layer.
-
-Instead: **move AiPrimitive working state into a Blueprint-owned component**, parallel to `BlueprintBlackboard*` but used by the BTree/HSM-hosted thunk path. Either:
-
-- **Option α** — new component `BlueprintAiWorking1024` (size mirroring engine's `Blackboard1024`), with the partition allocator already designed in Slice 1. *(rejected)*
-- **Option β** — merge into existing `BlueprintBlackboard*` tiers, making the AiPrimitive thunks lookup their slot the same way Instance dispatch does. *(chosen)*
-
-> ✅ **RESOLVED (architect + user, 2026-06-15): Option β, approved & designed.** Per-node working-slot key = `FNV-1a(BehaviorAssetId, NodeVisualId)`, baked into the per-node adapter thunk. Three mandated fixes: tier-upgrade race → synchronous `Input`-phase provisioning; hot-reload ghost slot → re-publish `AssignBehaviorEvent` (not inline `ResetSlot`); concurrent stateful Subtree → cross-region validator hard-error. Full design: **`BTree_AiActionParameterBinding_Detailed_Design.md` §4**.
-
-Either way, the engine's `Blackboard1024` is **not modified**. The change is entirely Blueprint-side:
-
-1. Add a Blueprint-owned working-state component (or extend `BlueprintBlackboard*` usage).
-2. Modify the AiPrimitive emit template (Compiler DD §10.4) to project over the new component using a partition-allocator slot lookup, rather than projecting over `Blackboard1024.Memory` at offset 8.
-3. The thunk has the entity reference already (`HsmKernelBridge.Self` or `BTreeContext.Self`); it does a partition-allocator lookup to find its slot before projecting.
-
-Architectural cost: one extra component-lookup per AiPrimitive tick (negligible; same dictionary path used by Instance). The HSM kernel and BTree kernel are unchanged — they still hand a `Blackboard1024*` to the thunk; the thunk just chooses to ignore it for working-state purposes and use the Blueprint-owned component instead.
-
-#### Forward-compatibility already in Slice 1
-
-The Slice 1 helper API was intentionally shaped to extend:
+#### The runtime API
 
 ```csharp
-// Slice 1 signature, designed to be forward-compatible:
 public bool TryGetAiPrimitiveWorkingState<T>(Entity self, int blueprintId, out Span<byte> bytes);
-// Slice 2 implementation adds multi-slot support via the partition allocator;
-// signature unchanged. The blueprintId disambiguates which slot to return.
 ```
 
-Slice 1 implements this by reading directly from `Blackboard1024.Memory` after checking the structure hash. Slice 2's implementation does a partition-table lookup keyed by `blueprintId`, returning the right slot's bytes.
-
-The generated thunk's projection code changes shape, but the runtime API the test harness and editor consume stays the same.
+The implementation does a partition-table lookup keyed by `blueprintId` and returns that slot's
+bytes. The signature was shaped in Slice 1 to survive exactly this change, and it did — the
+generated thunk's projection code changed shape, the API the test harness and editor consume did
+not.
 
 ### C2. Partition allocator defragmentation **[MED | S]**
 
@@ -618,10 +605,10 @@ A common informal request from users is "I want to stack Blueprints — call one
 | One Blueprint calling another via `CallPeerBlueprint` | ✅ Yes | Direct function-graph invocation; caller and callee don't share state. |
 | Calling an AiPrimitive Blueprint from BTree | ✅ Yes | AiPrimitive Blueprints can be authored as `BTreeAction` or `BTreeCondition` hostings. |
 | Calling an AiPrimitive Blueprint from HSM | ✅ Yes | Same; `HsmAction` and `HsmGuard` hostings. |
-| Mixing Instance and AiPrimitive Blueprints on one entity | ✅ Yes | Different storage components (`BlueprintBlackboard*` vs engine's `Blackboard1024`); no conflict. |
-| **Multiple AiPrimitive Blueprints with working state, concurrently active on one entity** | ❌ Slice 2 (C1) | Currently share the engine's `Blackboard1024` projection; can only have one active at a time per entity. |
+| Mixing Instance and AiPrimitive Blueprints on one entity | ✅ Yes | Same store, different slots; no conflict. |
+| **Multiple AiPrimitive Blueprints with working state, concurrently active on one entity** | ✅ Yes | Each owns a distinct working-state slot, keyed per node (§C1). |
 
-So "stacking" is mostly already there. The narrow piece Slice 2 adds is concurrent-active *AiPrimitive working-state* Blueprints — and the fix is Blueprint-side only, not an engine modification.
+So "stacking" works throughout, and it needed no engine modification — the change was entirely Blueprint-side.
 
 ---
 

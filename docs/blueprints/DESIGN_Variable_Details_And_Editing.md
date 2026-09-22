@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: the whole document; section 5 governs editability, section 6 the write path.
 known-rot: (none) - the InspectorWindow retirement order was REPAIRED 2026-08-17, Batch 82
 known-conflict: SECTION 5 vs SECTION 6, INTERNAL, found 2026-08-18. Section 5 rules that
@@ -448,7 +448,7 @@ the Value column already uses covers it**, and it retires the old objection that
 | | |
 |---|---|
 | **planning** | ⭐⭐ **already ships** — `DefaultValueAuthoring.Hydrate` / `OpenSession` / `CommitAndSerialize` → `IBlackboardManagedAsset.UpdateVariableDefaultValueJson(name, json)`. **Re-host it; do not rebuild it.** ⛔⛔ **The instruction to retire `InspectorWindow`'s "STATIC PARAMETERS" section is WITHDRAWN** *(`BP-295`, `2026-08-17`)* — 📐 **the premise was inverted: measured, it is the only LIVE surface for a bound variable's `DefaultValueJson`**, and retiring it would have deleted the editing capability rather than de-duplicating it. ⭐ One home is still the goal; ⛔ **this is not the half that goes** |
-| **running / paused** | ⭐⭐⭐ **OPTIMISTIC DISPLAY** *(user ruling)* — **paint the new value in the cell immediately**, then **stage** through the existing `StageMutation` path, which lands at the tick **N+1** boundary. ⛔ **Do NOT write `_liveRepo` during a pause** — `Blackboard1024` is `[DataPolicy(NoScenario)]`, i.e. **snapshotted and recorded**, so a non-simulation write breaks Flight Recorder linearity |
+| **running / paused** | ⭐⭐⭐ **OPTIMISTIC DISPLAY** *(user ruling)* — **paint the new value in the cell immediately**, then **stage** through the existing `StageMutation` path, which lands at the tick **N+1** boundary. ⛔ **Do NOT write `_liveRepo` during a pause** — `BlueprintBlackboard{256,1024,4096,16384}` are `[DataPolicy(NoScenario)]`, i.e. **snapshotted and recorded**, so a non-simulation write breaks Flight Recorder linearity |
 | 🔴 **prerequisite, either way** | **the surgical field write** — `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`. ⛔ **Today's staged write is whole-component and lands AFTER the restore, so every other field reverts a tick** — on the shared blackboard that reverts BTree and HSM state |
 
 ---

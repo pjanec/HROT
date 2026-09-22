@@ -642,7 +642,7 @@ Replay `PlaybackSystem` does raw ECS memory blits — lifecycle events are not f
 Single authoritative time source (Cluster Master) ensures all nodes halt on the exact same microsecond on pause. Local UI buttons send `ClusterOpRequest` via `ITimeControlGateway`.
 
 ### Why not unify component registries?
-`TkbTemplate.ApplyTo()` uses `repo.IsComponentTypeRegistered<T>()` to silently skip components not present on a node. Unifying registries would cause the Stride/IG node to allocate `BrainHsm128` (128 B), `Blackboard1024` (1 KB), etc. for every entity — destroying DOD cache density and exhausting the 256-component limit.
+`TkbTemplate.ApplyTo()` uses `repo.IsComponentTypeRegistered<T>()` to silently skip components not present on a node. Unifying registries would cause the Stride/IG node to allocate `BrainHsm128` (128 B), `BlueprintBlackboard1024` (1 KB), etc. for every entity — destroying DOD cache density and exhausting the 256-component limit.
 
 ### Why `MapCamera` lives in `StrideNodeBootstrapper` (not in the wrappers)?
 Follows the `SimHostApp`/`IgApplication` pattern: the core app owns the camera state. The ClusterRunner wrapper exposes `IMapCameraProvider` by delegating to the core. The standalone app exposes `GetMapCamera()`. Keeps `StrideNodeBootstrapper` free of `IMapCameraProvider` (Runner toolkit) dependency.

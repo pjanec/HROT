@@ -341,7 +341,7 @@ A deactivator `Deactivate_AimAndFire` is added to `InsurgentNodes`:
 ```csharp
 [BTreeDeactivator("Fdp.Examples.UrbanCombat.Brains.InsurgentNodes.Action_AimAndFire")]
 public static void Deactivate_AimAndFire(
-    ref BrainBlackboard bb, ref BehaviorTreeState state,
+    ref byte bb, ref BehaviorTreeState state,
     ref BTreeContext ctx, int paramIndex)
 {
     if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self)) return;
@@ -379,8 +379,8 @@ leave the channel set. A deactivator is added identical in structure to 3.2 but 
 ### 3.4 EqsRequestId cleanup — HillAttackCommanderNodes (Hrot.AI.Behaviors)
 
 `HillAttackCommanderNodes.Action_RequestAreaQuery` submits an asynchronous area query and
-caches the resulting request ID as `HillAttackMutableState.CachedEqsRequestId` in the
-`Blackboard1024` heavy-state component. If a mission-level branch abort clears the
+caches the resulting request ID as `HillAttackMutableState.CachedEqsRequestId` in
+`HillAttackMutableState`'s own node working-state occurrence slot. If a mission-level branch abort clears the
 commander's behavior while the query is in flight, `CachedEqsRequestId` is orphaned
 (the query result never consumed; the slot in the pool leaks until the pool wraps).
 
@@ -439,7 +439,7 @@ that adds an `EqsSensor` component simply needs a companion deactivator that rem
 ```csharp
 [BTreeDeactivator("...Action_FindCover")]
 public static void Deactivate_FindCover(
-    ref BrainBlackboard bb, ref BehaviorTreeState state,
+    ref byte bb, ref BehaviorTreeState state,
     ref BTreeContext ctx, int paramIndex)
 {
     if (ctx.World.HasComponent<EqsSensor>(ctx.Self))

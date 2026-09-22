@@ -1,21 +1,22 @@
 # Cognitive Tier Architecture: A Guide to AI Behavior Development in FDP
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## ⭐⭐ THE STORAGE MODEL IN ONE PARAGRAPH — read this before §3
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
-> `2026-08-17` and reopened on `2026-09-19`.
+> Every byte a behaviour owns lives in an **occurrence slot**: a partition-allocated range inside the
+> entity's one tier component — `BlueprintBlackboard256`, `1024`, `4096` or `16384` — carved up by
+> `BlueprintBlackboardPartitions`. There are two kinds of
+> slot and you will meet both: the **root params slot**, which holds the parameters of the behaviour
+> currently assigned to the entity, and **node working-state slots**, which hold the mutable scratch of
+> individual stateful nodes.
 >
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
+> ⭐ There is **no per-entity blackboard component**, and no separate "heavy" path — a behaviour that
+> needs 8 KB simply gets a slot in a larger tier. 📄
+> [`DESIGN_Occurrence_Scoped_Storage.md`](blueprints/DESIGN_Occurrence_Scoped_Storage.md) is the owning
+> design; it builds out
+> [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 >
-> 🔴 **Developers: §3 *"The BrainBlackboard: The Universal Cognitive Bus"* and §6 *"Heavy-Data
-> Behaviors: Blackboard1024"* describe the CURRENT runtime and remain correct for it — but both
-> components are scheduled for removal. ⭐ The authoring surface you write against (`[SharedAiAction]`,
-> `ref dto`, a resolver's destination `byte*`) is **base-agnostic and does NOT change.**
+> ⭐ **The authoring surface is base-agnostic**: `[SharedAiAction]`, `ref dto`, a resolver's destination
+> `byte*` — you write against a typed DTO and never against a component.
 
 
 ---
@@ -24,10 +25,10 @@
 
 1. [The Cognitive Tier & Behavior Paradigms](#1-the-cognitive-tier--behavior-paradigms)
 2. [Quick-Start: Your First AI Behavior](#2-quick-start-your-first-ai-behavior)
-3. [The BrainBlackboard: The Universal Cognitive Bus](#3-the-brainblackboard-the-universal-cognitive-bus)
+3. [The Root Params Slot: Where a Behaviour's Bytes Live](#3-the-root-params-slot-where-a-behaviours-bytes-live)
 4. [Behavior Parameters & Memory Projection](#4-behavior-parameters--memory-projection)
 5. [Unified AI Building Blocks: Shared Conditions and Actions](#5-unified-ai-building-blocks-shared-conditions-and-actions)
-6. [Heavy-Data Behaviors: Blackboard1024 and Heavy Shared Attributes](#6-heavy-data-behaviors-blackboard1024-and-heavy-shared-attributes)
+6. [Large-Data Behaviors: Bigger Tiers and Working-State Slots](#6-large-data-behaviors-bigger-tiers-and-working-state-slots)
 7. [Actuator Preemption and Channel Safety](#7-actuator-preemption-and-channel-safety)
 8. [Decoupled Cognitive Interrupts](#8-decoupled-cognitive-interrupts)
 9. [HSM Event Internals](#9-hsm-event-internals)
@@ -146,7 +147,7 @@ public class TrafficBrainSystem : IEcsModuleSystem
 }
 ```
 
-Tier 0 entities do not use `BehaviorState`, `BrainBlackboard`, or the behavior registry.
+Tier 0 entities do not use `BehaviorState`, an occurrence store, or the behavior registry.
 They are controlled purely by the hardcoded system. `BehaviorFinishedEvent` is never
 published for them.
 
@@ -184,8 +185,8 @@ public struct CombatParams
 }
 
 /// <summary>
-/// Blackboard wrapper. BTreeBuilder and the source generators use this type
-/// to locate CombatParams inside BrainBlackboard.Memory via Marshal.OffsetOf
+/// Layout wrapper. BTreeBuilder and the source generators use this type
+/// to locate CombatParams inside the root params slot via Marshal.OffsetOf
 /// at build time. No sizes or offsets appear anywhere else in your code.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
@@ -301,7 +302,7 @@ world.Bus.PublishManaged(new AssignBehaviorEvent
 ```
 
 `BehaviorIngressSystem` deserialises the JSON onto a `stackalloc` shadow of `CombatParams`,
-writes it to `BrainBlackboard.Memory`, increments `BehaviorState.InstanceId`, and sets
+writes it into the entity's **root params slot**, increments `BehaviorState.InstanceId`, and sets
 `BrainTier = BrainTierBTree`. `BTreeTickSystem` begins evaluating the compiled selector on
 the entity every simulation frame. Section 4 covers `ParseParams` and the full ingress
 flow in detail.
@@ -389,8 +390,8 @@ public static HsmDefinitionBlob BuildPatrolHsm()
 }
 ```
 
-When the vehicle is immobilised, `CognitiveInterruptSystem` sets byte 126 of the entity's
-`BrainBlackboard`. `HsmTickSystem` reads that byte before the next tick and injects
+When the vehicle is immobilised, `CognitiveInterruptSystem` sets the `MobilityLost` register on the
+entity's `BrainInterrupts`. `HsmTickSystem` reads that register before the next tick and injects
 `EventId_MobilityLost`, driving the machine into `Disabled`. The `LocomotionChannel` is
 cleared by the exit-cleanup thunk wired inside `OnEntry_MoveAlongRoute()`. Section 8
 covers how `MissionDirectorSystem` reacts to the `BehaviorFinishedEvent` published on
@@ -433,58 +434,69 @@ need that depth -- the compiler takes care of it.
 
 ---
 
-## 3. The BrainBlackboard: The Universal Cognitive Bus
+## 3. The Root Params Slot: Where a Behaviour's Bytes Live
 
 ### Memory Layout
 
-`BrainBlackboard` is an ECS component holding a **128-byte inline unmanaged buffer**:
+An entity with a brain carries **one** occurrence-store component — the smallest tier that fits
+everything it needs:
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-[ComponentId(GlobalComponentIds.BrainBlackboard)]
-public unsafe struct BrainBlackboard
+[ComponentId(GlobalComponentIds.BlueprintBlackboard1024)]
+public unsafe struct BlueprintBlackboard1024
 {
-    public fixed byte Memory[BehaviorConstants.BrainBlackboardByteSize]; // 128 bytes
+    public fixed byte Memory[1024];   // 32 B header + slot table + 928 B payload
 }
+// ...and BlueprintBlackboard256 / 4096 / 16384 for entities that need less or more.
 ```
 
-The buffer is shared universally — both `BTreeTickSystem` and `HsmTickSystem<T>` operate
-on the same `BrainBlackboard` component of the entity they are ticking.
+`BlueprintBlackboardPartitions` carves that payload into **slots**. Each slot is owned by one
+*occurrence* — one `(asset, host path)` pair — and the slot table at the head of the component maps a
+slot key to its offset and size. Both `BTreeTickSystem` and `HsmTickSystem<T>` read the same store of
+the entity they are ticking; they simply resolve different slots.
 
-### Conventional Memory Regions
-
-The 128 bytes are split into three logically distinct regions by convention (the engine does
-not enforce these boundaries at runtime, so you must respect them):
+### The Two Kinds of Slot
 
 ```
-Byte offset   Purpose
-──────────────────────────────────────────────────────────
-[0 .. ~60]    Behavior parameters: written once at ingress by ParseParamsDelegate.
-              Struct layout matches your DTO (e.g. MoveToLocationParams at offset 0).
+Slot                        Key                                   Written by
+─────────────────────────────────────────────────────────────────────────────────────────
+Root params                 ComputeRootParamsKey(                  BehaviorIngressSystem, once
+  the parameters of the       BehaviorState.ActiveBehaviorHash)    per behaviour assignment
+  behaviour assigned to     — COMPUTED, never stored
+  the entity
 
-[~61 .. 125]  Contextual "soft advice": written by external systems such as
-              RouteContextSystem that inject sensory hints for the running behavior.
-
-[126]         Interrupt register: MobilityLost (1 = fired this frame, 0 = clear).
-[127]         Interrupt register: reserved for future use.
-──────────────────────────────────────────────────────────
+Node working state          {fqn}@{offset}@{slotKey}               the node's own thunk, every
+  the mutable scratch of      baked into the generated thunk       tick it runs
+  one stateful node
+─────────────────────────────────────────────────────────────────────────────────────────
 ```
+
+Soft advice and the edge-triggered interrupt registers are **not** in either slot — they are their
+own component, `BrainInterrupts`, because they are written by external systems (`RouteContextSystem`
+and friends) that know nothing about which behaviour is running. See Section 8.
+
+### How Big May a DTO Be?
+
+There is no fixed cap. The bound is **per behaviour** — `RootParamsBytes(def)`, the packed size of
+that behaviour's own variable table — and it is enforced **structurally**: the allocator either finds
+room in the entity's tier or promotes the entity to a larger one. The structural ceiling is the
+largest tier's payload, **16 368 bytes**.
 
 ### Why Not Use a Regular Managed Object?
 
 The entire cognitive hot path must avoid heap allocations. At 60 Hz with hundreds of
 tactical entities, even a small per-entity allocation would generate significant GC
-pressure. The fixed-size inline buffer means reads and writes become pointer arithmetic
-inlined by the JIT — no boxing, no allocation, no GC pauses.
+pressure. An inline slot inside an unmanaged component means reads and writes become pointer
+arithmetic inlined by the JIT — no boxing, no allocation, no GC pauses.
 
-### Accessing the Blackboard in a Node
+### Accessing Your Parameters in a Node
 
-**FastBTree** action/condition delegates receive a `ref TValue dto` that is already
-projected to the correct byte offset inside the blackboard — you never touch `Memory[]`
-directly in most cases.
+**FastBTree** action/condition delegates receive a `ref TValue dto` that is already projected to the
+correct byte offset inside the slot — you never resolve a slot by hand in most cases.
 
 **FastHSM** action thunks receive a `void* contextPtr` which holds a pointer to an
-`HsmKernelBridge`. To read the blackboard from an HSM thunk:
+`HsmKernelBridge`. To reach the root params from an HSM thunk:
 
 ```csharp
 [HsmAction]
@@ -492,11 +504,17 @@ public static unsafe void MyAction(void* instance, void* ctx, HsmCommandWriter* 
 {
     var bridge = (HsmKernelBridge*)ctx;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-    ref var bb = ref bridge->Self.Get<BrainBlackboard>(repo);
 
-    // Now read or write bb.Memory[...] as needed.
+    if (!RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* p, out int len))
+        return;   // no behaviour assigned, or no root slot yet — it does NOT attach one
+
+    ref var myParams = ref Unsafe.AsRef<MyParams>(p);
 }
 ```
+
+⚠ `RootParamsAccess` is the **one** way to locate a behaviour's root params — it deliberately does
+**not** attach on a miss, because attaching is ingress's job. A reader that attached would silently
+manufacture a zero-filled params region and report it as data.
 
 In practice you will use `[SharedAiAction]` (see Section 4) to avoid this boilerplate
 entirely and receive your DTO directly via a typed `ref` parameter.
@@ -521,10 +539,11 @@ world.Bus.PublishManaged(new AssignBehaviorEvent
 `BehaviorIngressSystem` (running in `InputSystemGroup`) consumes this event and:
 
 1. Looks up the `BehaviorDefinition` in `BehaviorRegistry`.
-2. Uses a `stackalloc` shadow copy of the blackboard to attempt parsing — if the JSON
+2. Uses a `stackalloc` shadow buffer to attempt parsing — if the JSON
    is malformed, the entity remains on its **previous behavior uninterrupted** (atomic
    transition guarantee).
-3. On success, copies the shadow buffer to the live `BrainBlackboard` component and
+3. On success, resolves (or attaches) the entity's **root params slot** via
+   `RootParamsAccess.ResolveOrAttachRoot`, copies the shadow buffer into it, and
    increments `BehaviorState.InstanceId` (the preemption token).
 
 ### Defining a Parameter DTO
@@ -550,8 +569,8 @@ public struct FireAtTargetParams
 Important rules:
 - The struct must be `unmanaged` (no managed references).
 - Use `[StructLayout(LayoutKind.Sequential)]` to guarantee deterministic field ordering.
-- The struct is placed at **offset 0** of `BrainBlackboard.Memory`. Its total size must fit
-  within the behavior-parameters region (roughly bytes 0–60).
+- The struct is placed at **offset 0** of the behaviour's root params slot. Its size is what the
+  allocator reserves for that slot — there is no fixed cap to fit within.
 
 ### Writing the ParseParamsDelegate
 
@@ -561,7 +580,7 @@ The delegate signature is:
 public unsafe delegate void ParseParamsDelegate(string json, byte* memory);
 ```
 
-`memory` is a pointer to `BrainBlackboard.Memory[0]`. Write your DTO directly:
+`memory` is a pointer to byte 0 of the root params slot. Write your DTO directly:
 
 ```csharp
 public static unsafe void ParseFireAtTargetParams(
@@ -605,12 +624,12 @@ with `[BTreeAction]` and declare the DTO as the first `ref` parameter:
 ```csharp
 [BTreeAction]
 public static NodeStatus Action_FireAtTarget(
-    ref FireAtTargetParams p,      // <-- projected from blackboard offset 0
+    ref FireAtTargetParams p,      // <-- projected from root params slot offset 0
     ref BehaviorTreeState state,
     ref BTreeContext ctx)
 {
-    // p is a live reference into BrainBlackboard.Memory — no copy, no allocation.
-    // Writing to p.RoundsFired writes back to the blackboard in-place.
+    // p is a live reference into the root params slot — no copy, no allocation.
+    // Writing to p.RoundsFired writes back into the slot in-place.
     p.RoundsFired++;
     ...
 }
@@ -623,12 +642,19 @@ is `FireAtTargetParams Params`) and emits:
 ```csharp
 // Generated in FbtActionRegistrar.g.cs
 actionRegistry.Register("Action_FireAtTarget",
-    static (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
+    static (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
     {
         ref FireAtTargetParams dto = ref Unsafe.As<byte, FireAtTargetParams>(
-            ref Unsafe.AddByteOffset(ref bb.Memory[0], (nint)0));
+            ref Unsafe.AddByteOffset(ref bb, (nint)0));
         return CgfNodes.Action_FireAtTarget(ref dto, ref state, ref ctx);
     });
+```
+
+⭐ `bb` is a `ref` to byte 0 of the **root params slot** — `BTreeTickSystem` resolves it once per
+entity per tick and hands it to the interpreter. The tree itself is
+`Interpreter<byte, BTreeContext>`; it is not typed on any component.
+
+```csharp
 ```
 
 ### Accessing Parameters at Runtime (HSM)
@@ -642,10 +668,10 @@ public static unsafe void Action_BeginPatrol(void* instance, void* ctx, HsmComma
 {
     var bridge = (HsmKernelBridge*)ctx;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-    ref var bb = ref bridge->Self.Get<BrainBlackboard>(repo);
 
-    // Project bytes 0..N as PatrolParams.
-    ref var p = ref Unsafe.As<byte, PatrolParams>(ref bb.Memory[0]);
+    // Project bytes 0..N of the root params slot as PatrolParams.
+    if (!RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* root, out _)) return;
+    ref var p = ref Unsafe.AsRef<PatrolParams>(root);
 
     ref var channel = ref bridge->Self.Get<LocomotionChannel>(repo);
     channel.ActiveAction = NavigationConstants.ActionIdFollowRoute;
@@ -662,7 +688,7 @@ public static unsafe void Action_BeginPatrol(void* instance, void* ctx, HsmComma
 Historically, writing a "check if target is alive" condition required two separate
 implementations:
 
-- A `NodeLogicDelegate<BrainBlackboard, BTreeContext>` with `[BTreeCondition]` for the tree.
+- A `NodeLogicDelegate<byte, BTreeContext>` with `[BTreeCondition]` for the tree.
 - An unmanaged guard thunk `unsafe static bool Guard(void*, void*, ushort)` with `[HsmGuard]`
   for the state machine.
 
@@ -737,10 +763,10 @@ You never type a byte offset or a compound key string in your own code.
 // Generated output — FbtActionRegistrar.g.cs (illustrative)
 actionRegistry.RegisterAction(
     "Action_AimAndFire@16",
-    static (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
+    static (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
     {
         ref WeaponParams dto = ref Unsafe.As<byte, WeaponParams>(
-            ref Unsafe.AddByteOffset(ref bb.Memory[0], (nint)16));
+            ref Unsafe.AddByteOffset(ref bb, (nint)16));
         return CgfNodes.Action_AimAndFire(ref dto, ctx.Self, ctx.World);
     });
 ```
@@ -777,9 +803,9 @@ private static unsafe void Action_AimAndFire_At16(
 {
     var bridge = (HsmKernelBridge*)contextPtr;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-    ref var bb = ref bridge->Self.Get<BrainBlackboard>(repo);
+    if (!RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* root, out _)) return;
     ref WeaponParams dto = ref Unsafe.As<byte, WeaponParams>(
-        ref Unsafe.AddByteOffset(ref bb.Memory[0], (nint)16));
+        ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(root), (nint)16));
     CgfNodes.Action_AimAndFire(ref dto, bridge->Self, repo);
     // NodeStatus return value is intentionally discarded -- HSM is event-driven.
 }
@@ -860,8 +886,9 @@ form is what you will write in new code; the raw 4-parameter form matches the un
 // Expression-bound (preferred): Fbt.SourceGen emits an adapter that projects the DTO.
 static NodeStatus MyAction(ref TDto dto, ref BehaviorTreeState state, ref BTreeContext ctx)
 
-// Raw/unbound: the native NodeLogicDelegate<BrainBlackboard, BTreeContext> signature.
-static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
+// Raw/unbound: the native NodeLogicDelegate<byte, BTreeContext> signature.
+// `bb` is byte 0 of the root params slot.
+static NodeStatus MyAction(ref byte bb, ref BehaviorTreeState state,
                             ref BTreeContext ctx, int paramIndex)
 ```
 
@@ -872,60 +899,55 @@ static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
 > Instead, use the `IEntityCommandBuffer` provided by the FDP `EntityRepository`.
 > See Section 9 for the architectural rationale.
 
-## 6. Heavy-Data Behaviors: Blackboard1024 and Heavy Shared Attributes
+## 6. Large-Data Behaviors: Bigger Tiers and Working-State Slots
 
-### Why `BrainBlackboard` Has a Hard 60-Byte Limit
+### How Much May a Behaviour Own?
 
-The first 60 bytes of `BrainBlackboard.Memory` are reserved for behavior parameters. This ceiling is intentional: it keeps the universal cognitive bus small enough to fit in a single cache line alongside the interrupt registers at bytes 126–127, guarantees zero-allocation hot-path execution, and makes buffer-overrun into the soft-advice region mathematically impossible.
+There is **no fixed byte cap**. A behaviour's parameters occupy exactly `RootParamsBytes(def)` bytes —
+the packed size of its own variable table — in its root params slot, and a stateful node's scratch
+occupies exactly as much as its working-state struct needs. The allocator finds room in the entity's
+current tier, or promotes the entity to a larger one:
 
-When a behavior requires far more working memory — a full AI search context, pre-computed firing solutions, high-resolution threat grids, or deep historical tactical data — the correct pattern is to store that data in a **separate ECS component** and give the behavior methods a compiler-assisted path to reach it.
+| tier component | payload available for slots |
+|---|---|
+| `BlueprintBlackboard256` | 176 B |
+| `BlueprintBlackboard1024` | 928 B |
+| `BlueprintBlackboard4096` | 3 936 B |
+| `BlueprintBlackboard16384` | 16 368 B |
 
-### The `Blackboard1024` Heavy Component
+⭐ That last figure is the **structural ceiling** — and it is enforced by the allocator itself, not by
+a constant anyone has to remember. Overrunning a slot is impossible: the slot table carries each
+slot's offset *and* size, and every projection is made relative to that.
 
-`Blackboard1024` is a purpose-built 1024-byte unmanaged ECS component designed to hold exactly this kind of heavy behavior data:
+⭐ Soft advice and the edge-triggered interrupt registers are **not** behaviour-scoped at all — they
+live in their own component, `BrainInterrupts`, as named fields, because they are facts about the
+**entity** rather than about whichever behaviour happens to be running. The interrupt protocol is
+unchanged: `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears at end of frame. 📄 `R-41`
 
-```csharp
-[StructLayout(LayoutKind.Sequential)]
-[ComponentId(GlobalComponentIds.Blackboard1024)]
-[DataPolicy(DataPolicy.NoScenario)]
-public unsafe struct Blackboard1024
-{
-    public const int ByteSize = 1024;
-    public fixed byte Memory[ByteSize];
-}
-```
+### When a Separate Component Is Still Right
 
-Entities that participate in heavy behaviors carry both `BrainBlackboard` (the 128-byte bus with the minimal params and interrupt registers) **and** `Blackboard1024` (the 1024-byte scratchpad). The two components are independent; `Blackboard1024` is never inspected by `BTreeTickSystem` or `HsmTickSystem` — it is accessed only via the compiler-generated thunks described below.
+A slot is the right home for data the **behaviour** owns. Data with its own lifecycle, alignment or
+network-replication rules — a high-resolution threat grid replicated to other nodes, a shared
+read-only config object — belongs in its **own ECS component**, and the behaviour methods reach it
+through a compiler-assisted path. That is what the two attributes below are for.
 
-Register `HeavyDtoType` on the behavior definition so that the entity inspector can project and display the heavy data at runtime:
+### `[SharedAiHeavyAction]`: Actions with Extra Component Access
 
-```csharp
-registry.Register(BehaviorId, "HeavyBehaviorName",
-    new BehaviorDefinition
-    {
-        Name          = "HeavyBehaviorName",
-        BrainTier     = BehaviorConstants.BrainTierBTree,
-        ParseParams   = ...,
-        ParamsDtoType = typeof(MyMinimalParams),
-        HeavyDtoType  = typeof(MyHeavyData),  // enables Blackboard1024Renderer
-        BTreeInterpreter = ...,
-    });
-```
+When a shared action needs to read or write both its parameter DTO **and** a separate component,
+annotate it with `[SharedAiHeavyAction]`. The Roslyn generators detect whether that component is
+managed or unmanaged and emit the correct fetch strategy automatically — no handwritten pointer code
+required.
 
-### `[SharedAiHeavyAction]`: Actions with Heavy Component Access
-
-When a shared action needs to read or write both the minimal blackboard slice **and** a heavy component, annotate it with `[SharedAiHeavyAction]`. The Roslyn generators detect whether the heavy component is managed or unmanaged and emit the correct fetch strategy automatically — no handwritten pointer code required.
-
-**Unmanaged heavy component (e.g., `Blackboard1024`)** — five-argument form:
+**Unmanaged component (e.g., your own `TacticalHeatMapData`)** — five-argument form:
 
 ```csharp
 [SharedAiHeavyAction(
-    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),  // minimal projection
-    typeof(Blackboard1024), nameof(Blackboard1024.Memory),         // heavy component + field
-    typeof(MyHeavyData))]                                          // DTO projected via Unsafe.As
+    typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),      // params projection
+    typeof(TacticalHeatMapData), nameof(TacticalHeatMapData.Memory),  // component + field
+    typeof(MyHeavyData))]                                             // DTO projected via Unsafe.As
 public static NodeStatus Action_ProcessHeavyData(
     ref MinimalParams minimal,
-    ref MyHeavyData heavy,       // ref: zero-copy, directly in Blackboard1024.Memory
+    ref MyHeavyData heavy,       // ref: zero-copy, directly in TacticalHeatMapData.Memory
     Entity self,
     EntityRepository repo)
 {
@@ -957,21 +979,21 @@ The generated BTree adapter for the unmanaged case looks like:
 ```csharp
 // Generated -- FbtActionRegistrar.g.cs
 registry.Register("Action_ProcessHeavyData@0",
-    static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+    static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
     {
         ref var field = ref Unsafe.As<byte, MinimalParams>(
-            ref Unsafe.AddByteOffset(ref Unsafe.As<BrainBlackboard, byte>(ref bb), (nint)0));
-        ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+            ref Unsafe.AddByteOffset(ref bb, (nint)0));
+        ref var heavyComp = ref ctx.World.GetComponentRW<TacticalHeatMapData>(ctx.Self);
         ref var heavy = ref Unsafe.As<byte, MyHeavyData>(
-            ref Unsafe.AddByteOffset(ref Unsafe.As<Blackboard1024, byte>(ref heavyComp), (nint)0));
+            ref Unsafe.AddByteOffset(ref Unsafe.As<TacticalHeatMapData, byte>(ref heavyComp), (nint)0));
         var status = global::MyNamespace.Action_ProcessHeavyData(ref field, ref heavy, ctx.Self, ctx.World);
         return status;
     });
 ```
 
-The HSM action thunk is equivalent, using `repo.GetComponentRW<Blackboard1024>` fetched via the `HsmKernelBridge`.
+The HSM action thunk is equivalent, using `repo.GetComponentRW<TacticalHeatMapData>` fetched via the `HsmKernelBridge`.
 
-### `[SharedAiHeavyCondition]`: Conditions with Heavy Component Access
+### `[SharedAiHeavyCondition]`: Conditions with Extra Component Access
 
 `[SharedAiHeavyCondition]` is the condition counterpart. The method must return `bool`; the generators wrap the boolean into `NodeStatus.Success`/`NodeStatus.Failure` for the BTree registrar and return it directly as a guard `bool` for the HSM thunk.
 
@@ -981,9 +1003,9 @@ The HSM action thunk is equivalent, using `repo.GetComponentRW<Blackboard1024>` 
 // Unmanaged (supply heavyFieldName):
 [SharedAiHeavyCondition(
     typeof(MinimalBlackboard), nameof(MinimalBlackboard.Params),
-    typeof(Blackboard1024),
+    typeof(TacticalHeatMapData),
     typeof(MyHeavyData),
-    nameof(Blackboard1024.Memory))]
+    nameof(TacticalHeatMapData.Memory))]
 public static bool Condition_HasHeavyTarget(
     ref MinimalParams minimal,
     ref MyHeavyData heavy,
@@ -1013,10 +1035,10 @@ The generated BTree adapter registers the condition under `RegisterCondition` an
 ```csharp
 // Generated
 registry.RegisterCondition("Condition_HasHeavyTarget@0",
-    static (ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+    static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
     {
         ref var field = ref Unsafe.As<byte, MinimalParams>(...);
-        ref var heavyComp = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
+        ref var heavyComp = ref ctx.World.GetComponentRW<TacticalHeatMapData>(ctx.Self);
         ref var heavy = ref Unsafe.As<byte, MyHeavyData>(...);
         return global::MyNamespace.Condition_HasHeavyTarget(ref field, ref heavy, ctx.Self, ctx.World)
             ? global::Fbt.NodeStatus.Success
@@ -1033,12 +1055,12 @@ private static unsafe bool Guard_Condition_HasHeavyTarget_At0(
 {
     var bridge = (HsmKernelBridge*)contextPtr;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
+    RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* root, out _);
     ref var field = ref Unsafe.As<byte, MinimalParams>(
-        ref Unsafe.AddByteOffset(ref bb.Memory[0], (IntPtr)0));
-    ref var heavyComp = ref repo.GetComponentRW<Blackboard1024>(bridge->Self);
+        ref Unsafe.AddByteOffset(ref Unsafe.AsRef<byte>(root), (IntPtr)0));
+    ref var heavyComp = ref repo.GetComponentRW<TacticalHeatMapData>(bridge->Self);
     ref var heavy = ref Unsafe.As<byte, MyHeavyData>(
-        ref Unsafe.AddByteOffset(ref Unsafe.As<Blackboard1024, byte>(ref heavyComp), (IntPtr)0));
+        ref Unsafe.AddByteOffset(ref Unsafe.As<TacticalHeatMapData, byte>(ref heavyComp), (IntPtr)0));
     return global::MyNamespace.Condition_HasHeavyTarget(ref field, ref heavy, bridge->Self, repo);
 }
 ```
@@ -1063,7 +1085,7 @@ The condition attribute places `heavyDtoType` before the optional `heavyFieldNam
 | Scenario | Component type | Attribute form |
 |---|---|---|
 | Read-only reference data shared across entities (behavior config object) | Managed class | 3-arg action / 4-arg condition (no field name) |
-| Per-entity mutable numeric state exceeding 60 bytes (search buffers, heat maps) | `Blackboard1024` (unmanaged struct) | 5-arg action / 5-arg condition (with field name) |
+| Per-entity mutable numeric state with its own lifecycle or replication rules (search buffers, heat maps) | a purpose-built unmanaged struct component | 5-arg action / 5-arg condition (with field name) |
 | Mixed: small config class + large mutable buffer | Both; two attributes on the same method | — |
 
 ---
@@ -1119,7 +1141,7 @@ returns `NodeStatus.Failure` (branch aborted), the wrapper automatically resets 
 ```csharp
 // Illustrative generated wrapper
 actionRegistry.Register("Action_WriteMoveToChannel",
-    static (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
+    static (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int _) =>
     {
         var status = CgfNodes.Action_WriteMoveToChannel(ref dto, ref state, ref ctx);
         if (status == NodeStatus.Failure)
@@ -1207,20 +1229,20 @@ Physical systems should not know anything about AI internals. The old
 completely ignored BTree-driven entities. Any new capability-loss signal required editing
 that system.
 
-### The Solution: Blackboard Interrupt Registers
+### The Solution: The `BrainInterrupts` Registers
 
-Bytes 126 and 127 of every `BrainBlackboard` are reserved as **single-frame, edge-triggered
-interrupt registers**:
+`BrainInterrupts` is a small per-entity component whose named fields are **single-frame,
+edge-triggered interrupt registers**:
 
-| Byte | Name | Written by | Read by |
-|------|------|------------|---------|
-| 126 | `InterruptRegister_MobilityLost` | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
-| 127 | (reserved) | — | — |
+| Field | Written by | Read by |
+|------|------------|---------|
+| `Interrupt_MobilityLost` | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
+| `Interrupt_Reserved` | — | — |
 
-The constant is defined in `CognitiveInterruptSystem`:
-```csharp
-internal const int InterruptRegister_MobilityLost = 126;
-```
+⭐ They live in their own component rather than in a behaviour's slot because they are facts about
+the **entity**, not about whichever behaviour is running: a behaviour switch must not carry them, and
+an entity with no behaviour at all can still be immobilised. The same component carries
+`ExpectedThreatLevel`. 📄 `R-41`
 
 ### Writing Interrupts: `CognitiveInterruptSystem`
 
@@ -1231,7 +1253,7 @@ This system runs before all tick systems in `CognitiveRuntimeModule`. It perform
 ```csharp
 // Fires exactly once: the tick when CanMove transitions from set to cleared.
 if (wasAbleToMove && !canMoveNow)
-    bb.Memory[InterruptRegister_MobilityLost] = 1;
+    ints.Interrupt_MobilityLost = 1;
 ```
 
 By only firing on the _transition_, the interrupt does not permanently latch when an
@@ -1239,11 +1261,11 @@ entity remains immobilized for many frames.
 
 ### Consuming Interrupts: FastHSM
 
-`HsmTickSystem<T>` reads byte 126 **before** calling `HsmKernel.Update()`. If set,
+`HsmTickSystem<T>` reads `Interrupt_MobilityLost` **before** calling `HsmKernel.Update()`. If set,
 it injects `EventId_MobilityLost` into the state machine's event queue:
 
 ```csharp
-if (bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] == 1)
+if (ints.Interrupt_MobilityLost == 1)
     HsmEventQueue.TryEnqueue(ref component, new HsmEvent { EventId = BehaviorConstants.EventId_MobilityLost });
 ```
 
@@ -1272,8 +1294,8 @@ reads a byte.
 ### Single-Frame Pulse: `CognitiveCleanupSystem`
 
 `CognitiveCleanupSystem` runs as the **last** system in `CognitiveRuntimeModule`, after all
-tick systems. It unconditionally zeros registers 126 and 127 for every entity that owns a
-`BrainBlackboard`:
+tick systems. It unconditionally zeros both registers for every entity that owns a
+`BrainInterrupts`:
 
 ```csharp
 internal sealed class CognitiveCleanupSystem : IEcsModuleSystem
@@ -1281,12 +1303,12 @@ internal sealed class CognitiveCleanupSystem : IEcsModuleSystem
     public unsafe void Execute(ISimulationView view, float deltaTime)
     {
         if (view is not EntityRepository repo) return;
-        var q = repo.Query().With<BrainBlackboard>().Build();
+        var q = repo.Query().With<BrainInterrupts>().Build();
         foreach (var entity in q)
         {
-            ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
-            bb.Memory[CognitiveInterruptSystem.InterruptRegister_MobilityLost] = 0;
-            bb.Memory[127] = 0;
+            ref var ints = ref repo.GetComponentRW<BrainInterrupts>(entity);
+            ints.Interrupt_MobilityLost = 0;
+            ints.Interrupt_Reserved     = 0;
         }
     }
 }
@@ -1376,10 +1398,10 @@ public static unsafe void OnEntry_HandleCustomTrigger(
 {
     var bridge = (HsmKernelBridge*)context;
     var repo   = (EntityRepository)GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
-    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
 
-    // Zero-allocation projection of blackboard bytes into a typed DTO
-    ref var p = ref Unsafe.As<byte, CombatParams>(ref bb.Memory[0]);
+    // Zero-allocation projection of the root params slot into a typed DTO
+    if (!RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* root, out _)) return;
+    ref var p = ref Unsafe.AsRef<CombatParams>(root);
 
     if (p.AmmoCount > 0)
     {
@@ -1535,7 +1557,7 @@ Add this to `CgfNodes.cs` alongside the other param structs:
 
 ```csharp
 /// <summary>
-/// Parameters for the PatrolAndEngage behavior, placed at offset 0 of BrainBlackboard.
+/// Parameters for the PatrolAndEngage behavior, placed at offset 0 of its root params slot.
 /// </summary>
 [StructLayout(LayoutKind.Sequential)]
 public struct PatrolAndEngageParams
@@ -1687,7 +1709,7 @@ return (BehaviorRegistry registry) =>
             BrainTier        = BehaviorConstants.BrainTierBTree,
             ParseParams      = (json, ptr) => CgfNodes.ParsePatrolAndEngageParams(json, ptr),
             ParamsDtoType    = typeof(CgfNodes.PatrolAndEngageParams),
-            BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(
                 patrolBlob, actionRegistry),
         });
 };
@@ -1706,7 +1728,7 @@ world.Bus.PublishManaged(new AssignBehaviorEvent
 
 `BehaviorIngressSystem` will:
 1. Deserialize JSON into `PatrolAndEngageParams` on a stack shadow.
-2. Write the shadow to `BrainBlackboard.Memory[0..19]`.
+2. Write the shadow into the entity's root params slot, bytes `[0..19]`.
 3. Set `BehaviorState.BrainTier = BrainTierBTree` and increment `InstanceId`.
 
 For **Tier 1 (HSM)** behaviors, the ingress system performs two additional steps that are
@@ -1807,7 +1829,7 @@ called from both the BTree closure and the HSM unmanaged thunk. No duplication.
 
 ```csharp
 // Full blackboard access (raw -- prefer the typed variants below)
-static NodeStatus MyAction(ref BrainBlackboard bb, ref BehaviorTreeState state,
+static NodeStatus MyAction(ref byte bb, ref BehaviorTreeState state,
                             ref BTreeContext ctx, int paramIndex)
 
 // Typed DTO projection (most common -- [BTreeAction] / [BTreeCondition])
@@ -1848,13 +1870,17 @@ var flat  = HsmFlattener.Flatten(graph);
 HsmDefinitionBlob blob = HsmEmitter.Emit(flat);
 ```
 
-### Blackboard Memory Map
+### Where a Behaviour's Bytes Live
 
 ```
-[0   .. ~60 ]  Behavior params DTO (your struct at offset 0)
-[~61 .. 125 ]  Contextual soft-advice (written by external systems)
-[126        ]  InterruptRegister_MobilityLost  (1 = fired, cleared by CognitiveCleanupSystem)
-[127        ]  Reserved
+Root params slot      Behavior params DTO (your struct at offset 0), sized RootParamsBytes(def)
+  in the entity's     — located by RootParamsAccess, keyed ComputeRootParamsKey(ActiveBehaviorHash)
+  tier component
+Working-state slots   One per stateful node, keyed {fqn}@{offset}@{slotKey}
+
+BrainInterrupts       ExpectedThreatLevel
+  (its own component) Interrupt_MobilityLost  (1 = fired, cleared by CognitiveCleanupSystem)
+                      Interrupt_Reserved
 ```
 
 
@@ -1898,7 +1924,7 @@ By strictly enforcing the 24-byte footprint and requiring `unsafe` projection fo
 
 A core data-oriented principle: **events do not execute logic or access memory themselves.** 
 
-In FastHSM, an event like `EventId_MyCustomTrigger` is strictly a 24-byte unmanaged data container (`HsmEvent`) pushed into a ring buffer. It is the state machine's **Guards** and **Actions** that react to this event, cross the unmanaged boundary, and manipulate the `BrainBlackboard`.
+In FastHSM, an event like `EventId_MyCustomTrigger` is strictly a 24-byte unmanaged data container (`HsmEvent`) pushed into a ring buffer. It is the state machine's **Guards** and **Actions** that react to this event, cross the unmanaged boundary, and manipulate the behaviour's root params slot.
 
 Here is a concrete, step-by-step example of how this memory pipeline operates, from triggering the event to safely projecting and mutating the blackboard memory.
 
@@ -1943,8 +1969,8 @@ When the FastHSM kernel ticks, it dequeues the event and evaluates transitions. 
 
 This is where the magic happens. The kernel passes a `void* context` pointer, which in our FDP pipeline is always a pointer to an `HsmKernelBridge`. We unpack this bridge to cross from the unmanaged simulation loop back into the managed ECS world.
 
-### 3. Accessing the Blackboard (Memory Projection)
-Inside your `[HsmAction]`, you unpack the repository, retrieve the `BrainBlackboard`, and project its raw 128-byte array into your specific AI domain DTO without allocating a single byte on the heap.
+### 3. Accessing the Parameters (Memory Projection)
+Inside your `[HsmAction]`, you unpack the repository, locate the entity's **root params slot**, and project its raw bytes into your specific AI domain DTO without allocating a single byte on the heap.
 
 ```csharp
 [HsmAction(Name = "OnEntry_HandleCustomTrigger")]
@@ -1956,13 +1982,13 @@ public static unsafe void OnEntry_HandleCustomTrigger(void* instance, void* cont
     // 2. Recover the live ECS EntityRepository using the GCHandle
     var repo = (EntityRepository)System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
     
-    // 3. Get the 128-byte BrainBlackboard for this specific entity
-    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(bridge->Self);
+    // 3. Locate this entity's root params slot (it does NOT attach one on a miss)
+    if (!RootParamsAccess.TryGetRootBytes(repo, bridge->Self, out byte* root, out _)) return;
 
     // 4. ZERO-ALLOCATION MEMORY PROJECTION
-    // We treat the blackboard's memory as a typed struct (e.g., CombatParams).
-    // Using Unsafe.As avoids boxing and dynamic reflection overhead.
-    ref var combatParams = ref System.Runtime.CompilerServices.Unsafe.As<byte, CombatParams>(ref bb.Memory);
+    // We treat the slot's bytes as a typed struct (e.g., CombatParams).
+    // Using Unsafe.AsRef avoids boxing and dynamic reflection overhead.
+    ref var combatParams = ref System.Runtime.CompilerServices.Unsafe.AsRef<CombatParams>(root);
 
     // 5. Execute the business logic!
     if (combatParams.AmmoCount > 0)
@@ -2145,17 +2171,20 @@ what is some behavior ever needed a very large parameter structure or a large wo
 
 
 
-When a behavior requires a massive parameter payload—such as high-resolution heat maps, deep historical tactical context, or complex pre-computed pathing arrays—forcing it into the `BrainBlackboard` is an architectural anti-pattern.
+A behaviour with a large parameter payload — a high-resolution heat map, deep historical tactical
+context, a pre-computed pathing array — does **not** need anything special: its root params slot is
+sized to the behaviour, and the allocator promotes the entity to a larger tier if the current one
+cannot hold it, up to the 16 368-byte ceiling.
 
-We strictly enforce the 60-byte `BehaviorParameters` limit within the `BlackboardMemoryLayout` to guarantee cache locality, ensure zero-allocation hot-path execution, and mathematically prevent buffer overruns into the `SoftAdvice` and interrupt registers.
-
-To handle a data-heavy behavior, we lean entirely into Data-Oriented Design (DOD) and the Entity Component System (ECS). Instead of polluting the universal cognitive bus, you decouple the bulky data by defining it as its own dedicated ECS component.
+What *does* deserve its own component is data with its own **lifecycle, alignment or network
+replication rules** — data the entity owns rather than the behaviour. That is a Data-Oriented Design
+call, not a size call, and the rest of this section shows how to author it.
 
 Here is the clean architecture approach to defining and accessing this memory:
 
 ### 1. Define the Dedicated ECS Component
 
-You author a pure, unmanaged struct to hold your massive payload, completely independent of the `BrainBlackboard`. This allows the data to scale up to the ECS chunk limits without threatening the cognitive engine's strict memory boundaries.
+You author a pure, unmanaged struct to hold your payload, completely independent of the behaviour's slots. This lets the data scale up to the ECS chunk limits and carry its own replication policy.
 
 ```
 using System.Runtime.InteropServices;
@@ -2165,7 +2194,7 @@ using Fdp.Core;
 [ComponentId(250)] // Example application-level component ID
 public unsafe struct TacticalHeatMapData
 {
-    // A massive 1024-byte inline array, well beyond the blackboard's 60-byte limit
+    // A massive inline array, owned by the entity rather than by any one behaviour
     public fixed float GridWeights;
     public int ActiveSectors;
     public float ThreatThreshold;
@@ -2174,7 +2203,7 @@ public unsafe struct TacticalHeatMapData
 
 ### 2. Define a Minimal Blackboard DTO
 
-Because your behavior still needs to be assigned via the `BehaviorRegistry` and bound in the BTree or HSM builder, you define a minimal, completely empty (or very small) DTO to satisfy the `BrainBlackboard` mapping.
+Because your behavior still needs to be assigned via the `BehaviorRegistry` and bound in the BTree or HSM builder, you define a minimal, completely empty (or very small) DTO to satisfy the root-params mapping.
 
 ```
 [StructLayout(LayoutKind.Sequential)]
@@ -2226,7 +2255,7 @@ public static class HeavyTacticalBehaviors
 
 ### The Architectural Verdict
 
-This design represents perfect ECS composition. The `BrainBlackboard` remains a lean, rigidly 128-byte cognitive bus focused exclusively on state machine/behavior tree state and universal hardware interrupts. Meanwhile, your `TacticalHeatMapData` component manages its own lifecycle, memory alignment, and network replication rules via standard ECS component logic.
+This design represents perfect ECS composition. The behaviour's slots stay focused exclusively on what the behaviour itself owns — its parameters and its nodes' working state. Meanwhile, your `TacticalHeatMapData` component manages its own lifecycle, memory alignment, and network replication rules via standard ECS component logic.
 
 If your heavy component requires complex setup, you simply inject it into the `SpawnEntityCommand.InitialComponents` list at spawn time, or attach it via the `BehaviorIngressSystem` when the behavior is assigned. The AI developer writes pure logic, and the engine flawlessly respects the memory boundaries.
 

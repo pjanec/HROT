@@ -2,10 +2,12 @@
 
 > ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** retires the root
+> behaviour params component and the AiPrimitive working-state component entirely — there is no
+> per-entity blackboard component of any kind any more — moving both **the root params** (keyed by
+> `OccurrenceSlotKey.ComputeRootParamsKey`) and the per-entity brain-state components
+> (`BrainBTreeState`, `BrainHsm64/128`) into **per-occurrence slots** of the partition allocator. The
+> tier components keep their names, `BlueprintBlackboard{256,1024,4096,16384}`. It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
 >

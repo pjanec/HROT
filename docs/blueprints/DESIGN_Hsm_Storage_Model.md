@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: the whole file
+updated: 2026-09-22
+current-answer: the whole file, WITH the storage banner below - and note that section 4's E7a row
+  and the BP-281 destination table now agree: a ROOT behaviour's params live in the root-params
+  occurrence slot, keyed by ComputeRootParamsKey; a HOSTED occurrence's params live in its own
+  nested slot (E3a). Both are occurrence slots — there is no separate component for either any more.
 note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
   scheduling anything that assumes it is.
 -->
@@ -9,10 +12,12 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 
 > ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** retires the root
+> behaviour params component and the AiPrimitive working-state component entirely — there is no
+> per-entity blackboard component of any kind any more — moving both **the root params** (keyed by
+> `OccurrenceSlotKey.ComputeRootParamsKey`) and every node's working state into **per-occurrence slots**
+> of the partition allocator. The tier components keep their names, `BlueprintBlackboard{256,1024,4096,16384}`.
+> It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
 >
@@ -40,7 +45,7 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 
 | # | class | BTree | HSM |
 |---|---|---|---|
-| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into `BrainBlackboard.BehaviorParameters[100]`, written by the generated `ParseParams` | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
+| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into the **root-params occurrence slot** (a ROOT behaviour's own slot, keyed by `ComputeRootParamsKey`; a HOSTED occurrence's params are in its own nested slot, `E3a`), written by the generated `ParseParams` | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
 | ② | **`Role=State` @ `Behavior`/`Entity`** | ✅ partition slot, `FNV(assetId ++ variableName)` | ✅ **SHIPPED `E1`/`E2`** — `HsmBridgeEmitCore.EmitStatefulWorkingSlotsArray`, **the same allocator and the same key function** |
 | ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ⛔⛔ the action DTO sits at a **baked offset into the single 100-byte blackboard** ⇒ **`E3`** |
 
@@ -62,10 +67,10 @@ variables**, which is why ① and ② do not overlap.
 
 | | |
 |---|---|
-| ⭐ **destination** | `BrainBlackboard.BehaviorParameters` at packed offsets — **the same place BTree's inputs live** |
+| ⭐ **destination** | the **root-params occurrence slot**, at packed offsets — **the same place BTree's inputs live** |
 | ⭐ **mechanism** | pack non-`State` variables, emit `ParseParams` **as the BTree bridge does after `DEBT-AIB-021`**: baked defaults first, then the incoming JSON overlays per variable by name, unknown keys ignored |
 | ⚠ **the two guards** | ⛔ **emit whenever there is ≥1 packed variable, NOT ≥1 default** *(defect (b))*, and the `JsonSerializerOptions` field carries the same guard *(defect (c))*. ⭐ **Copying the pre-`-021` BTree shape reproduces both** |
-| ⛔ **what IS blocked** | ⭐ only the **hosted / multi-occurrence** case — *"which occurrence's params?"* — and that is `E3`, not `BP-281`. **The ROOT behaviour has one params area and always did** |
+| ✅ **what WAS blocked — RESOLVED `2026-09-21`** | ⭐ only the **hosted / multi-occurrence** case — *"which occurrence's params?"* — and that was `E3`, not `BP-281`. ✅ **`E3a` answered it: a hosted occurrence's params live in ITS OWN SLOT** *(payload `[WorkingState][Params]`)* — 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28, [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §4.7. ⚠ **The ROOT behaviour still has one params area** — the row above is about the root and stays true |
 
 ⇒ ⭐⭐ **`BP-281` can be dispatched immediately.** ⚠ **My pull was right for the wrong reason** — the
 user's instinct *"are we building authoring for a not-ready runtime?"* was correct about the **picker**;

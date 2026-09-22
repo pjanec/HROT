@@ -191,7 +191,7 @@ The existing [`SearchPredicateDto`](../../FDP/Toolkits/Fdp.Toolkits/ReplayBrowse
 | `Lifecycle` | `LifecyclePredicateDto` | entity birth / death |
 | `SpatialBounding` | `SpatialBoundingPredicateDto` | 2D bounding-box entry/exit |
 | `Structural` | `StructuralPredicateDto` | archetype mutation + authority filter |
-| `BehaviorParam` | `BehaviorParamPredicateDto` | typed projection over `BrainBlackboard` / `Blackboard1024` |
+| `BehaviorParam` | `BehaviorParamPredicateDto` | typed projection over the root-params occurrence slot / a node's working-state occurrence slot, selected by `WorkingSlotKey` |
 
 **New polymorphic node introduced by this design:**
 
@@ -493,7 +493,7 @@ The `ClusterRunner` architecture hosts multiple subsystems (SimHost, IG, CGF, Ex
 - Compiled `Func<EntityRepository, Entity, bool>` delegates evaluate strictly against the local memory of that subsystem.
 - A halt issued by one subsystem's manager calls **that subsystem's** time-controller adapter; it does not broadcast across the cluster.
 
-Cognitive components (`BrainBlackboard`, `BehaviorState`, `BTreeTraceWorkingMemory1024`, `HsmTraceWorkingMemory1024`, all `BlueprintBlackboard*`) physically live only on Brain/CGF and Editor subsystems. If a developer accidentally targets them on the SimHost (Muscle) manager, `QueryDelta`'s mandatory-component filter skips every chunk in O(populated_chunks) and the predicate costs zero — natural filtering.
+Cognitive components (`BehaviorState`, `BTreeTraceWorkingMemory1024`, `HsmTraceWorkingMemory1024`, all `BlueprintBlackboard*` — which now hold every occurrence slot, root params included) physically live only on Brain/CGF and Editor subsystems. If a developer accidentally targets them on the SimHost (Muscle) manager, `QueryDelta`'s mandatory-component filter skips every chunk in O(populated_chunks) and the predicate costs zero — natural filtering.
 
 ### 11.2 Multi-node consequences (single-node is supported workflow)
 
@@ -580,7 +580,7 @@ Hosts an `IEditSession` rooted in the selected breakpoint's `Condition`. Modes (
 |---|---|---|
 | Component Data | `PropertyMatchDto` | `FilteredTypeComboFieldDrawer` for ComponentType; `PropertyPathFieldDrawer` for path; operator + nested numeric/string predicate |
 | Transient Event | `TransientEventPredicateDto` | event-type combo (TypeComboMode.Event); `AnyOccurrence` toggle hides payload rows when set |
-| Behavior Param | `BehaviorParamPredicateDto` | `TargetBlackboard` enum; `BehaviorHashFieldDrawer` for BehaviorId; path drawer reflects the resolved `ParamsDtoType`/`HeavyDtoType` |
+| Behavior Param | `BehaviorParamPredicateDto` | `WorkingSlotKey` (`int`; `0` = the root params slot, otherwise a `StatefulSlotInfo.SlotKey`); `BehaviorHashFieldDrawer` for BehaviorId; path drawer reflects the resolved `ParamsDtoType` |
 | Compound Logic | `CompoundPredicateDto` | `LogicalOperator` (And/Or); list of nested polymorphic conditions, each row a `$type` dropdown |
 | Structural | `StructuralPredicateDto` | ComponentType, `ModificationType`, `AuthorityRequirement` |
 | Spatial | `SpatialBoundingPredicateDto` | Position component + X/Y paths; `BoundingBoxFieldDrawer` with `[MapPickableBoundingBox]` injecting map-canvas picker via `GlobalGizmoManager` |

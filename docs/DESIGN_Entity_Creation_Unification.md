@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
+updated: 2026-09-22
 build-state: BUILDING
 current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
   the one base list and all five spawning sites use it. Step 4 (2026-08-31): the UrbanCombat templates
@@ -240,7 +240,7 @@ per `IgNodeBootstrapper:150-152`)*:
 | 🔴 `VehicleParams` · `PhysicsCollider` | `VehicleKinematicsTkbTranslator` | ⛔ **no** |
 | 🔴 `Health` · `WeaponState` | `CombatTkbTranslator` | ⛔ **no** |
 | 🔴 `PerceptionReceptor` · `TargetMemory` | `PerceptionTkbTranslator` | ⛔ **no** |
-| *(not registered: `VehicleState`, `NavState`, `NavigationIntent`, `BehaviorState`, `BrainBlackboard`, `SimTier`, `EntityInfo`)* | — | — |
+| *(not registered: `VehicleState`, `NavState`, `NavigationIntent`, `BehaviorState`, `BrainInterrupts`, `SimTier`, `EntityInfo`)* | — | — |
 
 ⇒ ⚠⚠ **IG registers six components that `Base()` would fill and its short list leaves untouched on every
 ghost.** ⛔ **But do NOT widen it on that basis alone** — those six are plausibly populated by **DDS
@@ -423,7 +423,7 @@ NetworkIdentity · NetworkTransform · NetworkVelocity · PerceptionReceptor · 
 SimVelocity · TargetMemory · TkbIdentity · VehicleParams · VisualData · WeaponState`.
 
 ⭐⭐⭐ **And the NARROWING LEVER is measured, not asserted.** The 18 components on CGF+SimHost and not IG
-*(`BehaviorState`, `BrainBTreeState`, `BrainBlackboard`, `MissionPlanQueue`, `NavState`, `SimTier`,
+*(`BehaviorState`, `BrainBTreeState`, `BrainInterrupts`, `MissionPlanQueue`, `NavState`, `SimTier`,
 `VehicleState`, …)* are **exactly** the contents of `CognitiveComponentRegistry` ∪ `KinematicComponentRegistry`
 — the two tiers **SimHost registers and IG does not**. ⇒ ⭐ every node runs the **same
 `TkbTranslatorSet.Base()`**, and each `ITkbEntityTranslator` guards its write with

@@ -167,7 +167,7 @@ This is the same Anti-Corruption Layer (ACL) pattern described in
   come from the distributed `DdsIdAllocatorServer`, not from CGF. See
   [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
 - **Cognitive ECS components** -- `BehaviorState`, `BrainBTreeState`,
-  `BrainBlackboard`, `MissionPlan`
+  `BrainInterrupts`, `BlueprintBlackboard{256,1024,4096,16384}` (occurrence-slot tiers), `MissionPlan`
 
 ### What the Muscle (SimHost) owns
 

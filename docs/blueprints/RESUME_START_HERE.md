@@ -1,7 +1,13 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
-current-answer: this top block only (sections 0, 0a-0e). Section 0 is the FIRST
+updated: 2026-09-22
+current-answer: ⛔⛔ STALE AS OF 2026-09-22 — this file's "state" is the 2026-08-18 UI/variable
+  programme (Batches 92-98) and is NOT the current work anywhere. ⭐ ROUTE BY PROGRAMME instead:
+    · occurrence-scoped storage / behaviour params -> RESUME_Occurrence_Storage.md
+    · BUILDING P4 (retire the AI blackboard components in favour of occurrence slots) -> RESUME_P4_Retire_Blackboards.md
+    · the UI lane -> RESUME_UI_Lane.md
+  ⚠ Pointer added by the behaviors lane; the BODY of this file is untouched and still belongs to
+  whoever owns it. (previous head) this top block only (sections 0, 0a-0e). Section 0 is the FIRST
   action: Batch 88 is complete on the implementation branch and not yet merged.
 stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
   for status, baselines or next steps.
@@ -255,8 +261,10 @@ an identical binary — a race, not order-dependence)*.
 
 **The staged debug write is WHOLE-COMPONENT** (`StageMutation:530` → `DrainPendingMutations:548-575`,
 `SetComponentRaw`, no offset) and lands **after** the restore ⇒ **every other field reverts a tick.**
-On the shared `Blackboard1024` that reverts **BTree and HSM** state. ⭐ **Ruling 14 already names the
-fix: `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`.**
+On the occurrence-store tier component (`BlueprintBlackboard{256,1024,4096,16384}`) that reverts
+**every occurrence slot on the entity — BTree and HSM working state alike.** ⭐ **Ruling 14 already
+names the fix: `SetComponentFieldRaw(entity, typeId, byteOffset, src, size)` in `Fdp.Core`** — the
+per-slot write the occurrence model now relies on.
 
 ---
 

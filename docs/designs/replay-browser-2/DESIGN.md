@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-20 (STATUS block added)
+current-answer: the body below.
+known-rot: ⚠ predates UXI-11 (selection unification, ☑ 2026-09-20). ReplayBrowser JOINED that protocol
+  at S-3b — ReplayBrowserSubsystem.cs now reads the shared ECS SelectionState via EcsSelectionState
+  rather than its own store. ⭐ EntitySelectionHistory (FDP/Toolkits/Fdp.Toolkits/ReplayBrowser/) is
+  UNAFFECTED and stays this design's own: it is a HISTORY of selections over a recording, not a store
+  of the current one. ⛔ Do not read this file for how the replay browser selects today.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the one selection store and the request/notification
+    protocol every host including ReplayBrowser now uses. This file owns the replay browser itself.
+-->
 # FDP Replay Browser — Design
 
 ## 0. Purpose

@@ -5,7 +5,7 @@
 When a new entity is added in the HROT Editor and a mission is authored and committed via the
 Mission Panel, saving the scenario produces a JSON that is missing the mission entirely. The entity
 appears in the file but has no `ActiveMissionPlan` and no `MissionPlanQueue`. In addition, the
-scenario JSON contains the raw `BrainBlackboard` bytes — a 128-element opaque integer array that
+scenario JSON contains the raw root-params occurrence-slot bytes — an opaque byte array that
 belongs to the runtime execution tier, not to declarative initial conditions.
 
 Investigation revealed four independent root causes, plus one latent correctness defect in the
@@ -24,7 +24,7 @@ The following constraints govern every change in this workstream:
    structs. Managed classes (`ActiveMissionPlan`) must use `repo.SetManagedComponent<T>` and
    `repo.RemoveManagedComponent<T>`.
 3. **`[DataPolicy(DataPolicy.NoScenario)]` boundary.** Runtime execution scratch-pads
-   (`BrainBlackboard`, channel arbitration state) must be excluded from scenario serialization.
+   (the root-params occurrence slot, channel arbitration state) must be excluded from scenario serialization.
    They are deterministically reconstructed from the `ActiveMissionPlan` during load.
 4. **Zero-delta-time freeze.** The offline editor freezes time by setting `dt = 0` through the
    time controller. ECS systems still tick and drain the event bus; only integration systems that
@@ -69,18 +69,20 @@ is to cast the inline array to a `Span<MissionPhase>` before indexing.
 In `TryBuildQueue`: extract `Span<MissionPhase> phases = queue.Phases;` before the for-loop.
 Replace `queue.Phases[i] = new MissionPhase { ... }` with `phases[i] = new MissionPhase { ... }`.
 
-### 1.3 BrainBlackboard Data Policy
+### 1.3 Root-Params Occurrence Slot Data Policy
 
-`BrainBlackboard` is a 128-byte unmanaged scratch-pad written by the `BehaviorIngressSystem` when
-a behavior's `ParseParamsDelegate` initializes cognitive parameters. It is deterministically
-reconstructed from `ActiveMissionPlan` on every load. Serializing it into a scenario JSON exposes
-opaque execution-tier memory to the authoring domain and violates the State vs. Message boundary.
+The root-params occurrence slot is the unmanaged scratch space written by the
+`BehaviorIngressSystem` when a behavior's `ParseParamsDelegate` initializes cognitive
+parameters. It is deterministically reconstructed from `ActiveMissionPlan` on every load.
+Serializing it into a scenario JSON exposes opaque execution-tier memory to the authoring
+domain and violates the State vs. Message boundary.
 
 **Files:** `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs`
 
-Add `[DataPolicy(DataPolicy.NoScenario)]` to `BrainBlackboard`. The `FdpAutoSerializer` will exclude
-the struct entirely. Binary checkpoint recording (LZ4 `.fdp` payloads) is unaffected because
-`DataPolicy.NoScenario` only suppresses scenario serialization, not `CheckpointIOWorker` recording.
+Add `[DataPolicy(DataPolicy.NoScenario)]` to the `BlueprintBlackboard` tier components. The
+`FdpAutoSerializer` will exclude them entirely. Binary checkpoint recording (LZ4 `.fdp`
+payloads) is unaffected because `DataPolicy.NoScenario` only suppresses scenario
+serialization, not `CheckpointIOWorker` recording.
 
 ### 1.4 SteppingTimeController Mode Reporting
 

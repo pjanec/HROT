@@ -30,8 +30,9 @@ kinematics (position, velocity, physics) and network replication state.
 
 The split Authority model follows the FDP (Framework for Distributed Processing) pattern:
 
-- **Brain (CGF, node 400 by default):** `BehaviorState`, `BrainBlackboard`, `BrainBTreeState`,
-  `MissionPlanQueue`, `ActiveMissionPlan`, `TargetMemory`.
+- **Brain (CGF, node 400 by default):** `BehaviorState`, `BrainInterrupts`,
+  `BlueprintBlackboard{256,1024,4096,16384}` (the occurrence-slot tiers holding root behaviour params and
+  node working state), `BrainBTreeState`, `MissionPlanQueue`, `ActiveMissionPlan`, `TargetMemory`.
 - **Muscle (SimHost):** `SimTransform`, `NetworkTransform`, `WorldPos`, `NavigationStatus`,
   `NavigationIntent`, `PhysicsState`.
 
@@ -153,7 +154,7 @@ Simulation Phase:
 | ActionDispatchModule        |  <-- locomotion + weapon executors
 |  (SimulationSystems)        |
 +-----------------------------+
-| RouteContextSystem          |  <-- waypoint ExtensionJson -> BrainBlackboard
+| RouteContextSystem          |  <-- waypoint ExtensionJson -> BrainInterrupts
 +-----------------------------+
 | UnitHierarchySystem         |  <-- unit hierarchy maintenance
 +-----------------------------+
@@ -217,7 +218,7 @@ Hrot.CGF/
     TacticalIntentResolutionSystem.cs  -- IntentId -> AssignBehaviorEvent (mapper/passthrough)
 
     Routing/
-      RouteContextSystem.cs            -- Waypoint ExtensionJson -> BrainBlackboard
+      RouteContextSystem.cs            -- Waypoint ExtensionJson -> BrainInterrupts
       BlackboardOffsets.cs             -- Named offsets for route-context blackboard slots
 
   Orchestration/
@@ -609,7 +610,7 @@ Iterates all entities with `MissionPlanQueue + BehaviorState`. For each, it:
 3. Detects phase change or plan re-commit (via `LastPlanVersion` hash): publishes
    `AssignTacticalIntentEvent` with the task's `BehaviorName` and `BehaviorParams` JSON.
 
-Does NOT mutate `BehaviorState` or `BrainBlackboard` directly; delegates to
+Does NOT mutate `BehaviorState` or the root params occurrence slot directly; delegates to
 `TacticalIntentResolutionSystem` -> `BehaviorIngressSystem` (next frame).
 
 ---
@@ -648,12 +649,12 @@ public sealed class RouteContextSystem : IEcsModuleSystem
 }
 ```
 
-Throttled to 0.5 s intervals. For each entity in `FollowRoute` mode with a `BrainBlackboard`:
+Throttled to 0.5 s intervals. For each entity in `FollowRoute` mode with a `BrainInterrupts`:
 
 1. Resolves the active `RoutePlan` (personal route takes priority over shared route).
 2. Calculates the current waypoint segment index from `NavigationStatus.ProgressS`.
-3. Parses `RouteWaypoint.ExtensionJson` and writes recognised keys into `BrainBlackboard`:
-   - `"dangerLevel"` -> `BrainBlackboard.ExpectedThreatLevel` (clamped to byte range).
+3. Parses `RouteWaypoint.ExtensionJson` and writes recognised keys into `BrainInterrupts`:
+   - `"dangerLevel"` -> `BrainInterrupts.ExpectedThreatLevel` (clamped to byte range).
 
 ---
 
@@ -837,7 +838,7 @@ logic of `CgfDebugVisualizerAdapter`.
 | `Hrot.Common` | Shared component registries, `HrotNodeBuilder`, `HrotNodeConfig`, `HrotEnvironment` |
 | `Fdp.Core` | `FdpLog<T>`, `FdpEventBus`, `EntityRepository`, `Entity`, component infrastructure |
 | `Fdp.Presentation` | `EntityInspectorPanel`, `EventBrowserPanel`, FDP presentation utilities |
-| `Hrot.Presentation` | `ClusterControlWindow`, `BrainBlackboardRenderer`, `BTreeVisualizerRenderer` |
+| `Hrot.Presentation` | `ClusterControlWindow`, `BlueprintBlackboard{256,1024,4096,16384}Renderer`, `BTreeVisualizerRenderer` |
 | `Fbt.Compiler` | Fluent BTree builder (`BTreeBuilder<TBlackboard, TContext>`) |
 | `Fdp.Toolkits.Analyzers` | Source generators for `[GizmoProjector]`, `[BTreeDefinition]`, `[SharedAiAction]` (analyzer-only, no assembly ref) |
 | `Hrot.SimHost` | `NodeBootstrapper`, `EcsRecordReplayController`, `GenesisMaterializationSystem`, scenario serializer factory |
@@ -1058,7 +1059,7 @@ instances (including `CgfLogicPack`) before entering the update loop.
 ### 3. Never Mutate Cognitive State Directly in MissionAdapterSystem
 
 `MissionAdapterSystem` publishes `AssignTacticalIntentEvent` rather than calling
-`BehaviorState` or `BrainBlackboard` setters directly. This indirect dispatch prevents
+`BehaviorState` or the root params occurrence slot directly. This indirect dispatch prevents
 double-apply bugs (which previously wiped behavior working memory such as `RoundsFired`).
 Respect this contract in any new mission phase handlers.
 
@@ -1111,7 +1112,7 @@ CPU rendering primitives that no viewer is consuming.
 | `Hrot.CGF.Tests` | Unit tests for `CgfApplication`, genesis pipeline, `TacticalIntentResolutionSystem`, `MissionAdapterSystem`, etc. |
 | `Hrot.SimHost.Integration.Tests` | Integration tests exercising the full Brain+Muscle distributed pair via `CgfSubsystem` test hooks. |
 | `Fdp.Core` | FDP ECS core: `EntityRepository`, `FdpEventBus`, component infrastructure, `FdpLog<T>`. |
-| `Fdp.Toolkit.Behavior` | Behavior registry, `BehaviorState`, `BrainBlackboard`, `BrainBTreeState`, `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`. |
+| `Fdp.Toolkit.Behavior` | Behavior registry, `BehaviorState`, `BrainInterrupts`, `BrainBTreeState`, `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`. |
 | `Fdp.Toolkit.Orchestration` | `ClusterSlave`, reference load handlers, `ScenarioEntityCreationRequestSource`. |
 | `Fbt.Compiler` | Fluent BTree compiler used to build BTree definitions registered in `BehaviorRegistry`. |
 | `Hrot.Editor` | Scenario editor that exercises `StagingEntityExtractor` and hot-reloads `Hrot.AI.Behaviors` independently of the CGF node. |

@@ -291,7 +291,7 @@ transparently.
 | Attribute | Brain (CGF) | Muscle (SimHost) |
 |-----------|-------------|-----------------|
 | NodeRole flags | `Brain` | `MuscleGround \| Perception` |
-| ECS components owned | `BehaviorState`, `BrainBlackboard`, `MissionPlan`, `TargetMemory` | `SimTransform`, `WorldPos`, `NavigationStatus`, `PhysicsState` |
+| ECS components owned | `BehaviorState`, `BrainInterrupts`, `BlueprintBlackboard{256,1024,4096,16384}` (occurrence-slot tiers), `MissionPlan`, `TargetMemory` | `SimTransform`, `WorldPos`, `NavigationStatus`, `PhysicsState` |
 | DDS writes | `EntityMaster`, `NavigationIntent`, `WeaponFireIntent` | `WorldPos`, `NavigationStatus`, `EntityDamage` |
 | Spawn authority | Default processor for `CreateEntityRequest` | Not a default processor |
 | AI systems | BTree interpreter, HSM kernel, mission adapter | None |
@@ -391,7 +391,7 @@ not be possible through a public NuGet API.
 
 | Library | Path | What it provides | Why embedded |
 |---------|------|-----------------|--------------|
-| **FastBTree** (`Fbt.*`) | `FDP/ExtDeps/FastBTree/` | Behavior tree runtime kernel, compiler, fluent builder, source generator attributes (`[BTreeDefinition]`, `[BTreeAction]`, `[BTreeCondition]`) | Core data structures (`BrainBlackboard`, `BehaviorTreeBlob`) must be shared between the kernel and application code; no stable ABI boundary. |
+| **FastBTree** (`Fbt.*`) | `FDP/ExtDeps/FastBTree/` | Behavior tree runtime kernel, compiler, fluent builder, source generator attributes (`[BTreeDefinition]`, `[BTreeAction]`, `[BTreeCondition]`) | Core data structures (`BehaviorTreeBlob`) must be shared between the kernel and application code; no stable ABI boundary. (The `Interpreter`/`ActionRegistry` blackboard type parameter is bound to `byte` — the tree ticks against a byte ref into an occurrence slot's bytes, so no per-entity blackboard type needs to cross the boundary.) |
 | **FastHSM** (`Fhsm.*`) | `FDP/ExtDeps/FastHSM/` | Hierarchical state machine kernel, compiler, `HsmBuilder` fluent API, HSM instance structs | Same reason as FastBTree; `HsmDefinitionBlob` is co-designed with the simulation's entity component layout. |
 | **GizmoMap** | `FDP/ExtDeps/GizmoMap/` | Debug visualization over DDS: `DebugPrimitive` wire type, `GizmoMap.Network` DDS topics, `GizmoMap.Contracts` canonical types | The `DebugPrimitive` type must be identical at the CLR level in every assembly in the process; this is enforced via `TypeForwards.cs` in `Fdp.Diagnostics.Contracts`. |
 | **NodeEdit** | `FDP/ExtDeps/NodeEdit/` | Generic node-graph canvas widget (ImGui-based): `NodeEditor.Core` (host interfaces) + `NodeEditor.UI` (canvas renderer) | Used by both the Blueprint editor and the BTree/HSM editors; a shared in-repo version allows simultaneous evolution across all three consumers. |
@@ -575,7 +575,8 @@ See [Blueprint Scripting System](relationships/Blueprint-Scripting-System.md).
    ```
 
 3. Use the `Hrot.BTree.Editor` canvas to compose the tree visually, or write it using
-   the `BTreeBuilder<BrainBlackboard, BTreeContext>` fluent API directly.
+   the `BTreeBuilder<byte, BTreeContext>` fluent API directly — the tree ticks against a
+   `byte` ref into the entity's root params occurrence slot.
 
 4. Register the behavior in `AiBehaviorFactory` with a unique integer ID (use 3000+
    range per project convention):

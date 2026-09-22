@@ -117,7 +117,7 @@ The codebase contains two deliberately distinct structs with the same conceptual
 | Struct | Namespace | Role |
 |--------|-----------|------|
 | `FDP.Toolkit.Navigation.FollowRouteParams` | FDP engine | Written directly into `LocomotionChannel.Params`; consumed by the locomotion engine. Uses local `int TrajectoryId`. |
-| `Hrot.SimHost.Brains.SimHostNodes.FollowRouteParams` | Application-layer BTree | Written via `Unsafe.Write` into `BrainBlackboard.Memory`; read by `Action_WriteFollowRouteChannel`. Also uses local `int TrajectoryId`. |
+| `Hrot.SimHost.Brains.SimHostNodes.FollowRouteParams` | Application-layer BTree | Written via `Unsafe.Write` into the root params occurrence slot's bytes; read by `Action_WriteFollowRouteChannel`. Also uses local `int TrajectoryId`. |
 
 Both structs intentionally use a local `int TrajectoryId` — an ephemeral `TrajectoryPoolManager` memory index that is **never replicated over the network**.  The FDP engine (`FDP.Toolkit.*`) is strictly decoupled from network and replication layers and must remain so.  **Neither struct is changed by this task.**
 

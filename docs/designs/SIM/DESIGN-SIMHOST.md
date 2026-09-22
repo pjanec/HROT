@@ -40,7 +40,7 @@
 | **CreateEntity Handler** | ❌ NEW | `Hrot.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
 | **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree behavior pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
 | **WorldPos Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
-| **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → BehaviorId, writes BrainBlackboard params, advances ActiveTaskId on channel success |
+| **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → BehaviorId, writes the behavior's root-params occurrence slot, advances ActiveTaskId on channel success |
 | **EntityMissionTranslator** | ❌ NEW | `Hrot.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
 | **JoinFormationExecutor** | ❌ NEW | `Hrot.SimHost.Systems.JoinFormationExecutor` | `IActionExecutor<LocomotionChannel>` for formation joining |
 | **SimHost Application** | ❌ NEW | `Hrot.SimHost.Program` | Main application shell, initialization |
@@ -679,7 +679,7 @@ namespace Hrot.SimHost.Modules
 
 ### 4.4 MissionAdapterSystem
 
-**Purpose:** Thin adapter between the DDS `EntityMission` data model and the FDP Behavior toolkit. Does **not** execute physics commands directly; it resolves `BehaviorId` strings to `BehaviorId` integers, writes JSON parameters into the `BrainBlackboard`, and advances `ActiveTaskId` when the behavior toolkit reports task completion.
+**Purpose:** Thin adapter between the DDS `EntityMission` data model and the FDP Behavior toolkit. Does **not** execute physics commands directly; it resolves `BehaviorId` strings to `BehaviorId` integers, writes JSON parameters into the behavior's **root-params occurrence slot**, and advances `ActiveTaskId` when the behavior toolkit reports task completion.
 
 **Architecture:**
 
@@ -692,7 +692,7 @@ namespace Hrot.SimHost.Systems
     using Fdp.Kernel;
 
     /// <summary>
-    /// Thin adapter: DDS EntityMission → BehaviorState / BrainBlackboard.
+    /// Thin adapter: DDS EntityMission → BehaviorState / the behavior's root-params occurrence slot.
     /// Monitors LocomotionChannel.Status to advance ActiveTaskId.
     /// Does NOT call VehicleAPI directly — all execution is delegated to the
     /// Behavior toolkit pipeline (BTreeTickSystem + Executors).
@@ -714,14 +714,12 @@ namespace Hrot.SimHost.Systems
             var query = world.Query()
                 .With<EntityMission>()
                 .With<BehaviorState>()
-                .With<BrainBlackboard>()
                 .Build();
 
             foreach (var entity in query)
             {
                 var mission  = world.GetComponent<EntityMission>(entity);
                 var behavior = world.GetComponent<BehaviorState>(entity);
-                var bb       = world.GetComponent<BrainBlackboard>(entity);
 
                 // 1. Find the active task
                 var activeTask = FindTaskById(mission, mission.ActiveTaskId);
@@ -740,12 +738,12 @@ namespace Hrot.SimHost.Systems
                     behavior.ActiveBehaviorHash = behaviorId;
                     world.SetComponent(entity, behavior);
 
-                    // Parse JSON params directly into BrainBlackboard inline memory (zero alloc)
+                    // Parse JSON params directly into the root-params occurrence slot (zero alloc)
                     if (!string.IsNullOrEmpty(activeTask.BehaviorParams))
                     {
                         var def = _behaviorRegistry.GetDefinition(behaviorId);
-                        def.ParseParams(activeTask.BehaviorParams, ref bb);
-                        world.SetComponent(entity, bb);
+                        ref byte root = ref RootParamsAccess.RootRef(world, entity);
+                        def.ParseParams(activeTask.BehaviorParams, ref root, RootParamsAccess.RootParamsBytes(def));
                     }
                 }
 
@@ -1001,7 +999,7 @@ ModuleHostKernel Update Sequence:
   3. CycloneNetworkModule (DDS read/write)
   4. EntityCreationModule (CreateEntityRequestSystem)
   5. SimulationLogicModule:
-       - MissionAdapterSystem            (DDS mission → BehaviorState/BrainBlackboard)
+       - MissionAdapterSystem            (DDS mission → BehaviorState/root-params occurrence slot)
        - ChannelArbitrationSystem        (preempt stale channels on behavior change)
        - BTreeTickSystem                 (tick BTree, write LocomotionChannel.Request)
        - LocomotionDispatcherSystem      (OnEnter/Execute/OnExit lifecycle)
@@ -1021,7 +1019,7 @@ EntityMission (DDS)
   ↓ EntityMissionTranslator
 ECS EntityMission component
   ↓ MissionAdapterSystem
-BehaviorState.ActiveBehaviorHash + BrainBlackboard params set
+BehaviorState.ActiveBehaviorHash + root-params occurrence slot set
   ↓ ChannelArbitrationSystem
 stale LocomotionChannel cleared on behavior change
   ↓ BTreeTickSystem
@@ -1223,7 +1221,7 @@ public void Update(float dt)
 **Tasks:**
 1. Register `ChannelArbitrationSystem`, `BTreeTickSystem`, `LocomotionDispatcherSystem`, `MoveToExecutor`, `FollowRouteExecutor`, and `LinearKinematicsSystem` in `SimulationLogicModule` (S4.1).
 2. Implement `EntityMissionTranslator` (DDS ingress) and `EntityMissionEgressTranslator` (DDS egress) in `Translators/` (S4.2).
-3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `BehaviorId` via `BehaviorRegistry`, writes `BehaviorState` + `BrainBlackboard`, monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
+3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `BehaviorId` via `BehaviorRegistry`, writes `BehaviorState` + the root-params occurrence slot (`RootParamsAccess`), monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
 4. Implement `JoinFormationExecutor` — `IActionExecutor<LocomotionChannel>`, looks up leader via `NetworkEntityMap`, calls `VehicleAPI.CreateFormation()` (S4.4).
 
 **Estimated Effort:** 5 days
