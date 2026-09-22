@@ -23,21 +23,34 @@ namespace Hrot.SimHost.Serializers
     /// <c>BehaviorState</c>, <c>BrainInterrupts</c> and the root occurrence slot. ⛔ It was NOT deleted
     /// with the component: the dump it produces is live and wanted — ⚠ **a surface whose name went
     /// stale is not a dead surface**, and deleting it would have removed a working diagnostic.
-    /// ⭐ Renaming it, and its <c>"BrainBlackboard"</c> DOM key, changes a diagnostic output contract
-    /// that scenario files already carry, so it is filed as <c>CE-317</c> rather than bundled here.</para>
+    /// ✅ <b><c>CE-317</c> RENAMED IT</b> — the class and its DOM key. ⚠ That changes a diagnostic
+    /// output contract, which is why it was its own change rather than a rider on the deletion.</para>
     /// </summary>
     /// <remarks>
     /// <see cref="Inject"/> is intentionally a no-op: this is <c>DataPolicy.NoScenario</c> transient
     /// execution state and must never be written back from a scenario file. The translator exists
     /// solely to produce a readable clipboard dump via <see cref="ScenarioSerializer.SerializeEntity"/>.
     /// </remarks>
-    public sealed class BrainBlackboardTranslator : IEntityScenarioTranslator
+    public sealed class BrainDiagnosticsTranslator : IEntityScenarioTranslator
     {
-        private const string Key = "BrainBlackboard";
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-317</c> — the DOM key, and it is NOT a component name.</b>
+        ///
+        /// <para>🔴 It was <c>"BrainBlackboard"</c>, and that published a <b>PHANTOM COMPONENT</b>:
+        /// <c>DebugApiService</c> builds an entity's <c>components</c> list from the scenario
+        /// translators' DOM keys, so the running cluster's <c>GET /entities</c> listed
+        /// <c>BrainBlackboard</c> among entity 1000's components — a component <c>P4</c> had
+        /// deleted. ⚠ Observed on the product, not inferred.</para>
+        ///
+        /// <para>⭐ The new name says what this actually dumps — the brain's diagnostics: the
+        /// <c>BrainInterrupts</c> tail plus the behaviour's root params. ⛔ It deliberately does NOT
+        /// name a component, because it is not one.</para>
+        /// </summary>
+        private const string Key = "BrainDiagnostics";
 
         private readonly BehaviorRegistry _registry;
 
-        public BrainBlackboardTranslator(BehaviorRegistry registry)
+        public BrainDiagnosticsTranslator(BehaviorRegistry registry)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
         }
@@ -104,7 +117,7 @@ namespace Hrot.SimHost.Serializers
             return new Dictionary<string, object> { [Key] = root };
         }
 
-        // No-op: BrainBlackboard is transient execution state; never loaded from scenario files.
+        // No-op: this is transient execution state; never loaded from scenario files.
         public void Inject(EntityRepository repo, Entity entity,
             Dictionary<string, object> scenarioData, IGuidResolver resolver) { }
 

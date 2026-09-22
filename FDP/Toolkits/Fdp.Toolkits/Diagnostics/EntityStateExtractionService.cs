@@ -15,7 +15,7 @@ namespace Fdp.Toolkit.Diagnostics
     /// Walks the <see cref="EntityRepository"/> directly without touching any Presentation code.
     /// When a <see cref="ScenarioSerializer"/> is supplied, component data is produced via the
     /// unified serialization pipeline (translator chain + FdpAutoSerializer) so that custom
-    /// translators such as <c>BrainBlackboardTranslator</c> (⚠ a historical NAME — the component it was named for is retired; it dumps the root params slot, §30.28)
+    /// translators such as <c>BrainDiagnosticsTranslator</c> (⚠ a historical NAME — the component it was named for is retired; it dumps the root params slot, §30.28)
     /// emit readable DTO output instead of raw fixed-buffer bytes.
     /// </summary>
     public sealed class EntityStateExtractionService : IEntityStateExtractionService
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Diagnostics
                 if (_serializer != null)
                 {
                     // Unified path: route through the translator pipeline so custom
-                    // translators (BrainBlackboardTranslator — a historical name, §30.28)
+                    // translators (BrainDiagnosticsTranslator — a historical name, §30.28)
                     // and FdpAutoSerializer emit readable DTO output.
                     var componentsJson = _serializer.SerializeEntity(_repo, entity, resolver!, snapshotableMask);
                     components = JsonSerializer.Deserialize<Dictionary<string, object>>(

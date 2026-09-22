@@ -215,7 +215,7 @@ namespace Fdp.Toolkit.Behavior
         /// <c>CE-235</c> split the two members so the mistake cannot be made silently again.
         /// </para>
         ///
-        /// <para>Readers: <c>BrainBlackboardTranslator</c> (⚠ a historical NAME — it reads the root
+        /// <para>Readers: <c>BrainDiagnosticsTranslator</c> (⚠ a historical NAME — it reads the root
         /// params slot, §30.28), <c>RootParamsProjection</c>/<c>RootParamsViewProvider</c> (StructEdit,
         /// <c>CE-312</c>) and the
         /// ReplayBrowser predicate compiler + its two field drawers.</para>

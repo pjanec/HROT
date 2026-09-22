@@ -21,7 +21,7 @@ namespace Hrot.SimHost.Serializers
                 .RegisterTranslator(new UnitSubordinateTranslator())
                 .RegisterTranslator(new EditablePolylineTranslator())
                 .RegisterTranslator(new RoutePlanTranslator())
-                .RegisterTranslator(new BrainBlackboardTranslator(behaviorRegistry))
+                .RegisterTranslator(new BrainDiagnosticsTranslator(behaviorRegistry))
                 // ⛔ P4-① (2026-09-22): Blackboard1024Translator is GONE with its component. It was an
                 //    extract-only clipboard dump gated on HeavyDtoType, which is null everywhere ⇒ it
                 //    could only ever emit an empty object. 📄 §30.13.

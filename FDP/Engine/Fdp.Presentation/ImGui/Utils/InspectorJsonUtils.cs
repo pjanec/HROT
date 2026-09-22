@@ -24,7 +24,7 @@ public static class InspectorJsonUtils
     ///
     /// The translator pipeline is restricted to the specific component type via a single-bit mask,
     /// allowing custom IEntityScenarioTranslator implementations to project raw memory into
-    /// useful DTOs (e.g., BrainBlackboardTranslator — a historical name, §30.28).
+    /// useful DTOs (e.g., BrainDiagnosticsTranslator — a historical name, §30.28).
     /// </summary>
     /// <param name="session">The inspectable session.</param>
     /// <param name="entity">The entity containing the component.</param>
