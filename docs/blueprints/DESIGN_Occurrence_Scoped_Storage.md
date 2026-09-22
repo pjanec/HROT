@@ -2,10 +2,14 @@
 state: LIVE
 updated: 2026-09-22
 build-state: READY-TO-BUILD
-current-answer: 🔴🔴🔴 READ §29.10 FIRST (2026-09-22). P3-C IS LANDED BUT NOT VALIDATED — it
-  REGRESSES the golden test on a live cluster while every unit suite is green. The gate line below
-  ("THE GOLDEN TEST IS GREEN") is TRUE OF 9e20d3f97 AND FALSE OF HEAD. Nothing may be built on
-  P3-C, and P4 is PARKED, until CE-304 is closed.
+current-answer: ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND AND FIXED:
+  BTreeActionGenerator.cs:655 — the 3-param [BTreeAction] bridge — still projected params out of
+  the BrainBlackboard COMPONENT, whose only writer P3-C cut, so 23 production thunks read an
+  all-zero region. §29.10 is the (correct) failure record; §29.11's "size is load-bearing" is NOT
+  explained by this and is demoted to unconfirmed. §29.13 is CE-305, a second, latent extent bug
+  found in the same sweep. ⚠ The live-cluster re-run is what re-validates P3-C; until it is green
+  the gate line below ("THE GOLDEN TEST IS GREEN") is TRUE OF 9e20d3f97 and UNPROVEN AT HEAD, and
+  P4 stays PARKED.
   ⭐ Then §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
@@ -4058,3 +4062,99 @@ and assert `rootBytes >= everything the parser can write`. ⛔ **A and B need a 
 ⚠ **The methodological note, because it happened three times in one session:** a probe that makes the
 symptom disappear proves the *variable* matters, ⛔ **never the STORY about why**. Each time the story was
 written before the measurement, and each time it was wrong.
+
+---
+
+### 29.12 ✅✅✅ `CE-304` — **THE MECHANISM, FOUND. A FOURTH PARAMS READER THAT `P3-C` NEVER RE-ANCHORED** *(`2026-09-22`)*
+
+> ⭐⭐⭐ **In one line:** `BTreeActionGenerator.cs:655` — the **3-param `[BTreeAction]`/`[BTreeCondition]`
+> bridge** — projected params out of the `BrainBlackboard` COMPONENT, and `P3-C` cut that component's
+> only writer. ⇒ **23 production thunks began reading an all-zero region**, silently.
+
+#### 🔴 What the code did
+
+```csharp
+// emitted for EVERY 3-param [BTreeAction], key "{MethodFqn}@0"
+ref var p = ref Unsafe.As<BrainBlackboard, HullDownAttackParams>(ref bb);   // offset 0 of the COMPONENT
+```
+
+`BTreeTickSystem.cs:123` hands the kernel `repo.GetComponentRW<BrainBlackboard>(entity)`, and
+`BehaviorParameters` sits at offset 0 of it ⇒ before `P3-C` this WAS the params region. **After the cut
+NOTHING WRITES IT**: 📐 a full-repo sweep finds no production writer of the region left — the ingress
+commit was the only one.
+
+⚠ **Stated precisely, because an earlier draft of this line overclaimed.** Production still *reads* the
+component in three places, and all three now read zeros: `BrainBlackboardRenderer` ·
+`BrainBlackboardViewProvider` *(both `CE-303`)* · **`LiveBlackboardValueProvider`** *(found by the same
+sweep; folded into `CE-303`)*. ⛔ Those are DISPLAY surfaces, which is why the product still ran —
+the defect below is the one on the EXECUTION path. *(`FDP/Examples`' `BehaviorValidationScenario` also
+touches the buffer, but it both writes and reads it as private scratch, so it is self-consistent.)*
+
+#### 📐 The blast radius — measured on a fresh build of `Hrot.AI.Behaviors` at `3911494e0`
+
+**23 thunks**, i.e. **every curated BTree node in the product**: `HillAttackTankNodes` ×5
+*(`Condition_HasTarget`, `CreepToAndBeyondSlot`, `AimAndFireSpecific`, **`ReverseToBaseline`**,
+`AbortEngagement`)* · `HillAttackCommanderNodes.Condition_AreAllAtBaseline` ·
+`CgfNodes` ×5 *(incl. **`Action_WriteMoveToChannel`**)* · `EqsCombatNodes` ×4 · `EqsLifecycleNodes` ×4 ·
+`DemoCounterNodes` ×3 · `CommanderNodes.Action_IssueTacticalIntent`.
+
+⇒ ⭐⭐ **This is §29.10's measured diff, explained exactly.** `Action_ReverseToBaseline` writes
+`MoveToParams.Destination = (p.BaselineX, p.BaselineY)` into `LocomotionChannel.Params`; with `p`
+all-zero the channel carries `[0,0,0]`, `TargetSpeed 0`, `ArrivalRadius 0` — which is precisely what the
+`HEAD` dump showed, and why `NavigationIntent.IntentId` kept climbing without the tank ever arriving.
+
+#### ⛔⛔ WHY THE INVENTORY MISSED IT — **and the lesson is about the METHOD, not the diligence**
+
+🔒 **§29.1 states its own method: `grep BehaviorParameters --include=*.cs` → 28 files / 60 refs.**
+⛔ **Line 655 does not contain that string.** The other three sites in the same file spell the region
+out (`BlackboardParamsExpression.At(...)`); this one reached the same bytes by **casting the whole
+component**, so a text sweep keyed on the region's NAME could not see it.
+
+| ⭐ the rule this earns | |
+|---|---|
+| ⭐⭐⭐ **an inventory of *"who reads X"* must be keyed on the STORAGE, not on a spelling of it** | ⭐ here: *"who is handed `ref BrainBlackboard`"* — which is a **type** question the graph answers, not a grep one. 📐 `search_graph` on the component's consumers, or Roslyn `find_references` on the TYPE, both reach line 655; the grep does not |
+| ⭐⭐ **a cast is a read** | ⛔ `Unsafe.As<TComponent, TDto>` is a params projection with no offset in it, so every offset-shaped search misses it by construction |
+
+#### ⛔⛔ WHY 7 000+ GREEN TESTS MISSED IT
+
+📐 Every tank rail calls `HillAttackTankNodes.Action_ReverseToBaseline(ref p, …)` with a **hand-built
+`p`** *(`HillAttackNodeTests.cs` `SC-HA007`/`SC-HA008`, and the same shape throughout)*. ⇒ **the suites
+test the node BODY and never the params ADDRESSING.** `T-1`③ applies: the blindness is fixed in place.
+
+#### ✅ THE FIX, AND THE RAIL
+
+| | |
+|---|---|
+| ⭐ **fix** | `BTreeActionGenerator.cs:655` now emits `BlackboardParamsExpression.At("ctx.World","ctx.Self", 0)` — the same anchor its three siblings use. ⭐ The registration key was **already `@0`**, so the offset arithmetic is unchanged; this is §29.6's *"every reader changes ONE thing: its ANCHOR"*, applied to the one reader that was missed |
+| ⭐⭐ **rail** | `HillAttackNodeTests.CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot` — drives `AssignBehaviorEvent` → the real `BehaviorIngressSystem` → the root slot → the **real generated thunk** from `FbtActionRegistrar`, dispatched with the same `ref BrainBlackboard` the kernel gets. ⛔ It constructs no `HullDownAttackParams` at all |
+| 📐 **red-proof** | before the fix: **`Expected: 523  Actual: 0`**. After: green |
+
+#### ⚠ WHAT IS **NOT** CLAIMED
+
+⛔⛔ **IT DOES NOT YET EXPLAIN THE WHOLE SCENARIO, AND SAYING SO IS THE POINT.** 📐 The platoon spawns
+at **x ≈ 446–449** *(`scenarios/hill-attack-close/scenario.json`)*, and in the FAILING runs it ends at
+**579 / 587 / 524 / 590** — i.e. it **DID** reach the firing line. ⚠ An all-zero params region from the
+first dispatch would have commanded `(0,0)` instead. ⇒ 🔒 **either some dispatches got good bytes by a
+route this section does not name, or §1.2's *"tanks advance, acquire, fire"* narrative is itself
+partly inferred.** ⛔ **Do not resolve this by argument** — the live re-run is the instrument, and it
+is what closes `CE-304`.
+
+⛔ **And it does not explain §29.11's probe.** Widening `RootParamsBytes` to 100 cannot revive a component
+nobody writes, so the *"size is load-bearing"* observation remains **unexplained by this mechanism**.
+⚠ Its own trial numbers differ from every other pass (`522` vs `523`), and the harness has a documented
+stale-`bin/` trap. ⇒ **§29.11's three candidates are NOT closed by this section** — they are demoted to
+*unconfirmed*, and the live-cluster re-run is what settles whether anything remains.
+
+### 29.13 ⚠ `CE-305` — **THE EXTENT WAS STILL A CONSTANT ON THE HOST-PARAMS PATH** *(found in the same sweep)*
+
+📐 `AiPrimitiveEmitter.EmitHsmOccurrenceBody` built `IHostVariableAccess` as
+`HsmHostVariableAccess.For(instance, __hostParams, MaxBehaviorParamByteSize)` — a **hard-coded 100** —
+while `RequireRootBytes` returns a region that is now only `RootParamsBytes(def)` wide *(52 for
+`PlatoonHillAttack`, 16 for `MoveToLocation`)*. ⇒ `HsmHostVariableAccess`'s `InBounds` check permits a
+read of up to **48 bytes past the end of the slot**, into whatever occurrence the allocator placed after it.
+
+🔒 **This is §29.10's design defect stated exactly — *"§29.6 specified the ANCHOR and never the
+EXTENT"*** — met on the one path that carried an extent at all. ⭐ Fixed by a new
+`RootParamsAccess.RequireRootBytes(world, self, out int length)`; the emitter passes the slot's own
+guard. ⚠ **Latent, not the live cause** — the hill-attack brains are BTree and host no HSM occurrence —
+which is why it is a separate id.

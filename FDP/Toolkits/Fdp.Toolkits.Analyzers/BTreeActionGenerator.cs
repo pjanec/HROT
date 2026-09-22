@@ -644,6 +644,21 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         EmitWrapped4Param(sb, m, tb, tc);
                 }
 
+                // 🔴🔴🔴 CE-304 (2026-09-22) — THE FOURTH PARAMS READER, and P3-C missed it.
+                //   This arm used to emit `Unsafe.As<TBlackboard, TValue>(ref bb)` — the params
+                //   projected out of the BrainBlackboard COMPONENT the kernel hands the tick
+                //   (BTreeTickSystem:123), at offset 0, which is BehaviorParameters[0].
+                //   ⛔ P3-C cut the ingress write into that component, so every 3-param
+                //   [BTreeAction]/[BTreeCondition] in the corpus — 23 of them in Hrot.AI.Behaviors
+                //   alone, including every hill-attack tank node and CgfNodes.Action_WriteMoveTo-
+                //   Channel — silently began reading an ALL-ZERO region. No crash: a tank simply
+                //   drove to (0,0) and never came home.
+                // ⚠ WHY THE INVENTORY MISSED IT (§29.1): that inventory was built by
+                //   `grep BehaviorParameters --include=*.cs`, and this line never contained the
+                //   string. The other three sites in this file spell the region out; this one
+                //   reached it by casting the whole component.
+                // ⭐ The key is already "@0", so the anchor is the ONLY thing that changes — the
+                //   offset arithmetic is identical, exactly as §29.6 says every re-anchoring is.
                 foreach (var m in group.Bridges)
                 {
                     string stateType = m.StateType ?? "global::Fbt.BehaviorTreeState";
@@ -652,7 +667,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("            registry.Register(\"" + key + "\",");
                     sb.AppendLine("                (ref " + tb + " bb, ref " + stateType + " st, ref " + tc + " ctx, int _) =>");
                     sb.AppendLine("                {");
-                    sb.AppendLine("                    ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<" + tb + ", " + valueType + ">(ref bb);");
+                    sb.AppendLine("                    ref var p = ref Unsafe.As<byte, " + valueType + ">(");
+                    sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", 0) + ");");
                     sb.AppendLine("                    return global::" + m.FullQualifiedMethodName + "(ref p, ref st, ref ctx);");
                     sb.AppendLine("                });");
                 }

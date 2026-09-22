@@ -163,9 +163,27 @@ public static unsafe class RootParamsAccess
 
     /// <summary>⭐ The same anchor as a raw pointer, for callers already in pointer arithmetic.</summary>
     public static byte* RequireRootBytes(EntityRepository world, Entity self)
-    {
-        if (TryGetRootBytes(world, self, out byte* ptr)) return ptr;
+        => RequireRootBytes(world, self, out _);
 
+    /// <summary>
+    /// ⭐⭐ <b>The anchor AND its EXTENT.</b> 🔴 <c>CE-305</c>: a caller that bounds-checks reads against
+    /// the region must be told how wide it actually is.
+    ///
+    /// <para>⛔⛔ <b>Why a constant is wrong here now.</b> Until <c>P3-C</c> the region was always
+    /// <see cref="BehaviorConstants.MaxBehaviorParamByteSize"/> — a <c>fixed byte[100]</c> that existed
+    /// whether the behaviour declared params or not — so passing that constant as the length was
+    /// correct by construction. ⇒ the region is now <see cref="RootParamsBytes"/> wide (52 for
+    /// <c>PlatoonHillAttack</c>, 16 for <c>MoveToLocation</c>), and a 100-byte bound lets a read run
+    /// off the end of the slot into whatever occurrence the allocator put after it.</para>
+    ///
+    /// <para>⚠ <b>This is §29.10's defect exactly</b> — <i>"§29.6 specified the ANCHOR and never the
+    /// EXTENT"</i> — met on the one path that carried an extent at all.</para>
+    /// </summary>
+    public static byte* RequireRootBytes(EntityRepository world, Entity self, out int length)
+    {
+        if (TryGetRootBytes(world, self, out byte* ptr, out length)) return ptr;
+
+        length = 0;
         throw new InvalidOperationException(
             $"Entity {self.Index} has no ROOT PARAMS slot, so its behaviour parameters cannot be read. " +
             "Causes, in the order worth checking: (1) no behaviour is assigned — BehaviorState." +

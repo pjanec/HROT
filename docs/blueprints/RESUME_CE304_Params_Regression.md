@@ -4,11 +4,12 @@ doc-type: DEBUGGING RESUMPTION for CE-304 — the live regression P3-C introduce
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a debugging snapshot, not a design.
-current-answer: 🔴 READ §4.3 FIRST — the slot SIZE is proven load-bearing (probe 2/2), but the
-  MECHANISM IS UNKNOWN and an earlier "confirmed overspill" claim there is RETRACTED.
-  THEN §1 (what is proven), then §2 (the CORRECTION — a claim in CE-304 and
-  DESIGN §29.10 is WRONG and must be fixed), then §5 (the exact next action).
-  ⛔ §3 lists the DEAD hypotheses — do NOT re-test them.
+current-answer: ✅ READ §8 FIRST (2026-09-22) — THE MECHANISM IS FOUND, FIXED AND RAILED.
+  BTreeActionGenerator.cs:655 (the 3-param [BTreeAction] bridge) still projected params out of
+  the BrainBlackboard COMPONENT, whose only writer P3-C cut. §1 (the failure record) and §6 (the
+  reproducer) stand. ⚠ §4.3's "size is load-bearing" is NOT explained by the fix and is demoted
+  to UNCONFIRMED — do not re-adopt its three candidates as live without new measurement.
+  ⛔ §3 lists the DEAD hypotheses — do NOT re-test them. §5's ordered list is SUPERSEDED by §8.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §29.10 owns the design defect and the intended fix;
     this doc owns the LIVE-DEBUGGING state that §29.10 does not carry.
@@ -296,3 +297,43 @@ curl -s --noproxy '*' $B/entities/1001     # …1004
 | **`Blackboard1024`** | ⭐ genuinely dead — production adds it to **no entity** (`HeavyDtoType` is only ever assigned `null`), and all 28 mentions in generated code are comments saying *"NOT Blackboard1024"*. The easy half of `P4` |
 | **pre-existing reds** *(do not chase)* | `Hrot.AiEditor.Generators.Tests` 4 · `Hrot.SimHost.Tests` 3 — **all proven pre-existing**, two of them *exhaustively* (their whole input is source files, and none of the 75 files this programme touched is in either input set) |
 | **`Hrot.IG.Tests`** | cannot build in this container — `NETSDK1004`, unrestored |
+
+---
+
+## 8. ✅✅✅ RESOLVED `2026-09-22` — **THE FOURTH PARAMS READER**
+
+> 🔒 **One line.** `FDP/Toolkits/Fdp.Toolkits.Analyzers/BTreeActionGenerator.cs:655` — the
+> **3-param `[BTreeAction]`/`[BTreeCondition]` bridge** — emitted
+> `Unsafe.As<BrainBlackboard, TParams>(ref bb)`, reading params out of the **`BrainBlackboard`
+> COMPONENT**. `P3-C` cut that component's only writer ⇒ **23 production thunks read all zeros.**
+
+### 8.1 ⭐ Why it answers §4.1's puzzle
+
+§4.2 asked how two readers of *"the same function"* could disagree. **They were never the same
+function.** The translator and the gizmo call `RootParamsAccess`; the curated BTree nodes were
+reached through `Unsafe.As` over the component the kernel hands the tick (`BTreeTickSystem.cs:123`).
+⇒ `Action_ReverseToBaseline` wrote `Destination = (0,0)` into `LocomotionChannel.Params`, which is
+**exactly** §4.1's measured HEAD column.
+
+### 8.2 ⛔⛔ Why nothing found it — two method failures, both worth keeping
+
+| | |
+|---|---|
+| ⛔ **the INVENTORY** | `DESIGN` §29.1 built its reader list with `grep BehaviorParameters --include=*.cs`. **Line 655 does not contain that string** — it reached the region by casting the whole component. ⇒ ⭐ *"who reads X"* must be keyed on the **storage TYPE** (a graph / Roslyn question), never on a spelling |
+| ⛔ **the RAILS** | every tank rail calls the node with a **hand-built `p`** ⇒ the suites test the node BODY and never the params ADDRESSING. ⭐ `T-1`③: fixed in place, not routed around |
+
+### 8.3 ✅ What landed
+
+| | |
+|---|---|
+| **fix** | `BTreeActionGenerator.cs:655` → `BlackboardParamsExpression.At("ctx.World","ctx.Self", 0)`. The key was already `@0`, so no offset arithmetic moves |
+| **rail** | `HillAttackNodeTests.CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot` — ingress → root slot → the **real** generated thunk. 📐 red-proof **`Expected: 523  Actual: 0`** → green |
+| **`CE-305`** | a second, LATENT extent bug found in the same sweep: `IHostVariableAccess` was bounded by a hard-coded `MaxBehaviorParamByteSize` (100) over a 52/16-byte slot ⇒ up to 48 bytes of over-read. Fixed with `RequireRootBytes(…, out int length)`. 📄 `DESIGN` §29.13 |
+
+### 8.4 ⚠⚠ WHAT IS STILL OPEN — **do not read this section as "CE-304 closed"**
+
+| | |
+|---|---|
+| ⛔ **the live-cluster re-run** | §1.1's bisect table must be re-run at the fixed HEAD. **That is what closes `CE-304`**, not the unit rail |
+| ⚠ **§4.3's probe is UNEXPLAINED** | widening `RootParamsBytes` to 100 cannot revive a component nobody writes ⇒ *"size is load-bearing"* does **not** follow from this mechanism. ⭐ Its own trial numbers differ from every other pass (`522` vs `523`) and §6 documents a stale-`bin/` trap. ⇒ **demoted to unconfirmed; A/B/C are neither live nor disproven** |
+| ⭐ **the extent rail §5②(a) still wants writing** | *"attach a root slot, attach an occurrence after it, write through the params `ref`, assert the neighbour is byte-unchanged"* — `CE-305` shows the hole is real even though it was not this bug |

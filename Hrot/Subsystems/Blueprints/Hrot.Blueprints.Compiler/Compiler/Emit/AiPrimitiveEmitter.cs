@@ -610,8 +610,13 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("//   variables BY NAME through IHostVariableAccess — its first implementation.");
         e.WriteLine("// CE-297: the SEED comes from HERE, not from the kernel's instance pointer.");
         e.WriteLine("// P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.");
+        e.WriteLine("// CE-305: the EXTENT comes from the slot, never from MaxBehaviorParamByteSize. The");
+        e.WriteLine("//   constant was right while the region was a fixed byte[100]; since P3-C it is only");
+        e.WriteLine("//   RootParamsBytes(def) wide, so a 100-byte bound lets IHostVariableAccess read past");
+        e.WriteLine("//   the slot into the next occurrence (§29.10 — the ANCHOR was specified, the EXTENT");
+        e.WriteLine("//   never was).");
         e.WriteLine("byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(");
-        e.WriteLine("    world, bridge->Self);");
+        e.WriteLine("    world, bridge->Self, out int __hostParamsLen);");
         e.WriteLine();
         e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
         e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
@@ -619,7 +624,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
         EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)",
-                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize)",
+                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen)",
                       "world", "bridge->Self");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);

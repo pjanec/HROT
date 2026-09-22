@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Fbt;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
@@ -428,6 +429,80 @@ namespace Hrot.SimHost.Tests
                 written = *(MoveToParams*)p2;
             Assert.Equal(10f, written.Destination.X, 0.001f);
             Assert.Equal(20f, written.Destination.Y, 0.001f);
+        }
+
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>CE-304</c> — the ADDRESSING twin of <c>SC-HA008-4</c> above, and the rail whose
+        /// absence let <c>P3-C</c> ship a live regression through four green suites.</b>
+        ///
+        /// <para>⛔⛔ <b>What every other tank rail does NOT test.</b> They call
+        /// <c>Action_ReverseToBaseline(ref p, …)</c> with a HAND-BUILT <c>p</c>, so they exercise the
+        /// node BODY and say nothing about where the runtime FINDS those bytes. ⇒ when <c>P3-C</c>
+        /// moved the params home out of <c>BrainBlackboard</c> and left
+        /// <c>BTreeActionGenerator</c>'s 3-param bridge arm reading the (now never-written) component,
+        /// 2303 + 4017 + 420 + 299 tests stayed green while the product wrote a ZERO destination into
+        /// <c>LocomotionChannel</c> and no tank ever returned to its baseline.</para>
+        ///
+        /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
+        /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
+        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref BrainBlackboard</c> the
+        /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
+        /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
+        ///
+        /// <para>📐 Red-proof: restore <c>BTreeActionGenerator.cs:655</c> to
+        /// <c>Unsafe.As&lt;TBlackboard, TValue&gt;(ref bb)</c> ⇒ <c>Destination</c> is <c>(0, 0)</c>.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot()
+        {
+            using var repo = CreateWorld();
+            repo.SetSingletonManaged<NetworkEntityMap>(new NetworkEntityMap());
+
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new BehaviorIngressSystem(registry);
+
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new BehaviorState());
+            repo.AddComponent(tank, new BrainBlackboard());
+            repo.AddComponent(tank, new BrainBTreeState());
+            repo.AddComponent(tank, new LocomotionChannel());
+
+            // The exact shape Action_DispatchWaveWithTargets publishes.
+            string json = JsonSerializer.Serialize(
+                new HullDownAttackParams { BaselineX = 523f, BaselineY = 401f },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = tank,
+                BehaviorName = BehaviorNames.HullDownAttackRun,
+                JsonParams   = json,
+            });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+
+            // The thunk exactly as the Interpreter resolves it — key, delegate and all.
+            var actions = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actions);
+            Assert.True(actions.TryGetAction(
+                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
+                out var thunk));
+
+            // BTreeTickSystem:123 — the kernel is handed the entity's live BrainBlackboard component.
+            ref var bb    = ref repo.GetComponentRW<BrainBlackboard>(tank);
+            var     state = new BehaviorTreeState();
+            var     ctx   = new BTreeContext { Self = tank, World = repo };
+
+            thunk(ref bb, ref state, ref ctx, 0);
+
+            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
+            MoveToParams written;
+            fixed (byte* raw = loco.Params)
+                written = *(MoveToParams*)raw;
+
+            Assert.Equal(523f, written.Destination.X, 0.001f);
+            Assert.Equal(401f, written.Destination.Y, 0.001f);
         }
 
         /// <summary>SC-HA008-5: Action_ReverseToBaseline returns Success when
