@@ -8,8 +8,11 @@ build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_
   §30.15 and §30.18 — read them before quoting any of those).
 current-answer: ✅ **`P4` IS COMPLETE — `BrainBlackboard` IS DELETED (§30.28).** Nothing in this
   document is a to-do any more; it is now a RECORD plus two follow-ups that belong to no slice:
-  `CE-317` (§30.28 ① — `BrainBlackboardTranslator` is a LIVE diagnostic wearing the retired
-  component's name; renaming it touches a DOM output contract) and the FORK decision (§5).
+  `CE-317` (§30.28 ① — 🔴 RAISED: the running cluster's GET /entities publishes `BrainBlackboard` as
+  a PHANTOM COMPONENT, because the entity component list is built from translator DOM keys) and the
+  FORK decision (§5).
+  ✅ **CLUSTER ACCEPTANCE PASSED after the whole of P4** (§4) — `523.06 525.22 529.22 530.99`, all
+  Success, 0 FastBTree warnings. ⚠ Run it on a QUIET machine; §4 says why.
   ⭐ All five slices done: `P4`-④ = `CE-307` §30.25 · `CE-316` §30.26 · `CE-314` §30.27 ·
   `CE-315` closed with the tick-query gate. ⭐ §3 is the part worth reading — the traps are the
   reusable half. §4 gates + the cluster harness. ⚠ §4's Blueprints row carries a RETRACTED claim;
@@ -187,6 +190,7 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | ⛔ **borrowing an ECS component as a scratch buffer** | the habit that hid `CE-310`/`CE-311`. ⭐ A plain `byte[]` cannot be mistaken for a storage path |
 | 🔴 **`G3` under-measured the asset-driven generator** | there are **TWO** BTree generators. `BTreeActionGenerator` (analyzer) is polymorphic; `BTreeBridgeEmitCore` derived the dispatch type from the ASSET. ⭐ Fixed at `:310`, **not** in the asset |
 | 🔴 **ANY COMMAND-LINE PATTERN MATCH KILLS YOUR OWN SHELL** | the pattern is in your own command line *(exit 144)*. 📌 Hit **twice**: `ps \| awk '/Hrot\.Cluster/'` and **`pkill -f Xvfb`**. ⛔ Not an `awk` quirk — **matching on the full command line at all**. ⭐ Filter on `comm`: `ps -eo pid,comm --no-headers \| awk '$2=="dotnet"{print $1}' \| xargs -r kill` |
+| 🔴🔴 **THE CLUSTER ACCEPTANCE IS LOAD-SENSITIVE** | 📐 `2026-09-22`: a trial run with 6 `dotnet` daemons alive drifted **+4.01** from gold; the same build on a quiet machine matched within **0.83**. ⭐ The sim runs on WALL CLOCK, so background load changes frame deltas and the integration diverges. ⛔⛔ **I nearly wrote that drift up as an archetype-reordering consequence of deleting a component** — a plausible mechanism for a number whose real cause was the machine. 🔒 **Kill background `dotnet` BEFORE the trial, and never reason about code from a loaded run** |
 | 🔴🔴 **A RELOAD IS NOT A RESET** | re-POSTing `/scenario/load/live` on the same process answered **`sawWorldChange: false`** with `totalTime: 84.9` ⇒ the "trial 2" numbers were trial 1 drifting. ⭐ **Restart between trials**; require `sawWorldChange: true` **and** `totalTime ≈ 0` at play |
 | ⛔⛔ **`Fdp.Presentation.Tests` CANNOT BE GATED WHOLE** | `BP-419` / `CE-259aa`: a native SIGSEGV aborts the run **and still prints `Passed!`**. ⭐ Gate by `--filter` *(`~ReplayBrowser` ⇒ **93/0**)*. ⚠ **And its `bin` had NO xunit adapter** — the project had never been restored here, so `--no-restore` produced an unrunnable assembly. `dotnet restore` fixes it |
 | ⚠ **the LOAD-FLAKY family keeps growing** | `BP-534` · `LiveFromReplayTests.Teardown…` · `SquadInputsP3Tests.AllReaders_ZeroAlloc…` · `T35_SharedWorkingState_ProofTests` · ⭐ **and three more confirmed `2026-09-22`: `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_…RoutesToReplayBranch` · `TransientSpawnTagRails.ATransientEntity_IsAbsentFromTheSavedScenario_AndANormalOneIsPresent` *(2/2 alone, 9/9 beside the fixture that was suspected of perturbing it, and a full re-run came back **2310/0** — three independent checks before calling it a flake)*.** ⛔ **Confirm any extra red IN ISOLATION before calling it a regression** — 📐 it paid again: a full SimHost run showed **6** reds, isolation showed **3**, and the 3 were the documented ones |
@@ -248,9 +252,26 @@ curl -s --noproxy '*' -m 20 -X POST $B/sim/play -H 'Content-Type: application/js
 ⭐ **PASS** = `1001`–`1004` at **x ≈ 523–531**, all `LocomotionChannel.Status: Success`, `1006`/`1007`
 at `Health.Current: 0`, entity count **8** *(dead bodies stay — `CE-272`)*.
 📐 **Gold after `P4`-②:** `523.10 524.91 528.32 531.23` · `523.03 525.27 528.46 531.14`.
+✅ **Gold CONFIRMED after the whole of `P4` — including the struct deletion** *(`2026-09-22`, quiet
+machine)*: `523.06 525.22 529.22 530.99`, all four `Success`, `1006`/`1007` health **0**, count **8**,
+**0** `FastBTree] Warning`, 0 exceptions. ⭐⭐ **This is the one check that could see `CE-315`'s failure
+mode** — removing `.With<BrainBlackboard>()` from `BTreeTickSystem`'s query could have made it select
+NOTHING, which is silent non-execution no unit rail detects. **The agents ticked.**
 ⭐⭐ **Also check `grep -c "FastBTree] Warning" /tmp/cluster.log` is `0`** — the zero-fallback rail's
 claim, observed on the running product.
 ⚠ **ONE TRIAL PER CLUSTER PROCESS** *(§3)*. ⚠ Always `--noproxy '*'` and the `localhost` hostname.
+
+🔴🔴 **AND RUN IT ON A QUIET MACHINE — measured `2026-09-22`, it costs a trial otherwise.**
+```bash
+ps -eo pid,comm --no-headers | awk '$2=="dotnet"{print $1}' | xargs -r kill   # BEFORE launching
+```
+📐 **The evidence:** a trial launched with **6 `dotnet` daemons alive** *(straight after building the
+ClusterRunner)* put the tanks at `524.38 527.87 532.40 532.12` — **up to +4.01 off gold**. The next
+trial, on a torn-down machine, gave `523.06 525.22 529.22 530.99` — **within 0.83**. ⇒ three quiet runs
+*(gold₁, gold₂, trial 2)* agree within **0.83**; the one loaded run deviates by **4.01**.
+⭐ **The sim advances on WALL CLOCK at `timeScale 1`**, so under load the frame deltas differ and a
+75-second integration drifts. 🔒 **The positional gold is only meaningful on an idle machine** — ⛔ a
+deviation measured under load is not evidence about the code.
 
 ---
 
