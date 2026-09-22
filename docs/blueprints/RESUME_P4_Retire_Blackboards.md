@@ -310,3 +310,54 @@ deviation measured under load is not evidence about the code.
 **ASSET SET** — *"no `.btree.json` under `Hrot.AI.Behaviors/Assets` is skipped"* — ⛔ **not** over the
 registry, which is a DERIVED collection a skipped asset never enters. ⚠ The `CE-316` stub-level rails
 pin the validator's rule; they do **not** pin the corpus.
+
+---
+
+## 7. ✅ THE FORK IS REMOVED *(`2026-09-22`)* — **and what "the fork" turned out to mean**
+
+⛔ **It could never mean the whole tree:** `Fbt.Kernel` and `Fbt.Compiler` are in the ROOT solution and
+**ship in HROT** — `Fbt.Kernel` is what `P4`-② modified. ⇒ what was removed is the **vendored upstream
+PROJECT** around them: its own `FastBTree.sln`, a duplicate source generator, examples, benchmarks,
+docs, README/CHANGELOG. ⭐ What remains is two owned libraries, a root-solution demo, and their tests.
+
+| ⭐ kept | why |
+|---|---|
+| `src/Fbt.Kernel` · `src/Fbt.Compiler` | ship in HROT |
+| `demos/Fbt.Demo.Visual` | in the root solution |
+| `tests/Fbt.Tests` *(−6 files)* | 188 passing tests of SHIPPED code |
+| `.dev-workstream/` *(31 files)* | ⛔ **design record.** *"Unreferenced is not unintentional"* — the one category never to bin |
+
+| ⛔ removed | |
+|---|---|
+| `src/Fbt.SourceGen` | 📐 **dead to HROT, confirmed three ways:** no project reference, no `OutputItemType="Analyzer"` reference, and `FbtTreeCatalog.g.cs` is emitted by **`Fdp.Toolkits.Analyzers.BTreeDefinitionGenerator`** — FDP's own copy. ⚠ The `CgfNodes.cs` comments crediting `Fbt.SourceGen` are STALE |
+| `examples/` · `benchmarks/` · `docs/` | the generator's only other consumers; benchmarks were already broken *(2 errors)* |
+| `FastBTree.sln` · README · CHANGELOG · `demos/Fbt.Demo.Visual.Tests` | the scaffolding that made it a vendored PROJECT |
+
+### 📐 THE COST, MEASURED — **not estimated**
+
+| | tests | passed | failed |
+|---|---|---|---|
+| before | **233** | 224 | **9** |
+| after | **196** | 188 | **8** |
+
+⇒ **37 tests removed, 36 of them passing.** ⚠ **The suite carried 9 PRE-EXISTING failures** before any of
+this — it was never healthy. 🔴🔴 **And it runs in NO HROT GATE: `Fbt.Tests` is not in the root
+solution**, so those 188 passing tests of shipped kernel code **execute nowhere**. ⭐ Wiring it in would
+make the coverage real, at the price of adopting 8 failures as gate failures. ⚠ **Left as a decision,
+not smuggled into this change.**
+
+### ⛔⛔ THREE WRONG INFERENCES, ALL CORRECTED BY BUILDING
+
+🔒 **The resume doc said this needed "one build, not a guess." It needed four, and every guess was wrong.**
+
+| I predicted | measured |
+|---|---|
+| `Fbt.Tests` is BROKEN by `behav-diag-1`'s `ITreeTracer` constraint | ⛔ **builds clean** — `T6.1` was done |
+| **7** generator-coupled test files | ⛔ **5** |
+| removing the generator is the whole cascade | ⛔ **`examples/` too** — `Fbt.Tests` referenced them, and `Fbt.Examples.FluentBTree.Trees.dll` was visible in its `bin` the whole time |
+
+⚠⚠ **The third is the one worth keeping.** The 199/8 figure was measured **before** `examples/` was
+deleted — ⛔ **a measurement against a tree that no longer existed**, the same shape as the stale
+ClusterRunner dll and the stale fixture registration. 🔒 **The solution build stayed green through all
+of it, because none of this is in the root solution** — ⇒ **an out-of-solution project needs its own
+explicit run; it can never ride on the solution gate.**
