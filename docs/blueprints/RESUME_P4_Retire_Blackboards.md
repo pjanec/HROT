@@ -6,23 +6,25 @@ updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30;
   §30.18 is the slice table, and §30.22..§30.27 are the as-built (they SUPERSEDE parts of §30.14,
   §30.15 and §30.18 — read them before quoting any of those).
-current-answer: ✅ **`P4` IS COMPLETE — `BrainBlackboard` IS DELETED (§30.28).** Nothing in this
-  document is a to-do any more; it is now a RECORD plus two follow-ups that belong to no slice:
-  `CE-317` (§30.28 ① — 🔴 RAISED: the running cluster's GET /entities publishes `BrainBlackboard` as
-  a PHANTOM COMPONENT, because the entity component list is built from translator DOM keys) and the
-  FORK decision (§5).
-  ✅ **CLUSTER ACCEPTANCE PASSED after the whole of P4** (§4) — `523.06 525.22 529.22 530.99`, all
-  Success, 0 FastBTree warnings. ⚠ Run it on a QUIET machine; §4 says why.
-  ⭐ All five slices done: `P4`-④ = `CE-307` §30.25 · `CE-316` §30.26 · `CE-314` §30.27 ·
-  `CE-315` closed with the tick-query gate. ⭐ §3 is the part worth reading — the traps are the
-  reusable half. §4 gates + the cluster harness. ⚠ §4's Blueprints row carries a RETRACTED claim;
-  read it before quoting any skip count from this file.
+current-answer: 🔒 **NOTHING HERE IS A TO-DO. `P4` IS CLOSED AND SO IS EVERYTHING IT SPAWNED.**
+  ⛔ Do not resume FROM this file — it is a RECORD. ⭐⭐ **A fresh session wanting the next piece of
+  work goes to `RESUME_Occurrence_Storage.md`; the open row there is `O7c`** (delete `BrainHsm64`/
+  `BrainHsm128`, move the ROOT brain state into occurrence slots, `F9`'s tick-system reshape —
+  188 refs across 18 production files, rated L).
+  ✅ All five slices + all four follow-ups: `P4`-④ = `CE-307` §30.25 · `CE-316` §30.26 ·
+  `CE-314` §30.27 · struct deleted §30.28 · `CE-315` closed with the tick-query gate ·
+  `CE-317` done (the phantom component) · the vendored fork removed (§7).
+  ✅ **CLUSTER ACCEPTANCE PASSED on the running product after the WHOLE of `P4`** (§4) —
+  `523.06 525.22 529.22 530.99`, all Success, 0 FastBTree warnings. ⚠ QUIET MACHINE; §4 says why.
+  ⭐⭐ **THE REUSABLE HALF IS §3 (traps) AND §7's inference table.** ⚠ §4's Blueprints row carries a
+  RETRACTED claim — read it before quoting any skip count from this file.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the slice table · §30.20 P4-① · §30.21 P4-②
     (the zero-fallback rail) · §30.22 CE-312 · §30.23 CE-308 · §30.24 CE-313 · §30.25 CE-307 ·
     §30.26 CE-316 · §30.27 CE-314 · §30.28 the struct deletion. It wins on any disagreement here.
   - RESUME_Occurrence_Storage.md — the PROGRAMME-level resume (P0–P4).
-  - Blueprint_Issues_Tracker.md — CE-303 + CE-317 open; CE-307, CE-308, CE-310..CE-316 DONE.
+  - Blueprint_Issues_Tracker.md — CE-303 and CE-307..CE-317 ALL DONE (CE-303 closed 2026-09-22,
+    structurally: the type is gone, so no identity-keyed surface could have survived a compile).
 -->
 
 # RESUME — `P4`: retire `BrainBlackboard` and `Blackboard1024`
@@ -279,7 +281,7 @@ deviation measured under load is not evidence about the code.
 
 | | |
 |---|---|
-| 🔴 **THE FORK DECISION — awaiting the user** | 🔒 User: *"The vendored fork can be removed"* — ⚠ **given before this measurement.** 📐 `Fbt.SourceGen` is referenced by **3** projects in `FastBTree.sln`: 2 examples and **`Fbt.Tests`**. Of `Fbt.Tests`' 33 unit files, **7** touch the generator *(useless to HROT — it has its own)*; **~26 test `Fbt.Kernel`/`Fbt.Compiler`, which ARE in the root solution and ship in HROT** — and `Fbt.Kernel` is what `P4`-② modified. ⭐ **Lean: delete the generator + its 7 tests + the 2 examples, KEEP the kernel/compiler tests.** ⚠ `SampleTreeDefinitions.cs` is a SHARED fixture using `[BTreeDefinition]`, so whether the kernel tests survive needs **one build**, not a guess. 🔒 **User also ruled: *"in extdeps btree there should be nothing from fdp"*** ⇒ ⛔ **"sync the fork with the analyzer copies" is WITHDRAWN** — it would push FDP *into* a vendored library |
+| ✅ **THE FORK — REMOVED `2026-09-22`** | 📄 **§7 is the as-built.** ⛔⛔ **AND THIS ROW'S OWN MEASUREMENTS WERE WRONG — all three, corrected by building:** it said *"7 touch the generator"* *(it is **5**, plus `SampleProjectTests` via `examples/`)*; it implied `Fbt.Tests` would need fixing for `behav-diag-1`'s `ITreeTracer` constraint *(it **builds clean** — `T6.1` was done)*; and it framed the cascade as generator-only *(**`examples/` too** — `Fbt.Tests` referenced them)*. ⭐ It DID get the important thing right: *"needs **one build**, not a guess."* ⚠ It needed **four**. 📐 Final cost: **233 → 196 tests, 224 → 188 passing**, against **9 pre-existing failures** in a suite that runs in **no HROT gate** |
 | ✅ **`G4` — CLOSED** | `Idle` registers with no `ParseParams`, no `BlackboardLayoutType`, no manifest ⇒ `RootParamsBytes` = **0** |
 | ✅ **`G5` — ANSWERED, and LATENT** | `subBb` is **`master.{VarName}`** — a *field* of the master struct, so orchestration needs a struct, not `byte`. `BTreeOrchestratorEmitCore:108` types `master` on the **asset's** type *(not `byte`)*, which is why the solution builds. 📐 **Zero** generated `HostedSubtree.Tick` sites ⇒ nothing orchestrates today. ⚠ §2 ③ would trip it |
 | ✅ **`BehaviorValidationScenario` excluded from the BTree tick** | **FILED as `CE-315`** `2026-09-22`. ⭐ Closes for free when §2 ② deletes the struct; filed separately because the scenario is wrong TODAY and the lesson is its own: **dead storage used as a QUERY PREDICATE fails as silent NON-EXECUTION**, which no value-asserting rail can see |

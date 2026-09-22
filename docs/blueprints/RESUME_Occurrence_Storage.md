@@ -3,13 +3,35 @@ state: LIVE
 doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE-SCOPED STORAGE.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-21
+updated: 2026-09-22
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VALIDATED on a live
+current-answer: ✅✅✅ P4 IS COMPLETE (2026-09-22) — AND WITH IT THE WHOLE P0–P4 PATH.
+  `BrainBlackboard` and `Blackboard1024` ARE DELETED. Root params live in an occurrence slot;
+  `GlobalComponentIds` 23 is burned as `BrainBlackboard_RESERVED` and never reused.
+  ⭐⭐ READ §0c — its table is now a RECORD of a finished path, and the section directly under
+  it names WHAT IS NEXT. ⛔ RESUME_P4_Retire_Blackboards.md is CLOSED: a record, not a to-do.
+  ⭐⭐⭐ THE NEXT OPEN ROW IS `O7c` (E4 in PLAN_Occurrence_Storage_Build.md) — delete
+  `BrainHsm64`/`BrainHsm128`, move the root HSM instance into occurrence slots, and reshape
+  `HsmTickSystem`'s entity discovery (`F9`). Rated 🔴 L: 188 references / 18 production files.
+  Design: DESIGN_Occurrence_Scoped_Storage.md §22 (the O7 slice table) and §9.4.
+  ⚠ O7c has a PRE-CONDITION worth reading before starting: with `BrainHsm*` gone the HSM tick
+  query loses its root component, so discovery takes BlueprintTickSystem's shape — PLAN's D2 row
+  prices this, and it is the part that is L, not the deletion.
+  📐 VERIFIED ON THE RUNNING PRODUCT, not just on gates: `hill-attack-close --mode all` PASSED
+  after the deletion (523.06 525.22 529.22 530.99 vs gold, max drift 0.83; all Success, health 0/0,
+  count 8, zero FastBTree warnings). ⚠ RUN IT ON A QUIET MACHINE — trial 1 drifted and the cause
+  was 6 competing dotnet daemons, NOT the change: the scenario is a WALL-CLOCK sim at timeScale 1.
+  ✅ EVERYTHING P4 SPAWNED IS ALSO CLOSED: CE-307 (the shadow buffer sized on the retired
+  component's width) · CE-314 (the bin packer's dead heavy-spill tier) · CE-315 (a `.With<>()` gate
+  that silently stopped an agent ticking) · CE-316 (the validator keyed on what the ASSET declares
+  instead of what the EMITTER writes) · CE-317 (a live diagnostic wearing a retired component's
+  name) · CE-303 (all six identity-keyed surfaces — closed STRUCTURALLY: the type is gone, so none
+  could have survived a compile). The vendored FastBTree fork under FDP/ExtDeps is REMOVED.
+  ⛔ STILL OPEN elsewhere: CE-300, CE-301 (the root-slot offset cache, with its measurements).
+  ⛔ CE-295 is filed and must NOT be fixed.
+  (previous head) ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VALIDATED on a live
   cluster (2/2 gold). P4 is UNPARKED. READ §0c for the path.
-  ⭐⭐ BUILDING P4? GO TO RESUME_P4_Retire_Blackboards.md — it is the build resumption
-  (four slices, traps, gate baselines, the acceptance harness). This doc stays the PROGRAMME
-  view P0–P4; ⛔ do not run P4 from §0c alone, it predates the 2026-09-22 re-scope. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
+  (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
   "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
   (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
   standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
@@ -178,8 +200,12 @@ current-answer: ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VAL
   §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
   list, and it is the section most worth two minutes — sixteen of these were MY errors, three of
   which reached a pushed document before being caught.
-stale-below: §3's body still reads as a B4 briefing; its CONSTRAINTS table remains accurate
-  and its re-measure-after-O4 warning still binds, but B4 itself is DONE (§1).
+stale-below: ⛔ EVERYTHING BELOW §0c IS HISTORY AS OF 2026-09-22 — true, dated, and NOT a
+  to-do list. Specifically: §3 still reads as a `B4` briefing (B4 is DONE, §1) — its CONSTRAINTS
+  table and its re-measure-after-O4 warning still bind, its "NEXT ACTION" heading does not;
+  §0b's "next slice" line is superseded by §0c; §0a's "THE NEXT TASK is Q43" is superseded twice
+  over. ⭐ The ONE live pointer in this file is §0c's "THE NEXT OPEN ROW — O7c".
+  ⭐ §2 (grounded facts) and §5 (the traps) are the sections still worth reading in full.
 known-rot: nothing.
 known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
   programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
@@ -189,7 +215,9 @@ known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (20
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. Start at its §16.
   - PLAN_Occurrence_Storage_Build.md — ⭐ THE TASK BREAKDOWN. 14 tasks, 5 increments.
-  - Blueprint_Issues_Tracker.md — CE-295 (open), CE-296 (refuted). Area F.
+  - Blueprint_Issues_Tracker.md — CE-295 (open, ⛔ must NOT be fixed), CE-296 (refuted),
+    CE-300/CE-301 (open), CE-303 + CE-307..CE-317 (ALL DONE 2026-09-22). Area F.
+  - RESUME_P4_Retire_Blackboards.md — the P4 build record. ⛔ CLOSED; do not resume from it.
   - Architect_Question_37_Unify_On_The_Allocator.md — the owning question.
   - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden test. §2.1 is load-bearing.
 -->
@@ -200,8 +228,9 @@ RELEARN
 
 > ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
 > 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
-> ⭐ **Nothing is half-finished.** `A1`, `A2`, `A3` and `A4` are committed, pushed and green; the tree
-> is clean. **Increment A is COMPLETE; `B1` and `B2` have landed.** §3 says what is next.
+> ⭐ **Nothing is half-finished.** ⛔ **`§3` no longer says what is next — it is a `B4` briefing and
+> `B4` shipped.** ⭐⭐ **Go to §0c**: the `P0`–`P4` path is COMPLETE *(`2026-09-22`)* and the section
+> names the next open row, **`O7c`**.
 
 ## 0b. ⭐⭐⭐ LATEST — **`Q43` slice ① LANDED `2026-09-21`** *(read this before §0a)*
 
@@ -355,7 +384,12 @@ and ours are `CE-`. Do not quote it as evidence for them.
 
 ⚠ **§0c below is still the right PATH** — it is simply blocked at its last step.
 
-## 0c. ⭐⭐⭐ THE PATH `P0`–`P4` — **RESUME HERE** *(`2026-09-21`, late; supersedes §0b's "next slice")*
+## 0c. ✅✅✅ THE PATH `P0`–`P4` — **COMPLETE `2026-09-22`** *(a RECORD; the NEXT action is below the table)*
+
+> 🔒 **The goal is MET.** `BrainBlackboard` is deleted, `Blackboard1024` with it, and root params
+> live in an occurrence slot. ⛔ **Nothing in this section is a to-do** — it is kept because its
+> SETTLED and TRAPS tables below are still load-bearing for `O7c`, which moves the NEXT thing
+> into slots and will meet the same shapes.
 
 > 🔒 **The goal, in the user's words:** retire `BrainBlackboard` — *"we will retire it unless we find a
 > true need and do not see any. Being part of ABI is no reason, ABI can and must change."*
@@ -369,17 +403,27 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | `P0` | ✅ rail `O7_R36` — the seam carries a hand-authored resolver's values to two regions |
 | `P1` | ✅ rail `O7_R37` + golden `HsmTwoRegionParamsDemo` *(corpus 46 → 47)* — a REAL emitted blueprint action, two regions, own params each |
 | `P2` | ✅ **`BP-297` CLOSED** — `HsmTwoRegionCuratedNodes` authored, `EmitSharedAiActionThunk` converted, rail `O7_R38`, baseline moved |
-| `P3` | ⚠ **STEPS 1-2 ONLY, BOTH ADDITIVE** — the key + `RootParamsAccess`, and ingress now ALSO fills a root params slot. ⛔ The blackboard commit **still runs**; nothing has changed behaviourally |
-| `P4` | ⭐ **DESIGNED `2026-09-22`, not started** — 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§30** *(three slices, UML, acceptance)*. ⭐⭐ Re-scoped on two user rulings: `TBlackboard` is **bound to `byte`** *(no FastBTree change)* and StructEdit **takes an offset** *(no new view API)* ⇒ **both `ExtDeps` changes are gone** |
+| `P3` | ✅ **ALL THREE STEPS** — the key + `RootParamsAccess`; every params reader re-anchored; and `P3-C`'s clean cut landed *(the ingress memcpy is gone)*. ⚠ The cut spawned `CE-304`, found by BISECTION against the cluster gold, not by any unit rail |
+| `P4` | ✅ **BUILT AND ACCEPTED `2026-09-22`** — 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§30** *(§30.25–§30.28 are the as-built)*. Five slices; the struct, `Blackboard1024`, the 100-byte cap and the `ActionRegistry<…>` type parameter are all gone. Verified by `hill-attack-close --mode all` on the live cluster, not by gates alone |
 
-### ⛔⛔ THE EXACT NEXT ACTION, in order
+### ✅ WHAT THOSE FOUR STEPS TURNED OUT TO BE — **all done; kept for the two corrections they carry**
 
 | # | | |
 |---|---|---|
-| **1** | **`CE-302`** — make `HostedOccurrenceDemandCalculator` reserve **+1 slot + the params extent** | ⛔ **MUST land before the cut.** Today a behaviour at its slot ceiling just gets `null` and keeps using the blackboard; after the cut that is a hard failure |
-| **2** | **re-anchor the readers** — `bb.BehaviorParameters[0] + X` → `rootSlotBase + X`. ⛔ **No offset arithmetic changes** | `BTreeActionGenerator.cs:700,713,730` · `AiPrimitiveEmitter.cs:461`(seed) `:607`(host ptr) · `JoinFormationExecutor.cs:88` · `PredicateCompiler.cs:354` · the **7 UI readers** |
-| **3** | **the clean cut** — delete the ingress memcpy at `BehaviorIngressSystem.cs:112-119` | ⭐ **`P3-C`, user-approved.** Steps 2+3 land TOGETHER — cutting first blanks every params reader |
-| **4** | **`P4`** — delete `BrainBlackboard`, drop the `ActionRegistry<…>` type parameter, drop 4 vestigial `ref BrainBlackboard` parameters | 📐 no hand-written body changes semantically |
+| **1** | **`CE-302`** — the tier-demand bump | ✅ DONE `2026-09-21`, and it was **THREE fixes, not one**: the demand bump, a LIVE defect *(the root slot attached with `OccurrenceKind.Hsm` above `DetachHostedOccurrenceSlots`, so it was created and destroyed in the same call on every HSM brain)*, and a BTree-only slot LEAK on re-assign |
+| **2** | **re-anchor the readers** | ✅ DONE. ⛔⛔ **THE SET WAS INCOMPLETE AS WRITTEN** — `BTreeActionGenerator.cs:655` was missed and became **`CE-304`**, which no unit rail caught: it showed up only as cluster-gold drift and was found by BISECTION. 🔒 The lesson is `P4`'s and it generalises: **an enumeration written into a plan is a snapshot, and re-anchoring is exactly the job where one missed site is silent** |
+| **3** | **the clean cut** | ✅ DONE *(`3d4547a8d`)*. Steps 2+3 landed together, as designed |
+| **4** | **`P4`** — delete the struct | ✅ DONE, and it spawned **five** further rows *(`CE-307`, `CE-314`–`CE-317`)*, all closed. ⚠ *"no hand-written body changes semantically"* held, but the row under-priced the **surfaces keyed on the component's IDENTITY** — that is `CE-303`, which went `2 → 3 → 6` |
+
+### ⭐⭐⭐ THE NEXT OPEN ROW — **`O7c`** *(`E4` in the plan)*
+
+| | |
+|---|---|
+| **what** | delete `BrainHsm64`/`BrainHsm128`; the HSM instance moves into an occurrence slot; `HsmTickSystem` gains entity discovery across the tier components *(`F9`)*; `HsmDebugSession` becomes a list *(design §11.3)* |
+| **where** | 📄 `PLAN_Occurrence_Storage_Build.md` row **`E4`** · 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§22** *(the `O7` slice table)* and **§9.4** *("the tier stops being a TYPE and becomes a PAYLOAD SIZE" — this is where that lands)* |
+| **size** | 🔴 **L — 188 references across 18 production files** |
+| ⚠ **the part that is actually L** | ⛔ **not the deletion — the DISCOVERY.** With `BrainHsm*` gone the tick query loses its root component and must take `BlueprintTickSystem`'s shape; PLAN's `D2` row prices per-tick discovery across archetypes and says so explicitly |
+| 🔒 **the rule this programme earned, and `O7c` is its next test** | **before moving ANY state into an occurrence slot, name what will PROVISION the slot and what will WRITE its contents. If either answer is "nothing", it is a REGRESSION, not a migration.** *(measured 3× in 2 days)* |
 
 ### ⭐⭐ SETTLED — **do not re-litigate**
 
