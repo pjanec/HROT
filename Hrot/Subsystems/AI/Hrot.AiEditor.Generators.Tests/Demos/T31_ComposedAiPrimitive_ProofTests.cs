@@ -45,7 +45,6 @@ public sealed class T31_ComposedAiPrimitive_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
@@ -74,7 +73,6 @@ public sealed class T31_ComposedAiPrimitive_ProofTests : IDisposable
         var world  = CreateWorld();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         // Assign → BehaviorIngressSystem parses params (RunsNeeded=3) and provisions the slot.

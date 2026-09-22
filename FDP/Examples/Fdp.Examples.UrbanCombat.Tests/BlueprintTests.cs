@@ -178,7 +178,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new WeaponChannel());
             _app.World.AddComponent(e, new TargetMemory { Count = 0 }); // no target
 
-            var blackboard = new BrainBlackboard();
+            byte blackboard = 0;   // P4: the node takes `ref byte` — the root params slot base
             var state      = new BehaviorTreeState();
             var ctx        = new BTreeContext { Self = e, World = _app.World };
 
@@ -202,7 +202,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new WeaponChannel());
             _app.World.AddComponent(e, new TargetMemory { Count = 1 }); // target acquired
 
-            var blackboard = new BrainBlackboard();
+            byte blackboard = 0;   // P4: the node takes `ref byte` — the root params slot base
             var state      = new BehaviorTreeState();
             var ctx        = new BTreeContext { Self = e, World = _app.World };
 
@@ -297,7 +297,6 @@ namespace Fdp.Examples.UrbanCombat.Tests
             var world = new EntityRepository();
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainHsm128>();
-            world.RegisterComponent<BrainBlackboard>();
             return world;
         }
 
@@ -321,7 +320,6 @@ namespace Fdp.Examples.UrbanCombat.Tests
                 ActiveBehaviorHash = docId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
-            world.AddComponent(e, new BrainBlackboard());
             return e;
         }
     }

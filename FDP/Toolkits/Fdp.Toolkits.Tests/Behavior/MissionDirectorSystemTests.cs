@@ -29,7 +29,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<Health>();
             _world.RegisterComponent<BrainBTreeState>();
-            _world.RegisterComponent<BrainBlackboard>();
 
             _sys = new MissionDirectorSystem();
 
@@ -474,13 +473,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             const int DocA = 1500;
 
             // Build world with BrainBlackboard so BehaviorIngressSystem can process.
-            _world.RegisterComponent<BrainBlackboard>();
 
             var registry   = new BehaviorRegistry();
             var ingressSys = new BehaviorIngressSystem(registry);
 
             var entity = CreateBehaviorFinishedEntity(DocA);
-            _world.AddComponent(entity, new BrainBlackboard());
 
             // Frame 1: MissionDirector consumes BehaviorFinishedEvent → publishes ClearBehaviorEvent.
             PublishBehaviorFinished(entity);

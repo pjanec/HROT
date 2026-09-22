@@ -475,7 +475,6 @@ namespace Hrot.SimHost.Tests
 
             var tank = repo.CreateEntity();
             repo.AddComponent(tank, new BehaviorState());
-            repo.AddComponent(tank, new BrainBlackboard());
             repo.AddComponent(tank, new BrainBTreeState());
             repo.AddComponent(tank, new LocomotionChannel());
 
@@ -1465,7 +1464,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -1761,7 +1759,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             // PickableGeoPoint uses [latitude, longitude]. FiringLineStart = lat 2, lon 7.
             const string json =

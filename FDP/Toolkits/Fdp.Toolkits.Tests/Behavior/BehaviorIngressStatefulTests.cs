@@ -105,7 +105,6 @@ public sealed unsafe class BehaviorIngressStatefulTests
         // Pre-condition: entity with BlueprintBlackboard1024 carrying an existing slot.
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
         world.AddComponent(entity, new BlueprintBlackboard1024());
 
@@ -214,7 +213,6 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         // Build a manifest with 3 distinct slots.
@@ -311,7 +309,6 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         var assetId = Guid.NewGuid();
@@ -357,7 +354,6 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         var assetA = Guid.NewGuid();

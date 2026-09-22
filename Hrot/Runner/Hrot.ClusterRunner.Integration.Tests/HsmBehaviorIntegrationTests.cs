@@ -26,7 +26,6 @@ namespace Hrot.ClusterRunner.Integration.Tests
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
@@ -140,7 +139,6 @@ namespace Hrot.ClusterRunner.Integration.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });

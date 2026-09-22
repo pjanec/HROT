@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Behavior
     /// a behaviour blackboard's inline memory — zero allocation, no boxing.
     /// </summary>
     /// <param name="json">Serialised parameter payload (cold path only).</param>
-    /// <param name="memory">Pointer to the first byte of <see cref="BrainBlackboard.BehaviorParameters"/>.</param>
+    /// <param name="memory">Pointer to the first byte of <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).</param>
     /// <summary>
     /// Cold-path resolver: parses the authored JSON parameter payload into the behavior's
     /// runtime params region, and may post-process it using world context — geographic transform,
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Behavior
     public unsafe delegate void ParseParamsDelegate(
         string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
 
-    /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
+    /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
     /// <summary>
@@ -156,7 +156,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
-        /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).  May be <c>null</c> if the behavior
         /// carries no configurable parameters.
         /// <para>
         /// Settable (not <c>init</c>-only) so the registry can bind a <b>named resolver</b> to a
@@ -203,7 +203,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// 🔒 <b>ENGINE-INTERNAL.</b> The blittable struct laid out at the start of
-        /// <see cref="BrainBlackboard.BehaviorParameters"/>. Consumers project it <b>over raw
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>). Consumers project it <b>over raw
         /// blackboard bytes</b> (<c>Marshal.PtrToStructure</c> / <c>Unsafe.As</c>), so its field order
         /// and packing are load-bearing and the type must be unmanaged.
         ///
@@ -215,8 +215,9 @@ namespace Fdp.Toolkit.Behavior
         /// <c>CE-235</c> split the two members so the mistake cannot be made silently again.
         /// </para>
         ///
-        /// <para>Readers: <c>BrainBlackboardTranslator</c>, <c>BrainBlackboardRenderer</c>,
-        /// <c>BrainBlackboardViewProvider</c>/<c>BlackboardReflection</c> (StructEdit) and the
+        /// <para>Readers: <c>BrainBlackboardTranslator</c> (⚠ a historical NAME — it reads the root
+        /// params slot, §30.28), <c>RootParamsProjection</c>/<c>RootParamsViewProvider</c> (StructEdit,
+        /// <c>CE-312</c>) and the
         /// ReplayBrowser predicate compiler + its two field drawers.</para>
         /// </summary>
         public Type? BlackboardLayoutType { get; set; }
@@ -232,7 +233,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// For managed-blackboard BTree assets: ordered list of packed variables,
-        /// each at its bin-packed ByteOffset. Used by BrainBlackboardRenderer to
+        /// each at its bin-packed ByteOffset. Used by RootParamsProjection (CE-312) to
         /// project each DTO at its own offset instead of only reading offset 0.
         /// Null for non-managed or HSM behaviors.
         /// </summary>

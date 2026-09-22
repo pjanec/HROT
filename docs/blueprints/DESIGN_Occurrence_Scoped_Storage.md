@@ -5522,3 +5522,71 @@ carried as a comment instead, nothing would have announced that the gap had clos
 
 ⚠ **`heavyBudget` / `requiresHeavyComponent` are asserted ABSENT** in `PanelGoldenRails` rather than
 simply dropped, so a revival is caught. ⛔ `T3`, so it does not gate here.
+
+---
+
+### 30.28 ⭐⭐⭐ `P4` §2 ② — **`BrainBlackboard` IS DELETED** *(`2026-09-22`)*
+
+⭐ **The last slice of `P4`.** Two moves had already emptied the component: `O2` split the entity-fact
+tail into `BrainInterrupts`, and `P3-C` moved the params into the root occurrence slot. ⇒ what was
+deleted here is a component **nothing had filled for a month**.
+
+#### 📐 ① THE SURFACE — **26 production lines, 18 files, and only 13 were code**
+
+| deleted | |
+|---|---|
+| the struct + `BehaviorConstants.BrainBlackboardByteSize` | ⚠ `CE-307` had already taken the constant's OTHER consumer (the parse shadow); the `[StructLayout(Size=…)]` was its last reader |
+| 🔴 `BTreeTickSystem`'s `.With<BrainBlackboard>()` | **`CE-315`** — see ③ |
+| `BehaviorTkbTranslator`'s declare + attach | the ONE site that attached it, and it attached an **empty** one |
+| 4 registration sites · the `HrotRoleComponentSets` read-bit | ⭐ replicating a permanently-zero region to every brain node |
+| `GlobalComponentIds.BrainBlackboard` → **`BrainBlackboard_RESERVED`** | ⛔ id **23** is never reused — same rule `P4`-① applied to 74 |
+
+⭐ **KEPT, deliberately: `BrainBlackboardTranslator`.** 🔴 It has not touched the component since
+`P3-C` — `P4`-③ re-keyed it to `BehaviorState` + `BrainInterrupts` + the root slot — so what it
+produces is a **live, wanted diagnostic dump** wearing a stale name. ⛔ Deleting it with the component
+would have been the classic misclassification: 🔒 **a surface whose NAME went stale is not a dead
+surface.** ⚠ Renaming it and its `"BrainBlackboard"` DOM key changes a diagnostic output contract that
+scenario files already carry ⇒ **`CE-317`**, not a rider here.
+
+#### ⚠ ② THE TEST SURFACE — **measured, because `HN-037` says a deletion is not "mechanical" until it is**
+
+📐 **196 test references.** ⭐ **All 30 `BrainBlackboard.BehaviorParameters` usages turned out to be
+COMMENTS**, and most of the rest were `AddComponent`/`RegisterComponent` lines or **string literals**
+(`BlackboardTypeName = "…BrainBlackboard"`) that never referenced the type at all. ⇒ **112 lines across
+43 files deleted mechanically; 5 compile errors left**, each needing judgement:
+
+| site | call |
+|---|---|
+| `FdpAutoSerializerFixedBufferTests` | ⭐⭐ **RE-HOMED, not deleted** — the claim under test is the serializer's `DataPolicy.NoScenario` exclusion; the retired component was only its FIXTURE. Retargeted onto `BehaviorState`, which carries the same attribute. 🔒 `CE-314`'s lesson, applied again |
+| `SharedAiAdapterCompilesTests` | the type was only a handle on an ASSEMBLY for Roslyn references ⇒ any type in it does |
+| `CognitiveRuntimeModuleTests` | one `SetAuthority` line |
+| 🔴 `LiveBlackboardValueProviderTests` | see ④ |
+
+🔴🔴 **AND THE SCRIPTED SWEEP CREATED ONE DEFECT, which is why the rule to check exists.** Deleting an
+`AddComponent` line that was an **unbraced `if` body** left `BlueprintTestFixture` with a dangling
+`if` swallowing the next statement — `EnsureOccurrenceStore` would have run only when the component was
+ABSENT. ⭐ Found by diffing for deleted lines preceded by a control statement; **exactly one site**.
+🔒 *"Always check what a scripted edit did to the line ABOVE."*
+
+#### 🔴 ③ `CE-315` — **dead storage as a QUERY PREDICATE**
+
+`BTreeTickSystem` gated on `.With<BrainBlackboard>()`. ⚠ Redundant in production — the translator added
+it unconditionally — ⛔ **but `BehaviorValidationScenario` only REGISTERED it and never attached it**,
+so that example's agent was silently **excluded from the BTree tick entirely**. 🔒 **The fourth
+dead-storage shape, and the only one that fails as NON-EXECUTION**: no rail asserting VALUES can see it,
+because the code never runs to produce a wrong one.
+
+#### 🔴🔴 ④ WHAT THE DELETION EXPOSED — **a suite that had been feeding a channel nothing read**
+
+`LiveBlackboardValueProviderTests` handed its fake session a `BrainBlackboard` and asserted **positive**
+formatted values. ⛔ But `LiveBlackboardValueProvider` has reached params through
+`RootParamsProjection.TryCopyRootParams` — the root slot — since `P3-C`, and **never asks a session for
+that component**. ⇒ the fixture was inert and the assertion could not have been doing its job.
+
+⭐ **Fixed properly rather than deleted:** the fake now supplies a **boxed tier component holding a real
+occurrence store**, with the behaviour's root params slot attached and the DTO written into it — which
+works because `RootParamsProjection` **pins** the component the session hands back, so genuine store
+bytes need no world. ⇒ a positive rail that means something.
+
+⚠ **This is the same shape as `CE-312` and `CE-316` a third time:** the surface moved, the test's
+fixture did not, and nothing failed loudly enough to notice.

@@ -18,7 +18,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Set both interrupt fields.

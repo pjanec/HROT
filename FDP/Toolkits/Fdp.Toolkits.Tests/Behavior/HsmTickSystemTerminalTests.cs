@@ -258,7 +258,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Signal interrupt: set Interrupt_MobilityLost.
@@ -292,7 +291,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             var sys = new HsmTickSystem<BrainHsm64>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
             // byte 126 is 0 by default.
 

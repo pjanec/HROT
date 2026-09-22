@@ -55,27 +55,24 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte Value;
     }
 
-    [StructLayout(LayoutKind.Explicit, Size = BehaviorConstants.BrainBlackboardByteSize)]
-    [ComponentId(GlobalComponentIds.BrainBlackboard)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct BrainBlackboard
-    {
-        /// <summary>
-        /// Polymorphic behavior parameter payload at the start of the blackboard.
-        /// AI developers project their specific DTO (e.g. <c>FireAtTargetParams</c>) onto
-        /// this region using <c>Unsafe.As</c>.  Must not exceed
-        /// <see cref="BehaviorConstants.MaxBehaviorParamByteSize"/> bytes.
-        /// </summary>
-        [FieldOffset(0)]
-        public fixed byte BehaviorParameters[BehaviorConstants.MaxBehaviorParamByteSize];
-
-        // ⛔⛔ THE TAIL MOVED OUT — `O2` (2026-09-20). ExpectedThreatLevel and the two interrupt
-        //   registers now live in BrainInterrupts. They are ENTITY FACTS: one per entity, true
-        //   regardless of which behaviour is running — whereas everything above is per-occurrence
-        //   behaviour params. Keeping them in one struct meant BehaviorIngressSystem's transactional
-        //   parse shadow-copied the interrupts along with the params on every behaviour switch.
-        // 📄 R-41 (bytes 126/127) and R-39 (the param-region size) are updated in RULINGS.md.
-    }
+    // ⛔⛔⛔ `BrainBlackboard` IS DELETED — `P4` (2026-09-22). 📄 §30.28.
+    //
+    //   It was a 100-byte Explicit-layout component whose whole payload was `BehaviorParameters`, a
+    //   region every AI action projected its DTO onto with `Unsafe.As`. Two moves emptied it:
+    //     · `O2` (2026-09-20) split the entity-fact tail — ExpectedThreatLevel and the two interrupt
+    //       registers — into `BrainInterrupts`, because those are true of the ENTITY regardless of
+    //       which behaviour runs, and the transactional parse was shadow-copying them on every switch;
+    //     · `P3-C` (2026-09-21) moved the params themselves into the entity's ROOT PARAMS OCCURRENCE
+    //       SLOT, sized to the behaviour and promoted up the tier ladder.
+    //
+    //   🔴 After that nothing FILLED it, and nothing noticed for a month: `BehaviorTkbTranslator`
+    //   still attached an EMPTY one, four debug surfaces rendered its permanent zeros as data, and
+    //   StructEdit bound EDITABLE fields to them (`CE-312`). ⚠ It also gated `BTreeTickSystem`'s
+    //   query, silently excluding an example scenario's agent from ticking at all (`CE-315`).
+    //
+    //   ⭐ Reading params now goes through `RootParamsAccess` — one seam, which is what stopped the
+    //   six independent re-spellings this component's raw region invited.
+    //   ⛔ Component id 23 stays RESERVED in GlobalComponentIds; do not reuse it.
 
     /// <summary>
     /// ⭐⭐ <b>Per-entity cognitive facts — <c>O2</c>'s half of the <c>BrainBlackboard</c> split.</b>

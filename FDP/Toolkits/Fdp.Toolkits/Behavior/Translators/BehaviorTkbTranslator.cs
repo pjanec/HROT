@@ -43,7 +43,6 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(PassengerBuffer);
             yield return typeof(BrainBTreeState);
             yield return typeof(BrainHsm128);
-            yield return typeof(BrainBlackboard);
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -122,14 +121,17 @@ namespace Fdp.Toolkit.Behavior.Translators
                     repo.AddComponent(entity, new BrainHsm128());
             }
 
-            if (repo.IsComponentTypeRegistered<BrainBlackboard>() && !repo.HasComponent<BrainBlackboard>(entity))
-                repo.AddComponent(entity, new BrainBlackboard());
+            // ⛔⛔ P4 §2 ② (2026-09-22) — THE BrainBlackboard ATTACH IS GONE WITH THE COMPONENT.
+            //   🔴 This was the ONLY site that attached it, and it attached an EMPTY one: nothing had
+            //   filled BehaviorParameters since P3-C moved params to the root occurrence slot, so four
+            //   debug surfaces rendered a permanently-zero region and StructEdit bound editable fields
+            //   to it (CE-312). ⚠ Its absence is also what un-gates BTreeTickSystem's query (CE-315).
 
-            // ⭐⭐ O2 (2026-09-20) — the entity-fact tail rides the SAME fact as the blackboard:
-            //   "this template has a brain". ⛔ Hooked here, beside the blackboard, rather than at a
-            //   consumer — B1 learned that hooking a path instead of the fact leaves the component
-            //   missing wherever a second path exists. This is the one production site that gives an
-            //   entity a brain, and the guard mirrors the line above exactly.
+            // ⭐⭐ O2 (2026-09-20) — the entity-fact tail rides the fact that USED to carry the
+            //   blackboard: "this template has a brain". ⛔ Hooked here rather than at a consumer —
+            //   B1 learned that hooking a path instead of the fact leaves the component missing
+            //   wherever a second path exists. This is the one production site that gives an entity a
+            //   brain. ⚠ It now stands alone; the line it used to mirror is deleted above.
             if (repo.IsComponentTypeRegistered<BrainInterrupts>() && !repo.HasComponent<BrainInterrupts>(entity))
                 repo.AddComponent(entity, new BrainInterrupts());
         }

@@ -183,7 +183,9 @@ namespace Probe
 
             foreach (var t in new[]
                      {
-                         typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard),
+                         // ⚠ Only the ASSEMBLY matters here (Roslyn metadata references), not the
+                         //   type. Was BrainBlackboard, retired by P4; BehaviorState is the same assembly.
+                         typeof(Fdp.Toolkit.Behavior.Components.BehaviorState),
                          typeof(Fdp.Toolkit.Behavior.BTreeContext),
                          typeof(Fdp.Core.Entity),
                          typeof(Fbt.NodeStatus),

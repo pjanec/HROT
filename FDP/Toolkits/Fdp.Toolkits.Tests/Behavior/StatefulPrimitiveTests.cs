@@ -81,7 +81,6 @@ public sealed unsafe class StatefulPrimitiveTests
 
         var world = CreateWorld();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BlueprintBlackboard1024());
         world.AddComponent(entity, new BehaviorState());
 
@@ -202,7 +201,6 @@ public sealed unsafe class StatefulPrimitiveTests
 
         var world = CreateWorld();
         var entity = world.CreateEntity();
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BlueprintBlackboard1024());
         world.AddComponent(entity, new BehaviorState());
 

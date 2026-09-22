@@ -37,31 +37,31 @@ namespace Fdp.Toolkit.Behavior
         public const int MaxRootParamsByteSize = Blueprints.Shared.BlueprintTierLadder.Tier16384PayloadSize;
 
         /// <summary>
-        /// ⚠ <b>The declared width of <c>BrainBlackboard.BehaviorParameters</c> — a LEGACY BUFFER
-        /// SIZE, no longer a cap.</b>
+        /// ⚠ <b>The reservation width for an UNDER-DECLARED behaviour — not a cap, and no longer a
+        /// struct's width either.</b>
         ///
         /// <para>⛔⛔ <b>Do NOT reintroduce this as a limit.</b> <c>CE-307</c> repointed every bound at
-        /// <see cref="MaxRootParamsByteSize"/>; what remains here is the width of a <c>fixed byte[]</c>
-        /// in a component that <c>P4</c> is retiring, plus the reservation width
-        /// <see cref="RootParamsAccess.RootParamsBytes"/> hands an under-declared behaviour (a parser
-        /// with neither a manifest nor a layout type — the documented escape hatch, which reproduces
-        /// the pre-cut behaviour exactly).</para>
+        /// <see cref="MaxRootParamsByteSize"/>. ⛔ And <c>P4</c> deleted <c>BrainBlackboard</c>, so the
+        /// <c>fixed byte[100]</c> this used to declare is gone too.</para>
         ///
-        /// <para>⚠ <b>It dies with the struct</b> (<c>P4</c> §2 ②). Until then it is load-bearing for
-        /// the buffer declaration and for tests that size a scratch host blackboard from it.</para>
+        /// <para>⭐ <b>One production reader remains:</b>
+        /// <see cref="RootParamsAccess.RootParamsBytes"/> hands back this width for a behaviour that
+        /// declares a <c>ParseParams</c> and NEITHER a manifest NOR a layout type — the documented
+        /// escape hatch. ⚠ It reproduces the pre-<c>P3-C</c> behaviour exactly, when the full region
+        /// existed whether anyone declared it or not; returning 0 there would silently drop the parse
+        /// on the floor. ⛔ Every behaviour in the shipped corpus declares one of the two, so this is
+        /// the hatch for hand-registered and test behaviours, not a path production takes.</para>
+        ///
+        /// <para>⚠ Tests also use it as a scratch host-blackboard width, where any value would do.</para>
         /// </summary>
         public const int MaxBehaviorParamByteSize = 100;
 
-        /// <summary>Size of BrainBlackboard inline memory.</summary>
-        // ⭐ `O2` (2026-09-20): with the entity-fact tail moved to BrainInterrupts, the blackboard IS
-        //   the params region — 128 → 100. The 28 bytes between the params region and the old
-        //   interrupt registers were dead weight on every brain entity.
-        // ⛔ CE-307 (2026-09-22): the second reason this name existed is GONE. BehaviorIngressSystem's
-        //   transactional-parse shadow no longer sizes itself from it — it is sized per behaviour, from
-        //   RootParamsBytes, because a constant-width shadow made a >100-byte behaviour a stack smash.
-        //   ⇒ this now has exactly ONE consumer, the struct's own [StructLayout(Size=…)], and it dies
-        //   with the struct.
-        public const int BrainBlackboardByteSize = MaxBehaviorParamByteSize;
+        // ⛔ `BrainBlackboardByteSize` IS DELETED with the struct it sized — `P4` (2026-09-22).
+        //   ⚠ `CE-307` had already taken its OTHER consumer away: BehaviorIngressSystem's parse shadow
+        //   is sized per behaviour from RootParamsBytes(def) now, because a constant-width shadow made
+        //   a >100-byte behaviour a stack smash. ⇒ the struct's [StructLayout(Size=…)] was the last
+        //   reader, and it went with the struct.
+
 
 
 

@@ -59,7 +59,6 @@ public sealed unsafe class HsmStatefulProvisioningTests
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         return entity;
     }
 

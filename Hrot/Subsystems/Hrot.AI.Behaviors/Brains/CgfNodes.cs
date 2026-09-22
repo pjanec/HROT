@@ -82,7 +82,7 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>
             /// ID of the registered trajectory in the <see cref="TrajectoryPoolManager"/> to follow.
-            /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> at spawn time and read by
+            /// Written into <c>the root params slot</c> at spawn time and read by
             /// <see cref="Action_WriteFollowRouteChannel"/> to populate the locomotion channel.
             /// </summary>
             public int   TrajectoryId;

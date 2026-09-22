@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Navigation.Executors
 
     /// <summary>
     /// Parameters for the <c>JoinFormation</c> behavior.
-    /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> by <c>BehaviorDefinition.ParseParams</c>
+    /// Written into <c>the root params slot</c> by <c>BehaviorDefinition.ParseParams</c>
     /// and read by <see cref="JoinFormationExecutor.OnEnter"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     ///
     /// <para>
     /// <b>OnEnter:</b> reads <see cref="JoinFormationParams"/> from
-    /// <see cref="BrainBlackboard.BehaviorParameters"/>, resolves the leader via
+    /// <c>the root params slot</c>, resolves the leader via
     /// <see cref="NetworkEntityMap"/>, calls <c>VehicleAPI.JoinFormation</c> and sets
     /// <see cref="LocomotionChannel.Status"/> = <see cref="NodeStatus.Running"/>.
     /// If the leader entity cannot be resolved, sets <c>Status = Failure</c>.

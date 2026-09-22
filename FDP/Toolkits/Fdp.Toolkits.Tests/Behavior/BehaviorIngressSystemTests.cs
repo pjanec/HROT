@@ -59,7 +59,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainBlackboard());
 
             // Publish event then swap buffers so ConsumeManaged returns it.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -99,7 +98,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { InstanceId = 0 });
-            world.AddComponent(e, new BrainBlackboard());
 
             // --- Assignment 1 ---
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
@@ -136,7 +134,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainBlackboard());
             // Give entity a mid-execution BTree state (RunningNodeIndex != 0).
             world.AddComponent(e, new BrainBTreeState
             {
@@ -182,7 +179,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveAction       = 1,
                 BehaviorInstanceId = 1, // matches BehaviorState.InstanceId — not yet stale
             });
-            world.AddComponent(e, new BrainBlackboard());
 
             // Step 1: assign new behavior → InstanceId becomes 2.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -231,7 +227,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { InstanceId = 5 });
-            world.AddComponent(e, new BrainBlackboard());
 
             world.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -290,7 +285,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = OldId,
                 InstanceId         = 0
             });
-            world.AddComponent(e, new BrainBlackboard());
 
             // Attempt to switch to NewBehavior — ParseParams will throw.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -405,7 +399,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var entityA = world.CreateEntity();
             world.AddComponent(entityA, new BehaviorState { ActiveBehaviorHash = 0, InstanceId = 0 });
-            world.AddComponent(entityA, new BrainBlackboard());
 
             var entityB = world.CreateEntity();
             world.AddComponent(entityB, new BehaviorState { ActiveBehaviorHash = PatrolId, InstanceId = 1 });

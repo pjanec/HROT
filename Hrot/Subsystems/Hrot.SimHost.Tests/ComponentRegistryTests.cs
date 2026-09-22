@@ -246,9 +246,9 @@ namespace Hrot.SimHost.Tests
 
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BehaviorState>());
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBTreeState>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBlackboard>());
-            // ⛔ P4-①: the Blackboard1024 row is gone. It asserted that SimHostComponentRegistry does
-            //    NOT register that component — a claim the type's deletion now makes vacuous.
+            // ⛔ P4: the BrainBlackboard and Blackboard1024 rows are gone. Each asserted that
+            //    SimHostComponentRegistry does NOT register that component — a claim the type's
+            //    deletion now makes vacuous.
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm128>());
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm64>());
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<LocomotionChannel>());

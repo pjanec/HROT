@@ -32,7 +32,6 @@ namespace Hrot.IG.Tests.Gizmos
             HillAttackGizmoSettings.Register(_settings);
 
             _repo = new EntityRepository();
-            _repo.RegisterComponent<BrainBlackboard>();
             _repo.RegisterComponent<BehaviorState>();
             _repo.RegisterComponent<SimTransform>();
         }
@@ -64,7 +63,6 @@ namespace Hrot.IG.Tests.Gizmos
                 BrainTier          = 0
             });
             // BrainBlackboard not strictly needed (early return before access), but add it anyway.
-            _repo.AddComponent(entity, new BrainBlackboard());
             _repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 
             gizmo.Draw(_repo, entity, draw);
@@ -127,7 +125,6 @@ namespace Hrot.IG.Tests.Gizmos
         {
             // Ensure all components required by any registered gizmo are in ComponentTypeRegistry.
             using var tempRepo = new EntityRepository();
-            tempRepo.RegisterComponent<BrainBlackboard>();
             tempRepo.RegisterComponent<BehaviorState>();
             tempRepo.RegisterComponent<SimTransform>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
@@ -177,7 +174,7 @@ namespace Hrot.IG.Tests.Gizmos
                 BrainTier          = 0
             });
 
-            var bb = new BrainBlackboard();
+            byte bb = 0;   // P4: the node takes `ref byte` — the root params slot base
             fixed (byte* mem = &Unsafe.AsRef(in bb).BehaviorParameters[0])
                 *(PlatoonHillAttackParams*)mem = p;
             repo.AddComponent(entity, bb);

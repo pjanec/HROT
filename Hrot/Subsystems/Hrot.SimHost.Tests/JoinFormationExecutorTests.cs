@@ -24,7 +24,6 @@ namespace Hrot.SimHost.Tests
         {
             var world = new EntityRepository();
 
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             // 🔴 P3-C: the executor reads its params from the ROOT PARAMS OCCURRENCE SLOT now, so
             //   the world needs the tier components it lives in.
@@ -92,7 +91,6 @@ namespace Hrot.SimHost.Tests
             var follower = world.CreateEntity();
             var leader   = world.CreateEntity();
 
-            world.AddComponent(follower, new BrainBlackboard());
             world.AddComponent(follower, new LocomotionChannel { Status = default });
 
             // Register leader in the NetworkEntityMap under network ID 10.
@@ -132,7 +130,6 @@ namespace Hrot.SimHost.Tests
             var entityMap    = new NetworkEntityMap(); // leader NOT registered
 
             var follower = world.CreateEntity();
-            world.AddComponent(follower, new BrainBlackboard());
 
             WriteBlackboardParams(world, follower, new JoinFormationParams
             {

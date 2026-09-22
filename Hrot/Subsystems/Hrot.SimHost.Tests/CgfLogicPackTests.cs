@@ -39,7 +39,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();

@@ -47,7 +47,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             var stateBefore = world.GetComponent<BrainBTreeState>(e);
 
@@ -97,7 +96,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierHsm, // WRONG tier
             });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             // Act.
             sys.Execute(world, 0.016f);
@@ -147,7 +145,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new LocomotionChannel()); // BTree node writes here
 
             // Act.
@@ -194,7 +191,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             sys.Execute(world, 0.016f);
 
@@ -226,7 +222,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             sys.Execute(world, 0.016f);
 
@@ -253,7 +248,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             sys.Execute(world, 0.016f);
 
@@ -281,7 +275,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             // Frame 1: expect event.
             sys.Execute(world, 0.016f);
@@ -356,7 +349,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
             world.AddComponent(e, new BrainBTreeState());
-            world.AddComponent(e, new BrainBlackboard());
 
             // Frame 1: entity processed, entry added to deduplication dictionary.
             sys.Execute(world, 0.016f);
@@ -413,7 +405,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var btState = new BrainBTreeState();
             btState.State.InstanceFlags = BehaviorInstanceFlags.Paused;
             world.AddComponent(e, btState);
-            world.AddComponent(e, new BrainBlackboard());
 
             // Act: tick while Paused -- action must not run.
             sys.Execute(world, 0.016f);

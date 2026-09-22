@@ -102,7 +102,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e   = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // BrainHsm128 Tier2 queue: 1 interrupt slot + 1 ring slot.
@@ -143,7 +142,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e   = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Frame 1: drive to terminal.
@@ -186,7 +184,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e          = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docIdA, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(sharedBlob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Drive behavior A to terminal.
@@ -240,7 +237,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e   = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain64(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Inject single EventX (Tier1 holds only one event).
@@ -281,7 +277,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
@@ -344,7 +339,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
             world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
@@ -398,7 +392,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Create a BTree-tier entity with only BrainBlackboard.
             var e = world.CreateEntity();
-            world.AddComponent(e, new BrainBlackboard());
             world.AddComponent(e, new BrainInterrupts());
 
             // Directly set Interrupt_MobilityLost = 1 (simulating what CognitiveInterruptSystem would do).

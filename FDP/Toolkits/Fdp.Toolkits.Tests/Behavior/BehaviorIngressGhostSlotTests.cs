@@ -115,7 +115,6 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         // Choose distinct slot keys.
@@ -233,7 +232,6 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         int slotKey = 0x2CC03;

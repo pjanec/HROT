@@ -891,7 +891,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
             // HSM brain tiers (for APC-style HSM behaviors)

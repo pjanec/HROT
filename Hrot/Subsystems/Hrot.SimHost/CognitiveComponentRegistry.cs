@@ -41,7 +41,6 @@ namespace Hrot.SimHost
             //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
             // ⛔ P4-① (2026-09-22): Blackboard1024 is RETIRED. Its three tenants all left by a named
             //    decision — AiPrimitive working state to the Blueprint tier ladder (SLICE2), squad
             //    state to its own component (O1), and the HeavyDtoType overflow path was never

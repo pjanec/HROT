@@ -518,7 +518,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBTreeState());
 
         var registry = new BehaviorRegistry();
@@ -569,7 +568,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
 
         var registry = new BehaviorRegistry();
         var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
@@ -1751,7 +1749,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
 
         for (int i = 0; i < 4; i++)
         {
@@ -1798,7 +1795,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
 
         var registry = new BehaviorRegistry();
         var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
@@ -1902,7 +1898,6 @@ public sealed unsafe class HsmOccurrenceKeyTests
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBlackboard());
 
         var registry = new BehaviorRegistry();
         var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);

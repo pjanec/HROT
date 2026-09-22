@@ -86,7 +86,6 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
@@ -306,7 +305,6 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         // Run BehaviorIngressSystem — this calls ParseParams (sets LimitA=3, LimitB=5, Threshold=1000)
@@ -386,7 +384,6 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         var ingress = new BehaviorIngressSystem(_liveRegistry);

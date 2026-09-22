@@ -75,7 +75,6 @@ public sealed class PlatoonHillAttack2_Integration_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
@@ -159,7 +158,6 @@ public sealed class PlatoonHillAttack2_Integration_ProofTests : IDisposable
         var world     = CreateWorld();
         var commander = world.CreateEntity();
         world.AddComponent(commander, new BehaviorState());
-        world.AddComponent(commander, new BrainBlackboard());
         world.AddComponent(commander, new BrainBTreeState());
 
         var roster = new UnitRoster();
@@ -274,7 +272,6 @@ public sealed class PlatoonHillAttack2_Integration_ProofTests : IDisposable
         var world     = CreateWorld();
         var commander = world.CreateEntity();
         world.AddComponent(commander, new BehaviorState());
-        world.AddComponent(commander, new BrainBlackboard());
         world.AddComponent(commander, new BrainBTreeState());
 
         // Same provisioning path as ComposedTree_TicksThroughSetupSequence_SharedState_ShowsCrossNodeWriteFlow:

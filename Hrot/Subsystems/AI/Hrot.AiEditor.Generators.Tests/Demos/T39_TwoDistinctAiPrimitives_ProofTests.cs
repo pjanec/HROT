@@ -79,7 +79,6 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
         world.RegisterComponent<LocomotionChannel>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
@@ -272,7 +271,6 @@ public sealed class T39_TwoDistinctAiPrimitives_ProofTests : IDisposable
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         var ingress = new BehaviorIngressSystem(_registry);

@@ -12,7 +12,7 @@ namespace Hrot.SimHost.Tests;
 /// Unit tests for <see cref="RouteContextSystem"/> -- ROUTES1-T014 / PACK-N004.
 ///
 /// The system is a pure Brain-tier system: it queries <see cref="NavigationIntent"/>,
-/// <see cref="NavigationStatus"/>, and <see cref="BrainBlackboard"/>. It does NOT
+/// <see cref="NavigationStatus"/>, and <c>BrainBlackboard</c>. It does NOT
 /// query <see cref="CarKinem.Core.NavState"/> (Muscle-tier) after the PACK-N004 refactor.
 ///
 /// <see cref="RouteContextSystem.TickIntervalSeconds"/> is set to 0 so the throttle
@@ -38,7 +38,6 @@ public class RouteContextSystemTests
         var repo = new EntityRepository();
         repo.RegisterComponent<NavigationIntent>();
         repo.RegisterComponent<NavigationStatus>();
-        repo.RegisterComponent<BrainBlackboard>();
         repo.RegisterComponent<BrainInterrupts>();
         repo.RegisterComponent<PersonalRouteRef>();
         repo.RegisterComponent<RouteTrajectoryCache>();
@@ -51,7 +50,7 @@ public class RouteContextSystemTests
     /// <summary>
     /// Creates a vehicle entity with <see cref="NavigationIntent"/> (FollowRoute),
     /// <see cref="NavigationStatus"/> with the supplied <paramref name="progressS"/>,
-    /// and a <see cref="BrainBlackboard"/>.
+    /// and a <c>BrainBlackboard</c>.
     /// Optionally attaches a personal route with the given ExtensionJson.
     /// </summary>
     private Entity CreateVehicle(
@@ -71,7 +70,6 @@ public class RouteContextSystemTests
             ProgressS = progressS,
             IntentId  = 1u,
         });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
         _repo.AddComponent(vehicle, new BrainInterrupts());
 
         if (personalRouteJson != null)
@@ -234,7 +232,6 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
         _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
@@ -299,7 +296,6 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 1f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
         _repo.AddComponent(vehicle, new BrainInterrupts());
 
         _system.Execute(_repo, 0.016f);
@@ -344,7 +340,6 @@ public class RouteContextSystemTests
             IntentId     = 1u,
         });
         _repo.AddComponent(vehicle, new NavigationStatus { ProgressS = 5f, IntentId = 1u });
-        _repo.AddComponent(vehicle, new BrainBlackboard());
         _repo.AddComponent(vehicle, new BrainInterrupts());
 
         // Attach a route with danger level so we'd detect mutation if it happened.

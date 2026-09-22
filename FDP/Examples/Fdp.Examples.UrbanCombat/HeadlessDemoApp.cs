@@ -243,7 +243,6 @@ namespace Fdp.Examples.UrbanCombat
             // FDP.Toolkit.Behavior
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();

@@ -239,7 +239,7 @@ namespace Hrot.Map.Definitions.Tkb
         ///   <item><see cref="SimVelocity"/> — world-space velocity written by locomotion.</item>
         ///   <item><see cref="BehaviorState"/> (BrainTier = BTree) — active behavior hash.</item>
         ///   <item><see cref="MissionPlanQueue"/> — phase queue maintained by MissionAdapterSystem.</item>
-        ///   <item><see cref="BrainBTreeState"/> / <see cref="BrainBlackboard"/> — brain execution state.</item>
+        ///   <item><see cref="BrainBTreeState"/> / <c>BrainBlackboard</c> — brain execution state.</item>
         ///   <item><see cref="LocomotionChannel"/> / <see cref="WeaponChannel"/> / <see cref="InteractionChannel"/> — action dispatch channels.</item>
         ///   <item><see cref="ActorCapabilityState"/> (CanMove | CanShoot) — capability bits.</item>
         /// </list>

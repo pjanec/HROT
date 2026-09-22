@@ -85,7 +85,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             var q = repo.Query()
                 .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
                 .With<BrainBTreeState>()
-                .With<BrainBlackboard>()
+                // ⛔⛔ CE-315 / P4 §2 ②: `.With<BrainBlackboard>()` is GONE with the component.
+                //    ⚠ It was not merely redundant — it was a LIVE GATE. BehaviorTkbTranslator added
+                //    the component unconditionally beside BrainBTreeState, so production never
+                //    noticed; but BehaviorValidationScenario only REGISTERED it and never attached
+                //    it, so that example's agent was silently EXCLUDED from the BTree tick.
+                //    🔒 Dead storage used as a QUERY PREDICATE fails as silent NON-EXECUTION, which
+                //    no rail asserting VALUES can see.
                 .Build();
 
             // Prune deduplication cache using reliable lifecycle events.

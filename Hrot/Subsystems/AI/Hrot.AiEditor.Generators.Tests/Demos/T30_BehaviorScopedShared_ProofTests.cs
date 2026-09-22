@@ -63,7 +63,6 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
         world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
@@ -306,7 +305,6 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         var world = CreateWorld();
         Entity commander = world.CreateEntity();
         world.AddComponent(commander, new BehaviorState());
-        world.AddComponent(commander, new BrainBlackboard());
         world.AddComponent(commander, new BrainBTreeState());
 
         AssignBehavior(world, commander, assetName);

@@ -13,16 +13,23 @@ using Fdp.Toolkit.Scenario;
 namespace Hrot.SimHost.Serializers
 {
     /// <summary>
-    /// Scenario translator for <see cref="BrainBlackboard"/>.
-    /// When the entity has an active behavior with a <see cref="BehaviorDefinition.BlackboardLayoutType"/>,
-    /// the raw memory block is projected into that typed DTO and serialized as a readable JSON
-    /// object.  Falls back to an empty object when no DTO type is available.
+    /// ⭐⭐ <b>The brain's diagnostic dump.</b> When the entity's active behaviour declares a
+    /// <see cref="BehaviorDefinition.BlackboardLayoutType"/>, its ROOT PARAMS SLOT is projected into
+    /// that typed DTO and serialised as readable JSON, alongside the <c>BrainInterrupts</c> tail.
+    /// Falls back to an empty object when there is no DTO type or no params region.
+    ///
+    /// <para>🔴🔴 <b>THE NAME IS HISTORICAL — this type has not touched <c>BrainBlackboard</c> since
+    /// <c>P3-C</c>, and that component no longer exists (<c>P4</c>, §30.28).</b> It reads
+    /// <c>BehaviorState</c>, <c>BrainInterrupts</c> and the root occurrence slot. ⛔ It was NOT deleted
+    /// with the component: the dump it produces is live and wanted — ⚠ **a surface whose name went
+    /// stale is not a dead surface**, and deleting it would have removed a working diagnostic.
+    /// ⭐ Renaming it, and its <c>"BrainBlackboard"</c> DOM key, changes a diagnostic output contract
+    /// that scenario files already carry, so it is filed as <c>CE-317</c> rather than bundled here.</para>
     /// </summary>
     /// <remarks>
-    /// <see cref="Inject"/> is intentionally a no-op: <see cref="BrainBlackboard"/> is
-    /// <c>DataPolicy.NoScenario</c> transient execution state and must never be written back
-    /// from a scenario file.  This translator exists solely to produce a readable clipboard
-    /// dump via <see cref="ScenarioSerializer.SerializeEntity"/>.
+    /// <see cref="Inject"/> is intentionally a no-op: this is <c>DataPolicy.NoScenario</c> transient
+    /// execution state and must never be written back from a scenario file. The translator exists
+    /// solely to produce a readable clipboard dump via <see cref="ScenarioSerializer.SerializeEntity"/>.
     /// </remarks>
     public sealed class BrainBlackboardTranslator : IEntityScenarioTranslator
     {

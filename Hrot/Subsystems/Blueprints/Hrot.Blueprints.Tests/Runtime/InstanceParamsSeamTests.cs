@@ -119,7 +119,6 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
         //   The bound keeps this world's deliberate exclusion of the larger tiers (their
         //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
         BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 1024);
-        _repo.RegisterComponent<BrainBlackboard>();
         _repo.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
         _repo.RegisterComponent<BrainInterrupts>();
         _registry.RegisterInstance(BpId, MakeDefinition());
@@ -303,7 +302,6 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
     public void ResolvingInstanceParams_DoesNotWriteTheBrainBlackboardTail()
     {
         var e = _repo.CreateEntity();
-        _repo.AddComponent(e, default(BrainBlackboard));
         _repo.AddComponent(e, default(BrainInterrupts));
         ref var brain = ref _repo.GetComponentRW<BrainInterrupts>(e);
         brain.ExpectedThreatLevel     = 3;

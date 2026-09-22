@@ -70,8 +70,12 @@
         /// <summary><c>BehaviorState</c> â€” active behavior (behavior tree / HSM) for an entity.</summary>
         public const int BehaviorState           = 22;
 
-        /// <summary><c>BrainBlackboard</c> â€” shared blackboard memory for behavior execution.</summary>
-        public const int BrainBlackboard         = 23;
+        /// <summary>
+        /// ⛔⛔ <b>RESERVED — <c>BrainBlackboard</c> was retired by <c>P4</c> (2026-09-22).</b>
+        /// ⚠ <b>Do NOT reuse 23.</b> A stale recording or scenario carrying this id must never bind to
+        /// a different component; the same reason 74 (<c>Blackboard1024</c>) stays reserved. 📄 §30.28.
+        /// </summary>
+        public const int BrainBlackboard_RESERVED = 23;
 
         /// <summary><c>LocomotionChannel</c> â€” active locomotion action slot for behavior control.</summary>
         public const int LocomotionChannel       = 24;

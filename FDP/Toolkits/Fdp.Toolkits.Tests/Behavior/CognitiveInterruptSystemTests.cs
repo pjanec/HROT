@@ -9,7 +9,7 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// <summary>
     /// Unit tests for <see cref="CognitiveInterruptSystem"/> (BHU-008).
     /// Verifies edge-triggered detection of <see cref="ActorCapabilities.CanMove"/> loss
-    /// and the corresponding write to <see cref="BrainBlackboard.Interrupt_MobilityLost"/>.
+    /// and the corresponding write to <c>BrainBlackboard.Interrupt_MobilityLost</c>.
     /// </summary>
     public unsafe class CognitiveInterruptSystemTests : IDisposable
     {
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         /// <summary>
         /// Creates an entity with <see cref="ActorCapabilityState"/>,
-        /// <see cref="PreviousCapabilities"/>, and a zeroed <see cref="BrainBlackboard"/>.
+        /// <see cref="PreviousCapabilities"/>, and a zeroed <c>BrainBlackboard</c>.
         /// The previous capabilities are set separately to allow edge configuration.
         /// </summary>
         private Entity CreateEntity(ActorCapabilities current, ActorCapabilities previous)
@@ -39,7 +39,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = _world.CreateEntity();
             _world.AddComponent(e, new ActorCapabilityState { Capabilities = current });
             _world.AddComponent(e, new PreviousCapabilities { Capabilities = previous });
-            _world.AddComponent(e, new BrainBlackboard());
             _world.AddComponent(e, new BrainInterrupts());
             return e;
         }

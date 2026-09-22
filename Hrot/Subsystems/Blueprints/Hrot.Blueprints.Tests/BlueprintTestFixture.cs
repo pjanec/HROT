@@ -146,7 +146,6 @@ public sealed class BlueprintTestFixture : IDisposable
         repo.RegisterComponent<LocomotionChannel>();
         repo.RegisterComponent<WeaponChannel>();
         repo.RegisterComponent<InteractionChannel>();
-        repo.RegisterComponent<BrainBlackboard>();
         // ⛔⛔ P4-① (2026-09-22): the Blackboard1024 registration is GONE. ⚠ This line is why
         //    CE-311 looked green — the fixture was the ONE world where the inline AiPrimitive host's
         //    emitted GetComponentRW<Blackboard1024> could run. Working state lives in the tier ladder.
@@ -624,10 +623,10 @@ public static class ThrowingRegistrar
         int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
         ushort id = unchecked((ushort)blueprintId);
 
-        // The thunk projects its params from BrainBlackboard (CE-297) and its working state from the
-        // entity's occurrence store, so both must exist before the dispatch.
-        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(entity))
-            _repo.AddComponent(entity, default(global::Fdp.Toolkit.Behavior.Components.BrainBlackboard));
+        // ⭐ P4 (2026-09-22): the thunk projects its params from the entity's ROOT PARAMS SLOT and its
+        //   working state from the occurrence store — both live in the SAME store now, so one call
+        //   covers it. ⛔ The BrainBlackboard attach that used to precede this is gone with the
+        //   component (CE-297's "project from BrainBlackboard" was superseded by P3-C).
         EnsureOccurrenceStore(entity);
 
         const uint MachineId = 0x07B0A5E1;

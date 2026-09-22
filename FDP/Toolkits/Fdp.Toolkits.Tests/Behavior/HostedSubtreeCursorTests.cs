@@ -446,7 +446,6 @@ public sealed unsafe class HostedSubtreeCursorTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         world.AddComponent(entity, new BrainBTreeState());
 
         var registry = new BehaviorRegistry();

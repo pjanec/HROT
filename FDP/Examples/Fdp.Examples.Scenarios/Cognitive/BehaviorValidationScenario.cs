@@ -19,7 +19,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
 {
     /// <summary>
     /// DEM1-D004 — BehaviorValidation: prove the BTree executor shifts decision nodes
-    /// strictly through <see cref="BrainBlackboard"/> state writes, without any physics.
+    /// strictly through <c>BrainBlackboard</c> state writes, without any physics.
     ///
     /// <para>A single Commander agent runs a synthetic <em>MockCombat_BT</em> behavior.
     /// The scenario script acts as the perception layer, directly writing
@@ -122,7 +122,6 @@ namespace Fdp.Examples.Scenarios.Cognitive
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<ActorCapabilityState>();

@@ -74,7 +74,7 @@ namespace Fbt.Kernel
         /// <summary>The parent DTO struct that contains the projected minimal field.</summary>
         public Type DtoType { get; }
 
-        /// <summary>Name of the field within <see cref="DtoType"/> projected from <see cref="BrainBlackboard"/>.</summary>
+        /// <summary>Name of the field within <see cref="DtoType"/> projected from <c>BrainBlackboard</c>.</summary>
         public string FieldName { get; }
 
         /// <summary>
@@ -150,7 +150,7 @@ namespace Fbt.Kernel
         /// <summary>The parent DTO struct that contains the projected minimal field.</summary>
         public Type DtoType { get; }
 
-        /// <summary>Name of the field within <see cref="DtoType"/> projected from <see cref="BrainBlackboard"/>.</summary>
+        /// <summary>Name of the field within <see cref="DtoType"/> projected from <c>BrainBlackboard</c>.</summary>
         public string FieldName { get; }
 
         /// <summary>

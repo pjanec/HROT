@@ -149,7 +149,6 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
 
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new BehaviorState());
-        _world.AddComponent(entity, new BrainBlackboard());
         _world.AddComponent(entity, new BrainBTreeState());
 
         // Fire initial assign event.

@@ -11,7 +11,7 @@ namespace Fdp.Toolkit.Behavior.Tests;
 
 /// <summary>
 /// S1-3 runtime tests: verify that baked-offset thunks project distinct DTOs at distinct
-/// byte offsets within <see cref="BrainBlackboard.BehaviorParameters"/>, and that two
+/// byte offsets within <c>the root params slot</c>, and that two
 /// thunks operating on adjacent memory regions do NOT interfere with each other.
 ///
 /// These tests manually reproduce what the BTreeBridgeEmitCore.EmitManagedActionThunks /

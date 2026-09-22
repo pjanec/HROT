@@ -94,7 +94,6 @@ namespace Hrot.IG.Tests.Gizmos
             tempRepo.RegisterComponent<SimTransform>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Perception.Components.PerceptionReceptor>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
-            tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
             tempRepo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             // GZ057-058: components required by the new stateless gizmos added in BATCH-21.
             tempRepo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();

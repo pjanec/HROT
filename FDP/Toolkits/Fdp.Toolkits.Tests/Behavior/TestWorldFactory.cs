@@ -15,7 +15,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<BrainBTreeState>();

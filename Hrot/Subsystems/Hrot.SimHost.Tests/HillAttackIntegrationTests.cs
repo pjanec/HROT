@@ -351,7 +351,6 @@ namespace Hrot.SimHost.Tests
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
             _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
 
             string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
                         + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
@@ -412,7 +411,6 @@ namespace Hrot.SimHost.Tests
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
             _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
 
             // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
@@ -509,7 +507,6 @@ namespace Hrot.SimHost.Tests
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
             _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -601,7 +598,6 @@ namespace Hrot.SimHost.Tests
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
             _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
 
             // 2 subs at baseline.
             var subs = new Entity[2];
@@ -709,7 +705,6 @@ namespace Hrot.SimHost.Tests
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
             _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
 
             // 2 subordinates already at the baseline.
             var subs = new Entity[2];

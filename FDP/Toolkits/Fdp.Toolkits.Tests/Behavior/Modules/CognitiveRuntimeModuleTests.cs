@@ -67,7 +67,6 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<BehaviorState>();
-            repo.RegisterComponent<BrainBlackboard>();
             repo.RegisterComponent<BrainInterrupts>();
             repo.RegisterComponent<BrainBTreeState>();
             repo.RegisterComponent<LocomotionChannel>();
@@ -83,7 +82,6 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         {
             var e = repo.CreateEntity();
             repo.AddComponent(e, new BehaviorState());
-            repo.AddComponent(e, new BrainBlackboard());
             repo.AddComponent(e, new BrainInterrupts());
             repo.AddComponent(e, new BrainBTreeState());
             repo.AddComponent(e, new LocomotionChannel());
@@ -91,7 +89,6 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             if (owned)
             {
                 repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(BehaviorState)),   true);
-                repo.SetAuthority(e, ComponentTypeRegistry.GetId(typeof(BrainBlackboard)), true);
                 // 🔴🔴 O2 (2026-09-20) — SPLITTING A COMPONENT SPLITS ITS AUTHORITY, and this rail is
                 //   what caught it. CognitiveCleanupSystem / CognitiveInterruptSystem now gate on
                 //   BrainInterrupts (the interrupts moved there), so authority must be granted for the

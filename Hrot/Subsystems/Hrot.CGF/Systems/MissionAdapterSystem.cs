@@ -13,7 +13,7 @@ namespace Hrot.CGF.Systems
     /// <remarks>
     /// <para>
     /// <b>Architecture (DRY Pipeline):</b> This system intentionally does <i>not</i> mutate <see cref="BehaviorState"/> 
-    /// or <see cref="BrainBlackboard"/> directly. Instead, it acts purely as a change-detector and dispatcher. 
+    /// or <c>BrainBlackboard</c> directly. Instead, it acts purely as a change-detector and dispatcher. 
     /// When a phase change is detected, it extracts the <c>BehaviorId</c> and <c>BehaviorParams</c> JSON and
     /// publishes an <see cref="AssignTacticalIntentEvent"/>. This delegates resolution to
     /// <see cref="TacticalIntentResolutionSystem"/>, which translates the intent into a concrete
