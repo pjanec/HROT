@@ -4613,10 +4613,73 @@ is classified out loud** *(`CLAUDE.md`'s three-way test)*:
 | **duplicate SURFACE** | ⚠ **usually KEEP** — surfaces differ by context | the tier renderers vs the root-params arm |
 | **genuinely DEAD, and the design record AGREES** | ✅ delete | `Blackboard1024` *(§30.13 — all three tenants left by a NAMED decision)* · `HeavyDtoType` |
 
-⛔⛔ **Items I have called "already dead" that have NOT yet passed this test** — ⚠ each needs a corpus
-search before it is cut, not an in-degree of zero: `CommanderNodes.IssueTacticalIntentBlackboard`
-*(declared, never used as a `TBlackboard`)* · `BlueprintDebugSession`'s legacy `Blackboard1024` arm ·
-`Blackboard1024Tests` · `BlueprintCompilerContracts.BlackboardTier.Blackboard1024`.
+⭐ **All six were then swept and settled — 📄 §30.16.**
+
+### 30.16 ⭐⭐⭐ THE ABSENCE SWEEP — **six claims settled `2026-09-22`, Roslyn + corpus**
+
+> 🔒 **User:** *"do the sweep, settle all six absence claims, measure whatever until you are sure."*
+
+⚠ **Method note, and it matters for how much to trust each row.** `roslyn_find_references` on this server
+**resolves MEMBERS, not type declarations** — 📐 `roslyn_get_type_members` returned `Blackboard1024`'s three
+members while `find_references` on the same qualified type answered *"Symbol not found."* ⇒ ⛔ **that
+"not found" is a TOOL LIMIT, never evidence of absence** *(`CLAUDE.md` ③)*. ⭐ The type question was
+therefore answered through **member-level proxies** — `Project<T>`, `Memory`, `ByteSize` — which is
+sufficient, because those three ARE every way to touch the component's bytes.
+📐 Workspace verified real: `is_msbuild_workspace: true`.
+
+| # | claim | 📐 verdict |
+|---|---|---|
+| **①** | 🔴 `SquadCognitiveState.cs:250` — *"`Blackboard1024.Project<T>` itself is UNTOUCHED: **BTree and HSM still use it** (`R-65`)"* | ⛔⛔ **FALSE — the comment is STALE.** `Project<T>` → **11 refs, EVERY ONE a test**. `Memory` → **8**: 2 tests · the declaration · the 4 surfaces `P4`-① already deletes · **1 always-false gate** *(`PredicateCompiler.cs:388`, behind `HasComponent`)*. `ByteSize` → **1**, its own declaration. ⇒ **no BTree, no HSM, no production consumer at all.** ✅ **DELETE — genuinely dead and the design record agrees** *(§30.13)*. ⚠ **Leave id 74 RESERVED, do not reuse** — ids are explicit `[ComponentId]` so nothing drifts, but a stale recording could bind a reused 74 to a different component |
+| **②** | `CommanderNodes.IssueTacticalIntentBlackboard` — declared, never a `TBlackboard` | ⭐ **The ACTION is LIVE and registered** — `FbtActionRegistrar.g.cs:55` registers `…Action_IssueTacticalIntent@0` through the 3-param `[BTreeAction]` bridge *(the one `CE-304` fixed)*. ⇒ the **wrapper** existed only for the fluent-selector form and no C# tree ever used it. ✅ **Delete it with `P4`-②b's other seven** — ⛔ the capability is untouched, because `[BTreeAction]` registration never needed the wrapper |
+| **③** | `BlueprintDebugSession`'s legacy `Blackboard1024` arm | 🔴🔴 **NOT DEAD — A SILENTLY BROKEN CAPABILITY. The biggest finding of this sweep — see §30.17** |
+| **④** | `Blackboard1024Tests` | ⭐ It pins `Project<T>` **memory aliasing** *(P0.05 / `SC-P0-05-1`)*. 📐 The successor capability is **already covered on the live storage**: `OccurrenceStoreAccessTests` asserts round-trip, `DistinctVariableIds_AreIndependentSlots_NoCollision`, and `A2_R5_ResolveOccurrence_LandsAtTheAllocatorsOwnOffset`. ✅ **Delete with the component — the claim is re-homed, not lost** |
+| **⑤** | `BlueprintCompilerContracts.BlackboardTier.Blackboard1024` | ✅ **KEEP — NOT A `P4` ITEM AT ALL.** 📐 It is the Blueprint compiler's **tier selector** *(`IrAsset.SelectedTier`, driven by `BlackboardTierHint.Force1024`, `Stage2_Validate.cs:519-526`)* naming the **1024 TIER**. ⛔ Only the spelling collides. ⚠ A **rename** candidate *(`Tier1024`)*, never a deletion |
+| **⑥** | `HeavyDtoType` / `[SharedAiHeavyAction]` | ⭐ **Dead as STORAGE, and RAIL-PINNED**: `T30_BehaviorScopedShared_ProofTests.cs:304` asserts `def.HeavyDtoType.Should().BeNull("Blackboard1024 HeavyDtoType hack is gone")`. 📐 Roslyn: **16 refs, NO PRODUCER** — every one is a gate *(`BehaviorIngressSystem.cs:136,299`)*, a dying surface, or that rail; and **all 30 shipped assets declare it `null`**. ⚠⚠ **BUT it has THREE LIVE APPENDAGES that need their own call — see below** |
+
+#### ⚠ ⑥'s three appendages — **the storage dies; these do not follow automatically**
+
+| appendage | what it needs |
+|---|---|
+| `[SharedAiHeavyAction]` + `ActionSchemaExporter.cs:151-152` | an **authoring** surface still wired and still read by the editor's schema export. ⭐ Its successor is the **tier ladder** *(an action needing more than 176 B simply lands on a larger tier — §30.15)* ⇒ genuinely superseded, but **say so in the design before removing the attribute** |
+| `BehaviorTreeAssetDto.HeavyDtoType` · `HsmAssetDto.HeavyDtoType` | **persisted asset-JSON fields present in all 30 shipped assets** *(always `null`)*. ⭐ Harmless to leave and ignore on read; ⛔ removing them is an asset-schema change — decide deliberately, exactly as `CE-308` |
+| 🔴 **two design docs still describe heavy overflow as CURRENT, and carry NO STATUS block** | `BTree_AiActionParameterBinding_Detailed_Design.md:16` · `BTree_HSM_JSON_Persistence_Detailed_Design.md:71,163,215`. ⇒ **`P4` must mark them superseded** — a reader quoting them today is reasoning off a retired model |
+
+#### 📌 A CORRECTION TO MY OWN MEASUREMENT METHOD
+
+⚠ **§30.12 ①'s "54 code files" came from a comment-STRIPPING classifier — which by construction discarded
+`<see cref>` references.** 📐 Roslyn counts them, and there are **15 production files documenting
+`BrainBlackboard`** and **9 documenting `Blackboard1024`** in prose *(`JoinFormationExecutor.cs:17,58`,
+`CgfNodes.cs:85`, `BehaviorRegistry.cs:17,159,206`, `BehaviorConstants.cs:28`, …)*.
+
+⛔ **I briefly took this for a BUILD BREAK** *(`TreatWarningsAsErrors=true` + a dangling cref ⇒ `CS1574`)*.
+📐 **It is not.** XML doc generation is enabled in exactly one project — `Hrot.AI.Behaviors` — and its
+`NoWarn` lists **1574** explicitly. ⇒ ⭐ **stale documentation to correct for accuracy, NOT a compile
+risk.** ⚠ Stated because the alarm was raised: **the correction matters as much as the finding.**
+
+### 30.17 🔴🔴🔴 `P4` MUST ROUTE THE AI-PRIMITIVE **WRITE** PATH — **it is already silently broken**
+
+📐 **`IBlueprintDebugSession.ResolveWorkingStateField` is the SINGLE field-address resolver in this
+codebase** — `StagedWriteView.cs:26` says so verbatim: *"the only resolver in this codebase."*
+**13 references**, of which the production ones are:
+
+| caller | what breaks without it |
+|---|---|
+| `BlueprintLiveValueWriter.cs:109,183` | the editor's **live variable write** and the staged-write yellow display |
+| 🔴 `DebugApiService.Variables.cs:345` | **the AI-debug HTTP API's variable write** |
+
+⛔⛔ **Its `AiPrimitive` arm — `ResolveAiPrimitiveField:1013` — is `Blackboard1024`-ONLY**, while the
+`Instance` arm *(`ResolveInstanceField:1051`)* got its slot path in Batch 102. ⚠ **And because nothing
+carries the component, that arm already returns `null` on every call** ⇒ **AiPrimitive working-state
+editing is ALREADY DEAD, silently, today.**
+
+⇒ ⭐⭐⭐ **This is the `P4` item the design did not have, and it is a ROUTE, not a delete:** give
+`ResolveAiPrimitiveField` an occurrence arm **by mirroring `CaptureAiPrimitiveOccurrences:1542-1551`** —
+⭐ exactly the method Batch 102 used to build the `Instance` arm from the read. ⛔ Deleting the component
+without it removes designer + debug-API working-state writing for good.
+
+> ⭐ **The asymmetry to hold on to:** the **READ** path has both arms *(occurrence at `:1515`, legacy at
+> `:1518`)*; the **WRITE** path has only the legacy one. 📌 The file's own header quotes the user who
+> demanded they agree: *"if the read verifies identity before trusting an offset, the WRITE must too."*
 
 ### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
 
