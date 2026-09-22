@@ -5,9 +5,11 @@ doc-type: RESUMPTION for P4 — retiring BrainBlackboard and Blackboard1024.
 updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30,
   and §30.18 is the CURRENT slice table (§30.5's is SUPERSEDED).
-current-answer: ⭐ START AT §2 — THREE OF FOUR SLICES ARE DONE and the tree is GREEN at a62507e3d.
-  §2 is the two things `P4`-② still owes (the zero-fallback rail, the cluster acceptance) and then
-  `P4`-③/④. §1 is what is done — do not redo it. §3 traps. §4 gates. §5 open questions.
+current-answer: ⭐ START AT §6 — `P4`-② IS COMPLETE (rail green, cluster 2/2 gold, 2026-09-22).
+  What is LEFT is `P4`-③ (the six identity-keyed surfaces) and `P4`-④ (the 100-byte cap), then
+  `BrainBlackboard` itself. §2 has the slice detail, §1 what is done, §3 traps, §4 gates, §5 open.
+  ⛔ The rail's AS-BUILT shape is DESIGN_Occurrence_Scoped_Storage.md §30.21, which supersedes
+  §2 ①'s sketch — the sketch was measured and was wrong on both halves.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the CURRENT slice table · §30.19 G2/G3 and its
     correction · §30.20 the as-built + the three-instance dead-storage pattern. It wins on any
@@ -65,8 +67,9 @@ unchanged, no `(nint)` offset moved, no `{Asset}_…` struct was renamed.
 
 | # | |
 |---|---|
-| **①** | 🔴🔴 **THE ZERO-FALLBACK RAIL — not written yet.** ⛔ It is the ONLY thing that catches the reflection hazard: `BTreeActionRegistryFactory.cs:64`, `BlueprintRegistrarScanner.cs:126` and `AiHotReloadCoordinator.cs:433` each compare `ps[0].ParameterType != typeof(ActionRegistry<byte, BTreeContext>)` and **`continue` on mismatch** ⇒ if the generator and these ever disagree, `RegisterAll` is **silently skipped** and **every action falls back to `Failure`**. ⚠ The compiler cannot see it; `Interpreter.BindActions:697-709` binds an unknown key to a fallback returning `Failure` after one `Console.WriteLine`. ⭐ `Stage7Tests`' `ActionRegistry<byte, …>` assertion is only HALF the guard |
-| **②** | ⚠ **the cluster acceptance** *(§4)* has NOT been re-run since `P4`-②. It was 2/2 gold after `P4`-① |
+| **①** | ✅ **THE ZERO-FALLBACK RAIL — BUILT AND GREEN** *(`2026-09-22`)*. ⛔ **Its shape is NOT the one sketched below — see `DESIGN_Occurrence_Scoped_Storage.md` §30.21**, which supersedes it. The sketch was measured and failed: `BuildFromAssembly` is the wrong registry *(6 `PlatoonHillAttack` keys come from the generated `[BlueprintRegistrar]`)* and `FbtTreeCatalog` is a superset of what production ticks *(9 `HideInCover` keys belong to trees no registrar registers)*. ⭐ Built instead as: `Interpreter.UnboundMethodNames` *(a new production API — the miss list, populated by the same branch that installs the fallback)* + `BlueprintRegistrarScanner.Scan` to enumerate the trees production actually ticks + a **negative control**. 4/4 green in `BTreeActionRegistryFactoryTests` |
+| ~~①~~ | ⛔ **HISTORY — the sketch, SUPERSEDED by §30.21.** 🔴🔴 **THE ZERO-FALLBACK RAIL — not written yet.** ⛔ It is the ONLY thing that catches the reflection hazard: `BTreeActionRegistryFactory.cs:64`, `BlueprintRegistrarScanner.cs:126` and `AiHotReloadCoordinator.cs:433` each compare `ps[0].ParameterType != typeof(ActionRegistry<byte, BTreeContext>)` and **`continue` on mismatch** ⇒ if the generator and these ever disagree, `RegisterAll` is **silently skipped** and **every action falls back to `Failure`**. ⚠ The compiler cannot see it; `Interpreter.BindActions:697-709` binds an unknown key to a fallback returning `Failure` after one `Console.WriteLine`. ⭐ `Stage7Tests`' `ActionRegistry<byte, …>` assertion is only HALF the guard |
+| **②** | ✅ **the cluster acceptance is RE-RUN and 2/2 GOLD** *(`2026-09-22`)* — `523.10 524.91 528.32 531.23` and `523.03 525.27 528.46 531.14`, all `Success`, both targets `Health 0`, entity count 8, **and zero `[FastBTree] Warning` lines in the live log**. ⚠ **One trial per cluster PROCESS** — see §3's new trap |
 
 #### ⭐ HOW TO WRITE THE RAIL *(the design, measured — not yet built)*
 
@@ -104,7 +107,8 @@ is most needed.
 | 🔴 **`G3` under-measured the asset-driven generator** | there are **TWO** BTree generators. `BTreeActionGenerator` (analyzer) is polymorphic; **`BTreeBridgeEmitCore` derived the dispatch type from the ASSET** and threaded it into 10 sites. ⭐ Fixed at `:310`, **not** in the asset |
 | ⛔⛔ **NEVER retarget the asset's `BlackboardTypeName`** | it also mangles into the params-layout struct name **and** `SubtreeSyncIdentity.Derive`, which **MATCHES SUBTREES** ⇒ renames 11 structs across 44 files and breaks matching silently. 📄 §30.19 |
 | ⚠ **the generated BUILDER keeps the asset's type** | `BTreeEmitCore.cs:408` — selector-form bindings need a struct with fields; `byte` has none |
-| 🔴 **`ps \| awk '/Hrot\.Cluster/'` KILLS YOUR OWN SHELL** | the awk pattern appears in your own command line, so it matches itself *(exit 144)*. ⛔ "kill by PID" does **not** prevent it. ⭐ Filter on **`comm == "dotnet"`** |
+| 🔴 **ANY COMMAND-LINE PATTERN MATCH KILLS YOUR OWN SHELL** | ⛔ the pattern appears in your OWN command line, so it matches itself *(exit 144)*. 📌 Hit **twice**: `ps \| awk '/Hrot\.Cluster/'` and — `2026-09-22` — **`pkill -f Xvfb`**. ⛔ "kill by PID" does **not** prevent it, and it is NOT an `awk` quirk: it is **matching on the full command line at all**. ⭐ Filter on the **`comm`** field only: `ps -eo pid,comm --no-headers \| awk '$2=="dotnet"{print $1}' \| xargs -r kill`. ⚠ Xvfb dies with its `xvfb-run` child anyway — do not chase it |
+| 🔴🔴 **A RELOAD IS NOT A RESET — `sawWorldChange` IS THE CHECK** | 📌 `2026-09-22`: trial 2 was run by re-POSTing `/scenario/load/live` on the SAME process. It answered **`sawWorldChange: false`**, `/sim/play` reported **`totalTime: 84.9`**, and the "results" were trial 1's end state drifting. ⛔ **Two trials on one process are ONE trial.** ⭐ **Restart the cluster between trials** and require `sawWorldChange: true` **and** a `totalTime` near 0 at play time |
 | ⚠ **an over-broad substitution corrupts DOC COMMENTS** | `ref bb.BehaviorParameters[0]` → `ref bb` hit two comments that deliberately described the **OLD** anchor. ⭐ **Always `git diff --name-only \| grep -v Tests` after a scripted edit** |
 | ⚠ **the LOAD-FLAKY family is >1** | `BP-534` · `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` · `SquadInputsP3Tests.AllReaders_ZeroAlloc_After1MillionCalls`. ⛔ Confirm any extra red **IN ISOLATION** before calling it a regression |
 | ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` |
@@ -172,6 +176,16 @@ curl -s --noproxy '*' -m 20 -X POST $B/sim/play -H 'Content-Type: application/js
 ---
 
 ## 6. ⭐ THE EXACT FIRST ACTION
+
+⭐⭐ **`P4`-② IS COMPLETE** — the rail is built and green, and the cluster acceptance is 2/2 gold.
+
+1. `git fetch origin behaviors && git status` — expect **clean**.
+2. **`P4`-③** *(the six identity-keyed surfaces — §2's table, per-surface detail in `DESIGN` §30.14)*.
+   ⛔ **`CE-308` RE-POINTS `BlackboardTarget`; it does not delete it.**
+3. **`P4`-④** *(retire the 100-byte cap — `CE-307`)*.
+4. Then `BrainBlackboard` itself — ⛔ **re-run §3's dead-storage check first.**
+
+#### ⛔ HISTORY — the first action as it stood before `2026-09-22`
 
 1. `git fetch origin behaviors && git status` — expect **clean at `a62507e3d`**.
 2. Write **the zero-fallback rail** *(§2 ①)* — it is the one guard `P4`-② is missing.

@@ -4977,3 +4977,90 @@ payload. `BlueprintTierTable.ResolveTier:139` picks on **both axes** —
 ⇒ ⭐⭐⭐ **This strengthens `CE-307` rather than merely restating it**: the cap is not just resting on a
 false premise *(§30.11)* — it is **two and a half orders of magnitude below the storage that actually
 exists**, and the thing it protects was deleted.
+
+---
+
+### 30.21 ⭐⭐⭐ `P4`-② AS BUILT — **the zero-fallback rail, and why it is NOT the shape that was planned** *(`2026-09-22`)*
+
+⛔ **This section SUPERSEDES the rail sketch carried in `RESUME_P4_Retire_Blackboards.md` §2 ①.** That
+sketch said *"enumerate `FbtTreeCatalog.Get*` by reflection and assert every `MethodNames` key resolves
+against `BTreeActionRegistryFactory.BuildFromAssembly`."* 📐 **Measured before building it — and it is
+wrong on both halves.**
+
+#### 🔴 ① THE MEASUREMENT THAT KILLED THE PLANNED SHAPE
+
+📐 A probe ran exactly the sketched rail against `Hrot.AI.Behaviors`. **15 of 29 keys did not resolve**:
+
+| tree | keys | misses | why |
+|---|---|---|---|
+| `MoveToLocation` · `FollowRoute` · `JoinFormation` · `WanderMilitary` · `FireAtTarget` | 6 | **0** | curated, `[FbtRegistrar]`-owned |
+| `HullDownAttackRun` | 4 | **0** | |
+| ⛔ `PlatoonHillAttack` | 7 | 🔴 **6** | keys are `…@0@1299152117` — registered by the **generated `[BlueprintRegistrar]`** *(`PlatoonHillAttack.Registrar.g.cs:53`)*, **not** by `[FbtRegistrar]`. ⇒ **`BuildFromAssembly` alone is the WRONG registry** |
+| ⛔ `HideInCover_BT` / `_v2` | 13 | 🔴 **9** | keys are `…@44` / `…@56` — the **selector form's** `Marshal.OffsetOf` thunks, which live in the **builder's own registry** and are discarded at `Compile()` *(§30.18)*. ⇒ **these trees are not registered as behaviours at all and production never interprets them** |
+
+⇒ ⭐⭐ **Two independent producers fill one registry**, and **the catalog is a superset of what production
+ticks.** ⛔ The sketched rail would have been red on day one and would have had to grow an allowlist — the
+exact shape that goes stale when a tree is added, which is what the sketch was trying to avoid.
+
+#### ⭐⭐⭐ ② WHAT WAS BUILT INSTEAD — **ask the INTERPRETER, and enumerate by the SCAN**
+
+| ⭐ the decision | ⛔ the rejected alternative, and the one fact that killed it |
+|---|---|
+| ⭐⭐⭐ **the interpreter records its own misses** — `Interpreter.UnboundMethodNames` *(`Fbt.Kernel/Runtime/Interpreter.cs`)*, populated by the **same branch** that installs the `Failure` fallback | ⛔ **capture `Console` output** — it is the SYMPTOM, not the definition, and a rail keyed on a log line drifts the moment the message changes |
+| ⭐⭐⭐ **enumerate by running `BlueprintRegistrarScanner.Scan`** and walking the resulting `BehaviorRegistry` | ⛔ **enumerate `FbtTreeCatalog.Get*` by reflection** — ① it misses the generated registrars' own keys *(PlatoonHillAttack, 6 keys)* and ② it includes trees nothing interprets *(HideInCover, 9 keys)*. 📐 Both measured above |
+| ⭐⭐ **a NEGATIVE CONTROL** — an interpreter built against an EMPTY registry must REPORT its miss | ⛔ without it, a bug that left `UnboundMethodNames` always empty makes the rail pass forever. ⚠ **This is the `T-1` ③ lesson: a rail that stays green while the feature is broken IS the finding** |
+
+⭐ **Both rails live in `BTreeActionRegistryFactoryTests`** — the feature's existing suite *(`T-1` ④)*, not
+a parallel class.
+
+#### ⭐⭐ ③ WHAT THE RAIL ACTUALLY GUARDS
+
+⛔ Three runtime sites filter registrars on an exact `typeof(ActionRegistry<byte, BTreeContext>)` and
+**`continue` on mismatch** — `BTreeActionRegistryFactory.cs:64`, `BlueprintRegistrarScanner.cs:126`,
+`AiHotReloadCoordinator.cs:433`. ⚠ **`BTreeActionRegistryFactory` additionally swallows a throwing
+registrar** *(bare `catch {}`)*. ⇒ **two silent-skip paths**, both of which leave a tree that ticks,
+returns `Failure` forever, and compiles cleanly.
+
+| what sees it | |
+|---|---|
+| ⛔ the compiler | **no** — a reflection filter is invisible to it |
+| ⛔ `Stage7Tests`' `ActionRegistry<byte, …>` assertion | ⭐ only the **GENERATOR** half — it cannot see the runtime filter |
+| ⭐⭐⭐ **this rail** | **both halves, plus the swallowed-throw path**, because it asserts on the CONSTRUCTED interpreters |
+
+⇒ ⭐⭐ **`Interpreter.UnboundMethodNames` is a production API addition, deliberately.** 🔒 The justification
+is the one this programme keeps re-learning: **a silent behavioural fallback that only a `Console.WriteLine`
+announces is indistinguishable from working code.** ⭐ Making the miss list inspectable is what lets a rail
+assert the absence — and it is the same move as §30.20's dead-storage check: *ask the thing that PROVISIONS
+the behaviour, not the thing that calls it.*
+
+#### ⭐⭐ ④ THE CLUSTER ACCEPTANCE AFTER `P4`-② — **`hill-attack-close`, 2/2 GOLD** *(`2026-09-22`)*
+
+📐 Run on `--mode all` against the post-`P4`-② build, **one trial per cluster process** *(see the trap
+below)*:
+
+| trial | `1001` | `1002` | `1003` | `1004` | locomotion | `1006`/`1007` | entities |
+|---|---|---|---|---|---|---|---|
+| **1** | **523.10** | **524.91** | **528.32** | **531.23** | all `Success` | `Health 0` | 8 |
+| **2** | **523.03** | **525.27** | **528.46** | **531.14** | all `Success` | `Health 0` | 8 |
+
+⭐ Inside the 523–531 band and **indistinguishable from the `P4`-① gold** *(`523.03 525.25 529.14
+531.37` / `523.03 525.26 529.44 531.37`, §30.20)* — which is the whole assertion: **a retirement must
+not move the simulation.**
+⭐⭐ **And the live log carries ZERO `[FastBTree] Warning` lines** — the same fact the zero-fallback rail
+asserts, observed on the running product rather than in a fixture.
+
+#### 🔴🔴 THE TRAP THAT INVALIDATED THE FIRST "TRIAL 2" — **a RELOAD IS NOT A RESET**
+
+📌 The second trial was first run by re-POSTing `/scenario/load/live` on the **same process**. It
+answered **`sawWorldChange: false`** and `/sim/play` reported **`totalTime: 84.9`** — the world had
+never reset, so the "results" were trial 1's end state drifting by hundredths. ⛔ **Two trials on one
+process are ONE trial**, and the numbers looked plausible enough to report.
+
+| ⭐ the checkable guard | |
+|---|---|
+| ⭐⭐⭐ **restart the cluster between trials** | ⛔ a reload is not sufficient |
+| ⭐⭐ **require `sawWorldChange: true` AND `totalTime ≈ 0` at play time** | ⭐ both are in the responses already; neither was being read |
+
+⚠ **And a SECOND instance of the self-kill trap** *(§3 of the resume doc)*: `pkill -f Xvfb` **kills its
+own shell** — the pattern is in its own command line *(exit 144)*. ⛔ It is not an `awk` quirk; it is
+**matching on the full command line at all**. ⭐ Filter on `comm` only.

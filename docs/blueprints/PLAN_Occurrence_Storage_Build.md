@@ -178,7 +178,7 @@ if (freshlyAttached) {
 | slice | what | state |
 |---|---|---|
 | **`P4`-①** | delete `Blackboard1024` **+ route the AiPrimitive WRITE path** *(`CE-310`)* **+ route the INLINE emitter** *(`CE-311`, found during the build)* | ✅ **BUILT `2026-09-22`** — zero C# errors solution-wide; four suites at baseline |
-| **`P4`-②** | bind `TBlackboard` to `byte` | ✅ **BUILT `2026-09-22`** — 4 suites at baseline; both goldens moved as a PURE type-name substitution |
+| **`P4`-②** | bind `TBlackboard` to `byte` | ✅ **BUILT AND CLOSED `2026-09-22`** — 4 suites at baseline; both goldens moved as a PURE type-name substitution; ⭐ **the zero-fallback rail is green** *(`Interpreter.UnboundMethodNames` + a scan-driven enumeration + a negative control — `DESIGN` §30.21)*; ⭐⭐ **`hill-attack-close` 2/2 GOLD** with zero `[FastBTree] Warning` lines live |
 | ~~`P4`-②b~~ | ⛔ **WITHDRAWN** — the blob is type-erased, so `BTreeBuilder<T>` is build-time only and the wrapper structs cost nothing. Deleting them is **unsafe** for `HideInCover` *(§30.18)* | ⛔ withdrawn |
 | **`P4`-③** | re-home the **SIX** identity-keyed surfaces *(`CE-303`, + `CE-308`: `BlackboardTarget` is **RE-POINTED**, two regions still exist)* | ✅ cleared |
 | **`P4`-④** | retire the 100-byte cap *(`CE-307`)* — ⭐ now argued from the measured **16 096 B** real ceiling *(§30.15)* | ⚠ with/after ② |
