@@ -24,14 +24,14 @@
 
   <rect x="28" y="86" width="330" height="34" class="box"/>
   <text x="36" y="100" class="tb">Params DTO @ 0, sized RootParamsBytes(def)</text>
-  <text x="36" y="114" class="s">every behavior's params DTO projects here — light AND heavy tier alike</text>
+  <text x="36" y="114" class="s">every behavior's params DTO projects here, whatever tier the entity sits in</text>
 
   <rect x="366" y="86" width="108" height="34" class="no"/>
   <text x="374" y="100" class="tb">tail 28 B</text>
   <text x="374" y="114" class="s">threat + interrupts</text>
 
   <text x="28" y="140" class="tb">No cap; allocator promotes tier</text>
-  <text x="176" y="140" class="s">BehaviorParameterSizeAnalyzer · BTreeBuilder · BehaviorRegistry.Register (throws)</text>
+  <text x="176" y="140" class="s">FDP_001 refuses only a region no tier could hold; TryAttach is the structural check</text>
   <text x="28" y="160" class="tb">ONE struct per behavior</text>
   <text x="176" y="160" class="s">ParamsDtoType is singular; an action BINDS A FIELD of it, it owns no allocation</text>
   <text x="28" y="180" class="tb">Written once</text>
@@ -79,9 +79,9 @@
   <text x="34" y="367" class="m">@8  WorkingState struct</text>
   <text x="26" y="392" class="s">⭐ ONE struct since Batch 56 — Variables and</text>
   <text x="26" y="406" class="s">WorkingState are one layout run, one base.</text>
-  <text x="26" y="426" class="tb">Hash mismatch ⇒ zero all 1024 B</text>
-  <text x="26" y="440" class="s">then re-init defaults. That is the reset trigger</text>
-  <text x="26" y="454" class="s">inputs would inherit if they moved here.</text>
+  <text x="26" y="426" class="tb">Hash mismatch ⇒ zero THIS SLOT only</text>
+  <text x="26" y="440" class="s">then re-init defaults. The slot table bounds</text>
+  <text x="26" y="454" class="s">the reset, so neighbours are untouched.</text>
 
   <rect x="340" y="276" width="330" height="192" class="st"/>
   <rect x="340" y="276" width="330" height="18" fill="#4a8a3c" rx="4"/>

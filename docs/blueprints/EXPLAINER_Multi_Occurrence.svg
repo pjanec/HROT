@@ -103,7 +103,7 @@
 
   <rect x="714" y="284" width="270" height="92" class="bad"/>
   <text x="724" y="302" class="tb">⛔ per-behaviour only</text>
-  <text x="724" y="320" class="s">same 100-byte region</text>
+  <text x="724" y="320" class="s">same root params slot</text>
   <text x="724" y="339" class="s">and here the occurrences are</text>
   <text x="724" y="352" class="s">CONCURRENT, so the collision</text>
   <text x="724" y="365" class="s">is a live race, not a sharing rule</text>

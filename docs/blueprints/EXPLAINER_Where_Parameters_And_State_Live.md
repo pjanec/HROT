@@ -35,7 +35,7 @@ Everything an entity's brain owns lives in **one** component — the smallest
 | ⭐ **a hosted occurrence's slot** | that occurrence's **own** params **and** working state, laid out `[WorkingState M][Params N]` | the asset's declared types | the hosting thunk, at attach; the action, every tick |
 | ⭐ **a node working-state slot** | AiPrimitive / shared-AI **state**, `StructureHash` @0, state @8 | the asset's `WorkingState` | the action itself, every tick |
 | ⭐ **an Instance blueprint slot** | Instance blueprint state | the blueprint's state struct | `BlueprintInstanceService.AttachToEntity` |
-| a managed heavy component *(outside the store)* | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
+| a managed component *(outside the store)* | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
 
 The tier payloads are **176 / 800 / 3 808 / 16 096 B**; the allocator promotes an entity to a larger tier
 rather than refusing an allocation.
@@ -151,9 +151,9 @@ pre-provisions the tier; `BlueprintEventIngressSystem` attaches/switches by even
 | | **Instance blueprint** | **BTree/HSM behavior** |
 |---|---|---|
 | verb | **attached** | **assigned** |
-| how many per entity | ⭐ **several** — 4 slots (1024) … 16 (16384) | ⭐ **one active** |
+| how many per entity | ⭐ **several** — 3 slots (256) … 16 (16384) | ⭐ **one active** |
 | comes from | scenario state, at load | a command / tactical intent |
-| state home | its own partition slot, keyed `blueprintId + StructureHash` | the shared 1024 / 100 B regions |
+| state home | its own partition slot, keyed `blueprintId + StructureHash` | the root params slot, keyed `ComputeRootParamsKey(ActiveBehaviorHash)` |
 | boots to | `InitDefault` | zero-init, after the resolver writes inputs |
 
 ⇒ An Instance is **a script component bolted onto an entity**; a behavior is **what the entity is
@@ -473,7 +473,7 @@ preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
 
 | | |
 |---|---|
-| **`D2` — which `DeclarationKind`?** | ⭐ **Largely dissolved.** The resolver design already rules there is no "Param" role: `Input` *is* the parameter role, and inputs stay in the params region. `D2` reduces to *"let the compiler own the layout"* rather than *"move to the heavy tier"* |
+| **`D2` — which `DeclarationKind`?** | ⭐ **Largely dissolved.** The resolver design already rules there is no "Param" role: `Input` *is* the parameter role, and inputs stay in the params region. `D2` reduces to *"let the compiler own the layout"* rather than *"move it somewhere else"* |
 | **inputs-in-1024** | ⛔ **not needed for the unification.** The decoupling motive is answered by generating the layout; the *size* motive survives only as an **opt-in overflow tier** |
 | **the real work** | `S5` (one picker, so parameters can be struct-typed) · the `G1` split of deserialize from resolve · and for HSM, wiring `Role`/`Scope` at all |
 

@@ -428,8 +428,9 @@ If a hand-introduced read-only field carries a `[FieldOffset]` attribute, the fi
 ### 4.7 Memory budget indicator
 
 The header shows `Memory: X / Y B` for the asset's **params region**. Y is the budget the bin-packer
-enforces — `BlackboardBinPacker.MaxInlineBytes`, **100 bytes** today. The bar fills as variables are
-added, turns amber at 80%, and red when the packer would refuse.
+enforces — `BlackboardBinPacker.MaxInlineBytes`, **16 096 bytes**: the largest occurrence tier's
+payload. The bar fills as variables are added, turns amber at 80%, and red when the packer would
+refuse.
 
 ⭐ **That budget IS the storage bound.** `CE-307` (`2026-09-22`) set `MaxInlineBytes` to the largest
 tier's payload, so the bar refuses exactly what no tier could seat. At runtime the params region is an
@@ -646,7 +647,7 @@ public sealed record PackedVariable(
 The algorithm:
 
 1. **Sort variables by category.** Master variables (declared on the asset itself) come first, then aggregated sub-tree variables.
-2. **Master variables go in the params region.** The bin-packer enforces `BlackboardBinPacker.MaxInlineBytes` (100 B, §4.7). If the masters alone exceed it, that's a hard error: "Master DTO exceeds 100-byte budget. Reduce or restructure." The packer surfaces this as a `PackWarning.Error`.
+2. **Master variables go in the params region.** The bin-packer enforces `BlackboardBinPacker.MaxInlineBytes` (16 096 B, §4.7). If the masters alone exceed it, that's a hard error: "Master DTO exceeds the largest tier's payload. Reduce or restructure." The packer surfaces this as a `PackWarning.Error`.
 3. **Aggregated `Role=Input` variables join the params region** in declared order while they fit the same budget. A `Role=State` variable never joins it — it gets its own working-state slot regardless of size, because it must survive across ticks and be keyed by scope.
 4. **Compute byte offsets.** For `LayoutKind.Sequential` (default), offsets are sequential within each slot, accounting for C# struct alignment rules (8-byte fields aligned to 8, 4-byte to 4, etc.). The packer uses the same alignment math `Marshal.SizeOf` uses, ensuring runtime layout matches.
 5. **Emit the result.** The editor's Generated.cs emit (§3.3) builds the params struct from `ParamsFields`; each `StateFields` group becomes a working-state struct the owning thunk attaches its slot for on first dispatch.
@@ -1462,7 +1463,7 @@ Manual checklist:
 
 A handful of items remain open or are worth flagging for future review. Earlier drafts of this DD had a longer list; most were resolved in design review with the project owner and the architect.
 
-1. **Bin-packing overflow handling.** Currently the panel surfaces `InlineMemoryExceeded` as a persistent Warning when master vars exceed 100 bytes, but doesn't refuse the variable addition. The designer can break the layout temporarily while restructuring. Confirm this is the right friction level; the alternative is to refuse adds that would overflow.
+1. **Bin-packing overflow handling.** Currently the panel surfaces `InlineMemoryExceeded` as a persistent Warning when master vars exceed what any tier could seat, but doesn't refuse the variable addition. The designer can break the layout temporarily while restructuring. Confirm this is the right friction level; the alternative is to refuse adds that would overflow.
 
 2. **`[BlackboardDtoStruct]` attribute discoverability.** §10 lists this as an optional attribute on user-defined DTO structs. The schema exporter auto-detects DTO types via action signatures; the attribute is for pre-declared types not yet referenced. Default behavior — auto-detect plus optional attribute — was confirmed in design review. The attribute is documented but not required.
 
