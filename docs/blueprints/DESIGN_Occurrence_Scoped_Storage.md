@@ -6020,6 +6020,48 @@ and it fired; nobody read it."* ⛔ **So the count is re-baselined, never silent
 WHICH system left and why, in the same style as the `CE-221` and `A4`/`O0` notes above it.
 ⚠ A count moved with no explanation is indistinguishable from a regression someone shrugged at.
 
+#### 31.11.6 📐 THE GATES — **and a correction to what the commit message claimed**
+
+| gate | command | result |
+|---|---|---|
+| the new rail, red-first | `--filter ...EveryHsmTickSystem_IsRegisteredForAnAttachableComponent` | 🔴 **1 failed** before the deletion *(`Orphans: BrainHsm64`)* → ✅ green after |
+| touched concepts | `--filter` over the 5 touched classes, `--no-build` | ✅ **31 / 31** |
+| `Fdp.Toolkits.Tests`, whole | `--no-build`, **×5** | ⚠ **1 failed / 2308** on the first run, then ✅ **2309 / 2309 four times running** |
+| `Hrot.Hsm.Editor.Tests`, whole | `--no-build` | ✅ **565 / 565** |
+| `Hrot.SimHost.Tests` | `--filter` over the 3 touched classes | ✅ **56 / 56** |
+| doc gates | `mermaid-check` · `design-digest --check` · `rulings-check` · `tracker-counts --check` | ✅ 23/23 · pass · 38/38 · pass |
+
+##### ⚠ THE ONE RED — **stated as what it IS, not as what it probably was**
+
+📐 **It occurred ONCE in five runs and its identity was NEVER CAPTURED** — the capture command
+filtered on `[FAIL]`, and by the time it ran the suite was green. ⚠ **It is CONSISTENT with
+`DEBT-AIB-030`** *(this exact project; "seven distinct tests, the identity ROTATES between runs")*,
+and that ruling's own words are *"neither a red nor a green is evidence"* ⇒ ⛔⛔ **four greens do not
+prove it was the known flake, and this section does not claim they do.** ⭐ What IS evidence: every
+test this change touched was covered by the filtered **31/31**, which passed on every run.
+🔒 **The method lesson, and it is trap ㋝'s again:** *capture the run WHOLE the first time* — a
+filtered capture of an intermittent red gets one chance, and I spent it.
+
+##### ⛔⛔ CORRECTION — **the "full solution build" in commit `449ec04ac` proved less than it says**
+
+📐 That build reported **zero compile errors**, and the commit message cited it. ⚠ **But all 20 of its
+errors were `NETSDK1004` — `project.assets.json` not found** ⇒ those projects were **SKIPPED for want
+of a restore, never compiled.** ⛔ A `--no-restore` solution build silently degrades into "everything
+that happened to be restored", and **an unrestored project cannot fail** — which is exactly the
+canon's *"`Symbol not found` for a name grep CAN see is a LOAD failure"* trap, wearing a build's
+clothes rather than Roslyn's.
+
+⭐ **What was done instead — every project this change edited, built individually:**
+
+| project | result |
+|---|---|
+| `Fdp.Toolkits` *(via its tests)* · `Hrot.Hsm.Editor` *(via its tests)* · `Hrot.SimHost` *(via its tests)* | ✅ |
+| `Hrot.Editor` · `Hrot.Blueprints.Editor` · `Fdp.Examples.Scenarios` · `Hrot.ClusterRunner.Integration.Tests` | ✅ |
+| `Fdp.Examples.UrbanCombat` · `Hrot.SimHost.Integration.Tests` | ✅ **after `dotnet restore`** — both were unrestored, which is why the solution build skipped them |
+
+⇒ 🔒 **a full-solution build is only a gate when it RESTORED**; otherwise report it as what it is —
+a partial build — and name the projects it did not compile.
+
 #### 31.11.5 ⛔⛔ THE POINT WORTH KEEPING — **the 64-byte TIER did not die**
 
 🔒 **What was deleted is the ECS WRAPPER, not the tier.** `HsmInstance64` remains a live kernel tier and
