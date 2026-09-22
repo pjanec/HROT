@@ -18,7 +18,6 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///       <item><see cref="CognitiveInterruptSystem"/> — edge-triggered blackboard interrupt bytes</item>
     ///       <item><see cref="BTreeTickSystem"/> — zero-alloc BTree tick per entity</item>
     ///       <item><see cref="HsmTickSystem{BrainHsm128}"/> — HSM tick for 128-byte HSM instances</item>
-    ///       <item><see cref="HsmTickSystem{BrainHsm64}"/> — HSM tick for 64-byte HSM instances</item>
     ///       <item><see cref="CognitiveCleanupSystem"/> — clears per-frame interrupt bytes after all brain ticks</item>
     ///       <item><see cref="BehaviorFrameSystem"/> — advances the global behaviour-frame pulse (Q46 rule 2b)</item>
     ///     </list>
@@ -61,8 +60,10 @@ namespace Fdp.Toolkit.Behavior.Modules
                 new ChannelArbitrationSystem(gateOnAuthority),
                 new CognitiveInterruptSystem(gateOnAuthority),   // BHU-008: before HSM/BTree ticks
                 new BTreeTickSystem(_registry, gateOnAuthority),
+                // ⛔ O7c-① (2026-09-22): the BrainHsm64 tick system is GONE with its component.
+                //   📐 Nothing in production ever attached BrainHsm64, so this system ticked an
+                //   always-empty query every frame. 📄 §31.5 step ①.
                 new HsmTickSystem<BrainHsm128>(_registry, gateOnAuthority),
-                new HsmTickSystem<BrainHsm64>(_registry, gateOnAuthority),
                 new CognitiveCleanupSystem(gateOnAuthority),     // BHU-015: clears interrupt bytes last
                 // ⭐⭐⭐ Batch 94 (94b) — the behaviour-frame pulse, LAST, so it means "a brain tick
                 //    HAS RUN". Q46 §2 rule 2b: ONE tick source for every host, gated on dt > 0.

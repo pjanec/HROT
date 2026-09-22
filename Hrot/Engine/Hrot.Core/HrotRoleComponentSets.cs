@@ -131,8 +131,9 @@ public static class HrotRoleComponentSets
         //    GlobalComponentIds rather than being reused, so a stale recording cannot bind it to a
         //    different component.
         brainOnly.SetBit(ComponentType<BrainBTreeState>.ID);
+        // ⛔ O7c-① (2026-09-22): BrainHsm64 retired — nothing ever attached it, so this bit
+        //    declined a component that was never present. ⚠ Its id 35 stays RESERVED, like 23 and 74.
         brainOnly.SetBit(ComponentType<BrainHsm128>.ID);
-        brainOnly.SetBit(ComponentType<BrainHsm64>.ID);
         // ⭐ The three channels: their only consumers are ActionDispatchModule and
         //   ChannelArbitrationSystem, both registered by CgfLogicPack alone (§3.9a).
         brainOnly.SetBit(ComponentType<LocomotionChannel>.ID);

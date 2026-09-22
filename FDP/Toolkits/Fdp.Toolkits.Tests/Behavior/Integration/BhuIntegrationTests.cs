@@ -76,14 +76,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             return brain;
         }
 
-        private static BrainHsm64 MakeBrain64(HsmDefinitionBlob blob)
-        {
-            var brain = new BrainHsm64();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0] = 0xFFFF;
-            return brain;
-        }
+        // ⛔ O7c-① (2026-09-22): MakeBrain64 is gone with BrainHsm64. Its only caller built a
+        //    64-tier brain for a claim that was never 64-specific; MakeBrain128 carries it now.
 
         // IT-BHU-A1: HSM reaches final state, BehaviorFinishedEvent published.
         // Proves BHU-005 (IsFinal flag emitted) + BHU-006 (Terminated set in kernel)
@@ -221,41 +215,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // IT-BHU-A4: BrainHsm64 also publishes BehaviorFinishedEvent (covers both instance sizes).
-        // Uses a 2-state blob because BrainHsm64 Tier1 queue capacity is one event.
-        [Fact]
-        public void A4_BrainHsm64_PublishesBehaviorFinishedEvent_LatchCleared()
-        {
-            var world    = TestWorldFactory.Create();
-            var registry = new BehaviorRegistry();
-            const int    docId = 99005;
-            var blob = Build2StateFinalBlob(0xA4000001);
+        // ⛔ IT-BHU-A4 REMOVED by O7c-① (2026-09-22).
+        //   📐 Its stated claim was "covers both instance sizes", and it asserted EXACTLY the three
+        //   things IT-BHU-A1 already asserts on the 128 tier: one BehaviorFinishedEvent, Terminated
+        //   cleared, Phase == Idle. ⇒ with BrainHsm64 gone the second size does not exist, so this
+        //   is a DUPLICATE of A1 rather than lost coverage.
+        //   ⚠ Said out loud because "covers both sizes" is the kind of claim that quietly becomes
+        //   false while the test keeps passing.
 
-            registry.Register(docId, "A4Doc", new BehaviorDefinition { Name = "A4Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
-
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = world.CreateEntity();
-            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain64(blob));
-            world.AddComponent(e, new BrainInterrupts());
-
-            // Inject single EventX (Tier1 holds only one event).
-            InjectEvents<BrainHsm64>(world, e, new HsmEvent { EventId = EventX });
-
-            for (int i = 0; i < 20; i++)
-                sys.Execute(world, 0.016f);
-
-            world.Bus.SwapBuffers();
-
-            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
-
-            var brainAfter = world.GetComponent<BrainHsm64>(e);
-            ref var hdr = ref Unsafe.As<BrainHsm64, InstanceHeader>(ref brainAfter);
-            Assert.Equal(0, (int)(hdr.Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr.Phase);
-
-            world.Dispose();
-        }
 
         // IT-BHU-B1: Mobility-lost edge writes byte 126 and HSM receives the event.
         // Proves BHU-008 (CognitiveInterruptSystem) + BHU-009 (HsmTickSystem reads byte 126)

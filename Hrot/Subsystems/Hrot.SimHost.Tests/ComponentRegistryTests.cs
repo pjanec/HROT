@@ -47,7 +47,7 @@ namespace Hrot.SimHost.Tests
             CognitiveComponentRegistry.RegisterAll(world);
 
             Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm64>()));
+            // ⛔ O7c-①: the BrainHsm64 row is gone — the type's deletion makes the claim vacuous.
         }
 
         // ── PerceptionRoleComponentRegistry ───────────────────────────────────
@@ -250,7 +250,8 @@ namespace Hrot.SimHost.Tests
             //    SimHostComponentRegistry does NOT register that component — a claim the type's
             //    deletion now makes vacuous.
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm128>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm64>());
+            // ⛔ O7c-①: likewise here — asserting SimHost does not register a type that no
+            //    longer exists proves nothing.
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<LocomotionChannel>());
         }
 

@@ -152,7 +152,6 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 new ChannelArbitrationSystem(),
                 new BTreeTickSystem(registry),
                 new HsmTickSystem<BrainHsm128>(registry),
-                new HsmTickSystem<BrainHsm64>(registry),
             };
 
             kernel.RegisterModule(new DirectSystemsModule("CognitiveModule", systems));

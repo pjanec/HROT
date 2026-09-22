@@ -143,51 +143,19 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ── Test 2 ────────────────────────────────────────────────────────────
-        [Fact]
-        public void HsmTick64_And_HsmTick128_AreIndependent()
-        {
-            // Arrange — entity A has BrainHsm64 only; entity B has BrainHsm128 only.
-            var world = TestWorldFactory.Create();
+        // ── Test 2 — REMOVED by O7c-① (2026-09-22) ──────────────────────────────
+        //
+        // `HsmTick64_And_HsmTick128_AreIndependent` asserted that two GENERIC INSTANTIATIONS of
+        // HsmTickSystem each query only the component they own and never touch the other's.
+        // ⛔ With BrainHsm64 deleted there is ONE instantiation, so the claim cannot be false.
+        // ⚠ This is a claim that EXPIRED, not one that was dropped — stated explicitly because a
+        //   silently deleted test and a silently weakened one look identical in a diff.
+        //
+        // ⭐⭐ THE SUCCESSOR CLAIM IS REAL AND IT BELONGS TO THE HSM SLICE: once the instance lives
+        //   in an occurrence slot, the tier walk must filter on OccurrenceKind.Hsm and must not
+        //   touch a BTree or Blueprint slot sharing the same store. That is the same "each walker
+        //   sees only its own" property, at the level where it can still be violated.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.5 step ④ / §31.7.
 
-            // Empty registries — neither entity has a registered behavior, so both
-            // systems will skip them. What we're testing is that each system only
-            // queries the component it owns and never touches the other type.
-            var sys128 = new HsmTickSystem<BrainHsm128>(new BehaviorRegistry());
-            var sys64  = new HsmTickSystem<BrainHsm64>(new BehaviorRegistry());
-
-            // Entity A — only BrainHsm64.
-            var entityA = world.CreateEntity();
-            world.AddComponent(entityA, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-            var brainA = new BrainHsm64();
-            brainA.State.Header.Phase = InstancePhase.Idle;
-            world.AddComponent(entityA, brainA);
-            // NO BrainHsm128 on entityA.
-
-            // Entity B — only BrainHsm128.
-            var entityB = world.CreateEntity();
-            world.AddComponent(entityB, new BehaviorState { BrainTier = BehaviorConstants.BrainTierHsm });
-            var brainB = new BrainHsm128();
-            brainB.State.Header.Phase = InstancePhase.Idle;
-            world.AddComponent(entityB, brainB);
-            // NO BrainHsm64 on entityB.
-
-            // Act — run the 128 system first, then the 64 system.
-            sys128.Execute(world, 0.016f);
-
-            // sys128 processed only entityB (has BrainHsm128).
-            // entityA's BrainHsm64 must be unchanged.
-            var aAfter128 = world.GetComponent<BrainHsm64>(entityA);
-            Assert.Equal(InstancePhase.Idle, aAfter128.State.Header.Phase);
-
-            sys64.Execute(world, 0.016f);
-
-            // sys64 processed only entityA (has BrainHsm64).
-            // entityB's BrainHsm128 must be unchanged.
-            var bAfter64 = world.GetComponent<BrainHsm128>(entityB);
-            Assert.Equal(InstancePhase.Idle, bAfter64.State.Header.Phase);
-
-            world.Dispose();
-        }
     }
 }

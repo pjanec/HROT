@@ -918,24 +918,10 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity, uint newMachineId)
         {
-            if (repo.HasComponent<BrainHsm64>(entity))
-            {
-                ref var hsm64 = ref repo.GetComponentRW<BrainHsm64>(entity);
-                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm64);
-                // CRITICAL FIX: Bind the execution state to the new definition's topology.
-                hdr->MachineId = newMachineId;
-                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
-                hdr->Phase  = InstancePhase.Idle;
-                hdr->QueueHead   = 0;
-                hdr->ActiveTail  = 0;
-                hdr->DeferredTail = 0;
-                hdr->MicroStep   = 0;
-                HsmInstance64* inst = (HsmInstance64*)hdr;
-                inst->ActiveLeafIds[0] = 0xFFFF;
-                inst->ActiveLeafIds[1] = 0xFFFF;
-                inst->EventCount = 0;
-            }
-
+            // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is GONE with its component — it reset a
+            //   component no production path ever attached. 📄 §31.5 step ①.
+            // ⚠ This method stays TYPE-driven on purpose: making it SIZE-driven is the HSM slice's
+            //   job (§31.8 — it needs a public size-driven Reset that FastHSM does not expose yet).
             if (repo.HasComponent<BrainHsm128>(entity))
             {
                 ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);

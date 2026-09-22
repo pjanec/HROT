@@ -5947,3 +5947,83 @@ kernel to buy two methods.
 | **`PLAN_Occurrence_Storage_Build.md` row `E4`** | same correction; and `O7c` is now **four slices**, not one |
 | **§9.4's *"who chooses the tier: nothing does"*** | ⭐ still true, and §31.8 names the public selector that ends it |
 | **§21.2 row 1** | ⭐ *"the root occurrence still lives in `BrainBTreeState`"* now has an id — **`CE-319`** — and it is the FIRST real slice, not the last |
+
+### 31.11 ⭐⭐⭐ `O7c`-① AS BUILT — **`BrainHsm64` IS DELETED, and the tests were pointing at the dead branch** *(`2026-09-22`)*
+
+⭐ **Built exactly as §31.5 step ① specified.** ⛔ One thing it did **not** predict, and it is the finding.
+
+#### 31.11.1 ⭐⭐ THE RAIL WENT RED FIRST — **acceptance ④ is a measurement, not an argument**
+
+📄 `CognitiveRuntimeModuleTests.EveryHsmTickSystem_IsRegisteredForAnAttachableComponent_O7c1`
+asserts that **every HSM tick system is registered for a component the PRODUCTION path can attach**,
+comparing the module's `HsmTickSystem<T>` instantiations against
+`BehaviorTkbTranslator.GetProducedComponents()`. 📐 Before the deletion it failed with:
+
+> *Orphans: `BrainHsm64`. Attachable per `BehaviorTkbTranslator.GetProducedComponents()`:
+> `ActorCapabilityState`, `BehaviorState`, `BrainBTreeState`, **`BrainHsm128`**, `EntityInfo`,
+> `InteractionChannel`, `LocomotionChannel`, `MissionPlanQueue`, `PassengerBuffer`,
+> `PreviousCapabilities`, `SimTier`, `WeaponChannel`.*
+
+⭐⭐ **It asserts the AGREEMENT, not the absence**, so it keeps meaning something afterwards: adding a
+tick system without an attach path reddens it. ⚠ It also guards against a vacuous pass
+*(`Assert.NotEmpty` on the ticked set)* — ⛔ a rail that passes because it measured nothing is the
+failure mode this programme keeps filing.
+
+#### 31.11.2 🔴🔴 THE FINDING — **`HsmDebugSession`'s LIVE branch had ZERO test coverage**
+
+📐 Measured while re-homing: **all 14 `BrainHsm*` sites in `HsmDebugSessionTests` were `BrainHsm64`.**
+The file *registered* `BrainHsm128` and never attached one. ⇒ ⛔⛔ **every test in that suite exercised
+the branch production NEVER takes, and the branch production ALWAYS takes was untested.**
+
+⭐⭐ **So the re-home GAINS coverage rather than losing it** — the suite now runs against the only tier
+that exists. ⚠ **And it was not a type swap**, which is why it is worth recording:
+
+| what differs | 64 | 128 |
+|---|---|---|
+| leaf slots | 2 | **4** — ⛔ an unset slot defaults to `0`, which decodes as **leaf id 0**, not "absent" ⇒ the unused pair needs its `0xFFFF` sentinel or the count assertions see 4 |
+| event queue | ONE shared slot at `EventBuffer[0]` | **interrupt slot `[0..23]` + ring from `[24]`**; `DecodeEventQueue128` reads `InterruptSlotUsed + EventCount` |
+| timers / history | 2 / 2 | **4 / 8** — history needs `0xFFFF` in every unused slot |
+
+⇒ 🔒 **this is the `HN-037` lesson again: a deletion's test surface is re-homed CLAIM BY CLAIM, never
+`s/old/new/`.** A blanket swap would have compiled and failed on the count assertions — or worse,
+passed while asserting something different.
+
+#### 31.11.3 ⭐ TWO TESTS EXPIRED — **said out loud, because a deleted test and a weakened one look alike in a diff**
+
+| test | why it is gone |
+|---|---|
+| `HsmTickSystemTests.HsmTick64_And_HsmTick128_AreIndependent` | it asserted that **two generic instantiations** each query only their own component. ⛔ With one instantiation the claim **cannot be false**. ⭐⭐ **The successor claim is real and belongs to the HSM slice**: once the instance is slot-resident, the tier walk must filter on `OccurrenceKind.Hsm` and must not touch a BTree or Blueprint slot in the same store — *the same "each walker sees only its own" property, at the level where it can still be violated* |
+| `BhuIntegrationTests.A4_BrainHsm64_PublishesBehaviorFinishedEvent_LatchCleared` | its stated claim was *"covers both instance sizes"*, and it asserted **exactly** the three things `IT-BHU-A1` already asserts on 128 *(one `BehaviorFinishedEvent`, `Terminated` cleared, `Phase == Idle`)* ⇒ a **duplicate**, not lost coverage |
+
+⚠ **Neither was deleted because it was inconvenient.** ⛔ *"Covers both sizes"* is exactly the kind of
+claim that quietly becomes false while the test keeps passing, which is why the expiry is written here
+rather than left in a commit message.
+
+#### 31.11.4 ⭐⭐ WHAT WAS DELIBERATELY **NOT** DELETED
+
+| kept | why |
+|---|---|
+| ⭐⭐⭐ **`HsmDebugSession.Decode{Leaves,EventQueue,TimerSlots,HistorySlots}64`** | ⛔ they take Fhsm's **`HsmInstance64`** — a LIVE kernel tier that `HsmInstanceManager.SelectTier` still returns — **not** the deleted wrapper. 📄 §11.3 / §31.5 step ⑤ turns these decoders **size-driven**, and the size-64 arm is exactly this code. ⇒ deleting them removes a capability the next slice needs — *"unreferenced is not unintentional"* |
+| ⭐⭐ **`GlobalComponentIds` 35, as `BrainHsm64_RESERVED`** | burned, never reused — same reason as 23 and 74: a stale recording must not bind id 35 to a different component |
+| ⭐ **`ResetHsmComponents` stays TYPE-driven** | making it size-driven is the HSM slice's job; it needs a public size-driven `Reset` that FastHSM does not expose yet *(§31.8)* |
+
+#### 31.11.4a ⭐ THE PINNED SYSTEM COUNTS FIRED, AND THAT IS THEM WORKING
+
+📐 Four hard-coded system counts reddened on the deletion and were re-baselined **with a reason
+written beside each**: `CognitiveRuntimeModuleTests` **7 → 6** · `HsmBehaviorIntegrationTests`
+*(ClusterRunner)* **7 → 6** · `CgfLogicPackTests` **18 → 17** *(×2)* and its combined
+`Input + Simulation` **20 → 19**.
+
+⭐⭐ **These are the ONLY tests that noticed a system had left the schedule**, and `CgfLogicPackTests`
+already carries the lesson in its own comment — *"a hard-coded count is a tripwire for exactly this,
+and it fired; nobody read it."* ⛔ **So the count is re-baselined, never silently**: each site now says
+WHICH system left and why, in the same style as the `CE-221` and `A4`/`O0` notes above it.
+⚠ A count moved with no explanation is indistinguishable from a regression someone shrugged at.
+
+#### 31.11.5 ⛔⛔ THE POINT WORTH KEEPING — **the 64-byte TIER did not die**
+
+🔒 **What was deleted is the ECS WRAPPER, not the tier.** `HsmInstance64` remains a live kernel tier and
+`SelectTier` still returns 64. ⭐⭐ **And after the HSM slice a 64-byte instance becomes REACHABLE FOR
+THE FIRST TIME**, because the slot is sized from the blob instead of from a hard-coded
+`AddComponent(new BrainHsm128())`. ⇒ 📐 **§9.4's claim is literal: the tier stops being a TYPE and
+becomes a PAYLOAD SIZE — and deleting the type is what starts that, not what ends it.**

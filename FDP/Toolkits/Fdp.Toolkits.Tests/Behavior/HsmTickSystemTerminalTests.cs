@@ -97,7 +97,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierHsm,
                 InstanceId         = instanceId,
             });
-            var brain = new BrainHsm64();
+            var brain = new BrainHsm128();
             brain.State.Header.MachineId = blob.Header.StructureHash;
             brain.State.Header.Phase     = InstancePhase.Entry;
             brain.State.ActiveLeafIds[0] = 0xFFFF;
@@ -128,7 +128,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             sys.Execute(world, 0.016f);
@@ -152,7 +152,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: event published, Terminated cleared by system.
@@ -184,7 +184,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: initial behavior terminates -- event fires.
@@ -195,7 +195,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Simulate behavior re-assignment: bump InstanceId and re-initialise HSM.
             ref var behavior = ref world.GetComponentRW<BehaviorState>(e);
             unchecked { behavior.InstanceId++; }
-            ref var brain = ref world.GetComponentRW<BrainHsm64>(e);
+            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
             brain.State.Header.MachineId    = blob.Header.StructureHash;
             brain.State.Header.Phase        = InstancePhase.Entry;
             brain.State.ActiveLeafIds[0]    = 0xFFFF;
@@ -221,7 +221,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: entity terminates -- system starts tracking it.
@@ -231,7 +231,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1, sys.TrackedEntityCount);
 
             // Remove the component so the entity is no longer in the query.
-            world.RemoveComponent<BrainHsm64>(e);
+            world.RemoveComponent<BrainHsm128>(e);
 
             // Frame 2: entity not seen -- stale entry pruned.
             sys.Execute(world, 0.016f);
@@ -256,7 +256,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainInterrupts());
 
@@ -268,7 +268,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Event is enqueued before HsmKernel.Update (which only advances one phase from Entry).
             // After Init: Phase=Activity, event still in queue.
-            BrainHsm64 brainCopy = world.GetComponent<BrainHsm64>(e);
+            BrainHsm128 brainCopy = world.GetComponent<BrainHsm128>(e);
             int queueCount = HsmEventQueue.GetCount(&brainCopy);
             Assert.True(queueCount > 0,
                 "MobilityLost event must be enqueued into the HSM when blackboard byte 126 is set.");
@@ -289,14 +289,14 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
+            var sys = new HsmTickSystem<BrainHsm128>(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainInterrupts());
             // byte 126 is 0 by default.
 
             sys.Execute(world, 0.016f);
 
-            BrainHsm64 brainCopy = world.GetComponent<BrainHsm64>(e);
+            BrainHsm128 brainCopy = world.GetComponent<BrainHsm128>(e);
             int queueCount = HsmEventQueue.GetCount(&brainCopy);
             Assert.Equal(0, queueCount);
 

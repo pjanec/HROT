@@ -309,7 +309,7 @@ namespace Hrot.Editor
                         continue;
 
                     var blob = def.HsmDefinition;
-                    ReloadHsmChunks<BrainHsm64>(blob);
+                    // ⛔ O7c-①: the BrainHsm64 sweep is gone — its chunk table was always empty.
                     ReloadHsmChunks<BrainHsm128>(blob);
                 }
 
@@ -378,7 +378,7 @@ namespace Hrot.Editor
                     if (def.HsmDefinition == null) continue;
 
                     var blob = def.HsmDefinition;
-                    ReloadHsmChunks<BrainHsm64>(blob);
+                    // ⛔ O7c-①: the BrainHsm64 sweep is gone — its chunk table was always empty.
                     ReloadHsmChunks<BrainHsm128>(blob);
                 }
 

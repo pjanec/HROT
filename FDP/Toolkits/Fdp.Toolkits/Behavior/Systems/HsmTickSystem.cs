@@ -40,20 +40,26 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// every entity whose <see cref="BehaviorState.BrainTier"/> equals
     /// <see cref="BehaviorConstants.BrainTierHsm"/>.
     ///
-    /// Register twice in the world:
+    /// Register once in the world:
     /// <code>
-    ///   group.AddSystem(new HsmTickSystem&lt;BrainHsm64&gt;(registry));
     ///   group.AddSystem(new HsmTickSystem&lt;BrainHsm128&gt;(registry));
     /// </code>
+    /// ⛔ <b><c>O7c</c>-① (2026-09-22): there is no longer a <c>BrainHsm64</c> registration</b> —
+    /// nothing in production ever attached that component, so its query could never match.
     ///
     /// Ordering: must run AFTER <see cref="ChannelArbitrationSystem"/>.
     /// </summary>
     /// <typeparam name="T">
-    /// ECS component that wraps an HSM instance (<see cref="BrainHsm64"/> or
-    /// <see cref="BrainHsm128"/>).  The component's memory layout must start with the
-    /// corresponding <c>HsmInstance64/128</c> so that
+    /// ECS component that wraps an HSM instance — <see cref="BrainHsm128"/> is the only one left.
+    /// The component's memory layout must start with the corresponding <c>HsmInstance128</c> so that
     /// <see cref="HsmKernel.Update{TInstance,TContext}"/> can identify the tier from
     /// <c>sizeof(T)</c>.
+    /// <para>⛔⛔ <b>The generic parameter itself is what <c>O7c</c>'s HSM slice removes.</b> Sizing
+    /// the tier from a TYPE is the defect §9.4 names: with occurrence payloads packed adjacently, a
+    /// generic whose <c>sizeof(TInstance)</c> exceeds the slot reads into the NEXT occurrence's bytes,
+    /// with no compiler and no runtime check. The kernel already offers the safe form —
+    /// <c>HsmKernel.Update(blob, byte* instance, int instanceSize, …)</c>, which takes the size from
+    /// the allocation. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.3.</para>
     /// </typeparam>
     [UpdateInPhase(SystemPhase.Simulation)]
     // [UpdateAfter(typeof(ChannelArbitrationSystem))] -- ordering maintained by array position in CognitiveRuntimeModule.

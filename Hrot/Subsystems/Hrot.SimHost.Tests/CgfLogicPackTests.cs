@@ -39,7 +39,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
@@ -126,7 +125,10 @@ namespace Hrot.SimHost.Tests
             //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
             //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
             //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            Assert.Equal(17, pack.SimulationSystems.Count);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
             //    re-baselines without reading why it moved.
@@ -321,7 +323,10 @@ namespace Hrot.SimHost.Tests
             //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
             //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
             //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
-            Assert.Equal(18, pack.SimulationSystems.Count);
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            Assert.Equal(17, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -350,7 +355,8 @@ namespace Hrot.SimHost.Tests
             //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
             //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
             //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
-            Assert.Equal(20, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
+            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

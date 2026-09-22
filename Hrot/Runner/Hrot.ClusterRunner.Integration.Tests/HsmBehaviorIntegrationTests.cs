@@ -25,7 +25,6 @@ namespace Hrot.ClusterRunner.Integration.Tests
             var world = new EntityRepository();
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<BrainHsm128>();
-            world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
@@ -98,7 +97,9 @@ namespace Hrot.ClusterRunner.Integration.Tests
             var registry = new BehaviorRegistry();
             var module   = new CognitiveRuntimeModule(registry);
 
-            Assert.Equal(7, module.SimulationSystems.Count);
+            // ⛔ O7c-① (2026-09-22): was SEVEN. HsmTickSystem<BrainHsm64> is gone with its
+            //   component — nothing in production ever attached it, so it ticked an empty query.
+            Assert.Equal(6, module.SimulationSystems.Count);
 
             Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[0]);
 
@@ -107,13 +108,12 @@ namespace Hrot.ClusterRunner.Integration.Tests
 
             Assert.IsType<BTreeTickSystem>(module.SimulationSystems[2]);
             Assert.IsType<HsmTickSystem<BrainHsm128>>(module.SimulationSystems[3]);
-            Assert.IsType<HsmTickSystem<BrainHsm64>>(module.SimulationSystems[4]);
 
             // CognitiveCleanupSystem is internal to Fdp.Toolkits -- compare by type name.
-            Assert.Equal("CognitiveCleanupSystem", module.SimulationSystems[5].GetType().Name);
+            Assert.Equal("CognitiveCleanupSystem", module.SimulationSystems[4].GetType().Name);
 
             // ⭐ BehaviorFrameSystem is internal to Fdp.Toolkits -- compare by type name.
-            Assert.Equal("BehaviorFrameSystem", module.SimulationSystems[6].GetType().Name);
+            Assert.Equal("BehaviorFrameSystem", module.SimulationSystems[5].GetType().Name);
 
             // Confirm no HsmDamageBridgeSystem anywhere (BHU-010 requirement).
             foreach (var sys in module.SimulationSystems)

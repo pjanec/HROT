@@ -1595,10 +1595,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
         // The hosting machine's id — the other half of the key the thunk computed.
         uint machineId = 0;
+        // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is gone — the branch was unreachable, because
+        //   no production path ever attached that component.
         if (effectiveView.HasComponent<BrainHsm128>(self))
             machineId = effectiveView.GetComponentRO<BrainHsm128>(self).State.Header.MachineId;
-        else if (effectiveView.HasComponent<BrainHsm64>(self))
-            machineId = effectiveView.GetComponentRO<BrainHsm64>(self).State.Header.MachineId;
 
         bool any = false;
         fixed (byte* mem = store)

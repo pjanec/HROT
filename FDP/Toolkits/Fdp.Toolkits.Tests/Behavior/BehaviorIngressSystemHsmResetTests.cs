@@ -94,18 +94,18 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainHsm64());
+            world.AddComponent(e, new BrainHsm128());
 
             // Manually set Terminated flag and a non-Idle phase to simulate
             // an HSM that ended its previous behavior in a terminal state.
-            ref var brain = ref world.GetComponentRW<BrainHsm64>(e);
+            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
             brain.State.Header.Flags |= InstanceFlags.Terminated;
             brain.State.Header.Phase  = InstancePhase.RTC;
 
             // Assign a new behavior -- ingress system must reset the HSM.
             AssignBehavior(world, sys, e, behaviorName);
 
-            var brainAfter = world.GetComponent<BrainHsm64>(e);
+            var brainAfter = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(0, (int)(brainAfter.State.Header.Flags & InstanceFlags.Terminated));
             Assert.Equal(InstancePhase.Idle, brainAfter.State.Header.Phase);
 
@@ -127,17 +127,17 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainHsm64());
+            world.AddComponent(e, new BrainHsm128());
 
             // Simulate a machine that was mid-run: set ActiveLeafIds to non-sentinel values.
-            ref var brain = ref world.GetComponentRW<BrainHsm64>(e);
+            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
             brain.State.ActiveLeafIds[0] = 2;
             brain.State.ActiveLeafIds[1] = 5;
 
             // Assign behavior -- ingress system resets leaf IDs to 0xFFFF (uninitialized).
             AssignBehavior(world, sys, e, behaviorName);
 
-            var brainAfter = world.GetComponent<BrainHsm64>(e);
+            var brainAfter = world.GetComponent<BrainHsm128>(e);
             Assert.Equal(0xFFFF, brainAfter.State.ActiveLeafIds[0]);
             Assert.Equal(0xFFFF, brainAfter.State.ActiveLeafIds[1]);
 

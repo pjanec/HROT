@@ -87,23 +87,14 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         // === Snapshot ===
         HsmInstanceSnapshot? snap = null;
 
-        if (repo.HasComponent<BrainHsm64>(entity))
-        {
-            ref readonly var comp = ref repo.GetComponentRO<BrainHsm64>(entity);
-            snap = new HsmInstanceSnapshot(
-                entity, _metadataAssetId,
-                DecodeLeaves64(comp.State, 2),
-                DecodeEventQueue64(comp.State),
-                DecodeTimerSlots64(comp.State),
-                DecodeHistorySlots64(comp.State),
-                comp.State.Header.Phase,
-                comp.State.Header.MicroStep,
-                0,
-                comp.State.Header.Flags,
-                comp.State.Header.RngState,
-                comp.State.Header.Generation);
-        }
-        else if (repo.HasComponent<BrainHsm128>(entity))
+        // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is gone — it decoded a component no production
+        //   path ever attached, so this session has only ever rendered the 128 tier.
+        // ⭐⭐ THE Decode*64 HELPERS ARE DELIBERATELY KEPT, unused for now. They take Fhsm's
+        //   HsmInstance64 (a live kernel tier, still returned by HsmInstanceManager.SelectTier), NOT
+        //   the deleted wrapper — and §11.3 / §31.5 step ⑤ turns these decoders SIZE-driven, where
+        //   the size-64 arm is exactly this code. ⛔ Deleting them would remove a capability the next
+        //   slice needs, which is the "unreferenced is not unintentional" trap.
+        if (repo.HasComponent<BrainHsm128>(entity))
         {
             ref readonly var comp = ref repo.GetComponentRO<BrainHsm128>(entity);
             snap = new HsmInstanceSnapshot(

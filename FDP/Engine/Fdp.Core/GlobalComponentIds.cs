@@ -110,8 +110,13 @@
         /// <summary><c>SimTier</c> â€” simulation tier level for entity brain prioritization.</summary>
         public const int SimTier                 = 34;
 
-        /// <summary><c>BrainHsm64</c> â€” 64-slot HSM runtime state for entity brains.</summary>
-        public const int BrainHsm64              = 35;
+        /// ⛔⛔ <b>RESERVED — <c>BrainHsm64</c> was retired by <c>O7c</c>-① (2026-09-22).</b>
+        /// 📐 Zero production attach sites; its tick query could never match. 📄
+        /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.5.
+        /// ⚠ <b>The id is BURNED, not freed</b> — same reason as 23 and 74: a stale recording or a
+        /// replayed stream must not bind id 35 to a different component.
+        /// ⭐ The 64-byte HSM TIER survives; only the ECS wrapper is gone (§9.4).
+        public const int BrainHsm64_RESERVED     = 35;
 
         /// <summary><c>BrainHsm128</c> â€” 128-slot HSM runtime state for entity brains.</summary>
         public const int BrainHsm128             = 36;

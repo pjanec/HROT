@@ -70,17 +70,14 @@ namespace Fdp.Toolkit.Scenario.Tests
         public void BrainComponents_AbsentFromSaveableTypeIds()
         {
             _repo.RegisterComponent<BrainBTreeState>();
-            _repo.RegisterComponent<BrainHsm64>();
             _repo.RegisterComponent<BrainHsm128>();
 
             var saveableIds = new HashSet<int>(ComponentTypeRegistry.GetSaveableTypeIds());
 
             int btreeId  = ComponentTypeRegistry.GetId(typeof(BrainBTreeState));
-            int hsm64Id  = ComponentTypeRegistry.GetId(typeof(BrainHsm64));
             int hsm128Id = ComponentTypeRegistry.GetId(typeof(BrainHsm128));
 
             Assert.DoesNotContain(btreeId,  saveableIds);
-            Assert.DoesNotContain(hsm64Id,  saveableIds);
             Assert.DoesNotContain(hsm128Id, saveableIds);
         }
 
@@ -88,17 +85,14 @@ namespace Fdp.Toolkit.Scenario.Tests
         public void BrainComponents_PresentInRecordableTypeIds()
         {
             _repo.RegisterComponent<BrainBTreeState>();
-            _repo.RegisterComponent<BrainHsm64>();
             _repo.RegisterComponent<BrainHsm128>();
 
             var recordableIds = new HashSet<int>(ComponentTypeRegistry.GetRecordableTypeIds());
 
             int btreeId  = ComponentTypeRegistry.GetId(typeof(BrainBTreeState));
-            int hsm64Id  = ComponentTypeRegistry.GetId(typeof(BrainHsm64));
             int hsm128Id = ComponentTypeRegistry.GetId(typeof(BrainHsm128));
 
             Assert.Contains(btreeId,  recordableIds);
-            Assert.Contains(hsm64Id,  recordableIds);
             Assert.Contains(hsm128Id, recordableIds);
         }
 

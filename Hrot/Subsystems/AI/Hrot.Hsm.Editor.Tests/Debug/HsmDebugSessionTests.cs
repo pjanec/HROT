@@ -292,7 +292,6 @@ public sealed class HsmDebugSessionTests
     private static EntityRepository CreateWorld()
     {
         var world = new EntityRepository();
-        world.RegisterComponent<BrainHsm64>();
         world.RegisterComponent<BrainHsm128>();
         world.RegisterComponent<HsmTraceWorkingMemory1024>();
         return world;
@@ -311,11 +310,11 @@ public sealed class HsmDebugSessionTests
     }
 
     [Fact]
-    public void Update_WithBrainHsm64_SnapshotIsNotNull()
+    public void Update_WithBrainHsm128_SnapshotIsNotNull()
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
-        var brain  = new BrainHsm64();
+        var brain  = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Activity;
         world.AddComponent(entity, brain);
         var sut = new HsmDebugSession();
@@ -326,11 +325,11 @@ public sealed class HsmDebugSessionTests
     }
 
     [Fact]
-    public void Update_WithBrainHsm64_SnapshotHasCorrectPhase()
+    public void Update_WithBrainHsm128_SnapshotHasCorrectPhase()
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
-        var brain  = new BrainHsm64();
+        var brain  = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Activity;
         world.AddComponent(entity, brain);
         var sut = new HsmDebugSession();
@@ -345,7 +344,7 @@ public sealed class HsmDebugSessionTests
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
-        var brain  = new BrainHsm64();
+        var brain  = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Idle;
         world.AddComponent(entity, brain);
 
@@ -377,15 +376,19 @@ public sealed class HsmDebugSessionTests
     // ---- BPF-023: active-state decoding ----------------------------------
 
     [Fact]
-    public unsafe void Update_WithBrainHsm64_ActiveLeafIds_DecodedViaMetadata()
+    public unsafe void Update_WithBrainHsm128_ActiveLeafIds_DecodedViaMetadata()
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase     = InstancePhase.Activity;
         brain.State.ActiveLeafIds[0] = 1;
         brain.State.ActiveLeafIds[1] = 2;
+        // ⚠ O7c-①: HsmInstance128 has FOUR leaf slots. A default 0 is a VALID leaf id, so the two
+        //   this test does not use must carry the 0xFFFF sentinel or the count assertion below sees 4.
+        brain.State.ActiveLeafIds[2] = 0xFFFF;
+        brain.State.ActiveLeafIds[3] = 0xFFFF;
         world.AddComponent(entity, brain);
 
         var stableA = new Guid("aa000000-0000-0000-0000-000000000001");
@@ -409,15 +412,17 @@ public sealed class HsmDebugSessionTests
     }
 
     [Fact]
-    public unsafe void Update_WithBrainHsm64_Slot0xFFFF_NotIncludedInActiveLeaves()
+    public unsafe void Update_WithBrainHsm128_Slot0xFFFF_NotIncludedInActiveLeaves()
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase     = InstancePhase.Activity;
         brain.State.ActiveLeafIds[0] = 5;
         brain.State.ActiveLeafIds[1] = 0xFFFF; // empty slot
+        brain.State.ActiveLeafIds[2] = 0xFFFF; // O7c-①: 128 has four
+        brain.State.ActiveLeafIds[3] = 0xFFFF;
         world.AddComponent(entity, brain);
 
         var stableA  = new Guid("dd000000-0000-0000-0000-000000000005");
@@ -441,7 +446,7 @@ public sealed class HsmDebugSessionTests
         var world  = CreateWorld();
         var entity = world.CreateEntity();
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Entry;
         world.AddComponent(entity, brain);
 
@@ -460,7 +465,7 @@ public sealed class HsmDebugSessionTests
         var world  = CreateWorld();
         var entity = world.CreateEntity();
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Activity;
         world.AddComponent(entity, brain);
 
@@ -478,7 +483,7 @@ public sealed class HsmDebugSessionTests
         var world  = CreateWorld();
         var entity = world.CreateEntity();
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase     = InstancePhase.Entry;
         brain.State.Header.MicroStep = 1;
         world.AddComponent(entity, brain);
@@ -496,8 +501,16 @@ public sealed class HsmDebugSessionTests
 
     // ---- BPF-010: event-queue, timer-slot and history-slot decoding ------
 
+    /// <summary>
+    /// ⛔⛔ <b>Re-homed onto the 128 tier by <c>O7c</c>-① (2026-09-22), and the LAYOUT is genuinely
+    /// different — this is not a type swap.</b> <c>HsmInstance64</c> keeps ONE shared event slot at
+    /// <c>EventBuffer[0]</c>; <c>HsmInstance128</c> keeps an INTERRUPT slot at <c>[0..23]</c> and a
+    /// ring from <c>[24]</c>, and <c>DecodeEventQueue128</c> reads
+    /// <c>InterruptSlotUsed + EventCount</c>. It also has 4 timer slots and 8 history slots where 64
+    /// has 2 and 2, so every unused slot must carry its sentinel or it decodes as a live entry.
+    /// </summary>
     [Fact]
-    public unsafe void HsmSnapshot_DecodeEventQueueTimerSlotsHistorySlots_FromHsmInstance64()
+    public unsafe void HsmSnapshot_DecodeEventQueueTimerSlotsHistorySlots_FromHsmInstance128()
     {
         var world  = CreateWorld();
         var entity = world.CreateEntity();
@@ -505,21 +518,23 @@ public sealed class HsmDebugSessionTests
         var childSid = new Guid("ee000000-0000-0000-0000-000000000007");
         var assetId  = new Guid("ff000000-0000-0000-0000-000000000001");
 
-        var brain = new BrainHsm64();
+        var brain = new BrainHsm128();
         brain.State.Header.Phase = InstancePhase.Activity;
+        // ⚠ 4 leaf slots, all empty — a default 0 decodes as leaf id 0, not as "absent".
+        for (int i = 0; i < 4; i++) brain.State.ActiveLeafIds[i] = 0xFFFF;
 
-        // One event in the shared queue
+        // One event, in the RING (not the interrupt slot): EventBuffer + 24.
+        brain.State.InterruptSlotUsed = 0;
         brain.State.EventCount = 1;
         var ev = new HsmEvent { EventId = 99, Priority = EventPriority.Normal };
-        *(HsmEvent*)brain.State.EventBuffer = ev;
+        *(HsmEvent*)(brain.State.EventBuffer + 24) = ev;
 
-        // One timer slot active, one empty
+        // One timer slot active; the other three stay 0 == inactive.
         brain.State.TimerDeadlines[0] = 150u;
-        brain.State.TimerDeadlines[1] = 0u;
 
-        // One history slot with recorded child (flat index 7), one empty
+        // One history slot with recorded child (flat index 7); the other seven empty.
         brain.State.HistorySlots[0] = 7;
-        brain.State.HistorySlots[1] = 0xFFFF;
+        for (int i = 1; i < 8; i++) brain.State.HistorySlots[i] = 0xFFFF;
 
         world.AddComponent(entity, brain);
 

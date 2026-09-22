@@ -45,8 +45,9 @@ namespace Hrot.SimHost
             //    decision — AiPrimitive working state to the Blueprint tier ladder (SLICE2), squad
             //    state to its own component (O1), and the HeavyDtoType overflow path was never
             //    adopted. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.13.
+            // ⛔ O7c-① (2026-09-22): BrainHsm64 is RETIRED — zero production attach sites, so its
+            //   tick query could never match. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
             world.RegisterComponent<BrainHsm128>();
-            world.RegisterComponent<BrainHsm64>();
             // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan
             //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
             //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator

@@ -894,7 +894,6 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
             // HSM brain tiers (for APC-style HSM behaviors)
-            world.RegisterComponent<BrainHsm64>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
