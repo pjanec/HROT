@@ -11,11 +11,22 @@ current-answer: ⭐⭐⭐ NEXT TO BUILD IS §31 — O7c, RETIRE THE ROOT BRAIN C
   only so a regression would stop us.
   📐 O7c IS RE-RATED: §24.3's "L — 188 references" counted TESTS. Production is 42 lines /
   12 files. O7c-1 (delete BrainHsm64) is FREE — nothing in production ever attaches it, so its
-  tick query has always been empty. O7c-2 is the real work and needs ONE ExtDeps addition
-  (§31.8: public size-driven Initialize/Reset; the pointer+size Update O6 added is already there
-  and has ZERO production adopters). O7c-3 is the debug-session list (§11.3/D3, approved).
-  O7c-4 is CE-319 — the BTree root, which was DESIGNED, OPEN and had no tracker id until now.
-  ⛔⛔ LAND CE-318 BEFORE O7c-2 MEASURES ANY TIER: the demand charges each slot's 16-byte entry
+  tick query has always been empty.
+  ⭐⭐⭐ RE-SEQUENCED 2026-09-22 ON A USER CHALLENGE — BTREE FIRST (§31.5 / §31.5a). The first
+  draft put BTree LAST "so the shared walk exists to adopt"; that reason was WRONG — BrainTickWalk
+  is extracted from BlueprintTickSystem's EXISTING tier walk and never needed the HSM slice.
+  ORDER: (1) delete BrainHsm64, free · (2) the BTREE root into a slot (CE-319) + extract
+  BrainTickWalk · (3) CE-318 · (4) the HSM instance into a slot · (5) HsmDebugSession as a list.
+  ⭐⭐ WHY BTREE FIRST, and it is two separate arguments: BehaviorTreeState is ONE FIXED 64-BYTE
+  TYPE, so Interpreter.Tick's plain `ref` becomes Unsafe.AsRef and there is NO ExtDeps change, no
+  tier ladder, no hot-reload consumer and no CE-318 dependency — AND hill-attack-close runs
+  PlatoonHillAttack, a BTREE, so it is the ONLY slice the golden test can SEE. Doing HSM first
+  lands the hard slice with no acceptance signal, which is how CE-304 reached a pushed commit.
+  ⚠ The counterweight is real and stated in §31.5a: BTree's blast radius on running content is
+  far higher. That argues FOR it — high blast radius with a test beats low blast radius without.
+  The HSM slice still needs ONE ExtDeps addition (§31.8: public size-driven Initialize/Reset; the
+  pointer+size Update O6 added is already there and has ZERO production adopters).
+  ⛔⛔ LAND CE-318 BEFORE THE HSM SLICE MEASURES ANY TIER: the demand charges each slot's 16-byte entry
   TWICE on the payload axis, which promotes an HSM entity 256 -> 1024 by EIGHT BYTES. Conservative,
   never unsafe — but it would record an artifact as a fact (§31.6).
   ⭐⭐ AND §31.7 IS THE PART TO NOT SKIP: three tick systems converge on ONE tier walk. Growing a
@@ -2956,7 +2967,7 @@ differently, so they ship separately, each green:
 |---|---|---|
 | ✅ **`O7a` — THE KEY AND THE LOOKUP** *(LANDED)* | `ComputeHsmStateKey` in the **LINKED** `OccurrenceSlotKey` + `HsmOccurrence` — the runtime seam every thunk will call | **S** |
 | ⏳ **`O7b` — THE EMITTER** | the three thunks call `HsmOccurrence` instead of `Blackboard1024 + 8`; the HSM host emits a manifest entry per hosting `(region, state)`; **a DTO-bound HSM action authored** so §7's *"two regions, two slots"* rail is not vacuous | **M** |
-| ⏳ **`O7c` — THE STORAGE MIGRATION** | HSM instances move from `BrainHsm64`/`BrainHsm128` into slots; those components are **deleted**; `HsmTickSystem` gains entity discovery across the tier components (`F9`); `HsmDebugSession` becomes a list (§11.3) | ⛔⛔ **RE-RATED `2026-09-22` — §31.** ~~L — 188 references~~: 📐 **the 188 counted TESTS.** Production is **42 lines / 12 files**, and it is now **FOUR slices** — `O7c-1` *(delete `BrainHsm64`, which nothing attaches)* is free, `O7c-4` is `CE-319`'s BTree root |
+| ⏳ **`O7c` — THE STORAGE MIGRATION** | HSM instances move from `BrainHsm64`/`BrainHsm128` into slots; those components are **deleted**; `HsmTickSystem` gains entity discovery across the tier components (`F9`); `HsmDebugSession` becomes a list (§11.3) | ⛔⛔ **RE-RATED `2026-09-22` — §31.** ~~L — 188 references~~: 📐 **the 188 counted TESTS.** Production is **42 lines / 12 files**, and it is now **FIVE ordered steps, BTREE FIRST** *(§31.5)* — `O7c-1` *(delete `BrainHsm64`, which nothing attaches)* is free, and `CE-319`'s BTree root is the slice that PROVES the model |
 
 ⚠ **`O7c` is where `F9` and §9.4's *"the tier stops being a TYPE and becomes a PAYLOAD SIZE"* land.**
 ⛔ It is NOT a prerequisite for `O7a`/`O7b`: keying an occurrence is independent of where the HSM
@@ -5704,21 +5715,21 @@ classDiagram
         +Reset(byte* inst, int size) void
     }
     class BrainHsm64 {
-        <<DELETED by O7c-1>>
+        <<DELETED by O7c-1 - step 1, free>>
     }
     class BrainHsm128 {
-        <<DELETED by O7c-2>>
+        <<DELETED by the HSM slice - step 4>>
     }
     class BrainBTreeState {
-        <<DELETED by O7c-4 - CE-319>>
+        <<DELETED FIRST - CE-319, step 2>>
     }
 
     BehaviorState "1" --> "0..1" OccurrenceStoreTier : one tier per entity
     OccurrenceStoreTier "1" *-- "0..MaxSlots" RootStateAccess : root state is ONE slot
     RootStateAccess ..> OccurrenceSlotKey : key is COMPUTED, never stored
-    HsmTickSystem ..> BrainTickWalk : adopts at O7c-2
-    BTreeTickSystem ..> BrainTickWalk : adopts at O7c-4
-    BlueprintTickSystem ..> BrainTickWalk : adopts at O7c-3
+    HsmTickSystem ..> BrainTickWalk : adopts 4th
+    BTreeTickSystem ..> BrainTickWalk : adopts 2nd - FIRST
+    BlueprintTickSystem ..> BrainTickWalk : EXTRACTED FROM
     HsmTickSystem ..> HsmKernel : pointer + size, never a type
     HsmTickSystem ..> HsmInstanceOps : reset on assign
     BrainHsm64 ..> RootStateAccess : instance becomes
@@ -5808,17 +5819,56 @@ is `O7c-1`, and it is free. ⭐ The picture also shows why hot reload is the awk
 `ReloadHsmChunks<T>` walks **component chunks**, and slot payloads are not contiguous — `btree-hsm-unif`
 §Q6 called this out and said reload becomes a slot walk.*
 
-### 31.5 ⭐⭐⭐ THE FOUR SLICES
+### 31.5 ⭐⭐⭐ THE FOUR SLICES — **RE-SEQUENCED `2026-09-22`, BTREE FIRST**
 
-| # | slice | why it is separable |
+> 🔒 **User, `2026-09-22`:** *"what moving brainbtreestate cost, isnt it easier to start with btree
+> than with hsm state component retirement?"* — ⭐⭐ **Yes, and the first draft's reason for putting
+> BTree LAST was wrong.** It said *"sequenced last so the shared walk exists to adopt."* 📐 But
+> `BrainTickWalk` is EXTRACTED FROM `BlueprintTickSystem`'s existing tier walk, which is already there
+> and already shared-shaped — it never needed the HSM slice to exist. ⛔ The original ordering is
+> **SUPERSEDED**; the table below is the live one.
+
+| order | slice | why HERE |
 |---|---|---|
-| **`O7c-1`** | ⭐⭐ **Delete `BrainHsm64` alone** — the struct, its `GlobalComponentIds` entry *(burned `_RESERVED`, never reused)*, its registration, its role-set bit, its tick registration, its ingress reset branch, its two debug-session branches and its hot-reload sweep | 📐 **zero production attach sites.** No behaviour can change. Halves every remaining branch before the hard slice touches them. ⚠ Cost is 9 test files re-homing onto 128 |
-| **`O7c-2`** | ⭐⭐⭐ **The HSM instance into a slot** — `RootStateAccess`, the ingress provision+reset, `HsmTickSystem` onto `BrainTickWalk` + the pointer+size kernel call, `AiHotReloadCoordinator` onto a slot walk, `BrainHsm128` deleted | ⛔ needs the ONE `ExtDeps` addition *(§31.8)*. ⛔⛔ **Land `CE-318` FIRST** or the memory row records an artifact |
-| **`O7c-3`** | ⭐ **`HsmDebugSession` becomes a LIST** of snapshots; the decoders go size-driven | 📄 §11.3 + `D3`, **already user-approved**. ⭐ Insulated: 📐 measured — `DebugApiService` does not read `BrainHsm*` at all, it reads `BehaviorState.BrainTier` and delegates, so the surface is the SESSIONS, not the endpoints |
-| **`O7c-4`** | ⭐⭐ **`BrainBTreeState` into a slot** — `CE-319`, and the point at which `BTreeTickSystem` adopts the shared walk | ⚠ **sequenced LAST so the walk exists to adopt**, ⛔ not because it is harder — §31.6 shows it is the cheap one |
+| **①** | ⭐⭐ **`O7c-1` — delete `BrainHsm64` alone**: the struct, its `GlobalComponentIds` entry *(burned `_RESERVED`, never reused)*, its registration, its role-set bit, its tick registration, its ingress reset branch, its two debug-session branches, its hot-reload sweep | 📐 **zero production attach sites** ⇒ no behaviour can change. Independent of everything below, and it shrinks the surface ③/④ must sweep. ⚠ Cost is 9 test files re-homing onto 128 |
+| **②** | ⭐⭐⭐ **`O7c-2` — THE BTREE ROOT INTO A SLOT** *(`CE-319`)*, **and `BrainTickWalk` extracted from `BlueprintTickSystem` in the same change** | ⭐ **This is the slice that PROVES THE MODEL, and it is the cheap one** — §31.5a |
+| **③** | ⭐ **`CE-318`** — stop double-charging the slot entry on the payload axis | ⛔⛔ **must precede ④**, or the HSM tier measurement records an artifact as a fact *(§31.6)*. ⚠ BTree does not need it — 152 ≤ 176 fits either way |
+| **④** | **`O7c-3` — the HSM instance into a slot**, `BrainHsm128` deleted, `AiHotReloadCoordinator` onto a slot walk | ⭐ adopts a walk that is **already proven against the golden**. ⛔ needs the ONE `ExtDeps` addition *(§31.8)* |
+| **⑤** | **`O7c-4` — `HsmDebugSession` becomes a LIST**; the decoders go size-driven | 📄 §11.3 + `D3`, already user-approved. ⭐ Insulated: 📐 `DebugApiService` does not read `BrainHsm*` at all — it reads `BehaviorState.BrainTier` and delegates ⇒ the surface is the SESSIONS, not the endpoints |
 
-⛔⛔ **`O7c-1` must not be bundled.** It is independently green and independently revertible; making a
-free deletion wait on the hard slice is how a batch loses its own baseline.
+### 31.5a ⭐⭐⭐ WHY BTREE IS THE CHEAP SLICE **AND** THE ONE WITH A SIGNAL
+
+⭐⭐ **Cheap, because `BehaviorTreeState` is ONE FIXED 64-BYTE TYPE.**
+📐 `Interpreter.Tick(ref blackboard, ref BehaviorTreeState state, ref context)` takes a plain `ref`
+⇒ the slot form is `ref Unsafe.AsRef<BehaviorTreeState>(ptr)`, and that is the whole substitution.
+⛔⛔ **The entire "pointer AND a size" problem — the thing that forces `HsmInstanceOps` — exists ONLY
+because an HSM instance is 64/128/256.** BTree does not have it.
+
+| | **BTree** *(`CE-319`)* | **HSM** *(④)* |
+|---|---|---|
+| `ExtDeps` change | ⭐ **none** | 🔴 public size-driven `Initialize`/`Reset` |
+| tier-ladder branches | ⭐ none — one type | 🔴 64/128 at every consumer |
+| hot reload | ⭐⭐ **no consumer at all** — 📐 `AiHotReloadCoordinator` has `ReloadHsmChunks<T>` and **nothing** for BTree state | 🔴 chunk walk → slot walk *(`btree-hsm-unif` §Q6)* |
+| debug session | one read pair *(`BTreeDebugSession.cs:112,118`)* | 🔴 `DecodeLeaves64/128` + `DecodeEventQueue64/128` size-driven, plus the list reshape |
+| `CE-318` dependency | ⭐ **none** — 152 ≤ 176 | 🔴 blocked on it |
+| real work | **9 files** — ⭐ of the 14 that name it, **5 are COMMENT-ONLY** *(`TacticalIntentResolutionSystem`, `BdcTkbBuilder`, `StrideNodeBootstrapper`, `HostedSubtree`, `OccurrenceSlots`)* | 12 files, all real |
+| identity-keyed surface | 1 — `BTreeVisualizerRenderer`'s `[ImGuiRenderer(typeof(BrainBTreeState))]` | 2 debug sessions |
+| ingress reset sites | 3 — `BehaviorIngressSystem:279`, `:327`, `:353` | 2 tier branches in `ResetHsmComponents` |
+
+⭐⭐⭐ **AND THE DECIDING ARGUMENT IS ACCEPTANCE, NOT COST: the golden test can only SEE the BTree
+path.** 📐 `hill-attack-close` runs `PlatoonHillAttack`, a **BTree**; only **four** `.hsm.json` assets
+ship and they are showcase assets with essentially no production entities. ⇒ ⛔⛔ **doing HSM first
+lands the HARD slice with NO acceptance signal at all** — which is exactly the blindness that let
+`CE-304` reach a pushed commit and be found only by bisection against cluster gold.
+
+⚠ **The honest counterweight, stated rather than hidden:** BTree's blast radius on RUNNING content is
+far higher — every BTree brain, versus near-zero HSM entities. ⭐ **That is the argument FOR it, not
+against**: high blast radius WITH a working acceptance test beats low blast radius WITHOUT one, because
+the second ships silent breakage. 📐 Precedent: `C1`(`O4`) was chosen on exactly this basis — *"PROVES
+THE WHOLE MODEL WITH ZERO ExtDeps CHANGE"*.
+
+⛔ **`O7c-1` must not be bundled into ②.** It is independently green and independently revertible;
+making a free deletion wait on a real migration is how a batch loses its own baseline.
 
 ### 31.6 📐 WHAT IT COSTS IN BYTES — **and the 8-byte miss that is an accounting bug**
 
@@ -5896,4 +5946,4 @@ kernel to buy two methods.
 | **§24.3's `O7c` row** | ⛔ *"🔴 L — 188 references"* — 📐 **the 188 counted TESTS.** Production is **42 lines / 12 files**. The row is re-rated in place |
 | **`PLAN_Occurrence_Storage_Build.md` row `E4`** | same correction; and `O7c` is now **four slices**, not one |
 | **§9.4's *"who chooses the tier: nothing does"*** | ⭐ still true, and §31.8 names the public selector that ends it |
-| **§21.2 row 1** | ⭐ *"the root occurrence still lives in `BrainBTreeState`"* now has an id — **`CE-319`** — and a slice, `O7c-4` |
+| **§21.2 row 1** | ⭐ *"the root occurrence still lives in `BrainBTreeState`"* now has an id — **`CE-319`** — and it is the FIRST real slice, not the last |
