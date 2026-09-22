@@ -83,7 +83,7 @@ component")*, just resolved by removing the component rather than narrowing it.
 |---|---|
 | ⭐ **`Q36-C`** *(never written)* | *"where does a hosted child's params base come from"* — ⛔ **stops being a separate question**: if params always come from the allocator, there is one answer |
 | ⭐⭐ **`E3`'s scope** | `E3` is *"resolve the base instead of baking it"*. ⭐ **Under `A`/`B` that IS the change**, with no root/child branch ⇒ ⚠ **`E3` built before this decision would be partly rework** |
-| ⚠ **the fixed cap** | ⭐ **already dissolved** — every occurrence's region comes from its tier's payload (176 / 800 / 3 808 / 16 096 B, `DESIGN_Occurrence_Scoped_Storage.md` §30.15), not a fixed constant |
+| ⚠ **the fixed cap** | ⭐ **the STORAGE reason for it is gone** — every occurrence's region comes from its tier's payload (176 / 800 / 3 808 / 16 096 B, `DESIGN_Occurrence_Scoped_Storage.md` §30.15). ⚠ **The compile-time check itself is not yet retired** — `MaxBehaviorParamByteSize = 100` still gates the build until `CE-307` lands |
 
 ---
 

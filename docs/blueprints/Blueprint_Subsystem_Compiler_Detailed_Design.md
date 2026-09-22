@@ -718,34 +718,43 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
-                // The bound is the LARGEST tier's payload, not a per-behaviour constant:
-                // the allocator promotes the entity between tiers, so only an asset that
-                // cannot fit the top tier is a compile error.
-                int paramsSize  = ComputeStructSize(asset.Parameters, ctx);
-                int workingSize = ComputeStructSize(asset.WorkingState, ctx);
-                if (paramsSize + workingSize > OccurrenceTiers.MaxSlotPayload - 8)
+                // ⚠ Both bounds below are LEGACY CONSTANTS, not properties of a slot.
+                //   100 is the same figure FDP_001 enforces; 1024-8 is the old fixed
+                //   component minus its StructureHash header. Retiring them is CE-307.
+                //   Contrast the Instance arm, which already reads the tier ladder.
+                int paramsSize = ComputeStructSize(asset.Parameters, ctx);
+                if (paramsSize > 100)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
-                        $"AiPrimitive slot total {paramsSize + workingSize} bytes; max is " +
-                        $"{OccurrenceTiers.MaxSlotPayload - 8} (the largest tier's payload " +
-                        "minus the 8-byte StructureHash header).",
+                        $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
+                        asset.AssetId));
+
+                int workingSize = ComputeStructSize(asset.WorkingState, ctx);
+                if (workingSize > 1024 - 8)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
+                        $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
                         asset.AssetId));
                 break;
 
             case BlueprintDispatchKind.Instance:
                 int stateSize = ComputeStructSize(asset.Variables, ctx);
+                // O3a / B3② — the budgets come from BlueprintTierLadder, never from
+                //   literals: re-picking MaxSlots would otherwise silently desync
+                //   compile-time validation from runtime capacity.
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
-                    (BlackboardTierHint.Force1024, _) => 928,
-                    (BlackboardTierHint.Force4096, _) => 3936,
-                    (BlackboardTierHint.Force16384, _) => 16096,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 928 => 928,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 3936 => 3936,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 16096 => 16096,
+                    (BlackboardTierHint.Force256,   _) => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Force1024,  _) => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Force4096,  _) => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Force16384, _) => Ladder.Tier16384PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier256PayloadSize   => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier1024PayloadSize  => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier4096PayloadSize  => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier16384PayloadSize => Ladder.Tier16384PayloadSize,
                     _ => 0,
                 };
                 if (tierBudget == 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1210,
-                        $"Instance state {stateSize} bytes exceeds largest tier (16384). " +
+                        $"Instance state {stateSize} bytes exceeds largest tier ({Ladder.Tier16384TotalSize}). " +
                         "Reduce variable count or split asset.",
                         asset.AssetId));
                 else if (asset.TierHint != BlackboardTierHint.Auto && stateSize > tierBudget)
@@ -3941,9 +3950,9 @@ public class MoveToAndFire_EndToEndTests
         fixture.World.AddComponent(entity, new LocomotionChannel());
         fixture.World.AddComponent(entity, new WeaponChannel());
 
-        // Configure MoveToParams in BehaviorParameters slice
+        // Configure MoveToParams in the root params occurrence slot
         var p = new MoveToAndFire_Bp_Params { TargetPosition = Vector3.One, ApproachSpeed = 5f };
-        fixture.World.WriteBehaviorParameters(entity, p);
+        fixture.World.WriteRootParams(entity, p);
 
         // Tick 1: should issue MoveTo command, return Running
         var status = fixture.InvokeBTreeAction("MoveToAndFire_Bp", entity);

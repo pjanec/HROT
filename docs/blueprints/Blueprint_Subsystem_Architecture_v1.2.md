@@ -381,7 +381,7 @@ An AiPrimitive asset has these declarations:
 
 - `intent`: `Action` or `Condition`
 - `hostings`: subset of `{BTreeAction, BTreeCondition, HsmAction, HsmGuard, BlueprintCall}`
-- `parameters`: typed list (occupies the behaviour's root params slot; no fixed cap)
+- `parameters`: typed list (occupies the behaviour's root params slot; ≤ 100 B — `BP1200`)
 - `workingState`: typed list (lives in the node's own working-state slot; optional)
 
 The compiler emits one shared core method plus host-specific thunks.
@@ -523,8 +523,9 @@ public static unsafe class BlueprintRegistrar_HasVisibleTarget_C7145A20_Bp
 ```
 
 **Validator constraints (AiPrimitive):**
-- `Params` total size ≤ 100 bytes (BTree's `BehaviorParameters` slice).
-- `WorkingState` total size ≤ the payload the entity's tier can still allocate (the allocator promotes the entity to a larger tier rather than refusing).
+- `Params` total size ≤ **100 bytes**, else `BP1200` (`Stage2_Validate.cs:492`). ⚠ A legacy constant: it is the same 100 the `FDP_001` analyzer enforces, inherited from the retired fixed params region, and it is **far** below what a slot can hold. Scheduled for retirement with `CE-307`.
+- `WorkingState` total size ≤ **1016 bytes**, else `BP1201` (`Stage2_Validate.cs:500`). ⚠ Also legacy — `1024 − 8` is the old fixed component minus its `StructureHash` header, not a property of any slot.
+- ⭐ **Instance state is the one that already reads the ladder**: `BP1210` takes its budget from `BlueprintTierLadder` (176 / 800 / 3 808 / 16 096 B) and only errors when the asset exceeds the **largest** tier; `BP1211` catches a `TierHint` forced too small. That is the shape the two AiPrimitive checks above have not been moved to yet.
 - `intent: Action`: terminal nodes are `Return Success/Failure/Running`.
 - `intent: Condition`:
   - Terminal nodes are `Return Success/Failure` **only**. `Running` is forbidden.

@@ -429,7 +429,7 @@ If a hand-introduced read-only field carries a `[FieldOffset]` attribute, the fi
 
 The header shows `Memory: X / Y B` where X is the total the asset's slots use and Y is the payload the entity's current tier can still allocate (**176 / 800 / 3 808 / 16 096 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`).
 
-The bar visually fills as variables are added. At 80% of the current tier it turns amber; when the declaration no longer fits, the allocator promotes the entity to the next tier and the budget figure steps up. There is no hard authoring ceiling below **16 096 B**.
+The bar visually fills as variables are added. At 80% of the current tier it turns amber; when the declaration no longer fits, the allocator promotes the entity to the next tier and the budget figure steps up. ⚠ The allocator will seat up to **16 096 B**, but the compiler still refuses a params DTO over **100 B** (`BP1200`) and an AiPrimitive `WorkingState` over **1 016 B** (`BP1201`) — legacy constants that `CE-307` retires.
 
 ---
 

@@ -71,7 +71,7 @@ it. "Design first" — no code yet.
   "Apply" button instead of a `ComponentEditDrawer` render loop. **Consequence: replacing that stub with a real
   StructEdit render loop would give HSM/BTree facet enum fields combos automatically** (and is exactly the DD-2
   "StructEdit property grid for HSM state params" gap).
-- **HSM/BTree action PARAM VALUES** (the per-entity `BehaviorParameters` payload) are NOT authored in the
+- **HSM/BTree action PARAM VALUES** (the entity's active-behavior root-params occurrence slot) are NOT authored in the
   HSM/BTree editors at all today — they're edited in the **FDP entity inspector** (System A, enums already work),
   and persist into **scenario entity data**, not the `.hsm.json`/`.btree.json`.
 - **Blueprint pins:** System B; enum unwired (see above).

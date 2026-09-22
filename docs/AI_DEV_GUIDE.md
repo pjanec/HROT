@@ -478,10 +478,15 @@ and friends) that know nothing about which behaviour is running. See Section 8.
 
 ### How Big May a DTO Be?
 
-There is no fixed cap. The bound is **per behaviour** — `RootParamsBytes(def)`, the packed size of
-that behaviour's own variable table — and it is enforced **structurally**: the allocator either finds
-room in the entity's tier or promotes the entity to a larger one. The structural ceiling is the
-largest tier's payload, **16 096 bytes**.
+🔴 **100 bytes, today.** `BehaviorParameterSizeAnalyzer` fails your build with `FDP_001` if a
+`[SharedAiAction]` / `[SharedAiCondition]` params DTO exceeds it, and the blueprint compiler emits
+`BP1200` for the same figure. **Size against 100.**
+
+⚠ That cap is a **survival from the retired fixed params region**, not a property of the storage. The
+*structural* bound is per behaviour — `RootParamsBytes(def)`, the packed size of its own variable
+table — and the allocator either finds room in the entity's tier or promotes it to a larger one, up
+to the largest tier's **16 096 bytes**. So the constant is roughly 160× below what a slot can hold,
+and retiring it is tracked as `CE-307`. Until that lands, the analyzer is what you have to satisfy.
 
 ### Why Not Use a Regular Managed Object?
 
@@ -569,8 +574,8 @@ public struct FireAtTargetParams
 Important rules:
 - The struct must be `unmanaged` (no managed references).
 - Use `[StructLayout(LayoutKind.Sequential)]` to guarantee deterministic field ordering.
-- The struct is placed at **offset 0** of the behaviour's root params slot. Its size is what the
-  allocator reserves for that slot — there is no fixed cap to fit within.
+- The struct is placed at **offset 0** of the behaviour's root params slot, and the allocator
+  reserves the slot at exactly its size — but **`FDP_001` still caps it at 100 bytes** (see §3).
 
 ### Writing the ParseParamsDelegate
 
@@ -903,10 +908,18 @@ static NodeStatus MyAction(ref byte bb, ref BehaviorTreeState state,
 
 ### How Much May a Behaviour Own?
 
-There is **no fixed byte cap**. A behaviour's parameters occupy exactly `RootParamsBytes(def)` bytes —
-the packed size of its own variable table — in its root params slot, and a stateful node's scratch
-occupies exactly as much as its working-state struct needs. The allocator finds room in the entity's
-current tier, or promotes the entity to a larger one:
+**Storage is no longer the limit — three legacy validator constants are.** A behaviour's parameters
+occupy exactly `RootParamsBytes(def)` bytes in its root params slot, a stateful node's scratch exactly
+its working-state struct's size, and the allocator promotes the entity up the tier ladder to fit:
+
+| what | the cap you must satisfy today | who enforces it |
+|---|---|---|
+| a params DTO | **100 B** | `FDP_001` (analyzer) · `BP1200` (blueprint compiler) |
+| an AiPrimitive `WorkingState` | **1 016 B** *(`1024 − 8`, the old component minus its header)* | `BP1201` |
+| an Instance blueprint's state | the **tier ladder** — up to **16 096 B** | `BP1210` / `BP1211` |
+
+⚠ Only the third reads the ladder. The first two are constants inherited from the storage that was
+retired, and `CE-307` removes them. The tiers themselves are:
 
 | tier component | payload available for slots |
 |---|---|

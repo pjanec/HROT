@@ -141,10 +141,11 @@ projected over that slot by an emitted thunk, not a component field the interpre
 
 #### ② What it hits instead — ⭐⭐ **there is no fixed-width field to embed it into any more**
 
-📐 `DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15 retired the fixed inline budget this section
-originally measured (`BTreeBlackboardPackHelper:20`'s hard-coded 100, the same constant as
-`MaxBehaviorParamByteSize`) — the bound is now per-behaviour (`RootParamsBytes(def)`) and enforced
-**structurally** by the partition allocator, up to the 16384 tier's 16 096 B payload. ⇒ ⭐⭐⭐
+📐 `DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15 argue for retiring the fixed inline budget this
+section originally measured (`BTreeBlackboardPackHelper:20`'s hard-coded 100, the same constant as
+`MaxBehaviorParamByteSize`) — the *structural* bound is per-behaviour (`RootParamsBytes(def)`), seated
+by the partition allocator up to the 16384 tier's 16 096 B payload. ⚠ **The constant itself is still
+there** (`CE-307` is open), pinned by `InlineBudgetConstantAgreementTests`. ⇒ ⭐⭐⭐
 **option A's failure mode — "declaring the slice as a field always overflows" — no longer applies as
 stated**, because nothing is embedded as a fixed-width field any more: the callee's packed variables land
 in their **own root-params occurrence slot**, promoted up the tier ladder if they do not fit the entity's
