@@ -5,9 +5,9 @@ doc-type: RESUMPTION for P4 — retiring BrainBlackboard and Blackboard1024.
 updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30,
   and §30.18 is the CURRENT slice table (§30.5's is SUPERSEDED).
-current-answer: 🔴 START AT §2 — `P4`-② IS IN FLIGHT AND THE TREE DOES NOT BUILD.
-  §1 is what is DONE (do not redo it). §2 is the exact remaining work and the pattern that fixes it.
-  §3 is what must still happen before `P4`-② can be called landed. §4 traps. §5 gates. §6 open.
+current-answer: ⭐ START AT §2 — THREE OF FOUR SLICES ARE DONE and the tree is GREEN at a62507e3d.
+  §2 is the two things `P4`-② still owes (the zero-fallback rail, the cluster acceptance) and then
+  `P4`-③/④. §1 is what is done — do not redo it. §3 traps. §4 gates. §5 open questions.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the CURRENT slice table · §30.19 G2/G3 and its
     correction · §30.20 the as-built + the three-instance dead-storage pattern. It wins on any
@@ -28,117 +28,110 @@ related-designs:
 
 ## 1. ✅ WHAT IS DONE — **do not redo this**
 
+⭐ **`behaviors` @ `a62507e3d`, clean, all four suites at baseline, solution builds with 0 `error CS`.**
+
 | commit | |
 |---|---|
 | `38e52845d` | **`CE-310`** — routed the AiPrimitive working-state **WRITE** path onto occurrences |
 | `05d15ec5f` | **`CE-311`** — routed the **inline AiPrimitive emitter** off `Blackboard1024` |
-| `0b25c595d` | ⭐⭐ **`P4`-① — `Blackboard1024` IS DELETED.** 54 code files, 17 prod + 37 test |
+| `0b25c595d` | ⭐⭐ **`P4`-① — `Blackboard1024` IS DELETED.** 54 code files |
 | `fadc2e205` | `hill-attack-close` **2/2 GOLD** on the post-deletion build |
-| `746c1b123` | ⭐ **`P4`-⑤ — the stale corpus.** 2 STATUS blocks, 9 crefs, and a no-op builder deleted |
-| 🔴 `3ac1af9f4` | ⛔⛔ **`P4`-② WIP — THE TREE DOES NOT BUILD.** See §2 |
+| `746c1b123` | ⭐ **`P4`-⑤ — the stale corpus.** 2 STATUS blocks, 9 crefs, a no-op builder deleted |
+| `3ac1af9f4` | `P4`-② WIP *(superseded by the next commit — it did not build)* |
+| `0ec86d864` | this doc, rewritten mid-flight |
+| `a62507e3d` | ⭐⭐⭐ **`P4`-② — `TBlackboard` IS BOUND TO `byte`.** The tree tick takes the root slot |
 
 ⭐ **`Blackboard1024` no longer exists.** Component id **74 is RESERVED**, not reused
-*(`GlobalComponentIds.Reserved_WasBlackboard1024`)* — a recording written before the retirement still
-names 74, and binding it to a different component would decode those bytes as the wrong type.
+*(`GlobalComponentIds.Reserved_WasBlackboard1024`)*.
 
-⛔ **Deliberately NOT deleted, and both are recorded where a reader will look:** `BlackboardTarget`
-*(the replay-browser predicate axis — `CE-308` **RE-POINTS** its members in `P4`-③, because "which
-memory region?" still has two answers)* and `BlackboardTier.Blackboard1024` *(the Blueprint compiler's
-tier selector, which only shares the spelling)*.
+⛔ **Deliberately NOT deleted** — `BlackboardTarget` *(the predicate axis; `CE-308` **RE-POINTS** it in
+`P4`-③)* and `BlackboardTier.Blackboard1024` *(the compiler's tier selector, shares only the spelling)*.
+⛔ **`P4`-②b is WITHDRAWN** — the wrapper structs stay, and deleting them is unsafe for `HideInCover`
+*(§30.18)*.
 
----
+### ⭐⭐ `P4`-②'s KEY RESULT — **`G2`'s prediction held**
 
-## 2. 🔴🔴 WHERE `P4`-② STOPPED — **production compiles, ~76 TEST errors remain**
-
-⛔ **`3ac1af9f4` DOES NOT BUILD. Do not branch from it expecting green.**
-
-### ⭐ Done (production, compiling)
-
-`95` type arguments across 29 files · the **4 authored declarations** *(`CgfNodes.cs:417,609`,
-`HillAttackTankNodes.cs:560,580` → `ref byte`)* · the 4 Blueprints-compiler emission lines
-*(`AiPrimitiveEmitter:513,530`, `CSharpEmitter:204,438`)* · 🔴 **`BTreeBridgeEmitCore.cs:310`
-`bbShort = "byte"`** *(the `G3` correction — §4)* · **`BTreeTickSystem`** resolving the root slot
-**once per entity per tick**, gated on `RootParamsBytes(def) == 0` · `CgfNodes.BuildWanderMilitaryTree`
-→ `BTreeBuilder<byte>`.
-
-### ⛔ THE REMAINING WORK — **two shapes, both enumerated**
-
-| shape | count | where |
-|---|---|---|
-| `ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);` | **16** | `T39`×2 · `PlatoonHillAttack2_Integration` · `T37` · `HillAssault2I_Smoke` · `T20`×2 · `T34` · `T31` · `S3_BehaviorScopedThunk` · `T35` · `T30` · `StatefulPrimitiveTests`×2 · `BehaviorValidationScenario`×2 |
-| `new BTreeBuilder<BrainBlackboard, BTreeContext>()` | **4** | `NetworkDemoPatrolAndEngageTests:427` · `MoveToAndFire_EndToEndTests:181` · `HostedSubtreeCursorTests:420` · ⚠ `BTreeJsonGeneratorTests:264` is a **STRING ASSERTION**, not code |
-
-### ⭐⭐⭐ THE PATTERN — **measured on `StatefulPrimitiveTests`**
-
-📐 Those tests register a **hand-written thunk that reads the HANDED-IN base**
-*(`ref byte bb` → `Unsafe.AddByteOffset(ref bb, paramOffset)`)* — ⛔ **not** `RootParamsAccess`. ⇒ the
-test needs no occurrence slot at all; it needs **a byte region it owns**:
-
-```csharp
-// P4-②: the interpreter takes the params region as a ref byte. This test owns its own region
-// because its thunk reads the HANDED-IN base — which is what makes it a unit test of DISPATCH
-// rather than of ingress.
-var paramsRegion = new byte[64];          // wide enough for this test's packed table
-ref byte bb = ref paramsRegion[0];
-```
-
-⭐⭐ **Strictly better than what was there:** borrowing an ECS component as a scratch buffer is exactly
-the habit that hid `CE-310` and `CE-311`.
-
-⚠⚠ **BUT CHECK EACH ONE FIRST.** If a test's thunk is a **generated** one it resolves through
-`RootParamsAccess.RootRef(ctx.World, ctx.Self)` and **ignores the handed-in base** — that test needs a
-real root slot *(assign a behaviour, run ingress)*, not a buffer.
-🔒 **That per-test judgement IS `G1`, and it is why this was not batch-substituted.**
+Both golden families regenerated and inspected: **Blueprints 28 files 60+/60−**, **AiEditor emit 20
+files 78+/78−**. Perfectly symmetric; every changed line is one of **three shapes** *(the thunk
+lambda's ref param · the `Register` signature's `ActionRegistry<>` · the `Interpreter<>` construction)*
+⇒ **pure type-name substitution.** ⭐ **None of §30.19's STOP conditions fired** — the `@0` keys are
+unchanged, no `(nint)` offset moved, no `{Asset}_…` struct was renamed.
 
 ---
 
-## 3. ⚠ WHAT `P4`-② STILL NEEDS AFTER IT COMPILES
+## 2. ⭐⭐⭐ WHAT IS LEFT
+
+### ⚠ `P4`-② still owes TWO things
 
 | # | |
 |---|---|
-| **①** | ⭐⭐ **Regenerate the goldens and ASSERT THE DIFF IS A PURE TYPE-NAME SUBSTITUTION.** 📐 124 files / 356 lines. ⛔ **A changed `(nint)` offset, a changed `@N` key, or a renamed `{Asset}_…` struct is a STOP** — §30.19 predicts none of those, so any of them means a premise broke |
-| **②** | ⭐⭐⭐ **THE ZERO-FALLBACK RAIL.** Walk every `FbtTreeCatalog` blob against a populated `ActionRegistry` and assert **ZERO** fallbacks. ⛔ It is the ONLY thing that catches the reflection hazard: `BTreeActionRegistryFactory.cs:64`, `BlueprintRegistrarScanner.cs:126` and `AiHotReloadCoordinator.cs:433` compare `typeof(ActionRegistry<…>)` and **`continue` on mismatch** ⇒ a disagreement silently skips `RegisterAll` and **every action falls back to `Failure`**. ⚠ The compiler cannot see it |
-| **③** | the §5 suites, then the §5 cluster acceptance |
+| **①** | 🔴🔴 **THE ZERO-FALLBACK RAIL — not written yet.** ⛔ It is the ONLY thing that catches the reflection hazard: `BTreeActionRegistryFactory.cs:64`, `BlueprintRegistrarScanner.cs:126` and `AiHotReloadCoordinator.cs:433` each compare `ps[0].ParameterType != typeof(ActionRegistry<byte, BTreeContext>)` and **`continue` on mismatch** ⇒ if the generator and these ever disagree, `RegisterAll` is **silently skipped** and **every action falls back to `Failure`**. ⚠ The compiler cannot see it; `Interpreter.BindActions:697-709` binds an unknown key to a fallback returning `Failure` after one `Console.WriteLine`. ⭐ `Stage7Tests`' `ActionRegistry<byte, …>` assertion is only HALF the guard |
+| **②** | ⚠ **the cluster acceptance** *(§4)* has NOT been re-run since `P4`-②. It was 2/2 gold after `P4`-① |
 
-⭐ **Then `P4`-③** *(re-home the **six** identity-keyed surfaces — `CE-303`; and `CE-308` **RE-POINTS**
-`BlackboardTarget` onto {root params, node working state}, it does **not** delete it)* **and `P4`-④**
-*(the 100-byte cap — `CE-307`; the real structural ceiling is **16 096 B**, so the cap is 160× low)*.
-⛔ **`P4`-②b is WITHDRAWN** — the wrapper structs stay *(§30.18)*.
+#### ⭐ HOW TO WRITE THE RAIL *(the design, measured — not yet built)*
+
+⛔ **Do NOT capture `Console` output** — that is the fallback's symptom, not its definition.
+⭐ **Ask the registry directly**, which is deterministic:
+
+1. Build the real registry: `BTreeActionRegistryFactory.BuildFromAssembly(typeof(CgfNodes).Assembly)`.
+2. Enumerate every generated `FbtTreeCatalog.Get*()` — each returns an untyped `Fbt.BehaviorTreeBlob`.
+3. For every blob, for every leaf node, take its `blob.MethodNames[…]` key and assert the registry
+   resolves it *(`TryGetAction` / `TryGetCondition`)*.
+4. ⭐⭐ **Assert ZERO unresolved keys**, and name every miss in the failure message.
+
+⚠ **`FbtTreeCatalog` is GENERATED** *(`obj/GeneratedFiles/…/BTreeDefinitionGenerator/FbtTreeCatalog.g.cs`)*
+— enumerate its `Get*` methods by reflection so a new tree is covered automatically. ⛔ A hand-written
+list of trees is the wrong shape: it goes stale exactly when a new tree is added, which is when the rail
+is most needed.
+
+### ⭐ THEN THE REMAINING SLICES
+
+| slice | |
+|---|---|
+| **`P4`-③** | re-home the **SIX** identity-keyed surfaces *(`CE-303`)*: `BrainBlackboardRenderer` · `BrainBlackboardViewProvider` · `LiveBlackboardValueProvider` · `HillAttackGizmo`'s `[GizmoProjector]` gate · `PredicateCompiler` + `BlackboardTarget` *(`CE-308` — **RE-POINT** its members onto {root params, node working state}, ⛔ do not delete the axis)* · `BrainBlackboardTranslator`'s gate. 📄 §30.14 has the per-surface table |
+| **`P4`-④** | retire the 100-byte cap *(`CE-307`)* — `BehaviorConstants.cs:32` · `BehaviorParameterSizeAnalyzer.cs:26,64` · `BehaviorRegistry.cs:319`. ⭐ The real structural ceiling is **16 096 B** *(§30.15)*, so the cap is **160× low** and guards a region that no longer exists |
+| ⚠ **then `BrainBlackboard` itself** | once ③ lands nothing is keyed on it. ⛔ **Re-run §3's dead-storage check before deleting** — that is what found `CE-310` and `CE-311` |
 
 ---
 
-## 4. ⛔⛔ TRAPS ALREADY PAID FOR — **do not re-pay**
+## 3. ⛔⛔ TRAPS ALREADY PAID FOR — **do not re-pay**
 
 | | |
 |---|---|
-| 🔴🔴 **THE DEAD-STORAGE PATTERN — 3 instances, and it is this lane's whole lesson** | `CE-304`, `CE-310`, `CE-311`: **a capability whose STORAGE moved, whose CALLERS were never re-anchored, and whose RAIL kept it green by building a world production stopped building.** ⛔ No static signal sees it — `CE-311`'s in-degree looked healthy: the emitter is called, its output compiles, its rail passes. ⭐ **The check: ask *"which production site PROVISIONS the storage this reads?"* — never *"who calls this?"*** |
-| 🔴 **`G3` UNDER-MEASURED the asset-driven generator** | there are **TWO** BTree generators. `BTreeActionGenerator` (the analyzer) is polymorphic and needed **zero** changes; **`BTreeBridgeEmitCore` derives the dispatch type from the ASSET** and threads it into **10** sites. ⭐ Fixed at `:310`, **not** in the asset |
-| ⛔⛔ **NEVER retarget the asset's `BlackboardTypeName`** | it also mangles into the generated params-layout struct name **and** into `SubtreeSyncIdentity.Derive`, which **MATCHES SUBTREES** by (name, dto type, dto ns) ⇒ renaming 11 structs across 44 files and breaking matching **silently**. 📄 §30.19 |
-| ⚠ **the generated BUILDER keeps the asset's type** | `BTreeEmitCore.cs:408` — selector-form bindings need a struct with fields, and `byte` has none. Same reason `P4`-②b was withdrawn |
-| 🔴 **`ps \| awk '/Hrot\.Cluster/'` KILLS YOUR OWN SHELL** | the awk pattern appears in your own command line, so it matches itself *(exit 144)*. ⛔ The documented *"kill by PID"* does **not** prevent this. ⭐ Filter on **`comm == "dotnet"`** instead |
-| ⚠ **an over-broad substitution corrupts DOC COMMENTS** | `ref bb.BehaviorParameters[0]` → `ref bb` hit two comments that deliberately described the **OLD** anchor *(`RootParamsAccess`, `AiPrimitiveEmitter`)*. Both restored. ⭐ **Always `git diff --name-only \| grep -v Tests` after a scripted edit** |
-| ⚠ **the SimHost LOAD-FLAKY family is >1** | `BP-534` **and** `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState`. ⛔ Confirm any extra red **IN ISOLATION** before calling it a regression |
-| ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` to see the real result |
-| ⚠ **an inventory keyed on a NAME misses a CAST** | the `CE-304` lesson. ⇒ enumerate by the storage TYPE (graph / Roslyn), never by a spelling |
+| 🔴🔴 **THE DEAD-STORAGE PATTERN — 3 instances, and it is this lane's whole lesson** | `CE-304`, `CE-310`, `CE-311`: **a capability whose STORAGE moved, whose CALLERS were never re-anchored, and whose RAIL kept it green by building a world production stopped building.** ⛔ No static signal sees it — `CE-311`'s in-degree looked healthy. ⭐ **The check: ask *"which production site PROVISIONS the storage this reads?"* — never *"who calls this?"*** |
+| ⭐⭐ **the per-test fix depends on WHICH THUNK the test runs** | a **hand-written** thunk reads the HANDED-IN base ⇒ the test owns a plain `byte[]`; a **generated** thunk resolves through `RootParamsAccess` and ignores it ⇒ the test takes `RootParamsAccess.RootRef(world, entity)`. 🔒 **That judgement is why `P4`-②'s tail was NOT batch-substituted** |
+| ⛔ **borrowing an ECS component as a scratch buffer** | the habit that hid `CE-310`/`CE-311`. ⭐ A plain `byte[]` cannot be mistaken for a storage path |
+| 🔴 **`G3` under-measured the asset-driven generator** | there are **TWO** BTree generators. `BTreeActionGenerator` (analyzer) is polymorphic; **`BTreeBridgeEmitCore` derived the dispatch type from the ASSET** and threaded it into 10 sites. ⭐ Fixed at `:310`, **not** in the asset |
+| ⛔⛔ **NEVER retarget the asset's `BlackboardTypeName`** | it also mangles into the params-layout struct name **and** `SubtreeSyncIdentity.Derive`, which **MATCHES SUBTREES** ⇒ renames 11 structs across 44 files and breaks matching silently. 📄 §30.19 |
+| ⚠ **the generated BUILDER keeps the asset's type** | `BTreeEmitCore.cs:408` — selector-form bindings need a struct with fields; `byte` has none |
+| 🔴 **`ps \| awk '/Hrot\.Cluster/'` KILLS YOUR OWN SHELL** | the awk pattern appears in your own command line, so it matches itself *(exit 144)*. ⛔ "kill by PID" does **not** prevent it. ⭐ Filter on **`comm == "dotnet"`** |
+| ⚠ **an over-broad substitution corrupts DOC COMMENTS** | `ref bb.BehaviorParameters[0]` → `ref bb` hit two comments that deliberately described the **OLD** anchor. ⭐ **Always `git diff --name-only \| grep -v Tests` after a scripted edit** |
+| ⚠ **the LOAD-FLAKY family is >1** | `BP-534` · `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` · `SquadInputsP3Tests.AllReaders_ZeroAlloc_After1MillionCalls`. ⛔ Confirm any extra red **IN ISOLATION** before calling it a regression |
+| ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` |
 | ⚠ **build the TEST project, not the production one** | `--no-build` against a production-only build runs a stale binary |
-| ⛔ **do NOT "fix" `RW-S` tracker rows** | they are invisible to `tracker-counts.py` — known gap `CE-259at` |
+| ⛔ **do NOT "fix" `RW-S` tracker rows** | invisible to `tracker-counts.py` — known gap `CE-259at` |
 
 ---
 
-## 5. ⭐ GATES — **the baseline to beat**
+## 4. ⭐ GATES — **the baseline, all MET at `a62507e3d`**
 
-| suite | baseline | note |
-|---|---|---|
-| `Fdp.Toolkits.Tests` | **2299 / 0** | ⚠ was 2303 before `P4`-①; **−4 = the deleted `Blackboard1024Tests`** |
-| `Hrot.Blueprints.Tests` | **4017 / 0** *(18 skipped)* | |
-| `Hrot.SimHost.Tests` | **1005 / 3** | the 3 documented pre-existing; a 4th is the flake above |
-| `Hrot.AiEditor.Generators.Tests` | **279 / 4** | the 4 documented pre-existing |
-| solution build | **0 `error CS`** | |
-| docs | `design-digest --check` · `rulings-check` 38/38 · `tracker-counts --check` · `mermaid-check` | |
+| suite | baseline |
+|---|---|
+| `Fdp.Toolkits.Tests` | **2299 / 0** ⚠ was 2303 pre-`P4`-①; **−4 = the deleted `Blackboard1024Tests`** |
+| `Hrot.Blueprints.Tests` | **4017 / 0** *(18 skipped)* |
+| `Hrot.SimHost.Tests` | **1005 / 3** *(the 3 documented)* |
+| `Hrot.AiEditor.Generators.Tests` | **279 / 4** *(the 4 documented)* |
+| solution build | **0 `error CS`** |
+| docs | `design-digest --check` · `rulings-check` 38/38 · `tracker-counts --check` · `mermaid-check` |
+
+⭐ **Golden regeneration switches:** `BLUEPRINT_REGENERATE_SNAPSHOTS=1` *(Blueprints)* ·
+`AI_REGENERATE_SNAPSHOTS=1` *(AiEditor.Generators)* — ⚠ deliberately separate so one cannot silently
+regenerate the other.
 
 ### ⭐⭐ THE CLUSTER ACCEPTANCE — **`hill-attack-close`, 2/2 gold**
 
 ```bash
+dotnet build Hrot/Runner/Hrot.ClusterRunner/Hrot.ClusterRunner.csproj --no-restore
 cat > /tmp/launch-all.sh <<'SH'
 #!/bin/bash
 cd /home/user/HROT
@@ -154,35 +147,33 @@ curl -s --noproxy '*' -m 60 -X POST $B/scenario/load/live -H 'Content-Type: appl
      -d '{"name":"hill-attack-close","waitForReady":true}'          # want sawWorldChange: true
 curl -s --noproxy '*' -m 20 -X POST $B/sim/play -H 'Content-Type: application/json' -d '{}'
 # wait for /sim/state totalTime >= 72, POST /perspective {"name":"Scenario"}, then read
-#   /entities/1001..1004  -> data.Components.SimTransform.Position[0]  and LocomotionChannel.Status
-#   /entities/1006,1007   -> data.Components.Health.Current
+#   /entities/1001..1004 -> data.Components.SimTransform.Position[0] and LocomotionChannel.Status
+#   /entities/1006,1007  -> data.Components.Health.Current
 # teardown:  ps -eo pid,comm --no-headers | awk '$2=="dotnet"{print $1}' | xargs -r kill
 ```
 
 ⭐ **PASS** = `1001`–`1004` at **x ≈ 523–531** with `LocomotionChannel.Status: Success`, **and**
 `1006`/`1007` at `Health.Current: 0`, **and** entity count **8** *(dead bodies stay — `CE-272`)*.
-📐 **The `P4`-① gold, to compare against:** `523.03 525.25 529.14 531.37` and
-`523.03 525.26 529.44 531.37`. ⚠ A retirement must not move the simulation at all.
-⚠ Always `--noproxy '*'` and the `localhost` hostname — `127.0.0.1` 404s every route.
+📐 **The `P4`-① gold:** `523.03 525.25 529.14 531.37` and `523.03 525.26 529.44 531.37`.
+⚠ **A retirement must not move the simulation at all** — that is the actual assertion.
+⚠ Always `--noproxy '*'` and the `localhost` hostname; `127.0.0.1` 404s every route.
 
 ---
 
-## 6. ⚠ STILL OPEN / UNEXPLAINED
+## 5. ⚠ STILL OPEN
 
 | | |
 |---|---|
-| ⚠ **`G1`** | the per-test judgement in §2 — partly paid, the rest is the remaining work |
-| ⚠ **`G4`** | the complete no-params set. 📐 `WanderMilitary` confirmed *(no `BlackboardLayoutType`, `CgfCuratedBehaviorRegistrar.cs:88`)*; **`Idle` unconfirmed** |
-| ⚠ **`G5`** | where a hosted subtree's `ref subBb` comes from — `HostedSubtree.Tick<TChildBb>` + `BTreeOrchestratorEmitCore.cs:151,182` are a **second `TBlackboard` axis** |
+| ⚠ **`G4`** | the complete no-params set. 📐 `WanderMilitary` confirmed *(no `BlackboardLayoutType`, `CgfCuratedBehaviorRegistrar.cs:88`)*; **`Idle` unconfirmed**. ⭐ `BTreeTickSystem` gates on `RootParamsBytes(def) == 0`, so a miss is a throw, not silent |
+| ⚠ **`G5`** | `HostedSubtree.Tick<TChildBb>` + `BTreeOrchestratorEmitCore.cs:151,182` are a **second `TBlackboard` axis**; where a hosted subtree's `ref subBb` comes from was never measured |
 | ⚠ **`CE-306`** | the vendored `Fbt.SourceGen` fork still carries the pre-`CE-304` bridge at `:616` and hard-codes FDP names at `:40-42`. ⛔ Nothing in HROT consumes it |
 | ⚠ **the two §29 unknowns** | the failing runs reaching the firing line with no spawn-time writer; the 100-byte probe passing 2/2 *before* the fix. ⛔ Neither blocks anything — ⭐ but **re-read them first if `P4` reddens the cluster in a way the unit rails miss** |
 
 ---
 
-## 7. ⭐ THE EXACT FIRST ACTION
+## 6. ⭐ THE EXACT FIRST ACTION
 
-1. `git fetch origin behaviors && git status` — expect clean at **`3ac1af9f4`**.
-2. `dotnet build IOS-IG-SimHost.sln --no-restore 2>&1 | grep "error CS"` — expect **~76, all in tests**.
-3. Work §2's two shapes, **checking each test against the pattern note** *(handed-in base vs generated
-   thunk)*. ⛔ Do not batch-substitute — that is where §4's doc-comment trap came from.
-4. Then §3 ① ② ③, in order.
+1. `git fetch origin behaviors && git status` — expect **clean at `a62507e3d`**.
+2. Write **the zero-fallback rail** *(§2 ①)* — it is the one guard `P4`-② is missing.
+3. Run **the cluster acceptance** *(§4)* and compare against the `P4`-① numbers.
+4. Then `P4`-③ *(the six surfaces)* and `P4`-④ *(the cap)*.
