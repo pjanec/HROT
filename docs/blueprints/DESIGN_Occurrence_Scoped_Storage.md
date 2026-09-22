@@ -4585,3 +4585,68 @@ says so itself: `BlueprintDebugSession.cs:1518` is commented **"legacy: one work
 *Caption — what this table shows that §30.2's class diagram hid: the diagram drew "no arrow from a thunk
 to a lookup" for the SIM path, and that is true. ⛔ But every DEBUG reader still performs a lookup — it is
 just the **same two** lookups instead of nine different component projections.*
+
+⛔ **`SearchPredicateDto.BlackboardTarget` needs NO migration** — 🔒 **user, `2026-09-22`:** *"no one
+using it yet besides rails, no migration needed."* ⇒ ⭐ a straight collapse onto the root params slot,
+rails updated. ⚠ **§30.12 ⑤'s "the one place ABI costs more than a recompile" is WITHDRAWN** — the enum
+is genuinely serialised, but nothing outside the rails has ever authored one. 📌 `R-139`: the row was
+measured on the code while *"does anyone actually author these?"* was never measured at all.
+
+### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
+
+> 🔒 **User, `2026-09-22`:** *"how is the heavy dto concept done now? i am pretty sure the platoon hill
+> attack used to use the blackboard1024 before; what is now the limits for parameter dto size…?"*
+
+#### ⭐⭐ ① THE OLD MODEL — **two tiers of storage, and a HARD per-entity singleton**
+
+📐 `.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN.md:19,26` — params ≤ **100 B** inline in
+`BrainBlackboard.BehaviorParameters`; **overflow spilled to `Blackboard1024`** via `HeavyDtoType` +
+`[SharedAiHeavyAction]`. ⛔ And `docs/designs/hill-attack/DESIGN.md:160,174` confirms the user's
+recollection **verbatim**: *"all mutable working state into the `Blackboard1024` component"* ·
+**`HillAttackMutableState` (projected onto `Blackboard1024.Memory`)**.
+
+🔴 **Its defining limit was not size — it was ARITY.** `SLICE1-DESIGN.md:27`: *"Exactly **one stateful**
+AiPrimitive working-state per entity (the `Blackboard1024` `Memory+8` / single `StructureHash`
+collision)."* ⇒ one heavy block, one hash, one tenant.
+
+#### ⭐⭐⭐ ② THE NEW MODEL — **there is no "heavy" any more; there is only a SLOT**
+
+📐 `HillAttackCommanderNodes.cs:32`, in the code's own words: **"The old `Blackboard1024` +
+`Unsafe.As` projection is gone."** ⭐ `HillAttackMutableState` is now a **`Behavior`-scoped occurrence
+variable** *(`:29`)*, handed to the action as its own `ref`:
+
+```csharp
+// the 4-param [SharedAiAction] form — params AND working state, each from its own slot
+ref PlatoonHillAttackParams p, ref HillAttackMutableState s,
+ref BehaviorTreeState state, ref BTreeContext ctx
+```
+
+⇒ ⭐⭐ **the "heavy vs inline" split does not exist**: params and working state are *both* occurrence
+slots, differing only in their key *(`ComputeRootParamsKey` vs the node's `{fqn}@{offset}@{slotKey}`,
+`HillAttackCommanderNodes.cs:523`)*. ⛔ `HeavyDtoType` is a **vestige of the old split** — never adopted
+in production, and `P4`-① removes its only storage.
+
+#### 📐 ③ THE ACTUAL CEILINGS — **measured, not inferred**
+
+| tier | total | header | slot table | ⭐ **payload** | max slots |
+|---|---|---|---|---|---|
+| `BlueprintBlackboard256` | 256 | 32 | 3 × 16 = 48 | **176** | 3 |
+| `BlueprintBlackboard1024` | 1024 | 32 | 12 × 16 = 192 | **800** | 12 |
+| `BlueprintBlackboard4096` | 4096 | 32 | 16 × 16 = 256 | **3 808** | 16 |
+| ⭐ `BlueprintBlackboard16384` | 16384 | 32 | 16 × 16 = 256 | 🔴 **16 096** | 16 |
+
+⭐⭐ **No hidden per-slot cap.** `BlueprintSlotEntry.PayloadSize` is a **`ushort`** *(65 535)*, and the
+largest tier payload is 16 096 ⇒ **the width is not binding**: a single occurrence may take the whole
+payload. `BlueprintTierTable.ResolveTier:139` picks on **both axes** —
+`requiredPayload <= spec.PayloadSize && requiredSlots <= spec.MaxSlots`.
+
+| ⭐ the answer, in one line each | |
+|---|---|
+| ⭐⭐⭐ **the STRUCTURAL ceiling for one params DTO** | **16 096 bytes** — the 16384 tier's whole payload, if it is the entity's only occurrence; otherwise 16 096 minus its neighbours, across **≤ 16** occurrences |
+| ⛔⛔ **what is ENFORCED TODAY** | 🔴 **still 100 bytes** — `BehaviorParameterSizeAnalyzer` rejects it at COMPILE time *(`CE-307` / §30.11)*. ⚠ **That is a 160× understatement of the real bound, guarding a region that no longer exists** |
+| ⭐ **what enforces it after `P4`-④** | the **allocator**, structurally: `TryAttach` fails when the payload will not fit its tier, and `ResolveTier` promotes up the ladder first. ⇒ **the bound becomes true by construction instead of by a constant** |
+| ⚠ **the axis that actually binds in practice** | ⛔ **slots, not bytes** — 3 / 12 / 16 / 16. 📐 25 of 30 generated behaviours fit the 256 tier *(`BlueprintBlackboard256.cs` header)*, so the common case is slot-count-limited long before it is size-limited |
+
+⇒ ⭐⭐⭐ **This strengthens `CE-307` rather than merely restating it**: the cap is not just resting on a
+false premise *(§30.11)* — it is **two and a half orders of magnitude below the storage that actually
+exists**, and the thing it protects was deleted.
