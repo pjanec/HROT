@@ -3953,9 +3953,23 @@ what the design got WRONG, because the fault is in the design of §29.6/§29.7, 
 non-determinism. **`CE-302` is EXONERATED by bisection** — and with it the tier-demand bump, the
 attach/sweep ordering and `DetachRoot`, all three of which §29.8 introduced.
 
-#### ⛔ WHAT IS *NOT* BROKEN — measured, so it is not re-investigated
+#### 🔴🔴 RETRACTED `2026-09-22` — **this section's claim was WRONG**
 
-⭐⭐⭐ **Parameter delivery is correct END TO END.** On a **stranded** tank the authored value survives
+⛔⛔ **A full component dump refutes it.** `NavState.FinalDestination` IS `[523, 401]` on a stranded tank —
+⚠ **but `NavState` is the last intent that CARRIED values; it is stale state.** The LIVE command is
+`NavigationIntent`, reading `FinalDestination [0,0,0]`, `TargetSpeed 0`, while still carrying
+`IntentId 50, Mode DirectPoint` — **issued, with zeros.** `LocomotionChannel.Params` is zero with
+`Status: Running`. ⇒ 🔒 **`thunk → LocomotionChannel.Params → MoveToExecutor → NavigationIntent`, and the
+THUNK WROTE ZEROS** on the later dispatches. ⇒ ⭐⭐ **params ARE implicated**, and the RE-ASSIGN path is the
+prime suspect. 📄 `RESUME_CE304_Params_Regression.md` §2/§4.
+
+⚠ **The methodological lesson, worth more than the finding:** ⛔ a targeted read of one downstream field that
+looks correct is NOT proof of a chain. ⭐ `NavState` is STATE; `NavigationIntent` is the COMMAND. A full
+component dump was two commands away and would have shown this immediately.
+
+#### ⛔ ~~WHAT IS *NOT* BROKEN~~ — **SUPERSEDED by the retraction above**
+
+~~⭐⭐⭐ Parameter delivery is correct END TO END.~~ On a **stranded** tank the authored value survives
 the whole chain — JSON → ingress → root slot → emitted thunk → `NavState.FinalDestination: [523, 401]`,
 matching the authored `baselineStart` exactly — and all four subordinates hold **distinct** correct
 regions. ⇒ the supply chain, the key derivation, and the thunk-side read are all **fine**.

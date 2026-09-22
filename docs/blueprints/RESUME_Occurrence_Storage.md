@@ -328,6 +328,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 ## 0d. 🔴🔴🔴 STOP — **`P3-C` IS LANDED AND NOT VALIDATED** *(`2026-09-22`)*
 
 ⛔⛔ **Read `CE-304` before touching anything in this programme.**
+📄 **[`RESUME_CE304_Params_Regression.md`](RESUME_CE304_Params_Regression.md) — THE DEBUGGING STATE, START THERE** ·
 📄 [`Blueprint_Issues_Tracker.md`](Blueprint_Issues_Tracker.md) ▸ `CE-304` ·
 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) **§29.10**
 
