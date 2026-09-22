@@ -1,7 +1,13 @@
 <!--STATUS
 state: LIVE
 updated: 2026-08-18
-current-answer: this top block only (sections 0, 0a-0e). Section 0 is the FIRST
+current-answer: ⛔⛔ STALE AS OF 2026-09-22 — this file's "state" is the 2026-08-18 UI/variable
+  programme (Batches 92-98) and is NOT the current work anywhere. ⭐ ROUTE BY PROGRAMME instead:
+    · occurrence-scoped storage / behaviour params -> RESUME_Occurrence_Storage.md
+    · BUILDING P4 (retire BrainBlackboard + Blackboard1024) -> RESUME_P4_Retire_Blackboards.md
+    · the UI lane -> RESUME_UI_Lane.md
+  ⚠ Pointer added by the behaviors lane; the BODY of this file is untouched and still belongs to
+  whoever owns it. (previous head) this top block only (sections 0, 0a-0e). Section 0 is the FIRST
   action: Batch 88 is complete on the implementation branch and not yet merged.
 stale-below: everything from "## 1." down is HISTORY from earlier sessions. Do not quote it
   for status, baselines or next steps.

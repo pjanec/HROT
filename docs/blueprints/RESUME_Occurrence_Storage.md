@@ -6,7 +6,10 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
 current-answer: ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VALIDATED on a live
-  cluster (2/2 gold). P4 is UNPARKED. READ §0c for the path. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
+  cluster (2/2 gold). P4 is UNPARKED. READ §0c for the path.
+  ⭐⭐ BUILDING P4? GO TO RESUME_P4_Retire_Blackboards.md — it is the build resumption
+  (four slices, traps, gate baselines, the acceptance harness). This doc stays the PROGRAMME
+  view P0–P4; ⛔ do not run P4 from §0c alone, it predates the 2026-09-22 re-scope. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
   "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
   (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
   standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says

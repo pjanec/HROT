@@ -1,11 +1,14 @@
 <!--STATUS
-state: LIVE
+state: HISTORICAL
 doc-type: DEBUGGING RESUMPTION for CE-304 — the live regression P3-C introduced.
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a debugging snapshot, not a design.
-current-answer: ✅✅ CLOSED. READ §8 FIRST (2026-09-22) — THE MECHANISM IS FOUND, FIXED, RAILED
-  AND RE-VALIDATED ON A LIVE CLUSTER (2/2 gold).
+current-answer: ✅✅ CLOSED — THIS DOC IS HISTORY. CE-304 is fixed, railed and re-validated on a
+  live cluster (2/2 gold). ⛔ It is NOT the live resume doc: for P4 go to
+  RESUME_P4_Retire_Blackboards.md; for the programme go to RESUME_Occurrence_Storage.md.
+  ⭐ Kept because §8.2 (why the inventory and the rails both missed it) and §6 (the cluster
+  harness) are the durable lessons, and §4.3/§8.4 record what is STILL unexplained.
   BTreeActionGenerator.cs:655 (the 3-param [BTreeAction] bridge) still projected params out of
   the BrainBlackboard COMPONENT, whose only writer P3-C cut. §1 (the failure record) and §6 (the
   reproducer) stand. ⚠ §4.3's "size is load-bearing" is NOT explained by the fix and is demoted
