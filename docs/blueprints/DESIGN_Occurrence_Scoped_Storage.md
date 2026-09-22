@@ -1,8 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-20
+updated: 2026-09-22
 build-state: READY-TO-BUILD
-current-answer: ⭐ START AT §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
+current-answer: 🔴🔴🔴 READ §29.10 FIRST (2026-09-22). P3-C IS LANDED BUT NOT VALIDATED — it
+  REGRESSES the golden test on a live cluster while every unit suite is green. The gate line below
+  ("THE GOLDEN TEST IS GREEN") is TRUE OF 9e20d3f97 AND FALSE OF HEAD. Nothing may be built on
+  P3-C, and P4 is PARKED, until CE-304 is closed.
+  ⭐ Then §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
   severity or §5a's C1 credit.
@@ -3930,3 +3934,88 @@ discovered.
 | `Fdp.Toolkits.Tests` | **2303 / 0** |
 | `Hrot.AiEditor.Generators.Tests` | **279 passed, 4 failed — the SAME 4 as the base commit**, measured by stashing the change and re-running *(`S3_BehaviorScopedThunkTests`, `S3_SharedSlotProvisioningTests` ×2, `T30_BehaviorScopedShared_ProofTests`)* |
 | BTree generated goldens | **14 files, 38 lines changed, +38/−38 — one-for-one anchor replacement, zero net movement**, which is the shape a pure re-anchoring must have |
+
+### 29.10 🔴🔴🔴 `P3-C` IS NOT VALIDATED — **the golden test regresses on a live cluster** *(`2026-09-22`)*
+
+⛔⛔ **§29.9 reports `P3-C`'s gates as green and they were — on the UNIT SUITES. The live product
+disagrees, and the live product wins.** 📄 The issue is filed as **`CE-304`**; this section records
+what the design got WRONG, because the fault is in the design of §29.6/§29.7, not only in the code.
+
+#### 📐 The measurement — `clusterrunner --mode all`, `hill-attack-close`, acceptance per `CE-296`
+
+| build | trials | end positions (x) |
+|---|---|---|
+| `9e20d3f97` *(session start — `P0`–`P2`, `P3` steps 1–2)* | ✅ **3/3 PASS** | `523 525 529 531` — gold to the metre |
+| `e9d124326` *(`CE-302` only)* | ✅ **2/2 PASS** | `523 525 529 531` |
+| `3d4547a8d`+ *(`P3-C`)* | 🔴 **3/3 FAIL** | `579 587 524 590` — three tanks left on the FIRING LINE |
+
+⭐⭐ **Deterministic on every build**, identical across trials ⇒ ⛔ not the scenario's documented
+non-determinism. **`CE-302` is EXONERATED by bisection** — and with it the tier-demand bump, the
+attach/sweep ordering and `DetachRoot`, all three of which §29.8 introduced.
+
+#### ⛔ WHAT IS *NOT* BROKEN — measured, so it is not re-investigated
+
+⭐⭐⭐ **Parameter delivery is correct END TO END.** On a **stranded** tank the authored value survives
+the whole chain — JSON → ingress → root slot → emitted thunk → `NavState.FinalDestination: [523, 401]`,
+matching the authored `baselineStart` exactly — and all four subordinates hold **distinct** correct
+regions. ⇒ the supply chain, the key derivation, and the thunk-side read are all **fine**.
+⚠ The failure is `VehicleState {Speed: 0, Accel: 2.5}`, velocity `0.000` — **commanded to move, not
+moving** — i.e. something *other than params* is corrupted.
+
+#### 🔒 THE TELL — **three probes each MOVED WHICH TANKS COME HOME, and none fixed it**
+
+| probe | result |
+|---|---|
+| `DetachRoot` disabled | ⛔ still fails — `577 587 525 588` |
+| root params resolved through `TryGetStoreReadOnly` rather than the `GetComponentRW` path | ⚠ **PARTIAL** — `527 588 536 585`, **2** home instead of 1 |
+| `RootParamsBytes` forced to the legacy `MaxBehaviorParamByteSize` | ⏳ in flight when this was written |
+
+⭐⭐⭐ **All three change SLOT ADJACENCY, and all three change WHICH neighbour is damaged.** 🔒 That is
+the signature of a **memory-overlap / adjacency fault** — ⛔ **not** three independent partial causes.
+⇒ ⭐ look for **a projection that exceeds its slot**, or a pointer held across a re-attach.
+
+#### ⛔⛔ THE DESIGN DEFECT — **§29.6 specified the ANCHOR and never specified the EXTENT**
+
+> §29.6, verbatim: *"every reader changes ONE thing: its ANCHOR … ⛔ **No offset arithmetic changes
+> anywhere**"*.
+
+⭐ **That is true of the OFFSETS and it is silent about the SIZE, which is the half that mattered.**
+
+| | `BrainBlackboard` *(before)* | the root slot *(after)* |
+|---|---|---|
+| region size | ⭐ **always `MaxBehaviorParamByteSize` = 100**, a `fixed byte[100]` on every entity | ⚠ **`RootParamsBytes(def)`** — the manifest extent, or `sizeof(BlackboardLayoutType)` |
+| who decides it | ⭐ **nobody — it is a constant** | ⚠ **one DECLARED layout** |
+| who writes into it | ⛔ **every emitted thunk, at its own baked `offset` with its own `TDto`** | ⛔ **unchanged** |
+| what bounds a projection | ⭐⭐⭐ **the constant 100, by construction — any `offset + sizeof(TDto)` under 100 fits** | 🔴 **NOTHING CHECKS IT** |
+
+⇒ 🔒 **The old region was safe by ACCIDENT OF SHAPE.** A flat, generously-sized, per-entity buffer
+cannot be overrun by a projection that fits in 100 bytes, and **no rail ever had to state that**.
+⛔ Replacing it with a slot sized from a declared type removes the guarantee **silently** — and a slot
+has a NEIGHBOUR, where the blackboard's spare bytes had none.
+
+⚠⚠ **STATED HONESTLY: the overrun is the design's KNOWN HOLE, not yet the PROVEN cause.** 📐 The one
+behaviour checked in detail does NOT overrun — `HullDownAttackRun`'s manifest declares
+`("Params", HullDownAttackParams, 0)` ⇒ extent **52**, and its four thunks project
+`HullDownAttackParams` at offset **0** ⇒ **52 ≤ 52, it fits.** ⭐ So either another behaviour on the
+entity overruns, or the mechanism is a different adjacency fault. ⛔ **Do not close `CE-304` on the
+sizing argument alone.**
+
+#### ⭐⭐ THE CORRECT SOLUTION — **the extent is an EMIT-TIME fact, and it must be DERIVED, not declared**
+
+| # | | |
+|---|---|---|
+| **①** | ⭐⭐⭐ **Size the root region from `max(baked offset + sizeof(TDto))` over the behaviour's OWN thunks**, reconciled with `max(ByteOffset + sizeof(Type))` over the manifest — ⭐ **the emitters already know every one of those offsets**, because they bake them | ⛔ **NOT** `sizeof` of one declared layout, which is what `RootParamsBytes` does today |
+| **②** | ⭐⭐ **The bound belongs in the BEHAVIOUR DEFINITION**, emitted beside `ManagedBlackboardVariables` | ⚠ computing it at runtime from the registry would make the toolkit read a blueprint catalog — ⛔ the exact thing `O7b-3`'s ruling forbids |
+| **③** | ⛔ **`MaxBehaviorParamByteSize` for everything is the LAZY fix and is rejected** | 📐 100 bytes against the 256 tier's **176-byte** payload throws away what the tier ladder exists for. ⚠ Acceptable only as a temporary belt while ① is built, and only if said out loud |
+| **④** | 🔒 **A projection that would exceed its region is a BUILD ERROR** | ⭐ the emitters can see it; an analyzer diagnostic beats a silent neighbour-clobber, and this whole class disappears |
+
+#### ⛔⛔⛔ THE RAIL THAT MUST LAND FIRST — **the gap that let this ship**
+
+📐 `P3-C` passed `Fdp.Toolkits.Tests` **2303/0**, `Hrot.Blueprints.Tests` **4017/0**,
+`Hrot.Editor.Tests` **420/0**, `Hrot.Presentation.Tests` **299/0** — and regressed the product.
+
+⭐⭐ **Every rail this programme wrote tests the store's BOOKKEEPING** — slot counts, key derivation,
+attach/detach, each red-proofed by an inverse edit. ⛔⛔ **NOT ONE asserts that a projection STAYS
+INSIDE ITS SLOT.** ⇒ 🔒 **before any fix:** attach a root slot, attach an occurrence AFTER it, write
+through the params `ref`, and assert **the neighbour is byte-unchanged**. ⚠ A patch without that rail
+leaves the hole that produced this.

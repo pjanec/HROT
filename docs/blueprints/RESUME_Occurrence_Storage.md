@@ -5,7 +5,8 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-21
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: ⭐⭐⭐ READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
+current-answer: 🔴🔴🔴 READ §0d FIRST (2026-09-22) — P3-C is landed and NOT VALIDATED (CE-304);
+  P4 is PARKED. THEN §0c for the path. (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
   "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
   (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
   standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
@@ -323,6 +324,22 @@ python3 scripts/rulings-check.py && python3 scripts/design-digest.py --check
 and ours are `CE-`. Do not quote it as evidence for them.
 
 ---
+
+## 0d. 🔴🔴🔴 STOP — **`P3-C` IS LANDED AND NOT VALIDATED** *(`2026-09-22`)*
+
+⛔⛔ **Read `CE-304` before touching anything in this programme.**
+📄 [`Blueprint_Issues_Tracker.md`](Blueprint_Issues_Tracker.md) ▸ `CE-304` ·
+📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) **§29.10**
+
+| | |
+|---|---|
+| ⭐ **what is true** | `P3-C` is committed and pushed (`3d4547a8d`, `cc4132859`) and **every unit suite is green** — Toolkits 2303/0, Blueprints 4017/0, Editor 420/0, Presentation 299/0 |
+| 🔴 **what is also true** | it **REGRESSES the golden test on a live cluster.** `hill-attack-close`, `--mode all`: baseline `9e20d3f97` **3/3 PASS**, `CE-302` alone **2/2 PASS**, `P3-C` **3/3 FAIL** — deterministic, bisected |
+| ⛔ **therefore** | **`P4` is PARKED** and nothing may be built on `P3-C` until `CE-304` closes |
+| ⭐ **the shape of it** | **NOT params delivery** — that is correct end to end, measured on a stranded entity. Three probes each moved WHICH entities recover without fixing it ⇒ **an adjacency / memory-overlap fault.** §29.10 has the design defect (§29.6 specified the ANCHOR and never the EXTENT) and the correct solution |
+| ⛔⛔ **do the RAIL first** | no rail anywhere asserts a projection stays INSIDE its slot. That is the gap that let this ship — §29.10's last section |
+
+⚠ **§0c below is still the right PATH** — it is simply blocked at its last step.
 
 ## 0c. ⭐⭐⭐ THE PATH `P0`–`P4` — **RESUME HERE** *(`2026-09-21`, late; supersedes §0b's "next slice")*
 
