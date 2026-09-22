@@ -478,15 +478,15 @@ and friends) that know nothing about which behaviour is running. See Section 8.
 
 ### How Big May a DTO Be?
 
-🔴 **100 bytes, today.** `BehaviorParameterSizeAnalyzer` fails your build with `FDP_001` if a
-`[SharedAiAction]` / `[SharedAiCondition]` params DTO exceeds it, and the blueprint compiler emits
-`BP1200` for the same figure. **Size against 100.**
+**As big as it needs to be.** There is no fixed cap in the storage model: a behaviour's params occupy
+exactly `RootParamsBytes(def)` bytes — the packed size of its own variable table — and the allocator
+either finds room in the entity's tier or promotes it to a larger one. The only real ceiling is the
+largest tier's payload, **16 096 bytes**.
 
-⚠ That cap is a **survival from the retired fixed params region**, not a property of the storage. The
-*structural* bound is per behaviour — `RootParamsBytes(def)`, the packed size of its own variable
-table — and the allocator either finds room in the entity's tier or promotes it to a larger one, up
-to the largest tier's **16 096 bytes**. So the constant is roughly 160× below what a slot can hold,
-and retiring it is tracked as `CE-307`. Until that lands, the analyzer is what you have to satisfy.
+⚠ **One leftover to know about while it lasts:** a 100-byte constant from the retired fixed params
+region still gates the build (`FDP_001` in the analyzer, `BP1200` in the blueprint compiler). It is
+~160× below what a slot holds and it is being removed — `CE-307`. Until then a params DTO over 100
+bytes is a build error, so if the analyzer stops you, that is why.
 
 ### Why Not Use a Regular Managed Object?
 
@@ -908,18 +908,9 @@ static NodeStatus MyAction(ref byte bb, ref BehaviorTreeState state,
 
 ### How Much May a Behaviour Own?
 
-**Storage is no longer the limit — three legacy validator constants are.** A behaviour's parameters
-occupy exactly `RootParamsBytes(def)` bytes in its root params slot, a stateful node's scratch exactly
-its working-state struct's size, and the allocator promotes the entity up the tier ladder to fit:
-
-| what | the cap you must satisfy today | who enforces it |
-|---|---|---|
-| a params DTO | **100 B** | `FDP_001` (analyzer) · `BP1200` (blueprint compiler) |
-| an AiPrimitive `WorkingState` | **1 016 B** *(`1024 − 8`, the old component minus its header)* | `BP1201` |
-| an Instance blueprint's state | the **tier ladder** — up to **16 096 B** | `BP1210` / `BP1211` |
-
-⚠ Only the third reads the ladder. The first two are constants inherited from the storage that was
-retired, and `CE-307` removes them. The tiers themselves are:
+**Whatever fits a tier.** A behaviour's parameters occupy exactly `RootParamsBytes(def)` bytes in its
+root params slot, a stateful node's scratch exactly its working-state struct's size, and the allocator
+promotes the entity up the tier ladder to fit:
 
 | tier component | payload available for slots |
 |---|---|
@@ -931,6 +922,11 @@ retired, and `CE-307` removes them. The tiers themselves are:
 ⭐ That last figure is the **structural ceiling** — and it is enforced by the allocator itself, not by
 a constant anyone has to remember. Overrunning a slot is impossible: the slot table carries each
 slot's offset *and* size, and every projection is made relative to that.
+
+⚠ **Two build-time leftovers, until `CE-307` removes them:** a params DTO over **100 B** is refused
+(`FDP_001` · `BP1200`) and an AiPrimitive `WorkingState` over **1 016 B** is refused (`BP1201`). Both
+are constants inherited from the storage that was retired — the Instance arm (`BP1210`) already reads
+the ladder instead, which is the shape the other two are moving to.
 
 ⭐ Soft advice and the edge-triggered interrupt registers are **not** behaviour-scoped at all — they
 live in their own component, `BrainInterrupts`, as named fields, because they are facts about the
