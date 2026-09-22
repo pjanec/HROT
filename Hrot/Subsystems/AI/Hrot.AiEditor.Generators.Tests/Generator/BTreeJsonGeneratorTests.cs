@@ -679,14 +679,21 @@ namespace Stub
 
     public static class StubNodes
     {
-        // VALID: matches NodeLogicDelegate<StubBb, StubCtx> exactly.
+        // ⭐⭐⭐ CE-316: param 0 is `ref byte` — the ROOT PARAMS SLOT BASE — and the asset that binds
+        //   these still declares BlackboardTypeName = ""Stub.StubBb"". That pairing IS the rail: after
+        //   CE-313 the emitted registrar is ActionRegistry<byte, TCtx>, so TBB comes from the EMITTER,
+        //   never from the asset's declared type. ⛔ These stubs used to take `ref StubBb`, which is
+        //   the rule P4-② retired — and the validator kept enforcing it, silently skipping six real
+        //   assets (§30.25 ⑤).
+        // VALID: matches NodeLogicDelegate<byte, StubCtx> exactly.
         public static NodeStatus CompatAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref StubCtx ctx,
             int paramIndex) => NodeStatus.Running;
 
-        // INVALID: param 0 is a DTO struct, not the declared blackboard type.
+        // INVALID: param 0 is a DTO struct, not the slot base. ⭐ The NEGATIVE CONTROL — it proves the
+        //   check still has teeth, and that CE-316 moved its source of truth rather than removing it.
         public struct SomeDtoParam { }
         public static NodeStatus DtoParamAction(
             ref SomeDtoParam dto,
@@ -694,15 +701,15 @@ namespace Stub
             ref StubCtx ctx,
             int paramIndex) => NodeStatus.Running;
 
-        // INVALID: param 0 matches the blackboard but wrong arity (3 params instead of 4).
+        // INVALID: param 0 is correct but wrong arity (3 params instead of 4).
         public static NodeStatus WrongArityAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             int paramIndex) => NodeStatus.Running;
 
         // INVALID: returns void instead of NodeStatus.
         public static void WrongReturnAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref StubCtx ctx,
             int paramIndex) { }
@@ -2321,6 +2328,8 @@ using Fbt;
 
 namespace Stub
 {
+    // ⭐ CE-316: HajsonBb is kept but no longer bound as TBB — the 4-param shape's param 0 is
+    //   `ref byte` (the root params slot base) after CE-313 made the registrar ActionRegistry<byte,_>.
     public struct HajsonBb { }
     public struct HajsonCtx { }
 
@@ -2331,13 +2340,13 @@ namespace Stub
     {
         // 4-param action (FourParamFull)
         public static NodeStatus Action_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
             => NodeStatus.Running;
 
         // 4-param deactivator paired with Action_Full (key = bare FQN)
         [BTreeDeactivator(""Stub.HajsonNodes.Action_Full"")]
         public static void Deactivate_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
         { }
 
         // 3-param action (ThreeParamReusable), DTO = HajsonDto at offset 0
@@ -2353,7 +2362,7 @@ namespace Stub
 
         // 4-param action with NO paired deactivator
         public static NodeStatus Action_NoDe(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
             => NodeStatus.Running;
     }
 }

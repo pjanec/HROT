@@ -62,7 +62,20 @@ by construction.
 
 ## 2. ⭐⭐⭐ WHAT IS LEFT
 
-### ⓪ 🔴🔴🔴 START HERE — **`P4`-② SILENTLY STOPPED GENERATING SIX BTREE ASSETS** *(found `2026-09-22`, §30.25 ⑤)*
+### ⓪ ✅ **FIXED `2026-09-22` as `CE-316`** — `P4`-② had silently stopped generating six BTree assets
+
+> ✅ **RESOLVED — 📄 §30.26 is the as-built and SUPERSEDES the framing below.** 🔴 **The repair did NOT
+> need the §2 ③ decision**, contrary to what this section first concluded. ⭐ `CE-313` made the emitted
+> registrar `ActionRegistry<byte, TCtx>`; `BTreeMethodCompatibilityValidator:45` kept resolving `TBB`
+> from **`dto.BlackboardTypeName`** ⇒ **a one-line source-of-truth error, `CE-313`'s unfixed twin.**
+> 🔒 **The rule: a validator is keyed on what the EMITTER WRITES, never on what the ASSET DECLARES.**
+> ⛔ `dto.BlackboardTypeName` untouched — it feeds `SubtreeSyncIdentity.Derive` (§30.19). ⇒ **§2 ③ is
+> still OPEN, on its own merits, and no longer blocks anything.** ⭐ Verified: **0 skipped assets**, and
+> the 6 stale goldens regenerated.
+
+⛔ **The diagnosis below is kept because the THREE BLIND SPOTS are the reusable part.**
+
+### ⓪a 🔴🔴 HOW IT SHIPPED — **`P4`-② SILENTLY STOPPED GENERATING SIX BTREE ASSETS** *(found `2026-09-22`, §30.25 ⑤)*
 
 📐 **Measured, and confirmed by the repo itself.** `P4`-② changed hand-written `[BTreeAction]` methods
 in `CgfNodes.cs` from `ref BrainBlackboard` to `ref byte`. ⛔ **The 26 asset `.json` files still declare
@@ -83,10 +96,14 @@ regeneration had nothing to write for them.
 | 🔴🔴 **`P4`-②'s own zero-fallback rail is green BY CONSTRUCTION** | it asserts *every REGISTERED node binds*. ⭐⭐ **A skipped asset never registers** ⇒ the rail cannot see it. ⚠ Same shape as `CE-312`'s six refusal-only rails |
 | ⚠ **the golden suite did not redden** | it left the six stale rather than failing on them |
 
-⇒ 🔒 **This is §2 ③ already biting — it is no longer "a decision needed before the struct can go", it is
-a repair.** ⛔ **Do not start §2 ② before this.**
-
 ⚠ **The 2/2 cluster gold is NOT contradicted** — `hill-attack-close`'s behaviours are not among the six.
+
+🔴 **The first conclusion drawn here was WRONG and is recorded as such:** *"this is §2 ③ already biting…
+it is a repair, not a decision."* ⛔ Half right — it WAS a repair, but **not of the asset schema**.
+⭐ Measuring `BTreeMethodCompatibilityValidator` instead of reasoning from the error text found a
+one-line fix. 🔒 **The error message named the asset's type, so the asset LOOKED like the problem** —
+⚠ the same *"a principle where a `file:line` should be"* failure the canon warns about, caught only by
+opening the validator.
 
 ### ① ✅ `P4`-④ — **DONE `2026-09-22`. The 100-byte cap was NOT a deletion** *(`CE-307`)*
 
@@ -169,7 +186,7 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | 🔴 **ANY COMMAND-LINE PATTERN MATCH KILLS YOUR OWN SHELL** | the pattern is in your own command line *(exit 144)*. 📌 Hit **twice**: `ps \| awk '/Hrot\.Cluster/'` and **`pkill -f Xvfb`**. ⛔ Not an `awk` quirk — **matching on the full command line at all**. ⭐ Filter on `comm`: `ps -eo pid,comm --no-headers \| awk '$2=="dotnet"{print $1}' \| xargs -r kill` |
 | 🔴🔴 **A RELOAD IS NOT A RESET** | re-POSTing `/scenario/load/live` on the same process answered **`sawWorldChange: false`** with `totalTime: 84.9` ⇒ the "trial 2" numbers were trial 1 drifting. ⭐ **Restart between trials**; require `sawWorldChange: true` **and** `totalTime ≈ 0` at play |
 | ⛔⛔ **`Fdp.Presentation.Tests` CANNOT BE GATED WHOLE** | `BP-419` / `CE-259aa`: a native SIGSEGV aborts the run **and still prints `Passed!`**. ⭐ Gate by `--filter` *(`~ReplayBrowser` ⇒ **93/0**)*. ⚠ **And its `bin` had NO xunit adapter** — the project had never been restored here, so `--no-restore` produced an unrunnable assembly. `dotnet restore` fixes it |
-| ⚠ **the LOAD-FLAKY family keeps growing** | `BP-534` · `LiveFromReplayTests.Teardown…` · `SquadInputsP3Tests.AllReaders_ZeroAlloc…` · `T35_SharedWorkingState_ProofTests` *(reddened in a full run, **2/2 in isolation**)*. ⛔ **Confirm any extra red IN ISOLATION before calling it a regression** |
+| ⚠ **the LOAD-FLAKY family keeps growing** | `BP-534` · `LiveFromReplayTests.Teardown…` · `SquadInputsP3Tests.AllReaders_ZeroAlloc…` · `T35_SharedWorkingState_ProofTests` · ⭐ **and two more confirmed `2026-09-22`: `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_…RoutesToReplayBranch`.** ⛔ **Confirm any extra red IN ISOLATION before calling it a regression** — 📐 it paid again: a full SimHost run showed **6** reds, isolation showed **3**, and the 3 were the documented ones |
 | ⚠ **an over-broad substitution corrupts DOC COMMENTS** | ⭐ Always `git diff --name-only \| grep -v Tests` after a scripted edit |
 | ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` |
 | ⚠ **build the TEST project, not the production one** | `--no-build` against a production-only build runs a stale binary |
@@ -189,7 +206,7 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | solution build *(156 projects)* | **0 `error CS`** |
 | `Fdp.Toolkits.Tests` | **2310 / 0** ⚠ was 2307; **+3 = `CE-307`'s positive rails** in `BehaviorIngressSystemTests` |
 | `Hrot.Blueprints.Tests` | **4017 / 0** *(18 skipped)* |
-| `Hrot.SimHost.Tests` | **1005 / 3** *(the 3 documented)* |
+| `Hrot.SimHost.Tests` | **1005 / 3** *(+3 skipped, total 1011)*. ⭐⭐ **THE 3 ARE NAMED NOW** *(`2026-09-22` — the row used to say only "the 3 documented", which costs a session every time)*: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` · `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)` · `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A full run typically shows 6** — the extra three are the load-flaky family *(`EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch`)*, ⭐ **measured `2026-09-22`: all three PASS in isolation while the 3 above still FAIL** — which is how to tell them apart in one command |
 | `Hrot.Presentation.Tests` | **299 / 0** |
 | `Hrot.AiEditor.Generators.Tests` | **282 / 4** *(the 4 documented)* ⚠ was 281/4; **+1 = `NoTierIsLargerThanTheCeiling`**. ⛔ **`CE-307` re-pointed two rails that PINNED the retired cap** — `ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped` and `StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002`; their fixtures now size themselves FROM the constant, so the skip-on-overflow MECHANISM is still tested and the threshold can move again without a hand edit |
 | `Fdp.Presentation.Tests` | ⛔ **filter only** — `--filter "FullyQualifiedName~ReplayBrowser"` ⇒ **93 / 0** |
@@ -250,18 +267,24 @@ claim, observed on the running product.
 ## 6. ⭐ THE EXACT FIRST ACTION
 
 1. `git fetch origin behaviors && git status` — expect **clean**, `P4`-④ landed.
-2. 🔴🔴🔴 **§2 ⓪ FIRST — the six skipped assets.** ⭐ **Reproduce it before anything else**, because an
-   incremental build hides it:
+2. ⭐⭐ **CONFIRM `CE-316` still holds** — it is one command and an incremental build hides the failure:
    ```bash
    touch Hrot/Subsystems/Hrot.AI.Behaviors/Brains/CgfNodes.cs
    dotnet build Hrot/Subsystems/Hrot.AI.Behaviors/Hrot.AI.Behaviors.csproj --no-restore 2>&1 \
-     | grep -oE "Skipped '[^']*\.btree\.json'" | sed 's|.*/||' | sort -u      # expect 6
+     | grep -cE "BTREE0002"      # ⭐ expect 0
    ```
-   ⛔ **This IS §2 ③** — the repair and the decision are the same question, so settle
-   `BlackboardTypeName` *as* the fix rather than separately.
-3. ⭐ **Add the rail `P4`-② lacked, in the same slice** — *"no `.btree.json` asset is skipped"*, asserted
-   over the ASSET SET, not the registry. ⚠ §3: a rail over a derived collection cannot see what never
-   entered it.
+   ⚠ **Make this the habit after ANY change to a `[BTreeAction]` signature or to an emitter's `bbShort`.**
+3. ⭐⭐ **Then `CE-314`** *(the packer's dead heavy arm)* — ⛔ it is what holds the LAST copy of the
+   `CE-307` ceiling at 100, so until it lands **the editor refuses a >100-byte authored blackboard while
+   the generator accepts one**. 📐 Only 2 production consumers; its tracker row carries the full worklist.
+   ⚠ Run `Hrot.Editor.AiShared.Tests` *(2058/0)* — it is the packer's own suite.
 4. **Then delete `BrainBlackboard`** *(§2 ②)* — ⛔ **re-run §3's dead-storage check FIRST**; it is what
    found `CE-310`, `CE-311` and `CE-312`. ⭐ It also closes `CE-315` for free.
-5. `CE-314` *(the packer's dead heavy arm)* and the fork decision *(§5)* are independent, any time.
+5. **§2 ③ and the fork decision *(§5)* are the two that need the USER** — both still open, neither blocking.
+
+### ⚠ THE RAIL THAT IS STILL MISSING — **file it or build it**
+
+⛔ **`CE-316` was found by reading a build log.** ⭐ The rail that would have caught it asserts over the
+**ASSET SET** — *"no `.btree.json` under `Hrot.AI.Behaviors/Assets` is skipped"* — ⛔ **not** over the
+registry, which is a DERIVED collection a skipped asset never enters. ⚠ The `CE-316` stub-level rails
+pin the validator's rule; they do **not** pin the corpus.

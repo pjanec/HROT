@@ -5418,3 +5418,58 @@ drift** — exactly how the four copies came to agree on 100 long after 100 stop
 panel publishes `inlineBudget: 100` and `heavyBudget: 928`. ⭐ Its own comment says *"the day that number
 moves, a rail says so"* — ⇒ it moves in `CE-314`, and that rail is part of that change. ⛔ It is a `T3`
 E2E suite and does not gate here.
+
+---
+
+### 30.26 🔴🔴🔴 `CE-316` — **`CE-313` HAD AN UNFIXED TWIN, AND IT COST SIX ASSETS** *(`2026-09-22`)*
+
+> ⚠ **This supersedes §30.25 ⑤'s framing.** That section reported the six skipped assets as *"§2 ③'s
+> `BlackboardTypeName` blocker, already biting"* — implying the repair needed the asset-schema decision.
+> ⛔ **It did not.** Measuring the validator showed a one-line source-of-truth error.
+
+#### ⭐⭐⭐ ① THE DEFECT — **`TBB` was read from the ASSET, not from the EMITTER**
+
+| what emits `TBB` | value |
+|---|---|
+| `BTreeBridgeEmitCore.cs:328` | `var bbShort = "byte";` — the registrar is `ActionRegistry<byte, TCtx>` |
+| `BTreeEmitCore` *(`CE-313`, §30.24)* | `byte` |
+| 🔴 `BTreeMethodCompatibilityValidator.cs:45` | **`dto.BlackboardTypeName`** — the asset's declared type |
+
+⇒ the validator checked every bound method's param 0 against **`BrainBlackboard`**, while the code it
+would be assigned into takes **`byte`**. ⛔ So every method `P4`-② converted to `ref byte` was refused —
+and `BTreeJsonGenerator:257` turns a refused leaf into a **whole-asset skip**, not a warning.
+
+⭐ **The check itself was never wrong.** A method whose param 0 is `ref SomeDto` genuinely would not
+compile in the emitted registrar. **Only its source of truth was.** ⇒ 🔒 **a validator must be keyed on
+what the emitter WRITES, never on what the asset DECLARES** — the two were the same thing until
+`CE-313`, which is exactly why the coupling went unnoticed.
+
+⛔⛔ **`dto.BlackboardTypeName` is deliberately UNTOUCHED.** It is a persisted input to
+`SubtreeSyncIdentity.Derive`, which **matches subtrees** (§30.19); retargeting it renames structs across
+the corpus and breaks matching silently. ⇒ ⭐ **the §2 ③ decision is NOT a prerequisite for this repair**
+— it remains open on its own merits *(the namespace collector and the orchestrator still read the field)*.
+
+#### 🔴🔴 ② WHY THREE LAYERS OF GATING MISSED IT
+
+| layer | why it was blind |
+|---|---|
+| **the build** | ⛔ `BTREE0002` is emitted **only on a real recompile**. Every incremental build printed nothing. ⭐ `touch` the changed source first |
+| 🔴🔴 **`P4`-②'s zero-fallback rail** | it asserts *every REGISTERED node binds*. ⭐⭐ **A skipped asset never registers** ⇒ green **by construction** — the `CE-312` shape one level up. 🔒 **A rail over a DERIVED collection cannot see items that never entered it** |
+| **the golden suite** | it left the six goldens **stale** rather than failing on them |
+
+⭐⭐⭐ **And the staleness is what proved the causation, for free.** `CE-313` regenerated goldens;
+**exactly 6 of 26 still read `Interpreter<BrainBlackboard`, and they were exactly the 6 skipped assets.**
+⇒ *"which goldens did NOT move when they should have"* answered a question a build could not.
+
+⚠ **A worktree build at the pre-`P4`-② commit was attempted and DISCARDED**: it emitted
+`Interpreter<byte, …>`, a shape that commit's source cannot produce, so generator output was leaking
+across trees. 🔒 **Before trusting a historical build, check its output for something only the NEW code
+could emit** — a new instance of *"a reload is not a reset"*.
+
+#### ⭐⭐ ③ THE RAIL — **the fixture WAS the old rule, so fixing it IS the rail**
+
+`ValidMethodStubs.CompatAction` took `ref StubBb` while its asset declared `BlackboardTypeName =
+"Stub.StubBb"` — i.e. the suite encoded the retired coupling. ⭐ It now takes **`ref byte` while the
+asset still declares `Stub.StubBb`**, which asserts the separation directly. ⛔ `DtoParamAction`
+*(param 0 a DTO struct)* is unchanged and still refused — **the negative control that proves `CE-316`
+moved the check's source of truth rather than removing the check.**
