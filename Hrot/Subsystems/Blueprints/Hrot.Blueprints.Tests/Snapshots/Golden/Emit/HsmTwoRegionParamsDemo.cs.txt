@@ -59,8 +59,13 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
         //   variables BY NAME through IHostVariableAccess — its first implementation.
         // CE-297: the SEED comes from HERE, not from the kernel's instance pointer.
         // P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.
+        // CE-305: the EXTENT comes from the slot, never from MaxBehaviorParamByteSize. The
+        //   constant was right while the region was a fixed byte[100]; since P3-C it is only
+        //   RootParamsBytes(def) wide, so a 100-byte bound lets IHostVariableAccess read past
+        //   the slot into the next occurrence (§29.10 — the ANCHOR was specified, the EXTENT
+        //   never was).
         byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(
-            world, bridge->Self);
+            world, bridge->Self, out int __hostParamsLen);
         
         // O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)
         //        the kernel stamped (O6) and by the hosting machine's id from the instance header.
@@ -80,7 +85,7 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
                     ref __rootParams, (nint)__seedOffset));
             // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
             global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
-                AssetId, ref *__params, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize));
+                AssetId, ref *__params, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen));
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
         ref var p = ref *__params;
