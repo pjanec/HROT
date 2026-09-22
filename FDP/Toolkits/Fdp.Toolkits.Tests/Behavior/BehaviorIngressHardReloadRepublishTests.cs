@@ -149,7 +149,7 @@ public sealed unsafe class BehaviorIngressHardReloadRepublishTests : IDisposable
 
         var entity = _world.CreateEntity();
         _world.AddComponent(entity, new BehaviorState());
-        _world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(_world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Fire initial assign event.
         _world.Bus.PublishManaged(new AssignBehaviorEvent

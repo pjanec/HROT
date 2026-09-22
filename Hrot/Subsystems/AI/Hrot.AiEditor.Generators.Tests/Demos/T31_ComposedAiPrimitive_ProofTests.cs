@@ -45,7 +45,6 @@ public sealed class T31_ComposedAiPrimitive_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
         //   failed with "Component BlueprintBlackboard256 is not registered" the moment
@@ -73,7 +72,7 @@ public sealed class T31_ComposedAiPrimitive_ProofTests : IDisposable
         var world  = CreateWorld();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Assign → BehaviorIngressSystem parses params (RunsNeeded=3) and provisions the slot.
         var ingress = new BehaviorIngressSystem(_registry);

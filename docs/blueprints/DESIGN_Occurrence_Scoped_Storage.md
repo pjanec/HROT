@@ -6112,3 +6112,76 @@ a partial build — and name the projects it did not compile.
 THE FIRST TIME**, because the slot is sized from the blob instead of from a hard-coded
 `AddComponent(new BrainHsm128())`. ⇒ 📐 **§9.4's claim is literal: the tier stops being a TYPE and
 becomes a PAYLOAD SIZE — and deleting the type is what starts that, not what ends it.**
+
+### 31.12 ⭐⭐⭐ `O7c`-② AS BUILT — **`BrainBTreeState` IS AN OCCURRENCE SLOT** *(`CE-319`, `2026-09-22`)*
+
+⭐ Built to §31.5 step ②. ⛔ **Three things the design did not predict**, and each one is the load-bearing
+part of this record.
+
+#### 31.12.1 🔴🔴 THE PROVISIONER IS THE **TRANSLATOR**, NOT INGRESS — **spawn publishes no assign event**
+
+📐 **Measured while wiring it, and it would have shipped a dead brain.** `BehaviorTkbTranslator.Inject`
+stamps `BehaviorState.ActiveBehaviorHash` from the template's DEFAULT behaviour and **no
+`AssignBehaviorEvent` is published at spawn** — the assign path runs only from mission/intent
+*(`MissionDirectorSystem`, `TacticalIntentResolutionSystem`, the maneuver mappers)*. ⇒ with ingress as
+the only provisioner, an entity that spawns with a default behaviour reaches the tick with **no root
+state slot**, and `RequireStateRef` throws where the component silently ticked from the root.
+
+⚠⚠ **ROOT PARAMS NEVER EXPOSED THIS, WHICH IS WHY `P3-C` SHIPPED WITHOUT HITTING IT:** the params path
+is entered only when `RootParamsBytes(def) > 0`, so a params-less behaviour never touches it.
+⭐⭐ **EVERY BTree behaviour has a cursor.** ⇒ the state slot must exist for a **strictly larger set of
+entities** than the params slot does, and the asymmetry is the whole finding.
+
+🔒 **The earned rule, answered properly:** *"before moving ANY state into an occurrence slot, name what
+will PROVISION the slot and what will WRITE its contents."*
+⇒ **PROVISION: `RootStateAccess.EnsureRootState` — from the translator at SPAWN, and from ingress on
+every assign after. WRITE: `BTreeTickSystem`.** ⭐ One spelling, shared, so the two provisioners cannot
+drift.
+
+#### 31.12.2 🔴🔴 THE TIER COMPONENTS BECAME A **HARD DEPENDENCY** OF BTREE EXECUTION — **and it fails SILENTLY**
+
+⛔⛔ **Before:** registering `BrainBTreeState` was enough; a world could tick a BTree with **no
+occurrence store at all**. ⭐ **After:** the cursor IS a slot and discovery IS the tier walk ⇒ an entity
+with no store is **never enumerated**. 🔴 **No throw, no log — the brain simply never runs.**
+
+⚠ **That is the `CE-315` shape a third time** *(dead storage as a query predicate ⇒ silent
+NON-EXECUTION that no value-asserting rail can see)*. 📐 **Eight tests went red with
+`Expected 1, Actual 0`** for exactly this, because `TestWorldFactory` never registered the tiers.
+⭐ **That was the cheap version of the lesson; the expensive one is a host shipping a brain that never
+ticks.** ⇒ production already satisfies it *(`HrotSharedComponentRegistry`, `CE-161`)*, and the test
+factory now mirrors production rather than the old minimum.
+
+#### 31.12.3 ⭐ A PRE-EXISTING LEAK, FOUND AND FIXED — **`ClearBehaviorEvent` never detached the root params slot**
+
+📐 `CE-302` added `DetachRoot` to the **assign** path only. ⇒ a clear-without-successor has been leaking
+the root params slot ever since. ⛔⛔ **And the ordering is the trap:** every root key is COMPUTED from
+`ActiveBehaviorHash`, so a detach placed after `behavior.ActiveBehaviorHash = None` is a **silent
+no-op** — my first draft had exactly that and would have leaked the state slot on every brain-death.
+⚠ **Caught by READING the handler, not by a test**: a leaked slot has no visible effect until
+`MaxSlots` (3 on the 256 tier) runs out and attaches start failing. ⭐ Both root slots are now detached
+**before** the clear, keyed on the outgoing hash.
+
+#### 31.12.4 ⭐⭐ THE RAIL THAT MATTERED — **`O7_R41` CONFIRMED THE DETACH RATHER THAN MERELY MOVING**
+
+📐 `O7_R41_ReassigningDoesNotLeakThePreviousRootParamsSlot` churns FOUR assigns and asserted **1**
+surviving slot; it now reads **2** — the current behaviour's params **and** state.
+⭐⭐⭐ **That number is the evidence, not the inconvenience: had `RootStateAccess.DetachRoot` been missing
+or mis-ordered it would read 5.** ⇒ the count is re-baselined **with the reasoning beside it**, and the
+assertion is NOT relaxed. ⚠ Same for the four slot-count rails in `BehaviorIngressStatefulTests` /
+`BehaviorIngressGhostSlotTests`: **+1 per BTree brain**, correct by construction.
+
+#### 31.12.5 ⭐ CLAIMS RE-HOMED RATHER THAN PORTED — **said out loud**
+
+| test | what changed, and why it is not a weakening |
+|---|---|
+| `BehaviorIngressSystemTests` — *"seed a mid-execution cursor, assign, see it reset"* | ⛔ a cursor **cannot pre-exist the FIRST assign**: its key is computed from `ActiveBehaviorHash`, which is 0 until a behaviour exists. ⭐ Re-homed across the **SECOND** assign — where *"a new behaviour starts at the root"* actually has to hold — **plus a guard assertion that the seed took**, so it cannot pass vacuously |
+| `ComponentLayoutTests.BrainBTreeState_Contains_BehaviorTreeState` | became a claim about the **slot's width** — what `RootStateAccess.StateBytes` reserves and what the interpreter steps |
+| `BTreeVisualizerRendererTests.RenderValue_Object_ReturnsFalse` | ⛔ **EXPIRED.** It pinned the non-entity-aware `IImGuiRenderer` arm, which existed only because the renderer was reached through `[ImGuiRenderer(typeof(BrainBTreeState))]`. The interface went with the component ⇒ the claim has no subject |
+| `CgfComponentRegistryTests` · `ComponentRegistryTests` | registry claims about a type that no longer exists are **vacuous**; the CGF one now asserts what a BTree brain actually needs — the **tier ladder** |
+
+#### 31.12.6 ⭐ THE SEVENTH IDENTITY-KEYED SURFACE
+
+`BTreeVisualizerRenderer` was `[ImGuiRenderer(typeof(BrainBTreeState))]` ⇒ deleting the type deleted the
+**ENTRY POINT**, not a read. ⭐ Re-homed by the `P4`-③ remedy: `RootTreeStateProjection`, a section of
+`BlueprintBlackboardRendererBase` beside root params and working state. ⚠ `BTreeDebugSession` was an
+ordinary read and moved with a `Try`.

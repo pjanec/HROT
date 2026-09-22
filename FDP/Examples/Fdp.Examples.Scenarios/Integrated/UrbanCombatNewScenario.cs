@@ -366,7 +366,6 @@ namespace Fdp.Examples.Scenarios.Integrated
             // FDP.Toolkit.Behavior
             world.RegisterComponent<BehaviorState>();
             world.RegisterComponent<SimTier>();
-            world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();

@@ -446,7 +446,7 @@ public sealed unsafe class HostedSubtreeCursorTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var registry = new BehaviorRegistry();
         return (world, registry, new BehaviorIngressSystem(registry), entity);
@@ -455,8 +455,8 @@ public sealed unsafe class HostedSubtreeCursorTests
     /// <summary>Leaves BOTH cursors mid-tree, the way a live tick would.</summary>
     private static void PoisonBothCursors(EntityRepository world, Entity entity)
     {
-        ref var root = ref world.GetComponentRW<BrainBTreeState>(entity);
-        root.State.RunningNodeIndex = 7;
+        ref var root = ref RootStateAccess.RequireStateRef(world, entity);   // ⛔ O7c-②: the cursor is an occurrence slot now (§31).
+        root.RunningNodeIndex = 7;
         ReadChildState(world, entity, TreeStateKey).RunningNodeIndex = 7;
     }
 
@@ -464,7 +464,7 @@ public sealed unsafe class HostedSubtreeCursorTests
     {
         // ⚠ Non-vacuity: the HOST's reset is the behaviour that has always worked. If this reads 7
         //   the fixture never reached the reset at all and the rail below would pass for free.
-        Assert.Equal(0, world.GetComponentRO<BrainBTreeState>(entity).State.RunningNodeIndex);
+        Assert.Equal(0, RootStateAccess.GetStateOrDefault(world, entity).RunningNodeIndex);
 
         // ⭐⭐ THE RAIL. 🔴 Reads 7 without ResetHostedTreeStates.
         Assert.Equal(0, ReadChildState(world, entity, TreeStateKey).RunningNodeIndex);

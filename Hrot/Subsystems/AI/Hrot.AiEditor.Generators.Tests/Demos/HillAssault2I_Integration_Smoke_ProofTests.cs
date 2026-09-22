@@ -53,7 +53,6 @@ public sealed class HillAssault2I_Integration_Smoke_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
         //   failed with "Component BlueprintBlackboard256 is not registered" the moment
@@ -123,7 +122,7 @@ public sealed class HillAssault2I_Integration_Smoke_ProofTests : IDisposable
         var world  = CreateWorld();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Assign -> BehaviorIngressSystem reads def.StatefulWorkingSlots and provisions BOTH the
         // composed node's own (Node-scoped, empty) slot AND the standalone Entity-scoped "state"

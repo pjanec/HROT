@@ -119,7 +119,6 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var repo = new EntityRepository();
             repo.RegisterComponent<BehaviorState>();
             repo.RegisterComponent<BrainInterrupts>();
-            repo.RegisterComponent<BrainBTreeState>();
             repo.RegisterComponent<LocomotionChannel>();
             repo.RegisterComponent<ActorCapabilityState>();
             repo.RegisterComponent<PreviousCapabilities>();
@@ -134,7 +133,7 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var e = repo.CreateEntity();
             repo.AddComponent(e, new BehaviorState());
             repo.AddComponent(e, new BrainInterrupts());
-            repo.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(repo, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
             repo.AddComponent(e, new LocomotionChannel());
             repo.AddComponent(e, new ActorCapabilityState());
             if (owned)

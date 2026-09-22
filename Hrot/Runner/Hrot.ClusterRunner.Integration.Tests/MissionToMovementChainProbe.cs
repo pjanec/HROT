@@ -144,7 +144,7 @@ public sealed class MissionToMovementChainProbe
         _out.WriteLine("⭐ READ THE TABLE LEFT TO RIGHT. The FIRST column that never becomes non-default");
         _out.WriteLine("  is the broken hop. Columns, in chain order:");
         _out.WriteLine("   behHash  — BehaviorIngressSystem assigned a behaviour   (0 ⇒ CGF cognitive tier never fired)");
-        _out.WriteLine("   btree    — BrainBTreeState is present/non-zero          (⇒ the BTree is actually ticking)");
+        _out.WriteLine("   btree    — the ROOT STATE slot is present               (⇒ the BTree is actually ticking)");
         _out.WriteLine("   chan     — LocomotionChannel: the BTree issued MoveTo   (act=0 ⇒ the BTree never reached the action)");
         _out.WriteLine("   CGF intent — MoveToExecutor.OnEnter wrote it            (mode=None ⇒ the dispatcher/executor did not run)");
         _out.WriteLine("   SIM intent — egress+DDS+ingress delivered it            (differs from CGF ⇒ the WIRE is the break)");
@@ -180,7 +180,7 @@ public sealed class MissionToMovementChainProbe
                  {
                      "MissionPlanQueue", "BehaviorState", "MissionAdapterState", "ActiveMissionPlan",
                      "LocomotionChannel", "ActorCapabilityState", "NavigationIntent", "NavState",
-                     "BrainBTreeState", "NetworkIdentity", "SimTransform",
+                     "NetworkIdentity", "SimTransform",
                  })
             if (!names.Contains(want))
                 _out.WriteLine($"  ⛔ MISSING: {want}");
@@ -223,7 +223,9 @@ public sealed class MissionToMovementChainProbe
             return "  <no cgf ghost>                                                     ";
 
         int  behHash = world.HasComponent<BehaviorState>(e) ? world.GetComponent<BehaviorState>(e).ActiveBehaviorHash : 0;
-        bool hasBt   = world.IsComponentTypeRegistered<BrainBTreeState>() && world.HasComponent<BrainBTreeState>(e);
+        // ⭐ O7c-②: the cursor is an occurrence slot, so presence is a SLOT probe now (§31).
+        bool hasBt   = Fdp.Toolkit.Behavior.RootStateAccess.GetStateOrDefault(world, e).TreeVersion >= 0
+                       && Fdp.Toolkit.Behavior.RootStateAccess.KeyFor(world, e) != 0;
 
         string chan = "  none      ";
         if (world.HasComponent<LocomotionChannel>(e))

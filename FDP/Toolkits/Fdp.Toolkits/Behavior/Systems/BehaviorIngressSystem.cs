@@ -209,12 +209,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
                     ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def),
-                                           hosted, RootParamsCost(def));
+                                           hosted, RootParamsCost(def), RootStateCost(def));
                 }
                 else
                 {
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def));
+                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def), RootStateCost(def));
                 }
 
                 // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
@@ -226,7 +226,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //   this, every behaviour change leaks one slot, and an entity reassigned a few times
                 //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
                 if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)
+                {
                     RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    // ⭐⭐ O7c-② / CE-319: the root TREE STATE slot leaks the same way and for the same
+                    //   reason — its kind is BTree, so DetachHostedOccurrenceSlots cannot see it either.
+                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                }
 
                 // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
                 //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
@@ -275,11 +280,22 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
                 }
 
-                // 2. Reset BTree execution pointer so the new behavior starts from the root.
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
+                // 2. ⭐⭐⭐ O7c-② / CE-319 — ATTACH the root tree state, then reset the cursor so the new
+                //    behaviour starts from the root. 📄 §31.
+                //
+                //    ⚠ ORDERING, and it is the same rule CE-302 paid for on the params path: this runs
+                //      AFTER provisioning (the store must exist to attach into) and AFTER
+                //      DetachHostedOccurrenceSlots (which sweeps kind Hsm|Blueprint — a BTree root slot
+                //      is invisible to it, but the ordering is kept uniform so the two root slots cannot
+                //      drift apart).
+                //
+                //    ⭐ TryAttach ZEROES a fresh payload, so the reset is redundant on first attach — but
+                //      NOT on the idempotent path, where re-assigning the SAME behaviour finds its slot
+                //      already there. ⛔ The component version reset unconditionally; so does this.
+                if (RootStateAccess.RootStateBytes(def) > 0)
                 {
-                    ref var btState = ref repo.GetComponentRW<BrainBTreeState>(evt.Entity);
-                    btState.State = default;
+                    RootStateAccess.ResolveOrAttachRoot(repo, evt.Entity, behaviorId, KindOf(def), out _);
+                    RootStateAccess.ResetState(repo, evt.Entity);
                 }
                 ResetHostedTreeStates(repo, evt.Entity, def);
 
@@ -319,13 +335,32 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // too — the same leak S3-5 fixed for manifest slots.
                 DetachHostedOccurrenceSlots(repo, evt.Entity, manifest: null);
 
+                // 🔴🔴 O7c-② — THE ROOT SLOTS MUST BE DETACHED **BEFORE** THE HASH IS CLEARED, AND BOTH
+                //    OF THEM. 📄 §31.
+                //
+                //    ⛔⛔ Every root-slot key is COMPUTED from ActiveBehaviorHash, so once the line below
+                //      sets it to None the key is 0 and BOTH DetachRoot and ResetState become silent
+                //      no-ops. ⚠ The first draft of this change put the reset after the clear and it
+                //      would have leaked the slot on every brain-death — caught by reading the handler,
+                //      not by a test, because a leaked slot has no visible effect until MaxSlots (3 on
+                //      the 256 tier) runs out and params silently stop attaching.
+                //
+                //    🔴 AND THE PARAMS LINE IS A PRE-EXISTING LEAK THIS CHANGE FIXES, not one it caused:
+                //      CE-302 added DetachRoot to the ASSIGN path only, so a clear-without-successor has
+                //      been leaking the root params slot ever since. ⚠ Fixed here rather than filed,
+                //      because adding its exact twin while leaving it in place would be worse than
+                //      either doing both or neither.
+                if (previousBehaviorId != BehaviorIds.None)
+                {
+                    RootStateAccess.ResetState(repo, evt.Entity);   // zero while the key still resolves
+                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                }
+
                 ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 behavior.ActiveBehaviorHash = BehaviorIds.None;
                 unchecked { behavior.InstanceId++; }
                 behavior.BrainTier = 0;
-
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
-                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
             }
 
             // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
@@ -349,9 +384,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // ⛔ P4-①: the second Blackboard1024 add, gone for the same reason as the first.
                 }
 
-                // Reset BTree execution pointer so the new phase starts from the root.
-                if (repo.HasComponent<BrainBTreeState>(evt.Entity))
-                    repo.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
+                // ⭐⭐ O7c-② / CE-319 — attach + reset, as in the AssignBehaviorEvent handler.
+                //   🔴 ⚠ THIS HANDLER PROVISIONS NOTHING — measured, and it is a PRE-EXISTING gap this
+                //     change inherits rather than introduces: §22's F14b found the same thing
+                //     ("the handler touches no slots at all — it neither detaches the outgoing manifest
+                //     nor provisions the incoming one") and fixed the LEAK half, not the provisioning
+                //     half. ⇒ ResolveOrAttachRoot returns null when the entity has no store, and the
+                //     reset is then a no-op. ⛔ That is the SAME reachability the component had here
+                //     (it too was only touched if already present), so this is not a regression — but
+                //     it IS the reason a hash-assigned BTree brain on a store-less entity would not
+                //     tick, and it is recorded in the design rather than left to be rediscovered.
+                if (RootStateAccess.RootStateBytes(def) > 0)
+                {
+                    RootStateAccess.ResolveOrAttachRoot(repo, evt.Entity, evt.BehaviorHash, KindOf(def!), out _);
+                    RootStateAccess.ResetState(repo, evt.Entity);
+                }
                 ResetHostedTreeStates(repo, evt.Entity, def);
 
                 // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
@@ -390,7 +437,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private static void EnsureOccurrenceStore(
             EntityRepository repo, Entity entity, BehaviorDefinition def,
-            HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0)
+            HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0, int rootStateCost = 0)
         {
             if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
                 def.BrainTier != BehaviorConstants.BrainTierHsm)
@@ -403,9 +450,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   so this is additive, never a regression.
             // ⭐ CE-302: the root params slot is attached after this returns, so its cost is added here
             //   or it is never counted at all.
+            // ⭐ O7c-②: the ROOT TREE STATE slot is additive here on exactly the same footing as the
+            //   root params slot — both attach after this returns, so both are counted before it.
             int targetTier = SelectTierForPayload(
-                HostedPayloadCost(hosted) + rootParamsCost,
-                (hosted?.SlotCount ?? 0) + (rootParamsCost > 0 ? 1 : 0));
+                HostedPayloadCost(hosted) + rootParamsCost + rootStateCost,
+                (hosted?.SlotCount ?? 0) + (rootParamsCost > 0 ? 1 : 0) + (rootStateCost > 0 ? 1 : 0));
 
             // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
             //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
@@ -552,6 +601,28 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// manifest but no parser never attaches a root slot, so reserving for it would push entities
         /// up a tier for nothing.</para>
         /// </summary>
+        /// <summary>
+        /// ⭐⭐ <b><c>O7c</c>-② / <c>CE-319</c> — what the ROOT TREE STATE slot costs the tier demand.</b>
+        /// 📄 §31.
+        ///
+        /// <para>⛔⛔ <b>The exact shape of <see cref="RootParamsCost"/>, and for the same reason:</b>
+        /// the slot attaches AFTER provisioning returns, and nothing later can grow the tier — that is a
+        /// structural change inside a tick. ⇒ its cost is counted HERE or it is never counted at all,
+        /// which is precisely the defect <c>CE-302</c> was.</para>
+        ///
+        /// <para>⚠ <b>Asks the DEFINITION, never a probe.</b> A behaviour is BTree-tier or it is not;
+        /// "the lookup failed" cannot tell "this behaviour has no tree" from "the slot should exist and
+        /// does not" — <c>CE-307</c>'s lesson on the params path.</para>
+        /// </summary>
+        private static int RootStateCost(BehaviorDefinition? def)
+        {
+            int bytes = RootStateAccess.RootStateBytes(def);
+            if (bytes <= 0) return 0;
+
+            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
+                 + BlueprintBlackboardPartitions.SlotEntrySize;
+        }
+
         private static int RootParamsCost(BehaviorDefinition def)
         {
             if (def?.ParseParams == null) return 0;
@@ -575,7 +646,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             IReadOnlyList<StatefulSlotInfo> slots,
             OccurrenceKind kind,
             HostedOccurrenceDemand? hosted = null,
-            int rootParamsCost = 0)
+            int rootParamsCost = 0,
+            int rootStateCost = 0)
         {
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
@@ -598,6 +670,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   grow the tier, because that is a structural change inside a tick.
             requiredPayload += rootParamsCost;
             requiredSlots   += rootParamsCost > 0 ? 1 : 0;
+
+            // ⭐⭐ O7c-② / CE-319: and the ROOT TREE STATE slot. ⛔ Counted in THIS branch as well as in
+            //   EnsureOccurrenceStore's — sizing only one of them is the cheap wrong fix that rail
+            //   O7_R18 exists to catch: this branch is the one that runs for a behaviour which declares
+            //   stateful slots of its own, and EnsureOccurrenceStore never runs for it at all.
+            requiredPayload += rootStateCost;
+            requiredSlots   += rootStateCost > 0 ? 1 : 0;
 
             // Determine the entity's current tier (0 = none, else TotalSize).
             int currentTier = GetCurrentTierSize(repo, entity);

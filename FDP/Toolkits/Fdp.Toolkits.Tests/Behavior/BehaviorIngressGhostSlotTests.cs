@@ -115,7 +115,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Choose distinct slot keys.
         int keyA = 0x1AA01;
@@ -197,7 +197,8 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
             Assert.Equal(unchecked((int)0xDEADBEEF), sentinel);
 
             // (d) SlotCount == 2 (no leaked slots).
-            Assert.Equal(2, (int)header.SlotCount);
+            // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319) rides beside the manifest slots now.
+            Assert.Equal(3, (int)header.SlotCount);
         }
 
         // ⭐ B4: was an if/else-if chain over the tier trio — and its final `else` fell through to
@@ -232,7 +233,7 @@ public sealed unsafe class BehaviorIngressGhostSlotTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         int slotKey = 0x2CC03;
         const uint hashV1 = 0xAAAABBBBu;

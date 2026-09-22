@@ -42,7 +42,7 @@ internal static unsafe class RootParamsTestHarness
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         ref var st = ref world.GetComponentRW<BehaviorState>(entity);
         st.ActiveBehaviorHash = behaviourHash;

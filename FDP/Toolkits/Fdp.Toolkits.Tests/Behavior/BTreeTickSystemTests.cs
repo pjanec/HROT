@@ -46,15 +46,15 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = 999,                          // not registered
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
-            var stateBefore = world.GetComponent<BrainBTreeState>(e);
+            var stateBefore = RootStateAccess.GetStateOrDefault(world, e);
 
             // Act + Assert — must not throw, state must be unchanged.
             sys.Execute(world, 0.016f);
 
-            var stateAfter = world.GetComponent<BrainBTreeState>(e);
-            Assert.Equal(stateBefore.State.RunningNodeIndex, stateAfter.State.RunningNodeIndex);
+            var stateAfter = RootStateAccess.GetStateOrDefault(world, e);
+            Assert.Equal(stateBefore.RunningNodeIndex, stateAfter.RunningNodeIndex);
 
             world.Dispose();
         }
@@ -95,7 +95,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierHsm, // WRONG tier
             });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // Act.
             sys.Execute(world, 0.016f);
@@ -144,7 +144,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
             world.AddComponent(e, new LocomotionChannel()); // BTree node writes here
 
             // Act.
@@ -190,7 +190,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             sys.Execute(world, 0.016f);
 
@@ -221,7 +221,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             sys.Execute(world, 0.016f);
 
@@ -247,7 +247,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             sys.Execute(world, 0.016f);
 
@@ -274,7 +274,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // Frame 1: expect event.
             sys.Execute(world, 0.016f);
@@ -348,7 +348,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // Frame 1: entity processed, entry added to deduplication dictionary.
             sys.Execute(world, 0.016f);
@@ -402,17 +402,19 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = behaviorId,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            var btState = new BrainBTreeState();
-            btState.State.InstanceFlags = BehaviorInstanceFlags.Paused;
-            world.AddComponent(e, btState);
+            // ⭐ O7c-②: the Paused flag is seeded THROUGH the slot — the entity carries a hash, so
+            //   EnsureRootState can provision it before the first tick.
+            RootStateAccess.EnsureRootState(world, e);
+            RootStateAccess.SetState(world, e,
+                new Fbt.BehaviorTreeState { InstanceFlags = BehaviorInstanceFlags.Paused });
 
             // Act: tick while Paused -- action must not run.
             sys.Execute(world, 0.016f);
             Assert.Equal(0, tickCount);
 
             // Resume: clear the Paused flag, tick again -- action must now run.
-            ref var stateRef = ref world.GetComponentRW<BrainBTreeState>(e);
-            stateRef.State.InstanceFlags &= ~BehaviorInstanceFlags.Paused;
+            ref var stateRef = ref RootStateAccess.RequireStateRef(world, e);   // ⛔ O7c-②: via the slot.
+            stateRef.InstanceFlags &= ~BehaviorInstanceFlags.Paused;
             sys.Execute(world, 0.016f);
             Assert.Equal(1, tickCount);
 

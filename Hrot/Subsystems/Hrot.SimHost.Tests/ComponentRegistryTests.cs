@@ -245,7 +245,7 @@ namespace Hrot.SimHost.Tests
             SimHostComponentRegistry.RegisterAll(world);
 
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BehaviorState>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBTreeState>());
+            // ⛔ O7c-②: the BrainBTreeState row is gone — the type's deletion makes it vacuous.
             // ⛔ P4: the BrainBlackboard and Blackboard1024 rows are gone. Each asserted that
             //    SimHostComponentRegistry does NOT register that component — a claim the type's
             //    deletion now makes vacuous.
@@ -291,7 +291,7 @@ namespace Hrot.SimHost.Tests
             CognitiveComponentRegistry.RegisterAll(world);
 
             Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainBTreeState>()));
+            // ⛔ O7c-②: likewise — the cursor is an occurrence slot now (§31).
             Assert.Null(Record.Exception(() => world.GetComponentTable<LocomotionChannel>()));
         }
 

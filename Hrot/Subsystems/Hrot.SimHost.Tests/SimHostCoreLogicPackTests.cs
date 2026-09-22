@@ -42,7 +42,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
-            world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();

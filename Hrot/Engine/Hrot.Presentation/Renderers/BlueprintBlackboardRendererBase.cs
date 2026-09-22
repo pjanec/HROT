@@ -118,6 +118,13 @@ public abstract unsafe class BlueprintBlackboardRendererBase<TTier> : IEntityAwa
         // Feature A (BATCH-10): render typed WorkingState section after the summary table.
         StatefulWorkingStateProjection.RenderWorkingState(session, entity, mem);
 
+        // ⭐⭐⭐ O7c-② / CE-319: the BTREE EXECUTION PATH section. It comes after params and working
+        //   state for the same reason params came first — inputs, then what the tick did with them,
+        //   then where the tree currently IS.
+        // ⛔ BTreeVisualizerRenderer used to be reached by [ImGuiRenderer(typeof(BrainBTreeState))];
+        //   the component is gone, so the drawing is entered from here instead (the P4-③ remedy).
+        RootTreeStateProjection.RenderRootTree(session, entity, mem);
+
         // ⭐ P4-③ / R-137 — the entity-fact tail came from BrainBlackboardRenderer, which is deleted.
         //   It was never blackboard data (O2 moved it to BrainInterrupts in 2026-09-20); it was just
         //   rendered on that panel. ⛔ Dropping it with the renderer would cost a feature the

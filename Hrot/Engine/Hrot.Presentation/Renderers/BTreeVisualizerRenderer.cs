@@ -12,13 +12,21 @@ using ImGuiNET;
 namespace Hrot.Presentation.Renderers;
 
 /// <summary>
-/// Entity-aware ImGui renderer for <see cref="BrainBTreeState"/>.
-/// Renders a color-coded interactive tree showing the active execution path,
-/// decodes per-node runtime state (LocalRegisters, AsyncHandles), and shows
-/// source-location tooltips from NodeDebugMetadata.
+/// ⭐⭐⭐ <b>Renders the entity's BTree execution path — <c>O7c</c>-② RE-HOMED onto the occurrence
+/// store.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.
+///
+/// <para>⛔⛔ <b>It used to be keyed on a component's IDENTITY</b> —
+/// <c>[ImGuiRenderer(typeof(BrainBTreeState))]</c> — so deleting that type deleted the ENTRY POINT,
+/// not merely a read. ⭐ That is the <c>CE-303</c> shape for the seventh time, and the remedy is the
+/// one <c>P4</c>-③ established: the drawing becomes a SECTION of the tier renderer, invoked from
+/// <c>BlueprintBlackboardRendererBase</c> beside root params and working state, and reached through
+/// <see cref="Fdp.Toolkit.Behavior.RootStateAccess"/> rather than through a component lookup.</para>
+///
+/// <para>⭐ The tree DRAWING is unchanged — colour-coded active path, per-node
+/// <c>LocalRegisters</c>/<c>AsyncHandles</c>, source-location tooltips from
+/// <c>NodeDebugMetadata</c>. Only how it is ENTERED and where the cursor comes from moved.</para>
 /// </summary>
-[ImGuiRenderer(typeof(BrainBTreeState))]
-public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
+public sealed class BTreeVisualizerRenderer
 {
     private static readonly Vector4 ColorGreen  = new Vector4(0.2f, 0.9f, 0.2f, 1.0f);
     private static readonly Vector4 ColorYellow = new Vector4(0.9f, 0.9f, 0.2f, 1.0f);
@@ -30,26 +38,21 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
 
     // ---- IImGuiRenderer ----
 
-    public string? GetSummary(object value)
+    /// <summary>⭐ <c>O7c</c>-②: the summary is built from the SLOT's cursor, not from a boxed
+    /// component the inspector handed us.</summary>
+    public static string SummaryOf(in BehaviorTreeState s)
+        => $"RunningNode: {s.RunningNodeIndex}, v{s.TreeVersion}";
+
+    public static string? GetSummary(IInspectableSession session, Entity entity, in BehaviorTreeState state)
     {
-        var s = (BrainBTreeState)value;
-        return $"RunningNode: {s.State.RunningNodeIndex}, v{s.State.TreeVersion}";
-    }
-
-    public bool RenderValue(object value) => false;
-
-    // ---- IEntityAwareImGuiRenderer ----
-
-    public string? GetSummary(IInspectableSession session, Entity entity, object value)
-    {
-        string baseSummary = GetSummary(value) ?? string.Empty;
+        string baseSummary = SummaryOf(state);
 
         var registry = BehaviorRegistryAccessor;
         if (registry != null && session.HasComponent(entity, typeof(BehaviorState)))
         {
-            if (session.GetComponent(entity, typeof(BehaviorState)) is BehaviorState state
-                && state.ActiveBehaviorHash != 0
-                && registry.TryGetName(state.ActiveBehaviorHash, out string? name))
+            if (session.GetComponent(entity, typeof(BehaviorState)) is BehaviorState bs
+                && bs.ActiveBehaviorHash != 0
+                && registry.TryGetName(bs.ActiveBehaviorHash, out string? name))
             {
                 return $"{name} | {baseSummary}";
             }
@@ -58,11 +61,14 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
         return baseSummary;
     }
 
-    public bool RenderValue(IInspectableSession session, Entity entity, object value, out string? doubleClickedPath)
+    /// <summary>
+    /// ⭐⭐ <b>The section entry point</b>, called by <c>BlueprintBlackboardRendererBase</c> with the
+    /// cursor already read out of the entity's root state slot.
+    /// </summary>
+    public static bool RenderTree(
+        IInspectableSession session, Entity entity, in BehaviorTreeState btState, out string? doubleClickedPath)
     {
         doubleClickedPath = null;
-
-        if (value is not BrainBTreeState btState) return false;
 
         var registry = BehaviorRegistryAccessor;
         if (registry == null) return false;
@@ -84,7 +90,7 @@ public sealed class BTreeVisualizerRenderer : IEntityAwareImGuiRenderer
             ? (float)ra.Repo.GetSingletonUnmanaged<GlobalTime>().TotalTime
             : 0f;
 
-        DrawNode(blob, btState.State, 0, globalTime);
+        DrawNode(blob, btState, 0, globalTime);
         return true;
     }
 

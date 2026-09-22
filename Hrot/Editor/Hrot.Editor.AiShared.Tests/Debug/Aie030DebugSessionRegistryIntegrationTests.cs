@@ -100,12 +100,11 @@ public sealed class Aie030DebugSessionRegistryIntegrationTests
 
         // Now drive Update() so the session symbolication is exercised end-to-end.
         var world  = new EntityRepository();
-        world.RegisterComponent<BrainBTreeState>();
         world.RegisterComponent<BTreeTraceWorkingMemory1024>();
         var entity = world.CreateEntity();
-        var brain  = new BrainBTreeState();
-        brain.State.RunningNodeIndex = 0;
-        world.AddComponent(entity, brain);
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 4242, BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
+        Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(world, entity);
+        Fdp.Toolkit.Behavior.RootStateAccess.SetState(world, entity, new Fbt.BehaviorTreeState { RunningNodeIndex = 0 });
 
         session.Update(world, entity);
 

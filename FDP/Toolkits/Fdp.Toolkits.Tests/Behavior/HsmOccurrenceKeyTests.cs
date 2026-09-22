@@ -518,7 +518,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState());
-        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var registry = new BehaviorRegistry();
         var sys = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
@@ -1767,7 +1767,12 @@ public sealed unsafe class HsmOccurrenceKeyTests
         Assert.True(store != null);
 
         // ⭐⭐⭐ THE RAIL. 🔴 Without DetachRoot this is 4 and the last assign had nowhere to land.
-        Assert.Equal(1, BlueprintBlackboardPartitions.GetSlotCount(store));
+        // ⭐⭐ O7c-② / CE-319 — 1 → 2: the current behaviour now holds a root PARAMS slot AND a root
+        //    STATE slot. 📐 The rail keeps its whole force: four assigns still leave TWO slots, so the
+        //    previous behaviour's pair is still being reclaimed. ⛔ Had RootStateAccess.DetachRoot been
+        //    missing or mis-ordered this would read 5, not 2 — which is exactly what this rail is for,
+        //    and it is why the number is re-baselined rather than the assertion relaxed.
+        Assert.Equal(2, BlueprintBlackboardPartitions.GetSlotCount(store));
 
         // ⭐ …and it is the CURRENT behaviour's slot, not a survivor of an earlier one.
         Assert.True(RootParamsAccess.TryGetRoot<DemoParams>(world, entity, out DemoParams* p));

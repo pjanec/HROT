@@ -40,7 +40,8 @@ namespace Hrot.SimHost
             //   SimHost runs via CombatModule. ⛔ PreviousCapabilities stays HERE: its only readers are
             //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
-            world.RegisterComponent<BrainBTreeState>();
+            // ⛔ O7c-② (2026-09-22): BrainBTreeState is RETIRED — the root tree cursor is an
+            //    occurrence slot now (§31). Its id 29 stays RESERVED.
             // ⛔ P4-① (2026-09-22): Blackboard1024 is RETIRED. Its three tenants all left by a named
             //    decision — AiPrimitive working state to the Blueprint tier ladder (SLICE2), squad
             //    state to its own component (O1), and the HeavyDtoType overflow path was never

@@ -121,7 +121,6 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<BehaviorState>();
-            world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<ActorCapabilityState>();
@@ -167,8 +166,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
             // fresh from the root (reactive/stateless BTree semantics).
             // Without this reset, the FastBTree Selector's resume optimisation would
             // skip previously-failed subtrees even after blackboard state changes.
-            ref var btState = ref world.GetComponentRW<BrainBTreeState>(_agent);
-            btState.State = default;
+            // ⭐ O7c-②: the cursor lives in the entity's root state slot now.
+            Fdp.Toolkit.Behavior.RootStateAccess.ResetState(world, _agent);
 
             // ── Phase 1 (tick 10): no threat → agent flees ────────────────────
             if (tick == 10 && !_phase1Checked)
@@ -254,7 +253,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
 
-            world.AddComponent(e, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // Initialise blackboard: ThreatVisible=false, AmmoCount=InitialAmmo.
             // ⭐ P4-②: a params region this example owns — the base is a `ref byte` now.

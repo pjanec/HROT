@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fbt;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Lifecycle.Events;
@@ -30,6 +31,14 @@ namespace Fdp.Toolkit.Behavior.Systems
     public unsafe class BTreeTickSystem : IEcsModuleSystem
     {
         private readonly BehaviorRegistry _registry;
+
+        /// <summary>
+        /// ⭐⭐ <c>O7c</c>-② — one cached query per tier, built on the first tick.
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.7. ⚠ Index-aligned with
+        /// <c>BlueprintTierTable.Ascending</c>; an entry is <c>null</c> where that tier is not
+        /// registered on this world, so the walk must skip nulls.
+        /// </summary>
+        private EntityQuery?[]? _tierQueries;
 
         /// <summary>
         /// Tracks the <see cref="BehaviorState.InstanceId"/> for which a terminal
@@ -82,17 +91,22 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐⭐⭐ P3 step 3b — gate on BehaviorState, which this query ALREADY required, so the
             //   ONLY change is the authority bit. BehaviorState is also the right discriminator: its
             //   BrainTier field is what selects BTree vs HSM, so gating it gates the whole brain.
-            var q = repo.Query()
-                .WithOwnedWhen<BehaviorState>(_gateOnAuthority)
-                .With<BrainBTreeState>()
-                // ⛔⛔ CE-315 / P4 §2 ②: `.With<BrainBlackboard>()` is GONE with the component.
-                //    ⚠ It was not merely redundant — it was a LIVE GATE. BehaviorTkbTranslator added
-                //    the component unconditionally beside BrainBTreeState, so production never
-                //    noticed; but BehaviorValidationScenario only REGISTERED it and never attached
-                //    it, so that example's agent was silently EXCLUDED from the BTree tick.
-                //    🔒 Dead storage used as a QUERY PREDICATE fails as silent NON-EXECUTION, which
-                //    no rail asserting VALUES can see.
-                .Build();
+            // ⭐⭐⭐ O7c-② / CE-319 — DISCOVERY IS NOW THE TIER WALK, not a brain component.
+            //   📐 `.With<BrainBTreeState>()` named the component that HELD the cursor; the cursor now
+            //   lives in an occurrence slot, so the thing to enumerate is "entities carrying a store".
+            //   📄 §31.7 — BuildTierQueries owns smallest-first ordering, build-once caching and the
+            //   skip for a tier this world never registered.
+            //
+            //   ⭐ The P3 step-3b authority gate rides along via the `constrain` hook, so it is applied
+            //   to every tier query and nothing about it changed.
+            //
+            //   ⚠ The BrainTier check inside the loop is what now makes this BTree-only — it was
+            //   already there and already load-bearing (an HSM brain carries a store too), which is
+            //   why losing the component from the query is not losing a filter.
+            _tierQueries ??= BlueprintTierTable.BuildTierQueries(
+                repo, qb => qb.WithOwnedWhen<BehaviorState>(_gateOnAuthority));
+
+            var tiers = BlueprintTierTable.Ascending;
 
             // Prune deduplication cache using reliable lifecycle events.
             foreach (var evt in repo.Bus.Read<DestructionOrder>())
@@ -100,11 +114,19 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
 
+            for (int t = 0; t < tiers.Count; t++)
+            {
+            var q = _tierQueries[t];
+            if (q is null) continue;            // tier not registered on this world
+
             foreach (var entity in q)
             {
                 var behavior = repo.GetComponent<BehaviorState>(entity);
 
                 // Only process BTree-tier entities.
+                // ⭐⭐ O7c-②: this check CARRIES the filter the query used to carry. An entity with an
+                //   occurrence store may be an HSM brain or a pure blueprint host; BrainTier is the
+                //   discriminator, and it always was — the component was a second, redundant one.
                 if (behavior.BrainTier != BehaviorConstants.BrainTierBTree)
                     continue;
 
@@ -119,11 +141,23 @@ namespace Fdp.Toolkit.Behavior.Systems
                     continue;
                 }
 
-                ref var btState    = ref repo.GetComponentRW<BrainBTreeState>(entity);
+                // ⭐⭐⭐ O7c-② / CE-319 — THE CURSOR COMES FROM THE ENTITY'S ROOT STATE SLOT.
+                //   ⛔ RequireStateRef THROWS on a miss rather than handing back a scratch cursor: a
+                //   BTree-tier entity that reaches the tick with no slot means ingress never
+                //   provisioned one, and ticking a stack local would restart the tree every frame —
+                //   forever, silently, looking like a behaviour that never progresses.
+                //
+                //   ⚠ LIFETIME: this ref points INTO the tier component, under
+                //   OccurrenceStoreAccess's rule — valid for this call, invalid across anything that
+                //   adds or removes a component on this entity. ⛔ Nothing in this loop body does:
+                //   slots attach LAZILY during the tick, and TryAttach bump-allocates or reuses a free
+                //   block without moving an existing payload. ⭐ Only CopyToLargerTier moves payloads,
+                //   and that is structural — ingress-only, never mid-tick.
+                ref var btState    = ref RootStateAccess.RequireStateRef(repo, entity);
 
                 // Entity is held by the debugger. Skip ticking the interpreter
                 // to prevent trace log spam and state mutation.
-                if ((btState.State.InstanceFlags & Fbt.BehaviorInstanceFlags.Paused) != 0)
+                if ((btState.InstanceFlags & Fbt.BehaviorInstanceFlags.Paused) != 0)
                     continue;
 
                 // ⭐⭐⭐ P4-② (2026-09-22) — THE BLACKBOARD IS THE ROOT PARAMS SLOT, RESOLVED ONCE
@@ -180,7 +214,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     TraceBuffer  = tracePtr,
                 };
 
-                var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
+                var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState, ref context);
 
                 // Optional NLog emission for traces written THIS frame. Gated by:
                 //   - tracePtr != null (otherwise nothing was recorded)
@@ -215,6 +249,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     }
                 }
             }
+            }   // tier loop
         }
 
         /// <summary>

@@ -475,7 +475,7 @@ namespace Hrot.SimHost.Tests
 
             var tank = repo.CreateEntity();
             repo.AddComponent(tank, new BehaviorState());
-            repo.AddComponent(tank, new BrainBTreeState());
+            RootStateAccess.EnsureRootState(repo, tank);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
             repo.AddComponent(tank, new LocomotionChannel());
 
             // The exact shape Action_DispatchWaveWithTargets publishes.

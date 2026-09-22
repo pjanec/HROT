@@ -28,7 +28,6 @@ namespace Hrot.ClusterRunner.Integration.Tests
             world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
-            world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();

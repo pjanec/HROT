@@ -130,7 +130,8 @@ public static class HrotRoleComponentSets
         // ⛔ P4-① (2026-09-22): Blackboard1024 retired — §30.13. ⚠ Its id 74 stays RESERVED in
         //    GlobalComponentIds rather than being reused, so a stale recording cannot bind it to a
         //    different component.
-        brainOnly.SetBit(ComponentType<BrainBTreeState>.ID);
+        // ⛔ O7c-② (2026-09-22): BrainBTreeState retired — the cursor rides in the occurrence store,
+        //    whose tier components this mask already covers.
         // ⛔ O7c-① (2026-09-22): BrainHsm64 retired — nothing ever attached it, so this bit
         //    declined a component that was never present. ⚠ Its id 35 stays RESERVED, like 23 and 74.
         brainOnly.SetBit(ComponentType<BrainHsm128>.ID);

@@ -92,8 +92,11 @@
         /// <summary><c>ActorCapabilityState</c> â€” current actor capability bitmask.</summary>
         public const int ActorCapabilityState    = 28;
 
-        /// <summary><c>BrainBTreeState</c> â€” behavior tree runtime state for an entity brain.</summary>
-        public const int BrainBTreeState         = 29;
+        /// ⛔⛔ <b>RESERVED — <c>BrainBTreeState</c> was retired by <c>O7c</c>-② (2026-09-22).</b>
+        /// ⭐ The root tree cursor moved into an occurrence slot so a HOSTED subtree can own its own
+        /// — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.
+        /// ⚠ <b>The id is BURNED, not freed</b>, as 23, 35 and 74 are.
+        public const int BrainBTreeState_RESERVED = 29;
 
         /// <summary><c>VehicleState</c> â€” kinematic vehicle physics state (speed, steer, accel).</summary>
         public const int VehicleState            = 30;

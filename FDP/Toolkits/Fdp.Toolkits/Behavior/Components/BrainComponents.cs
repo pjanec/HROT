@@ -5,13 +5,17 @@ using Fdp.Core;
 
 namespace Fdp.Toolkit.Behavior.Components
 {
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.BrainBTreeState)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct BrainBTreeState
-    {
-        public BehaviorTreeState State;
-    }
+    // ⛔⛔⛔ O7c-② / CE-319 (2026-09-22) — BrainBTreeState IS DELETED.
+    //   🔒 THE REASON IS CAPABILITY, NOT BYTES (user: "i thought the reason is to allow for subtrees
+    //   (multiple trees on a single entity)"). A component is addressed by its TYPE, so an entity
+    //   could only ever have ONE tree cursor — which is exactly the limit that forced
+    //   BTreeOrchestratorEmitCore to hand a hosted subtree the MASTER's `ref state`, the defect C1
+    //   railed. A KEYED occurrence slot is what makes "multiple trees on one entity" expressible.
+    //   ⭐ The cursor now lives at OccurrenceSlotKey.ComputeRootStateKey(ActiveBehaviorHash), reached
+    //   through RootStateAccess — the deliberate mirror of RootParamsAccess, member for member.
+    //   ⚠ Its id 31 stays RESERVED, like 23, 35 and 74: a stale recording must not bind it to a
+    //   different component.
+    //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.5 step ②.
 
     // ⛔⛔⛔ O7c-① (2026-09-22) — BrainHsm64 IS DELETED.
     //   📐 It had ZERO production attach sites: BehaviorTkbTranslator.Inject is the ONE production

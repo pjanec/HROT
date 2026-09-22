@@ -105,7 +105,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
         // Pre-condition: entity with BlueprintBlackboard1024 carrying an existing slot.
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
         world.AddComponent(entity, new BlueprintBlackboard1024());
 
         // Fill most of the 1024 tier's payload with an existing slot, leaving only 28 bytes free.
@@ -213,7 +213,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Build a manifest with 3 distinct slots.
         var assetId = Guid.NewGuid();
@@ -263,7 +263,8 @@ public sealed unsafe class BehaviorIngressStatefulTests
             Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyA, out _), $"keyA missing (tier {totalSize})");
             Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyB, out _), $"keyB missing (tier {totalSize})");
             Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, keyC, out _), $"keyC missing (tier {totalSize})");
-            Assert.Equal(3, BlueprintBlackboardPartitions.GetSlotCount(mem));
+            Assert.Equal(4, BlueprintBlackboardPartitions.GetSlotCount(mem));   // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319). The cursor left BrainBTreeState and became a
+        //    keyed occurrence, so every BTree brain now carries one more slot than before.
         }
 
         AssertAllSlotsAttached();
@@ -309,7 +310,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var assetId = Guid.NewGuid();
         int k1 = MakeSlotKey(assetId, Guid.NewGuid());
@@ -321,7 +322,8 @@ public sealed unsafe class BehaviorIngressStatefulTests
         registry.Register(BehaviorId, name, MakeStatefulDefinition(name, BehaviorId, slots));
 
         Assign(world, sys, entity, name);
-        Assert.Equal(2, SlotCountOf(world, entity));
+        Assert.Equal(3, SlotCountOf(world, entity));   // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319). The cursor left BrainBTreeState and became a
+        //    keyed occurrence, so every BTree brain now carries one more slot than before.
         Assert.True(HasSlot(world, entity, k1) && HasSlot(world, entity, k2), "both slots provisioned after assign");
 
         // Clear: must detach the stateful slots.
@@ -337,7 +339,8 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         // Reclaimed space is reusable: re-assign re-provisions the same slots.
         Assign(world, sys, entity, name);
-        Assert.Equal(2, SlotCountOf(world, entity));
+        Assert.Equal(3, SlotCountOf(world, entity));   // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319). The cursor left BrainBTreeState and became a
+        //    keyed occurrence, so every BTree brain now carries one more slot than before.
         Assert.True(HasSlot(world, entity, k1) && HasSlot(world, entity, k2), "re-assign reuses the reclaimed space");
 
         world.Dispose();
@@ -354,7 +357,7 @@ public sealed unsafe class BehaviorIngressStatefulTests
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var assetA = Guid.NewGuid();
         int a1 = MakeSlotKey(assetA, Guid.NewGuid());
@@ -377,7 +380,8 @@ public sealed unsafe class BehaviorIngressStatefulTests
         Assert.True(HasSlot(world, entity, b1) && HasSlot(world, entity, b2), "B's slots provisioned after switch");
         Assert.False(HasSlot(world, entity, a1), "A's slot a1 detached on switch");
         Assert.False(HasSlot(world, entity, a2), "A's slot a2 detached on switch");
-        Assert.Equal(2, SlotCountOf(world, entity));
+        Assert.Equal(3, SlotCountOf(world, entity));   // ⭐ O7c-②: +1 — the ROOT STATE slot (CE-319). The cursor left BrainBTreeState and became a
+        //    keyed occurrence, so every BTree brain now carries one more slot than before.
 
         world.Dispose();
     }

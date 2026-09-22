@@ -5,6 +5,7 @@ using Fdp.Interfaces;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Tkb.Domain;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Fdp.Toolkit.Behavior.Translators
 {
@@ -41,7 +42,6 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(InteractionChannel);
             yield return typeof(MissionPlanQueue);
             yield return typeof(PassengerBuffer);
-            yield return typeof(BrainBTreeState);
             yield return typeof(BrainHsm128);
         }
 
@@ -112,8 +112,25 @@ namespace Fdp.Toolkit.Behavior.Translators
             // ── Brain memory ──────────────────────────────────────────────────────
             if (dto.BrainTier == BehaviorConstants.BrainTierBTree)
             {
-                if (repo.IsComponentTypeRegistered<BrainBTreeState>() && !repo.HasComponent<BrainBTreeState>(entity))
-                    repo.AddComponent(entity, new BrainBTreeState());
+                // ⭐⭐⭐ O7c-② / CE-319 — PROVISION THE ROOT STATE SLOT AT SPAWN.
+                //   🔴🔴 THIS IS THE LOAD-BEARING HALF OF THE MOVE, and it is NOT where the design put it.
+                //   📐 Measured: this translator stamps BehaviorState.ActiveBehaviorHash from the
+                //   template's DEFAULT behaviour and NO AssignBehaviorEvent is published at spawn — the
+                //   assign path runs only from mission/intent (MissionDirectorSystem,
+                //   TacticalIntentResolutionSystem, the maneuver mappers). ⇒ an entity that spawns with
+                //   a default behaviour would reach the tick with NO root state slot, and
+                //   RootStateAccess.RequireStateRef would throw where the component silently ticked
+                //   from the root.
+                //
+                //   ⚠ THE ASYMMETRY WITH ROOT PARAMS IS WHY THIS BITES HERE AND NOT THERE: the params
+                //   path is entered only when RootParamsBytes(def) > 0, so a params-less behaviour never
+                //   touches it. EVERY BTree behaviour has a cursor. ⇒ the state slot must exist for a
+                //   strictly larger set of entities than the params slot does.
+                //
+                //   🔒 "Before moving ANY state into an occurrence slot, name what will PROVISION the
+                //   slot and what will WRITE its contents." The writer is BTreeTickSystem; the
+                //   provisioner is THIS site at spawn and BehaviorIngressSystem on every assign after.
+                RootStateAccess.EnsureRootState(repo, entity, dto.DefaultBehaviorHash);
             }
             else if (dto.BrainTier == BehaviorConstants.BrainTierHsm)
             {
@@ -135,5 +152,6 @@ namespace Fdp.Toolkit.Behavior.Translators
             if (repo.IsComponentTypeRegistered<BrainInterrupts>() && !repo.HasComponent<BrainInterrupts>(entity))
                 repo.AddComponent(entity, new BrainInterrupts());
         }
+
     }
 }

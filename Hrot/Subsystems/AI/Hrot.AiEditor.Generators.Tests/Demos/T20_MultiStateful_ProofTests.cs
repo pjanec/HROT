@@ -86,7 +86,6 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
         //   failed with "Component BlueprintBlackboard256 is not registered" the moment
@@ -305,7 +304,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Run BehaviorIngressSystem — this calls ParseParams (sets LimitA=3, LimitB=5, Threshold=1000)
         // and provisions the two stateful partition slots.
@@ -384,7 +383,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var ingress = new BehaviorIngressSystem(_liveRegistry);
         world.Bus.PublishManaged(new AssignBehaviorEvent

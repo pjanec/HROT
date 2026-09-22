@@ -350,7 +350,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
                         + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
@@ -410,7 +410,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
@@ -506,7 +506,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -597,7 +597,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subs at baseline.
             var subs = new Entity[2];
@@ -704,7 +704,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subordinates already at the baseline.
             var subs = new Entity[2];

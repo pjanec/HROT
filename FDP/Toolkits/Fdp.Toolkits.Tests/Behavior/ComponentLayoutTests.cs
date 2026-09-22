@@ -27,11 +27,13 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         [Fact]
-        public void BrainBTreeState_Contains_BehaviorTreeState()
+        public void RootStateSlot_IsExactlyOneBehaviorTreeState()
         {
-            var s = new BrainBTreeState();
+            // ⛔ O7c-②: BrainBTreeState is gone; the claim is now about the SLOT's width, which is
+            //    what RootStateAccess.StateBytes reserves and what the interpreter steps.
+            var s = new Fbt.BehaviorTreeState();
             // Checking property accessibility
-            ushort idx = s.State.RunningNodeIndex;
+            ushort idx = s.RunningNodeIndex;
             Assert.Equal(0, idx);
         }
 

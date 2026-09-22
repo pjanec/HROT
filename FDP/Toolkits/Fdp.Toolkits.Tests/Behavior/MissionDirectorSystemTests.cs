@@ -28,7 +28,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             _world.RegisterComponent<MissionPlanQueue>();
             _world.RegisterComponent<NavState>();
             _world.RegisterComponent<Health>();
-            _world.RegisterComponent<BrainBTreeState>();
 
             _sys = new MissionDirectorSystem();
 

@@ -347,7 +347,6 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBTreeState>();
         Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
         return world;
     }

@@ -134,18 +134,25 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            // Give entity a mid-execution BTree state (RunningNodeIndex != 0).
-            world.AddComponent(e, new BrainBTreeState
-            {
-                State = new Fbt.BehaviorTreeState { RunningNodeIndex = 5 }
-            });
+            // ⛔⛔ O7c-② — THE CLAIM IS RE-HOMED, NOT WEAKENED. It was "seed a mid-execution cursor,
+            //    assign, see it reset". 📐 A cursor can no longer pre-exist the FIRST assign: its slot key
+            //    is computed from ActiveBehaviorHash, which is 0 until a behaviour is assigned. ⇒ the
+            //    same claim is made across the SECOND assign, which is where "a new behaviour starts at
+            //    the root" actually has to hold.
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            // Now drive it mid-execution, and re-assign.
+            RootStateAccess.SetState(world, e, new Fbt.BehaviorTreeState { RunningNodeIndex = 5 });
+            Assert.Equal(5, RootStateAccess.GetStateOrDefault(world, e).RunningNodeIndex);   // guard: the seed took
 
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
             world.Bus.SwapBuffers();
             sys.Execute(world, 0.016f);
 
-            var btState = world.GetComponent<BrainBTreeState>(e);
-            Assert.Equal(0, btState.State.RunningNodeIndex); // reset to start
+            var btState = RootStateAccess.GetStateOrDefault(world, e);
+            Assert.Equal(0, btState.RunningNodeIndex); // reset to start
 
             world.Dispose();
         }
@@ -319,10 +326,10 @@ namespace Fdp.Toolkit.Behavior.Tests
                 InstanceId         = 5,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            world.AddComponent(e, new BrainBTreeState
-            {
-                State = new Fbt.BehaviorTreeState { RunningNodeIndex = 3 }
-            });
+            // ⭐ O7c-②: the cursor is an occurrence slot; this entity already carries a hash, so the
+            //   slot can be provisioned and seeded directly.
+            RootStateAccess.EnsureRootState(world, e);
+            RootStateAccess.SetState(world, e, new Fbt.BehaviorTreeState { RunningNodeIndex = 3 });
 
             world.Bus.Publish(new ClearBehaviorEvent { Entity = e });
             world.Bus.SwapBuffers();
@@ -333,8 +340,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(6u,              behavior.InstanceId);           // incremented
             Assert.Equal(0,               behavior.BrainTier);            // reset to none
 
-            var btState = world.GetComponent<BrainBTreeState>(e);
-            Assert.Equal(0, btState.State.RunningNodeIndex);              // execution pointer reset
+            var btState = RootStateAccess.GetStateOrDefault(world, e);
+            Assert.Equal(0, btState.RunningNodeIndex);                    // execution pointer reset
 
             world.Dispose();
         }

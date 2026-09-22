@@ -63,7 +63,6 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBTreeState>();
         // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
         //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
         //   failed with "Component BlueprintBlackboard256 is not registered" the moment
@@ -305,7 +304,7 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         var world = CreateWorld();
         Entity commander = world.CreateEntity();
         world.AddComponent(commander, new BehaviorState());
-        world.AddComponent(commander, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, commander, assetName);
         SlotCount(world, commander).Should().Be(1, "exactly one shared partition slot is provisioned");
