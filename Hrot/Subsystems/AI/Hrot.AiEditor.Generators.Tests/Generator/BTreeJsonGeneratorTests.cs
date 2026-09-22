@@ -236,7 +236,7 @@ public sealed class BTreeJsonGeneratorTests
     }
 
     [Fact]
-    public void EmitTopologyCore_EmptyTypeNames_DefaultsToBrainBlackboardAndBTreeContext()
+    public void EmitTopologyCore_EmptyTypeNames_NeverEmitAnUnboundGeneric()
     {
         // Regression: a freshly-created (empty) BTree asset is saved with blank
         // BlackboardTypeName/ContextTypeName and no nodes. Before the fix, EmitCreateBuilder
@@ -261,13 +261,21 @@ public sealed class BTreeJsonGeneratorTests
 
         string core = BTreeEmitCore.EmitTopologyCore(dto);
 
-        core.Should().Contain("BTreeBuilder<BrainBlackboard, BTreeContext>",
-            "empty BlackboardTypeName/ContextTypeName must default to the standard Brain-tier types, " +
-            "not be emitted as an unbound generic name");
+        // ⭐ P4-③ (CE-313): the BLACKBOARD argument is now unconditionally `byte` — the root params
+        //   slot base the Interpreter actually dispatches on — so the empty-blackboard half of the
+        //   CS7003 hazard is structurally IMPOSSIBLE rather than defaulted around.
+        // ⚠ The CONTEXT half is NOT: ctxShort still comes from the asset, so the claim this rail
+        //   exists for is unchanged and still worth asserting.
+        core.Should().Contain("BTreeBuilder<byte, BTreeContext>",
+            "the blackboard generic is always `byte`, and an empty ContextTypeName must still default " +
+            "to the standard Brain-tier context rather than emit an unbound generic name");
         core.Should().NotContain("<, >",
             "an empty type name must never produce an unbound generic argument list (CS7003)");
+        // ⚠ The namespace collector still runs on the asset's BlackboardTypeName, so this using is
+        //   still emitted even though the builder no longer names the type. Asserted deliberately:
+        //   if that collector is ever changed, this says so rather than the change passing silently.
         core.Should().Contain("using Fdp.Toolkit.Behavior.Components;",
-            "the defaulted BrainBlackboard namespace must be in the usings so the short type name resolves");
+            "the blackboard namespace collector still runs off the asset's declared type name");
         core.Should().Contain("using Fdp.Toolkit.Behavior;",
             "the defaulted BTreeContext namespace must be in the usings so the short type name resolves");
     }

@@ -402,7 +402,28 @@ public static class BTreeEmitCore
         StringBuilder sb, BehaviorTreeAssetDto dto,
         IReadOnlyDictionary<string, int> variableOffsets)
     {
-        var bbShort  = ShortTypeName(AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        // ⭐⭐⭐ P4-③ (CE-313): the builder's TBlackboard is `byte` — the root params slot base.
+        //
+        // 📐 MEASURED, not assumed: all 26 generated trees bind EVERY node by explicit string key
+        //   (`seq.Action("…@0@1299152117", visualId: …)`) and use ZERO selector-form lambdas. The
+        //   selector form is the ONLY builder API that reads TBlackboard (it computes the @offset via
+        //   Marshal.OffsetOf and registers a curried thunk), and `Compile()` DISCARDS the typed
+        //   registry it builds ⇒ on the generated path the type argument is never read.
+        //
+        // ⛔⛔ It was `EffectiveBlackboardTypeName(dto.BlackboardTypeName)`, which resolves to
+        //   BrainBlackboard for 26 of 30 assets — while the Interpreter that RUNS the resulting blob
+        //   is Interpreter<byte, BTreeContext> (P4-②). ⇒ the two disagreed, and the generated file
+        //   misstated what the tree dispatches against. `byte` makes builder and interpreter agree.
+        //
+        // ⚠ This does NOT touch dto.BlackboardTypeName itself — that string still mangles into the
+        //   params-layout struct names and into SubtreeSyncIdentity.Derive, which MATCHES SUBTREES.
+        //   📄 §30.19: retargeting the asset field renames 11 structs across 44 files and breaks
+        //   subtree matching silently. Only the builder's generic argument moves here.
+        //
+        // ⛔ HAND-WRITTEN C# trees are untouched and still need a real struct: CgfNodes and
+        //   HideInCover use `.Action(bb => bb.MoveConfig, …)`, which is exactly the selector form.
+        //   They name their type in source, not through an asset.
+        var bbShort  = "byte";
         var ctxShort = ShortTypeName(AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
 
         sb.AppendLine($"{Indent}public static BTreeBuilder<{bbShort}, {ctxShort}> CreateBuilder() =>");

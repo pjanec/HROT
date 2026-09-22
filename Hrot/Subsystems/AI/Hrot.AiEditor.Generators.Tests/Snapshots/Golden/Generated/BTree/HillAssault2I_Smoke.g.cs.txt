@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class HillAssault2I_Smoke
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Action("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@417370615",
                 visualId: new Guid("bb410000-0000-0000-0000-000000000002"));
 

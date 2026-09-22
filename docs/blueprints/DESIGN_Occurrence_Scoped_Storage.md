@@ -5214,3 +5214,76 @@ compiler decides what can be BOUND. ⛔ **If they disagree the user builds a sea
 | **the picker** | `WorkingSlotFieldDrawer` lists root params + each typed slot by label and scope. ⛔ Untyped slots are **omitted** — a property path cannot bind against an untyped region, so offering one would offer a search that cannot compile |
 | ⚠ **an `int` router** | `ComponentEditDrawer` keys drawers by TARGET TYPE, one per `Type`, and `int` now needs two pickers. ⭐ `IntPickerRouterFieldDrawer` dispatches on the attribute, keeping each picker single-purpose |
 | ⚠ **the suite had NO behaviour-param coverage at all** | 📐 `PredicateCompilerTests` carried none before this. ⇒ the whole path — enum, heavy arm, mandatory components — was unrailed, which is how a permanently-false branch survived |
+
+---
+
+### 30.24 ⭐⭐ `CE-313` — **THE GENERATED BUILDER'S `TBlackboard` IS `byte`** *(`2026-09-22`)*
+
+⛔⛔ **This CORRECTS §30.18**, which said the generated builder must keep the asset's blackboard type
+because *"selector-form bindings need a struct with fields; `byte` has none."*
+
+#### 🔴 ① THE CORRECTION — **true of the MECHANISM, false of the EMITTED CODE**
+
+📐 §30.18's claim was reasoned from what `BTreeBuilder` *can* do, not from what the generator *emits*.
+Measured across every generated tree:
+
+| | |
+|---|---|
+| builders emitted | **26**, all `new BTreeBuilder<BrainBlackboard, BTreeContext>()` |
+| nodes bound by **explicit string key** | **all of them** — `seq.Action("…Action_CalculateSegments@0@1299152117", visualId: …)` |
+| selector-form lambdas (`bb => bb.Field`) in any `.g.cs` | 🔴 **ZERO** |
+
+⭐ The selector form is the **only** builder API that reads `TBlackboard` *(it computes the `@offset`
+via `Marshal.OffsetOf` and registers a curried thunk)*, and `Compile()` **discards** the typed registry
+it builds. ⇒ **on the generated path the type argument is never read.**
+
+⚠ **Hand-written C# trees are a different case and are untouched** — `CgfNodes`, `HideInCover` DO use
+`.Action(bb => bb.MoveConfig, …)`. They name their type in source, not through an asset.
+
+#### ⭐⭐ ② WHY `byte` IS THE RIGHT VALUE — **it was not neutral before**
+
+> 🔒 **User:** *"Why do we need the byte as the generic argument at all? Carries no information whatsoever"*
+
+⭐ **Fair, and the answer is that the OLD value carried WRONG information.** The generated builder said
+`BTreeBuilder<BrainBlackboard, …>` while the `Interpreter` that runs the resulting blob is
+`Interpreter<byte, BTreeContext>` *(`P4`-②)*. ⇒ **the two disagreed in 26 files**, and the builder's
+type was discarded anyway. `byte` makes builder and interpreter **agree**, and it is the type the tree
+actually dispatches against.
+
+⚠ **The type parameter itself is still vestigial on this path.** Removing it needs a NON-GENERIC
+`BTreeBuilder` in `Fbt.Compiler` *(string-key + composites only)*, with the generic form retained for
+hand-written selector trees. ⭐ That is a legitimate library-shaped change and **not** FDP leakage —
+⛔ but it is a vendored-library refactor with its own test surface, and it does nothing for `P4` that
+this substitution does not. 🔒 **User: *"Lets keep the byte."*** ⇒ deferred, deliberately.
+
+#### ⭐ ③ WHAT DID *NOT* MOVE — **and why that is the whole safety argument**
+
+⛔ `dto.BlackboardTypeName` is **untouched**. It still mangles into the params-layout struct names and
+into `SubtreeSyncIdentity.Derive`, **which MATCHES SUBTREES** — 📄 §30.19: retargeting it renames 11
+structs across 44 files and breaks subtree matching silently. ⭐ Only the builder's generic argument
+moved.
+
+📐 **The golden diff, as a SHAPE** *(gate contract row 3)* — **20 files**, and **exactly two forms**:
+
+```
+-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>   × 20
+-        new BTreeBuilder<BrainBlackboard, BTreeContext>()                          × 20
++    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>              × 20
++        new BTreeBuilder<byte, BTreeContext>()                                     × 20
+```
+
+✅ **None of §30.19's STOP conditions fired**: no `@0` key changed, no `(nint)` offset moved, no
+`{Asset}_…` struct renamed.
+
+#### ⚠ ④ THE ONE RAIL THAT HAD TO CHANGE — **and its claim SURVIVED**
+
+`BTreeJsonGeneratorTests.EmitTopologyCore_EmptyTypeNames_DefaultsToBrainBlackboardAndBTreeContext`
+pinned the old default. ⭐ Renamed to `…_NeverEmitAnUnboundGeneric`, because **that is what it was
+really guarding**: an empty type name emitting `BTreeBuilder<, >` *(CS7003)*.
+⭐⭐ **The blackboard half of that hazard is now structurally impossible** — the argument is a literal —
+⚠ **but the CONTEXT half is not**, since `ctxShort` still comes from the asset. ⇒ the rail keeps its
+reason to exist rather than being deleted as "about a retired type".
+
+⚠ **A load flake, confirmed not a regression:** `T35_SharedWorkingState_ProofTests` reddened in the
+full run and passed **2/2 in isolation** — the documented rotating family. The suite returned to
+**281 / 4** with the 4 documented reds.
