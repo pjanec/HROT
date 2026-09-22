@@ -14,6 +14,14 @@ current-answer: ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND
   TO byte (no FastBTree change) and StructEdit takes an offset (no new view API), so BOTH
   ExtDeps changes P4 was carrying are GONE. §30.9 lists what it supersedes in the PLAN and
   in RESUME_Occurrence_Storage §0c.
+  🔴🔴 BUT READ §30.12 BEFORE §30.1 OR §30.5 — re-measured 2026-09-22, they UNDER-COUNT.
+  P4-(1) is 54 code files not ~6; the wrappers are 7 not 5; the @0 premise is FALSE for the two
+  HideInCover layouts (multi-field, so they STAY); three identity-keyed readers were missed
+  (HillAttackGizmo, PredicateCompiler, BrainBlackboardTranslator); and SearchPredicateDto
+  .BlackboardTarget is PERSISTED JSON with designed intent, so it needs a migration not a delete.
+  §30.13 argues WHY Blackboard1024 can go (all three tenants left, each by a named decision) and
+  names the ONE residual absence claim to settle with Roslyn first. §30.14 is how every debug /
+  ai-debug reader reaches params and working state afterwards — two seams, both already built.
   ⭐ Then §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
@@ -4220,6 +4228,12 @@ projects at an arbitrary base offset; only the caller's ability to supply one is
 
 ### 30.1 ⛔⛔ INVENTORY — **measured `2026-09-22`, before any of this was designed**
 
+> 🔴🔴 **PARTLY SUPERSEDED by §30.12 (re-measured `2026-09-22`, later the same day).** This block
+> **under-counts**: `P4`-① is 54 code files not ~6, the wrappers are 7 not 5, and the identity-keyed
+> reader set misses `HillAttackGizmo`, `PredicateCompiler` and `BrainBlackboardTranslator`.
+> ⛔ **Read §30.12 before acting on any row here.** ⚠ §5 class 6/7 of this same document already
+> carried most of it — this block was built from a narrower query and did not consult it.
+
 | query | result |
 |---|---|
 | `grep -rl BrainBlackboard --include=*.cs` *(production, non-test)* | **78 files** |
@@ -4358,7 +4372,10 @@ blackboard ref**, so the HSM arm keeps `world`+`self` while the BTree arm loses 
 curated **wrapper blackboard structs go too**, and the curated builders name a **key** instead of a
 type. ⛔ The first draft of this table kept them; that was too timid.
 
-⭐ **`P4`-① is a pure deletion and should land first** — it shrinks the surface `P4`-② has to sweep.
+⭐ **`P4`-① should still land first** — it shrinks the surface `P4`-② has to sweep.
+⛔⛔ **But it is NOT "a pure deletion with nothing to re-home" — see §30.12 ①:** 54 code-referencing
+files *(17 production + 37 test)*, and one residual absence claim to settle with Roslyn first *(§30.13)*.
+⚠ **`P4`-②b covers the SEVEN single-field wrappers only** — the two `HideInCover` layouts stay *(§30.12 ③)*.
 
 ### 30.6 ⚠⚠ WHAT `P4`-② COSTS — **two things, both stated rather than discovered**
 
@@ -4483,3 +4500,88 @@ conservative stand-in: the 256 tier's **whole payload is 176 B**.
 ⚠ **Sequencing:** `P4`-④ lands **with or after** `P4`-②, never before — the analyzer is the only thing
 currently stopping an oversized curated DTO, and the structural bound only becomes the sole guard once
 the component is gone.
+
+### 30.12 ⛔⛔⛔ RE-MEASURED `2026-09-22` — **§30.1's INVENTORY UNDER-COUNTED; §5 OF THIS FILE ALREADY KNEW**
+
+> 🔒 **User:** *"Measure first what is unknown now. No rush implementations."* ⇒ this section is the
+> measurement. ⛔ **Where it disagrees with §30.1 or §30.5, THIS section wins.**
+
+🔴🔴 **The finding that matters most is not any single surface — it is that §30 was written without
+reading §5 of its own document.** §5's class-6 row already lists *"renderers, view providers,
+`BlackboardReflection`, `LiveBlackboardValueProvider`, `BlueprintDebugSession`, `VariableEditCommit`,
+`BlueprintLiveValueWriter`, `PredicateCompiler`, 2 field drawers, `SearchPredicateDto.BlackboardTarget`
+— ~15"*, and class 7 the two scenario translators. ⇒ ⛔ **§30.1's "3 editor surfaces" is a REGRESSION
+against §5, not a new measurement.** ⚠ *(The two are not strictly comparable — §5 counts every surface
+needing the occurrence seam, §30.1 only those keyed on the component's IDENTITY. §30.1 is still an
+undercount **of its own narrower question**: see ④ below.)*
+
+#### ⭐ WHAT SURVIVED THE RE-MEASUREMENT
+
+| §30 claim | verdict |
+|---|---|
+| `Blackboard1024` is on **zero** entities | ✅ **confirmed, and more strongly than §30.1 checked** — there is no production `AddComponent<Blackboard1024>` anywhere, *and* `HeavyDtoType` is non-null **only** in two ExtDeps attribute unit tests |
+| `BTreeBuilder.Action(string)` / `Condition(string)` already exist | ✅ `BTreeBuilder.cs:236,263` — the key is stored verbatim as `BuilderNode.MethodName` ⇒ **no ExtDeps change**, exactly as §30.10 says |
+| `BrainBlackboard` = 78 production files | ✅ exact |
+| **zero** by-value/sized `TBlackboard` uses in `FDP/ExtDeps/FastBTree/src` | ⚠ **carried from the `2026-09-21` measurement, NOT re-measured today** |
+
+#### ⛔ THE SIX CORRECTIONS
+
+| # | correction |
+|---|---|
+| **①** | ⛔⛔ **`P4`-① is 54 code-referencing files (17 production + 37 test), not the ~6 §30.5 lists.** Unnamed by §30: `Blackboard1024Translator` + its registration *(`HrotScenarioSerializerFactory.cs:24-25`)* · `Blackboard1024Tests.cs` · `BlueprintDebugSession.cs` *(**5** read sites)* · `GlobalComponentIds.cs:244` · `HrotRoleComponentSets.cs:128` · `CognitiveComponentRegistry.cs:45`. ⭐ **This is the `HN-037` deletion-scoping lesson**: the production surface was measured, the TEST surface never was |
+| **②** | ⚠ **The single-field wrappers are SEVEN, not five.** §30.10 missed `CgfNodes.FireAtTargetBlackboard` *(live — `CgfNodes.cs:666`)* and `CommanderNodes.IssueTacticalIntentBlackboard` *(declared at `:20` and **never used as a `TBlackboard`** — already dead)* |
+| **③** | 🔴🔴 **§30.10's `@0` premise is FALSE for two curated blackboards.** `HideInCoverBlackboard` *(`EqsConfig` + `MoveConfig`)* and `HideInCoverV2Blackboard` *(`SpawnConfig` + `MoveConfig`)* are **not wrappers** — they are multi-field root-params DTOs with **7 leaf bindings across two distinct offsets**, plus **2 raw-delegate leaves** *(`CgfNodes.cs:659`, `HideInCoverBehavior.cs:135`)* that take `ref TBlackboard` directly and must be rewritten by hand under `TBlackboard = byte`. ⇒ the key form would need a hand-written `Marshal.OffsetOf(…, MoveConfig)` **literal**, which rots silently if `EqsParams` changes — into the `BindActions` fallback that returns `Failure`. ⭐⭐ **RESOLUTION: `P4`-②b covers the SEVEN wrappers only. The two `HideInCover` layouts STAY** — retiring a *layout* is a different job from retiring a *wrapper* |
+| **④** | ⛔ **`CE-303`'s "three identity-keyed surfaces" is still an undercount.** Also keyed on the type: `HillAttackGizmo.cs:17` `[GizmoProjector(typeof(BrainBlackboard),…)]` *(its BODY is already root-slot-correct — only the **gate** names the component)* · `PredicateCompiler.cs:504` · `BrainBlackboardTranslator.cs:41,47`. ⚠ **The gizmo is new to §5 AND §30** |
+| **⑤** | 🔴 **A PERSISTED-DATA surface nobody costed.** `SearchPredicateDto.BlackboardTarget` is a **JSON-serialised enum** `{BrainBlackboard, Blackboard1024}`, default `BrainBlackboard`, with a round-trip test *(`SR-T01`)*. 📄 [`docs/designs/breakpoints-1/DESIGN.md:194,583`](../designs/breakpoints-1/DESIGN.md) specifies it as *"typed projection over `BrainBlackboard` / `Blackboard1024`"* ⇒ ⛔ **designed intent, not vestige** *(`R-129` / "unreferenced is not unintentional")*. Saved predicates carry it; retiring it needs a MIGRATION answer, not a delete |
+| **⑥** | ⚠ **A THIRD name collision** beyond §30's `BlueprintBlackboard1024` trap: `BlackboardTier.Blackboard1024` *(`BlueprintCompilerContracts.cs:12`)* and `BlackboardTarget.Blackboard1024` *(`SearchPredicateDto.cs:226`)* are **enum members**, not the component. ⛔ Neither may be deleted by a name sweep |
+
+⚠ **Also found:** `FDP/Examples/Fdp.Examples.Scenarios/Cognitive/BehaviorValidationScenario.cs:196,214,262`
+still writes params through `GetComponentRW<BrainBlackboard>` — a post-`P3-C` orphan writing a component
+nothing reads. ⛔ Not a `P4` blocker; it is already broken.
+
+### 30.13 ⭐⭐⭐ WHY `Blackboard1024` CAN GO — **all three of its tenants left, each by a named decision**
+
+📐 This is the question §30 asserted and never argued. **It had three tenants. Every one moved.**
+
+| tenant | where it went | the record |
+|---|---|---|
+| ⭐⭐ **AiPrimitive working state** *(the `Memory + 8` block behind an 8-byte `StructureHash`)* | the **Blueprint-owned tier ladder** `BlueprintBlackboard{256,1024,4096,16384}` under a partition allocator ⇒ the occurrence store | 📄 `.dev/_DONE/btree-ai-action-binding/SLICE2-DESIGN.md:18` — *"Move AiPrimitive working state **out of** the shared engine `Blackboard1024` … The architect explicitly **rejected** retrofitting a partition allocator onto the engine's `Blackboard1024`"*. ⭐ It also **lifted `SLICE1`'s one-stateful-AiPrimitive-per-entity limit** *(`:27`)*, which existed only because of the single `StructureHash` |
+| ⭐⭐ **squad / commander working state** | its **own ECS component** `SquadCognitiveState`, with its own `[ComponentId]`, provisioned by `SquadStateProvisioning` | 📐 `SquadCognitiveState.cs:242-247` — *"`Project(ref Blackboard1024)` was **DELETED** by `O1` (2026-09-20) … it made 'has a `Blackboard1024`' an accidental proxy for 'is a commander with squad state'"* |
+| ⭐ **behaviour param OVERFLOW** *(`HeavyDtoType` / `[SharedAiHeavyAction]`)* | **never adopted** | 📐 `HeavyDtoType` is `null` at both production assignment sites and non-null only in two ExtDeps attribute unit tests |
+
+⇒ ⭐⭐⭐ **Nothing adds the component, so every remaining read is dead by construction** — and the code
+says so itself: `BlueprintDebugSession.cs:1518` is commented **"legacy: one working state per entity, in
+`Blackboard1024` at the +8 offset"**, sitting *after* an early-return through
+`CaptureAiPrimitiveOccurrences` *(`:1515`)*, which walks `BlueprintTierTable.Ascending` instead.
+
+> 🔴 **THE ONE RESIDUAL CLAIM TO SETTLE BEFORE DELETING.** `SquadCognitiveState.cs:250` asserts
+> *"`Blackboard1024.Project<T>` itself is UNTOUCHED: BTree and HSM still use it (`R-65`)"*. ⛔ **That and
+> "no production adder" cannot both be operative.** ⚠ Either the comment is stale *(written `2026-09-20`,
+> before this measurement)* or there is an adder this sweep did not see. ⭐ **Settle it with Roslyn
+> `find_references` on the component type before `P4`-① deletes anything** — ⛔ a text sweep is not
+> sufficient for an ABSENCE claim about a type used through a generic.
+
+### 30.14 ⭐⭐ HOW EVERY DEBUG / AI-DEBUG READER REACHES PARAMS AND WORKING STATE AFTER `P4`
+
+⭐⭐⭐ **One seam, two keys — and both already exist and already have a production caller.**
+
+| what | where it lives | the seam | proof it is already built |
+|---|---|---|---|
+| ⭐ **behaviour PARAMS** | the **root params occurrence slot** | `RootParamsAccess.TryGetRootBytes(repo, entity, …)` / `TryGetRootBytesInView(view, …)`, keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` — **computed, never stored** *(`P3-A`)* | `BrainBlackboardTranslator.Extract` and `HillAttackGizmo.Draw` both already do exactly this |
+| ⭐ **AiPrimitive WORKING STATE** | **occurrence slots in the tier ladder** | `BlueprintTierTable.Ascending` → `HasInView` / `BytesInView` → walk the slot table → project at the slot's `PayloadOffset` | `BlueprintDebugSession.CaptureAiPrimitiveOccurrences:1542-1551` is this loop, in production, today |
+
+⇒ ⭐⭐ **Every reader in §5's class-6 list converges on those two calls.** Restated per surface:
+
+| reader | after `P4` |
+|---|---|
+| `BrainBlackboardRenderer` | **deleted**; a root-params arm on the tier renderers *(§25.3 already decodes occurrences)*. ⭐ The root slot is the easiest label — `ComputeRootParamsKey` is ONE computation, so §25.2's forward search does not apply |
+| `BrainBlackboardViewProvider` *(StructEdit)* | unchanged API; the **caller** supplies the slot's base offset *(§30.7)* |
+| `LiveBlackboardValueProvider` | reads the **tier** component from `IDebugSession`, walks to the key, projects at its offset |
+| `BlueprintDebugSession` | ⭐ **already correct** — delete the legacy `Blackboard1024` arm at `:1518` and the `ResolveAiPrimitiveField` gate at `:1016`; `CaptureAiPrimitiveOccurrences` is the whole answer |
+| 🔴 `HillAttackGizmo` | body already correct; **re-gate** `[GizmoProjector]` on `BehaviorState` + `SimTransform` *(⛔ NOT on a tier — a tier component is not a proxy for "is a brain", which is the exact mistake `O1` deleted `Project(ref Blackboard1024)` for)* |
+| 🔴 `PredicateCompiler` + `SearchPredicateDto` | ⭐⭐ **`BlackboardTarget` collapses to a single root-params target.** `Blackboard1024` was never reachable; `BrainBlackboard` becomes the slot ⇒ the enum's two members answer one question now. ⚠ **Needs a deserialisation migration** so saved predicates keep resolving — ⛔ the one place in `P4` where "ABI can and must change" costs more than a recompile |
+| `BrainBlackboardTranslator` | `Extract` is **already** root-slot-based; re-key `CanTranslate` + `GetConsumedComponentsMask` off `BehaviorState`, drop the component. ⚠ §5 class 7's *"measured harmless"* was about the **wire format** — it does **not** mean deletion-safe |
+
+*Caption — what this table shows that §30.2's class diagram hid: the diagram drew "no arrow from a thunk
+to a lookup" for the SIM path, and that is true. ⛔ But every DEBUG reader still performs a lookup — it is
+just the **same two** lookups instead of nine different component projections.*
