@@ -4842,6 +4842,49 @@ it never belonged in a params-layout identifier.)*
 ⚠ **`G1`, `G4`, `G5` remain open** — ⭐ none blocks `P4`-②; they are effort-estimate and branch-coverage
 questions, not correctness gates.
 
+### 30.20 🔴🔴 `P4`-① AS BUILT — **the deletion uncovered a SECOND dead-storage defect** *(`2026-09-22`)*
+
+⭐⭐⭐ **The generalisable finding, and it is the third time this programme has hit it:**
+🔒 **a capability whose STORAGE moved, whose CALLERS were never re-anchored, and whose RAIL kept it
+green by building a world production stopped building.**
+
+| # | the instance | how it failed | what kept it green |
+|---|---|---|---|
+| **`CE-304`** | the 3-param `[BTreeAction]` bridge | read an all-zero region | the tank rails passed a hand-built `p` |
+| **`CE-310`** | `ResolveAiPrimitiveField` — the **write** path | returned `null` every call | `TheBlueprintLiveWriteLandsTests.Harness` **ADDED** `Blackboard1024` |
+| 🔴 **`CE-311`** | `InlineActionLowering` — the inline **emitter** | ⛔ **would THROW** on the first inline call | `BlueprintTestFixture.cs:150` **REGISTERS** `Blackboard1024` |
+
+⇒ ⛔⛔ **All three were invisible to every static signal.** `CE-311` in particular has an in-degree that
+looks perfectly healthy: the emitter is called, its output compiles, and its rail passes. ⚠ **The only
+thing that distinguishes a live consumer from a dead one here is whether anything still WRITES the
+storage — which no reference search can answer.**
+
+⭐⭐ **The check this earns, and it is cheap:** for each remaining surface `P4` touches, ask *"which
+production site provisions the storage this reads?"* — ⛔ **not** *"who calls this?"*
+
+#### ⭐ THE `CE-311` ROUTE — **a design call, made from the standalone thunk's own precedent**
+
+⚠ An inline-hosted AiPrimitive has **no HSM instance**, so `HsmOccurrence.KeyFor(instance, …)` does not
+apply and the occurrence key had to be chosen. ⛔ **That is a design decision, not a mechanical port** —
+📐 so it was made from precedent rather than invented: `AiPrimitiveEmitter.EmitStandaloneOccurrenceBody`
+already keys this exact asset's working state with `OccurrenceSlots.StandaloneStateKeyFor(AssetId)`.
+
+| ⭐ what the choice does | |
+|---|---|
+| **one asset ⇒ one slot**, shared by its inline call and its standalone tick | ⭐ which is what the single `Memory+8` block already meant for them — **no semantic change** |
+| ⭐⭐ **two different primitives now get two slots** | 🔴 **this LIFTS `SLICE1-DESIGN.md:27`'s "exactly one stateful AiPrimitive per entity"**, which existed *only* because one entity had one hash-guarded block. ⇒ a strict improvement, and the one `SLICE2` was for |
+| ⚠ **the hash guard survives** | `ResolveOrAttach` resets the slot on a `StructureHash` mismatch ⇒ the manual `InitBlock` **and** the `fixed` pin both go, and the defence lives in its one owner |
+
+#### ⚠ WHAT `P4`-① STILL HAS TO DO
+
+⭐ Both routes are landed and green. ⛔ **The component itself is NOT yet deleted** — the remaining
+surfaces are the mechanical ones §30.12 ① enumerates, plus two that need a decision recorded first:
+
+| surface | note |
+|---|---|
+| `PredicateCompiler.BuildBehaviorParamMatcherGenericHeavy` | 📐 **provably unreachable** — its caller short-circuits on `dtoType == null` and `HeavyDtoType` is null everywhere ⇒ delete the method; ⛔ leave `BlackboardTarget` itself to `P4`-③ / `CE-308` |
+| the emitted comment in `EmitStandaloneOccurrenceBody` | ⚠ says *"NOT `Blackboard1024`"* — harmless prose, but it is why the `CE-311` rail's guard is matched **qualified** |
+
 ### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
 
 > 🔒 **User, `2026-09-22`:** *"how is the heavy dto concept done now? i am pretty sure the platoon hill
