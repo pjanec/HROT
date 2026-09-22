@@ -6185,3 +6185,47 @@ assertion is NOT relaxed. ⚠ Same for the four slot-count rails in `BehaviorIng
 **ENTRY POINT**, not a read. ⭐ Re-homed by the `P4`-③ remedy: `RootTreeStateProjection`, a section of
 `BlueprintBlackboardRendererBase` beside root params and working state. ⚠ `BTreeDebugSession` was an
 ordinary read and moved with a `Try`.
+
+#### 31.12.7 ✅✅✅ THE GOLDEN PASSES — **`hill-attack-close --mode all`, live cluster** *(`2026-09-22`)*
+
+📐 **The acceptance this slice exists for**, and the only gate that can see it: `PlatoonHillAttack` is a
+**BTree**, so the live cluster is the one place the cursor-in-a-slot is exercised by the product.
+
+| link | observable | result |
+|---|---|---|
+| ① advance | Δposition, distance to hostiles falling | ✅ |
+| ② acquire | sensor tracks | ✅ |
+| ③ fire | `WeaponChannel.Status` → `Running` | ✅ |
+| ④ enemy dies | `Health.Current == 0` on **both** hostiles *(t ≈ 42.7)* | ✅ |
+| ⑤ the run ENDS | entity count **steady at 8** — ⛔ never assert a falling count *(`CE-272`)* | ✅ |
+| ⑥ attackers home | all four `LocomotionChannel.Status: Success`, abreast on the baseline | ✅ |
+
+⭐⭐⭐ **And the positions match gold to within 0.02** — tighter than `P4`'s accepted 0.83 drift:
+
+| | 1001 | 1002 | 1003 | 1004 |
+|---|---|---|---|---|
+| **this run** | 523.05 | 525.23 | 529.23 | 530.99 |
+| **gold** | 523.06 | 525.22 | 529.22 | 530.99 |
+
+⭐⭐ **Three ZEROS, and each is a specific claim rather than an absence of noise:**
+**0 exceptions** · **0 FastBTree warnings** · **0 `RootStateAccess` throws**.
+🔒 **The third is the load-bearing one:** `RequireStateRef` throws — loudly, by design — the instant a
+BTree-tier entity reaches the tick without a root state slot. ⇒ across a full scenario with four brains,
+spawn-provisioned and re-provisioned on every assign, **it never fired**. That is §31.12.1's translator
+provisioning proven on the product, not argued.
+
+📐 **Directly observed at spawn**, before the sim was played: entity `1000` on `BlueprintBlackboard1024`
+and the tanks on `BlueprintBlackboard256` — ⭐ the commander promoted for what it hosts, the tanks on the
+smallest tier `EnsureRootState` asks for. ⚠ And `BrainDiagnostics` rendered real `BehaviorParameters`
+values *(`StartX: 579.69…`)*, so the root PARAMS slot still reads correctly beside the new state slot.
+
+⚠ **Method notes, kept because both cost a run before:** the ClusterRunner dll was **rebuilt fresh**
+*(22:20)* before launching — a stale binary produced a confident wrong reading once; and the entity read
+needs the **`Scenario` perspective** *(`--mode all` answers for one node at a time)*, which is why the
+first read showed 8 entities with no `BehaviorState` at all.
+
+⚠ **Pre-existing reds, PROVEN not inferred:** `Hrot.SimHost.Tests` has **3** failures
+*(`NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete`,
+`MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)`,
+`FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`)*. 📐 A worktree at the base
+commit `23bd73c1e` reproduces **the same three names and counts** ⇒ none is this change's.
