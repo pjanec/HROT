@@ -177,7 +177,7 @@ if (freshlyAttached) {
 
 | slice | what | state |
 |---|---|---|
-| **`P4`-①** | delete `Blackboard1024` **+ route the AiPrimitive WRITE path** *(`CE-310` — it is the same edit, not a separate slice)*. 54 code files, 17 prod + 37 test | 🔵 **BUILDING** |
+| **`P4`-①** | delete `Blackboard1024` **+ route the AiPrimitive WRITE path** *(`CE-310`)* **+ route the INLINE emitter** *(`CE-311`, found during the build)* | ✅ **BUILT `2026-09-22`** — zero C# errors solution-wide; four suites at baseline |
 | **`P4`-②** | bind `TBlackboard` to `byte`. ⭐ **The generator needs ZERO changes** — it already reads `TBlackboardType` from the author's 4-param declaration. The edit is **4 authored declarations** + 4 Blueprints-compiler lines + ⛔ **3 runtime `typeof` filters IN LOCKSTEP** *(§30.19)* | ✅ cleared |
 | ~~`P4`-②b~~ | ⛔ **WITHDRAWN** — the blob is type-erased, so `BTreeBuilder<T>` is build-time only and the wrapper structs cost nothing. Deleting them is **unsafe** for `HideInCover` *(§30.18)* | ⛔ withdrawn |
 | **`P4`-③** | re-home the **SIX** identity-keyed surfaces *(`CE-303`, + `CE-308`: `BlackboardTarget` is **RE-POINTED**, two regions still exist)* | ✅ cleared |

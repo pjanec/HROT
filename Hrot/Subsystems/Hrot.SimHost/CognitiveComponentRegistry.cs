@@ -42,7 +42,10 @@ namespace Hrot.SimHost
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainBTreeState>();
             world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<Blackboard1024>();
+            // ⛔ P4-① (2026-09-22): Blackboard1024 is RETIRED. Its three tenants all left by a named
+            //    decision — AiPrimitive working state to the Blueprint tier ladder (SLICE2), squad
+            //    state to its own component (O1), and the HeavyDtoType overflow path was never
+            //    adopted. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.13.
             world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<BrainHsm64>();
             // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan

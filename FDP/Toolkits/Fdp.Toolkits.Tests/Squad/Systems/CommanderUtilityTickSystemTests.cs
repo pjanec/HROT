@@ -32,7 +32,6 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         {
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
-            _repo.RegisterComponent<Blackboard1024>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<UtilityResultBuffer>();
@@ -54,7 +53,6 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
         private Entity CreateCommander(bool withTrace = false)
         {
             var e = _repo.CreateEntity();
-            _repo.AddComponent(e, new Blackboard1024());
             _repo.AddComponent(e, default(SquadCognitiveState));
             _repo.AddComponent(e, new UtilityResultBuffer());
             if (withTrace)

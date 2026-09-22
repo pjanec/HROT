@@ -28,7 +28,6 @@ namespace Fdp.Toolkit.Squad.Tests
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<TargetMemory>();
             _repo.RegisterComponent<SquadCognitiveState>();
@@ -56,7 +55,6 @@ namespace Fdp.Toolkit.Squad.Tests
         {
             var commander = _repo.CreateEntity();
             _repo.AddComponent(commander, new UnitRoster());
-            _repo.AddComponent(commander, new Blackboard1024());
             _repo.AddComponent(commander, default(SquadCognitiveState));
             _repo.AddComponent(commander, default(SquadCognitiveState));
 

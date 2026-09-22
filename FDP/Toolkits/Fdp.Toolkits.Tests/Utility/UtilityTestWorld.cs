@@ -49,7 +49,6 @@ namespace Fdp.Toolkit.Tests.Utility
             Repo.RegisterComponent<EqsCognitiveBuffer>();
             Repo.RegisterComponent<UnitRoster>();
             Repo.RegisterComponent<UnitSubordinate>();
-            Repo.RegisterComponent<Blackboard1024>();
             Repo.RegisterComponent<SquadCognitiveState>();
             Repo.RegisterComponent<Position>();
             Repo.RegisterComponent<UtilityDebugFlags>();
@@ -251,7 +250,6 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             var entity = Repo.CreateEntity();
             Repo.AddComponent(entity, new UnitRoster());
-            Repo.AddComponent(entity, new Blackboard1024());
             Repo.AddComponent(entity, default(SquadCognitiveState));
             Repo.AddComponent(entity, new TargetMemory());
             Repo.AddComponent(entity, new Position { Value = Vector3.Zero });

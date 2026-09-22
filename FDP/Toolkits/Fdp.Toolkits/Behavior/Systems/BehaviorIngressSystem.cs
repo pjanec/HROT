@@ -133,12 +133,9 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
                 unchecked { behavior.InstanceId++; }
                 behavior.BrainTier = def.BrainTier;
-                if (def.HeavyDtoType != null &&
-                    repo.IsComponentTypeRegistered<Blackboard1024>() &&
-                    !repo.HasComponent<Blackboard1024>(evt.Entity))
-                {
-                    repo.AddComponent(evt.Entity, new Blackboard1024());
-                }
+                // ⛔ P4-① (2026-09-22): the Blackboard1024 add is GONE with the component. It was
+                //    gated on `def.HeavyDtoType != null`, which is null at every production site and
+                //    in all 30 shipped assets ⇒ this branch never ran. 📄 §30.13.
 
                 // S2-2: Synchronously provision stateful working-state partition slots.
                 // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
@@ -296,12 +293,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def))
                 {
                     behavior.BrainTier = def.BrainTier;
-                    if (def.HeavyDtoType != null &&
-                        repo.IsComponentTypeRegistered<Blackboard1024>() &&
-                        !repo.HasComponent<Blackboard1024>(evt.Entity))
-                    {
-                        repo.AddComponent(evt.Entity, new Blackboard1024());
-                    }
+                    // ⛔ P4-①: the second Blackboard1024 add, gone for the same reason as the first.
                 }
 
                 // Reset BTree execution pointer so the new phase starts from the root.

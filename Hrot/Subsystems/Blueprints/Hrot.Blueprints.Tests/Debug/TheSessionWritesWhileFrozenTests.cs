@@ -82,10 +82,10 @@ public sealed class TheSessionWritesWhileFrozenTests
             clockHalted: false, breakpointHolding: false, sessionPaused: false);
 
         Assert.True(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 4, BitConverter.GetBytes(7)));
 
         var staged = Assert.Single(manager.Staged);
-        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
+        Assert.Equal(typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), staged.ComponentType);
         Assert.Equal(4, staged.ByteOffset);
         Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
     }
@@ -111,7 +111,7 @@ public sealed class TheSessionWritesWhileFrozenTests
             clockHalted: false, breakpointHolding: false, sessionPaused: sessionPaused);
 
         Assert.True(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 4, BitConverter.GetBytes(7)));
 
         var staged = Assert.Single(manager.Staged);
         Assert.Equal(4, staged.ByteOffset);
@@ -130,10 +130,10 @@ public sealed class TheSessionWritesWhileFrozenTests
         var (session, manager) = UnderABreakpoint();
 
         Assert.True(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 4, BitConverter.GetBytes(7)));
 
         var staged = Assert.Single(manager.Staged);
-        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
+        Assert.Equal(typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), staged.ComponentType);
         Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
 
         // ⛔ And it did NOT take the immediate arm — R-63's restore would have eaten it.
@@ -162,10 +162,10 @@ public sealed class TheSessionWritesWhileFrozenTests
             clockHalted: true, breakpointHolding: false, sessionPaused: false);
 
         Assert.True(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 4, BitConverter.GetBytes(7)));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 4, BitConverter.GetBytes(7)));
 
         var staged = Assert.Single(manager.Staged);
-        Assert.Equal(typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), staged.ComponentType);
+        Assert.Equal(typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), staged.ComponentType);
         Assert.Equal(4, staged.ByteOffset);
         Assert.Equal(7, BitConverter.ToInt32(staged.Bytes));
     }
@@ -188,7 +188,7 @@ public sealed class TheSessionWritesWhileFrozenTests
         Assert.False(session.IsPaused);
 
         Assert.True(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 0, new byte[4]));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 0, new byte[4]));
         Assert.Single(manager.Staged);   // ⭐ W3: staged, not written-now — WriteFieldNow is gone
     }
 
@@ -227,7 +227,7 @@ public sealed class TheSessionWritesWhileFrozenTests
         var (session, manager) = UnderABreakpoint();
 
         session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), componentOffset, new byte[4]);
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), componentOffset, new byte[4]);
 
         Assert.Equal(componentOffset, Assert.Single(manager.Staged).ByteOffset);
 
@@ -252,7 +252,7 @@ public sealed class TheSessionWritesWhileFrozenTests
         var (session, _) = UnderABreakpoint();
 
         Assert.Throws<ArgumentOutOfRangeException>(() => session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), -1, new byte[4]));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), -1, new byte[4]));
     }
 
     /// <summary>
@@ -268,7 +268,7 @@ public sealed class TheSessionWritesWhileFrozenTests
         session.Pause();
 
         Assert.False(session.TryWriteWorkingStateField(
-            default, typeof(Fdp.Toolkit.Behavior.Components.Blackboard1024), 0, new byte[4]));
+            default, typeof(Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024), 0, new byte[4]));
     }
 
     /// <summary>

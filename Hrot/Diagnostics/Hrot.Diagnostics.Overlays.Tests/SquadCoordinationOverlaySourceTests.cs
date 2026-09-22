@@ -63,7 +63,6 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var repo = new EntityRepository();
             repo.RegisterComponent<DebugState>();
             repo.RegisterComponent<UnitRoster>();
-            repo.RegisterComponent<Blackboard1024>();
             repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<DangerAreaCognitiveBuffer>();
@@ -81,7 +80,6 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new DebugState { Ai = AiOverlayFlags.SquadAssignment });
             repo.AddComponent(commander, new UnitRoster());
-            repo.AddComponent(commander, new Blackboard1024());
             repo.AddComponent(commander, default(SquadCognitiveState));
 
             ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
@@ -120,7 +118,6 @@ namespace Hrot.Diagnostics.Overlays.Tests
             // AiOverlayFlags.Perception intentionally — NOT SquadAssignment
             repo.AddComponent(commander, new DebugState { Ai = AiOverlayFlags.Perception });
             repo.AddComponent(commander, new UnitRoster());
-            repo.AddComponent(commander, new Blackboard1024());
             repo.AddComponent(commander, default(SquadCognitiveState));
 
             var draw = new CountingDrawBuilder();

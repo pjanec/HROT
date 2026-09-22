@@ -123,7 +123,6 @@ namespace Fdp.Toolkit.Tests
             var leader = w.SpawnLeader();
 
             Assert.True(w.Repo.HasComponent<UnitRoster>(leader));
-            Assert.True(w.Repo.HasComponent<Blackboard1024>(leader));
             Assert.True(w.Repo.HasComponent<TargetMemory>(leader));
         }
 

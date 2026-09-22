@@ -147,7 +147,9 @@ public sealed class BlueprintTestFixture : IDisposable
         repo.RegisterComponent<WeaponChannel>();
         repo.RegisterComponent<InteractionChannel>();
         repo.RegisterComponent<BrainBlackboard>();
-        repo.RegisterComponent<Blackboard1024>();   // FBT behavior blackboard (AiPrimitive working state)
+        // ⛔⛔ P4-① (2026-09-22): the Blackboard1024 registration is GONE. ⚠ This line is why
+        //    CE-311 looked green — the fixture was the ONE world where the inline AiPrimitive host's
+        //    emitted GetComponentRW<Blackboard1024> could run. Working state lives in the tier ladder.
 
         // 🔴 P3-C (2026-09-21): an emitted thunk's SEED reads the entity's ROOT PARAMS SLOT, whose key
         //   comes from BehaviorState.ActiveBehaviorHash ⇒ the component is no longer optional here.

@@ -41,28 +41,22 @@ public static class BlackboardReflection
 
         // Project the raw BrainBlackboard.BehaviorParameters as its typed DTO.
         inspector.Reflector.AddBufferViewProvider(new BrainBlackboardViewProvider());
-        // And the heavy Blackboard1024.
-        inspector.Reflector.AddBufferViewProvider(new Blackboard1024ViewProvider());
+        // ⛔ P4-① (2026-09-22): the heavy Blackboard1024 provider is GONE with its component. The
+        //    "heavy" tier it projected was the params-overflow path, and HeavyDtoType was null at
+        //    every production site — so this arm could only ever return null. 📄 §30.13.
 
-        // Inject EditContextFactory so TryOpenEditWindow passes BlackboardLayoutType/HeavyDtoType to StructEdit.
+        // Inject EditContextFactory so TryOpenEditWindow passes BlackboardLayoutType to StructEdit.
         inspector.Reflector.EditContextFactory = (session, e, type) =>
         {
-            if (type != typeof(BrainBlackboard) && type != typeof(Blackboard1024)) return null;
+            if (type != typeof(BrainBlackboard)) return null;
             if (!session.HasComponent(e, typeof(BehaviorState))) return null;
             var ds = session.GetComponent(e, typeof(BehaviorState)) as BehaviorState?;
             if (ds == null) return null;
             if (registry?.TryGetDefinition(ds.Value.ActiveBehaviorHash, out var def) != true) return null;
             if (def == null) return null;
 
-            if (type == typeof(BrainBlackboard))
-            {
-                if (def.BlackboardLayoutType == null) return null;
-                return new StructEdit.Core.EditContext().With("BlackboardLayoutType", def.BlackboardLayoutType);
-            }
-
-            // Blackboard1024
-            if (def.HeavyDtoType == null) return null;
-            return new StructEdit.Core.EditContext().With("HeavyDtoType", def.HeavyDtoType);
+            if (def.BlackboardLayoutType == null) return null;
+            return new StructEdit.Core.EditContext().With("BlackboardLayoutType", def.BlackboardLayoutType);
         };
     }
 }

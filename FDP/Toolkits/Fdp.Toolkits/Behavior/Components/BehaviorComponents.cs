@@ -110,29 +110,27 @@ namespace Fdp.Toolkit.Behavior.Components
         public byte Interrupt_Reserved;
     }
 
-    /// <summary>
-    /// Generic 1024-byte heavy blackboard component, reusable across different behaviors.
-    /// Avoids exhausting the 256 component-type limit by sharing one component type for
-    /// large behavior-specific payloads.  Project <see cref="Memory"/> into a concrete
-    /// unmanaged DTO via <c>Unsafe.As</c> (generated automatically when using
-    /// <c>[SharedAiHeavyAction]</c>).  Because this holds transient execution state,
-    /// it is excluded from scenario serialisation.
-    /// </summary>
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.Blackboard1024)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public unsafe struct Blackboard1024
-    {
-        public const int ByteSize = 1024;
-        public fixed byte Memory[ByteSize];
-
-        /// <summary>
-        /// Projects the 1024-byte memory block as a reference to an unmanaged struct <typeparamref name="T"/>.
-        /// <typeparamref name="T"/> must fit within <see cref="ByteSize"/> bytes (assert at call site, not here).
-        /// Convention: each subsystem projects at a disjoint byte offset.
-        /// </summary>
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static unsafe ref T Project<T>(ref Blackboard1024 bb) where T : unmanaged
-            => ref Unsafe.As<Blackboard1024, T>(ref bb);
-    }
+    // ⛔⛔⛔ `Blackboard1024` WAS HERE, AND IT IS RETIRED — `P4`-① (`2026-09-22`).
+    //
+    // 📄 The argument is DESIGN_Occurrence_Scoped_Storage.md §30.13, in one line: it had three
+    //    tenants and every one left by a NAMED decision.
+    //      ① AiPrimitive working state → the Blueprint tier ladder under a partition allocator.
+    //         The architect explicitly REJECTED retrofitting an allocator onto this component
+    //         (.dev/_DONE/btree-ai-action-binding/SLICE2-DESIGN.md:18), and the move also lifted
+    //         SLICE1's "exactly one stateful AiPrimitive per entity" limit.
+    //      ② squad / commander state → its own [ComponentId] component, SquadCognitiveState.
+    //         `O1` (2026-09-20) deleted `Project(ref Blackboard1024)` because it made "has a
+    //         Blackboard1024" an accidental proxy for "is a commander with squad state".
+    //      ③ behaviour param OVERFLOW (`HeavyDtoType` / `[SharedAiHeavyAction]`) → never adopted.
+    //         Null at every production site; non-null only in two ExtDeps attribute unit tests.
+    //
+    // 📐 Settled with Roslyn before deleting, because a text sweep cannot prove an absence for a
+    //    type reached through a generic: `Project<T>` had 11 references and EVERY ONE was a test;
+    //    `Memory` had 8 (2 tests, the declaration, the four surfaces P4-① deletes, and one
+    //    always-false gate); `ByteSize` had 1, its own declaration. ⇒ no BTree consumer, no HSM
+    //    consumer, no production consumer of any kind. ⚠ A stale comment in SquadCognitiveState.cs
+    //    claimed "BTree and HSM still use it" — that claim was FALSE and is recorded as such.
+    //
+    // ⚠ Its component id 74 stays RESERVED in GlobalComponentIds rather than being reused, so a
+    //   stale recording cannot bind it to a different component.
 }

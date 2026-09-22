@@ -125,7 +125,9 @@ public static class HrotRoleComponentSets
         // ── ABSENT on a Muscle node: no SimHost system touches them, zero wire references ──────────
         brainOnly.SetBit(ComponentType<BehaviorState>.ID);
         brainOnly.SetBit(ComponentType<BrainBlackboard>.ID);
-        brainOnly.SetBit(ComponentType<Blackboard1024>.ID);
+        // ⛔ P4-① (2026-09-22): Blackboard1024 retired — §30.13. ⚠ Its id 74 stays RESERVED in
+        //    GlobalComponentIds rather than being reused, so a stale recording cannot bind it to a
+        //    different component.
         brainOnly.SetBit(ComponentType<BrainBTreeState>.ID);
         brainOnly.SetBit(ComponentType<BrainHsm128>.ID);
         brainOnly.SetBit(ComponentType<BrainHsm64>.ID);

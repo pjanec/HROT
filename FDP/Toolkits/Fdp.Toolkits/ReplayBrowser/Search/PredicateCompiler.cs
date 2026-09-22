@@ -323,7 +323,9 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             Expression condition = BuildConditionExpression(fieldAccess, dto.Operator, dto.Predicate);
 
             string methodName = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
-                ? nameof(BuildBehaviorParamMatcherGenericHeavy)
+                // ⭐ P4-①: one matcher now. The Heavy arm is gone with Blackboard1024 — and it was
+                //   already unreachable, because the HeavyDtoType guard above returns first.
+                ? nameof(BuildBehaviorParamMatcherGenericBrain)
                 : nameof(BuildBehaviorParamMatcherGenericBrain);
             var buildMethod = typeof(PredicateCompiler).GetMethod(
                 methodName,
@@ -364,35 +366,20 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             };
         }
 
-        private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericHeavy<TDto>(
-            int behaviorHash,
-            Expression condition,
-            ParameterExpression dtoParam)
-            where TDto : unmanaged
-        {
-            var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
-            int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
-            int bbTypeId = ComponentTypeRegistry.GetId(typeof(Blackboard1024));
-
-            return (repo, entity) =>
-            {
-                if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
-                if (!repo.HasComponentByTypeId(entity, bbTypeId)) return false;
-
-                ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
-                if (state.ActiveBehaviorHash != behaviorHash) return false;
-
-                ref readonly var bb = ref repo.GetComponentRO<Blackboard1024>(entity);
-                unsafe
-                {
-                    fixed (byte* src = bb.Memory)
-                    {
-                        ref TDto projected = ref Unsafe.AsRef<TDto>(src);
-                        return matcher(ref projected);
-                    }
-                }
-            };
-        }
+        // ⛔⛔ `BuildBehaviorParamMatcherGenericHeavy` WAS HERE — deleted by `P4`-① (`2026-09-22`)
+        //    with the `Blackboard1024` component it read.
+        //
+        // 📐 It was PROVABLY UNREACHABLE, not merely unused: its only caller selects it when
+        //    `TargetBlackboard == BlackboardTarget.Blackboard1024`, and that same branch first sets
+        //    `dtoType = def.HeavyDtoType` and returns `static (_, _) => false` when it is null.
+        //    `HeavyDtoType` is null at every production site and in all 30 shipped assets, so the
+        //    caller short-circuited before this method could ever be reached.
+        //
+        // ⚠ `BlackboardTarget` ITSELF STAYS, deliberately. Its job — "which memory region does this
+        //   predicate read?" — survives P4: there are still TWO regions, the root params slot and the
+        //   node working-state slots. `CE-308` RE-POINTS the members in `P4`-③ rather than removing
+        //   the axis, because deleting it would drop the ability to break on working state.
+        //   📄 §30.14. ⛔ Do not "finish the job" here by removing the enum.
 
         private static Expression BuildConditionExpression(Expression fieldAccess, SearchOperator op, SearchPredicateDto? predicate)
         {
@@ -499,11 +486,11 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             {
                 if (!result.Contains(typeof(BehaviorState)))
                     result.Add(typeof(BehaviorState));
-                Type targetComponentType = behaviorParam.TargetBlackboard == BlackboardTarget.Blackboard1024
-                    ? typeof(Blackboard1024)
-                    : typeof(BrainBlackboard);
-                if (!result.Contains(targetComponentType))
-                    result.Add(targetComponentType);
+                // ⭐ P4-①: one required component now — the Blackboard1024 arm is gone with its
+                //   component, and it was unreachable anyway (the HeavyDtoType guard returns first).
+                // ⚠ BlackboardTarget stays: CE-308 re-points its members in P4-③ (§30.14).
+                if (!result.Contains(typeof(BrainBlackboard)))
+                    result.Add(typeof(BrainBlackboard));
             }
             else if (dto is TraceBufferScanPredicateDto traceScan)
             {

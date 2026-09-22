@@ -238,10 +238,16 @@
         /// <summary><c>TargetMemory</c> â€” fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const int TargetMemory            = 73;
 
-        /// <summary><c>Blackboard1024</c> â€” 1024-byte generic heavy blackboard for behavior-specific large payloads.
-        /// Reusable across different behaviors to avoid exhausting the 256 component-type limit.
-        /// Projected into behavior-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
-        public const int Blackboard1024          = 74;
+        /// <summary>⛔⛔ <b>RESERVED — id 74 was <c>Blackboard1024</c>, retired by <c>P4</c>-①
+        /// (<c>2026-09-22</c>).</b> Its three tenants all moved: AiPrimitive working state to the
+        /// Blueprint tier ladder (<c>SLICE2</c>), squad state to its own component (<c>O1</c>), and the
+        /// <c>HeavyDtoType</c> overflow path was never adopted.
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §30.13.
+        /// <para>⛔ <b>DO NOT REUSE THIS ID.</b> Ids are explicit, so removing the constant drifts
+        /// nothing — but a recording or scenario written before the retirement still names 74, and
+        /// binding it to a different component would decode those bytes as the wrong type.</para>
+        /// </summary>
+        public const int Reserved_WasBlackboard1024 = 74;
 
         /// <summary><c>IGeographicTransform</c> â€” geographic⇄Cartesian coordinate transform service singleton (FDP.Toolkit).</summary>
         public const int IGeographicTransform    = 75;

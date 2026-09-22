@@ -72,12 +72,10 @@ namespace Fdp.Toolkit.Squad.Tests
             // ⭐ The claim that survives is the one that matters: the state has its OWN storage, and
             //   writing it does not touch the blackboard.
             using var repo = new EntityRepository();
-            repo.RegisterComponent<Blackboard1024>();
             repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<SquadCognitiveState>();
 
             var e = repo.CreateEntity();
-            repo.AddComponent(e, new Blackboard1024());
             repo.AddComponent(e, default(SquadCognitiveState));
             repo.AddComponent(e, default(SquadCognitiveState));
 
@@ -85,14 +83,14 @@ namespace Fdp.Toolkit.Squad.Tests
 
             Assert.Equal((ushort)0xABCD, repo.GetComponentRO<SquadCognitiveState>(e).ManeuverKind);
 
-            // ⛔ anti-vacuity: the blackboard must be UNTOUCHED — if the two still aliased, the write
-            //   above would show up in its first bytes.
-            ref readonly var bb = ref repo.GetComponentRO<Blackboard1024>(e);
-            {
-                fixed (byte* p = bb.Memory)
-                    for (int k = 0; k < 16; k++)
-                        Assert.Equal(0, p[k]);
-            }
+            // ⛔⛔ P4-① (2026-09-22): the anti-vacuity half of this rail is RETIRED, and by the
+            //    strongest possible means. It asserted that writing SquadCognitiveState leaves
+            //    `Blackboard1024` untouched — i.e. that `O1` really did stop the two aliasing.
+            //    ⭐ That component NO LONGER EXISTS, so the two cannot alias by construction and
+            //    there is nothing left to observe. 📄 §30.13 — squad state moving to its own
+            //    [ComponentId] component is exactly tenant ② of the retirement argument.
+            // ⚠ The LIVE half above — the round-trip through SquadCognitiveState — is unchanged and
+            //   still carries the rail's actual claim.
         }
     }
 }

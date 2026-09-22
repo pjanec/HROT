@@ -55,7 +55,6 @@ public sealed class UtilityNodeRuntimeTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<UnitRoster>();
         fixture.World.RegisterComponent<UnitSubordinate>();
-        fixture.World.RegisterComponent<Blackboard1024>();
         fixture.World.RegisterComponent<Position>();
         fixture.World.RegisterComponent<UtilityDebugFlags>();
         fixture.World.RegisterComponent<UtilityTraceWorkingMemory1024>();

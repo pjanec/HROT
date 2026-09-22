@@ -171,7 +171,6 @@ public sealed class MoveToAndFire_InterpreterTick_Tests : IDisposable
 
         var entity = _fixture.CreateEntity();
         _fixture.World.AddComponent(entity, default(LocomotionChannel));
-        _fixture.World.AddComponent(entity, default(Blackboard1024)); // AiPrimitive working-state rail
 
         // The action must resolve in the ActionRegistry — otherwise the interpreter would silently
         // bind the Failure fallback (the pre-I1 behavior).

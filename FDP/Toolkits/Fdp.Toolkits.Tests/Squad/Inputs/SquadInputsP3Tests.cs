@@ -25,7 +25,6 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<Health>();
@@ -47,7 +46,6 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
         {
             var e = _repo.CreateEntity();
             _repo.AddComponent(e, new UnitRoster());
-            _repo.AddComponent(e, new Blackboard1024());
             _repo.AddComponent(e, default(SquadCognitiveState));
             return e;
         }
@@ -94,7 +92,6 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
         {
             // Commander without UnitRoster.
             var e = _repo.CreateEntity();
-            _repo.AddComponent(e, new Blackboard1024());
             _repo.AddComponent(e, default(SquadCognitiveState));
 
             float ratio = SquadInputs.SquadStrengthRatio(MakeCtx(e));

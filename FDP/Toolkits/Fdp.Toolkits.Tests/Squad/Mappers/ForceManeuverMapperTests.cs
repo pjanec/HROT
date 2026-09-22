@@ -25,7 +25,6 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
         public ForceManeuverMapperTests()
         {
             _repo = new EntityRepository();
-            _repo.RegisterComponent<Blackboard1024>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<UtilityResultBuffer>();
@@ -43,7 +42,6 @@ namespace Fdp.Toolkit.Squad.Tests.Mappers
         private Entity CreateCommanderWithBlackboard()
         {
             var e = _repo.CreateEntity();
-            _repo.AddComponent(e, new Blackboard1024());
             _repo.AddComponent(e, default(SquadCognitiveState));
             _repo.AddComponent(e, new UtilityResultBuffer());
             return e;

@@ -1560,26 +1560,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     {
         var effectiveView = view ?? _view;
 
-        if (CaptureAiPrimitiveOccurrences(self, def, mapIndex, outFields, effectiveView))
-            return;
-
-        // ── legacy: one working state per entity, in Blackboard1024 at the +8 offset ──
-        if (!effectiveView.HasComponent<Blackboard1024>(self)) return;
-        ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
-
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-
-        if (bytes.Length < WorkingStateLayout.HeaderBytes) return;
-
-        ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
-        if (storedHash != def.StructureHash) return;
-
-        // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the same
-        //   offset the same way; a read and a write that disagree by 8 bytes do not show a wrong
-        //   number, they scribble on the neighbouring field.
-        DecodeStateFields(bytes, WorkingStateLayout.ComponentOffsetOf(0),
-                          mapIndex?.StateLayout, def, namePrefix: null, outFields);
+        // ⛔⛔ P4-① (2026-09-22): the LEGACY ARM IS GONE, and with it the last `Blackboard1024` read.
+        //
+        // It decoded "one working state per entity" from that component's `Memory + 8` block behind
+        // an 8-byte StructureHash — the Slice-1 model. SLICE2 moved AiPrimitive working state to the
+        // Blueprint tier ladder and nothing has added the component since, so this fallback could
+        // only ever return immediately on its own `HasComponent` guard. 📄 §30.13.
+        //
+        // ⭐ `CaptureAiPrimitiveOccurrences` is now the WHOLE answer, not the preferred half of two:
+        //   it returns false when the entity has no store or no matching slot, and "no state to show"
+        //   is then the honest result rather than a cue to consult a component nobody writes.
+        CaptureAiPrimitiveOccurrences(self, def, mapIndex, outFields, effectiveView);
     }
 
     /// <summary>

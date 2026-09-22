@@ -733,7 +733,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // Expose the registry to the diagnostic renderers so the entity inspector
         // can project BrainBlackboard memory and visualize the BTree execution state.
         BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
-        Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+        // ⛔ P4-①: Blackboard1024Renderer is gone with its component (§30.13).
         BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
         Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
         Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;

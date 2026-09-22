@@ -96,15 +96,26 @@ namespace Hrot.SimHost.Tests
         // ── Helper: get mutable hill attack state ─────────────────────────────────
 
         // These are direct node-logic UNIT tests: they invoke the node methods with an explicit
-        // `ref HillAttackMutableState`, so a Blackboard1024 component is used purely as a convenient
-        // per-entity scratch buffer for that ref. This is NOT the production working-state path — in
-        // production (and in T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped
-        // BlueprintBlackboard* partition slot; the Blackboard1024 + Unsafe.As hack was removed from the
-        // node bodies in S3-G.
-        private static ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
+        // `ref HillAttackMutableState`, so this is purely a convenient per-entity scratch buffer for
+        // that ref. This is NOT the production working-state path — in production (and in
+        // T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped BlueprintBlackboard*
+        // partition slot; the Blackboard1024 + Unsafe.As hack was removed from the node bodies in S3-G.
+        //
+        // ⭐⭐ P4-① (2026-09-22): the scratch buffer no longer BORROWS AN ECS COMPONENT for the job.
+        //    It used to `Unsafe.As` a Blackboard1024 into HillAttackMutableState — harmless in intent
+        //    (the comment above always said so) but it made these unit tests depend on a component
+        //    production had already stopped provisioning, which is the exact shape CE-310 and CE-311
+        //    turned out to be. ⛔ A plain per-instance cell cannot be mistaken for a storage path.
+        // ⚠ Per-INSTANCE, not static: xUnit gives each test its own class instance, so this cannot
+        //   leak state between tests the way a static dictionary keyed on a reused entity id would.
+        private readonly Dictionary<ulong, HillAttackMutableState[]> _scratchState = new();
+
+        private ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
         {
-            ref var heavy = ref repo.GetComponentRW<Blackboard1024>(entity);
-            return ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavy);
+            _ = repo;   // kept in the signature so every call site reads the same as before
+            if (!_scratchState.TryGetValue(entity.PackedValue, out var cell))
+                _scratchState[entity.PackedValue] = cell = new HillAttackMutableState[1];
+            return ref cell[0];
         }
 
         // ── Corrective-1: SC-HA007 — Condition_HasTarget ─────────────────────────
@@ -580,7 +591,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -608,7 +618,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -632,7 +641,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -657,7 +665,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[4];
             for (int i = 0; i < 4; i++)
@@ -699,7 +706,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -724,7 +730,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -748,7 +753,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var aliveSub = repo.CreateEntity();
             var deadSub  = repo.CreateEntity();
@@ -779,7 +783,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.CachedEqsRequestId = -1;
@@ -811,7 +814,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
 
@@ -849,7 +851,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -885,7 +886,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -933,7 +933,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -983,7 +982,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates. Their indices are assigned sequentially after commander.
             var subs = new Entity[4];
@@ -1037,7 +1035,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1084,7 +1081,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1150,7 +1146,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.ActiveAttackerCount = 0;
@@ -1172,7 +1167,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Destroy the attacker so IsAlive == false.
@@ -1214,7 +1208,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Attacker is alive but has a different behavior hash (intent still propagating).
@@ -1248,7 +1241,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // HullDownAttackRunBehaviorId == 3013.
@@ -1292,7 +1284,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates.
             var subs = new Entity[4];
@@ -1342,7 +1333,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1391,7 +1381,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[2];
             for (int i = 0; i < 2; i++)
