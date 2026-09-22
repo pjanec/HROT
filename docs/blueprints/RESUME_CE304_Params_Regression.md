@@ -4,7 +4,8 @@ doc-type: DEBUGGING RESUMPTION for CE-304 — the live regression P3-C introduce
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a debugging snapshot, not a design.
-current-answer: READ §1 (what is proven), then §2 (the CORRECTION — a claim in CE-304 and
+current-answer: 🔴 READ §4.3 FIRST — THE CAUSE IS CONFIRMED (under-sizing; the probe fixes it 2/2).
+  THEN §1 (what is proven), then §2 (the CORRECTION — a claim in CE-304 and
   DESIGN §29.10 is WRONG and must be fixed), then §5 (the exact next action).
   ⛔ §3 lists the DEAD hypotheses — do NOT re-test them.
 related-designs:
@@ -108,7 +109,7 @@ only, since the early ones carried the tanks to the firing line.
 |---|---|---|
 | **①** | the 16-slot `MaxKindSlots` ceiling is exceeded | 📐 `PlatoonHillAttack` declares **1** manifest slot. Nowhere near 16 |
 | **②** | `DetachRoot`'s `TryDetach` compaction corrupts a neighbour | 📐 disabled it → **still fails** (`577 587 525 588`) |
-| **③** | a projection OVERRUNS its slot into the neighbour | 📐 both corpus behaviours measure **52 ≤ 52** — `HullDownAttackRun` and `PlatoonHillAttack` each declare `("Params", <T>, 0)` and their thunks project `<T>` at offset 0. ⚠ **The HOLE is real** (nothing bounds it — §29.10) but there is **no instance in this corpus** |
+| **③** | ~~a projection OVERRUNS its slot~~ | 🔴🔴 **NOT DEAD — REVIVED AND CONFIRMED, see §4.3.** My refutation checked the WRONG LENS. 📐 both corpus behaviours measure **52 ≤ 52** — `HullDownAttackRun` and `PlatoonHillAttack` each declare `("Params", <T>, 0)` and their thunks project `<T>` at offset 0. ⚠ **The HOLE is real** (nothing bounds it — §29.10) but there is **no instance in this corpus** |
 | **④** | per-dispatch `GetComponentRW` floods replication via chunk-version churn | 📐 `/diagnostics/architecture`: `WorldPos` 2817 sent / 60 s is ordinary, and **there is NO `BlueprintBlackboard` translator at all** — the tier component is not replicated |
 | **⑤** | the thunk THROWS and something swallows it | 📐 `BTreeTickSystem` has no `try`/`catch`; nothing in the tick path swallows. And zero exceptions logged |
 
@@ -165,6 +166,54 @@ thunk reads it** — a TIMING or ADDRESSING divergence between the two readers, 
 ⚠ **④ is the cheapest to check and the most likely**: before `P3-C` the thunk never touched `ctx.World`
 or `ctx.Self` for params — it used the `ref bb` the tick system handed in. ⇒ **any dispatch path that
 leaves `ctx` partly unset was HARMLESS before and is FATAL now.**
+
+---
+
+### 4.3 🔴🔴🔴 CONFIRMED `2026-09-22` — **UNDER-SIZING IS THE CAUSE. The probe FIXES it, 2/2 gold.**
+
+📐 **`RootParamsBytes` forced to the legacy `MaxBehaviorParamByteSize` (100) for every behaviour that
+has params:**
+
+```
+SIZE-100 trial 1: 522(HOME) 525(HOME) 529(HOME) 531(HOME)
+SIZE-100 trial 2: 522(HOME) 525(HOME) 529(HOME) 531(HOME)
+```
+
+⇒ 🔒 **`CE-304` IS THE EXTENT DEFECT `DESIGN` §29.10 describes.** The root slot is sized too small, and
+the damage lands on whatever sits next to it — which is why every layout probe moved WHICH tank
+recovered. ⭐ **The stash holds this probe** (`git stash list`) — ⛔ it is a DIAGNOSTIC, not the fix.
+
+#### ⚠⚠ WHY MY PER-BEHAVIOUR CHECK SAID "IT FITS" — **the lens was wrong, and this is the trap**
+
+📐 I measured each behaviour against ITS OWN declared layout and found them consistent:
+
+| behaviour | declared extent | its own thunks project | verdict I drew |
+|---|---|---|---|
+| `HullDownAttackRun` | `("Params", HullDownAttackParams, 0)` ⇒ **52** | `HullDownAttackParams` @0 ⇒ **52** | "fits" |
+| `PlatoonHillAttack` | `("Params", PlatoonHillAttackParams, 0)` ⇒ **52** | `PlatoonHillAttackParams` @0 ⇒ **52** | "fits" |
+| `MoveToLocation` | `MoveToLocationParams` ⇒ **16** | `MoveToLocationParams` @0 ⇒ **16** | "fits" |
+
+⛔⛔ **Every row is true and the conclusion was still false**, because a behaviour's region is not only
+written by its OWN thunks:
+
+| ⭐ the lens I should have used | |
+|---|---|
+| ⭐⭐⭐ **the `ActionRegistry` is GLOBAL and keyed `{MethodFqn}@{bakedOffset}`** | ⇒ a node in ONE tree can dispatch a thunk whose offset was baked for a DIFFERENT asset. ⛔ A per-behaviour "its own thunks fit" check cannot see that |
+| ⭐⭐ **`ParseParams` writes into a 100-byte SHADOW, and ingress copies back only `rootBytes`** | 📄 `BehaviorIngressSystem` — `Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes)`. ⛔ Anything the parser wrote past `rootBytes` is **silently dropped** |
+| ⭐ **`BrainBlackboard` was 100 bytes for EVERYONE** | ⇒ both hazards were invisible by construction for years |
+
+⇒ ⭐⭐⭐ **THE NEXT SESSION'S FIRST JOB IS TO NAME WHICH OF THE TWO** *(over-long projection vs truncated
+ingress copy)* **actually bites here** — they need different fixes. ⚠ **Do not assume; instrument.**
+📌 The cheapest probe: log `def.Name`, `RootParamsBytes(def)` and `sizeof(JsonParamsDtoType)` at
+registration, and assert `rootBytes >= sizeof(the DTO ParseParams writes)`.
+
+#### ⛔ THE FIX IS **NOT** THE PROBE
+
+⚠ 100 bytes per entity against the 256 tier's **176-byte** payload throws away what the tier ladder
+exists for. 📄 **`DESIGN` §29.10's solution stands**: derive the extent at EMIT time from
+`max(baked offset + sizeof(TDto))`, reconciled with the manifest extent, emitted into the behaviour
+definition — **and make an over-long projection a BUILD ERROR**. ⭐ If the truncated-copy arm is the real
+one, the same number fixes it: `rootBytes` must cover everything `ParseParams` can write.
 
 ---
 
