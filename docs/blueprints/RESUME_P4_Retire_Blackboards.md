@@ -6,19 +6,20 @@ updated: 2026-09-22
 build-state: n/a — a build resumption. The DESIGN is DESIGN_Occurrence_Scoped_Storage.md §30;
   §30.18 is the slice table, and §30.22..§30.27 are the as-built (they SUPERSEDE parts of §30.14,
   §30.15 and §30.18 — read them before quoting any of those).
-current-answer: ⭐ START AT §2 ② — DELETING THE `BrainBlackboard` STRUCT. That is ALL that is left of
-  `P4`. All five slices are DONE (`P4`-④ = `CE-307` §30.25), and so are the two things it uncovered:
-  `CE-316` (§30.26 — six BTree assets had silently stopped generating since `P4`-②) and `CE-314`
-  (§30.27 — the bin packer's dead heavy arm; editor and generator now agree on one ceiling).
-  ⛔ §2 ③ (`BlackboardTypeName`) NO LONGER BLOCKS the deletion — `CE-316` measured that nothing
-  resolves that string to a Type any more. ⭐ §6 has the exact first action; §3 traps; §4 gates +
-  the cluster harness; §5 the fork decision, the only item still genuinely open.
+current-answer: ✅ **`P4` IS COMPLETE — `BrainBlackboard` IS DELETED (§30.28).** Nothing in this
+  document is a to-do any more; it is now a RECORD plus two follow-ups that belong to no slice:
+  `CE-317` (§30.28 ① — `BrainBlackboardTranslator` is a LIVE diagnostic wearing the retired
+  component's name; renaming it touches a DOM output contract) and the FORK decision (§5).
+  ⭐ All five slices done: `P4`-④ = `CE-307` §30.25 · `CE-316` §30.26 · `CE-314` §30.27 ·
+  `CE-315` closed with the tick-query gate. ⭐ §3 is the part worth reading — the traps are the
+  reusable half. §4 gates + the cluster harness. ⚠ §4's Blueprints row carries a RETRACTED claim;
+  read it before quoting any skip count from this file.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — §30.18 the slice table · §30.20 P4-① · §30.21 P4-②
-    (the zero-fallback rail) · §30.22 CE-312 · §30.23 CE-308 · §30.24 CE-313. It wins on any
-    disagreement with this file.
+    (the zero-fallback rail) · §30.22 CE-312 · §30.23 CE-308 · §30.24 CE-313 · §30.25 CE-307 ·
+    §30.26 CE-316 · §30.27 CE-314 · §30.28 the struct deletion. It wins on any disagreement here.
   - RESUME_Occurrence_Storage.md — the PROGRAMME-level resume (P0–P4).
-  - Blueprint_Issues_Tracker.md — CE-303 open; CE-307, CE-308, CE-310..CE-316 DONE.
+  - Blueprint_Issues_Tracker.md — CE-303 + CE-317 open; CE-307, CE-308, CE-310..CE-316 DONE.
 -->
 
 # RESUME — `P4`: retire `BrainBlackboard` and `Blackboard1024`
@@ -188,7 +189,7 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 | 🔴 **ANY COMMAND-LINE PATTERN MATCH KILLS YOUR OWN SHELL** | the pattern is in your own command line *(exit 144)*. 📌 Hit **twice**: `ps \| awk '/Hrot\.Cluster/'` and **`pkill -f Xvfb`**. ⛔ Not an `awk` quirk — **matching on the full command line at all**. ⭐ Filter on `comm`: `ps -eo pid,comm --no-headers \| awk '$2=="dotnet"{print $1}' \| xargs -r kill` |
 | 🔴🔴 **A RELOAD IS NOT A RESET** | re-POSTing `/scenario/load/live` on the same process answered **`sawWorldChange: false`** with `totalTime: 84.9` ⇒ the "trial 2" numbers were trial 1 drifting. ⭐ **Restart between trials**; require `sawWorldChange: true` **and** `totalTime ≈ 0` at play |
 | ⛔⛔ **`Fdp.Presentation.Tests` CANNOT BE GATED WHOLE** | `BP-419` / `CE-259aa`: a native SIGSEGV aborts the run **and still prints `Passed!`**. ⭐ Gate by `--filter` *(`~ReplayBrowser` ⇒ **93/0**)*. ⚠ **And its `bin` had NO xunit adapter** — the project had never been restored here, so `--no-restore` produced an unrunnable assembly. `dotnet restore` fixes it |
-| ⚠ **the LOAD-FLAKY family keeps growing** | `BP-534` · `LiveFromReplayTests.Teardown…` · `SquadInputsP3Tests.AllReaders_ZeroAlloc…` · `T35_SharedWorkingState_ProofTests` · ⭐ **and two more confirmed `2026-09-22`: `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_…RoutesToReplayBranch`.** ⛔ **Confirm any extra red IN ISOLATION before calling it a regression** — 📐 it paid again: a full SimHost run showed **6** reds, isolation showed **3**, and the 3 were the documented ones |
+| ⚠ **the LOAD-FLAKY family keeps growing** | `BP-534` · `LiveFromReplayTests.Teardown…` · `SquadInputsP3Tests.AllReaders_ZeroAlloc…` · `T35_SharedWorkingState_ProofTests` · ⭐ **and three more confirmed `2026-09-22`: `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_…RoutesToReplayBranch` · `TransientSpawnTagRails.ATransientEntity_IsAbsentFromTheSavedScenario_AndANormalOneIsPresent` *(2/2 alone, 9/9 beside the fixture that was suspected of perturbing it, and a full re-run came back **2310/0** — three independent checks before calling it a flake)*.** ⛔ **Confirm any extra red IN ISOLATION before calling it a regression** — 📐 it paid again: a full SimHost run showed **6** reds, isolation showed **3**, and the 3 were the documented ones |
 | ⚠ **an over-broad substitution corrupts DOC COMMENTS** | ⭐ Always `git diff --name-only \| grep -v Tests` after a scripted edit |
 | ⚠ **`NETSDK1004` × ~60 is PRE-EXISTING** | unrestored `Stride/` projects. ⭐ Filter on `error CS` |
 | ⚠ **build the TEST project, not the production one** | `--no-build` against a production-only build runs a stale binary |
@@ -207,7 +208,7 @@ at?** ⚠ **Not a blind rename** — §30.19: it mangles into params-layout stru
 |---|---|
 | solution build *(156 projects)* | **0 `error CS`** |
 | `Fdp.Toolkits.Tests` | **2310 / 0** ⚠ was 2307; **+3 = `CE-307`'s positive rails** in `BehaviorIngressSystemTests` |
-| `Hrot.Blueprints.Tests` | **4025 / 0** *(**10** skipped, total 4035)* ⭐⭐ **`CE-316` MOVED 8 TESTS FROM SKIPPED TO PASSING** — was 4017/0 with **18** skipped, **same total 4035** ⇒ no test was added or removed, 8 simply stopped skipping. ⚠ Consistent with the six un-skipped assets *(a test that needs generated output skips when the generator emitted none)* — 📐 the totals prove the accounting; the mechanism is inferred, not separately measured. ⛔⛔ **A SKIP COUNT IS A SIGNAL, NOT NOISE:** 18 skips were the regression's THIRD footprint, and nobody read them |
+| `Hrot.Blueprints.Tests` | **4017 / 0** *(skipped count VARIES — see below)*. 🔴🔴 **A CLAIM MADE HERE ON `2026-09-22` IS RETRACTED.** It read: *"`CE-316` MOVED 8 TESTS FROM SKIPPED TO PASSING — 4025/0 with 10 skipped, was 4017/0 with 18, same total 4035."* ⛔ **Not supported.** 📐 Re-measured after the struct deletion: **18 skipped again**, while the six assets **demonstrably still generate** *(forced recompile, 0 `BTREE0002`, 0 skipped assets)*. ⭐⭐ **The skipped tests were then LISTED, which is what settled it** — they are ALC/compile-and-load tests, ImGui dialog tests, zero-allocation measurements, `ReflectionSharedStructTypeProvider`, `Validate_SpawnEqsSensor…`: ⛔ **not one of them touches BTree asset generation.** ⇒ these are **ENVIRONMENT-GATED** skips that flip with machine load, GC mode and headless state. 🔒 **The lesson is about the claim, not the tests: I wrote the mechanism as INFERRED and then reported the number as if the inference were established.** ⭐ Listing the skips cost one command and would have refuted it immediately. ⚠ **Treat this suite's skip count as NOISE unless the skipped NAMES change** 
 | `Hrot.SimHost.Tests` | **1005 / 3** *(+3 skipped, total 1011)*. ⭐⭐ **THE 3 ARE NAMED NOW** *(`2026-09-22` — the row used to say only "the 3 documented", which costs a session every time)*: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete` · `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)` · `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A full run typically shows 6** — the extra three are the load-flaky family *(`EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` · `LiveFromReplayTests.TeardownReplay_PreservesEntityRepositoryState` · `NodeBootstrapperReplayTests.ClusterSlaveDispatch_PrepareLiveWithActiveReplay_RoutesToReplayBranch`)*, ⭐ **measured `2026-09-22`: all three PASS in isolation while the 3 above still FAIL** — which is how to tell them apart in one command |
 | `Hrot.Presentation.Tests` | **299 / 0** |
 | `Hrot.AiEditor.Generators.Tests` | **282 / 4** *(the 4 documented — total **286**)* ⚠ `CE-314` removed one test — `CE-307`'s pinned exception `TheEditorPackersCopy_IsTheKnownException_UntilCe314`, whose whole purpose was to fail when `CE-314` landed. ⚠ was 281/4 total 285; **+1 = `NoTierIsLargerThanTheCeiling`**, **+1 = a golden case for an asset `CE-316` un-skipped**. ⭐⭐ **The 4 are NAMED:** `T30_BehaviorScopedShared_ProofTests.HillAttack_SharedState_PersistsAcrossNodes` · `S3_BehaviorScopedThunkTests.BehaviorScoped_TwoNodes_ShareOneSlot` · `S3_SharedSlotProvisioningTests.Assign_BehaviorScoped_ProvisionsOneSlot_ForSharedVar` · `S3_SharedSlotProvisioningTests.Assign_MixedNodeAndBehaviorScope_SlotCountsCorrect`. ⛔ **A REGEN run (`AI_REGENERATE_SNAPSHOTS=1`) reports 6 — goldens are rewritten mid-run; ALWAYS re-run without the flag before believing a count.** ⛔ **`CE-307` re-pointed two rails that PINNED the retired cap** — `ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped` and `StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002`; their fixtures now size themselves FROM the constant, so the skip-on-overflow MECHANISM is still tested and the threshold can move again without a hand edit |
