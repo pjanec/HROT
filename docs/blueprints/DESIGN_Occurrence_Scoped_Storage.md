@@ -4033,3 +4033,28 @@ attach/detach, each red-proofed by an inverse edit. ⛔⛔ **NOT ONE asserts tha
 INSIDE ITS SLOT.** ⇒ 🔒 **before any fix:** attach a root slot, attach an occurrence AFTER it, write
 through the params `ref`, and assert **the neighbour is byte-unchanged**. ⚠ A patch without that rail
 leaves the hole that produced this.
+
+
+### 29.11 ⚠⚠ `2026-09-22` — **SIZE IS PROVEN LOAD-BEARING; THE MECHANISM IS STILL UNKNOWN**
+
+⭐ **PROVEN:** forcing `RootParamsBytes` to the legacy `MaxBehaviorParamByteSize` (100) makes the golden
+test PASS **2/2**. ⇒ the root slot's SIZE decides `CE-304`.
+
+🔴🔴 **RETRACTED:** §29.10's framing — *"a projection exceeds its slot and clobbers the neighbour"* — has
+**NO demonstrated instance.** 📐 Every behaviour measured **fits its own slot**: `HullDownAttackRun`
+**56 ≤ 56**, `PlatoonHillAttack` **52 ≤ 52**, `MoveToLocation` **16 ≤ 16**. ⚠ §29.10's *design* point
+stands — **nothing BOUNDS the extent, and that is a real hole** — but it is **not shown to be this bug**.
+
+| # | live candidate | the size link | status |
+|---|---|---|---|
+| **A** | **truncated CARRY-OVER** — ingress seeds its parse shadow from the PREVIOUS behaviour's slot, `min(prevLen, 100)`, rest zeroed | ⭐ a 100-byte `BrainBlackboard` carried **everything** across a behaviour switch; a per-behaviour slot carries only the smaller size | ⚠ needs a PARTIAL parser. The curated ones write whole structs; ⭐ **the GENERATED `__parseParams` is partial** |
+| **B** | **truncated COMMIT** — `Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes)` from a 100-byte shadow | anything written past `rootBytes` is dropped | ⛔ untested |
+| **C** | **a FOREIGN baked offset** — `ActionRegistry` is process-wide, keyed `{MethodFqn}@{bakedOffset}` | a thunk baked for another asset can address past THIS slot | ⛔ untested — ⭐ the only reason the per-behaviour table may be the wrong lens |
+
+⇒ ⭐⭐⭐ **SETTLE IT WITH ONE PRINT, BEFORE ANY CODE:** at registration log `def.Name` ·
+`RootParamsBytes(def)` · `sizeof(JsonParamsDtoType)` · `sizeof(BlackboardLayoutType)` · manifest extent,
+and assert `rootBytes >= everything the parser can write`. ⛔ **A and B need a different fix from C.**
+
+⚠ **The methodological note, because it happened three times in one session:** a probe that makes the
+symptom disappear proves the *variable* matters, ⛔ **never the STORY about why**. Each time the story was
+written before the measurement, and each time it was wrong.

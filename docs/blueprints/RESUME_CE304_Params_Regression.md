@@ -4,7 +4,8 @@ doc-type: DEBUGGING RESUMPTION for CE-304 — the live regression P3-C introduce
   ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-22
 build-state: n/a — a debugging snapshot, not a design.
-current-answer: 🔴 READ §4.3 FIRST — THE CAUSE IS CONFIRMED (under-sizing; the probe fixes it 2/2).
+current-answer: 🔴 READ §4.3 FIRST — the slot SIZE is proven load-bearing (probe 2/2), but the
+  MECHANISM IS UNKNOWN and an earlier "confirmed overspill" claim there is RETRACTED.
   THEN §1 (what is proven), then §2 (the CORRECTION — a claim in CE-304 and
   DESIGN §29.10 is WRONG and must be fixed), then §5 (the exact next action).
   ⛔ §3 lists the DEAD hypotheses — do NOT re-test them.
@@ -109,7 +110,7 @@ only, since the early ones carried the tanks to the firing line.
 |---|---|---|
 | **①** | the 16-slot `MaxKindSlots` ceiling is exceeded | 📐 `PlatoonHillAttack` declares **1** manifest slot. Nowhere near 16 |
 | **②** | `DetachRoot`'s `TryDetach` compaction corrupts a neighbour | 📐 disabled it → **still fails** (`577 587 525 588`) |
-| **③** | ~~a projection OVERRUNS its slot~~ | 🔴🔴 **NOT DEAD — REVIVED AND CONFIRMED, see §4.3.** My refutation checked the WRONG LENS. 📐 both corpus behaviours measure **52 ≤ 52** — `HullDownAttackRun` and `PlatoonHillAttack` each declare `("Params", <T>, 0)` and their thunks project `<T>` at offset 0. ⚠ **The HOLE is real** (nothing bounds it — §29.10) but there is **no instance in this corpus** |
+| **③** | a projection OVERRUNS its slot | ⚠ **NEITHER DEAD NOR CONFIRMED — see §4.3.** No demonstrated instance; kept alive ONLY by candidate C (a foreign baked offset from the global registry). 📐 both corpus behaviours measure **52 ≤ 52** — `HullDownAttackRun` and `PlatoonHillAttack` each declare `("Params", <T>, 0)` and their thunks project `<T>` at offset 0. ⚠ **The HOLE is real** (nothing bounds it — §29.10) but there is **no instance in this corpus** |
 | **④** | per-dispatch `GetComponentRW` floods replication via chunk-version churn | 📐 `/diagnostics/architecture`: `WorldPos` 2817 sent / 60 s is ordinary, and **there is NO `BlueprintBlackboard` translator at all** — the tier component is not replicated |
 | **⑤** | the thunk THROWS and something swallows it | 📐 `BTreeTickSystem` has no `try`/`catch`; nothing in the tick path swallows. And zero exceptions logged |
 
@@ -169,7 +170,7 @@ leaves `ctx` partly unset was HARMLESS before and is FATAL now.**
 
 ---
 
-### 4.3 🔴🔴🔴 CONFIRMED `2026-09-22` — **UNDER-SIZING IS THE CAUSE. The probe FIXES it, 2/2 gold.**
+### 4.3 ⚠⚠ `2026-09-22` — **THE SLOT SIZE MATTERS. The MECHANISM IS *NOT* KNOWN.**
 
 📐 **`RootParamsBytes` forced to the legacy `MaxBehaviorParamByteSize` (100) for every behaviour that
 has params:**
@@ -179,33 +180,41 @@ SIZE-100 trial 1: 522(HOME) 525(HOME) 529(HOME) 531(HOME)
 SIZE-100 trial 2: 522(HOME) 525(HOME) 529(HOME) 531(HOME)
 ```
 
-⇒ 🔒 **`CE-304` IS THE EXTENT DEFECT `DESIGN` §29.10 describes.** The root slot is sized too small, and
-the damage lands on whatever sits next to it — which is why every layout probe moved WHICH tank
-recovered. ⭐ **The stash holds this probe** (`git stash list`) — ⛔ it is a DIAGNOSTIC, not the fix.
+#### ⛔⛔⛔ WHAT THIS PROVES, AND WHAT IT DOES NOT — **read this before building anything**
 
-#### ⚠⚠ WHY MY PER-BEHAVIOUR CHECK SAID "IT FITS" — **the lens was wrong, and this is the trap**
-
-📐 I measured each behaviour against ITS OWN declared layout and found them consistent:
-
-| behaviour | declared extent | its own thunks project | verdict I drew |
-|---|---|---|---|
-| `HullDownAttackRun` | `("Params", HullDownAttackParams, 0)` ⇒ **52** | `HullDownAttackParams` @0 ⇒ **52** | "fits" |
-| `PlatoonHillAttack` | `("Params", PlatoonHillAttackParams, 0)` ⇒ **52** | `PlatoonHillAttackParams` @0 ⇒ **52** | "fits" |
-| `MoveToLocation` | `MoveToLocationParams` ⇒ **16** | `MoveToLocationParams` @0 ⇒ **16** | "fits" |
-
-⛔⛔ **Every row is true and the conclusion was still false**, because a behaviour's region is not only
-written by its OWN thunks:
-
-| ⭐ the lens I should have used | |
+| ⭐ PROVEN | ⛔ NOT PROVEN |
 |---|---|
-| ⭐⭐⭐ **the `ActionRegistry` is GLOBAL and keyed `{MethodFqn}@{bakedOffset}`** | ⇒ a node in ONE tree can dispatch a thunk whose offset was baked for a DIFFERENT asset. ⛔ A per-behaviour "its own thunks fit" check cannot see that |
-| ⭐⭐ **`ParseParams` writes into a 100-byte SHADOW, and ingress copies back only `rootBytes`** | 📄 `BehaviorIngressSystem` — `Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes)`. ⛔ Anything the parser wrote past `rootBytes` is **silently dropped** |
-| ⭐ **`BrainBlackboard` was 100 bytes for EVERYONE** | ⇒ both hazards were invisible by construction for years |
+| the **SIZE** of the root params slot is load-bearing: 100 for everyone ⇒ PASS, per-behaviour sizes ⇒ FAIL | 🔴 **WHY size matters. The MECHANISM IS UNKNOWN.** |
 
-⇒ ⭐⭐⭐ **THE NEXT SESSION'S FIRST JOB IS TO NAME WHICH OF THE TWO** *(over-long projection vs truncated
-ingress copy)* **actually bites here** — they need different fixes. ⚠ **Do not assume; instrument.**
-📌 The cheapest probe: log `def.Name`, `RootParamsBytes(def)` and `sizeof(JsonParamsDtoType)` at
-registration, and assert `rootBytes >= sizeof(the DTO ParseParams writes)`.
+🔴🔴 **AN EARLIER VERSION OF THIS SECTION SAID *"CONFIRMED — the slot is too small and the damage lands
+on the neighbour"*. ⛔ THAT WAS AN OVERCLAIM AND IS RETRACTED.** 📐 It is contradicted by my own
+measurements — **every behaviour I examined FITS its own slot**:
+
+| behaviour | slot size (`RootParamsBytes`) | what its OWN thunks project | overrun? |
+|---|---|---|---|
+| `HullDownAttackRun` | manifest `("Params", HullDownAttackParams, 0)` ⇒ **56** | `HullDownAttackParams` @0 ⇒ **56** | ⛔ **no** |
+| `PlatoonHillAttack` | manifest `("Params", PlatoonHillAttackParams, 0)` ⇒ **52** | `PlatoonHillAttackParams` @0 ⇒ **52** | ⛔ **no** |
+| `MoveToLocation` | `BlackboardLayoutType = MoveToLocationParams` ⇒ **16** | `MoveToLocationParams` @0 ⇒ **16** | ⛔ **no** |
+
+⇒ ⚠ **"the projection overruns its slot" has NO demonstrated instance.** The probe passing made that
+story *available*; it did not make it *true*. 🔒 **Do not inherit it.**
+⭐ **The stash holds the probe** (`git stash list`) — ⛔ a DIAGNOSTIC, never the fix.
+
+#### ⭐⭐⭐ THE THREE LIVE CANDIDATES — **all size-dependent, all UNTESTED**
+
+| # | candidate | why it is size-dependent | status |
+|---|---|---|---|
+| **A** | ⭐⭐ **TRUNCATED CARRY-OVER at ingress.** The parse shadow is seeded from the **PREVIOUS** behaviour's slot: `copy = min(prevLen, 100)`, **rest zeroed**. ⛔ Before `P3-C` the source was ALWAYS a 100-byte `BrainBlackboard`, so a behaviour switch carried **all 100 bytes** forward; now it carries only the smaller slot's worth | with the probe at 100 everywhere, **full carry-over returns** — exactly the old semantics | ⚠ bites only if a parser is **PARTIAL**. 📐 The two CURATED parsers checked (`ParseHullDownAttackParams`, `ParseMoveToParams`) write **whole structs** ⇒ unaffected. ⭐⭐ **BUT the GENERATED `__parseParams` packs variable-by-variable and leaves unmentioned variables alone** — that arm is untested |
+| **B** | ⭐⭐ **TRUNCATED COMMIT at ingress.** `Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes)` copies back only `rootBytes` from the 100-byte shadow | anything the parser wrote **past `rootBytes`** is **silently dropped** | ⛔ untested |
+| **C** | ⭐⭐ **A GLOBALLY-REGISTERED THUNK WITH A FOREIGN OFFSET.** `ActionRegistry` is process-wide, keyed `{MethodFqn}@{bakedOffset}` ⇒ a node can dispatch a thunk whose offset was baked against a **DIFFERENT asset's** layout | a foreign offset can exceed THIS behaviour's slot | ⛔ untested — ⭐ **and this is the one reason the per-behaviour table above may be the WRONG LENS** |
+
+#### ⭐⭐⭐ THE MEASUREMENT THAT SETTLES IT — **one build, do this FIRST**
+
+⭐ Log at behaviour REGISTRATION, for every behaviour: `def.Name` · `RootParamsBytes(def)` ·
+`Marshal.SizeOf(def.JsonParamsDtoType)` · `Marshal.SizeOf(def.BlackboardLayoutType)` · the manifest
+extent. ⭐⭐ **Then assert `rootBytes >= everything the parser can write.`**
+⇒ 🔒 **the behaviour that violates it IS the answer**, and it names WHICH of A/B/C is live.
+⚠ **A and B need different fixes from C** — ⛔ do not start coding before this print.
 
 #### ⛔ THE FIX IS **NOT** THE PROBE
 
@@ -221,7 +230,7 @@ one, the same number fixes it: `rootBytes` must cover everything `ParseParams` c
 
 | # | | |
 |---|---|---|
-| **①** | ✅ **DONE — see §4.1.** The diff is complete and names the fault: the thunk writes zeros. ⇒ **the next action is §4.2's candidate ④**, then ①–③ `/tmp/dump-HEAD.txt` exists (t = 140, 5 entities, every component). Produce the baseline twin and diff them | ⛔ **This is the measurement in flight when the session ended.** It names the fault mechanically instead of by hypothesis — and 5 of my hypotheses have now died |
+| **①** | ✅ **DONE — see §4.1** (the thunk writes zeros) **and §4.3** (slot size is load-bearing). ⇒ ⭐⭐⭐ **THE NEXT ACTION IS §4.3's REGISTRATION PRINT** — it names which of A/B/C is live. ⛔ Do not code before it `/tmp/dump-HEAD.txt` exists (t = 140, 5 entities, every component). Produce the baseline twin and diff them | ⛔ **This is the measurement in flight when the session ended.** It names the fault mechanically instead of by hypothesis — and 5 of my hypotheses have now died |
 | **②** | ⭐⭐ **RETRACT the §2 claim** in `CE-304` and `DESIGN` §29.10 | ⛔ before any code — the docs currently misdirect |
 | **③** | ⭐⭐⭐ **WRITE THE RAIL FIRST** *(§29.10's own demand)* | attach a root slot, attach an occurrence AFTER it, write through the params `ref`, assert the neighbour is **byte-unchanged**. ⚠ **AND** a rail for the re-assign path: assign → dispatch → re-assign → dispatch, assert the thunk still reads the authored values. 📐 **No rail anywhere asserts either** — that is the gap that let this ship with 2303 + 4017 + 420 + 299 green |
 | **④** | fix, then re-run §1.1's table — **all three builds, 2 trials each** | ⭐ the reproducer is deterministic, so 2 trials suffice |
