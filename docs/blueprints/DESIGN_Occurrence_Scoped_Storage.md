@@ -4741,6 +4741,106 @@ can compute a key.** ⇒ ⛔⛔ **`P4`-②b IS WITHDRAWN** *(see below)*.
 | **`G5`** | where a hosted subtree's `ref subBb` comes from today | ⛔ decides whether the child base is a second slot resolve |
 
 ⇒ ⭐⭐ **`P4`-① and `P4`-⑤ are cleared to build now. `P4`-② waits on `G2`+`G3`.**
+⭐ **`G2` and `G3` were then closed — 📄 §30.19. `P4`-② is now CLEARED TOO, and it is SMALLER than feared.**
+
+### 30.19 ⭐⭐⭐ `G2` + `G3` CLOSED — **`P4`-② is a type-parameter swap, and the generator needs NO change**
+
+> 🔒 **User:** *"do G2 and G3 - measure whatever it takes."*
+
+#### ⭐⭐⭐ `G3` — THE GENERATOR IS ALREADY POLYMORPHIC IN `TBlackboard`
+
+📐 `BTreeActionGenerator.cs` mentions `BrainBlackboard` **twice, both in COMMENTS.** It reads
+`TBlackboardType = symbol.Parameters[0].Type` *(`:62`, `:110`)* — **from the author's own 4-param
+declaration** — groups by `TBlackboardType|TContextType` *(`:187`)* and emits
+`ActionRegistry<" + tb + ", " + tc + ">` *(`:636`)*.
+
+⚠ **And the grouping has a trap worth knowing:** `mergedGroups` is built **only** from 4-param
+`registrable` methods *(`:194-201`)*; 3-param bridges and `[SharedAiAction]`s are *attached* to an
+existing group. ⛔ `:209` — **`if (mergedGroups.Count == 0) return;`** ⇒ an assembly with no 4-param
+`[BTreeAction]` generates **nothing at all**, however many `[SharedAiAction]`s it has.
+
+⇒ ⭐⭐⭐ **`P4`-②'s generator work is ZERO. The edit surface is FOUR authored declarations:**
+
+| file:line | |
+|---|---|
+| `CgfNodes.cs:417` · `CgfNodes.cs:609` | `ref BrainBlackboard blackboard,` → `ref byte` |
+| `HillAttackTankNodes.cs:560` · `:580` | same |
+
+*(plus 11 in `FDP/Examples` — its own assembly and its own registrar group — and 6 test files.)*
+
+⭐ **Change those four and the generator emits `ActionRegistry<byte, BTreeContext>` by itself.**
+
+⛔⛔ **THE LOCKSTEP HAZARD — three RUNTIME `typeof` matches must move in the same commit:**
+`BTreeActionRegistryFactory.cs:64` · `BlueprintRegistrarScanner.cs:126` · `AiHotReloadCoordinator.cs:433`.
+📐 Each compares `ps[0].ParameterType != typeof(ActionRegistry<BrainBlackboard, BTreeContext>)` and
+**`continue`s on mismatch**. ⇒ if the generator and these disagree, `RegisterAll` is **silently skipped**
+and every action falls back to `Failure`. ⚠ **A reflection filter — the compiler will not catch it.**
+
+⭐ **Hard-coded spellings in the BLUEPRINTS compiler, 4 lines:** `AiPrimitiveEmitter.cs:513,530` ·
+`CSharpEmitter.cs:204,438`. ⛔ `BlackboardParamsExpression` needs **nothing** — it already emits
+`RootParamsAccess.RootRef(...)` and never names the component.
+
+#### ⭐⭐⭐ `G2` — THE GOLDEN MOVE IS A SUBSTITUTION, **because `P3-C` ALREADY DID THE HARD PART**
+
+📐 **The decisive read** — `T20_MultiStateful.Registrar.g.cs.txt`, a shipped golden:
+
+```csharp
+:33  ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry     // ← the DISPATCH type
+:47  ref var dto = ref Unsafe.As<byte, DemoCounterParams>(            // ← ALREADY byte-based
+:48      ref Unsafe.AddByteOffset(ref RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)8));
+```
+
+⇒ ⭐⭐⭐ **Every projection is ALREADY `Unsafe.As<byte, TDto>` off the root slot.** 📐 Corroborated:
+**zero** `Unsafe.As<BrainBlackboard` and **zero** `sizeof(BrainBlackboard)` anywhere in the goldens. ⇒
+**the only surviving `BrainBlackboard` is the dispatch type parameter the thunk body now IGNORES.**
+
+| shape | count | what happens |
+|---|---|---|
+| `BrainBlackboard,` *(type argument)* | 140 | ⭐ substitute |
+| `ref BrainBlackboard` | 44 | ⭐ substitute |
+| `Interpreter<BrainBlackboard` | 29 | ⭐ substitute |
+| `ActionRegistry<BrainBlackboard` | 28 | ⭐ substitute |
+| `<BrainBlackboard>` | 8 | ⭐ substitute |
+| `BrainBlackboard.` | 9 | ⚠ **all COMMENTS / `<see cref>`** — prose, `P4`-⑤ |
+| **total** | **356 lines / 124 files** | |
+
+#### 🔴🔴 THE ONE THING `G2` FOUND THAT WOULD HAVE BITTEN — **DO NOT TOUCH `BlackboardTypeName`**
+
+📐 26 shipped assets carry `"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard"`,
+and the emitters **mangle it into GENERATED IDENTIFIERS** — 📐 **11 distinct structs across 44 files**,
+e.g. `T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard`.
+
+⭐⭐ **But that struct is the asset's ROOT PARAMS LAYOUT, not the dispatch type:**
+
+```csharp
+public struct T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard
+{ public DemoCursorParams cursorA; public DemoCursorParams cursorB; public DemoCounterParams counter; }
+```
+
+⇒ ⛔⛔ **LEAVE THE ASSET FIELD ALONE.** Changing it to `byte`/`System.Byte` would ① rename 11 generated
+structs across 44 files, and ② change **`SubtreeSyncIdentity.Derive`**, whose inputs are **PERSISTED**
+*(`BehaviorTreeAssetDto:342`)* and which **matches subtrees by** `(SubtreeName, SubDtoTypeName,
+SubDtoTypeNs)` ⇒ **a silent subtree-matching break.** ⚠ `NsOf("byte")` is also `null`, flipping every
+one of them to a global-namespace type.
+
+⭐ **The cost of leaving it:** the generated struct keeps a name ending `…BrainBlackboard` after the type
+is gone — **cosmetically stale, functionally correct.** ⛔ Renaming it is a **separate, later** change
+with its own migration, not part of `P4`. *(A better name would drop the blackboard type entirely —
+it never belonged in a params-layout identifier.)*
+
+#### ⭐ `P4`-② — CLEARED, with this gate table
+
+| # | |
+|---|---|
+| **1** | change the **4** authored declarations + the **4** Blueprints-compiler lines |
+| **2** | ⛔ change the **3 runtime `typeof` filters IN THE SAME COMMIT** — the reflection hazard above |
+| **3** | change the typed seams: `BehaviorRegistry.cs:141` · `BTreeActionRegistryFactory.cs:35,39` · `AiHotReloadCoordinator.cs:412,427` · `BlueprintRegistrarScanner.cs:97` · `BTreeTickSystem.cs:123` |
+| **4** | ⚠ `HostedSubtree.Tick<TChildBb>` + `BTreeOrchestratorEmitCore.cs:151,182` — the second axis |
+| **5** | regenerate goldens; ⭐ **assert the diff is a PURE TYPE-NAME SUBSTITUTION** — ⛔ **any changed `(nint)` offset, any changed `@N` key, or any renamed `{Asset}_…` struct is a STOP** |
+| **6** | ⭐⭐ run the **zero-fallback rail** *(§30.10)* — it is the only thing that catches the silent reflection-filter break |
+
+⚠ **`G1`, `G4`, `G5` remain open** — ⭐ none blocks `P4`-②; they are effort-estimate and branch-coverage
+questions, not correctness gates.
 
 ### 30.15 ⭐⭐⭐ THE HEAVY-DTO CONCEPT IS GONE — **and the real size ceiling is ~16 KB, not 100 B**
 
