@@ -309,9 +309,10 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             if (!_behaviorRegistry.TryGetDefinition(dto.BehaviorId, out var def))
                 return static (_, _) => false;
 
-            Type? dtoType = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
-                ? def.HeavyDtoType
-                : def.BlackboardLayoutType;
+            // ⭐ CE-308: ONE resolver, shared with both field drawers — a drawer that offered a
+            //   property path this could not bind would produce a search that silently matches
+            //   nothing.
+            Type? dtoType = BehaviorParamSlotResolver.ResolveDtoType(def, dto.WorkingSlotKey);
             if (dtoType == null)
                 return static (_, _) => false;
 
@@ -322,17 +323,22 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
 
             Expression condition = BuildConditionExpression(fieldAccess, dto.Operator, dto.Predicate);
 
-            string methodName = dto.TargetBlackboard == BlackboardTarget.Blackboard1024
-                // ⭐ P4-①: one matcher now. The Heavy arm is gone with Blackboard1024 — and it was
-                //   already unreachable, because the HeavyDtoType guard above returns first.
+            // ⭐⭐ CE-308: TWO matchers, and they differ only in WHICH SLOT they resolve —
+            //   the root params slot (key computed from the behaviour) or a named working-state
+            //   slot. ⛔ The old pair differed in which COMPONENT they read, and one of them read a
+            //   component nothing filled.
+            string methodName = dto.WorkingSlotKey == BehaviorParamSlotResolver.RootParamsSlotKey
                 ? nameof(BuildBehaviorParamMatcherGenericBrain)
-                : nameof(BuildBehaviorParamMatcherGenericBrain);
+                : nameof(BuildBehaviorParamMatcherGenericWorkingSlot);
             var buildMethod = typeof(PredicateCompiler).GetMethod(
                 methodName,
                 BindingFlags.NonPublic | BindingFlags.Static)!;
             var genericBuild = buildMethod.MakeGenericMethod(dtoType);
-            return (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
-                null, new object[] { dto.BehaviorId, condition, param })!;
+            return dto.WorkingSlotKey == BehaviorParamSlotResolver.RootParamsSlotKey
+                ? (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
+                    null, new object[] { dto.BehaviorId, condition, param })!
+                : (Func<EntityRepository, Entity, bool>)genericBuild.Invoke(
+                    null, new object[] { dto.BehaviorId, dto.WorkingSlotKey, condition, param })!;
         }
 
         private static Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericBrain<TDto>(
@@ -363,6 +369,52 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
                     ref TDto projected = ref Unsafe.AsRef<TDto>(src);
                     return matcher(ref projected);
                 }
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-308</c> — matches against a behaviour's NAMED WORKING-STATE SLOT.</b>
+        ///
+        /// <para>🔴 <b>This is a capability the old "heavy" arm advertised and never delivered.</b>
+        /// It resolved through <c>HeavyDtoType</c>, which is <c>null</c> at every production site, so
+        /// the compiler returned <c>(_, _) =&gt; false</c> before reaching it. The working state it
+        /// meant to read is real now — it lives in an occurrence slot (<c>HillAttackMutableState</c>
+        /// is one) — and this reads it where it actually is.</para>
+        ///
+        /// <para>⚠ <b>TRY, never Require</b>, for the same reason as the root matcher: a search
+        /// predicate runs over every entity in a replay frame, and "this one has no such slot" is an
+        /// ordinary non-match, not a fault. ⛔ A loud accessor here would turn a browse into a crash.</para>
+        /// </summary>
+        private static unsafe Func<EntityRepository, Entity, bool> BuildBehaviorParamMatcherGenericWorkingSlot<TDto>(
+            int behaviorHash,
+            int slotKey,
+            Expression condition,
+            ParameterExpression dtoParam)
+            where TDto : unmanaged
+        {
+            var matcher = Expression.Lambda<BehaviorParamMatcherDelegate<TDto>>(condition, dtoParam).Compile();
+            int stateTypeId = ComponentTypeRegistry.GetId(typeof(BehaviorState));
+
+            return (repo, entity) =>
+            {
+                if (!repo.HasComponentByTypeId(entity, stateTypeId)) return false;
+
+                ref readonly var state = ref repo.GetComponentRO<BehaviorState>(entity);
+                if (state.ActiveBehaviorHash != behaviorHash) return false;
+
+                var spec = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Of(repo, entity);
+                if (spec == null) return false;
+
+                byte* mem = spec.MemoryReadOnly(repo, entity);
+                if (mem == null) return false;
+
+                if (!Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions
+                        .TryGetSlotOffset(mem, slotKey, out int payloadOffset))
+                    return false;
+                if (payloadOffset <= 0) return false;
+
+                ref TDto projected = ref Unsafe.AsRef<TDto>(mem + payloadOffset);
+                return matcher(ref projected);
             };
         }
 
@@ -484,13 +536,14 @@ namespace Fdp.Toolkit.ReplayBrowser.Search
             }
             else if (dto is BehaviorParamPredicateDto behaviorParam)
             {
+                // ⭐ CE-308: BehaviorState is the ONLY mandatory component. ⛔ BrainBlackboard was
+                //   listed here and neither matcher has read it since P3 — it is attached empty and
+                //   never filled (CE-312), so requiring it filtered replay entities on a component
+                //   that carries no information. The params and working state live in the entity's
+                //   occurrence store, whose TIER varies per entity and may be promoted, so there is
+                //   no single component type to demand — the matchers resolve it per entity.
                 if (!result.Contains(typeof(BehaviorState)))
                     result.Add(typeof(BehaviorState));
-                // ⭐ P4-①: one required component now — the Blackboard1024 arm is gone with its
-                //   component, and it was unreachable anyway (the HeavyDtoType guard returns first).
-                // ⚠ BlackboardTarget stays: CE-308 re-points its members in P4-③ (§30.14).
-                if (!result.Contains(typeof(BrainBlackboard)))
-                    result.Add(typeof(BrainBlackboard));
             }
             else if (dto is TraceBufferScanPredicateDto traceScan)
             {

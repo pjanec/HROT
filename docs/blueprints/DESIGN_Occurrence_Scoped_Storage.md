@@ -5143,3 +5143,74 @@ supply what the survivor needs?*
 
 `ProjectBufferAs(viewType, viewName, bufferOffset = 0)`. ⭐ One addend; StructEdit still learns nothing
 about slots, keys or partitioning, and every existing caller is unchanged by the default.
+
+---
+
+### 30.23 ⭐⭐⭐ `CE-308` AS BUILT — **the axis is a SLOT KEY, not a renamed enum** *(`2026-09-22`)*
+
+⛔⛔ **This SUPERSEDES §30.14's `BlackboardTarget` instruction** *("re-point the members; keep the
+axis")*. The instruction rested on a premise that measurement broke.
+
+#### 🔴 ① THE PREMISE THAT FAILED
+
+📐 §30.14 argued: *"deleting it would silently remove the ability to break on **working state** — a
+capability `Blackboard1024` used to provide and the occurrence store still does."*
+
+⛔ **It never provided it.** The `Blackboard1024` arm resolved through `HeavyDtoType`, which is `null`
+at every production site and in all 30 shipped assets *(§30.16 ⑥)*, and
+`PredicateCompiler.cs:312` returns `static (_, _) => false` the moment the DTO type is null. ⇒ **the
+branch short-circuited before it could ever run.** ⚠ *"The heavy arm never matched"* and *"there is
+nothing worth searching"* are different claims, and an earlier revision of this section slid from the
+first to the second in the opposite direction — asserting a capability existed because a branch
+named it.
+
+⭐⭐ **What IS true:** the storage it meant to read is real **now**. Working state lives in occurrence
+slots *(`HillAttackMutableState` is one)*. ⇒ **the capability is worth building — it has simply never
+existed.**
+
+#### ⛔⛔ ② WHY A RENAMED ENUM WAS THE WRONG SHAPE — **the user's question that settled it**
+
+> 🔒 **User, `2026-09-22`:** *"if there are two actions using its own working state the search would
+> not know which one was found, so it is usable for simple cases only, correct?"*
+
+📐 **Correct, and it is decisive.** A two-member enum names a **REGION**. A behaviour with two
+stateful actions has **two** working-state regions, and the enum cannot say which. ⇒ the interim
+proposal *(resolve only when a behaviour has exactly ONE typed slot, refuse otherwise)* would have
+**refused precisely the behaviours most worth searching**.
+
+⭐⭐⭐ **The fix the question implies: the axis is the SLOT KEY.** Occurrence storage keys root params
+and every working state in **one key space** ⇒ *"which region does this predicate read?"* has exactly
+one honest answer shape, and it is a key.
+
+| | |
+|---|---|
+| **before** | `BlackboardTarget TargetBlackboard` — an enum of two **component** names, one of which never worked |
+| **after** | `int WorkingSlotKey` — `0` = the behaviour's root params slot; anything else = that `StatefulSlotInfo.SlotKey` |
+
+⚠ `0` is a safe sentinel: a real slot key is an FNV hash, the allocator never issues `0`, and the
+root key is **computed** from the behaviour hash rather than stored.
+
+#### ⭐⭐ ③ THE DUPLICATE THAT WAS ROUTED, NOT COPIED
+
+📐 **Three callers carried the same expression verbatim** — `PredicateCompiler`,
+`PropertyPathFieldDrawer`, `PredicateValueFieldDrawer` — in **two assemblies**:
+`target == Blackboard1024 ? def.HeavyDtoType : def.BlackboardLayoutType`.
+
+⇒ ⭐ **`BehaviorParamSlotResolver` is now the one answer to both halves** — *"what type does this slot
+hold?"* and *"what slots may be chosen?"*
+
+🔒 **Why sharing it is load-bearing rather than tidy:** the drawers decide what a user may PICK; the
+compiler decides what can be BOUND. ⛔ **If they disagree the user builds a search that compiles to
+`(_, _) => false` and silently matches nothing** — the same silent-wrong-answer shape as `CE-312`.
+⭐ One resolver makes that **impossible** rather than unlikely, and the rail asserts it directly:
+*every choice offered resolves to the type the compiler would bind.*
+
+#### ⭐ ④ THE REST OF THE AS-BUILT
+
+| | |
+|---|---|
+| **the new matcher** | `BuildBehaviorParamMatcherGenericWorkingSlot<TDto>` — resolves the entity's tier, finds the slot by key, projects. ⚠ **TRY, never Require**: a predicate runs over every entity in a frame, so *"no such slot"* is an ordinary non-match. ⛔ A loud accessor would turn a browse into a crash |
+| **`CollectMandatoryComponents`** | now `BehaviorState` **alone**. ⛔ `BrainBlackboard` was listed and neither matcher has read it since `P3` ⇒ it filtered replay entities on a component that carries no information *(`CE-312`)*. ⚠ There is no tier component to demand instead — the tier varies per entity and may be promoted, so the matchers resolve it per entity |
+| **the picker** | `WorkingSlotFieldDrawer` lists root params + each typed slot by label and scope. ⛔ Untyped slots are **omitted** — a property path cannot bind against an untyped region, so offering one would offer a search that cannot compile |
+| ⚠ **an `int` router** | `ComponentEditDrawer` keys drawers by TARGET TYPE, one per `Type`, and `int` now needs two pickers. ⭐ `IntPickerRouterFieldDrawer` dispatches on the attribute, keeping each picker single-purpose |
+| ⚠ **the suite had NO behaviour-param coverage at all** | 📐 `PredicateCompilerTests` carried none before this. ⇒ the whole path — enum, heavy arm, mandatory components — was unrailed, which is how a permanently-false branch survived |

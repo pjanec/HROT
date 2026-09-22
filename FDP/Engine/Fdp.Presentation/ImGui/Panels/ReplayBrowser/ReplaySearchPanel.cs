@@ -258,7 +258,12 @@ public sealed class ReplaySearchPanel
         var drawers = new Dictionary<Type, IImGuiFieldDrawer>
         {
             [typeof(BoundingBox2D)] = new BoundingBoxFieldDrawer(),
-            [typeof(int)]           = new BehaviorHashFieldDrawer(_behaviorRegistry),
+            // ⭐ CE-308: int now has TWO pickers — the behaviour-hash combo and the occurrence
+            //   SLOT combo — and ComponentEditDrawer allows one drawer per type, so they are
+            //   routed on their attributes.
+            [typeof(int)]           = new IntPickerRouterFieldDrawer(
+                                          new WorkingSlotFieldDrawer(session, _behaviorRegistry),
+                                          new BehaviorHashFieldDrawer(_behaviorRegistry)),
             [typeof(Type)]          = new FilteredTypeComboFieldDrawer(typeMode),
             [typeof(string)]        = new PropertyPathFieldDrawer(session, _behaviorRegistry),
             [typeof(SearchPredicateDto)] = new PredicateValueFieldDrawer(session, _behaviorRegistry),

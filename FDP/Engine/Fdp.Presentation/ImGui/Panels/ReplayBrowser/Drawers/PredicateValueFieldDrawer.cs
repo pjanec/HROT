@@ -195,13 +195,14 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
         if (parentNode == null)
             return null;
 
-        BlackboardTarget targetBlackboard = BlackboardTarget.BrainBlackboard;
+        // ⭐ CE-308: which occurrence SLOT the sibling selector names (0 = root params).
+        int workingSlotKey = BehaviorParamSlotResolver.RootParamsSlotKey;
         foreach (EditNode child in parentNode.Children)
         {
-            if (child.Name == nameof(BehaviorParamPredicateDto.TargetBlackboard)
-                && child.Binding?.GetBoxed() is BlackboardTarget selectedTarget)
+            if (child.Name == nameof(BehaviorParamPredicateDto.WorkingSlotKey)
+                && child.Binding?.GetBoxed() is int selectedSlot)
             {
-                targetBlackboard = selectedTarget;
+                workingSlotKey = selectedSlot;
                 break;
             }
         }
@@ -219,9 +220,8 @@ internal sealed class PredicateValueFieldDrawer : IImGuiFieldDrawer
                     && hash != 0
                     && _behaviorRegistry.TryGetDefinition(hash, out var def))
                 {
-                    return targetBlackboard == BlackboardTarget.Blackboard1024
-                        ? def.HeavyDtoType
-                        : def.BlackboardLayoutType;
+                    // ⭐ The SAME resolver the compiler binds through — see CE-308.
+                    return BehaviorParamSlotResolver.ResolveDtoType(def, workingSlotKey);
                 }
             }
         }
