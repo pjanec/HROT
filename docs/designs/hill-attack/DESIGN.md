@@ -156,12 +156,12 @@ Four translator classes in `Hrot.Network.NED`, mirroring the pathfinding transla
 ## Phase 2: Hill Attack Data Contracts
 
 **Goal:** Define the unmanaged DTOs that govern both behaviors' memory layouts, fitting
-all static configuration within the 60-byte root params occurrence slot
+all static configuration within the behaviour's root params occurrence slot
 and all mutable working state into a node working-state occurrence slot in the Blueprint tier ladder.
 
 ### 2.1 Commander DTOs
 
-**`PlatoonHillAttackParams`** (52 bytes, fits in 60-byte param region):
+**`PlatoonHillAttackParams`** (52 bytes):
 - Firing line segment: `StartX`, `StartY`, `EndX`, `EndY` (16 bytes).
 - Baseline segment: `BaselineStartX`, `BaselineStartY`, `BaselineEndX`, `BaselineEndY`
   (16 bytes).
@@ -199,7 +199,7 @@ a 16-subordinate platoon).
 
 ### 2.2 Subordinate Tank DTOs
 
-**`HullDownAttackParams`** (40 bytes, well within 60-byte param region):
+**`HullDownAttackParams`** (40 bytes):
 - Firing slot: `SlotX`, `SlotY` (8 bytes).
 - Baseline slot: `BaselineX`, `BaselineY` (8 bytes).
 - Attack direction: `AttackDirX`, `AttackDirY` (8 bytes).
@@ -500,7 +500,7 @@ Responsibilities:
 3. Compute `AttackDir` as the left-hand perpendicular of the normalized firing line vector.
 4. Resolve `TargetAreaNetworkId` to a local ECS entity via `NetworkEntityMap`
    (writes `Entity.Null` on failure; does not throw).
-5. Write the fully populated `PlatoonHillAttackParams` directly to the 60-byte blackboard
+5. Write the fully populated `PlatoonHillAttackParams` directly to the root params slot
    memory region via `Unsafe.Write(ptr, p)`.
 
 ### 6.3 Registry Binding

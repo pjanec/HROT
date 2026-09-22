@@ -211,7 +211,7 @@ public sealed record AssetMetadataBlock(
     AssetKind Kind,
     Guid AssetId,
     string SourceFilePath,
-    IReadOnlyList<string> CompanionFiles,    // e.g., .Blackboard.cs, .HeavyBlackboard.cs
+    IReadOnlyList<string> CompanionFiles,    // e.g., .Blackboard.cs, .Orchestrators.g.cs
     DateTime? LastModifiedTimestamp);
 ```
 
@@ -360,7 +360,7 @@ Plus the cross-asset reference is humanized inline (`// -> Shoot_BT (BTree)`). T
 
 ### 3.4 Blackboard DTO sanitization
 
-A blackboard asset may be one or two files: the inline `.Blackboard.cs` and optionally `.HeavyBlackboard.cs` when the bin-packer overflowed the 100-byte inline budget. Both files together describe the asset's data layout.
+A blackboard asset is a single `.Blackboard.cs` — `CE-314` removed the inline/heavy split, so there is no companion file and no overflow past the inline budget. Both files together describe the asset's data layout.
 
 The sanitizer:
 
@@ -368,7 +368,7 @@ The sanitizer:
 2. **Reads each file's content.** Blackboard files are structurally simple — a partial struct with field declarations and `///` XML doc comments. The sanitizer can pass the content through nearly verbatim.
 3. **Preserves comments natively** — `///` blocks above fields are already canonical C# documentation; no hoisting needed (unlike BTree/HSM where comments are in the layout method).
 4. **Optionally strips `[StructLayout]` and other struct-level attributes** — these are emit details, not semantic content. For Phase 1, we keep them — they're concise and they make the file self-explanatory.
-5. **Emits both files as a labeled concatenation**: "// === Inline blackboard ===" followed by the inline file's content; if heavy exists, "// === Heavy blackboard (overflow) ===" followed by the heavy file's content. This makes it obvious to the LLM that the two files are facets of one asset.
+5. **Emits the blackboard file's content** under a "// === Blackboard ===" label.
 
 If only the inline file exists in version A but both files exist in version B, the LLM sees one section in A and two in B — making it obvious that a variable crossed the heavy threshold.
 
@@ -497,9 +497,9 @@ Asset kinds vary in how many files form one asset:
 
 | Asset Kind | Main File | Companion Files (auto-discovered) |
 |---|---|---|
-| BTree | `{Name}_BT.cs` | `{Name}_BT.Blackboard.cs`, `{Name}_BT.HeavyBlackboard.cs`, `{Name}_BT.Orchestrators.g.cs` |
-| HSM | `{Name}_HSM.cs` | `{Name}_HSM.Blackboard.cs`, `{Name}_HSM.HeavyBlackboard.cs`, `{Name}_HSM.Orchestrators.g.cs` |
-| Blackboard | `{Name}.Blackboard.cs` | `{Name}.HeavyBlackboard.cs` |
+| BTree | `{Name}_BT.cs` | `{Name}_BT.Blackboard.cs`, `{Name}_BT.Orchestrators.g.cs` |
+| HSM | `{Name}_HSM.cs` | `{Name}_HSM.Blackboard.cs`, `{Name}_HSM.Orchestrators.g.cs` |
+| Blackboard | `{Name}.Blackboard.cs` | — |
 | Blueprint | `{Name}.bp.json` | (none) |
 
 When the user picks the main file of one version, the editor automatically searches the same directory for companion files by naming convention. Each found companion is sanitized and included in the export. Missing companions are noted in the version's metadata block ("`{Name}_BT.HeavyBlackboard.cs`: not present in this version").
@@ -660,7 +660,6 @@ ASSET ID:         f7c0a1b2-1188-4c5d-9e3a-7b6c5d4e3f21
 SOURCE PATH:      /Users/sam/project/AI/Combat/OrcGuard_BT.cs
 LAST MODIFIED:    2026-01-14 11:23:08 UTC
 COMPANION FILES:  OrcGuard_BT.Blackboard.cs (present)
-                  OrcGuard_BT.HeavyBlackboard.cs (not present)
                   OrcGuard_BT.Orchestrators.g.cs (present)
 ```
 
@@ -672,7 +671,7 @@ If a file's timestamp can't be read (e.g., user supplied raw text content), LAST
 
 ### 4.4 The sanitized content section
 
-After the metadata block and the `--- COMPANION FILES ---` marker, the sanitized content of each file appears in order: main file first, then each companion file in a stable order (Blackboard, HeavyBlackboard, Orchestrators).
+After the metadata block and the `--- COMPANION FILES ---` marker, the sanitized content of each file appears in order: main file first, then each companion file in a stable order (Blackboard, Orchestrators).
 
 Each file's content is preceded by a one-line file header:
 
@@ -1133,7 +1132,7 @@ Per `HSM_Editor_NodeEditor_Host_Design.md`:
 
 Per `Blackboard_Authoring_Detailed_Design.md`:
 
-- **`BlackboardComparisonSanitizer : IAssetComparisonSanitizer`** — implements §3.4 (read inline + heavy files, concatenate with labels). Since blackboard files don't have a layout-method or EditorMetadata equivalent, the sanitizer is the simplest of the four.
+- **`BlackboardComparisonSanitizer : IAssetComparisonSanitizer`** — implements §3.4 (read the blackboard file, concatenate with labels). Since blackboard files don't have a layout-method or EditorMetadata equivalent, the sanitizer is the simplest of the four.
 - The Variables panel's renderer integration — variable rows get the severity outline and `↻ ➕ ➖` badges when the panel's asset has an active comparison.
 
 For Blueprint (assumed to be its own design doc which this DD doesn't author):
@@ -1173,10 +1172,10 @@ Acceptance: given two BTree `.cs` files (real fixtures from the test project), t
 ### Slice C-2 — HSM and Blackboard sanitizers
 
 - **TASK-C-05** — `HsmComparisonSanitizer` with comment-hoist for layout method, region/state stableId preservation.
-- **TASK-C-06** — `BlackboardComparisonSanitizer` (inline + heavy concatenation).
+- **TASK-C-06** — `BlackboardComparisonSanitizer` (single blackboard file).
 - **TASK-C-07** — Unit tests per sanitizer.
 
-Acceptance: HSM `.cs` files and Blackboard `.cs` files (inline + heavy) both sanitize deterministically. Comments are preserved (XML `///` for blackboards, hoisted `//` for HSM layout-method comments).
+Acceptance: HSM `.cs` files and Blackboard `.cs` files both sanitize deterministically. Comments are preserved (XML `///` for blackboards, hoisted `//` for HSM layout-method comments).
 
 ### Slice C-3 — Blueprint sanitizer
 
@@ -1248,7 +1247,7 @@ Acceptance: removed nodes appear as faded ghosts on the canvas with clickable be
 
 - **`BTreeComparisonSanitizerTests`** — fixtures cover: empty asset, asset with only one node, asset with deep nesting, asset with all comment placements, asset with expression targets, asset with no `[BTreeLayout]` method, malformed file (graceful failure), **asset with Subtree node and Approach B sync bindings (verifies sync-binding hoist as `// sync (in|out|both):` comments above the Subtree call with ASCII arrows), asset with Subtree node referencing another asset by GUID (verifies asset-GUID humanization via mock `IAssetCatalog`), asset with Subtree referencing a GUID not in the catalog (verifies graceful `(asset not found in catalog)` fallback)**.
 - **`HsmComparisonSanitizerTests`** — fixtures cover: simple state machine, machine with parallel regions, machine with global transitions, machine with comments on transitions and regions, **machine hosting a sub-BTree via orchestrator with sync bindings (same hoist verification as BTree)**.
-- **`BlackboardComparisonSanitizerTests`** — fixtures cover: inline-only, inline + heavy, blackboard with only read-only-passthrough fields, blackboard with XML doc comments, blackboard with no comments.
+- **`BlackboardComparisonSanitizerTests`** — fixtures cover: a blackboard with only read-only-passthrough fields, blackboard with XML doc comments, blackboard with no comments.
 - **`BlueprintComparisonSanitizerTests`** — fixtures cover: simple blueprint, blueprint with multiple graphs, blueprint with all node kinds, blueprint with deep EditorMetadata pollution, **blueprint with per-node Comments in EditorMetadata (verifies comments are hoisted to top-level node property and the position keys are stripped), blueprint with CanvasComments in graph-level EditorMetadata (verifies hoist as `_canvasComments` array with Text preserved and position stripped), blueprint with `CallPeerBlueprint` node (verifies `_targetName` annotation added via mock `IAssetCatalog`), blueprint with full `$meta` envelope (verifies `docType` and `schemaVersion` preserved, `engineVersion` / `createdBy` / `createdUtc` stripped via injected `IMetaEnvelopeSanitizer`), blueprint at schema v3 with injected migration adapter that up-migrates to v4 (verifies migration runs before sanitization; both versions exit with `schemaVersion=4`)**.
 - **`SanitizationDeterminismTests`** — for each sanitizer: run sanitization twice on the same input, verify byte-identical output. Run on shuffled DOM input (Blueprint), verify the sort produces stable output regardless of input ordering. **For Blueprint: verify the no-op migration adapter and no-op meta sanitizer pass DOMs through unchanged (regression test for the default DI bindings).**
 - **`ComparisonExportBuilderTests`** — assembles expected output given mock sanitized content; verifies separator placement, metadata block format, instruction block contents. **Includes a fixture where the migration adapter reports migration occurred; verifies the summary panel notice ("Version A migrated from schema v3 to v4...") appears in the prose section's leading lines.**

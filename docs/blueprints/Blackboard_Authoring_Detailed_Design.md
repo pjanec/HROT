@@ -1147,7 +1147,7 @@ public enum BlackboardDiagnosticCode
     UnboundActionNode,           // Action node with null ExpressionTargetField
     UnboundSubTreeRequirement,   // Subtree has unresolved DTO requirement
     CrossRegionBlackboardConflict, // §9
-    InlineMemoryExceeded,        // Master vars exceed 100B
+    InlineMemoryExceeded,        // Master vars exceed the largest tier's payload
     DuplicateAliasAcrossRegions, // §7.7
 }
 ```

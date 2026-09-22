@@ -23,8 +23,8 @@ Tier capacities (verified):
 
 | Tier | MaxSlots | Payload bytes |
 |---|---|---|
-| `BlueprintBlackboard1024` | 4 | 928 |
-| `BlueprintBlackboard4096` | 8 | 3936 |
+| `BlueprintBlackboard1024` | 12 | 800 |
+| `BlueprintBlackboard4096` | 16 | 3808 |
 | `BlueprintBlackboard16384` | 16 | 16096 |
 
 ---
@@ -141,7 +141,7 @@ is only for persistence; load is what makes a saved scenario a repeatable test f
 
 ## 5. Tier pre-provisioning (avoid mid-tick upgrades)
 
-"Largest-first" is insufficient (4 × 300-byte blueprints = 1200 > 928 → forces a 1024→4096 upgrade mid-load). The
+"Largest-first" is insufficient (3 × 300-byte blueprints = 900 > 800 → forces a 1024→4096 upgrade mid-load). The
 materializer **pre-computes aggregate requirements** and provisions the correct tier up front:
 
 - Sum `StateSize` over valid defs **and** count them; pick the smallest tier satisfying **both** the slot count and
@@ -306,7 +306,7 @@ defers all structural mutation to **Apply**. Wireframe:
 ┌ Entity Blueprints ──────────────────────────────────────────┐
 │ Target: [42,v1] (OrcGuard)            Sim: [ RUNNING ]       │
 │ Active Tier: BlueprintBlackboard1024                         │
-│ Projected Usage: 3 / 4 Slots  |  650 / 928 Bytes            │
+│ Projected Usage: 3 / 12 Slots |  650 / 800 Bytes            │
 ├──────────────────────────────────────────────────────────────┤
 │ [ + Add Blueprint... ▾ ]                                     │
 │  Blueprint          Status     Size   Action                 │

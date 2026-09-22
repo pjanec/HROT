@@ -951,8 +951,8 @@ against a test fixture:**
 |---|---|
 | the panel offers `subAsset.BlackboardVariables` and refuses without them | `ParameterSyncSource.ModelFor:219` |
 | corpus split — **managed ⟺ has variables** | **15** managed *(all with variables)* · **11** not *(all without)*, no mixed case |
-| ⇒ ⭐ **the panel can only author against a Category-2 callee** | its params live in the root params occurrence slot, still capped at **100 bytes** by the compile-time analyzer (`DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15) |
-| ⛔ the master's inline budget is **100 bytes** | ⇒ **the generator skips every such asset** with a `BTREE0002` |
+| ⇒ ⭐ **the panel can only author against a Category-2 callee** | its params live in the root params occurrence slot, bounded by the largest tier's payload via the compile-time analyzer (`DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15) |
+| ⛔ the master's params budget is the largest tier's payload | ⇒ **the generator skips every such asset** with a `BTREE0002` |
 
 ⇒ 🔴 **the authorable set and the emittable set are DISJOINT today.** ⭐ 📄 The full measurement, the three
 candidate routes and the user's decision to postpone live in

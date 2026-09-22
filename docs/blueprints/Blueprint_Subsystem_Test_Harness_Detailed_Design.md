@@ -1293,8 +1293,9 @@ private void EnsureTierComponent(Entity entity, BlackboardTier tier)
 private static BlackboardTier ChooseTier(int stateSize)
     => stateSize switch
     {
-        <= 928 => BlackboardTier.B1024,
-        <= 3936 => BlackboardTier.B4096,
+        <= 176  => BlackboardTier.B256,
+        <= 800  => BlackboardTier.B1024,
+        <= 3808 => BlackboardTier.B4096,
         _ => BlackboardTier.B16384,
     };
 ```

@@ -898,7 +898,7 @@ public unsafe struct BlueprintBlackboard1024
     public const int HeaderSize = 32;
     public const int MaxSlots = 4;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 64
-    public const int PayloadSize = TotalSize - HeaderSize - SlotTableSize; // 928
+    public const int PayloadSize = TotalSize - HeaderSize - SlotTableSize; // 800
 
     public fixed byte Memory[TotalSize];
 }
@@ -911,7 +911,7 @@ public unsafe struct BlueprintBlackboard4096
     public const int HeaderSize = 32;
     public const int MaxSlots = 8;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 128
-    public const int PayloadSize = TotalSize - HeaderSize - SlotTableSize; // 3936
+    public const int PayloadSize = TotalSize - HeaderSize - SlotTableSize; // 3808
 
     public fixed byte Memory[TotalSize];
 }

@@ -91,8 +91,8 @@ section. ⛔ **No new variable owner is needed.**
 | **the root params occurrence slot** | ⭐ **one params struct, for one occurrence** — keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`, computed, never stored | up to **16 096 B** (the largest tier's payload), enforced structurally by the partition allocator |
 | `BrainInterrupts` component | ⭐ **entity facts** — `ExpectedThreatLevel`, 2 interrupts | ⛔ **unrelated to params** |
 | node working-state occurrence slots (`BlueprintBlackboard{256,1024,4096,16384}` tier ladder) | AiPrimitive / shared-AI **state**, keyed `{fqn}@{offset}@{slotKey}` | shares the tier's payload (row below) |
-| `BlueprintBlackboard{256,1024,4096,16384}` | ⭐ **Instance state — the allocator**: header 32 + slot table 4×16 + payload | **928 / 3936 / 16368 B** |
-| a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded |
+| `BlueprintBlackboard{256,1024,4096,16384}` | ⭐ **Instance state — the allocator**: header 32 + slot table (3/12/16/16)×16 + payload | **176 / 800 / 3808 / 16096 B** |
+| a managed extra component | `[SharedAiHeavyAction]` managed state | unbounded |
 
 ⭐ **All are `[DataPolicy(NoScenario)]`** ⇒ nothing here is serialised; **inputs are re-supplied at every
 activation.** ⇒ **the tier question is about ADDRESSING, never persistence.**

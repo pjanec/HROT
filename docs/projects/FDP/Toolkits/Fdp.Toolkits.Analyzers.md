@@ -345,8 +345,8 @@ Recognized attributes (all from `Fbt.Kernel` namespace):
   Key: `"{FQN}@{offset}"`.
 
 - **SharedAiHeavy**: additionally fetches a second ECS component (`heavyCompType`).
-  Managed heavy components: fetched with `GetComponent<T>` (class reference).
-  Unmanaged heavy components: fetched with `GetComponentRW<T>` then reinterpreted with
+  Managed extra components: fetched with `GetComponent<T>` (class reference).
+  Unmanaged extra components: fetched with `GetComponentRW<T>` then reinterpreted with
   `Unsafe.As` to `heavyDtoType`.
 
 Filtering:
@@ -560,7 +560,7 @@ None.  The project is intentionally self-contained.  It must not reference any F
 assembly (which targets `net8.0`) because the analyzer runs inside the Roslyn compiler host,
 which may use a different runtime.
 
-This is why `MaxBehaviorParamByteSize` (100) and the struct-layout math are duplicated inside
+This is why `MaxRootParamsByteSize` (16 096) and the struct-layout math are duplicated inside
 the analyzer rather than pulled from `Fdp.Toolkits`.
 
 ### Target framework

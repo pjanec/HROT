@@ -196,7 +196,7 @@ noted. All are named constants in code (cite shown).
 | `UnitRoster` subordinates / commander | **16** | assignment rejected + event | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:32` |
 | Squad contact pool / role-slot members | **16** | lowest-threat evicted / OOB if exceeded | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs:128-134` |
 | Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:348-357` |
-| Blueprint Instance variable tiers | **928 / 3936 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
+| Blueprint Instance variable tiers | **176 / 800 / 3808 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
 | Tuning piecewise curve control points | **64** | truncated + warn | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning/TuningRegistry.cs:19` |
 | `DebugPrimitive` struct | **64 B** (one cache line) | overflow / payload aliasing | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs:16` |
 | Debug-draw buffer / persistent | **4096 / 256 slots** | `DroppedCount++`, discarded | `FDP/Diagnostics/Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:13-15` |

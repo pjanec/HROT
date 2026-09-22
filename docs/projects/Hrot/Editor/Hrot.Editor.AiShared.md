@@ -902,7 +902,7 @@ public enum BlackboardDiagnosticCode
     UnboundActionNode,            // Error: action/condition node with null ExpressionTargetField
     UnboundSubTreeRequirement,    // Warning: sub-tree DTO requirement not aliased or promoted
     CrossRegionBlackboardConflict, // Warning: concurrent writes to same variable across parallel regions
-    InlineMemoryExceeded,         // Error: master variables exceed 100 B inline budget
+    InlineMemoryExceeded,         // Error: master variables exceed the largest tier's payload
     DuplicateAliasAcrossRegions,  // Error: same variable aliased by sub-trees in concurrent regions
 }
 ```

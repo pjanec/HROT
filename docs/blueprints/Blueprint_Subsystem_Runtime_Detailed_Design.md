@@ -522,8 +522,8 @@ The total size is the entire component, including header, slot table, and payloa
 
 | Tier | Total | Header | Slot table | Payload | MaxSlots |
 |---|---|---|---|---|---|
-| 1024 | 1024 | 32 | 64 | 928 | 4 |
-| 4096 | 4096 | 32 | 128 | 3936 | 8 |
+| 1024 | 1024 | 32 | 192 | 800 | 12 |
+| 4096 | 4096 | 32 | 256 | 3808 | 16 |
 | 16384 | 16384 | 32 | 256 | 16096 | 16 |
 
 ### 4.2 Tier component definitions
@@ -540,7 +540,7 @@ public unsafe struct BlueprintBlackboard1024
     public const int MaxSlots      = 4;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 64
     public const int PayloadStart  = HeaderSize + SlotTableSize;                              // 96
-    public const int PayloadSize   = TotalSize - PayloadStart;                                // 928
+    public const int PayloadSize   = TotalSize - PayloadStart;                                // 800
 
     public fixed byte Memory[TotalSize];
 }
@@ -554,7 +554,7 @@ public unsafe struct BlueprintBlackboard4096
     public const int MaxSlots      = 8;
     public const int SlotTableSize = MaxSlots * BlueprintBlackboardPartitions.SlotEntrySize; // 128
     public const int PayloadStart  = HeaderSize + SlotTableSize;                              // 160
-    public const int PayloadSize   = TotalSize - PayloadStart;                                // 3936
+    public const int PayloadSize   = TotalSize - PayloadStart;                                // 3808
 
     public fixed byte Memory[TotalSize];
 }

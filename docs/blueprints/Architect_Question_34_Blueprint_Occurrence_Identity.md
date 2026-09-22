@@ -40,7 +40,7 @@
 |---|---|
 | `BlueprintSlotEntry` | `int BlueprintId(4) · uint InstanceVersion(4) · ushort PayloadOffset(2) · ushort PayloadSize(2) · uint StructureHash(4)` = ⭐ **exactly 16, no padding, no spare bit** |
 | `SlotEntrySize` | `= 16`, a **public const** used by all three tier components and by `Migrate` |
-| tiers | `1024`/`4096`/`16384` ⇒ **MaxSlots 4 / 8 / 16**, slot tables **64 / 128 / 256**, payload **928 / 3936 / 16096** |
+| tiers | `256`/`1024`/`4096`/`16384` ⇒ **MaxSlots 3 / 12 / 16 / 16**, slot tables **48 / 192 / 256 / 256**, payload **176 / 800 / 3808 / 16096** |
 | ⛔ `BlueprintBlackboardHeader.Reserved` (8 B, unused) | ⛔ **wrong granularity** — the header is **per entity-tier**; one entity hosts many slots |
 | ⛔ `InstanceVersion` | ⛔ **taken** — the latent-cursor staleness token *(bumped on hard reload, compared against `BlueprintLatentCursor.InstanceVersion`)* |
 | `StructureHash` in the entry | already *"truncated from ulong to fit the 16-byte slot-entry budget"* ⇒ ⭐ **the budget has been binding once already** |
