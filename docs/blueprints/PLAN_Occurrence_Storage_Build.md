@@ -168,7 +168,7 @@ if (freshlyAttached) {
 | ⚠ **so `P3` SPLITS the arm, it does not delete it** | ⭐ the seed copy becomes an eager scatter; ⛔ the `TryRun` stays exactly where it is. ⚠ **A `P3` that removes the whole arm silently disables every hosted resolver** *(`E8a`, `Q41-C1′`)* — no diagnostic, params just stop being refined |
 
 ⭐ **This is also where `E8c` meets `P3`, and they do NOT conflict:** `E8c`'s per-variable `TryRun` runs at **ingress**, inside `__parseParams`, above the scatter. ⇒ **`E8c` = how params get their value · `P3` = where the value is stored · ② = the per-occurrence refinement that needs the host.** Three layers, one order.
-| **`P4`** ⭐⭐⭐ **RETIRE IT — no true need was found** | delete `BrainBlackboard`; the BTree action's blackboard type parameter goes with it | 🔴 **its one real design question is below** | ⛔ open, after `P3` |
+| **`P4`** ⭐⭐⭐ **RETIRE IT — no true need was found** | delete `BrainBlackboard` **and `Blackboard1024`**; ⛔⛔ ~~the BTree action's blackboard type parameter goes with it~~ — **SUPERSEDED `2026-09-22` by a user ruling: the type parameter STAYS and is BOUND TO `byte`, pointing at the root slot's memory.** 📐 Measured: the FastBTree kernel has **zero** by-value or sized uses of `TBlackboard`, and `where TBlackboard : struct` admits `byte` ⇒ **no `ExtDeps` change at all** | ⭐ **DESIGNED — 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30**, three slices, with UML | ⛔ open, after `P3` *(`P3` is DONE and validated — `CE-304` closed `2026-09-22`)* |
 
 #### ⭐⭐⭐ THE THREE "HOLDS" WERE TESTED FOR A **NEED** AND NONE SURVIVED *(user ruling, `2026-09-21`)*
 
@@ -213,7 +213,7 @@ one was wrong** *(`BP-306`)*. ⭐ **Change it in that ONE home** and the adapter
 |---|---|
 | ⭐ **the RAIL** *(a)* | **`P1`** — one asset edit, no new C#, no tripwire tripped. ⭐⭐ **Then `P2` makes it a HAND-AUTHORED action**, which is the full form of the requirement |
 | ⭐ **the PARAMS UNIFICATION** *(b)* | **`P3`** — **28 files / 60 refs**, no declined prerequisite, no unowned design question. ⛔ **It does NOT depend on `O8`**, and `P3a` is gone. ⚠ **`P2` should land first** so the curated path is already on the seam when the root joins it |
-| ⭐⭐ **RETIREMENT** *(b, completed)* | **`P4`** — ⭐ **the struct is EMPTY after `P3`**, and the design call is **SETTLED**: the action is handed its DTO *(user ruling)*, which is already how every `[SharedAiAction]` body works. ⇒ **no hand-written body changes semantically**; the work is the **generated adapters** + `BlackboardParamsExpression` + the `ActionRegistry<…>` type parameter, plus 4 unused parameters dropped. ⛔ **No true need was found to keep the component** |
+| ⭐⭐ **RETIREMENT** *(b, completed)* | **`P4`** — ⭐ **the struct is EMPTY after `P3`**, and the design call is **SETTLED**: the action is handed its DTO *(user ruling)*, which is already how every `[SharedAiAction]` body works. ⇒ **no hand-written body changes semantically**; the work is the **generated adapters** + `BlackboardParamsExpression` + the `ActionRegistry<…>` **type ARGUMENT** *(⚠ `BrainBlackboard` → `byte`; ⛔ an earlier wording said the type PARAMETER is removed — **SUPERSEDED**, §30.9)*, plus 4 unused parameters dropped. ⛔ **No true need was found to keep the component** |
 
 ---
 

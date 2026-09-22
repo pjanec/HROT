@@ -10,6 +10,10 @@ current-answer: ✅ READ §29.12 FIRST (2026-09-22). CE-304's MECHANISM IS FOUND
   found in the same sweep. ✅ RE-VALIDATED ON A LIVE CLUSTER: §29.12a records 2/2 gold at the fixed
   HEAD (both targets dead, all four members home), so the gate line below ("THE GOLDEN TEST IS
   GREEN") is TRUE AGAIN AT HEAD and P4 is UNPARKED.
+  ⭐⭐ NEXT TO BUILD: §30 — P4 re-scoped 2026-09-22 on two user rulings. TBlackboard is BOUND
+  TO byte (no FastBTree change) and StructEdit takes an offset (no new view API), so BOTH
+  ExtDeps changes P4 was carrying are GONE. §30.9 lists what it supersedes in the PLAN and
+  in RESUME_Occurrence_Storage §0c.
   ⭐ Then §16 — the READY-TO-PLAN checklist (settled / measured / still open, and
   the corrected dispatch order). §4 is the ExtDeps justification; §6 is the sequence.
   ⭐ §15 is the LIVE-RUN record and it OVERTURNS two earlier claims — read it before quoting §3.2's
@@ -4192,3 +4196,205 @@ EXTENT"*** — met on the one path that carried an extent at all. ⭐ Fixed by a
 `RootParamsAccess.RequireRootBytes(world, self, out int length)`; the emitter passes the slot's own
 guard. ⚠ **Latent, not the live cause** — the hill-attack brains are BTree and host no HSM occurrence —
 which is why it is a separate id.
+
+---
+
+## 30. ⭐⭐⭐ `P4` — **RETIRE `BrainBlackboard` AND `Blackboard1024`** *(DESIGN, `2026-09-22`)*
+
+> **`build-state: READY-TO-BUILD`.** 📄 Supersedes the `P4` framing in
+> [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md) § "THE PATH" — see §30.9.
+
+### 30.0 🔒 THE TWO RULINGS THAT RE-SCOPED IT *(user, `2026-09-22`)*
+
+> ⭐⭐⭐ **On the BTree type parameter:** *"Regarding btree now referencung brainblackboard, cant we
+> simply pass byte reference instead, pointing to the slot's memory region?"*
+>
+> ⭐⭐⭐ **On StructEdit:** *"Struct edit hardly needs fixing. It should now nothing about the dto is
+> inside some ither structure. The thunk calling it should provide the DTO struct reference,
+> calculated from the offset within the blueprintblackboard component."*
+
+⇒ ⭐⭐ **Both remove an `ExtDeps` change this plan had been carrying.** The first retires
+*"drop `TBlackboard` from `Interpreter`/`ActionRegistry`/`ITreeRunner`"* — **the parameter stays and is
+bound to `byte`.** The second retires *"StructEdit needs a sub-range view API"* — ⛔ **it already
+projects at an arbitrary base offset; only the caller's ability to supply one is missing.**
+
+### 30.1 ⛔⛔ INVENTORY — **measured `2026-09-22`, before any of this was designed**
+
+| query | result |
+|---|---|
+| `grep -rl BrainBlackboard --include=*.cs` *(production, non-test)* | **78 files** |
+| …of which **type-parameter-only** *(`Interpreter<BrainBlackboard, BTreeContext>` and friends)* | **46** |
+| emitted 3-param bridge thunks in `Hrot.AI.Behaviors` | **23** *(`CE-304`)* |
+| `TBlackboard` used **by value or sized** anywhere in `FDP/ExtDeps/FastBTree/src` | 🔴 **ZERO** — every use is `ref TBlackboard` or a type argument. The only non-`ref` hits are `typeof(TBlackboard).FullName` as authoring metadata *(`BTreeBuilder.cs:310,351`)* and generator bookkeeping strings |
+| `Interpreter<TBlackboard, TContext>` constraint | `where TBlackboard : struct` *(`Interpreter.cs:9`)* ⇒ ⭐ **`byte` satisfies it** |
+| `StructEdit` field binding | `new NativeFieldBinding(native, NativeOffset + Marshal.OffsetOf(viewType, f), …)` *(`BufferViewRequest.cs:88-102`)* ⇒ ⭐ **already offset-relative**; `NativeOffset`/`Buffer` are `internal`, which is the ONLY obstacle |
+| editor surfaces bound to the component by IDENTITY | **3** — `BrainBlackboardRenderer.cs:19` *(attribute)*, `BrainBlackboardViewProvider.cs:22` *(component+path match)*, `LiveBlackboardValueProvider.cs:81` *(session component lookup)*, plus `BlackboardReflection.cs:50`'s `EditContextFactory` arm |
+| entities carrying `Blackboard1024` in production | **0** — `HeavyDtoType` is assigned `null` everywhere |
+
+### 30.2 ⭐ THE MODEL AFTER `P4` — `classDiagram`
+
+```mermaid
+classDiagram
+    class BTreeTickSystem {
+        <<system, EXISTS>>
+        +Execute(view, dt)
+        -resolve the slot base ONCE per entity
+    }
+    class RootParamsAccess {
+        <<seam, EXISTS>>
+        +RootRef(world, self) ref byte
+        +TryGetRootBytes(world, self) bool
+        +RootParamsBytes(def) int
+    }
+    class Interpreter {
+        <<ExtDeps, UNCHANGED>>
+        +Tick(ref TB blackboard, ref state, ref ctx)
+        note "TB is bound to byte"
+    }
+    class EmittedThunk {
+        <<generated>>
+        +project(ref byte bb, offset) ref TDto
+    }
+    class OccurrenceStore {
+        <<tier component>>
+        +header + slot table + payload
+    }
+    class BrainBlackboard {
+        <<DELETED by P4>>
+    }
+    class Blackboard1024 {
+        <<DELETED by P4>>
+    }
+
+    BTreeTickSystem ..> RootParamsAccess : resolves base
+    RootParamsAccess ..> OccurrenceStore : slot lookup
+    BTreeTickSystem ..> Interpreter : Tick(ref byte)
+    Interpreter ..> EmittedThunk : dispatch
+    EmittedThunk ..> OccurrenceStore : reads via the handed ref
+```
+
+*What the picture shows that prose hid: after `P4` there is **no arrow from a thunk to a lookup**. The
+base is resolved once, by the tick system, and handed down — which is why the kernel needs no change and
+why `CE-301`'s per-dispatch cost disappears without a cache.*
+
+### 30.3 ⭐ ONE TICK — `sequenceDiagram`
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant Tick as BTreeTickSystem
+    participant RPA as RootParamsAccess
+    participant Store as occurrence store
+    participant Int as Interpreter (ExtDeps)
+    participant Thunk as emitted thunk
+
+    Tick->>RPA: TryGetRootBytes(world, entity)
+    alt behaviour HAS params
+        RPA->>Store: slot lookup by ComputeRootParamsKey
+        Store-->>Tick: ref byte at the slot base
+    else behaviour declares NO params
+        Note over Tick: RootParamsBytes(def) == 0 -> a stack scratch byte
+    end
+    Tick->>Int: Tick(ref byte base, ref treeState, ref ctx)
+    Int->>Thunk: dispatch(ref byte bb, ..., paramIndex)
+    Thunk->>Thunk: Unsafe.As of byte to TDto at (bb + baked offset)
+    Note over Thunk: no world, no entity, no lookup
+```
+
+*What the picture shows that prose hid: the ONLY branch is at step 1 — and it is decided by a
+**checkable** predicate (`RootParamsBytes(def) == 0`), not by a null-guess on a pointer.*
+
+### 30.4 ⭐⭐ WHO CALLS WHAT — the MODULE diagram *(obligation ①a: the dead edges matter)*
+
+```mermaid
+graph TD
+    subgraph sim["SimulationSystemGroup"]
+        BTS[BTreeTickSystem]
+        HTS[HsmTickSystem]
+    end
+    subgraph input["InputSystemGroup"]
+        ING[BehaviorIngressSystem]
+    end
+    subgraph editor["editor / presentation - NOT ticked"]
+        REN[tier renderers<br/>BlueprintBlackboard-N-Renderer]
+        SE[StructEdit view provider]
+        LIVE[LiveBlackboardValueProvider]
+    end
+    STORE[(occurrence store<br/>tier component)]
+    HSMT[HSM thunks<br/>dispatched by HsmActionDispatcher]
+
+    ING -->|writes the root slot| STORE
+    BTS -->|resolves base once, hands ref byte| STORE
+    HTS --> HSMT
+    HSMT -->|RequireRootBytes - keeps world+self| STORE
+    REN -->|P4-3 NEW arm| STORE
+    SE -->|P4-3 NEW offset| STORE
+    LIVE -->|P4-3 NEW tier read| STORE
+
+    OLD1[BrainBlackboard]
+    OLD2[Blackboard1024]
+    OLD1 -.->|no writer since P3-C<br/>DELETED by P4| STORE
+    OLD2 -.->|on ZERO entities<br/>DELETED by P4| STORE
+
+    classDef dead stroke-dasharray: 5 5,stroke:#c00,color:#c00
+    class OLD1,OLD2 dead
+```
+
+*Caption — the dead edges are drawn deliberately: `BrainBlackboard` has had **no writer since `P3-C`**
+and `Blackboard1024` is on **zero entities**, so both dashed edges are already non-functional. ⭐ The
+load-bearing asymmetry the picture makes visible: **`HsmActionDispatcher` does not hand the thunk a
+blackboard ref**, so the HSM arm keeps `world`+`self` while the BTree arm loses it.*
+
+### 30.5 ⭐⭐⭐ THE THREE SLICES
+
+| # | slice | why it is separable |
+|---|---|---|
+| **`P4`-①** | ⭐ **Delete `Blackboard1024`** and its three surfaces *(`Blackboard1024Renderer`, `Blackboard1024ViewProvider`, `BlackboardReflection`'s arm)* | 📐 **zero entities carry it** — nothing to re-home, no behaviour change possible |
+| **`P4`-②** | ⭐⭐⭐ **Bind `TBlackboard` to `byte` and hand the interpreter the slot base** | ⛔ **no `ExtDeps` change** (§30.1). ⭐ It also SIMPLIFIES `CE-304`'s fix: `BlackboardParamsExpression`'s BTree arm reverts to `bb`-relative, and the resolve moves from per-dispatch to **once per entity per tick** |
+| **`P4`-③** | ⭐ **Re-home the three editor surfaces** onto the occurrence inspector | ⚠ display only; the sim is already correct. Independently testable |
+
+⭐ **`P4`-① is a pure deletion and should land first** — it shrinks the surface `P4`-② has to sweep.
+
+### 30.6 ⚠⚠ WHAT `P4`-② COSTS — **two things, both stated rather than discovered**
+
+| | |
+|---|---|
+| ⚠ **a behaviour with NO params has no root slot** | ingress attaches only when `ParseParams != null && rootBytes > 0`, so `RootRef` would THROW on `Idle` / `WanderMilitary`. ⇒ the tick needs a defined `ref byte`, gated on the **checkable** predicate `RootParamsBytes(def) == 0` — ⛔ **never on a null-guess**, which is the silent-default shape this programme keeps filing |
+| ⚠ **`BlackboardParamsExpression` re-splits, partially** | the BTree arm becomes `bb`-relative; the HSM arm keeps `RequireRootBytes(world, self)` because `HsmActionDispatcher` hands the thunk `instance`/`context`, **never a blackboard ref**. ⇒ two forms in the one home. ⛔ **`BP-306` collapsed four SPELLINGS of one expression; this is two DIFFERENT expressions for two different dispatch shapes** — record it in the file's header so the next reader does not "re-collapse" them |
+
+### 30.7 ⭐ `P4`-③ — **STRUCTEDIT TAKES AN OFFSET; IT LEARNS NOTHING**
+
+🔒 **Per the ruling: StructEdit must not know a DTO sits inside another structure.** 📐 And it already
+does not — `ProjectBufferAs` composes every binding as `NativeOffset + Marshal.OffsetOf(viewType, f)`.
+
+⇒ ⭐ **The change is that the CALLER supplies the base**: an additive optional offset on
+`ProjectBufferAs` *(or a sibling overload)*, with the provider computing it from
+`ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` → the slot's `PayloadOffset`.
+⛔ **Not a new view API, not a sub-range concept, and not a redesign** — ⚠ **an earlier revision of this
+programme's advice said it was; that is WITHDRAWN.**
+
+⭐ **The other two surfaces need no new API at all:**
+
+| surface | the re-home |
+|---|---|
+| `BrainBlackboardRenderer` | a root-params arm on the existing tier renderers *(`BlueprintBlackboard{256,1024,4096,16384}Renderer`, which §25.3 already made decode occurrences)*; then delete the file. ⭐ **The root slot is the EASIEST label in the store** — §25.2 needs a forward search because the FNV key cannot be inverted, but the root key is ONE computation and the hit is exact |
+| `LiveBlackboardValueProvider` | read the **tier** component from the `IDebugSession`, walk the slot table to that key, project at its offset. Same shape, one indirection deeper |
+
+### 30.8 ⭐ ACCEPTANCE
+
+| # | |
+|---|---|
+| **①** | `BrainBlackboard` and `Blackboard1024` **do not exist**; the solution builds |
+| **②** | ⭐⭐ **`hill-attack-close` stays 2/2 gold** on `--mode all` — the same gate `CE-304` closed on |
+| **③** | a rail asserting the tick resolves the base **once per entity**, not once per dispatch *(the `CE-301` property, now free)* |
+| **④** | ⭐ the `CE-304` rail *(`CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot`)* **stays green through the rewrite** — it is the regression net for exactly this |
+| **⑤** | a rail per re-homed surface: the tier inspector shows the ROOT PARAMS slot **labelled and decoded** *(the §25.1 ruling applies unchanged)* |
+| **⑥** | ⛔ a behaviour with **no** params ticks without throwing |
+
+### 30.9 ⛔ WHAT THIS SUPERSEDES
+
+| where | the superseded claim |
+|---|---|
+| `PLAN_Occurrence_Storage_Build.md` § "THE PATH" `P4` | *"delete `BrainBlackboard`; **the BTree action's blackboard type parameter goes with it**"* ⇒ ⛔ **the parameter STAYS, bound to `byte`** |
+| same, the "RETIREMENT (b)" row | *"the work is … **the `ActionRegistry<…>` type parameter**"* ⇒ ⚠ it is a type ARGUMENT change *(`BrainBlackboard` → `byte`)*, not a parameter removal |
+| `RESUME_Occurrence_Storage.md` §0c `P4(a)` | *"the **7 UI readers** get **RE-ANCHORED**"* ⇒ ⛔⛔ **wrong verb and an unenumerated set.** Three of them are keyed on the component's IDENTITY *(attribute · component+path match · session lookup)*, so they cannot be re-anchored — they are **RE-HOMED**, and §30.1 enumerates them |

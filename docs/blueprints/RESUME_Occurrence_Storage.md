@@ -367,7 +367,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | `P1` | ✅ rail `O7_R37` + golden `HsmTwoRegionParamsDemo` *(corpus 46 → 47)* — a REAL emitted blueprint action, two regions, own params each |
 | `P2` | ✅ **`BP-297` CLOSED** — `HsmTwoRegionCuratedNodes` authored, `EmitSharedAiActionThunk` converted, rail `O7_R38`, baseline moved |
 | `P3` | ⚠ **STEPS 1-2 ONLY, BOTH ADDITIVE** — the key + `RootParamsAccess`, and ingress now ALSO fills a root params slot. ⛔ The blackboard commit **still runs**; nothing has changed behaviourally |
-| `P4` | ⛔ not started — delete the component *(the struct is empty once `P3` completes)* |
+| `P4` | ⭐ **DESIGNED `2026-09-22`, not started** — 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§30** *(three slices, UML, acceptance)*. ⭐⭐ Re-scoped on two user rulings: `TBlackboard` is **bound to `byte`** *(no FastBTree change)* and StructEdit **takes an offset** *(no new view API)* ⇒ **both `ExtDeps` changes are gone** |
 
 ### ⛔⛔ THE EXACT NEXT ACTION, in order
 
@@ -385,7 +385,7 @@ and ours are `CE-`. Do not quote it as evidence for them.
 | **`P3-A`** | ⛔ the root key is **NOT stored**. `BehaviorState.ActiveBehaviorHash` already identifies the behaviour; every key here is COMPUTED ⇒ `ComputeRootParamsKey` |
 | **`P3-B`** | ⭐ the **accessor** (`RootParamsAccess`), and the EMITTERS use it too for the ROOT path. ⛔ Per-SITE occurrences stay inlined — their identity comes from the `writer` stamp |
 | **`P3-C`** | ⭐ **CLEAN CUT**, not dual-write |
-| **`P4`(a)** | ⭐ the **7 UI readers get re-anchored in this programme** — 🔒 the user lifted the lane fence: *"and do UI stuff yourself"* |
+| **`P4`(a)** | ⛔⛔ **CORRECTED `2026-09-22`: ~~the 7 UI readers get RE-ANCHORED~~ — WRONG VERB, AND THE SET WAS NEVER ENUMERATED.** ⭐ Re-anchoring swaps `bb.BehaviorParameters[0] + X` for `rootSlotBase + X` and works only where code HOLDS A POINTER. 📐 **Three surfaces are keyed on the component's IDENTITY** and lose their entry point when the type dies: `BrainBlackboardRenderer.cs:19` *(`[ImGuiRenderer(typeof(BrainBlackboard))]`)* · `BrainBlackboardViewProvider.cs:22` *(component + `$.BehaviorParameters` path match)* · `LiveBlackboardValueProvider.cs:81` *(`session.GetComponent(…, typeof(BrainBlackboard))`)*, plus `BlackboardReflection.cs:50`'s `EditContextFactory` arm. ⇒ they are **RE-HOMED**, not re-anchored — 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30.7. 🔒 the lane fence is lifted: *"and do UI stuff yourself"* |
 | **perf** | ⭐ **per-tick resolve**, not a persistent cache. The persistent cache is **`CE-301`**, with its measurements |
 
 ### ⛔⛔ TRAPS PAID FOR TODAY — **do not re-pay**
