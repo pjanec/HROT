@@ -5,7 +5,16 @@ doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-22
 build-state: n/a — a resumption snapshot, not a design.
-current-answer: ✅✅✅ P4 IS COMPLETE (2026-09-22) — AND WITH IT THE WHOLE P0–P4 PATH.
+current-answer: ⭐⭐⭐ O7c IS IN FLIGHT — GO TO RESUME_O7c_Retire_Brain_Components.md.
+  That is the BUILD resumption (what is done, what is next, the traps, the gate baselines);
+  this doc stays the PROGRAMME view. ⛔ Do not run O7c from §0c alone.
+  📐 TWO OF THE THREE BRAIN COMPONENTS ARE RETIRED (verified 2026-09-23 against the tree):
+     BrainBTreeState ✅ deleted (id 29 burned) · BrainHsm64 ✅ deleted (id 35 burned)
+     BrainHsm128 ❌ STILL ALIVE (id 36) ⇐ the remaining work, designed in §31.14
+  ✅ The BTree half is PROVEN ON THE RUNNING PRODUCT — hill-attack-close --mode all, all six
+  invariant links, positions within 0.02 of gold, 0 exceptions / 0 RootStateAccess throws.
+  CE-319 closed. ⚠ The golden CANNOT see the HSM arm — §31.14.8 says what stands in for it.
+  (previous head) ✅✅✅ P4 IS COMPLETE (2026-09-22) — AND WITH IT THE WHOLE P0–P4 PATH.
   `BrainBlackboard` and `Blackboard1024` ARE DELETED. Root params live in an occurrence slot;
   `GlobalComponentIds` 23 is burned as `BrainBlackboard_RESERVED` and never reused.
   ⭐⭐ READ §0c — its table is now a RECORD of a finished path, and the section directly under
@@ -218,6 +227,7 @@ related-designs:
   - Blueprint_Issues_Tracker.md — CE-295 (open, ⛔ must NOT be fixed), CE-296 (refuted),
     CE-300/CE-301 (open), CE-303 + CE-307..CE-317 (ALL DONE 2026-09-22). Area F.
   - RESUME_P4_Retire_Blackboards.md — the P4 build record. ⛔ CLOSED; do not resume from it.
+  - RESUME_O7c_Retire_Brain_Components.md — ⭐ THE LIVE BUILD RESUMPTION. Start there.
   - Architect_Question_37_Unify_On_The_Allocator.md — the owning question.
   - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden test. §2.1 is load-bearing.
 -->
