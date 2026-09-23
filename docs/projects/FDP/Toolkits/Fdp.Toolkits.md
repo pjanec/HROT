@@ -254,8 +254,9 @@ constant 64 B (`sizeof(BehaviorTreeState)`); the HSM region's width is a runtime
 #### Modules (`Behavior/Modules/`)
 - `CognitiveRuntimeModule` -- registers the five Simulation-phase brain systems, in order:
   `ChannelArbitrationSystem` -> `CognitiveInterruptSystem` -> `BrainTickSystem` ->
-  `CognitiveCleanupSystem` -> `BehaviorFrameSystem`. All five take the same `gateOnAuthority` flag,
-  deliberately: they are one pipeline over one set of entities
+  `CognitiveCleanupSystem` -> `BehaviorFrameSystem`. ⭐ The first **four** take the same
+  `gateOnAuthority` flag, deliberately: they are one pipeline over one set of entities.
+  `BehaviorFrameSystem` takes none -- it advances a world-level pulse and owns no entity
 - `ActionDispatchModule` -- registers all dispatcher systems
 - `BehaviorDiagnosticsModule` -- registers trace-buffer lifecycle systems
 - `MissionControlModule` -- registers `MissionDirectorSystem`

@@ -8,9 +8,9 @@
 > inside the same four tier components (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**).
 > The user parked that question on `2026-08-17` and reopened it on `2026-09-19`.
 >
-> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
-> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
-> Those two slices are the remaining build.
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included. The root tree
+> cursor is one (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`, sized per
+> machine at attach by `HsmInstanceManager.SelectTier`). No brain component remains.
 >
 > ⭐⭐ **§7's ruling is IMPLEMENTED there, not re-decided** — `HsmCommandWriter` + the
 > `(regionSlotIndex, stateId)` pair, one path, guards unserved. ⚠ An early draft of that design

@@ -458,7 +458,7 @@ A low-frequency simulation phase system that periodically evaluates the vehicle'
 
 ### 13.2 BTree Reaction
 
-The vehicle's active behavior tree reads the blackboard values during its normal `BTreeTickSystem` evaluation. Condition nodes such as `Condition_CheckDangerLevel` branch to sub-trees that adjust `TargetSpeed` (via `LocomotionChannel`), expand `VisionRange` (via `PerceptionReceptor` mutation), or alter Rules of Engagement flags — all without touching the `MissionPlanQueue`. This keeps the route's "soft advice" strictly advisory; the behavior tree remains in full control.
+The vehicle's active behavior tree reads those slot values during its normal `BrainTickSystem` evaluation (the BTree arm). Condition nodes such as `Condition_CheckDangerLevel` branch to sub-trees that adjust `TargetSpeed` (via `LocomotionChannel`), expand `VisionRange` (via `PerceptionReceptor` mutation), or alter Rules of Engagement flags — all without touching the `MissionPlanQueue`. This keeps the route's "soft advice" strictly advisory; the behavior tree remains in full control.
 
 ---
 

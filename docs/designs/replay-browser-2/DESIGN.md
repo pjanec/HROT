@@ -94,7 +94,7 @@ Names below were confirmed in the repo before this design was finalized. Paths a
 | `JsonAestheticFormatter.FlattenNumericArrays` | `FDP/Toolkits/Fdp.Toolkits/Serialization/JsonAestheticFormatter.cs` |
 | `DiagnosticGuidResolver` | `FDP/Toolkits/Fdp.Toolkits/Diagnostics/DiagnosticGuidResolver.cs` |
 | `InspectorJsonUtils.BuildComponentJson` | `FDP/Engine/Fdp.Presentation/ImGui/Utils/InspectorJsonUtils.cs` |
-| `IEntityStateExtractionService`, `EntityJsonDumper`, `FdpAutoSerializer`, `IEntityScenarioTranslator` (`BrainBlackboardTranslator`) | `FDP/Toolkits/Fdp.Toolkits/...`, `Hrot/Subsystems/Hrot.SimHost/Serializers/` |
+| `IEntityStateExtractionService`, `EntityJsonDumper`, `FdpAutoSerializer`, `IEntityScenarioTranslator` (`BrainDiagnosticsTranslator`) | `FDP/Toolkits/Fdp.Toolkits/...`, `Hrot/Subsystems/Hrot.SimHost/Serializers/` |
 | `EntityInspectorPanel`, `EventBrowserPanel`, `ComponentReflector`, `ImGuiPropertyTree`, `MessageLogWindow` | `FDP/Engine/Fdp.Presentation/ImGui/...` |
 | `IInspectableSession.HasAuthority(Entity, Type)`, `IInspectorContext`, `InspectorState.SelectedEntity`, `RepositoryAdapter` | `FDP/Engine/Fdp.Presentation/ImGui/Abstractions/` |
 | `IDiagnosticEventHistoryService.Capture`, `DiagnosticEventHistoryService` | `FDP/Engine/Fdp.Core/Diagnostics/` |

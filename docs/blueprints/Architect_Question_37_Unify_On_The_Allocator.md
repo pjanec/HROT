@@ -8,9 +8,9 @@
 > (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). It is the answer to **this question**,
 > which the user parked on `2026-08-17` and reopened on `2026-09-19`.
 >
-> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
-> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
-> Those two slices are the remaining build.
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included. The root tree
+> cursor is one (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`, sized per
+> machine at attach by `HsmInstanceManager.SelectTier`). No brain component remains.
 >
 > ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT RESOLVES.** ⛔ The PARKED banner below is HISTORY: the
 > user reopened it on `2026-09-19` and chose **option `B`** *(unify AND add a smaller tier)*. ⭐ The

@@ -89,7 +89,7 @@ The simulation runs for 600 frames (10 seconds at 60 Hz) and demonstrates:
 |      CognitiveCleanupSystem   (clear interrupt bytes)         |
 |      BehaviorFrameSystem      (behaviour-frame pulse)         |
 |    DamageSystem               (apply HitEvents to Health)     |
-|    AudioPerceptionSystem      (gunfire -> audio stimuli)      |
+|    AudioPerceptionSystem      (AudioStimulusEvent -> memory)  |
 |    WeaponDispatcherSystem     (AimAndFire executor)           |
 |    InteractionDispatcherSystem(EjectPassengers / OpenDoor)    |
 |    LocomotionDispatcherSystem (drive locomotion channel)      |

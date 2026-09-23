@@ -992,14 +992,14 @@ every `[SharedAiAction]` thunk keeps working, **same offsets, different instance
 
 ⛔ **Carry the PARAMS AREA only, never the component** *(user correction, `2026-08-16`)*. ⭐ **Measured:
 no generated thunk touches the tail** — `CognitiveInterruptSystem` / `CognitiveCleanupSystem` /
-`HsmTickSystem:168` / `RouteContextSystem:190` are all **systems** — and **actions never see the
+the brain tick / `RouteContextSystem:190` are all **systems** — and **actions never see the
 blackboard at all** (`Method(ref field, ctx.Self, ctx.World)`). ⇒ the blackboard ref exists **only** to
 locate the params. Interrupts and soft advice stay on the component.
 
 ⭐⭐ **Cheaper than the whole-struct version I first leaned to:** ⭐ **BTree needs NO `ExtDeps` change** —
 `NodeLogicDelegate`/`Interpreter` are generic and never touch a blackboard component's members, so the
 edit is swapping the root-slot base expression at three generator emit sites, the interpreter's type
-argument, and one line in `BTreeTickSystem`. ⭐ **HSM folds into the `ExecuteAction` signature widening
+argument, and one line in the brain tick. ⭐ **HSM folds into the `ExecuteAction` signature widening
 occurrence-keying already needs** — one seam, two problems.
 
 📌 **Multiple BTrees/HSMs per entity: ⛔ not as PEERS** *(root exclusivity is what preemption is defined
@@ -1349,7 +1349,7 @@ Gates re-run by me. ⭐ **Blueprint golden set untouched.** Tracker **61 / 161**
 |---|---|
 | ⭐⭐⭐ **`Q34`'s ANSWERS STAND** | `A` widen to 20 B · `A` caller-supplied `InstanceKey` · `A` 3-arg lookup = key `0`. ⛔ **A future session re-opens the BUILD, never the DECISION** |
 | ⭐⭐ **and the deferral is COHERENT with what `Q34` §7 established** | this case is **REFUSED today (`AlreadyAttached`), not corrupted** ⇒ ⭐ **it buys a capability, not a correctness fix.** ⛔ **The dangerous occurrence case is `E3`'s, and it is unaffected by this deferral** |
-| ⭐ **the edit surface is MEASURED, so re-dispatch costs nothing** | **187 `TryGetSlotOffset` call sites all stay correct** *(⭐ `Q34-C` doing its job)*; the real surface is ~10 files — `BlueprintSlotEntry` + `SlotEntrySize` · three tier `const`s + doc comments · `Initialize`/`Migrate`/`TryAttach` · the events · **`TryFindExistingTier` and `DetachFromEntity` PER KEY** · every payload-size assertion *(928/3936/16368 → 912/3904/16032)* |
+| ⭐ **the edit surface is MEASURED, so re-dispatch costs nothing** | **187 `TryGetSlotOffset` call sites all stay correct** *(⭐ `Q34-C` doing its job)*; the real surface is ~10 files — `BlueprintSlotEntry` + `SlotEntrySize` · three tier `const`s + doc comments · `Initialize`/`Migrate`/`TryAttach` · the events · **`TryFindExistingTier` and `DetachFromEntity` PER KEY** · every payload-size assertion. ⚠ **The deltas this row used to spell out were computed against the PRE-`B3②` ladder and are stale** — the ladder is now `MaxSlots` 3/12/16/16 over 256/1024/4096/16384, payloads **176 / 800 / 3 808 / 16 096**; widening `SlotEntrySize` moves all four and the new figures must be recomputed from `BlueprintTierLadder`, not carried from here |
 | ⭐ **carry forward as the headline** | ⛔ **`AlreadyAttached`-per-key is not a detail** — leave it and the whole capability passes vacuously |
 
 ### 🔴🔴 `E3` ESCALATED — **my "signature widening" was wrong, twice over**
@@ -1678,7 +1678,7 @@ tracker **65 / 178**. Rows `BP-305`–`BP-308` · **`Q36`**.
 
 | | measured |
 |---|---|
-| ⛔⛔ ① **ONE BRAIN PER ENTITY** | `BehaviorState { int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier, and `BTreeTickSystem:83` / `HsmTickSystem:158` both key off it ⇒ ⭐⭐ **a hosting state has nowhere to RUN the child.** `Q34` §7 answers **storage**, ⛔ **not which brain ticks it** |
+| ⛔⛔ ① **ONE BRAIN PER ENTITY** | `BehaviorState { int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier, and `BrainTickSystem`'s two arms both key off it ⇒ ⭐⭐ **a hosting state has nowhere to RUN the child.** `Q34` §7 answers **storage**, ⛔ **not which brain ticks it** |
 | ⛔ ② **resolve has no input for a BTree child** | HSM registers under `DeterministicIdFromGuid(assetId)`, BTree under `BehaviorHash.FromName(name)`, and `BehaviorRegistry` has **no asset-id index at all** ⇒ ⭐ **an HSM child resolves from a Guid by accident; a BTree child cannot resolve** — **and HSM + BTree on one entity is the case `E5` exists for** |
 | ⭐⭐⭐ ⑤ **the shipped route is by NAME** | `BehaviorTreeBlob.SubtreeAssetIds` is a **`string[]` of NAMES** *(the field name misleads)*; `BTreeEmitCore:836` emits `p.SubtreeName` |
 | ⚠ ⑥ **and Batch 75 persisted only half that pair** | `BTreeSubtreePayload` carries **Guid + Name + IsResolved**; `StateNode` carries **the Guid alone.** ⭐ **Mine** — at the time nothing read it, so nothing said which half resolves |

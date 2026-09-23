@@ -57,9 +57,7 @@ The current `DataPolicy.NoScenario` XML comment incorrectly reads
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `LocomotionChannel` | Transient execution buffer (`fixed byte Params/State`) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `WeaponChannel` | Same; also has `Entity` refs inside Params buffer |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `InteractionChannel` | Same |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainBTreeState` | Execution pointer (BTree node index stack) |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainHsm64` | HSM execution stack |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainHsm128` | HSM execution stack |
+| `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard{256,1024,4096,16384}.cs` | the four occurrence-store tiers | The whole of an entity's brain execution state — the BTree node-index cursor, the HSM instance and the behaviour's params — are keyed slots inside whichever tier the entity carries. All four are marked (`BlueprintBlackboard256.cs:21` and the same line in each sibling) |
 | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | `SensorContactList` | Transient; raw `fixed long EntityIds`; re-acquired organically |
 | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | `ActiveSensorTracks` | Same; Brain-side cognitive buffer |
 
@@ -123,9 +121,9 @@ it must be passed to the translator constructor.
 
 ### Preview-to-Scenario Extraction and "Behavior Amnesia"
 
-When saving a new scenario from a paused preview, execution buffers (`WeaponChannel`,
-`BrainBTreeState`, etc.) are intentionally excluded.  This "amnesia" is architecturally sound
-because:
+When saving a new scenario from a paused preview, execution buffers (`WeaponChannel`, the
+occurrence store holding the BTree cursor and the HSM instance, etc.) are intentionally excluded.
+This "amnesia" is architecturally sound because:
 
 - **B-Trees** are environmentally reactive: they tick from the root on load, evaluate the
   preserved `TargetMemory` (serialized via `TargetMemoryTranslator`), and branch back into the

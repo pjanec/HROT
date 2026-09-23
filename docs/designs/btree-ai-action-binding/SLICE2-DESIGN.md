@@ -15,7 +15,7 @@ ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
 Codified in: `docs/blueprints/Blueprint_Subsystem_Architecture_v1.2.md` (Slice 1 constraint); `docs/blueprints/Blueprint_Subsystem_Slice2_Candidates.md` Theme C / item **C1** "AiPrimitive concurrent working-state per entity"; Roadmap v1.1 ranks the allocator as the **#1** Slice 2 task.
 
 ## 2. The plan
-Move AiPrimitive working state **out of** the shared engine `Blackboard1024` into a **Blueprint-owned component managed by a partition allocator**. The architect explicitly **rejected** retrofitting a partition allocator onto the engine's `Blackboard1024` (it is used internally by the FastHSM/BTree kernels; altering its layout would ripple across the engine).
+Move AiPrimitive working state into a **Blueprint-owned component managed by a partition allocator**. The architect explicitly **rejected** retrofitting a partition allocator onto the shared engine blackboard component the working state sat in, because its layout was reached by the FastHSM/BTree kernels' generated thunks and changing it would ripple across the engine. (That component, `Blackboard1024`, has since been retired outright by `P4`-①; its id 74 stays `_RESERVED` so a stale recording cannot bind it to something else.)
 
 **Decision (user, 2026-06-15): Option β.** Merge AiPrimitive working-state allocations into the existing `BlueprintBlackboard{256,1024,4096,16384}` tiers — AiPrimitive thunks look up their slots exactly like Instance dispatch does today. **No dedicated `BlueprintAiWorking1024` component** (Option α rejected — avoids a parallel allocator/component and reuses the most proven machinery).
 

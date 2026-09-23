@@ -1332,7 +1332,7 @@ For each sub-module below, the change is:
 | `GroundKinematicsModule` | `Hrot.SimHost` | SpatialHashSystem (Sim), CarKinematicsSystem (PostSim), FormationTargetSystem (Sim), VehicleCommandSystem (Sim), NavigationExecutionSystem (Sim), LinearKinematicsSystem (PostSim) |
 | `DamageAssessmentModule` | `Hrot.SimHost` or toolkit | Systems delivering authoritative damage |
 | `MissionControlModule` | CGF toolkit | BehaviorIngressSystem (Input), MissionDirectorSystem (Sim) |
-| `CognitiveRuntimeModule` | CGF toolkit | BTreeTickSystem (Sim), HsmTickSystem (Sim), ChannelArbitrationSystem (Sim), HsmDamageBridgeSystem (Sim) |
+| `CognitiveRuntimeModule` | CGF toolkit | ChannelArbitrationSystem (Sim), CognitiveInterruptSystem (Sim), BrainTickSystem (Sim — the one brain tick, BTree and HSM arms), CognitiveCleanupSystem (Sim), BehaviorFrameSystem (Sim) |
 | `ActionDispatchModule` | CGF toolkit | LocomotionDispatcherSystem (Sim), WeaponDispatcherSystem (Sim) |
 | Standalone CGF systems | `Hrot.CGF` | MissionControlExecutionSystem (Input), MissionAdapterSystem (Sim), HealthApplicationSystem (Sim), CgfThreatEvaluationSystem (Sim), RouteContextSystem (Sim) |
 | Navigation bridges | Various | PersonalRouteAuthoringSystem (Input), NavigationIntentBridgeSystem (Sim), RouteTrajectorySyncSystem (Sim) |

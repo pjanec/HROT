@@ -106,8 +106,8 @@ a directory for new DLLs, loads each into a new collectible `AssemblyLoadContext
 the generated `FbtActionRegistrar.RegisterAll` via reflection to overwrite delegate
 pointers in the `ActionRegistry`, extracts new blobs from `FbtTreeCatalog`, and calls
 `BTreeHotReloadManager.TryReload`. ALC operates in the same process memory space so that
-`ref byte` (the root-params occurrence slot's bytes) and `ref BrainBTreeState` parameters
-still point to live ECS memory.
+`ref byte` (the root-params occurrence slot's bytes) and `ref BehaviorTreeState` (the root
+tree-state slot, reached through `RootStateAccess`) parameters still point to live ECS memory.
 The old ALC is unloaded after all in-flight delegates complete.
 
 ### 2.6 Node Debug Metadata
@@ -141,9 +141,13 @@ fields via `ImGuiPropertyTree`, completely replacing the raw hex byte display.
 
 ### 2.9 BTree Live Visualizer in Entity Inspector
 
-`BTreeVisualizerRenderer` implements `IEntityAwareImGuiRenderer` for `BrainBTreeState`.
-Using `IInspectableSession` it reads the sibling `BehaviorState` to look up the active
-`BehaviorTreeBlob` from the `BehaviorRegistry`. It then renders a recursive ImGui tree
+`BTreeVisualizerRenderer` (`Hrot/Engine/Hrot.Presentation/Renderers/BTreeVisualizerRenderer.cs`)
+draws the execution path as a **section of the occurrence-store tier renderer**, invoked from
+`BlueprintBlackboardRendererBase` beside root params and working state; the cursor it draws comes
+from `RootStateAccess`. It is no longer keyed on a component's identity — an
+`[ImGuiRenderer(typeof(...))]` attribute on a brain component was the entry point, and there is no
+such component. Using `IInspectableSession` it reads the sibling `BehaviorState` to look up the
+active `BehaviorTreeBlob` from the `BehaviorRegistry`. It then renders a recursive ImGui tree
 with:
 - Active execution path highlighted (green for current leaf, yellow for active composites)
   using `RunningNodeIndex` and `NodeIndexStack`.
@@ -231,7 +235,7 @@ References: `Microsoft.CodeAnalysis.CSharp` (analyzer reference, like `Fhsm.Sour
 - New file: `Fbt.Kernel/HotReload/BTreeHotReloadManager.cs`
 
 #### Tasks
-- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BrainBTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `BehaviorRegistry` patching before returning.
+- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BehaviorTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `BehaviorRegistry` patching before returning.
 - **FBT-021** Implement the hot reload check in `Interpreter.Tick` — compare `_blob.StructureHash` vs stored hash in state; call `state.Reset()` on structure change.
 - **FBT-022** Tests for hot reload — SoftReload preserves state, HardReset clears state, NoChange is a no-op, old ALC GC'd after reload.
 - **FBT-023** `FbtAssemblyHotReloader` — `FileSystemWatcher`-driven ALC load/unload orchestrator with `OnReloadCompleted`/`OnReloadFailed` events and thread-safe debounced reload queue.
@@ -255,7 +259,7 @@ in the Entity Inspector.
 - **FBT-031** Update `ComponentReflector.DrawComponents` to prefer `IEntityAwareImGuiRenderer` when available (pass `session` and `entity` to it).
 - **FBT-032** Add `Type? ParamsDtoType` to `BehaviorDefinition`.
 - **FBT-033** Implement the tier renderer's root-params arm (`IEntityAwareImGuiRenderer`) for the root-params occurrence slot — reads `BehaviorState`, looks up `ParamsDtoType`, marshals the slot's bytes to typed DTO, renders via `ImGuiPropertyTree`.
-- **FBT-034** Implement `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` for `BrainBTreeState` — reads sibling `BehaviorState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
+- **FBT-034** Implement `BTreeVisualizerRenderer` as a section of the tier renderer — resolves the cursor via `RootStateAccess`, reads sibling `BehaviorState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
 - **FBT-035** Tests for `ComponentReflector` extended renderer dispatch.
 - **FBT-036** Tests for the tier renderer's root-params arm — verifies DTO field rendering with a mock session.
 - **FBT-037** Tests for `BTreeVisualizerRenderer` — verifies correct node coloring and metadata display.

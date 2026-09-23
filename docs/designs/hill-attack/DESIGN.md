@@ -24,7 +24,7 @@ The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented D
 | `AssignTacticalIntentEvent` | Top-down order dispatch from commander to subordinates |
 | `TacticalIntentResolutionSystem` (Hrot.CGF) | Bridges intent strings to `AssignBehaviorEvent` via `ITacticalOrderMapper` |
 | `BehaviorIngressSystem` (Fdp.Toolkits) | Atomically updates `BehaviorState`, resets BTree execution pointer, parses JSON params |
-| `BehaviorFinishedEvent` | Native terminal-state notification from `BTreeTickSystem` to mission layer |
+| `BehaviorFinishedEvent` | Native terminal-state notification from `BrainTickSystem` to mission layer |
 | `LocomotionChannel` / `WeaponChannel` | CQRS actuator channels; behaviors write intents, muscle tier executes |
 | `[WritesChannel]` attribute | Roslyn source generator emits failure-reset wrappers preventing zombie actions |
 | `PathfindingBatchData` / `RaycastBatchData` | Pattern reference for the new EQS batch singleton |
@@ -333,7 +333,7 @@ The SoA tracker detects destruction via `EntityRepository.IsAlive` with O(1)
 swap-remove.
 
 When no targets remain, the Repeater propagates `NodeStatus.Failure` to the root
-and `BTreeTickSystem` publishes `BehaviorFinishedEvent(Success)`.
+and `BrainTickSystem`'s BTree arm publishes `BehaviorFinishedEvent(Success)`.
 
 ### 4.2 BTree Topology
 
@@ -424,7 +424,8 @@ The commander entity blueprint (TKB definition) must include:
   hill attack commander logic itself.
 
 Subordinate tank entities must include:
-- `BehaviorState`, `BrainBTreeState`
+- `BehaviorState`, plus a `BlueprintBlackboard*` occurrence-store tier component (the root tree
+  cursor and the behaviour's params are keyed slots inside it, not components of their own)
 - `LocomotionChannel`, `WeaponChannel`
 - `NavState` (for `ReverseAllowed` support in reverse locomotion)
 - `NavigationStatus` (CQRS feedback component read by `Condition_AreAllAtBaseline`;

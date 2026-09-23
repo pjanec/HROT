@@ -362,7 +362,8 @@ binding** — like a call's arguments — not a runtime message.
 
 #### ③ ⚠ Sizing consequence — **one slot per hosting state**
 
-`MaxSlots` is **4 / 8 / 16** for the 1024 / 4096 / 16384 tiers. ⇒ **an HSM with many hosting states
+`MaxSlots` is **3 / 12 / 16 / 16** for the 256 / 1024 / 4096 / 16384 tiers *(re-picked by `B3②`; the
+payloads are 176 / 800 / 3 808 / 16 096 B)*. ⇒ **an HSM with many hosting states
 drives the tier choice**, and `ChooseTier` must size against the **sum**, exactly as
 `BlueprintMaterializationSystem` already pre-provisions *"from the aggregate slot + byte requirements"*.
 
