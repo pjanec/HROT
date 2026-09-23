@@ -245,7 +245,6 @@ public sealed class BlackboardAuthoringWindowBindingTests
             DtoType:   dtoType,
             Hosting:   ActionHosting.BTree,
             Access:    BlackboardAccess.ReadWrite,
-            HeavyDtoType: null,
             IsCondition: false,
             DtoFields: dtoFields);
 

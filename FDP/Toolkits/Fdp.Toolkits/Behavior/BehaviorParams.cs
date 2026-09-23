@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Behavior
         public static unsafe ParseParamsDelegate FromJson<TDto>(ResolveParams<TDto>? resolve = null)
             where TDto : unmanaged
         {
-            return (string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            return (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
             {
                 TDto dto = string.IsNullOrWhiteSpace(json)
                     ? default

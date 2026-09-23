@@ -1540,7 +1540,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1568,7 +1568,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1612,7 +1612,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1639,7 +1639,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1675,7 +1675,7 @@ namespace Hrot.SimHost.Tests
             var result = new PlatoonHillAttackParams();
             fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
             {
-                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, entityMap);
+                HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, entityMap);
                 result = *(PlatoonHillAttackParams*)ptr;
             }
 
@@ -1702,7 +1702,7 @@ namespace Hrot.SimHost.Tests
             {
                 fixed (byte* ptr = new byte[sizeof(PlatoonHillAttackParams)])
                 {
-                    HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, null, new NetworkEntityMap());
+                    HillAttackCommanderNodes.ParsePlatoonHillAttackParams(json, ptr, sizeof(PlatoonHillAttackParams), null, new NetworkEntityMap());
                     result = *(PlatoonHillAttackParams*)ptr;
                 }
             });

@@ -522,7 +522,7 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
-        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr)
+        public static unsafe void ParseHullDownAttackParams(string json, byte* ptr, int capacity)
         {
             if (string.IsNullOrWhiteSpace(json))
             {

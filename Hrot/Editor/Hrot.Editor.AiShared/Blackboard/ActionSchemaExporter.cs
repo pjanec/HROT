@@ -96,7 +96,6 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
     {
         // Determine which AI system(s) host this method.
         var hosting = ActionHosting.None;
-        Type? heavyDtoType = null;
         bool isCondition = false;
         bool isAiPrimitive = false;
 
@@ -150,12 +149,9 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
 
         // ⛔⛔ CE-327 (2026-09-23) — the [SharedAiHeavyAction]/[SharedAiHeavyCondition] branches are
         //   DELETED with the attributes they read. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
-        //   ⇒ `heavyDtoType` is now always null and `ActionHosting.Heavy` is never set.
-        // ⚠ `ActionSchemaEntry.HeavyDtoType` and the `Heavy` flag are KEPT, inert, on purpose: the
-        //   record is POSITIONAL and 62 construction sites across 19 files pass it, so removing the
-        //   parameter is its own mechanical slice with its own red-proof — not a rider on this one.
-        //   ⭐ Inert is safe here: it is editor metadata that nothing gates on, unlike the storage
-        //   path where a dead field acting as a predicate is the CE-315 shape.
+        // ⭐ CE-330 (2026-09-23) completed the removal §30.29.5 deferred: `ActionSchemaEntry
+        //   .HeavyDtoType` and `ActionHosting.Heavy` are GONE, so there is no longer a
+        //   permanently-null parameter to carry. 62 call sites across 19 files were rewritten.
 
         // No relevant attribute found -- skip this method.
         if (hosting == ActionHosting.None)
@@ -186,7 +182,7 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
 
         // Last-write wins for duplicate FQNs (can happen with AllowMultiple across overloads).
         collected[fqn] = new ActionSchemaEntry(
-            fqn, dtoType, hosting, access, heavyDtoType, isCondition, dtoFields, isAiPrimitive);
+            fqn, dtoType, hosting, access, isCondition, dtoFields, isAiPrimitive);
     }
 
     /// <summary>

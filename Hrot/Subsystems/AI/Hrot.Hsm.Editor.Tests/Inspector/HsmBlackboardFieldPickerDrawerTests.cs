@@ -61,7 +61,7 @@ public sealed class HsmBlackboardFieldPickerDrawerTests
     public void GetItems_ReturnsOnlyCompatibleVars_ForKnownFqn()
     {
         var asset    = MakeAsset(Var("floatField", typeof(float)), Var("intField", typeof(int)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new HsmFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -93,7 +93,7 @@ public sealed class HsmBlackboardFieldPickerDrawerTests
     public void GetItems_ReturnsEmpty_AndHasNoCompatible_WhenNoMatchingVars()
     {
         var asset    = MakeAsset(Var("intField", typeof(int)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new HsmFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -119,7 +119,7 @@ public sealed class HsmBlackboardFieldPickerDrawerTests
     public void Promote_CreatesAutoVar_WithCorrectNameAndType_AndIsAutoManaged()
     {
         var asset    = MakeAsset();
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new HsmFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawer   = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -137,7 +137,7 @@ public sealed class HsmBlackboardFieldPickerDrawerTests
     public void Promote_Idempotent_WhenVarAlreadyExists()
     {
         var asset    = MakeAsset();
-        var entry    = new ActionSchemaEntry("Ns.IntAction", typeof(int), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.IntAction", typeof(int), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new HsmFacetFqnContext { CurrentActionFqn = "Ns.IntAction" };
         var drawer   = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn);
@@ -184,7 +184,7 @@ public sealed class HsmBlackboardFieldPickerDrawerTests
     public void HsmFactory_StringDrawer_DispatchesBlackboardFieldPicker()
     {
         var asset    = MakeAsset(Var("Speed", typeof(float)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new HsmFacetFqnContext { CurrentActionFqn = "Ns.FloatAction" };
         var drawers  = HsmPickerDrawerFactory.BuildDrawers(asset, exporter, ctx);

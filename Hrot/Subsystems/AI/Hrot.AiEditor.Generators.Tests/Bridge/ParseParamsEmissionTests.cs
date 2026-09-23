@@ -137,7 +137,7 @@ public sealed class ParseParamsEmissionTests
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
         // The unsafe block that captures the lambda must be present.
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
             "bridge must emit an unsafe lambda assigned to __parseParams");
 
         // The BehaviorDefinition initializer must reference the local.
@@ -252,7 +252,7 @@ public sealed class ParseParamsEmissionTests
         var dto    = MakeTwoVarDto(alphaDefault: "{\"Value\":7}", betaDefault: null);
         var bridge = BTreeBridgeEmitCore.EmitBridge(dto);
 
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
 
         // ⭐ Step 1 bakes ONLY alpha: its default literal appears, beta's does not exist to appear.
         bridge.Should().Contain("{\\\"Value\\\":7}",
@@ -340,7 +340,7 @@ public sealed class ParseParamsEmissionTests
             "the composed AiPrimitive action must register its baked-offset thunk");
 
         // (3) ParseParams bakes the authored default into the composed Params at offset 0.
-        bridge.Should().Contain("__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
+        bridge.Should().Contain("__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>",
             "an authored default on the composed Params variable must emit a ParseParams lambda");
         bridge.Should().Contain(
             "global::System.Text.Json.JsonSerializer.Deserialize<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params>(",

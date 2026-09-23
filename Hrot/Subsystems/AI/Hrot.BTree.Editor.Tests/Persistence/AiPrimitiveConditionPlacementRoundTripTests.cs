@@ -56,7 +56,7 @@ public sealed class AiPrimitiveConditionPlacementRoundTripTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeBpGeneratedCondition.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: true, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: true, DtoFields: null, IsAiPrimitive: true));
 
         var asset = new BehaviorTreeAsset(
             Guid.NewGuid(), "PlacedAiPrimitiveConditionTree", "/t.cs", true,

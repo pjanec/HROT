@@ -66,7 +66,7 @@ public sealed class ResolverWorldSingletonTests
         {
             // ⭐ world + self and nothing else — the whole point. `host` is null: a root behaviour.
             HillAttackCommanderNodes.ResolvePlatoonHillAttackParams(
-                PlanJson(), p, world, default, host: null);
+                PlanJson(), p, buffer.Length, world, default, host: null);
             return *(PlatoonHillAttackParams*)p;
         }
     }

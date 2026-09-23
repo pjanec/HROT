@@ -7,6 +7,7 @@ using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Settings;
 using Hrot.AI.Behaviors.Brains;
@@ -34,19 +35,30 @@ namespace Hrot.IG.Tests.Gizmos
             _repo = new EntityRepository();
             _repo.RegisterComponent<BehaviorState>();
             _repo.RegisterComponent<SimTransform>();
+            // ⭐ CE-329 (2026-09-23): params live in an OCCURRENCE SLOT since P3-C, so a world that
+            //   never registered the tier ladder has nowhere to put them. Production registers these
+            //   Hrot-wide; a bare test world has to ask.
+            BlueprintTierTable.RegisterAll(_repo);
         }
 
         public void Dispose() => _repo.Dispose();
 
         [Fact]
-        public void SC_GZ021_HA_1_RequiredComponents_ContainsAllThreeTypes()
+        public void SC_GZ021_HA_1_RequiredComponents_ContainsBothTypes()
         {
+            // ⚠ CE-329 (2026-09-23) — PREMISE CORRECTION, and the rail was UNCOMPILABLE until now.
+            //   It asserted three components including `BrainBlackboard`, which `P4` DELETED; the
+            //   projector declares exactly two today. ⛔ Nothing caught it because Hrot.IG.Tests had
+            //   no obj/project.assets.json, so every --no-restore build SKIPPED the project.
+            // ⭐ There is no successor to assert: the params region is an occurrence SLOT, not a
+            //   component, so a projector cannot require it. ⇒ two is the whole set, and the rail
+            //   asserts the COUNT so a silent third arrival is caught.
             var attr = typeof(HillAttackGizmo).GetCustomAttribute<GizmoProjectorAttribute>();
 
             Assert.NotNull(attr);
-            Assert.Contains(typeof(BrainBlackboard), attr!.RequiredComponents);
-            Assert.Contains(typeof(BehaviorState),   attr.RequiredComponents);
-            Assert.Contains(typeof(SimTransform),     attr.RequiredComponents);
+            Assert.Contains(typeof(BehaviorState), attr!.RequiredComponents);
+            Assert.Contains(typeof(SimTransform),  attr.RequiredComponents);
+            Assert.Equal(2, attr.RequiredComponents.Length);
         }
 
         [Fact]
@@ -174,10 +186,25 @@ namespace Hrot.IG.Tests.Gizmos
                 BrainTier          = 0
             });
 
-            byte bb = 0;   // P4: the node takes `ref byte` — the root params slot base
-            fixed (byte* mem = &Unsafe.AsRef(in bb).BehaviorParameters[0])
-                *(PlatoonHillAttackParams*)mem = p;
-            repo.AddComponent(entity, bb);
+            // ⭐⭐ CE-329 (2026-09-23) — SEED THE ROOT PARAMS OCCURRENCE SLOT.
+            // 🔴 This was a half-finished P4 mechanical edit and it did NOT COMPILE:
+            //      byte bb = 0;
+            //      fixed (byte* mem = &Unsafe.AsRef(in bb).BehaviorParameters[0]) …
+            //    `.BehaviorParameters` on a `byte`. The edit replaced the BrainBlackboard TYPE with
+            //    `byte` and left the member access behind. ⛔ Invisible because the project was
+            //    unrestored and therefore skipped, never built.
+            int paramsBytes = sizeof(PlatoonHillAttackParams);
+            var spec = BlueprintTierTable.Select(
+                paramsBytes + BlueprintBlackboardPartitions.SlotEntrySize, requiredSlots: 1);
+            spec.Add(repo, entity);
+            byte* store = spec.Memory(repo, entity);
+            BlueprintBlackboardPartitions.Initialize(store, spec.TotalSize, (byte)spec.MaxSlots);
+
+            byte* mem = RootParamsAccess.ResolveOrAttachRoot(
+                repo, entity, BehaviorHash.FromName(BehaviorNames.PlatoonHillAttack),
+                paramsBytes, OccurrenceKind.BTree, out _);
+            Assert.True(mem != null, "the fixture could not attach a root params slot");
+            *(PlatoonHillAttackParams*)mem = p;
 
             repo.AddComponent(entity, new SimTransform { Position = Vector3.Zero, Rotation = Quaternion.Identity });
 

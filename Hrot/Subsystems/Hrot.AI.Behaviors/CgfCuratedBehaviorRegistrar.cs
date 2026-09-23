@@ -130,10 +130,10 @@ namespace Hrot.AI.Behaviors
             //   schema again — which was CE-224's defect.
             beh.RegisterResolver(BehaviorNames.MoveToLocation, CgfNodes.ResolveMoveToParams);
             beh.RegisterResolver(BehaviorNames.FollowRoute,
-                (json, ptr, world, self, host) => CgfNodes.ParseFollowRouteParams(json, ptr));
+                (json, ptr, capacity, world, self, host) => CgfNodes.ParseFollowRouteParams(json, ptr, capacity));
             beh.RegisterResolver(BehaviorNames.FireAtTarget, CgfNodes.ResolveFireAtTargetParams);
             beh.RegisterResolver(BehaviorNames.HullDownAttackRun,
-                (json, ptr, world, self, host) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr),
+                (json, ptr, capacity, world, self, host) => HillAttackTankNodes.ParseHullDownAttackParams(json, ptr, capacity),
                 typeof(HullDownAttackParams));
             beh.RegisterResolver(BehaviorNames.PlatoonHillAttack,
                 HillAttackCommanderNodes.ResolvePlatoonHillAttackParams,

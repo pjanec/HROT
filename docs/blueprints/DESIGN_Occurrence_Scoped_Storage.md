@@ -7471,3 +7471,61 @@ It survives as **test scratch**, and its doc-comment says so. ⛔ Do not give it
 IS declared, because the delegate still receives a bare `byte*`. ⇒ **the real fix is a capacity
 parameter on `ParseParamsDelegate`**, which is a signature change across every generator and deserves its
 own measurement. ⚠ Recorded in the `CE-328` row; not attempted here.
+
+### 30.31 ⭐⭐⭐ `CE-329` · `CE-330` · `CE-331` AS BUILT — **the three follow-ups, and what each one taught** *(`2026-09-23`)*
+
+> 🔒 **User:** *"1: fix them. 2: own slice. 3: ok"* — the three items `CE-326`/`327`/`328` had deferred.
+
+#### 30.31.1 ⭐ `CE-329` — the two projects `P4` and `CE-314` left broken
+
+| file | what it was | fix |
+|---|---|---|
+| `HillAttackGizmoTests.cs:47` | asserted `RequiredComponents` contains `BrainBlackboard` — a type `P4` deleted | the projector declares **two** components today; ⭐ the rail now asserts both **and the COUNT**, so a silent third arrival is caught. ⛔ There is no successor to assert: a params region is a SLOT, not a component, so a projector cannot require it |
+| `HillAttackGizmoTests.cs:178` | `byte bb = 0; fixed (byte* mem = &Unsafe.AsRef(in bb).BehaviorParameters[0])` — `.BehaviorParameters` **on a `byte`** | seeds the real root params slot: `BlueprintTierTable.Select` → `Initialize` → `RootParamsAccess.ResolveOrAttachRoot` |
+| `PanelGoldenRails.cs:221` | `m.ContainsKey(...)` where `m` is a `JsonNode` | `.AsObject().ContainsKey(...)` |
+
+🔴🔴 **The lesson is not the fixes, it is that NOTHING BUILT THEM FOR A DAY.** Both projects had no
+`obj/project.assets.json` ⇒ every `--no-restore` build **skipped** them. 🔒 **A skipped project cannot
+fail, and its silence is indistinguishable from a pass** — `CE-321`'s finding, for the third time.
+⇒ ⭐⭐ **a full-solution build is only a gate AFTER a full restore**; before that it is a statement about
+the subset that happened to be restored.
+
+#### 30.31.2 ⭐ `CE-330` — the deferred record parameter, done properly as its own slice
+
+✅ `ActionSchemaEntry.HeavyDtoType` and `ActionHosting.Heavy` are **DELETED** — **62 call sites across
+19 files**, which is exactly why §30.29.5 refused to let it ride along with `CE-327`.
+
+⚠⚠ **TWO SPELLINGS THE FIRST SWEEP MISSED, and both were found by the COMPILER rather than by the
+search** — worth recording because the same miss will recur:
+
+| missed form | why the scan skipped it |
+|---|---|
+| `=> new(fqn, …)` — **target-typed** | the scanner keyed on the literal `new ActionSchemaEntry(` |
+| a file with non-UTF-8 bytes | the walker raised `UnicodeDecodeError` and aborted the whole pass |
+
+🔒 **A mechanical refactor's completeness claim must come from a BUILD, not from the script's own
+count.** ⭐ The script reported *"61 of 62"* and was wrong about the denominator, not just the numerator.
+
+#### 30.31.3 ⭐⭐⭐ `CE-331` — `ParseParamsDelegate` takes a CAPACITY
+
+```
+before:  (string json, byte* memory,               EntityRepository world, Entity self, IHostVariableAccess? host)
+after:   (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
+```
+
+🔒 **`CE-328` stopped an UNDECLARED width from reaching the parser. It could not stop a parse
+overrunning a width that IS declared** — because the delegate handed out a bare pointer, so **no
+implementation, generated or hand-written, could bounds-check even in principle.** ⇒ this is the other
+half, and it is the half that makes the guarantee *checkable* rather than *hoped for*.
+
+| ⭐ what it cost | |
+|---|---|
+| **21 implementation signatures** across 10 files, plus **8 more** in `Hrot.AI.Behaviors` the first pattern missed | ⚠ the first regex matched `byte* mem`/`memory`; production spells it **`byte* ptr`**, and two sites are **untyped lambdas** `(json, ptr, world, self, host) =>` with no types to match at all |
+| **2 invocation sites**, not 1 | ⛔ `BehaviorIngressSystem` *(hands `shadow.Length` — the writable extent, **not** `rootBytes`)* and `BlueprintInstanceService` *(hands `paramsSize`, the `stackalloc`'s exact extent)*. 🔴 The second is spelled **`def.ParseParams!(`** and a `ParseParams(` grep does not see it |
+| **the emitters**, so generated code moves | `BTreeBridgeEmitCore`, `HsmBridgeEmitCore`, and the Blueprint `InstanceEmitter` |
+| ⭐⭐ **a REAL check, not just a parameter** | the Blueprint emitter now emits `if (capacity < sizeof(Params)) throw` **before** `p = default` — because `Unsafe.AsRef<Params>` reinterprets the whole struct, so a short region is corrupted by the very first write, before any field is parsed |
+
+⚠⚠ **DELIBERATELY NOT DONE: the hand-written parsers do not yet bounds-check.** ⭐ They now *receive*
+`capacity`; only the Blueprint-generated arm *enforces* it. ⛔ **Do not read this section as "parsers are
+now safe"** — it makes the check POSSIBLE everywhere and MANDATORY in one place. 🔒 The rest is a
+follow-up, and it is honest to say so rather than imply the capability is finished.

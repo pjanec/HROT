@@ -55,7 +55,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 //   declare neither a layout type nor a manifest and leaned on a 100-byte fallback.
                 //   ⇒ it says FleeBlackboard, which is what it always parsed into.
                 BlackboardLayoutType = typeof(FleeBlackboard),
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                 {
                     *(float*)mem = float.Parse(json,
                         System.Globalization.CultureInfo.InvariantCulture);
@@ -239,7 +239,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 //   refuses the shape otherwise. The width is incidental to what this rail proves.
                 BlackboardLayoutType = typeof(int),
                 // ParseParams delegate that always throws.
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                     throw new InvalidOperationException("Simulated parse failure"),
             });
 
@@ -296,7 +296,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 //   refuses the shape otherwise. The width is incidental to what this rail proves.
                 BlackboardLayoutType = typeof(int),
                 // ParseParams delegate that always throws.
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                     throw new InvalidOperationException("Test-induced parse failure"),
             });
 
@@ -469,7 +469,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier            = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(WideParams),
                 // ⚠ Writes the FULL width. Before CE-307 this ran against a 100-byte stackalloc.
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                 {
                     for (int i = 0; i < WideParamsBytes; i++) mem[i] = unchecked((byte)(i ^ 0x5A));
                 },
@@ -553,7 +553,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BlackboardLayoutType = typeof(NarrowParams),
                 // ⚠ Writes ONLY its first byte — a deliberately PARTIAL parse, which is exactly the
                 //   case the carry-over seed exists for.
-                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                 {
                     mem[0] = 0xC7;
                 },

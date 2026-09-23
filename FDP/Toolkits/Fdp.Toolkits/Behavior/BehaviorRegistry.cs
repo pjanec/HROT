@@ -15,6 +15,16 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     /// <param name="json">Serialised parameter payload (cold path only).</param>
     /// <param name="memory">Pointer to the first byte of <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).</param>
+    /// <param name="capacity">
+    /// ⭐⭐⭐ <b><c>CE-331</c> — HOW MANY BYTES <paramref name="memory"/> ACTUALLY HOLDS.</b>
+    /// 🔒 <b>A parser MUST NOT write past it.</b>
+    /// <para>🔴 Until <c>CE-331</c> this delegate took a bare <c>byte*</c> with no length, so no
+    /// implementation — generated or hand-written — could bounds-check even in principle. <c>CE-328</c>
+    /// stopped an UNDECLARED width reaching here; it could not stop a parse overrunning a width that
+    /// IS declared. ⇒ this is the other half, and it is the half that makes the guarantee checkable.</para>
+    /// <para>⚠ It is the extent of the WRITABLE REGION, not the behaviour's declared params size:
+    /// the ingress parses into a shadow buffer first, and hands that buffer's length.</para>
+    /// </param>
     /// <summary>
     /// Cold-path resolver: parses the authored JSON parameter payload into the behavior's
     /// runtime params region, and may post-process it using world context — geographic transform,
@@ -29,7 +39,7 @@ namespace Fdp.Toolkit.Behavior
     /// to every resolver, and <c>E7a</c> should populate it without a second such change.
     /// </param>
     public unsafe delegate void ParseParamsDelegate(
-        string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
+        string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host);
 
     /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);

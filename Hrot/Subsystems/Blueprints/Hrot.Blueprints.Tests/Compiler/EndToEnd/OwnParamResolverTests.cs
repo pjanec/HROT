@@ -244,7 +244,7 @@ public sealed unsafe class ResolverDuplicateBindingTests
     }
 
     private static unsafe void Noop(
-        string json, byte* memory, Fdp.Core.EntityRepository world, Fdp.Core.Entity self,
+        string json, byte* memory, int capacity, Fdp.Core.EntityRepository world, Fdp.Core.Entity self,
         IHostVariableAccess? host)
     { }
 }

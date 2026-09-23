@@ -87,7 +87,7 @@ public sealed class BlackboardFieldPickerAttributeTests
     [Fact]
     public void GetCompatibleVariables_known_fqn_filters_to_matching_dto_type()
     {
-        var entry    = new ActionSchemaEntry("My.Action", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("My.Action", typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
 
         var result = BlackboardFieldPickerAttribute.GetCompatibleVariables(
@@ -99,7 +99,7 @@ public sealed class BlackboardFieldPickerAttributeTests
     [Fact]
     public void GetCompatibleVariables_known_fqn_no_matching_type_returns_empty()
     {
-        var entry    = new ActionSchemaEntry("My.Action", typeof(double), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("My.Action", typeof(double), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
 
         var result = BlackboardFieldPickerAttribute.GetCompatibleVariables(
@@ -117,7 +117,7 @@ public sealed class BlackboardFieldPickerAttributeTests
             new BlackboardVariableEntry("b", typeof(float), null),
             new BlackboardVariableEntry("c", typeof(int),   null),
         };
-        var entry    = new ActionSchemaEntry("My.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry("My.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
 
         var result = BlackboardFieldPickerAttribute.GetCompatibleVariables(

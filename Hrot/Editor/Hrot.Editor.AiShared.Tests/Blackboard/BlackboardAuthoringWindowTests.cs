@@ -210,7 +210,6 @@ public sealed class BlackboardAuthoringWindowTests
             fqn, typeof(FooDto),
             ActionHosting.BTree,
             BlackboardAccess.Unknown,
-            null,
             false,
             dtoFields);
         return new StubActionSchemaExporter(

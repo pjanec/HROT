@@ -1353,7 +1353,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
                 BrainTier = BehaviorConstants.BrainTierHsm,
             });
             registry.RegisterResolver("HandAuthored",
-                static (string json, byte* mem, EntityRepository world, Entity self,
+                static (string json, byte* mem, int capacity, EntityRepository world, Entity self,
                         IHostVariableAccess? host) =>
                 {
                     // Two packed variables — what a real curated resolver writes after doing its
@@ -1366,7 +1366,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
             Assert.True(registry.TryGetDefinition(BehaviorHash.FromName("HandAuthored"), out var def));
 
             // ── ② run it exactly as the ingress does (BehaviorIngressSystem:100) ──────
-            def!.ParseParams!(string.Empty, SeedBlackboard, null!, default, host: null);
+            def!.ParseParams!(string.Empty, SeedBlackboard, BehaviorConstants.MaxBehaviorParamByteSize, null!, default, host: null);
 
             // Non-vacuity: the resolver really wrote, and wrote two DIFFERENT values.
             Assert.Equal(RegionZeroValue, *(int*)(SeedBlackboard + 0));

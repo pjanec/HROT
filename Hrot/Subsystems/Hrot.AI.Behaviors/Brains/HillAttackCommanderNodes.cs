@@ -665,7 +665,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// resolver — no registration-time closure over geo/entity-map is needed.
         /// </summary>
         public static unsafe void ResolvePlatoonHillAttackParams(
-            string json, byte* ptr, Fdp.Core.EntityRepository world, Entity self,
+            string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self,
             Fdp.Toolkit.Behavior.IHostVariableAccess? host)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
@@ -674,12 +674,12 @@ namespace Hrot.AI.Behaviors.Brains
             var map = (world.HasSingletonManaged<NetworkEntityMap>()
                 ? world.GetSingletonManaged<NetworkEntityMap>()
                 : null) ?? new NetworkEntityMap();
-            ParsePlatoonHillAttackParams(json, ptr, geo, map);
+            ParsePlatoonHillAttackParams(json, ptr, capacity, geo, map);
         }
 
         public static unsafe void ParsePlatoonHillAttackParams(
             string json,
-            byte* ptr,
+            byte* ptr, int capacity,
             Fdp.Modules.Geographic.IGeographicTransform? geoTransform,
             NetworkEntityMap entityMap)
         {

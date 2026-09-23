@@ -78,7 +78,7 @@ public sealed class HsmPromoteBindTests
     {
         const string fqn = "Ns.FloatAction";
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
-        var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
         var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
         var dispatcher = new HsmFacetDispatcher(asset, ctx);
@@ -115,7 +115,7 @@ public sealed class HsmPromoteBindTests
     {
         const string fqn = "Ns.IntAction";
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
-        var entry      = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry      = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
         var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
         var dispatcher = new HsmFacetDispatcher(asset, ctx);
@@ -148,7 +148,7 @@ public sealed class HsmPromoteBindTests
     {
         const string fqn = "Ns.FloatAction";
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
-        var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite, null);
+        var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
         var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
         var dispatcher = new HsmFacetDispatcher(asset, ctx);

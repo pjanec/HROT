@@ -54,7 +54,7 @@ public sealed class AiPrimitivePlacementRoundTripTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeBpGenerated.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var asset = new BehaviorTreeAsset(
             Guid.NewGuid(), "PlacedAiPrimitiveTree", "/t.cs", true,
@@ -145,7 +145,7 @@ public sealed class AiPrimitivePlacementRoundTripTests
         var fake = new FakeActionSchemaExporter();
         fake.Seed(fqn, new ActionSchemaEntry(
             fqn, typeof(FakeBpGenerated.Params), ActionHosting.BTree,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
 
         var asset = new BehaviorTreeAsset(
             Guid.NewGuid(), "PlacedAiPrimitiveTree", "/t.cs", true,

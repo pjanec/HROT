@@ -137,7 +137,7 @@ public sealed class TheCollisionWarningIsAnIssueRowTests
         }
 
         private static ActionSchemaEntry Entry(string fqn)
-            => new(fqn, typeof(object), ActionHosting.BTree, BlackboardAccess.Unknown, null);
+            => new(fqn, typeof(object), ActionHosting.BTree, BlackboardAccess.Unknown);
 
         public IReadOnlyDictionary<string, ActionSchemaEntry> All => _all;
         public ActionSchemaEntry? Lookup(string fqn) => _all.TryGetValue(fqn, out var e) ? e : null;

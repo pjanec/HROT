@@ -73,21 +73,21 @@ public sealed class BehaviorActionCatalogTests
     private struct FakeHsmDto   { public float X; }
 
     private static ActionSchemaEntry MakeBTreeEntry(string fqn) =>
-        new(fqn, typeof(FakeBTreeDto), ActionHosting.BTree, BlackboardAccess.Unknown, null);
+        new(fqn, typeof(FakeBTreeDto), ActionHosting.BTree, BlackboardAccess.Unknown);
 
     private static ActionSchemaEntry MakeHsmEntry(string fqn) =>
-        new(fqn, typeof(FakeHsmDto), ActionHosting.Hsm, BlackboardAccess.Unknown, null);
+        new(fqn, typeof(FakeHsmDto), ActionHosting.Hsm, BlackboardAccess.Unknown);
 
     private static ActionSchemaEntry MakeSharedEntry(string fqn) =>
         new(fqn, typeof(FakeBTreeDto),
             ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared,
-            BlackboardAccess.Unknown, null);
+            BlackboardAccess.Unknown);
 
     // I4: a blueprint-compiled AiPrimitive — BTree + Shared hosting, IsAiPrimitive flag set.
     private static ActionSchemaEntry MakeAiPrimitiveEntry(string fqn) =>
         new(fqn, typeof(FakeBTreeDto),
             ActionHosting.BTree | ActionHosting.Shared,
-            BlackboardAccess.Unknown, null, IsCondition: false, DtoFields: null, IsAiPrimitive: true);
+            BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true);
 
     // ── 1. Channel-command entries ───────────────────────────────────────────
 

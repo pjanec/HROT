@@ -82,7 +82,7 @@ public sealed class HsmParseParamsEmissionTests
         byte* memory = stackalloc byte[64];
         for (int i = 0; i < 64; i++) memory[i] = 0xEE;   // poison: a no-op parse would be visible
 
-        parse(string.Empty, memory, null!, default, null);
+        parse(string.Empty, memory, 64, null!, default, null);
 
         (*(float*)(memory + 0)).Should().Be(1.5f, "Threshold's authored default");
         (*(float*)(memory + 4)).Should().Be(2.5f, "Speed's authored default");
@@ -100,7 +100,7 @@ public sealed class HsmParseParamsEmissionTests
         var parse = CompileEmittedParseParams(ThreeVarDto());
 
         byte* memory = stackalloc byte[64];
-        parse("{\"Threshold\":9.5}", memory, null!, default, null);
+        parse("{\"Threshold\":9.5}", memory, 64, null!, default, null);
 
         (*(float*)(memory + 0)).Should().Be(9.5f, "the overlay wins for the variable it names");
         (*(float*)(memory + 4)).Should().Be(2.5f, "a variable the overlay does not name keeps its default");
@@ -125,7 +125,7 @@ public sealed class HsmParseParamsEmissionTests
             new Var("Limit", "System.Int32", null)));
 
         byte* memory = stackalloc byte[64];
-        parse("{\"Limit\":7}", memory, null!, default, null);
+        parse("{\"Limit\":7}", memory, 64, null!, default, null);
 
         (*(int*)(memory + 4)).Should().Be(7, "the overlay is useful with or without defaults");
     }
@@ -140,7 +140,7 @@ public sealed class HsmParseParamsEmissionTests
         var parse = CompileEmittedParseParams(ThreeVarDto());
 
         byte* memory = stackalloc byte[64];
-        parse("{\"NoSuchVariable\":123,\"Threshold\":4.25}", memory, null!, default, null);
+        parse("{\"NoSuchVariable\":123,\"Threshold\":4.25}", memory, 64, null!, default, null);
 
         (*(float*)(memory + 0)).Should().Be(4.25f);
     }
@@ -158,7 +158,7 @@ public sealed class HsmParseParamsEmissionTests
 
         byte* memory = stackalloc byte[64];
         byte* captured = memory;
-        Action act = () => parse("{ this is not json", captured, null!, default, null);
+        Action act = () => parse("{ this is not json", captured, 64, null!, default, null);
 
         act.Should().Throw<Exception>();
     }

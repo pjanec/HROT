@@ -161,7 +161,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                             //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
                             //   will pass its host's variable access here, at E7a, without another
                             //   signature change.
-                            def.ParseParams(evt.JsonParams, dst, repo, evt.Entity, host: null);
+                            // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
+                            //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
+                            //   region, and handing anything wider would license the overrun this
+                            //   parameter exists to stop.
+                            def.ParseParams(evt.JsonParams, dst, shadow.Length, repo, evt.Entity, host: null);
                             parseOk = true;
                         }
                         catch (Exception ex)

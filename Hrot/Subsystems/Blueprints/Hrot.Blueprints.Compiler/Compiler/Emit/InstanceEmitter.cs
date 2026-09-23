@@ -265,12 +265,22 @@ internal static class InstanceEmitter
         e.Indent();
         e.WriteLine("string json,");
         e.WriteLine("byte* memory,");
+        e.WriteLine("int capacity,");                 // CE-331 — the writable extent
         e.WriteLine("global::Fdp.Core.EntityRepository world,");
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
+        // ⭐⭐⭐ CE-331 — THE EMITTED PARSER CHECKS ITS OWN ROOM, which a bare `byte*` made
+        //   impossible. `Unsafe.AsRef<Params>` reinterprets the pointer as the whole struct, so
+        //   a region narrower than `sizeof(Params)` is corrupted by the very first write
+        //   (`p = default`) — before any field is even parsed. ⇒ refuse, loudly, instead.
+        e.WriteLine("if (capacity < sizeof(Params))");
+        e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
+        e.WriteLine("        $\"the params region holds {capacity} bytes but this asset's Params "
+                  + "needs {sizeof(Params)}; the occurrence slot was sized for a different "
+                  + "behaviour (CE-331).\");");
         e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);");
         e.WriteLine("p = default;");
 

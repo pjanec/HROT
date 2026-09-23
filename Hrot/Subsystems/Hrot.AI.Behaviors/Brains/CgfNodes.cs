@@ -158,27 +158,27 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
         /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
         /// </summary>
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
+        public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 : null;
-            ParseMoveToParams(json, ptr, geo!);
+            ParseMoveToParams(json, ptr, capacity, geo!);
         }
 
         /// <summary>
         /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
         /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
         /// </summary>
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, EntityRepository world, Entity self, IHostVariableAccess? host)
+        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 : null) ?? new Fdp.Toolkit.Replication.Services.NetworkEntityMap();
-            ParseFireAtTargetParams(json, ptr, map);
+            ParseFireAtTargetParams(json, ptr, capacity, map);
         }
 
-        public static unsafe void ParseMoveToParams(string json, byte* ptr, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
+        public static unsafe void ParseMoveToParams(string json, byte* ptr, int capacity, Fdp.Modules.Geographic.IGeographicTransform geoTransform)
         {
             if (string.IsNullOrWhiteSpace(json))
             {
@@ -212,7 +212,7 @@ namespace Hrot.AI.Behaviors.Brains
             Unsafe.Write(ptr, p);
         }
 
-        public static unsafe void ParseFollowRouteParams(string json, byte* ptr)
+        public static unsafe void ParseFollowRouteParams(string json, byte* ptr, int capacity)
         {
             var p = string.IsNullOrWhiteSpace(json)
                 ? default
@@ -225,7 +225,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="FireAtTargetParams"/> into the blackboard memory pointer.
         /// </summary>
         public static unsafe void ParseFireAtTargetParams(
-            string json, byte* ptr,
+            string json, byte* ptr, int capacity,
             Fdp.Toolkit.Replication.Services.NetworkEntityMap entityMap)
         {
             if (string.IsNullOrWhiteSpace(json))

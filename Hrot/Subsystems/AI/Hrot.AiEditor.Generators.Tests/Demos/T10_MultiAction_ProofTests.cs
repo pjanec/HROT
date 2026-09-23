@@ -582,7 +582,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
 
         // Invoke ParseParams with empty json (baked defaults are written regardless of arg).
         // ⭐ G1/E7: `host` is null — a root behaviour has none (DESIGN_Parameter_Model.md §3.4).
-        def.ParseParams!("", buf, null!, default, null);
+        def.ParseParams!("", buf, BehaviorConstants.MaxBehaviorParamByteSize, null!, default, null);
 
         // ── counter (DemoCounterParams, offset 0) ─────────────────────────────────
         // Layout: {int Counter, int Threshold} → Counter at +0, Threshold at +4 within the DTO.

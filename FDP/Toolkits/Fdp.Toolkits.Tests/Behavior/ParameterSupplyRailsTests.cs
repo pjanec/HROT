@@ -67,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var parse = BehaviorParams.FromJson<DemoParams>();
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            parse("{\"Count\":7,\"Speed\":2.5}", buffer, null!, default, null);
+            parse("{\"Count\":7,\"Speed\":2.5}", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
 
             var written = *(DemoParams*)buffer;
             Assert.Equal(7, written.Count);
@@ -90,7 +90,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 });
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            parse("{\"Count\":7}", buffer, null!, default, null);
+            parse("{\"Count\":7}", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
 
             Assert.Equal(70f, ((DemoParams*)buffer)->Speed);
         }
@@ -107,7 +107,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
             *(DemoParams*)buffer = new DemoParams { Count = 99, Speed = 99f };   // pre-dirty the region
-            parse("", buffer, null!, default, null);
+            parse("", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
 
             Assert.Equal(0, ((DemoParams*)buffer)->Count);
         }
@@ -131,7 +131,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var parse = BehaviorParams.FromJson<DemoParams>();
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            Assert.ThrowsAny<Exception>(() => parse("{ not json", buffer, null!, default, null));
+            Assert.ThrowsAny<Exception>(() => parse("{ not json", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null));
         }
 
         // ── §3.4: the host argument is present and always null for a root ────

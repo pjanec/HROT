@@ -77,7 +77,7 @@ public sealed class PromoteBindTests
     {
         const string fqn = "Ns.FloatAction";
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
-        var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
         var mapper   = new BTreeFacetMapper(asset, ctx);
@@ -114,7 +114,7 @@ public sealed class PromoteBindTests
     {
         const string fqn = "Ns.IntAction";
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
-        var entry    = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
         var mapper   = new BTreeFacetMapper(asset, ctx);
@@ -146,7 +146,7 @@ public sealed class PromoteBindTests
     {
         const string fqn = "Ns.FloatAction";
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
-        var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite, null);
+        var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
         var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
         var mapper   = new BTreeFacetMapper(asset, ctx);

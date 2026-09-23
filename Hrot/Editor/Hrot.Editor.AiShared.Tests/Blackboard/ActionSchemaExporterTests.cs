@@ -224,8 +224,8 @@ public sealed class ActionSchemaExporterTests
     //   [SharedAiHeavyAction]/[SharedAiHeavyCondition] no longer exist.
     //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
     // ⭐ The rail goes with the feature — it asserted the exporter's heavy branch and nothing else.
-    //   ⚠ `ActionSchemaEntry.HeavyDtoType` and `ActionHosting.Heavy` SURVIVE, permanently unset;
-    //   removing the positional record parameter is its own slice (62 sites, 19 files).
+    // ⭐ CE-330 (2026-09-23) finished the job: `ActionSchemaEntry.HeavyDtoType` and
+    //   `ActionHosting.Heavy` are now DELETED too, across 62 call sites in 19 files.
 
     [Fact]
     public void Rebuild_ReadOnlyParam_AccessIsReadOnly()

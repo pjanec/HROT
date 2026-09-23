@@ -218,8 +218,11 @@ public sealed class PanelGoldenRails : IClassFixture<GoldenCaptureFixture>
         // ⛔ CE-314: `heavyBudget` / `totalHeavyBytes` / `requiresHeavyComponent` are GONE from the
         //    panel's published model. Asserted as ABSENT rather than simply dropped, so a revival
         //    would be caught.
-        Assert.False(m.ContainsKey("heavyBudget"));
-        Assert.False(m.ContainsKey("requiresHeavyComponent"));
+        // ⚠ CE-329 (2026-09-23): `m` is a JsonNode, which has no ContainsKey — this did not compile,
+        //   and Hrot.SystemTests was unrestored so the break was never built. `.AsObject()` is the
+        //   member that answers the question CE-314's assertion is actually asking.
+        Assert.False(m.AsObject().ContainsKey("heavyBudget"));
+        Assert.False(m.AsObject().ContainsKey("requiresHeavyComponent"));
         // ⚠ No asset is open (no API can open one — MX-013), so the count is 0 BY CONSTRUCTION. Asserted so
         //   the golden's emptiness is a stated premise rather than an accident nobody noticed.
         Assert.Equal(0, m["variableCount"]!.GetValue<int>());

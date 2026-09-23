@@ -1296,7 +1296,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
         sb.AppendLine($"{pad2}unsafe");
         sb.AppendLine($"{pad2}{{");
-        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
         sb.AppendLine($"{pad3}{{");
 
         // ── step 1: bake the defaults ────────────────────────────────────────────
