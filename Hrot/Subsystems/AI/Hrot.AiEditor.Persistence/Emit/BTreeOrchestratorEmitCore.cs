@@ -147,8 +147,17 @@ public static class BTreeOrchestratorEmitCore
             //    hand-written host calls at runtime — ⛔ one arithmetic, two callers.
             int slotKeyA = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
                 dto.AssetId, m.SiteElementId, m.SubtreeAssetId);
-            sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{m.DtoTypeName}, {m.DtoTypeName}>(ref master.{m.VarName});");
-            sb.AppendLine($"{Indent}{Indent}return global::Fdp.Toolkit.Behavior.HostedSubtree.Tick({m.SubTreeName}.GetInterpreter(), ref subBb, ref ctx, {slotKeyA});");
+            // ⭐⭐⭐ CE-335 — THIS LINE USED TO SAY `{m.SubTreeName}.GetInterpreter()`, AND THAT METHOD
+            //    IS DEFINED NOWHERE. 📐 Measured 2026-09-23: three emitter sites referenced it, three
+            //    tests asserted its TEXT, zero definitions existed ⇒ this arm has never compiled.
+            //    ⛔ It could not have: a generated thunk is STATIC and there is no ambient
+            //    BehaviorRegistry, so it cannot resolve a child by name at tick time. ⭐ HostedChildren
+            //    binds the child at REGISTRATION, keyed by the slot key this site already bakes.
+            // ⭐ The blackboard is the aliased DTO field reinterpreted as bytes: the registry holds
+            //    Interpreter<byte, BTreeContext> (BehaviorRegistry.cs:151), which is the ONE blackboard
+            //    shape every registered behaviour has. 📄 DESIGN §32.2.4.
+            sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{m.DtoTypeName}, byte>(ref master.{m.VarName});");
+            sb.AppendLine($"{Indent}{Indent}return global::Fdp.Toolkit.Behavior.HostedSubtree.Tick(global::Fdp.Toolkit.Behavior.HostedChildren.Require({slotKeyA}), ref subBb, ref ctx, {slotKeyA});");
             sb.AppendLine($"{Indent}}}");
 
             if (i < methods.Count - 1 || approachBMethods.Count > 0)
@@ -179,7 +188,9 @@ public static class BTreeOrchestratorEmitCore
             // ⭐⭐⭐ O4 / C1 — same fix, the COPY IN / TICK / COPY OUT variant. ⛔ Was `ref state`.
             int slotKeyB = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
                 dto.AssetId, group.SiteNodeVisualId, group.SubtreeAssetId);
-            sb.AppendLine($"{Indent}{Indent}var result = global::Fdp.Toolkit.Behavior.HostedSubtree.Tick({subTreeId}.GetInterpreter(), ref subDto, ref ctx, {slotKeyB});");
+            // ⭐ CE-335, the copy-in/tick/copy-out twin. Same substitution, same reason.
+            sb.AppendLine($"{Indent}{Indent}ref var subBbB = ref Unsafe.As<{group.SubtreeDtoTypeName}, byte>(ref subDto);");
+            sb.AppendLine($"{Indent}{Indent}var result = global::Fdp.Toolkit.Behavior.HostedSubtree.Tick(global::Fdp.Toolkit.Behavior.HostedChildren.Require({slotKeyB}), ref subBbB, ref ctx, {slotKeyB});");
             foreach (var b in syncOut)
                 sb.AppendLine($"{Indent}{Indent}master.{b.MasterVariableName} = subDto.{b.FieldName};");
             sb.AppendLine($"{Indent}{Indent}return result;");

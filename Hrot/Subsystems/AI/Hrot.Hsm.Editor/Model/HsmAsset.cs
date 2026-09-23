@@ -869,6 +869,16 @@ public sealed class StateNode : IContainerNodeModel
     // parallel regions. Guid.Empty means no sub-behavior reference.
     public Guid SubtreeAssetId;
 
+    // ⭐⭐ E5 / Q36-B = A — the hosted child's REGISTRY NAME, beside the Guid.
+    //
+    // ⛔ The Guid alone cannot host anything: a host resolves its child through BehaviorRegistry,
+    //    which is keyed by NAME (TryGetId/TryGetDefinition) — there is no asset-id index, and
+    //    Q36-B ruled against adding one (one mechanism with the shipped BTree path, whose
+    //    BTreeSubtreePayload has carried the same {Guid, Name} pair since PU).
+    // ⭐ The Guid stays as the RENAME SURVIVOR: it is what the editor re-resolves the name from.
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.8 item 1.
+    public string? SubtreeName;
+
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
     public Vector2? SizeOverride { get; set; }

@@ -2032,6 +2032,271 @@ public sealed unsafe class HsmOccurrenceKeyTests
         }
     }
 
+    // ══════════════════════════════════════════════════════════════════════════════════════
+    //  E5 — AN HSM STATE HOSTS A BTREE.  📄 DESIGN_Occurrence_Scoped_Storage.md §32
+    // ══════════════════════════════════════════════════════════════════════════════════════
+
+    private static readonly Guid HostStateA = new("07000000-0000-0000-0000-0000000000e1");
+    private static readonly Guid HostStateB = new("07000000-0000-0000-0000-0000000000e2");
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5_R1</c> — the hosting table joins authoring <c>StableId</c>s to the flat state
+    /// indices the kernel stamps.</b> 📄 §32.8 item 2.
+    ///
+    /// <para>⭐ This is why the emitter never needs the flattener's ordering: it bakes <c>StableId</c>s
+    /// and the ordering is recovered HERE, from the blob's own <c>MachineMetadata</c>.</para>
+    ///
+    /// <para>⛔ The two negative arms are the <i>fails closed</i> rule: an unknown <c>StableId</c> is
+    /// SKIPPED rather than guessed at index 0, and a blob with no metadata registers NOTHING rather
+    /// than registering against indices it cannot verify.</para>
+    /// </summary>
+    [Fact]
+    public void E5_R1_TheHostingTableResolvesStableIdsToFlatIndices()
+    {
+        HsmHostedSubtrees.ClearForTests();
+
+        var blob = BlobWithMetadata(HostStateA, HostStateB);   // StableIds at flat 1 and 2
+        HsmHostedSubtrees.Register(blob, new (Guid, string, int)[]
+        {
+            (HostStateB, "ChildB", 4242),
+            (Guid.NewGuid(), "NotInThisMachine", 9999),   // ⛔ skipped, not guessed
+        });
+
+        Assert.True(HsmHostedSubtrees.TryGetForMachine(blob.Header.StructureHash, out var entries));
+        var only = Assert.Single(entries);
+        Assert.Equal((ushort)2, only.StateIndex);      // ⭐ the JOIN — B is flat index 2
+        Assert.Equal("ChildB", only.ChildName);
+        Assert.Equal(4242, only.TreeStateSlotKey);
+
+        // ⛔ A blob with no Metadata sidecar registers nothing at all.
+        HsmHostedSubtrees.ClearForTests();
+        var bare = BuildTwoRegionBlob(actionId: 0);
+        HsmHostedSubtrees.Register(bare, new (Guid, string, int)[] { (HostStateA, "ChildA", 1) });
+        Assert.False(HsmHostedSubtrees.TryGetForMachine(bare.Header.StructureHash, out _));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5_R2</c> — <c>HostedChildren</c> is the answer <c>{Child}.GetInterpreter()</c>
+    /// never was.</b> 📋 <c>CE-333</c> / <c>CE-335</c>, 📄 §32.2.4.
+    ///
+    /// <para>🔴 <b>The defect this replaces:</b> both orchestrator arms emitted
+    /// <c>{Child}.GetInterpreter()</c> — a method defined NOWHERE — because a generated thunk is
+    /// static and there is no ambient <see cref="BehaviorRegistry"/> to ask at tick time. ⭐ The child
+    /// is resolved at REGISTRATION instead, keyed by the slot key the thunk already bakes.</para>
+    ///
+    /// <para>⛔ <c>Require</c> THROWS on an unbound slot, and that is the same choice
+    /// <c>HostedSubtree.Tick</c> makes for a missing slot: a host that silently does nothing reads as
+    /// <i>"the subtree just fails"</i>.</para>
+    /// </summary>
+    [Fact]
+    public void E5_R2_HostedChildrenBindsByNameAtRegistrationAndThrowsWhenUnbound()
+    {
+        HostedChildren.ClearForTests();
+
+        var registry = new BehaviorRegistry();
+        var childBuilder = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq => seq.Action(StaticRunningLeaf));
+        registry.Register(0x5E01, "E5Child", new BehaviorDefinition
+        {
+            Name             = "E5Child",
+            BrainTier        = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(
+                                   childBuilder.Compile("E5Child"), childBuilder.GetRegistry()),
+        });
+
+        HostedChildren.Register(registry, 777, "E5Child");
+        Assert.True(HostedChildren.TryGet(777, out var bound));
+        Assert.NotNull(bound);
+        Assert.Same(bound, HostedChildren.Require(777));
+
+        // ⛔ An unknown NAME binds nothing — it does not throw at registration, because registrar
+        //    order is not a contract; the failure surfaces at the hosting site instead.
+        HostedChildren.Register(registry, 778, "NoSuchBehaviour");
+        Assert.False(HostedChildren.TryGet(778, out _));
+
+        var ex = Assert.Throws<InvalidOperationException>(() => HostedChildren.Require(778));
+        Assert.Contains("778", ex.Message);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5_R3</c> — THE MONEY RAIL. A hosted child ticks on CONSECUTIVE FRAMES with an
+    /// EMPTY event queue, through the REAL <c>BrainTickSystem</c>.</b> 📄 §32.10 <c>A3</c> + <c>A4</c>.
+    ///
+    /// <para>🔴🔴 <b>This is the direct red-proof of finding <c>F1</c>, and the pre-review design
+    /// could not have passed it.</b> 📐 <c>HsmKernelCore.UpdateBatchCore</c> advances an instance by
+    /// ONE PHASE PER TICK; <c>Idle</c> leaves only on a non-empty queue; <c>Activity</c> ends by
+    /// setting <c>Idle</c>. ⇒ a host wired to an <c>ActivityAction</c> — which is what §32 originally
+    /// specified — would tick this child ONCE and then never again. 📋 <c>CE-334</c>.</para>
+    ///
+    /// <para>⭐ Nothing here enqueues an event. The machine is quiescent by construction, which is
+    /// exactly the condition that kills the action-dispatched design.</para>
+    /// </summary>
+    [Fact]
+    public void E5_R3_AHostedChildTicksEveryFrameOnAQuiescentMachine()
+    {
+        const int DocId = 0x5E10;
+        const int SlotKey = 0x5E11;
+
+        HsmHostedSubtrees.ClearForTests();
+        HostedChildren.ClearForTests();
+        ChildLeafEntries = 0;
+        try
+        {
+            using var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterUpTo(world, maxTotalSize: 1024);
+
+            var blob = BlobWithMetadata(HostStateA, HostStateB);
+            var registry = new BehaviorRegistry();
+            registry.Register(DocId, "E5Host", new BehaviorDefinition
+            {
+                Name          = "E5Host",
+                BrainTier     = BehaviorConstants.BrainTierHsm,
+                HsmDefinition = blob,
+            });
+
+            // ⭐ The child: a one-leaf tree that stays Running, so its cursor is observable.
+            var cb = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(StaticRunningLeaf));
+            registry.Register(0x5E12, "E5Child", new BehaviorDefinition
+            {
+                Name             = "E5Child",
+                BrainTier        = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(
+                                       cb.Compile("E5Child"), cb.GetRegistry()),
+            });
+
+            // ⭐ What the generated registrar emits: the hosting table, then the binding.
+            HsmHostedSubtrees.Register(blob, new (Guid, string, int)[] { (HostStateA, "E5Child", SlotKey) });
+            HostedChildren.Register(registry, SlotKey, "E5Child");
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new Components.BehaviorState
+            {
+                ActiveBehaviorHash = DocId,
+                BrainTier          = BehaviorConstants.BrainTierHsm,
+                InstanceId         = 1,
+            });
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
+
+            // ⭐ The slot the emitter's StatefulWorkingSlots entry would have provisioned (§32.8 item 3).
+            // ⚠ PROMOTE FIRST (trap ⑦): the tier ingress picked fits the 128-byte HSM instance and
+            //   nothing else, so attaching a 64-byte cursor on top needs a wider store. In production
+            //   the manifest declares the slot up front, so the tier is sized for both at once.
+            BlueprintTierTable.EnsureAtLeast(world, entity, BlueprintTierTable.Select(1024, requiredSlots: 4));
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(store != null);
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                store, SlotKey, HostedSubtree.TreeStatePayloadSize,
+                structureHash: 0, OccurrenceKind.BTree, out _));
+
+            var system = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry);
+
+            // ── THREE consecutive frames, no events enqueued at any point ────────────────
+            system.Execute(world, 0.016f);
+            int afterFirst = ChildLeafEntries;
+            system.Execute(world, 0.016f);
+            system.Execute(world, 0.016f);
+
+            // ⭐⭐ THE RAIL: the host state is active from the first tick's InitializeMachine, so the
+            //    child runs on every frame after it. 🔴 An ActivityAction-dispatched host reads 1.
+            Assert.True(afterFirst >= 1, "the child must run on the frame its host becomes active");
+            Assert.Equal(3, ChildLeafEntries);
+        }
+        finally
+        {
+            HsmHostedSubtrees.ClearForTests();
+            HostedChildren.ClearForTests();
+            ChildLeafEntries = 0;
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5_R4</c> — <c>F14</c>: a host state that is NOT active resets its child's cursor.</b>
+    /// 📄 §32.10 <c>A5</c>.
+    ///
+    /// <para>⭐⭐ <b>No deactivator, and that is the point.</b> The BTree host needs one because a
+    /// tick-driven hook cannot observe its own abandonment; <c>BrainTickSystem</c> iterates the
+    /// hosting table every frame, so <i>"my host is not active"</i> is directly observable. ⛔ HSM has
+    /// no deactivator registry to register with in the first place.</para>
+    ///
+    /// <para>⚠ State <b>3</b> is used as the host: <c>BuildTwoRegionBlob</c>'s parallel root fans out
+    /// to leaves 0/1/2, so 3 is a state that exists and is never entered — a host that is genuinely
+    /// inactive rather than one that merely has not run yet.</para>
+    /// </summary>
+    [Fact]
+    public void E5_R4_AnInactiveHostResetsItsChildsCursor()
+    {
+        const int DocId   = 0x5E20;
+        const int SlotKey = 0x5E21;
+        var neverEntered  = new Guid("07000000-0000-0000-0000-0000000000e3");
+
+        HsmHostedSubtrees.ClearForTests();
+        HostedChildren.ClearForTests();
+        try
+        {
+            using var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterUpTo(world, maxTotalSize: 1024);
+
+            var blob = BlobWithMetadata(HostStateA, HostStateB);
+            blob.Metadata!.StateStableIds[3] = neverEntered;
+
+            var registry = new BehaviorRegistry();
+            registry.Register(DocId, "E5HostIdle", new BehaviorDefinition
+            {
+                Name = "E5HostIdle", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob,
+            });
+            var cb = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(StaticRunningLeaf));
+            registry.Register(0x5E22, "E5Child2", new BehaviorDefinition
+            {
+                Name = "E5Child2", BrainTier = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(
+                                       cb.Compile("E5Child2"), cb.GetRegistry()),
+            });
+
+            HsmHostedSubtrees.Register(blob, new (Guid, string, int)[] { (neverEntered, "E5Child2", SlotKey) });
+            HostedChildren.Register(registry, SlotKey, "E5Child2");
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new Components.BehaviorState
+            {
+                ActiveBehaviorHash = DocId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1,
+            });
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
+
+            BlueprintTierTable.EnsureAtLeast(world, entity, BlueprintTierTable.Select(1024, requiredSlots: 4));
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(BlueprintBlackboardPartitions.TryAttach(
+                store, SlotKey, HostedSubtree.TreeStatePayloadSize,
+                structureHash: 0, OccurrenceKind.BTree, out _));
+
+            // ⭐ Dirty the child's cursor by hand — as if it had been left mid-tree by an earlier entry.
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, SlotKey, out int off));
+            ref var cursor = ref Unsafe.AsRef<Fbt.BehaviorTreeState>(store + off);
+            cursor.RunningNodeIndex = 7;
+
+            new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry).Execute(world, 0.016f);
+
+            // ⭐⭐ THE RAIL: the host was never active, so the sweep cleared the abandoned cursor.
+            store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, SlotKey, out off));
+            Assert.Equal(0, Unsafe.AsRef<Fbt.BehaviorTreeState>(store + off).RunningNodeIndex);
+        }
+        finally
+        {
+            HsmHostedSubtrees.ClearForTests();
+            HostedChildren.ClearForTests();
+        }
+    }
+
+    private static int ChildLeafEntries;
+
+    /// <summary>The hosted child's only leaf — counts entries and stays <c>Running</c>.</summary>
+    private static Fbt.NodeStatus StaticRunningLeaf(
+        ref byte bb, ref Fbt.BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+    {
+        ChildLeafEntries++;
+        return Fbt.NodeStatus.Running;
+    }
+
     private struct DemoParams { public int Threshold; public bool Flag; }
     private struct WideParams { public int A; public int B; public int C; }
 

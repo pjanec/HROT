@@ -430,6 +430,7 @@ public static class BTreeBridgeEmitCore
 
         // 4b. Register definition
         sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
+        EmitHostedChildBindings(sb, dto, pad2);
         sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
@@ -1083,7 +1084,7 @@ public static class BTreeBridgeEmitCore
         // ⭐ O4 — the hosted occurrences' tree-state slots, emitted after the authored ones so the
         //   existing corpus's slot ORDER is byte-identical (nothing in today's corpus has an alias,
         //   so this loop emits nothing for all 30 assets — measured).
-        foreach (var (slotKey, label) in hostedTreeStateSlots)
+        foreach (var (slotKey, label, _) in hostedTreeStateSlots)
         {
             string escaped = label.Replace("\\", "\\\\").Replace("\"", "\\\"");
             sb.AppendLine(
@@ -1100,6 +1101,31 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-335</c> — bind each hosted child's interpreter to its tree-state slot key.
+    ///
+    /// <para>⛔ <b>The orchestrator thunk cannot do this itself.</b> It is a static method with a
+    /// blackboard and a <c>BTreeContext</c>; there is no ambient <see cref="BehaviorRegistry"/> to
+    /// resolve a child by name (measured <c>2026-09-23</c>). ⇒ resolve HERE, where <c>beh</c> is in
+    /// hand, and let the thunk look the answer up by the slot key it already bakes.</para>
+    ///
+    /// <para>⚠ Emits nothing when the asset has no alias — every shipped asset — so the corpus stays
+    /// byte-identical.</para>
+    /// </summary>
+    private static void EmitHostedChildBindings(StringBuilder sb, BehaviorTreeAssetDto dto, string pad2)
+    {
+        var hosted = CollectHostedTreeStateSlots(dto);
+        if (hosted.Count == 0) return;
+
+        foreach (var (slotKey, _, childName) in hosted)
+        {
+            if (string.IsNullOrEmpty(childName)) continue;
+            string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {slotKey}, \"{escaped}\");");
+        }
+        sb.AppendLine();
+    }
+
+    /// <summary>
     /// ⭐⭐ <c>O4</c> — the tree-state slot each HOSTED subtree needs, keyed by
     /// <c>(host identity, site, child asset)</c>.
     ///
@@ -1111,9 +1137,9 @@ public static class BTreeBridgeEmitCore
     /// <para>📐 Measured: <b>0</b> assets in today's corpus carry an alias, so this returns empty for
     /// all 30 and the generated output stays byte-identical (§19.6 ⑥).</para>
     /// </summary>
-    private static List<(int SlotKey, string Label)> CollectHostedTreeStateSlots(BehaviorTreeAssetDto dto)
+    private static List<(int SlotKey, string Label, string ChildName)> CollectHostedTreeStateSlots(BehaviorTreeAssetDto dto)
     {
-        var result = new List<(int, string)>();
+        var result = new List<(int, string, string)>();
         if (dto.Aliases == null || dto.Aliases.Count == 0) return result;
 
         var seen = new HashSet<int>();
@@ -1128,8 +1154,12 @@ public static class BTreeBridgeEmitCore
                     dto.AssetId, b.RequiringElementId, b.RequiringAssetId);
 
                 if (!seen.Add(key)) continue;
+                // ⭐ CE-335 — the NAME is carried now, not just a label: HostedChildren.Register
+                //   resolves the child's interpreter from it at registration, because a static thunk
+                //   has no registry to ask at tick time.
                 result.Add((key, string.IsNullOrEmpty(b.RequiringAssetName)
-                    ? "hosted subtree" : b.RequiringAssetName + " (hosted)"));
+                    ? "hosted subtree" : b.RequiringAssetName + " (hosted)",
+                    b.RequiringAssetName ?? string.Empty));
             }
         }
         return result;

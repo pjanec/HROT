@@ -97,6 +97,19 @@ public sealed class StateNodeDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Guid SubtreeAssetId { get; set; }
 
+    /// <summary>
+    /// ⭐⭐ <c>E5</c> / <c>Q36-B</c> = <b>A</b> — the hosted child's REGISTRY NAME, beside
+    /// <see cref="SubtreeAssetId"/>. Mirrors <c>BTreeSubtreePayload</c>'s shipped
+    /// <c>{SubtreeAssetId, SubtreeName}</c> pair.
+    /// </summary>
+    /// <remarks>
+    /// ⭐ Omitted from JSON when null, so every existing asset stays byte-identical and
+    /// <c>hsm-persistence-shape</c> moves only when an asset is RE-SAVED — not on the checked-in
+    /// fixtures (the <c>BP-302</c> correction). 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.8.
+    /// </remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? SubtreeName { get; set; }
+
     // Deferred events (by name; emit core resolves to IDs using DTO event order)
     public List<string> DeferredEventNames { get; set; } = new();
 

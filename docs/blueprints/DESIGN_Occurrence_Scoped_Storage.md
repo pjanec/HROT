@@ -7893,6 +7893,82 @@ BTree host's is.
 | **A7** | the golden corpus is **unmoved** — no shipped asset declares a hosting state *(measured, §32.2.9)* |
 | **A8** | `HsmValidator` Rule 8 fires on a real concurrent stateful host once the resolver is wired *(F8)* |
 
+### 32.11 ✅ AS-BUILT — **what the build changed, and what it did not do** *(`2026-09-23`, obligation ⑤)*
+
+> 🔒 User, `2026-09-23`: **"same pass"** — `CE-333` and `CE-335` were fixed alongside `E5`.
+
+#### 32.11.1 ⭐⭐ THE ONE DESIGN CHANGE — **a box §32.4 did not have**
+
+📐 **Measured during the build:** a generated orchestrator thunk is a **static method** and there is
+**no ambient `BehaviorRegistry`** — no static instance, and
+`EntityRepository.SetSingletonManaged<BehaviorRegistry>` has **zero callers**. ⇒ ⛔ **a thunk cannot
+resolve its child by name at tick time**, which is the actual root cause of `CE-333`/`CE-335`: the
+emission needed an accessor (`{Child}.GetInterpreter()`) that was never built.
+
+⭐⭐ **So resolution moved to REGISTRATION**, in a new box: **`HostedChildren`**
+*(`Behavior/HostedChildren.cs`)* — `slotKey → Interpreter<byte, BTreeContext>`, bound by the generated
+`Register(beh, staging)` where the registry IS in hand, and read back by the baked slot key.
+
+| §32.4 drew | as built |
+|---|---|
+| `BrainTickSystem ..> BehaviorRegistry : child by NAME` | `BrainTickSystem ..> HostedChildren : child by SLOT KEY`, and `HostedChildren ..> BehaviorRegistry : by name, at registration` |
+
+🔒 **It is one seam for all three hosts** — `E5`'s state hosting and the BTree orchestrator's alias
+hosting resolve identically (ruling 9). ⭐ The tables above it still differ, because the QUESTIONS
+differ (*"which states host?"* vs *"which node hosts?"*); only the ANSWER is shared.
+
+#### 32.11.2 🔴 `CE-333` WAS **ROUTED, NOT PATCHED** — and that is a deviation from §32.9
+
+⛔ §32.9 said *"fix it in the same pass — it wants the identical thunk shape."* 📐 **That was wrong,
+and the build measured why:**
+
+| # | |
+|---|---|
+| ① | an `[HsmAction]` is dispatched **at most once per event-driven round** (`F1`/`CE-334`) — a hosted BTree is a cursor and needs a frame |
+| ② | **an HSM thunk has no `deltaTime`.** `HsmKernelBridge` carries `Self`, `WorldHandle` and a trace pointer; the kernel never hands an action its dt ⇒ a `BTreeContext` built there would tick the child at **dt = 0, forever** |
+
+⇒ ⭐⭐ **an ABI-correct thunk would have COMPILED AND BEEN A TRAP.** 🔒 So
+`HsmOrchestratorEmitCore.Emit` now returns `null` unconditionally, with the reasoning in its body:
+HSM sub-tree hosting is declared per **STATE** and ticked by `BrainTickSystem`. ⭐ **ROUTE, not
+delete** — the capability is preserved and the duplicate mechanism collapses. ⚠ Measured before
+removing the emission: **0** shipped `.hsm.json` carries an alias, and the type's own remarks already
+said there is *"no authoring gesture that creates the alias."* ⛔ **The alias DATA is untouched.**
+
+✅ **`CE-335` was fixed rather than routed** — the BTree orchestrator is a `[BTreeAction]`, which the
+interpreter runs every frame, so it has neither defect. It now calls
+`HostedChildren.Require(key)` and passes the aliased DTO field as `ref byte`.
+
+#### 32.11.3 ⚠ ITEMS 6 AND 7 ARE **DEFERRED, WITH A MEASUREMENT** — not silently dropped
+
+📐 `HsmDocumentFactory.cs:87` constructs `new HsmGraphModel(hsmAsset)` with **no resolver**, and
+`AiEditorAdapterBundle` carries **no asset catalogue** — it exposes icons, theme, input, clipboard,
+diagnostics and pickers. ⇒ ⛔ *"wire the resolver"* is not a wiring change: it needs a
+**"is this asset stateful?"** service that the HSM editor's composition root does not have, and
+inventing one is an editor-lane design call. ⭐ `E4` already threaded the resolver through the
+production `HsmAssetValidator`; what is missing is the **canvas** path and its data source.
+⚠ **Item 7** (the `A` hosts `B` hosts `A` cycle) depends on the same resolver, so it defers with it.
+
+#### 32.11.4 📐 ACCEPTANCE — as measured
+
+| # | | |
+|---|---|---|
+| `A1` | round-trip `SubtreeName` through real JSON | ⚠ **NOT BUILT** — the mapper carries it both ways, but no rail drives real JSON text |
+| `A2` | the emitted registrar **COMPILES** | ⛔ **NOT BUILT** — still the missing rail, and `CE-333`/`CE-335` remain open until it exists |
+| `A3` | the child's cursor is its own | ✅ `E5_R3` |
+| `A4` | 🔴 **consecutive frames, EMPTY queue** | ✅ **`E5_R3`** — the direct red-proof of `F1` |
+| `A5` | an inactive host resets a `Running` child | ✅ `E5_R4` |
+| `A6` | red-proof | ✅ disabling `TickHostedChildren` reddens `E5_R3` + `E5_R4` and **nothing else** |
+| `A7` | golden corpus unmoved | ✅ every emission is gated on a hosting state; no shipped asset has one |
+| `A8` | `HsmValidator` Rule 8 fires | ⚠ **DEFERRED with item 6** |
+
+⚠ **`E5_R1`/`E5_R2` are additions the design did not list** — the `StableId`→flat-index join and the
+`HostedChildren` bind/throw contract. ⭐ They live in `HsmOccurrenceKeyTests`, the HSM occurrence
+feature's own suite (`T-1` ④), not a parallel class.
+
+⚠ **One fixture fact worth keeping:** a rail must **promote the tier** (`BlueprintTierTable.EnsureAtLeast`)
+before attaching the child's cursor slot — ingress sizes the store for the HSM instance alone. ⛔ Not a
+production concern: there the manifest declares the slot up front, so the tier is sized for both at once.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

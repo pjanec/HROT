@@ -154,9 +154,29 @@ public sealed class TheOrchestratorIsGeneratedTests
             "topology core + registrar, exactly as before this batch");
     }
 
-    /// <summary>⭐⭐⭐ THE HSM rail: an alias reaches generated C#. 🔴 RED before <c>92b</c>.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>INVERTED <c>2026-09-23</c> (<c>CE-333</c> / <c>E5</c>) — an HSM alias emits NOTHING.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.11.2.
+    ///
+    /// <para>🔴 <b>What this used to assert, and why every line of it was wrong:</b> that an alias
+    /// produced <c>[HsmAction(Name = "Orchestrate_GuardSubTree")] public static NodeStatus
+    /// Orchestrate_GuardSubTree_Tick(…)</c> ending in <c>GetInterpreter().Tick(...)</c>. 📐 Measured:
+    /// ① that method shape cannot carry <c>[HsmAction]</c> — the ABI is a thunk
+    /// <c>(void*, void*, HsmCommandWriter*)</c>, and <c>&amp;</c> of a <c>NodeStatus</c>-returning
+    /// method does not convert; ② <c>GetInterpreter()</c> is <b>defined nowhere in the repository</b>
+    /// (<c>CE-335</c>). ⇒ this rail asserted, line by line, the text of a file that has never
+    /// compiled.</para>
+    ///
+    /// <para>🔒 <b>That is the lesson worth keeping: a text-asserting golden cannot tell you the code
+    /// it pins is not valid C#.</b> ⭐ The rail that WOULD have caught it — compile the emitted text —
+    /// is acceptance <c>A2</c> and is still missing.</para>
+    ///
+    /// <para>⭐⭐ HSM hosting now lives on the STATE: <c>StateNode.SubtreeName</c> +
+    /// <c>SubtreeAssetId</c>, a slot declared by <c>HsmBridgeEmitCore</c>, and
+    /// <c>BrainTickSystem.TickHostedChildren</c> ticking the child every frame.</para>
+    /// </summary>
     [Fact]
-    public void AnHsmAliasEmitsAnHsmActionOrchestrator()
+    public void AnHsmAliasEmitsNoOrchestrator_HostingIsPerState_CE333()
     {
         var dto  = SampleGuardDto();
         string varName = EnsureVariable(dto);
@@ -165,17 +185,15 @@ public sealed class TheOrchestratorIsGeneratedTests
             [varName] = new() { Alias("GuardSubTree") },
         };
 
-        var text = OrchestratorText(Run(new HsmJsonGenerator(), "/p/SampleGuard.hsm.json",
-            HsmJsonServices.Serialize(dto)));
+        var result = Run(new HsmJsonGenerator(), "/p/SampleGuard.hsm.json",
+            HsmJsonServices.Serialize(dto));
 
-        text.Should().NotBeNull("an aliased asset must produce an Orchestrators.g.cs");
-        text!.Should().Contain("[HsmAction(Name = \"Orchestrate_GuardSubTree\")]",
-            "the HSM arm registers through [HsmAction], not [BTreeAction]");
-        text.Should().Contain("public static NodeStatus Orchestrate_GuardSubTree_Tick(");
-        text.Should().Contain($"ref master.{varName}",
-            "the sub-tree's blackboard is PROJECTED onto the master variable the alias names");
-        text.Should().Contain("GetInterpreter().Tick(ref subBb, ref state, ref ctx);",
-            "the orchestrator's job is to tick the sub-tree");
+        OrchestratorText(result).Should().BeNull(
+            "the HSM alias arm is retired (CE-333): the [HsmAction] it emitted could not compile, and "
+            + "an HSM action is dispatched at most once per event round (CE-334) so it could not have "
+            + "ticked a child every frame. Hosting moved to the STATE — DESIGN §32.");
+        result.GeneratedTrees.Should().HaveCount(2,
+            "topology core + registrar, and no orchestrator file — the same shape as an unaliased asset");
     }
 
     /// <summary>
@@ -186,16 +204,21 @@ public sealed class TheOrchestratorIsGeneratedTests
     [Fact]
     public void TheDtoTypeIdIsSplitIntoNameAndNamespaceWithoutResolvingAType()
     {
-        var dto = SampleGuardDto();
+        // ⚠ RE-HOMED to the BTree arm 2026-09-23 (CE-333): the DtoTypeId split lives in the SHARED
+        //   OrchestratorAliasCollector, but only the BTree arm still emits text to assert it on.
+        var dto = SampleScoutDto();
         dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
         {
             [EnsureVariable(dto)] = new() { Alias("GuardSubTree") },
         };
 
-        var text = OrchestratorText(Run(new HsmJsonGenerator(), "/p/SampleGuard.hsm.json",
-            HsmJsonServices.Serialize(dto)))!;
+        var text = OrchestratorText(Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(dto)))!;
 
-        text.Should().Contain("Unsafe.As<PatrolParams, PatrolParams>",
+        // ⭐ CE-335: the destination type is now `byte` — the registry holds
+        //   Interpreter<byte, BTreeContext>, so the aliased field is reinterpreted as the child's
+        //   blackboard bytes. The SHORT name being asserted is the SOURCE type, which is the claim.
+        text.Should().Contain("Unsafe.As<PatrolParams, byte>",
             "the SHORT name is the segment after the last '.'");
         text.Should().Contain("using Made.Up.Behaviors;",
             "the NAMESPACE is everything before it, and becomes a using");
@@ -203,19 +226,25 @@ public sealed class TheOrchestratorIsGeneratedTests
             "the full name is split, not pasted through");
     }
 
-    /// <summary>⭐⭐ Two aliases on one variable ⇒ two methods; ⛔ a repeat of the same pair ⇒ one.</summary>
+    /// <summary>⭐⭐ Two aliases on one variable ⇒ two methods; ⛔ a repeat of the same pair ⇒ one.
+    ///
+    /// <para>⚠ <b>RE-HOMED to the BTree arm <c>2026-09-23</c> (<c>CE-333</c>).</b> The CLAIM is
+    /// unchanged — <c>OrchestratorAliasCollector</c> de-duplicates a repeated (variable, sub-tree)
+    /// pair — and the collector is shared by both arms. ⛔ Only the HOST moved: the HSM arm no longer
+    /// emits an orchestrator at all (§32.11.2), so asserting the claim there would assert it on
+    /// <c>null</c>.</para></summary>
     [Fact]
     public void EachUniqueVariableSubTreePairEmitsExactlyOneMethod()
     {
-        var dto = SampleGuardDto();
+        var dto = SampleScoutDto();
         string varName = EnsureVariable(dto);
         dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
         {
             [varName] = new() { Alias("Alpha"), Alias("Beta"), Alias("Alpha") },
         };
 
-        var text = OrchestratorText(Run(new HsmJsonGenerator(), "/p/SampleGuard.hsm.json",
-            HsmJsonServices.Serialize(dto)))!;
+        var text = OrchestratorText(Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(dto)))!;
 
         CountOf(text, "Orchestrate_Alpha_Tick(").Should().Be(1, "the duplicate pair is de-duplicated");
         CountOf(text, "Orchestrate_Beta_Tick(").Should().Be(1);

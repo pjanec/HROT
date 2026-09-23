@@ -4,12 +4,13 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-23
-build-state: ✅ **NOTHING IS IN FLIGHT.** Tree clean, everything pushed, branch `behaviors`.
-  ⭐⭐⭐ NEXT IS `E5` — an HSM state hosts a BTree. `DESIGN_Occurrence_Scoped_Storage.md` §32 is
-  ⚠ **`DESIGN`, NOT READY-TO-BUILD** — its own review (§32.2, `2026-09-23`) found eight gaps, two
-  blocking, and DEMOTED it. ⭐ §32.3 carries the corrected decision (user: "go with b"), §32.4-§32.6
-  three NEW UML diagrams, §32.8 seven items, §32.10 acceptance A1-A8. Q36 is APPROVED and still holds.
-  ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE and gated this session.
+build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Branch `behaviors`.
+  ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
+  the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
+  Rails `E5_R1`..`E5_R4` in `HsmOccurrenceKeyTests`, red-proved. 📄 §32.11 is the AS-BUILT.
+  ✅ `CE-333` ROUTED (the HSM alias arm is retired) · ✅ `CE-335` FIXED · 📋 `CE-334`, `CE-336` open.
+  ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1`/`A2` NOT BUILT** — see §0b.
+  ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
 current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
   §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
@@ -112,7 +113,9 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 |---|---|---|
 | **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
-| **`CE-333`** | the HSM alias-arm emission that does not compile | ⭐ **ours** — §32.9 says fix it in the same pass as `E5` |
+| **`CE-336`** | 🔴 **nothing compiles emitted orchestrator text** — the blindness that let `CE-333` and `CE-335` live. Until it exists, `E5`'s `A2` is UNMET and the EMITTER half of `E5` is proven only by inspection | ⭐ **ours, and the highest-value next rail** |
+| **`E5` items 6-7** | wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys`, then the `A`-hosts-`B`-hosts-`A` cycle check. ⛔ **Deferred with a measurement, not dropped:** `HsmDocumentFactory:87` builds `HsmGraphModel(hsmAsset)` with no resolver, and `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have | ⚠ **editor-lane shaped** — ask before absorbing |
+| **`E5` `A1`** | round-trip `SubtreeName` through real JSON text into a fresh model | ⭐ ours, small |
 | **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |
 | **`CE-335`** | 🔴 **the BTree alias arm does not compile either** — `{Child}.GetInterpreter()` is defined nowhere | ⭐ **ours** — one rail that COMPILES an emitted orchestrator closes it and `CE-333` together, and that rail is `E5`'s `A2` |
 

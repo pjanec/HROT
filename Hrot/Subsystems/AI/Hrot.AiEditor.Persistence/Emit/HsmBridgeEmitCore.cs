@@ -182,6 +182,9 @@ public static class HsmBridgeEmitCore
         // ⭐⭐⭐ E3b-0 — which variable does each STATE's occurrence seed its params from.
         EmitStateParamBindings(sb, dto, packedFields, pad2);
 
+        // ⭐⭐⭐ E5 — which STATES host a child behaviour. 📄 DESIGN §32.8 item 4.
+        EmitHostedSubtrees(sb, dto, pad2);
+
         // ⛔⛔ W3 (Batch 59) — THE COUNTER-ALLOCATED STUB REGISTRATIONS ARE GONE.
         //
         // This used to emit, for each action FQN in the asset:
@@ -522,10 +525,63 @@ public static class HsmBridgeEmitCore
     /// so a variable with no node to key off has no meaningful <c>Node</c>-scoped slot.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <c>E5</c> — <b>the hosting states of <paramref name="dto"/>, each with the slot key its
+    /// child's <c>BehaviorTreeState</c> will live under.</b>
+    ///
+    /// <para>⭐ The exact analogue of <c>BTreeBridgeEmitCore.CollectHostedTreeStateSlots</c>, and it
+    /// calls the SAME key function — <c>OccurrenceSlotKey.ComputeTreeStateKey</c>, with the hosting
+    /// STATE's <c>StableId</c> as the site. 🔒 One arithmetic, two hosts (ruling 9), and the site is
+    /// a stable authoring id rather than an ordinal (<c>D5</c>).</para>
+    ///
+    /// <para>⛔ <b>A state needs BOTH halves of the pair.</b> A <c>SubtreeAssetId</c> with no
+    /// <c>SubtreeName</c> is skipped: the name is how the host resolves the child through
+    /// <c>BehaviorRegistry</c> (<c>Q36-B</c> = A), so a Guid alone cannot be hosted — and guessing a
+    /// name would be worse than not hosting. ⚠ That is also why every pre-<c>E5</c> asset emits
+    /// nothing: <c>SubtreeName</c> did not exist, so no state can carry one.</para>
+    ///
+    /// <para>📐 Measured <c>2026-09-23</c>: <b>0</b> shipped <c>.hsm.json</c> carries a
+    /// <c>SubtreeAssetId</c> at all, so this returns empty for the whole corpus and the generated
+    /// output stays byte-identical — acceptance <c>A7</c>.</para>
+    /// </summary>
+    private static List<(Guid StableId, string ChildName, int SlotKey)> CollectHostedSubtrees(HsmAssetDto dto)
+    {
+        var result = new List<(Guid, string, int)>();
+        if (dto.States == null || dto.States.Count == 0) return result;
+
+        var seen = new HashSet<int>();
+        foreach (var st in dto.States)
+        {
+            if (st == null) continue;
+            if (st.SubtreeAssetId == Guid.Empty) continue;
+            if (string.IsNullOrWhiteSpace(st.SubtreeName)) continue;
+
+            int key = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
+                dto.AssetId, st.StableId, st.SubtreeAssetId);
+
+            // ⚠ Two states hosting the same child would have DIFFERENT keys (the site differs), so a
+            //   collision here means a duplicated StableId — malformed input, not a co-scoped share.
+            if (!seen.Add(key)) continue;
+
+            result.Add((st.StableId, st.SubtreeName!.Trim(), key));
+        }
+        return result;
+    }
+
     private static void EmitStatefulWorkingSlotsArray(StringBuilder sb, HsmAssetDto dto, string pad)
     {
+        // ⭐⭐⭐ E5 — one slot per HOSTED SUBTREE, so the child gets its OWN BehaviorTreeState.
+        // ⛔⛔ THIS AND THE HOSTING CALL SHIP TOGETHER OR NEITHER — HostedSubtree.Tick THROWS on a
+        //    slot the manifest never declared (§19.6 ⑤: a silent miss is the failure A1 exists to
+        //    kill), so registering the host without this entry turns every hosted state into a hard
+        //    failure. 📄 §32.2.2 — the first draft of §32 omitted exactly this.
+        var hostedSlots = CollectHostedSubtrees(dto);
+
         var variables = dto.Blackboard?.Variables;
-        if (variables == null || variables.Count == 0) return;
+        // ⚠ The variable list may be empty while a state still hosts — an HSM that hosts a BTree and
+        //   declares no State-role variable of its own is entirely legitimate.
+        if ((variables == null || variables.Count == 0) && hostedSlots.Count == 0) return;
+        variables ??= new List<HsmBlackboardVariableDto>();
 
         // ⭐⭐ Batch 73 — ORDER BY CONSTRUCTION, not by implementation detail.
         //
@@ -556,7 +612,7 @@ public static class HsmBridgeEmitCore
             slots.Add((slotKey, typeId, v.Name, (int)v.Role, (int)v.Scope));
         }
 
-        if (slots.Count == 0) return;
+        if (slots.Count == 0 && hostedSlots.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
@@ -575,7 +631,73 @@ public static class HsmBridgeEmitCore
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.{(BlackboardVariableRole)role}, " +
                 $"(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.{(WorkingStateScope)scope}),");
         }
+
+        // ⭐ E5 — the hosted children's tree-state slots, emitted AFTER the authored ones so the
+        //   existing corpus's slot ORDER is byte-identical. 📐 Nothing in today's corpus hosts, so
+        //   this loop emits nothing for every shipped asset (A7).
+        // ⭐⭐ Role=State / Scope=Behavior is what makes HostedSubtree.IsTreeStateSlot's manifest test
+        //   work: WorkingStateType == typeof(BehaviorTreeState) is a type an authored WorkingState
+        //   can never be, so an external reset clears a hosted CURSOR and never author state.
+        //   ⛔ Identical to BTreeBridgeEmitCore's emission — re-spelling it is how the two would drift.
+        foreach (var (_, childName, slotKey) in hostedSlots)
+        {
+            string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"") + " (hosted)";
+            sb.AppendLine(
+                $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
+                "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>(), " +
+                $"unchecked({BTreeBridgeEmitCore.ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
+                "(uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>()), " +
+                $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
+                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
+                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
+        }
+
         sb.AppendLine($"{pad}}},");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>E5</c> item 4 — <b>the hosting table, baked as authoring <c>StableId</c>s.</b>
+    ///
+    /// <para>⭐ Emitted beside <see cref="EmitStateParamBindings"/> and for the same reason: the
+    /// emitter knows the asset's own states and NOT the flattener's ordering, so it bakes
+    /// <c>StableId</c>s and lets <c>HsmHostedSubtrees.Register</c> recover the flat indices from the
+    /// blob's own <c>MachineMetadata.StateStableIds</c>.</para>
+    ///
+    /// <para>⚠ <b>Emits NOTHING when no state hosts</b>, which is every asset in the corpus ⇒ their
+    /// generated source stays byte-identical. ⭐ The same gating rule the <c>AssetId</c> constant and
+    /// the <c>E3b-0</c> table learned: an emitter addition is gated on the feature that needs it.</para>
+    /// </summary>
+    private static void EmitHostedSubtrees(StringBuilder sb, HsmAssetDto dto, string pad2)
+    {
+        var hosted = CollectHostedSubtrees(dto);
+        if (hosted.Count == 0) return;
+
+        sb.AppendLine($"{pad2}// E5: which STATES host a child behaviour, and the slot key that child's");
+        sb.AppendLine($"{pad2}//     BehaviorTreeState lives under. Resolved to flat state indices at");
+        sb.AppendLine($"{pad2}//     runtime via the blob's own MachineMetadata.StateStableIds.");
+        sb.AppendLine($"{pad2}// ⛔ BrainTickSystem is the HOST — not a generated [HsmAction]: an HSM action");
+        sb.AppendLine($"{pad2}//    is dispatched at most once per event-driven round (CE-334), and a hosted");
+        sb.AppendLine($"{pad2}//    BTree needs a frame cursor. 📄 DESIGN §32.2.1 / §32.3.");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HsmHostedSubtrees.Register(blob, new (global::System.Guid, string, int)[]");
+        sb.AppendLine($"{pad2}{{");
+        foreach (var (stableId, childName, slotKey) in hosted)
+        {
+            string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine($"{pad2}{Indent}(new global::System.Guid(\"{stableId}\"), \"{escaped}\", {slotKey}),");
+        }
+        sb.AppendLine($"{pad2}}});");
+        sb.AppendLine();
+
+        // ⭐⭐ And BIND each child's interpreter to its slot, resolved HERE because `beh` is in hand.
+        //   ⛔ A tick-time lookup is not available to every host: a generated thunk is static and
+        //      there is no ambient BehaviorRegistry (CE-333/CE-335's root cause). One table, one
+        //      answer per slot — ruling 9.
+        foreach (var (_, childName, slotKey) in hosted)
+        {
+            string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {slotKey}, \"{escaped}\");");
+        }
+        sb.AppendLine();
     }
 
     private static IReadOnlyList<string> CollectBridgeUsings(HsmAssetDto dto)

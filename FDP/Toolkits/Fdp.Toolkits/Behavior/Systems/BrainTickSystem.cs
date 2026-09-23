@@ -430,6 +430,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             HsmKernel.Update(
                 def.HsmDefinition, instance, instanceSize, &bridge, deltaTime, &dummyPage, traceCtxPtr);
 
+            // ⭐⭐⭐ E5 — the hosted children, ticked HERE and not by a generated [HsmAction].
+            //   📄 DESIGN_Occurrence_Scoped_Storage.md §32.3 (user, 2026-09-23: "go with b").
+            // ⛔ AFTER Update, deliberately: the active-leaf set must be THIS frame's.
+            TickHostedChildren(repo, entity, behavior, def, instance, instanceSize, deltaTime);
+
             if (hsmTracePtr != null && emitToLog
                 && BehaviorTraceLog.Instance is { IsTraceEnabled: true } emitter)
             {
@@ -458,6 +463,136 @@ namespace Fdp.Toolkit.Behavior.Systems
                     header->Phase  = InstancePhase.Idle;
                 }
             }
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>E5</c> — tick the BTree each ACTIVE hosting state owns, and reset the ones whose
+        /// host is no longer active.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.3, §32.5.
+        ///
+        /// <para>🔴🔴 <b>Why the host is HERE and not a generated <c>[HsmAction]</c>.</b> 📐 Measured
+        /// <c>2026-09-23</c> (§32.2.1): <c>HsmKernelCore.UpdateBatchCore</c> advances an instance by
+        /// ONE PHASE PER TICK, <c>Idle</c> leaves only on a non-empty event queue, and <c>Activity</c>
+        /// ends by setting <c>Idle</c> ⇒ on a quiescent machine an <c>ActivityAction</c> runs
+        /// <b>exactly once</b>. ⛔ That is not a frame hook, and a hosted BTree is a cursor that must
+        /// advance every frame. 📋 The one-shot itself is <c>CE-334</c>; this routes around it.</para>
+        ///
+        /// <para>⭐⭐ <b>The <c>else</c> arm IS <c>F14</c>, and it needs no deactivator.</b> The BTree
+        /// host must register one because a tick-driven hook cannot observe its own abandonment
+        /// (<c>HostedSubtree.Reset</c>'s remarks). Here the set of hosting states is iterated every
+        /// frame, so <i>"my host is not active"</i> is DIRECTLY observable — ⛔ no
+        /// <c>SweepExitedNodes</c> analogue, no <c>IsResourceOwning</c> bit, and no remembered state:
+        /// the active-leaf set is the memory. ⚠ HSM has no deactivator registry at all, so the
+        /// alternative was an <c>OnExitAction</c> that may already be authored.</para>
+        ///
+        /// <para>⭐ <b>The child's blackboard is the entity's ROOT PARAMS slot</b> — the same
+        /// <c>ref byte</c> the BTree arm passes at <c>:262-264</c>, guard included.
+        /// <c>BehaviorDefinition.BTreeInterpreter</c> is <c>Interpreter&lt;byte, BTreeContext&gt;</c>
+        /// (<c>BehaviorRegistry.cs:151</c>), so there is exactly one blackboard shape to supply and no
+        /// per-asset struct is needed — which matters because ⛔ <b>HSM assets emit no blackboard
+        /// struct at all</b>. ⚠ A hosted child's own actions resolve their occurrence by
+        /// <c>AssetId</c>, so they ignore these bytes; §32.9 names that asset-scoping as the
+        /// inherited <c>E3</c> hazard.</para>
+        ///
+        /// <para>⛔ <b>One dictionary miss is the whole cost for a machine that hosts nothing</b>,
+        /// which is every shipped asset.</para>
+        /// </summary>
+        private void TickHostedChildren(
+            EntityRepository repo,
+            Entity entity,
+            in BehaviorState behavior,
+            BehaviorDefinition def,
+            byte* instance,
+            int instanceSize,
+            float deltaTime)
+        {
+            var blob = def.HsmDefinition;
+            if (blob is null) return;
+
+            if (!HsmHostedSubtrees.TryGetForMachine(blob.Header.StructureHash, out var hosted))
+                return;   // ⭐ the common case — no shipped asset hosts anything
+
+            ushort* activeLeafIds = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int regionCount);
+            if (activeLeafIds == null) return;
+
+            // ⭐ The child's blackboard, resolved once for all hosted children on this entity.
+            //   ⛔ Same predicate as the BTree arm: a behaviour with no params has NO root slot, so
+            //      RootRef would throw — "did the lookup fail?" cannot tell that from a real miss.
+            byte __noParamsScratch = 0;
+            ref byte childBb = ref __noParamsScratch;
+            if (RootParamsAccess.RootParamsBytes(def) > 0)
+                childBb = ref RootParamsAccess.RootRef(repo, entity);
+
+            var context = new BTreeContext
+            {
+                Self         = entity,
+                World        = repo,
+                _deltaTime   = deltaTime,
+                _frameCount  = (int)repo.SimulationTick,
+                _floatParams = Array.Empty<float>(),
+                _intParams   = Array.Empty<int>(),
+                _instanceId  = behavior.InstanceId,
+                TraceBuffer  = null,
+            };
+
+            for (int i = 0; i < hosted.Length; i++)
+            {
+                var entry = hosted[i];
+
+                if (!IsStateActive(blob, activeLeafIds, regionCount, entry.StateIndex))
+                {
+                    // ⭐ F14 — the host abandoned a child that may still be Running.
+                    //   ⛔ Unconditional and cheap: Reset is a slot lookup and a zeroing write, and a
+                    //      child that was already default stays default.
+                    HostedSubtree.Reset(repo, entity, entry.TreeStateSlotKey);
+                    continue;
+                }
+
+                // ⛔ Resolved through the SAME table the BTree orchestrator's alias hosting uses —
+                //   one answer per slot, not two resolution policies (ruling 9). The name→interpreter
+                //   step happened at registration, because a generated thunk has no registry to ask.
+                // ⚠ A missing binding is SKIPPED here rather than thrown on: the HSM arm's documented
+                //   policy is to skip where the BTree arm throws (§31.16.2, a measured asymmetry), and
+                //   this runs inside a frame loop over every entity.
+                if (!HostedChildren.TryGet(entry.TreeStateSlotKey, out var childInterpreter)) continue;
+
+                // ⭐⭐ The status is DISCARDED, and that is settled: Q33 §1.5.4 rules a hosted subtree
+                //   NON-BLOCKING — it does not gate its host state's transitions, and completion is
+                //   raised through the child's own actions.
+                HostedSubtree.Tick(childInterpreter, ref childBb, ref context, entry.TreeStateSlotKey);
+            }
+        }
+
+        /// <summary>
+        /// ⭐ Is <paramref name="stateIndex"/> on the active path of any region — as a leaf or as an
+        /// ancestor of one?
+        ///
+        /// <para>⭐⭐ <b>The ancestor walk is not optional.</b> A hosting state may be a COMPOSITE, in
+        /// which case it is never itself a leaf; the kernel's own <c>ProcessActivityPhase</c> walks
+        /// leaf → root for exactly this reason (<c>HsmKernelCore.cs:444-456</c>). ⛔ Testing leaves
+        /// only would silently never tick a composite host.</para>
+        ///
+        /// <para>⚠ <c>0xFFFF</c> is the kernel's "no active leaf" sentinel in BOTH places it appears —
+        /// an unentered region, and the root's <c>ParentIndex</c> terminator.</para>
+        /// </summary>
+        private static bool IsStateActive(
+            HsmDefinitionBlob blob, ushort* activeLeafIds, int regionCount, ushort stateIndex)
+        {
+            for (int r = 0; r < regionCount; r++)
+            {
+                ushort current = activeLeafIds[r];
+                if (current == 0xFFFF) continue;
+
+                // ⚠ Bounded by the state count, not by trust in the data: a malformed ParentIndex
+                //   cycle would otherwise hang the tick, and a hang in a frame loop is worse than a
+                //   missed host.
+                int guard = 0;
+                while (current != 0xFFFF && guard++ <= blob.Header.StateCount)
+                {
+                    if (current == stateIndex) return true;
+                    current = blob.GetState(current).ParentIndex;
+                }
+            }
+            return false;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

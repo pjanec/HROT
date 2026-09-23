@@ -59,6 +59,7 @@ public static class HsmAssetMapper
                 TimerAction    = s.TimerAction,
                 RegionIndex    = s.RegionIndex,
                 SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
+                SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -241,6 +242,7 @@ public static class HsmAssetMapper
                 TimerAction   = sDto.TimerAction,
                 RegionIndex   = sDto.RegionIndex,
                 SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
+                SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,

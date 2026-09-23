@@ -1,12 +1,20 @@
 using System;
-using System.Collections.Generic;
-using System.Text;
 using Hrot.AiEditor.Persistence.Hsm;
 
 namespace Hrot.AiEditor.Persistence.Emit;
 
 /// <summary>
-/// ⭐⭐⭐ <b>Batch 92 (<c>92a</c>) — the HSM orchestrator emit BODY, moved off the editor model.</b>
+/// ⛔⛔⛔ <b>RETIRED <c>2026-09-23</c> (<c>CE-333</c>) — <see cref="Emit"/> ALWAYS RETURNS <c>null</c>.</b>
+/// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.2.1 / §32.3. ⭐ HSM sub-tree hosting is declared
+/// per <b>STATE</b> now (<c>StateNode.SubtreeName</c> + <c>SubtreeAssetId</c>) and ticked every frame
+/// by <c>BrainTickSystem.TickHostedChildren</c>. ⛔ The reasoning is in <see cref="Emit"/>'s body, at
+/// length, because it is the kind of removal a future reader will otherwise try to undo.
+/// ⚠ The type and its callers stay: a caller that gets <c>null</c> emits no file, which is exactly
+/// what every shipped asset already did.
+///
+/// <para>⛔ HISTORY — what it was, kept so the supersession is legible:</para>
+///
+/// <para><b>Batch 92 (<c>92a</c>) — the HSM orchestrator emit BODY, moved off the editor model.</b>
 ///
 /// <para>📐 <b>Why it had to move.</b> <c>HsmOrchestratorEmitter</c> emits from <c>HsmAsset</c> — an
 /// editor type. ⛔ A Roslyn generator has only the <b>DTO</b>. ⇒ this core emits from
@@ -27,93 +35,50 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// </summary>
 public static class HsmOrchestratorEmitCore
 {
-    private const string Indent = "    ";
-    private const string HsmActionNs           = "Fhsm.Kernel.Attributes";
-    private const string FbtNamespace          = "Fbt";
-    private const string BTreeContextNs        = "Fdp.Toolkit.Behavior";
-    private const string RuntimeCompilerServNs = "System.Runtime.CompilerServices";
-
-    /// <summary>Fallback namespace when the asset declares none — matches the editor emitter.</summary>
+    /// <summary>Fallback namespace when the asset declares none — matches the editor emitter.
+    /// ⚠ Retained: callers reference it, and it is the namespace E5's emission would use.</summary>
     public const string DefaultTargetNamespace = "Hrot.AI.Behaviors.Machines";
 
     /// <summary>
-    /// Generates the orchestrator source text for <paramref name="dto"/>.
-    /// ⭐ Returns <c>null</c> when the asset has no alias bindings — ⛔ the caller emits <b>nothing</b>,
-    /// which is what keeps the whole corpus byte-identical (no shipped asset has an alias).
+    /// ⛔⛔ <b>Always <c>null</c> since <c>CE-333</c> — the caller emits no file.</b> See the body for
+    /// why this arm was routed to <c>E5</c> rather than repaired.
     /// </summary>
     public static string? Emit(HsmAssetDto dto)
     {
         if (dto is null) throw new ArgumentNullException(nameof(dto));
 
-        var methods = OrchestratorAliasCollector.Collect(dto.Aliases, VariableNamesOf(dto), "HsmAsset");
-        if (methods.Count == 0) return null;
-
-        var usingsSet = new HashSet<string>(StringComparer.Ordinal)
-        {
-            RuntimeCompilerServNs,
-            HsmActionNs,
-            FbtNamespace,
-            BTreeContextNs,
-        };
-        OrchestratorAliasCollector.AddDtoNamespaces(usingsSet, methods, dto.TargetNamespace);
-        var sortedUsings = AiEmitCoreBase.SortUsings(usingsSet);
-
-        string bbShort   = OrchestratorAliasCollector.ShortTypeName(dto.BlackboardTypeName);
-        string className = OrchestratorAliasCollector.SanitizeIdentifier(dto.Name, "HsmAsset");
-        string targetNs  = string.IsNullOrEmpty(dto.TargetNamespace)
-            ? DefaultTargetNamespace
-            : dto.TargetNamespace;
-
-        var sb = new StringBuilder();
-
-        sb.Append(AiEmitCoreBase.BuildHeader(dto.AssetId));
-        sb.AppendLine("// Auto-generated orchestrator actions for aliased sub-trees.");
-        sb.AppendLine($"// OwningAssetName: {dto.Name}");
-        sb.AppendLine();
-
-        foreach (var ns in sortedUsings)
-        {
-            if (ns.Length == 0) sb.AppendLine();
-            else                sb.AppendLine($"using {ns};");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine($"namespace {targetNs};");
-        sb.AppendLine();
-        sb.AppendLine($"public static class {className}_Orchestrators");
-        sb.AppendLine("{");
-
-        for (int i = 0; i < methods.Count; i++)
-        {
-            var m = methods[i];
-
-            sb.AppendLine($"{Indent}[HsmAction(Name = \"Orchestrate_{m.SubTreeName}\")]");
-            sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{m.SubTreeName}_Tick(");
-            sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
-            sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
-            sb.AppendLine($"{Indent}{Indent}ref BTreeContext ctx,");
-            sb.AppendLine($"{Indent}{Indent}int paramIndex)");
-            sb.AppendLine($"{Indent}{{");
-            sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{m.DtoTypeName}, {m.DtoTypeName}>(ref master.{m.VarName});");
-            sb.AppendLine($"{Indent}{Indent}return {m.SubTreeName}.GetInterpreter().Tick(ref subBb, ref state, ref ctx);");
-            sb.AppendLine($"{Indent}}}");
-
-            if (i < methods.Count - 1) sb.AppendLine();
-        }
-
-        sb.AppendLine("}");
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// ⚠ The variable ORDER is the emission order, so it is taken from the blackboard block rather
-    /// than from the alias dictionary — ⛔ a <c>Dictionary</c>'s enumeration order is not a contract.
-    /// </summary>
-    private static IEnumerable<string> VariableNamesOf(HsmAssetDto dto)
-    {
-        var vars = dto.Blackboard?.Variables;
-        if (vars is null) yield break;
-        foreach (var v in vars) yield return v.Name;
+        // ⭐⭐⭐ CE-333 — SUPERSEDED BY E5, AND ROUTED RATHER THAN PATCHED (2026-09-23).
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §32.2.1 / §32.3.
+        //
+        // 🔴 What this used to emit could not compile: an [HsmAction] carrying the FastBTree ACTION
+        //    signature `(ref Bb master, ref BehaviorTreeState state, ref BTreeContext ctx, int
+        //    paramIndex)` returning NodeStatus. The HSM ABI is a THUNK — `&method` must convert to
+        //    `delegate*<void*, void*, HsmCommandWriter*, void>` (HsmActionGenerator:405) — and it
+        //    does not. Nothing caught it because Emit returns null for every shipped asset and ZERO
+        //    tests compile emitted text.
+        //
+        // ⛔⛔ AND MAKING IT ABI-CORRECT WOULD NOT HAVE MADE IT WORK. Two measured reasons:
+        //    ① An [HsmAction] is dispatched at most once per event-driven round: UpdateBatchCore
+        //      advances ONE PHASE PER TICK, Idle leaves only on a non-empty queue, and Activity ends
+        //      by setting Idle ⇒ on a quiescent machine, once, ever (CE-334). A hosted BTree is a
+        //      CURSOR; it must advance every frame.
+        //    ② An HSM thunk has no deltaTime. HsmKernelBridge carries Self, WorldHandle and a trace
+        //      pointer — the kernel never hands an action its dt — so a BTreeContext built here would
+        //      tick the child at dt = 0, forever.
+        //   ⇒ a correct-looking thunk would have been a TRAP for the first author who used it.
+        //
+        // ⭐⭐ WHERE THE CAPABILITY WENT — nothing is lost. E5 hosts a child from an HSM STATE:
+        //    the state carries {SubtreeAssetId, SubtreeName}, HsmBridgeEmitCore declares the child's
+        //    tree-state slot and binds its interpreter, and BrainTickSystem.TickHostedChildren ticks
+        //    it EVERY FRAME while the host state is active — with the real dt it already holds.
+        //    🔒 One mechanism for one concept (ruling 9); this arm was the second.
+        //
+        // ⚠ Measured before removing the emission: 0 shipped .hsm.json carries an alias, and this
+        //   type's own remarks already said there is "no authoring gesture that creates the alias,
+        //   and no blackboard aggregation behind it" ⇒ nothing in the field loses a capability.
+        // ⛔ The ALIAS DATA is untouched. Only this arm's HOSTING EMISSION is retired; if a future
+        //   authoring gesture needs alias-driven hosting, it must route through E5's per-state table,
+        //   not resurrect a parallel emitter.
+        return null;
     }
 }
