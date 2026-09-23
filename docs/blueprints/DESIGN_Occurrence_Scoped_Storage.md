@@ -6956,3 +6956,47 @@ surfaced four frames deep inside the kernel:
 `AssignBehaviorHashEvent` leak in §31.16.7, and now a test fixture. ⇒ 🔒 **`ActiveBehaviorHash` is not
 a field, it is an ADDRESS.** ⭐ The error message earned its length: it named the cause in the first
 clause and that is what made this a five-minute diagnosis instead of a bisect.
+
+#### 31.19.8 ✅✅✅ THE GOLDEN PASSES AT `O7c` COMPLETE — **`hill-attack-close --mode all`** *(`2026-09-23`)*
+
+📐 **The run the whole programme was gated on.** ⛔ `hill-attack-close` runs `PlatoonHillAttack`, a
+**BTree**, so it cannot see the HSM arm at all — ⭐ what it proves is that the tick-system MERGE did not
+break the BTree arm, which is the likeliest way `O7c`-④ goes wrong.
+
+| link | observable | result |
+|---|---|---|
+| ① load | `entityCount 8`, `sawWorldChange` + `hadWorldAnchor` **true** | ✅ |
+| ② enemy dies | `Health.Current == 0` on **both** hostiles *(1006, 1007)* | ✅ |
+| ③ the run ENDS | entity count **steady at 8** through `simTime 131` — ⛔ never assert a falling count *(`CE-272`)* | ✅ |
+| ④ attackers home | all four `LocomotionChannel.Status: Success`, abreast on the baseline | ✅ |
+
+⭐⭐ **Positions, at `simTime 131.1`:**
+
+| | 1001 | 1002 | 1003 | 1004 |
+|---|---|---|---|---|
+| **this run** | 523.025 | 525.178 | 529.195 | 530.918 |
+| **gold** | 523.06 | 525.22 | 529.22 | 530.99 |
+| **delta** | −0.035 | −0.042 | −0.025 | **−0.072** |
+
+⚠ **Worst delta 0.072** — larger than `O7c`-②'s 0.02, well inside `P4`'s accepted 0.83, and the scenario
+is a wall-clock sim at `timeScale 1` whose documented drift source is machine load. ⇒ **within tolerance**,
+and stated as a number rather than as *"matches"*.
+
+⭐⭐ **The three zeros, each a specific claim:** **0 exceptions / `ERROR` lines** · **0 FastBTree warnings**
+· **0 root-slot throws** *(`RootStateAccess`, `RootHsmAccess` and `RootParamsAccess` all throw loudly by
+design the instant a brain reaches the tick without its slot — across a full scenario, none fired)*.
+⭐ Also **0 `[AiHotReload] WARNING`**, the new unbound-machine path from §31.19.2.
+
+📐 **Directly observed before play:** entity `1000` is the ONLY brain — `BrainTier 2` *(BTree)*,
+`ActiveBehaviorHash 1234950103`, store `BlueprintBlackboard1024` — and `1001`–`1004` are
+`BrainTier 0` / hash `0` subordinates carrying **no store at all**, which is correct: nothing provisions
+one for an entity with no brain, and the tier walk never enumerates them.
+⚠⚠ **This CORRECTS §31.12.7**, which recorded *"the tanks on `BlueprintBlackboard256`"*. 📐 Re-measured
+here on the same scenario: they carry none, and `EnsureRootState` explains why — it provisions only when
+`BrainTier == BrainTierBTree` and the hash is non-zero. ⇒ the earlier line was an imprecise reading, not a
+behaviour that has since changed; **the golden's outcome is identical either way.**
+
+⚠ **Method notes, both of which cost a step here:** the ClusterRunner dll was **rebuilt fresh** before
+launching *(trap ⑦)*; and `SimTransform.Position` is a **JSON LIST** `[x,y,z]`, not `{X,Y,Z}` — a reader
+written for the object shape raises `AttributeError` inside the sampling loop and prints **nothing**,
+which reads exactly like an entity with no transform.

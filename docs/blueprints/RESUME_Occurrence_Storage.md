@@ -4,7 +4,8 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-23
-build-state: ⭐⭐⭐ O7c IS COMPLETE — ①②③④a④b④c④d all DONE and pushed. NOTHING IS IN FLIGHT.
+build-state: ⭐⭐⭐ O7c IS COMPLETE — ①②③④a④b④c④d all DONE and pushed, AND THE GOLDEN PASSES
+  (2026-09-23, §31.19.8, within 0.072 of gold). NOTHING IS IN FLIGHT.
 current-answer: ⭐⭐⭐ START AT §1 "WHERE IT STANDS", THEN §2 "WHAT IS LEFT IN THE PROGRAMME".
   📐 VERIFIED 2026-09-23 by grepping for the struct declarations, not from memory:
      BrainBlackboard / Blackboard1024  ✅ DELETED (P4)
@@ -134,7 +135,24 @@ RELEARN
 
 ⛔⛔ **Name what you RAN.** With 41 suites unrestored, a table that implies broad coverage overstates it.
 
-⚠⚠ **THE GOLDEN HAS NOT BEEN RE-RUN SINCE `fca039532`.** ④a–④d were gated on unit rails only.
-⭐ `hill-attack-close` runs a **BTree**, so it cannot see the HSM arm at all — but it is the check that
-the MERGE did not break the BTREE arm, which is the most likely way `O7c`-④ goes wrong.
-🔒 **Run it before calling the programme green end to end.** 📄 `RUNBOOK_Cluster_Debugging_Over_Http.md`.
+### ✅✅✅ THE GOLDEN PASSES AT `O7c` COMPLETE — *(`2026-09-23`, 📄 §31.19.8)*
+
+`hill-attack-close --mode all`, fresh ClusterRunner dll, `Scenario` perspective, run to `simTime 131`:
+
+| | 1001 | 1002 | 1003 | 1004 |
+|---|---|---|---|---|
+| **this run** | 523.025 | 525.178 | 529.195 | 530.918 |
+| **gold** | 523.06 | 525.22 | 529.22 | 530.99 |
+| **delta** | −0.035 | −0.042 | −0.025 | **−0.072** |
+
+⭐ Both hostiles `Health.Current == 0` · entity count steady at **8** · all four attackers
+`LocomotionChannel.Status: Success` on the baseline · **0 exceptions · 0 FastBTree warnings · 0
+root-slot throws · 0 `[AiHotReload] WARNING`**.
+⚠ Worst delta **0.072** — larger than `O7c`-②'s 0.02, well inside `P4`'s accepted 0.83, on a wall-clock
+sim whose documented drift source is machine load.
+⛔ **It runs a BTree, so it cannot see the HSM arm.** What it proves is that the tick-system MERGE did not
+break the BTree arm — the likeliest way `O7c`-④ goes wrong. The HSM arm's evidence is `O7_R48`–`O7_R54`.
+
+⚠ **Two method traps, both of which cost a step:** rebuild the ClusterRunner dll first *(trap ⑦)*; and
+`SimTransform.Position` is a **JSON LIST** `[x,y,z]`, not `{X,Y,Z}` — a reader written for the object
+shape raises inside the sampling loop and prints **nothing**, which reads exactly like a missing entity.
