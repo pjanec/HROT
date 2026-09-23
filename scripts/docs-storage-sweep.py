@@ -9,6 +9,9 @@ PAT = re.compile(r"""
 | cognitive\s+bus
 | \b928\b | \b3936\b | \b16368\b | 3 936 | 16 368
 | MaxSlots\s*4 | 4\s*/\s*8\s*/\s*16
+| BrainHsm64 | BrainHsm128 | BrainBTreeState
+| BTreeTickSystem | HsmTickSystem
+| BrainBlackboardTranslator
 """, re.I | re.X)
 EX_FILES = {
  'docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md',
@@ -16,6 +19,10 @@ EX_FILES = {
  'docs/blueprints/RULINGS.md',
  'docs/blueprints/RESUME_P4_Retire_Blackboards.md',
  'docs/blueprints/RESUME_Docs_Occurrence_Storage_Sweep.md',
+ # ⭐ the behaviors lane's OWN build plan and resumption for this retirement. They name every
+ #   retired token on purpose — that is what they are FOR. That lane owns them; this one does not.
+ 'docs/blueprints/PLAN_Occurrence_Storage_Build.md',
+ 'docs/blueprints/RESUME_Occurrence_Storage.md',
 }
 rows=[]
 for root,dirs,fs in os.walk('docs'):

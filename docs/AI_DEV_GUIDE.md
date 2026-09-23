@@ -63,10 +63,15 @@ There are three paradigms for authoring a behavior, ranked by performance budget
 
 #### Tier 2 — FastBTree
 
-A **polling-based behavior tree** interpreter. Every frame, the `BTreeTickSystem` traverses
-the compiled `BehaviorTreeBlob` from the root, evaluating Selectors, Sequences, and leaf
-Action/Condition nodes. State is persisted across frames in the `BrainBTreeState` component
-(which tracks the currently running node index).
+A **polling-based behavior tree** interpreter. Every frame, the `BrainTickSystem`'s BTree arm
+traverses the compiled `BehaviorTreeBlob` from the root, evaluating Selectors, Sequences, and leaf
+Action/Condition nodes. State is persisted across frames in the **root tree-state slot** — a 64-byte
+`BehaviorTreeState` region in the entity's occurrence store, located by `RootStateAccess` and keyed on
+`BehaviorState.ActiveBehaviorHash`. It tracks the currently running node index.
+
+⭐ **Why a slot rather than a component:** a component is addressed by its TYPE, so an entity could hold
+exactly one tree cursor. A keyed slot is what makes *"more than one tree on one entity"* — a hosted
+subtree owning its own cursor — expressible at all.
 
 Choose FastBTree when:
 - The behavior is complex and sequential (ambushes, route following, multi-phase combat).
@@ -81,18 +86,25 @@ const byte BrainTierBTree = BehaviorConstants.BrainTierBTree; // == 2
 #### Tier 1 — FastHSM
 
 An **event-driven hierarchical state machine** that relies entirely on unmanaged C# function
-pointers and packed memory structs (`BrainHsm64` and `BrainHsm128`). There is no heap
-allocation during state machine execution. Transitions fire in response to explicit events
-pushed into the machine's unmanaged event queue; the machine does not poll every frame.
+pointers and packed memory. There is no heap allocation during state machine execution. Transitions
+fire in response to explicit events pushed into the machine's unmanaged event queue; the machine does
+not poll every frame.
+
+The instance lives in the **root HSM instance slot**, located by `RootHsmAccess` and keyed on
+`BehaviorState.ActiveBehaviorHash` — the deliberate mirror of the BTree cursor's slot.
 
 Choose FastHSM when:
 - The behavior is **reactive** rather than sequential (convoy escorts, vehicle patrol loops).
 - You need zero-allocation guaranteed hot-path performance.
 - The state topology is fixed and the number of distinct states is small.
 
-Two instance sizes are available:
-- `BrainHsm64` — for machines with few states (wraps `HsmInstance64`).
-- `BrainHsm128` — for larger machines with history states or parallel regions.
+**The instance width is chosen per machine, at attach, by `HsmInstanceManager.SelectTier(definition)`
+— 64, 128 or 256 bytes** — from the state count, the maximum depth and the history-slot usage. The size
+is stored in the slot's guard field and read back as the length, so the tick arm's pointer and its
+`instanceSize` come from the same lookup and cannot disagree.
+
+⭐ You do not pick a size and you do not name one in your behaviour. A 64-byte machine occupies 64
+bytes: the tier is a **payload size**, not a type.
 
 ```csharp
 const byte BrainTierHsm = BehaviorConstants.BrainTierHsm; // == 1
@@ -303,8 +315,8 @@ world.Bus.PublishManaged(new AssignBehaviorEvent
 
 `BehaviorIngressSystem` deserialises the JSON onto a `stackalloc` shadow of `CombatParams`,
 writes it into the entity's **root params slot**, increments `BehaviorState.InstanceId`, and sets
-`BrainTier = BrainTierBTree`. `BTreeTickSystem` begins evaluating the compiled selector on
-the entity every simulation frame. Section 4 covers `ParseParams` and the full ingress
+`BrainTier = BrainTierBTree`. `BrainTickSystem` picks the entity up on its next tier walk, sees the
+BTree tier and begins evaluating the compiled selector every simulation frame. Section 4 covers `ParseParams` and the full ingress
 flow in detail.
 
 ---
@@ -391,7 +403,7 @@ public static HsmDefinitionBlob BuildPatrolHsm()
 ```
 
 When the vehicle is immobilised, `CognitiveInterruptSystem` sets the `MobilityLost` register on the
-entity's `BrainInterrupts`. `HsmTickSystem` reads that register before the next tick and injects
+entity's `BrainInterrupts`. `BrainTickSystem`'s HSM arm reads that register before the next tick and injects
 `EventId_MobilityLost`, driving the machine into `Disabled`. The `LocomotionChannel` is
 cleared by the exit-cleanup thunk wired inside `OnEntry_MoveAlongRoute()`. Section 8
 covers how `MissionDirectorSystem` reacts to the `BehaviorFinishedEvent` published on
@@ -453,8 +465,8 @@ public unsafe struct BlueprintBlackboard1024
 
 `BlueprintBlackboardPartitions` carves that payload into **slots**. Each slot is owned by one
 *occurrence* — one `(asset, host path)` pair — and the slot table at the head of the component maps a
-slot key to its offset and size. Both `BTreeTickSystem` and `HsmTickSystem<T>` read the same store of
-the entity they are ticking; they simply resolve different slots.
+slot key to its offset and size. `BrainTickSystem` reads this one store for every entity it ticks —
+params, tree cursor and HSM instance are all slots in it, resolved by different keys.
 
 ### The Two Kinds of Slot
 
@@ -655,8 +667,8 @@ actionRegistry.Register("Action_FireAtTarget",
     });
 ```
 
-⭐ `bb` is a `ref` to byte 0 of the **root params slot** — `BTreeTickSystem` resolves it once per
-entity per tick and hands it to the interpreter. The tree itself is
+⭐ `bb` is a `ref` to byte 0 of the **root params slot** — `BrainTickSystem`'s BTree arm resolves it
+once per entity per tick and hands it to the interpreter. The tree itself is
 `Interpreter<byte, BTreeContext>`; it is not typed on any component.
 
 ```csharp
@@ -1235,7 +1247,7 @@ builder.State("Firing")
 ### The Problem
 
 Physical systems should not know anything about AI internals. The old
-`HsmDamageBridgeSystem` contained explicit queries for `BrainHsm64` and `BrainHsm128` and
+`HsmDamageBridgeSystem` contained explicit queries for the HSM-instance components of the day and
 completely ignored BTree-driven entities. Any new capability-loss signal required editing
 that system.
 
@@ -1246,7 +1258,7 @@ edge-triggered interrupt registers**:
 
 | Field | Written by | Read by |
 |------|------------|---------|
-| `Interrupt_MobilityLost` | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
+| `Interrupt_MobilityLost` | `CognitiveInterruptSystem` | `BrainTickSystem`'s HSM arm, BTree Observer nodes |
 | `Interrupt_Reserved` | — | — |
 
 ⭐ They live in their own component rather than in a behaviour's slot because they are facts about
@@ -1271,7 +1283,7 @@ entity remains immobilized for many frames.
 
 ### Consuming Interrupts: FastHSM
 
-`HsmTickSystem<T>` reads `Interrupt_MobilityLost` **before** calling `HsmKernel.Update()`. If set,
+The HSM arm reads `Interrupt_MobilityLost` **before** calling `HsmKernel.Update()`. If set,
 it injects `EventId_MobilityLost` into the state machine's event queue:
 
 ```csharp
@@ -1291,7 +1303,7 @@ builder.State("Immobilized")
     .Final();
 ```
 
-The byte is **not** cleared by `HsmTickSystem`. Clearing is handled unconditionally by
+The byte is **not** cleared by the tick. Clearing is handled unconditionally by
 `CognitiveCleanupSystem`.
 
 ### Consuming Interrupts: FastBTree
@@ -1330,11 +1342,12 @@ This single system covers _all_ brain tiers. There is no tier-specific cleanup c
 
 ```
 ChannelArbitrationSystem       -- clears stale channels from previous behavior
-CognitiveInterruptSystem       -- writes interrupt bytes (edge-triggered)
-BTreeTickSystem                -- polls byte 126 via Observer nodes, ticks tree
-HsmTickSystem<BrainHsm128>     -- reads byte 126, injects event, ticks machine
-HsmTickSystem<BrainHsm64>      -- same as above for smaller instances
-CognitiveCleanupSystem         -- zeros bytes 126 & 127 (single-frame pulse guarantee)
+CognitiveInterruptSystem       -- writes the interrupt registers (edge-triggered)
+BrainTickSystem                -- ONE brain tick, two arms:
+                               --   BTree arm: polls the registers via Observer nodes, ticks the tree
+                               --   HSM arm:   reads them, injects the event, ticks the machine
+CognitiveCleanupSystem         -- clears the interrupt registers (single-frame pulse guarantee)
+BehaviorFrameSystem            -- advances the behaviour-frame pulse, LAST
 ```
 
 ---
@@ -1378,8 +1391,9 @@ public struct CustomTriggerPayload
 // Inside a perception/sensor system:
 public unsafe void FireCustomTrigger(Entity entity, EntityRepository repo)
 {
-    ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
-    HsmInstance128* instPtr = (HsmInstance128*)Unsafe.AsPointer(ref hsm128);
+    // The instance is an occurrence slot, not a component. RequireInstance hands back the
+    // pointer AND the width SelectTier chose for this machine, from one lookup.
+    byte* instPtr = RootHsmAccess.RequireInstance(repo, entity, out int instanceSize);
 
     var evt = new HsmEvent { EventId = EventId_MyCustomTrigger, Priority = EventPriority.Normal };
     *(CustomTriggerPayload*)evt.Payload = new CustomTriggerPayload { TargetEntityId = 99, ThreatLevel = 0.8f };
@@ -1429,7 +1443,7 @@ and `Action_HandleCustomTrigger()` extension methods on `StateBuilder` / `Transi
 
 ### Discarding the `HsmCommandWriter`
 
-FDP deliberately discards all writes to `HsmCommandWriter`. `HsmTickSystem<T>` invokes an
+FDP deliberately discards all writes to `HsmCommandWriter`. The HSM arm invokes an
 overload of `HsmKernel.Update` that does not request the command buffer; the kernel
 satisfies this with a stack-allocated dummy `CommandPage` that is immediately discarded.
 
@@ -1457,11 +1471,13 @@ together through `MissionPlanQueue` phases and reacts to `BehaviorFinishedEvent`
 ### Signaling Completion from a FastBTree Behavior
 
 When the root node of a BTree evaluates to `NodeStatus.Success` or `NodeStatus.Failure`,
-`BTreeTickSystem` publishes a `BehaviorFinishedEvent` exactly once per behavior assignment:
+`BrainTickSystem` publishes a `BehaviorFinishedEvent` exactly once per behavior assignment:
 
 ```csharp
-// BTreeTickSystem -- simplified
-var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
+// BrainTickSystem, BTree arm -- simplified
+ref var btState   = ref RootStateAccess.RequireStateRef(repo, entity);   // the root tree-state slot
+ref var blackboard = ref RootParamsAccess.RootRef(repo, entity);         // the root params slot
+var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState, ref context);
 
 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 {
@@ -1498,12 +1514,13 @@ builder
 ```
 
 When the kernel enters a `Final` state, it sets `InstanceFlags.Terminated` in the instance
-header. `HsmTickSystem<T>` detects this and publishes `BehaviorFinishedEvent`:
+header. `BrainTickSystem`'s HSM arm detects this and publishes `BehaviorFinishedEvent`:
 
 ```csharp
-// HsmTickSystem<T> -- simplified
-ref var hdr = ref Unsafe.As<T, InstanceHeader>(ref component);
-if ((hdr.Flags & InstanceFlags.Terminated) != 0)
+// BrainTickSystem, HSM arm -- simplified
+byte* inst = RootHsmAccess.RequireInstance(repo, entity, out int instanceSize);
+var header = (InstanceHeader*)inst;
+if ((header->Flags & InstanceFlags.Terminated) != 0)
 {
     if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prev)
         || prev != behavior.InstanceId)
@@ -1744,7 +1761,7 @@ world.Bus.PublishManaged(new AssignBehaviorEvent
 For **Tier 1 (HSM)** behaviors, the ingress system performs two additional steps that are
 critical for correctness:
 - **Unmanaged queue scrub:** it physically zeroes the `ActiveLeafIds` array in the HSM
-  instance header (`BrainHsm64` or `BrainHsm128`), preventing stale event IDs from a
+  instance header, preventing stale event IDs from a
   previous behavior activation from being re-processed by the kernel on the next tick.
 - **`MachineId` synchronization:** it binds `InstanceHeader.MachineId` to the
   `StructureHash` of the newly assigned `HsmDefinitionBlob`. If the kernel's
@@ -1812,10 +1829,10 @@ called from both the BTree closure and the HSM unmanaged thunk. No duplication.
 
 ### Behavior Tier Summary
 
-| Tier | Component | Tick system | Termination | Use case |
+| Tier | Where the state lives | Tick system | Termination | Use case |
 |------|-----------|-------------|-------------|----------|
-| 2 — BTree | `BrainBTreeState` | `BTreeTickSystem` | Root returns `Success`/`Failure` | Complex sequential logic |
-| 1 — HSM | `BrainHsm64` / `BrainHsm128` | `HsmTickSystem<T>` | Entry into `.Final()` state | Reactive, zero-alloc behaviors |
+| 2 — BTree | root tree-state slot *(`RootStateAccess`, 64 B)* | `BrainTickSystem` — BTree arm | Root returns `Success`/`Failure` | Complex sequential logic |
+| 1 — HSM | root HSM instance slot *(`RootHsmAccess`, 64/128/256 B by `SelectTier`)* | `BrainTickSystem` — HSM arm | Entry into `.Final()` state | Reactive, zero-alloc behaviors |
 | 0 — Script | none | Custom `IEcsModuleSystem` | Never (no `BehaviorFinishedEvent`) | Massive simple populations |
 
 ### Attribute Cheat Sheet
@@ -1955,9 +1972,9 @@ public struct CustomTriggerPayload
 // Inside a System (e.g., PerceptionSystem):
 public unsafe void TriggerCustomBehavior(Entity entity, EntityRepository repo)
 {
-    // Grab the Tier 2 HSM instance pointer from the ECS chunk
-    ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
-    HsmInstance128* instPtr = (HsmInstance128*)System.Runtime.CompilerServices.Unsafe.AsPointer(ref hsm128);
+    // Grab the HSM instance pointer from the entity's root HSM occurrence slot.
+    // instanceSize is whatever HsmInstanceManager.SelectTier picked for THIS machine (64/128/256).
+    byte* instPtr = RootHsmAccess.RequireInstance(repo, entity, out int instanceSize);
 
     // Construct the 24-byte event
     var evt = new HsmEvent 
@@ -2281,10 +2298,10 @@ Here is how the architecture handles the integration and the somewhat surprising
 
 ### **1. The Integration Pipeline**
 
-FastHSM is injected into the engine's cognitive loop via the CognitiveRuntimeModule, operating alongside the behavior tree systems. The integration is built on three pillars:
+FastHSM is injected into the engine's cognitive loop via the CognitiveRuntimeModule, as one arm of the single BrainTickSystem that also carries the behavior tree. The integration is built on three pillars:
 
-- **Memory Binding (The Components):** Entities do not hold managed state machines. Instead, they are composed with strictly sized unmanaged components like BrainHsm64 or BrainHsm128. A separate BehaviorState component holds an integer hash that acts as a foreign key to the BehaviorRegistry, where the immutable, compiled HsmDefinitionBlob resides.
-- **The Execution Tick:** The actual execution is driven by HsmTickSystem<T>, which runs during the Simulation phase. It queries all entities possessing a specific HSM size component and a matching behavior, and feeds them into the unmanaged FastHSM kernel.
+- **Memory Binding (The Occurrence Slot):** Entities do not hold managed state machines, and they no longer hold an ECS component per instance size either. The unmanaged instance lives in the entity's **root HSM occurrence slot**, located by RootHsmAccess and keyed on BehaviorState.ActiveBehaviorHash; its width — 64, 128 or 256 bytes — is chosen per machine by HsmInstanceManager.SelectTier at attach and stored in the slot's guard field. The BehaviorState component holds the integer hash that acts as a foreign key to the BehaviorRegistry, where the immutable, compiled HsmDefinitionBlob resides.
+- **The Execution Tick:** The actual execution is driven by BrainTickSystem's HSM arm, which runs during the Simulation phase. Discovery is a walk over the occurrence-store tier components — there is no HSM component to query on — and BehaviorState.BrainTier selects the arm inside that walk, feeding the entity into the unmanaged FastHSM kernel.
 - **The Unmanaged Bridge:** To allow the pure unmanaged FastHSM kernel to read and mutate the managed ECS world, the FDP engine passes a HsmKernelBridge struct as the generic context. This bridge holds the target Entity ID and an IntPtr WorldHandle. This handle is a GCHandle to the live EntityRepository, allowing the engine to mathematically project unmanaged memory back into C# references without allocating a single byte on the garbage collector.
 
 ### **2. What Executes the** **HsmCommandWriter** **Commands?**
@@ -2293,7 +2310,7 @@ From an architectural standpoint, this is where the FDP engine makes a strict, o
 
 While FastHSM provides the HsmCommandWriter and its 4KB CommandPage as a generic deferred-mutation queue for standalone use, the FDP engine deliberately drops this data.
 
-If you look at the HsmTickSystem, it invokes an overload of HsmKernel.Update that does not request the command buffer. Under the hood, the generic FastHSM kernel satisfies this by allocating a var dummyPage = new CommandPage(); on the stack, passing it to your actions, and immediately letting it fall out of scope and vanish.
+If you look at the HSM arm of BrainTickSystem, it invokes an overload of HsmKernel.Update that does not request the command buffer. Under the hood, the generic FastHSM kernel satisfies this by allocating a var dummyPage = new CommandPage(); on the stack, passing it to your actions, and immediately letting it fall out of scope and vanish.
 
 ### **Why FDP Discards the Command Writer**
 
