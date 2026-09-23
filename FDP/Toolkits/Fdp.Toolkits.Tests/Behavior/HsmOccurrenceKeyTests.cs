@@ -1914,10 +1914,18 @@ public sealed unsafe class HsmOccurrenceKeyTests
     /// <c>O7_R12</c> and <c>O7_R37</c> drive — and changes only HOW it is reached.</para>
     ///
     /// <para>⭐⭐⭐ <b>AND IT IS THE FIRST MACHINE IN THIS SUITE THAT GETS ITS TRUE TIER.</b>
-    /// <c>HsmInstanceManager.SelectTier</c> answers <b>256</b> for a 3-region machine, and the
-    /// retired <c>BrainHsm128</c> component was <b>128 bytes for every machine whatever SelectTier
-    /// said</b> — the width was a property of a TYPE. ⇒ before <c>O7c</c>-④ this machine could not
-    /// have been given the instance the kernel's own policy asks for, on any entity, at all.</para>
+    /// The retired <c>BrainHsm128</c> component was <b>128 bytes for every machine whatever
+    /// SelectTier said</b> — the width was a property of a TYPE. ⇒ before <c>O7c</c>-④ this machine
+    /// could not have been given the instance the kernel's own policy asks for, on any entity, at
+    /// all.</para>
+    ///
+    /// <para>⚠⚠ <b>"TRUE TIER" IS THE CLAIM; THE NUMBER IS NOT.</b> 📄 <c>CE-325</c>, §31.24. When
+    /// this rail was written <c>SelectTier</c> answered <b>256</b> here, and that was quoted in this
+    /// comment as though it were the point. 🔴 It was a DEFECT: <c>SelectTier</c>'s own gate stopped
+    /// at 2 regions while <c>HsmInstance128</c>'s layout holds <b>4</b>, so a 3-region machine that
+    /// fits 128 exactly was sent to 256. ⇒ the answer is now <b>128</b>, and what this rail is about
+    /// — the machine running through the REAL system, instance slot-resident, three occurrences on
+    /// one entity — never depended on which number it is.</para>
     ///
     /// <para>⚠ <b>Non-vacuity is asserted, not assumed</b>: the parallel root must really fan out
     /// (<c>activeLeafIds == [0,1,2]</c>) and BOTH dispatches must land, or the rest of the rail would
@@ -1972,14 +1980,21 @@ public sealed unsafe class HsmOccurrenceKeyTests
             Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
 
             Assert.True(RootHsmAccess.TryGetInstance(world, entity, out byte* inst, out int size));
-            Assert.Equal(256, size);   // ⛔ 128 would be the retired component's width, not the machine's
+            // ⭐ The width the MACHINE asks for, provisioned into the slot.
+            // ⚠ CE-325 (2026-09-23): 256 → 128, and this is the THIRD of three sites in this rail
+            //   that spelled the old answer (the SelectTier guard, this size, the leaf capacity
+            //   below). 📐 Three regions fit HsmInstance128's FOUR leaf slots; the 256 came from
+            //   SelectTier's gate stopping at 2 regions while the layout held 4. 📄 §31.24.
+            // ⛔ What would be WRONG is 128 arriving here because a retired component was 128 bytes
+            //   wide — that is the thing O7c-④ removed, and it is why this asserts at all.
+            Assert.Equal(128, size);
 
             // ── ONE tick of the REAL system. Nothing here names the entity. ──────────────
             new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry).Execute(world, 0.016f);
 
             // ⭐ NON-VACUITY: the parallel root fanned out, so the machine genuinely ran.
             ushort* leaves = Fhsm.Kernel.HsmKernel.GetActiveLeafIds(inst, size, out int regionCount);
-            Assert.Equal(8, regionCount);              // the 256 tier's leaf capacity
+            Assert.Equal(4, regionCount);              // the 128 tier's leaf capacity (CE-325)
             Assert.Equal((ushort)0, leaves[0]);
             Assert.Equal((ushort)1, leaves[1]);
             Assert.Equal((ushort)2, leaves[2]);

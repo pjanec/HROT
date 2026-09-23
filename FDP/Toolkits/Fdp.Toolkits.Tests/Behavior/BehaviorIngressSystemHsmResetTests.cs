@@ -409,8 +409,11 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var (world, sys, registry) = CreateFixture();
 
-            // ⚠ regions <= 1 is the 64 tier and <= 2 is the 128 one (HsmInstanceManager.SelectTier),
-            //   so TWO regions is what puts a machine on 128. Asserted, not assumed.
+            // ⚠ `regions <= 1` is the 64 tier — a POLICY gate, because 64 is the only tier with no
+            //   reserved interrupt slot (CE-325, §31.24). Everything above it that the 128 LAYOUT
+            //   holds (up to FOUR regions) lands on 128. ⇒ TWO regions puts a machine on 128.
+            //   ⛔ This comment used to say the 128 gate was `<= 2`; that was SelectTier's own wrong
+            //   copy of the limit, not the layout's. Asserted below, not assumed.
             var blob = BuildBlobWithRegions(0x0318u, regionCount: 2);
             Assert.Equal(128, HsmInstanceManager.SelectTier(blob));   // the premise, not the claim
 

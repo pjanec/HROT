@@ -4,10 +4,12 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-23
-build-state: 🔴 **WORK IN FLIGHT AND UNCOMMITTED — `CE-325`. START AT §0.**
-  ⭐ O7c itself is COMPLETE — ①②③④a④b④c④d all DONE and pushed, golden passes (§31.19.8).
-  ⛔ But the tree is DIRTY with a half-finished `CE-325`; §0 lists exactly what is done and what is not.
-current-answer: ⭐⭐⭐ START AT §1 "WHERE IT STANDS", THEN §2 "WHAT IS LEFT IN THE PROGRAMME".
+build-state: ✅ **NOTHING IS IN FLIGHT.** `O7c` is COMPLETE — ①②③④a④b④c④d all DONE and pushed,
+  golden passes (§31.19.8) — and `CE-325` *(SelectTier → CheckTierBudget)* is DONE, gated and red-proved.
+  ⚠ §0 records `CE-325` because it MOVED THE TIER NUMBERS §9.4 and several rails quote; the durable
+  account is `DESIGN_Occurrence_Scoped_Storage.md` §31.24.
+current-answer: ⭐⭐⭐ START AT §2 "WHAT IS LEFT IN THE LANE". §1 is the standing account of `O7c`;
+  §0 is `CE-325` and is only needed if you are about to reason about HSM INSTANCE TIER WIDTHS.
   📐 VERIFIED 2026-09-23 by grepping for the struct declarations, not from memory:
      BrainBlackboard / Blackboard1024  ✅ DELETED (P4)
      BrainBTreeState                   ✅ DELETED, id 31 burned _RESERVED
@@ -17,13 +19,14 @@ current-answer: ⭐⭐⭐ START AT §1 "WHERE IT STANDS", THEN §2 "WHAT IS LEFT
     BTreeTickSystem + HsmTickSystem<T> are ONE BrainTickSystem.
   ⛔⛔ DO NOT re-derive any design. §31.14 has the merge with three UML diagrams; §31.15–§31.19 are
     the as-built for ④a/④b/④c, the HSM inertia bug, and ④d.
-stale-below: nothing — this doc was rewritten whole on 2026-09-23.
+stale-below: nothing. ⚠ §5's GATE BASELINES were measured at the ④d commit and §0 supersedes two of
+  them: `Fdp.Toolkits.Tests` is now 2328 (was 2315) and `Fhsm.Tests` 307 (was 300). Re-verify, do not quote.
 known-rot: nothing.
 known-conflict: none.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. §30 = P4, §31 = O7c end to end.
   - PLAN_Occurrence_Storage_Build.md — the task ladder; row E4 carries O7c's re-rating.
-  - Blueprint_Issues_Tracker.md — CE-320 (O7c, DONE) · CE-321 (example rot, ①/③ open)
+  - Blueprint_Issues_Tracker.md — CE-320 (O7c, DONE) · CE-325 (SelectTier tiers, DONE) · CE-321 (example rot, ② open)
     · CE-322 (inertia, DONE) · CE-318 (deferred) · CE-300/301 (open).
   - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden. §1.1 and §4 are load-bearing.
 -->
@@ -34,76 +37,52 @@ RELEARN
 
 ---
 
-## 0. 🔴🔴🔴 IN FLIGHT — **`CE-325`, UNCOMMITTED, PARTLY UNVERIFIED** *(`2026-09-23`)*
+## 0. ✅ `CE-325` IS DONE — **`SelectTier` now defers to `CheckTierBudget`** *(`2026-09-23`)*
 
-> ⛔ **`git status` is DIRTY — five modified files, nothing staged, nothing pushed.**
-> HEAD is `50cb9dd1c` *(`CE-324`)*. ⚠ Everything below §0 describes the COMMITTED state and is true;
-> §0 is the delta on top of it.
+> ⭐ **Nothing is in flight.** This section records the slice that WAS in flight at the last
+> compaction; it is kept because the next reader of §9.4's tier table needs to know the numbers moved.
+> ⛔ The durable account is 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§31.24**, not this section.
 
-### ⭐ What `CE-325` is
-
-🔴 **`HsmInstanceManager.SelectTier` and `HsmValidator.CheckTierBudget` were two tables of one fact,
-and they disagreed.** `SelectTier` admitted `regions ≤1 / ≤2` and `history ≤2 / ≤4`; the structs hold
-**2 / 4 / 8** regions and **2 / 8 / 16** history slots, which is exactly what `CheckTierBudget` says.
-⇒ a **3- or 4-region machine fitted `HsmInstance128` precisely and was sent to 256 anyway.**
-⛔ `SelectTier` also ignored **timer slots** entirely, which `CheckTierBudget` checks.
+🔴 **What it was.** `HsmInstanceManager.SelectTier` and `HsmValidator.CheckTierBudget` were **two
+tables of one fact and disagreed on every row** — regions, history, and timers, which `SelectTier`
+never looked at at all. ⇒ a 3- or 4-region machine that fits `HsmInstance128` exactly was sent to
+**256**, and a 9-region machine got a 256-byte instance that **cannot hold it**, with nothing
+refusing it. ⚠ `CheckTierBudget` was called from FastHSM's own tests **and nowhere else**.
 
 🔒 **User asked for:** *"route `SelectTier` through `CheckTierBudget` and wire the check in."*
 
-### ✅ DONE and VERIFIED
-
-| | |
+| ✅ done | |
 |---|---|
-| `Fhsm.Kernel/HsmInstanceManager.cs` — `SelectTier` rewritten | layout limits now come from `CheckTierBudget` alone; **state/depth heuristics kept** *(they index nothing, so they are judgement not constraint)*; **throws** when no tier fits |
-| `Fhsm.Tests/Kernel/TierBudgetTests.cs` — **7 new rails** | ✅ **`Fhsm.Tests` 307/307** *(baseline was 300/300 — measured both sides)* |
+| layout limits come from `CheckTierBudget` alone; tier 3 **throws** rather than returning a size that cannot hold the machine | `Fhsm.Kernel/HsmInstanceManager.cs` |
+| **7 new rails** | `Fhsm.Tests` **307/307** *(baseline 300/300)* |
+| **3 premise corrections** — `O7_R48` → 128/128/4, `O7_R44` + `O7_R54` `wide` blob 3 → **5** regions | `Fdp.Toolkits.Tests` **2328/2328** · `Hrot.Editor.Tests` **423/424, 1 skipped** |
+| docs | §31.24 *(as-built + flowchart)*, §9.4 *(gate-vs-capacity columns)*, §31.17.2 *(corrected)*, tracker `CE-325` + corrections to `CE-320` / `CE-324` |
+| ✅ **red-proof** | `SelectTier` reverted **in full** ⇒ 5 of 7 rails red + `O7_R48` red; §31.24.7 says why the other two are green by construction and still load-bearing |
 
-⚠⚠ **THE ONE JUDGEMENT CALL, and it was MEASURED, not chosen.** Tier 1 keeps an explicit
-`regions <= 1` rather than deferring to `CheckTierBudget(64)`. ⛔ The 64-byte layout holds **two**
-regions and the budget check accepts them — but **tier 1 is the only tier with NO RESERVED INTERRUPT
-SLOT**. 📐 Routing tier 1 through the budget check alone dropped every 2-region machine from 128 to 64
-and **reddened 9 rails, including `CE-324`'s two**. ⇒ it is a POLICY gate, commented as such at the
-branch. 🔒 **Do not "simplify" it away.**
+⚠⚠ **THE ONE JUDGEMENT CALL, MEASURED NOT CHOSEN — do not "simplify" it away.** Tier 1 keeps an
+explicit `regions <= 1` instead of deferring to `CheckTierBudget(64)`. ⛔ The 64-byte layout holds
+**two** regions and the budget check accepts them — but **64 is the only tier with NO RESERVED
+INTERRUPT SLOT**. 📐 Routing tier 1 through the budget check alone dropped every 2-region machine to
+64 and **reddened 9 rails, `CE-324`'s two included**. 🔒 **General shape: a layout check alone is not
+sufficient, because a tier differs from its neighbours in more than its byte counts.**
 
-### ⏳ DONE but **NOT BUILT AND NOT RUN**
-
-⛔⛔ **These three edits are applied on disk and have never been compiled.** The build/test command
-that would have verified them was interrupted; the edits themselves had already landed.
-
-| file | what changed | why |
-|---|---|---|
-| `Fdp.Toolkits.Tests/…/BehaviorIngressSystemHsmResetTests.cs` | `O7_R44`'s `wide` blob **3 → 5 regions** | 3 regions no longer outgrows 128, and a rail about OUTGROWING a tier needs a machine that does. 5 preserves the 64 → 256 widening |
-| `Hrot.Editor.Tests/AiHotReloadCoordinatorTests.cs` | `O7_R54`'s `wide` blob **3 → 5 regions** | the hot-reload twin of the same claim |
-| `Fdp.Toolkits.Tests/…/HsmOccurrenceKeyTests.cs` | `O7_R48`'s premise **256 → 128** | its CLAIM *(3 occurrences on one entity, slot-resident, through the real system)* does not depend on the tier number |
-
-🔒 **FIRST ACTION ON RESUME:** build and run `Fdp.Toolkits.Tests` and `Hrot.Editor.Tests`.
-📐 Before these three edits the toolkit suite was **2 failed / 2328**, and the two failures were
-exactly `O7_R44` and `O7_R48`. ⇒ **the expected result is 2328/2328.**
-
-### ⛔ NOT DONE AT ALL
-
-| # | what | note |
-|---|---|---|
-| **1** | ⚠ **stale doc-comment** at `HsmOccurrenceKeyTests.cs:1917` — still says *"`SelectTier` answers **256** for a 3-region machine"* | the assert below it was corrected; this prose was not |
-| **2** | **`DESIGN` §31.24 — the `CE-325` as-built** | ⛔ referenced by name from the new `SelectTier` doc-comment and from the rails, so the reference currently DANGLES |
-| **3** | **`DESIGN` §9.4** — its tier table should gain the gate-vs-capacity columns and the two-tables finding | the capability table readers reason from |
-| **4** | **`DESIGN` §31.17.2** — says *"the FIRST machine in the suite that gets its true tier: `SelectTier` answers **256** for 3 regions"* ⇒ **now false** | same correction as item 1 |
-| **5** | **tracker row `CE-325`** — next free id, **not yet filed** | `CE-324` is the highest allocated |
-| **6** | red-proof, commit, push | ⚠ no red-proof has been run for `CE-325` yet |
+⚠ **One method note worth keeping.** `O7_R48` spelled the old answer in **THREE** places — the
+`SelectTier` guard, the provisioned `size`, and the leaf-array capacity — and the first edit changed
+only the guard. ⇒ the suite caught it; a follow-up sweep of **every `SelectTier` caller in the tree**
+found no fourth. 🔒 **Same shape as ④d's "thirteen sites, not nine": when a number moves, sweep for
+the number, not for the lines that look like the thing you are changing.**
 
 ### ⚠ WHAT WAS DELIBERATELY **NOT** CHANGED
 
 ⛔ **`BlueprintBlackboard512` was considered and NOT built.** The user asked whether it is a viable
-alternative if HSM256 turns out to be needed. 📐 Answer measured: **yes, and it is cheaper than when
-`O3b` added the 256 tier** — `EnsureAtLeast` and `IsLargerThan`, the two things that made `B4`
-expensive, now exist. ⭐ **But `CE-325` may remove the need**, because it roughly doubles what the 128
-tier accepts. ⇒ **re-measure after `CE-325` lands before spending a tier.**
-📄 Sizing if it is ever wanted: **512 / MaxSlots 6 / payload 384**; ladder stays legal
-*(`MaxSlots` 3→6→12→16→16 non-decreasing, payload 176→384→800→3808→16096 increasing, 6 ≤ the
-`MaxKindSlots` 16 ceiling)*; id **304**; `BlackboardTier.B512 = 4` **APPENDED** *(ordinal is ABI)*.
-⚠ And `B4`'s lesson: **ask which sites derive a tier from CONTENT rather than from the entity** before
-calling it additive.
+alternative if HSM256 turns out to be needed. 📐 Answer: **yes, and cheaper than when `O3b` added the
+256 tier** — `EnsureAtLeast` and `IsLargerThan` now exist. ⭐ **But `CE-325` roughly doubles what the
+128 tier accepts, so it may remove the need** ⇒ **re-measure before spending a tier.**
+📄 Sizing if ever wanted: **512 / MaxSlots 6 / payload 384**; ladder stays legal; id **304**;
+`BlackboardTier.B512 = 4` **APPENDED** *(ordinal is ABI)*. ⚠ And `B4`'s lesson: **ask which sites
+derive a tier from CONTENT rather than from the entity** before calling it additive.
 
-### 📐 THREE LATENT TRAPS FOUND WHILE ANSWERING, none yet recorded in the design
+### 📐 THREE LATENT TRAPS — **recorded in §31.24.6, none of them fixed**
 
 | # | trap |
 |---|---|

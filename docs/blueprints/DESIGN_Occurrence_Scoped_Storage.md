@@ -872,13 +872,33 @@ and let the existing output-lane arbiter resolve conflicting effects.
 
 ### 9.4 The tiers — what they give, and who chooses
 
+⭐⭐ **Two columns per tier, and keeping them apart is the whole of `CE-325`** *(§31.24)*:
+**CAPACITY** is what the struct physically holds — `HsmValidator.CheckTierBudget` is the one true
+statement of it. **GATE** is what `HsmInstanceManager.SelectTier` was willing to *put* there.
+⛔ **They were two tables of one fact and they disagreed.**
+
 | | `HsmInstance64` | `HsmInstance128` | `HsmInstance256` |
 |---|---|---|---|
-| regions | 2 | **4** | **8** |
-| timers | 2 | 4 | 8 |
-| history / scratch | 2 | 8 | 16 |
+| **regions** — capacity | 2 | **4** | **8** |
+| regions — gate, *before* `CE-325` | ≤ 1 | ⛔ **≤ 2** | *(fallthrough)* |
+| **timers** — capacity | 2 | 4 | 8 |
+| timers — gate, *before* `CE-325` | 🔴 **not checked** | 🔴 **not checked** | *(fallthrough)* |
+| **history / scratch** — capacity | 2 | **8** | 16 |
+| history — gate, *before* `CE-325` | ≤ 2 | ⛔ **≤ 4** | *(fallthrough)* |
 | **events in flight** | **1** *(single shared slot)* | **2** *(1 interrupt + ring 1)* | **6** *(1 interrupt + ring 5)* |
-| ECS wrapper | `BrainHsm64` | `BrainHsm128` | 🔴 **none** |
+| **reserved interrupt slot** | 🔴 **none** | 1 | 1 |
+| ECS wrapper | ⛔ *retired* `O7c`-① | ⛔ *retired* `O7c`-④d | *never existed* |
+
+⚠ **The gate column is HISTORY as of `CE-325`** — the layout limits now come from `CheckTierBudget`,
+so capacity IS the gate. ⭐ **One exception, and it is deliberate:** tier 1 keeps an explicit
+`regions <= 1` policy gate, because **64 is the only tier with no reserved interrupt slot** — see
+§31.24.
+
+🔴 **What the disagreement cost:** a **3- or 4-region machine fitted `HsmInstance128` exactly and was
+sent to 256 anyway**, and a machine using timer slot 5 was sent to a tier that could not hold it —
+`SelectTier` never looked at timers, so nothing refused it. ⚠ **And `CheckTierBudget` was called only
+from FastHSM's own tests**, never from the selector it contradicted — the classic shape: the correct
+table existed and nothing in production read it.
 
 ⚠⚠ **CORRECTED `2026-09-23` — THIS PARAGRAPH WAS FALSE AS BUILT, AND IT IS NOW TRUE.** 📄 `CE-324` /
 §31.23.
@@ -6740,11 +6760,22 @@ tier walk — a chain those rails cannot see:
 
 #### 31.17.2 ⭐⭐⭐ THE FIRST MACHINE IN THE SUITE THAT GETS ITS TRUE TIER
 
-📐 `HsmInstanceManager.SelectTier` answers **256** for a 3-region machine. ⛔ The retired
-`BrainHsm128` component was **128 bytes for every machine, whatever `SelectTier` said** — the width
-was a property of a TYPE. ⇒ 🔒 **before `O7c`-④ this machine could not have been given the instance
-the kernel's own policy asks for, on any entity, at all.** ⭐ `O7_R48` asserts `size == 256` and names
-128 as the wrong answer, so the rail states the difference rather than implying it.
+⛔ The retired `BrainHsm128` component was **128 bytes for every machine, whatever `SelectTier`
+said** — the width was a property of a TYPE. ⇒ 🔒 **before `O7c`-④ this machine could not have been
+given the instance the kernel's own policy asks for, on any entity, at all.** ⭐ `O7_R48` asserts the
+tier explicitly, so the rail states the difference rather than implying it.
+
+> ⚠⚠ **CORRECTED `2026-09-23` — the NUMBER in this section was wrong, and it was wrong because the
+> CODE was.** 📄 `CE-325` / §31.24.
+>
+> ⛔ **It read:** *"`HsmInstanceManager.SelectTier` answers **256** for a 3-region machine … `O7_R48`
+> asserts `size == 256` and names 128 as the wrong answer."*
+>
+> 🔴 **128 was the right answer all along.** `HsmInstance128`'s layout holds **4** regions;
+> `SelectTier`'s own gate stopped at **2**, so a 3-region machine that fits 128 exactly was sent to
+> 256 — and this section recorded the defect as if it were the policy. ⭐ `O7_R48` now asserts **128**.
+> ⚠ **What §31.17 CLAIMS is untouched:** the machine gets a tier chosen from its own shape rather
+> than from a component type, and *that* is what `O7c`-④ made possible.
 
 #### 31.17.3 ⭐⭐ THE HALF THAT IS THE PROGRAMME'S WHOLE POINT
 
@@ -7153,3 +7184,141 @@ a future change cannot satisfy `O7_R58` by widening the ring instead.
 is pushed to 256 although 128 would hold it. ⛔ **Not changed here:** it is an `ExtDeps` behaviour
 change that moves which tier real machines land on, and it deserves its own measurement and golden
 rather than riding along with a priority fix.
+
+### 31.24 🔴🔴🔴 `CE-325` AS BUILT — **`SelectTier` AND `CheckTierBudget` WERE TWO TABLES OF ONE FACT** *(`2026-09-23`)*
+
+> 🔒 **User, verbatim:** *"route `SelectTier` through `CheckTierBudget` and wire the check in."*
+> ⚠ Reached by asking what `SelectTier` even is, after `O7c` had removed the wrapper components —
+> the answer being that `O7c` made the width **more** selectable, not less *(§31.15)*.
+
+#### 31.24.1 ⛔⛔ THE DEFECT — **the correct table existed and nothing in production read it**
+
+📐 **Two functions each claimed to say what a tier can hold, and they disagreed on every row:**
+
+| | `CheckTierBudget` *(the TRUE limits — matches the struct layouts exactly)* | `SelectTier` *(what it was willing to PUT there)* |
+|---|---|---|
+| regions, 64 / 128 / 256 | **2 / 4 / 8** | ⛔ **1 / 2 / ∞** |
+| history, 64 / 128 / 256 | **2 / 8 / 16** | ⛔ **2 / 4 / ∞** |
+| timers, 64 / 128 / 256 | **2 / 4 / 8** | 🔴 **never looked** |
+
+🔴 **Two distinct consequences, in opposite directions:**
+
+| | |
+|---|---|
+| ⛔ **over-allocation** | a **3- or 4-region machine fits `HsmInstance128` exactly** and was sent to 256. Same for a machine using history slots 5–8. ⇒ **double the bytes per entity, for nothing** |
+| 🔴 **under-allocation** | `SelectTier` **ignored timer slots**, and tier 3 was an unconditional `return 256`. ⇒ a machine wanting timer slot 9, or a **9-region** machine, got a 256-byte instance that **cannot hold it**, and the kernel then wrote past the active-leaf array. ⛔ **Nothing refused it** |
+
+⚠⚠ **`CheckTierBudget` was called from FastHSM's own tests and from nowhere else** — the shape this
+repo keeps producing: **the right answer is already written down, and the production path has its own
+private copy of the wrong one.** ⭐ The seam was not missing; it was unadopted.
+
+#### 31.24.2 ⭐ THE DECISION, AS BUILT
+
+```mermaid
+flowchart TD
+    A["SelectTier(blob)"] --> B{"states ≤ 8<br/>depth ≤ 3<br/>⛔ regions ≤ 1 — POLICY"}
+    B -- no --> D
+    B -- yes --> C{"CheckTierBudget(64)"}
+    C -- yes --> C1(["64"])
+    C -- no --> D{"states ≤ 32<br/>depth ≤ 6"}
+    D -- no --> F
+    D -- yes --> E{"CheckTierBudget(128)"}
+    E -- yes --> E1(["128"])
+    E -- no --> F{"CheckTierBudget(256)"}
+    F -- yes --> F1(["256"])
+    F -- no --> G(["🔴 throw ArgumentException"])
+```
+
+*What the picture shows that the prose hid: there are **two kinds of gate on every branch** and they
+are not interchangeable. The left half of each condition is a **heuristic** — `states`/`depth` index
+nothing and constrain nothing, they are a judgement about how much room a machine of that complexity
+will want. The right half is a **hard layout check**. ⭐ The old code stated both in one undifferentiated
+list of `&&`s, which is exactly how a layout limit came to be written down as `regions <= 2`.*
+
+| the change | |
+|---|---|
+| ⭐⭐ **layout limits come from `CheckTierBudget` ALONE** | ⛔ no tier's region/timer/history bound is spelled in `SelectTier` any more. One table |
+| ⭐ **the state/depth heuristics are KEPT** | ⚠ they index nothing, so they are not constraints that could be wrong — they are the *policy* half, and removing them would change which tier real machines land on for a reason unrelated to the defect |
+| 🔴 **tier 3 now THROWS rather than returning 256 blindly** | ⭐ a machine no tier can hold cannot be given an instance at all, and saying so at attach beats a buffer overrun at tick |
+
+#### 31.24.3 ⛔⛔ THE ONE JUDGEMENT CALL — **tier 1 keeps `regions <= 1`, and it was MEASURED**
+
+⚠ **The obvious "clean" version of this change is `CheckTierBudget(64)` with no region clause.**
+🔴 **It is wrong, and the suite said so before the reasoning did.**
+
+📐 **Measured:** routing tier 1 through the budget check alone **dropped every 2-region machine from
+128 to 64 and reddened 9 rails, `CE-324`'s two included.**
+
+🔒 **The reason is in the table at §9.4: tier 1 is the ONLY tier with no reserved interrupt slot** —
+`HsmInstance64` has a single shared 24-byte event slot. ⇒ letting an orthogonal machine down onto 64
+**takes away the reserved slot that `MobilityLost`-class interrupts depend on** *(§31.23)*. That is a
+capability regression dressed as a saving.
+
+⇒ ⭐⭐ **`regions <= 1` on tier 1 is a POLICY gate, commented as such at the branch. ⛔ Do not
+"simplify" it away** — and note the shape: **a layout check alone is not sufficient, because a tier
+differs from its neighbours in more than its byte counts.**
+
+#### 31.24.4 ⭐ WHAT IT MOVED IN THE SUITE — **the premises, not the claims**
+
+| rail | before | after | why the CLAIM is untouched |
+|---|---|---|---|
+| `O7_R48` *(3 occurrences on one entity, slot-resident, through the real system)* | asserted **256** | **128** | it is about a machine reaching the system with a tier chosen from its own shape — never about which number that is |
+| `O7_R44` *(ingress widens an instance that outgrows its tier)* | `wide` blob **3 regions** | **5** | 3 regions no longer outgrows 128. ⭐ 5 preserves the 64 → 256 widening the rail exists to prove |
+| `O7_R54` *(the hot-reload twin of the same claim)* | `wide` blob **3 regions** | **5** | same |
+
+⚠⚠ **Each of these is a PREMISE correction, and that distinction is the whole reason the change was
+safe to make.** ⛔ A rail whose *assertion* had to be weakened would mean the behaviour regressed; a
+rail whose *setup* no longer produces the situation it was built to test means **the situation moved**,
+and the fix is to rebuild the situation. 🔒 **Say which of the two it is, every time** — the first is a
+finding, the second is bookkeeping.
+
+#### 31.24.5 ⭐⭐ THE 7 NEW RAILS — `Fhsm.Tests/Kernel/TierBudgetTests.cs`
+
+| rail | what it pins |
+|---|---|
+| `SelectTier_ThreeRegions_LandsOn128_NotOn256_CE325` | ⭐ **the defect itself** |
+| `..._FourRegions_IsExactlyThe128Capacity_...` | the boundary, from below |
+| `..._FiveRegions_StillNeeds256_...` | the boundary, from above — ⛔ so the fix cannot be "admit everything to 128" |
+| `..._TwoRegions_StaysOn128_NeverDropsTo64_...` | ⭐⭐ **§31.24.3's policy gate**, pinned so a later cleanup cannot quietly remove it |
+| `..._HistorySlotSix_LandsOn128_...` | the history row of the same disagreement |
+| `..._TimerSlotBeyondTheSmallTiers_IsNoLongerIgnored_...` | 🔴 the row `SelectTier` never looked at |
+| `..._NineRegions_Throws_RatherThanReturning256_...` | the under-allocation arm |
+
+⚠ **`Fhsm.Tests` is OUT OF THE ROOT SOLUTION** and reports a stale bin unless built — gate row 2's
+standing warning. It was built, not `--no-build`ed, for these numbers.
+
+#### 31.24.6 ⚠ WHAT THIS DOES **NOT** FIX, AND MUST NOT BE READ AS FIXING
+
+| | |
+|---|---|
+| 🔴 **the reserved interrupt slot is 1 deep at EVERY tier** | two interrupts inside one drain window and one is lost. ⛔ **No tier choice fixes this**; `CE-324` only made the loss visible. ⭐ A wider tier buys normal/low ring, never interrupt depth |
+| ⚠ **the kernel drains ONE event per FOUR frames** | `Idle → Entry → RTC → Activity`, one phase per `Update` ⇒ ~15 events/s at 60 Hz. **The ring count is a BURST tolerance, not a throughput.** ⛔ `ProcessEventPhase`'s `MaxEventsPerTick = 10` is a deferred-event spin guard, not a drain rate |
+| ⚠ **nothing in production produces a normal/low event today** | HROT's one injection site is now `Interrupt` *(§31.23)*; `FireTimerEvent` is unreachable *(nothing arms `TimerDeadlines`)*; no shipped asset declares a deferred event. ⇒ ring-capacity risk is **latent, not absent** — 🔒 *"unused does not mean not needed"* |
+| ⛔ **`BlueprintBlackboard512` was considered and NOT built** | the question was whether a 512 store tier is the cheap answer if HSM256 turns out to be needed. ⭐ **`CE-325` roughly doubles what the 128 tier accepts**, so it may remove the need — **re-measure before spending a tier.** 📐 Sizing if ever wanted: **512 / `MaxSlots` 6 / payload 384**, id **304**, `BlackboardTier.B512 = 4` **appended** *(ordinal is ABI)*; the ladder stays legal. ⚠ And `B4`'s lesson: **ask which sites derive a tier from CONTENT rather than from the entity** before calling it additive |
+
+#### 31.24.7 ✅ RED-PROOF — **the whole fix reverted, and WHICH rails notice is the interesting half**
+
+📐 **The inverse edit is the strongest available one: `SelectTier` restored to its pre-`CE-325` body
+in full** *(not a one-line weakening)*, everything else untouched.
+
+| suite | result under the revert |
+|---|---|
+| `Fhsm.Tests` | 🔴 **5 failed / 307** — `ThreeRegions` · `FourRegions` · `HistorySlotSix` · `TimerSlotBeyondTheSmallTiers` · `NineRegions_Throws` |
+| `Fdp.Toolkits.Tests`, filtered | 🔴 **`O7_R48` fails**; ⭐ `O7_R44` and `O7_R55` **stay green** |
+
+⭐⭐ **The two `CE-325` rails that stay GREEN under the revert are not weak — they are the boundary
+from the other side, and they are green BY CONSTRUCTION:**
+
+| rail | why the old code also satisfies it |
+|---|---|
+| `FiveRegions_StillNeeds256` | 5 regions overflow 128 under **both** tables ⇒ it exists to stop the fix being *"admit everything to 128"*, which is a different failure from the one being proved |
+| `TwoRegions_StaysOn128_NeverDropsTo64` | the old code also refused 64 here ⇒ it pins **§31.24.3's policy gate against a FUTURE simplification**, not against the old defect |
+
+⇒ 🔒 **A rail that cannot redden for *this* change is still load-bearing if it reddens for the
+plausible WRONG FIX.** ⛔ Deleting it because the red-proof left it green would remove the only guard
+on the 64-tier interrupt slot.
+
+⭐⭐ **And `O7_R44`/`O7_R55` staying green is the EVIDENCE for §31.24.4's premise-vs-claim
+distinction**, not an oversight: `O7_R44`'s `wide` blob now has **5 regions, which selects 256 under
+the old table too** ⇒ its assertion never moved, only the setup that reaches it. 🔒 **That is what
+"bookkeeping, not a regression" means, stated as a measurement rather than as a reassurance.**
