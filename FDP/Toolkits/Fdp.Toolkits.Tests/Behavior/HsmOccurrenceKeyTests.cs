@@ -1862,6 +1862,154 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
     private static Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem? _reassignSystem;
 
+
+    // ═══ O7c-④c — THE SAME TWO-REGION MACHINE, THROUGH THE REAL SYSTEM ════════════════
+    //
+    // 🔒 User, `2026-09-23`: *"You did a test for multi region hsm calling actions, didnt you?
+    //    Can you use that for testing hsms?"* — ⭐ yes, and this is it.
+    //
+    // ⛔⛔ WHAT EVERY RAIL ABOVE STOPS SHORT OF. O7_R12/R31/R36/R37/R38 all drive
+    //    `HsmKernel.Update` on a STACK-LOCAL `HsmInstance128`, with `context` an `int`. ⇒ they
+    //    prove the KERNEL fans out into two regions and stamps two occurrences — and they say
+    //    nothing about whether a SYSTEM can reach that instance, because in those rails the
+    //    instance is a local variable the test already holds a pointer to.
+    // ⭐⭐ After O7c-④ the instance lives in an OCCURRENCE SLOT on a real entity, discovered by the
+    //    tier walk. That is a whole chain those rails cannot see: entity → tier query →
+    //    BrainTier → RootHsmAccess → Update(ptr, size) → two regions → two hosted slots.
+
+    /// <summary>The action the two-region blob dispatches, in the shape a REAL emitted thunk has.</summary>
+    /// <remarks>
+    /// ⭐⭐ <b>It recovers the world from the BRIDGE, exactly as every generated thunk does</b>
+    /// (<c>GCHandle.FromIntPtr(bridge-&gt;WorldHandle)</c>), and attaches its occurrence through
+    /// <c>OccurrenceWorkingState.ResolveOrAttach</c>. ⛔ That is what makes this a test of the SYSTEM
+    /// path rather than of the kernel: <c>O7_R12</c>'s stub takes an <c>int</c> context and could not
+    /// reach an entity at all.
+    /// </remarks>
+    private static void SlotResidentRegionAction(void* instance, void* context, HsmCommandWriter* writer)
+    {
+        var bridge = (Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;
+        var repo   = (EntityRepository)System.Runtime.InteropServices.GCHandle
+                         .FromIntPtr(bridge->WorldHandle).Target!;
+
+        int    region = writer->OccurrenceRegionSlotIndex;
+        ushort state  = writer->OccurrenceStateId;
+        int    key    = Key(region, state);
+
+        // The production shape: one keyed occurrence per (region, state), params + working state.
+        OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+            repo, bridge->Self, key, 0x04C0, OccurrenceKind.Hsm, out _, out DemoParams* p);
+        p->Threshold = 1000 + region;
+
+        SystemDriven.Add((region, state, key));
+    }
+
+    private static readonly List<(int Region, ushort State, int Key)> SystemDriven = new();
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>O7_R48</c> — THE TWO-REGION MACHINE RUNS THROUGH <c>BrainTickSystem</c>, WITH ITS
+    /// INSTANCE IN AN OCCURRENCE SLOT.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.17.
+    ///
+    /// <para>🔒 The rail the user asked for when they asked whether the multi-region test could be
+    /// reused for HSMs. ⭐ It reuses <see cref="BuildTwoRegionBlob"/> unchanged — the same machine
+    /// <c>O7_R12</c> and <c>O7_R37</c> drive — and changes only HOW it is reached.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>AND IT IS THE FIRST MACHINE IN THIS SUITE THAT GETS ITS TRUE TIER.</b>
+    /// <c>HsmInstanceManager.SelectTier</c> answers <b>256</b> for a 3-region machine, and the
+    /// retired <c>BrainHsm128</c> component was <b>128 bytes for every machine whatever SelectTier
+    /// said</b> — the width was a property of a TYPE. ⇒ before <c>O7c</c>-④ this machine could not
+    /// have been given the instance the kernel's own policy asks for, on any entity, at all.</para>
+    ///
+    /// <para>⚠ <b>Non-vacuity is asserted, not assumed</b>: the parallel root must really fan out
+    /// (<c>activeLeafIds == [0,1,2]</c>) and BOTH dispatches must land, or the rest of the rail would
+    /// pass on a machine that never ran.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R48_TheTwoRegionMachineRunsThroughTheRealSystem_SlotResident_O7c4c()
+    {
+        const ushort ActionId = 0x04C1;
+        const int    DocId    = 0x04C2;
+
+        SystemDriven.Clear();
+        Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+        Fhsm.Kernel.HsmActionDispatcher.RegisterAction(
+            ActionId,
+            (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&SlotResidentRegionAction);
+        try
+        {
+            var world = TestWorldFactory.Create();
+            using var _w = world;
+
+            var blob = BuildTwoRegionBlob(ActionId);
+
+            // ⭐ GUARD: the premise of the whole rail. A 3-region machine is tier 256.
+            Assert.Equal(256, Fhsm.Kernel.HsmInstanceManager.SelectTier(blob));
+
+            var registry = new BehaviorRegistry();
+            registry.Register(DocId, "TwoRegionSlotResident", new BehaviorDefinition
+            {
+                Name          = "TwoRegionSlotResident",
+                BrainTier     = BehaviorConstants.BrainTierHsm,
+                HsmDefinition = blob,
+            });
+
+            var entity = world.CreateEntity();
+            world.AddComponent(entity, new Components.BehaviorState
+            {
+                ActiveBehaviorHash = DocId,
+                BrainTier          = BehaviorConstants.BrainTierHsm,
+                InstanceId         = 1,
+            });
+
+            // ⭐⭐ THE ONLY SETUP. No component, no hand-held pointer — ingress's provisioner puts the
+            //    instance in a slot and sizes it from the MACHINE.
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocId, blob));
+
+            Assert.True(RootHsmAccess.TryGetInstance(world, entity, out byte* inst, out int size));
+            Assert.Equal(256, size);   // ⛔ 128 would be the retired component's width, not the machine's
+
+            // ── ONE tick of the REAL system. Nothing here names the entity. ──────────────
+            new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry).Execute(world, 0.016f);
+
+            // ⭐ NON-VACUITY: the parallel root fanned out, so the machine genuinely ran.
+            ushort* leaves = Fhsm.Kernel.HsmKernel.GetActiveLeafIds(inst, size, out int regionCount);
+            Assert.Equal(8, regionCount);              // the 256 tier's leaf capacity
+            Assert.Equal((ushort)0, leaves[0]);
+            Assert.Equal((ushort)1, leaves[1]);
+            Assert.Equal((ushort)2, leaves[2]);
+
+            // ⭐⭐ THE RAIL, HALF ONE: both regions dispatched in ONE system tick, each stamped with
+            //    its own (region, state) — and therefore keyed to its own occurrence.
+            Assert.Equal(2, SystemDriven.Count);
+            Assert.Contains(SystemDriven, x => x.Region == 1 && x.State == 1);
+            Assert.Contains(SystemDriven, x => x.Region == 2 && x.State == 2);
+            Assert.NotEqual(SystemDriven[0].Key, SystemDriven[1].Key);
+
+            // ⭐⭐⭐ THE RAIL, HALF TWO — AND THIS IS THE CAPABILITY THE PROGRAMME EXISTS FOR.
+            //    The store now holds THREE occurrences on ONE entity: the host machine's own
+            //    instance plus one per region. 🔒 A component is addressed by its TYPE, so the
+            //    BrainHsm128 world could hold exactly ONE of these; a keyed slot is what makes
+            //    "several occurrences on one entity" expressible at all.
+            byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+            Assert.True(store != null);
+            Assert.Equal(3, BlueprintBlackboardPartitions.GetSlotCount(store));
+
+            // ⚠ And the two regions' params really are separate bytes, read back from the store
+            //   rather than from the pointers the action happened to hold.
+            foreach (var (region, state, key) in SystemDriven)
+            {
+                OccurrenceWorkingState.ResolveOrAttach<DemoParams, DemoWorkingState>(
+                    world, entity, key, 0x04C0, OccurrenceKind.Hsm, out bool fresh, out DemoParams* p);
+                Assert.False(fresh);                       // found, not re-created
+                Assert.Equal(1000 + region, p->Threshold); // each kept ITS OWN value
+            }
+        }
+        finally
+        {
+            Fhsm.Kernel.HsmActionDispatcher.ClearAll();
+            SystemDriven.Clear();
+        }
+    }
+
     private struct DemoParams { public int Threshold; public bool Flag; }
     private struct WideParams { public int A; public int B; public int C; }
 

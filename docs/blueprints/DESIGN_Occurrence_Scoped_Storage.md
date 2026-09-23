@@ -6685,3 +6685,60 @@ that is the one this repo's own `INVENTORY` rule demands. 🔒 **A `grep` for
 `RegisterComponent<…BehaviorState>` cross-referenced against `BlueprintTierTable.RegisterAll` returns
 the whole set in one call.** That is now recorded as the check to run whenever storage moves behind a
 registration.
+
+### 31.17 ⭐⭐⭐ `O7c`-④c AS BUILT — **THE TWO-REGION MACHINE, THROUGH THE REAL SYSTEM** *(`2026-09-23`)*
+
+> 🔒 **User, `2026-09-23`:** *"You did a test for multi region hsm calling actions, didnt you? Can you
+> use that for testing hsms?"*
+
+⭐ **Yes — and reusing that fixture is what makes the rail cheap and the claim sharp.** `O7_R48` drives
+`BuildTwoRegionBlob` **unchanged** — the same machine `O7_R12`, `O7_R31`, `O7_R36`, `O7_R37` and
+`O7_R38` already drive — and changes only **how it is reached**.
+
+#### 31.17.1 ⛔⛔ WHAT EVERY EXISTING TWO-REGION RAIL STOPS SHORT OF
+
+📐 **Measured, and it is the gap the user's question found.** All five of them do this:
+
+```csharp
+var inst = new HsmInstance128();          // ⛔ a STACK LOCAL
+var ctx  = 0;                             // ⛔ an int — cannot reach an entity
+HsmKernel.Update(blob, ref inst, in ctx, 0.016f, ref page);
+```
+
+⇒ they prove **the KERNEL** fans out into two regions and stamps two occurrences. ⛔ **They say
+nothing about whether a SYSTEM can reach that instance**, because the test is already holding a
+pointer to it. ⭐ After `O7c`-④ the instance lives in a **slot on a real entity**, discovered by the
+tier walk — a chain those rails cannot see:
+
+**entity → tier query → `BrainTier` → `RootHsmAccess` → `Update(ptr, size)` → two regions → two hosted slots**
+
+#### 31.17.2 ⭐⭐⭐ THE FIRST MACHINE IN THE SUITE THAT GETS ITS TRUE TIER
+
+📐 `HsmInstanceManager.SelectTier` answers **256** for a 3-region machine. ⛔ The retired
+`BrainHsm128` component was **128 bytes for every machine, whatever `SelectTier` said** — the width
+was a property of a TYPE. ⇒ 🔒 **before `O7c`-④ this machine could not have been given the instance
+the kernel's own policy asks for, on any entity, at all.** ⭐ `O7_R48` asserts `size == 256` and names
+128 as the wrong answer, so the rail states the difference rather than implying it.
+
+#### 31.17.3 ⭐⭐ THE HALF THAT IS THE PROGRAMME'S WHOLE POINT
+
+⭐ After one system tick the store holds **THREE occurrences on ONE entity**: the host machine's own
+instance, plus one per region. 🔒 **A component is addressed by its TYPE, so the `BrainHsm128` world
+could hold exactly ONE of these.** ⛔ A keyed slot is what makes *"several occurrences on one entity"*
+expressible at all — which is the capability argument the user made in the first place, now asserted
+end to end instead of argued.
+
+⚠ **Non-vacuity is asserted, not assumed:** the parallel root must really fan out
+(`activeLeafIds == [0,1,2]`) and both dispatches must land, or everything after would pass on a
+machine that never ran.
+
+#### 31.17.4 ⭐ THE ACTION IS SHAPED LIKE A REAL THUNK, AND THAT IS THE POINT
+
+⛔ `O7_R12`'s stub takes an `int` context and records a pair. ⭐ `O7_R48`'s recovers the world from the
+**bridge** — `GCHandle.FromIntPtr(bridge->WorldHandle)`, exactly as every generated thunk does — and
+attaches its occurrence through `OccurrenceWorkingState.ResolveOrAttach`. ⇒ **that is what makes this
+a test of the SYSTEM path** rather than of the kernel, and it is only possible because the merged
+system passes an `HsmKernelBridge*` where the old rails passed a scratch integer.
+
+⚠ `O7_R37`/`O7_R38` are **UNCHANGED and stay green** — they prove the per-region keying itself, and
+leaving them untouched is what lets `O7_R48` claim only the thing it adds.
