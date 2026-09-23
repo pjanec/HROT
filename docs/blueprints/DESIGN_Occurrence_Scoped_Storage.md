@@ -7995,6 +7995,74 @@ lean toward retiring that arm the way `CE-333` retired its HSM twin.
 you the code it pins is not valid C#.* ⭐ One compile rail found in a single run what four text rails
 had been asserting past for months.
 
+### 32.12 ⛔⛔⛔ `CE-337` — **THE BTree ORCHESTRATOR ARMS ARE RETIRED** *(`2026-09-23`)*
+
+> 🔒 **User, `2026-09-23`: "retire the arm."**
+
+⭐ `BTreeOrchestratorEmitCore.Emit` now returns `null` unconditionally, on **both** arms — exactly as
+`CE-333` retired the HSM twin. ⚠ The type and its two production callers stay; a caller that gets
+`null` emits no file, which is what every shipped asset already did.
+
+#### 32.12.1 📐 WHY — **four defects, and only the fourth decided it**
+
+| # | | |
+|---|---|---|
+| ① | `{Child}.GetInterpreter()` — defined nowhere | `CE-335`, fixed first |
+| ② | `[BTreeAction(Name = "…")]` on an attribute with **no `Name` property** | `CE-336`, fixed |
+| ③ | `ref  master,` / `ref  ctx,` — empty type names on the default path | `CE-336`, fixed |
+| ④ | 🔴 **both arms project onto a MASTER BLACKBOARD STRUCT**, and `P4` deleted `BrainBlackboard` — which every shipped `*.btree.json` still names, as does `AiEmitCoreBase.DefaultBlackboardTypeName` | **not patchable** |
+
+⇒ ⭐⭐ **①–③ were mechanical; ④ is the mechanism being wrong.** Post-`P4` there is no per-asset master
+blackboard struct for a non-managed asset, so `ref master` has no referent and **no corpus asset can
+satisfy either arm.**
+
+⛔⛔ **And Approach B was already dead on its own terms** — its own emitter said so before any of this:
+the sub-tree identity is session-local (`_syncNodeMeta`, an `InspectorWindow` draw, deliberately
+excluded from the DTO) and the destination field *"never reaches `Blackboard.Variables` and no
+blackboard emitter declares it."* ⇒ its rails passed only because the fixture supplied by hand what
+production has no path to supply.
+
+#### 32.12.2 ⭐ WHAT WENT WITH IT — **the slot, by this repository's own rule**
+
+`BTreeBridgeEmitCore`'s alias-driven `StatefulWorkingSlots` entry is gone too, because the file's own
+comment is the argument: *"THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER."*
+⛔ A slot emitted for a tick that never happens is storage nobody reads, on every entity carrying the
+behaviour. ⭐ The slot MECHANISM is untouched — `ComputeTreeStateKey`, `StatefulSlotInfo`,
+`HostedSubtree.IsTreeStateSlot` — and now serves `E5`'s per-site declaration.
+
+⚠ **`OrchestratorAliasCollector` is ORPHANED** by this — zero production callers. 🔒 **Kept, not
+deleted** *("unreferenced is not unintentional")*, with a tombstone saying so; deleting it is a sweep
+with its own evidence.
+
+#### 32.12.3 ⭐⭐ WHERE HOSTING LIVES NOW
+
+🔒 **Per SITE, not per alias** — `E5`'s shape: a `{SubtreeAssetId, SubtreeName}` pair on the host, a
+tree-state slot from `ComputeTreeStateKey(host, site, child)`, a registration-time binding through
+`HostedChildren`, and a brain that ticks it every frame.
+⛔ **BTree-hosts-BTree is that same shape with the NODE's visual id as the site — NOT BUILT.** ⚠ It is
+a slice, not a patch, and nothing should re-wire an emitter to the alias collector to fake it.
+
+#### 32.12.4 ⚠ THE RAILS — **12 removed, and every surviving claim named**
+
+| claim | where it went |
+|---|---|
+| alias **de-duplication** | ⭐ re-homed onto `OrchestratorAliasCollector` itself — `EachUniqueVariableSubTreePairIsCollectedExactlyOnce` |
+| the **`DtoTypeId` split** *(name/namespace, never a `System.Type`)* | ⭐ same — asserted against the collector |
+| *"the hosted child is never ticked with the master's state"* | ⭐⭐ `HostedSubtreeCursorTests.O4_R1` pins it at **RUNTIME**, which is stronger than pinning the text |
+| the **slice field is declared** | ⭐ `TheProjectionDeclaresTheSliceField_TheWriterIsRetired_CE337` keeps the half that can still be wrong |
+| the sibling-pass **resolution** | ⭐ still asserted; only its orchestrator half was dropped |
+| the 12 **shape** assertions | ⛔ gone — they asserted the text of a mechanism that no longer exists, and there is no sibling arm to re-home them to |
+
+⚠ **A LOOSE END, named rather than swept:** with no writer, the declared slice field is a projection
+nothing consumes. 📋 In `CE-337`'s tail.
+
+#### 32.12.5 ⭐ `CE336_R1` MOVED RATHER THAN DIED
+
+⛔ It compiled the emitted ORCHESTRATOR — and doing so is what found ①–③. With nothing left to emit,
+it now compiles the **bridge registrar**, which ships for every asset and every build. ⭐ Not a
+downgrade: the registrar carries the slot manifest, the params supply and the interpreter
+construction — more surface than the orchestrator ever had, and it had no compile rail either.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

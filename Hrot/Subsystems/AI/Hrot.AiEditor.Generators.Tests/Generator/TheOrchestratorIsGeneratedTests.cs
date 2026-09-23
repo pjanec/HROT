@@ -196,58 +196,48 @@ public sealed class TheOrchestratorIsGeneratedTests
             "topology core + registrar, and no orchestrator file — the same shape as an unaliased asset");
     }
 
+
     /// <summary>
-    /// ⭐⭐⭐ <b><c>DtoTypeId</c> is SPLIT, never resolved.</b> The fixture's type exists in no
-    /// assembly — ⛔ a generator cannot load behavior assemblies — yet its short name must appear as
-    /// the projection type and its namespace as a using.
+    /// ⭐⭐ <b>RE-HOMED ONTO THE COLLECTOR <c>2026-09-23</c> (<c>CE-337</c>).</b> The claim —
+    /// a repeated (variable, sub-tree) pair yields ONE method — belongs to
+    /// <see cref="OrchestratorAliasCollector"/>, and it survives its callers' retirement. ⛔ Asserted
+    /// against the collector rather than emitted text, because no arm emits any.
+    /// </summary>
+    [Fact]
+    public void EachUniqueVariableSubTreePairIsCollectedExactlyOnce()
+    {
+        var aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
+        {
+            ["Health"] = new() { Alias("Alpha"), Alias("Beta"), Alias("Alpha") },
+        };
+
+        var methods = OrchestratorAliasCollector.Collect(aliases, new[] { "Health" }, "BTreeAsset");
+
+        methods.Count(m => m.SubTreeName == "Alpha").Should().Be(1, "the duplicate pair is de-duplicated");
+        methods.Count(m => m.SubTreeName == "Beta").Should().Be(1);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>DtoTypeId</c> is SPLIT, never resolved</b> — the point of <c>91b</c> persisting a
+    /// <c>Type.FullName</c> string rather than a <c>System.Type</c>.
+    ///
+    /// <para>⚠ <b>RE-HOMED ONTO THE COLLECTOR <c>2026-09-23</c> (<c>CE-337</c>)</b>, for the same
+    /// reason as the rail above. ⭐ The fixture's type exists in no assembly, which is the whole
+    /// assertion: if the collector ever tried to LOAD it, this reddens.</para>
     /// </summary>
     [Fact]
     public void TheDtoTypeIdIsSplitIntoNameAndNamespaceWithoutResolvingAType()
     {
-        // ⚠ RE-HOMED to the BTree arm 2026-09-23 (CE-333): the DtoTypeId split lives in the SHARED
-        //   OrchestratorAliasCollector, but only the BTree arm still emits text to assert it on.
-        var dto = SampleScoutDto();
-        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
+        var aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
         {
-            [EnsureVariable(dto)] = new() { Alias("GuardSubTree") },
+            ["Health"] = new() { Alias("GuardSubTree") },
         };
 
-        var text = OrchestratorText(Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
-            BTreeJsonServices.Serialize(dto)))!;
+        var methods = OrchestratorAliasCollector.Collect(aliases, new[] { "Health" }, "HsmAsset");
 
-        // ⭐ CE-335: the destination type is now `byte` — the registry holds
-        //   Interpreter<byte, BTreeContext>, so the aliased field is reinterpreted as the child's
-        //   blackboard bytes. The SHORT name being asserted is the SOURCE type, which is the claim.
-        text.Should().Contain("Unsafe.As<PatrolParams, byte>",
-            "the SHORT name is the segment after the last '.'");
-        text.Should().Contain("using Made.Up.Behaviors;",
-            "the NAMESPACE is everything before it, and becomes a using");
-        text.Should().NotContain(UnloadableDtoTypeId,
-            "the full name is split, not pasted through");
-    }
-
-    /// <summary>⭐⭐ Two aliases on one variable ⇒ two methods; ⛔ a repeat of the same pair ⇒ one.
-    ///
-    /// <para>⚠ <b>RE-HOMED to the BTree arm <c>2026-09-23</c> (<c>CE-333</c>).</b> The CLAIM is
-    /// unchanged — <c>OrchestratorAliasCollector</c> de-duplicates a repeated (variable, sub-tree)
-    /// pair — and the collector is shared by both arms. ⛔ Only the HOST moved: the HSM arm no longer
-    /// emits an orchestrator at all (§32.11.2), so asserting the claim there would assert it on
-    /// <c>null</c>.</para></summary>
-    [Fact]
-    public void EachUniqueVariableSubTreePairEmitsExactlyOneMethod()
-    {
-        var dto = SampleScoutDto();
-        string varName = EnsureVariable(dto);
-        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
-        {
-            [varName] = new() { Alias("Alpha"), Alias("Beta"), Alias("Alpha") },
-        };
-
-        var text = OrchestratorText(Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
-            BTreeJsonServices.Serialize(dto)))!;
-
-        CountOf(text, "Orchestrate_Alpha_Tick(").Should().Be(1, "the duplicate pair is de-duplicated");
-        CountOf(text, "Orchestrate_Beta_Tick(").Should().Be(1);
+        var m = methods.Should().ContainSingle().Subject;
+        m.DtoTypeName.Should().Be("PatrolParams", "the SHORT name is the segment after the last '.'");
+        m.DtoTypeNs.Should().Be("Made.Up.Behaviors", "the NAMESPACE is everything before it");
     }
 
     // ══ BTree ════════════════════════════════════════════════════════════════
@@ -272,9 +262,23 @@ public sealed class TheOrchestratorIsGeneratedTests
             "topology core + registrar, exactly as before this batch");
     }
 
-    /// <summary>⭐⭐⭐ THE BTree rail: same alias arm, the other attribute. 🔴 RED before <c>92b</c>.</summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b>INVERTED <c>2026-09-23</c> (<c>CE-337</c>) — a BTree alias emits NOTHING either.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12.
+    ///
+    /// <para>🔴 This asserted <c>[BTreeAction…] Orchestrate_PatrolSubTree_Tick(… ref master.{var} …)</c>
+    /// and <c>HostedSubtree.Tick(</c>. 📐 <c>CE-336</c>'s compile rail then showed the emission had
+    /// never been valid C# — and the last defect could not be patched: both arms project onto a MASTER
+    /// BLACKBOARD STRUCT, and <c>P4</c> deleted <c>BrainBlackboard</c>, which every shipped
+    /// <c>*.btree.json</c> still names. ⇒ no asset can satisfy the arm.</para>
+    ///
+    /// <para>⭐⭐ Hosting is per-SITE now (<c>E5</c>): a <c>{SubtreeAssetId, SubtreeName}</c> pair, a
+    /// tree-state slot from <c>ComputeTreeStateKey</c>, a registration-time binding through
+    /// <c>HostedChildren</c>, and a brain that ticks it every frame. ⛔ The BTree-hosts-BTree case is
+    /// that same shape with the NODE's visual id as the site — NOT BUILT, and a slice, not a patch.</para>
+    /// </summary>
     [Fact]
-    public void ABTreeAliasEmitsABTreeActionOrchestrator()
+    public void ABTreeAliasEmitsNoOrchestrator_HostingIsPerSite_CE337()
     {
         var dto = SampleScoutDto();
         string varName = EnsureVariable(dto);
@@ -283,23 +287,12 @@ public sealed class TheOrchestratorIsGeneratedTests
             [varName] = new() { Alias("PatrolSubTree") },
         };
 
-        var text = OrchestratorText(Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
-            BTreeJsonServices.Serialize(dto)));
+        var result = Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(dto));
 
-        text.Should().NotBeNull();
-        text!.Should().Contain("[BTreeAction]   // Orchestrate_PatrolSubTree",
-            "the BTree arm registers through [BTreeAction]");
-        text.Should().NotContain("[HsmAction",
-            "⛔ the two hosts must not cross-emit each other's attribute");
-        text.Should().Contain($"ref master.{varName}");
-        // ⭐⭐⭐ O4 / C1 — this asserted `Tick(ref subBb, ref state, ref ctx)` VERBATIM, which is
-        //   the §3.1 defect itself: the MASTER's BehaviorTreeState handed to the child, one
-        //   RunningNodeIndex shared between them. 📄 §18 measured it; rail
-        //   HostedSubtreeCursorTests.O4_R1 pins the behaviour underneath.
-        text.Should().Contain("HostedSubtree.Tick(",
-            "the hosted child must tick against its OWN state, from its own slot");
-        text.Should().NotContain("ref state, ref ctx);",
-            "⛔ the master's state must never reach the child interpreter");
+        OrchestratorText(result).Should().BeNull(
+            "CE-337 retired both BTree orchestrator arms — the emission never compiled and its "
+            + "`ref master` projection needs a blackboard struct P4 deleted");
     }
 
     private static int CountOf(string haystack, string needle)
@@ -368,27 +361,17 @@ public sealed class TheOrchestratorIsGeneratedTests
             ("/p/MasterAI.btree.json", BTreeJsonServices.Serialize(master)),
             ("/p/ShootBT.btree.json",  BTreeJsonServices.Serialize(callee)));
 
-        // ① the orchestrator exists, and it is the Approach-B (copy · tick · copy) body.
-        string? text = OrchestratorText(result);
-        text.Should().NotBeNull("the generator can now resolve the callee from its sibling JSON");
-        text!.Should().Contain("[BTreeAction]   // Orchestrate_ShootBT");
-        text.Should().Contain($"subDto.Health = master.{masterVar};", "SyncIn copies IN before the tick");
-        text.Should().Contain($"master.{masterVar} = subDto.Health;", "SyncOut copies OUT after it");
+        // ⚠ HALVED 2026-09-23 (CE-337): ① asserted the Approach-B orchestrator BODY, and there is
+        //    no orchestrator any more — both arms emit nothing. ⛔ The half that can still be wrong is
+        //    ②, the SLICE the master declares, and it is what the sibling resolution exists for.
+        OrchestratorText(result).Should().BeNull(
+            "CE-337 retired both arms — the sibling resolution now feeds the DECLARATION only");
 
-        // ② THE SLICE IS DECLARED — gap ②'s whole content — and it is the field ① writes through.
-        string sliceField = SubtreeSyncProjection.SliceFieldName("ShootBT", "Guid");
-        text.Should().Contain($"ref master.{sliceField}");
-
-        // ⛔⛔ EXCLUDE the orchestrator tree, and that exclusion is load-bearing — 📌 BP-402 ①.
-        //    🔴 The first version of this rail searched ALL generated trees, and a revert-probe that
-        //    deleted the declaration REDDENED NOTHING: the orchestrator's own `ref master.X` satisfied
-        //    the substring. ⇒ ⭐ a rail that cannot fail is worse than no rail; it must read the trees
-        //    that DECLARE, never the one that WRITES.
-        string declarations = string.Join("\n", result.GeneratedTrees
-            .Where(t => !t.FilePath.EndsWith("Orchestrators.g.cs", StringComparison.Ordinal))
-            .Select(t => t.ToString()));
-        declarations.Should().Contain(sliceField,
-            "the master blackboard must DECLARE the field the orchestrator writes through");
+        // ② the master DECLARES the slice field the resolution produced. 🔒 This is the claim the
+        //    sibling-pass machinery is really about, and it survives the emitter's retirement.
+        string all = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
+        all.Should().Contain("ShootBT_",
+            "the master's generated blackboard must still carry the resolved slice field");
     }
 
     /// <summary>
@@ -551,32 +534,28 @@ public sealed class TheOrchestratorIsGeneratedTests
         string.Join("\n", errors.Take(15).Select(d => $"  {d.Id} {d.GetMessage()} @ {d.Location}"));
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>CE336_R1</c> — the emitted BTree orchestrator COMPILES.</b>
+    /// ⭐⭐⭐ <b><c>CE336_R1</c> — the emitted BTree REGISTRAR compiles.</b>
     ///
-    /// <para>🔴 <b>Red before <c>CE-335</c>:</b> this arm emitted
-    /// <c>{Child}.GetInterpreter()</c> — a method no type in the repository declares — so the
-    /// compilation fails with <c>CS0103</c>/<c>CS1061</c>. ⭐ It now resolves the child through
-    /// <c>HostedChildren.Require(slotKey)</c>, bound at registration.</para>
+    /// <para>⚠ <b>REPOINTED <c>2026-09-23</c> (<c>CE-337</c>).</b> This compiled the emitted
+    /// ORCHESTRATOR, and doing so is what found the three defects that got that arm retired. ⛔ With
+    /// both arms emitting nothing there is no orchestrator left to compile — so the rail moves to the
+    /// artefact that IS emitted for every asset and every build: the bridge registrar.</para>
+    ///
+    /// <para>⭐ That is not a downgrade. The registrar is where the slot manifest, the params supply
+    /// and the interpreter construction live — far more surface than the orchestrator ever had, and
+    /// none of it had a compile rail either.</para>
     /// </summary>
     [Fact]
-    public void CE336_R1_TheEmittedBTreeOrchestratorCompiles()
+    public void CE336_R1_TheEmittedBTreeRegistrarCompiles()
     {
-        var dto = SampleScoutDto();
-        string varName = EnsureVariable(dto);
-        dto.BlackboardTypeName = typeof(Ce336MasterBlackboard).FullName!;
-        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
-        {
-            [varName] = new() { CompilableAlias("PatrolSubTree") },
-        };
-
         var result = Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
-            BTreeJsonServices.Serialize(dto));
+            BTreeJsonServices.Serialize(SampleScoutDto()));
 
-        OrchestratorText(result).Should().NotBeNull("the fixture must actually emit an orchestrator");
+        result.GeneratedTrees.Should().NotBeEmpty("the generator must have emitted something to compile");
 
         var errors = CompileErrors(result);
         errors.Should().BeEmpty(
-            "the emitted orchestrator must be valid C# — this is the rail CE-333/CE-335 needed and "
+            "the emitted BTree registrar must be valid C# — the rail CE-333/CE-335/CE-337 needed and "
             + "did not have:\n" + Describe(errors));
     }
 

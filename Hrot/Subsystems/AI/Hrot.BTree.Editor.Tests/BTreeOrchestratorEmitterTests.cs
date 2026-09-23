@@ -51,90 +51,40 @@ public sealed class BTreeOrchestratorEmitterTests
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
 
-        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
-
-        result.Should().BeNull();
+        BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve).Should().BeNull();
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>SUPERSEDED <c>2026-09-23</c> (<c>CE-337</c>) — THE APPROACH-A ARM IS RETIRED, AND FIVE
+    /// SHAPE RAILS WENT WITH IT.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12.
+    ///
+    /// <para>🔴 <b>Removed, named so they are not lost:</b>
+    /// <c>Emit_ContainsOrchestratorMethod_ForAlias</c> ·
+    /// <c>Emit_Deduplicates_SameSubTreeTwoBindings</c> ·
+    /// <c>Emit_ContainsTwoMethods_ForTwoDistinctSubTrees</c> ·
+    /// <c>Emit_OutputIsDeterministic</c> · <c>Emit_StartsWithEditorGeneratedMarker</c>.</para>
+    ///
+    /// <para>⭐⭐ <b>Two of those claims SURVIVE and were re-homed, not dropped:</b> de-duplication and
+    /// the deterministic ordering belong to <c>OrchestratorAliasCollector</c>, and
+    /// <c>TheOrchestratorIsGeneratedTests.EachUniqueVariableSubTreePairIsCollectedExactlyOnce</c>
+    /// asserts the first directly against the collector. ⛔ The rest asserted the SHAPE of text that
+    /// no longer exists.</para>
+    ///
+    /// <para>⛔ <b>Why, in one line:</b> the emission never compiled (<c>CE-335</c>/<c>CE-336</c>), and
+    /// its <c>ref master</c> projection needs a blackboard struct <c>P4</c> deleted. Hosting is
+    /// per-SITE now (<c>E5</c>).</para>
+    /// </summary>
     [Fact]
-    public void Emit_ContainsOrchestratorMethod_ForAlias()
+    public void Emit_ReturnsNull_EvenForAnAlias_BecauseTheArmIsRetired_CE337()
     {
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
         asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
 
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        result.Should().NotBeNull();
-        result.Should().Contain("[BTreeAction]   // Orchestrate_Shoot_BT");
-        result.Should().Contain("Orchestrate_Shoot_BT_Tick");
-        result.Should().Contain("ref master.SharedFire");
-    }
-
-    [Fact]
-    public void Emit_Deduplicates_SameSubTreeTwoBindings()
-    {
-        // Two separate element bindings from the same sub-tree on the same variable
-        // should produce only one method.
-        var assetId = Guid.NewGuid();
-        var asset = MakeAsset();
-        asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
-        asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto), assetId, Guid.NewGuid()));
-        asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto), assetId, Guid.NewGuid()));
-
-        // AddAlias deduplicates by (assetId, elementId), so use two unique elementIds.
-        // The emitter must also deduplicate by (varName, subTreeName).
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        // Count occurrences of the method name.
-        int count = CountOccurrences(result, "Orchestrate_Shoot_BT_Tick");
-        count.Should().Be(1, "deduplication by (varName, subTreeName) must collapse identical sub-tree names");
-    }
-
-    [Fact]
-    public void Emit_ContainsTwoMethods_ForTwoDistinctSubTrees()
-    {
-        var asset = MakeAsset();
-        asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
-        asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
-        asset.AddAlias("SharedFire", Binding("Patrol_BT", typeof(PatrolBtDto)));
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        result.Should().Contain("Orchestrate_Shoot_BT_Tick");
-        result.Should().Contain("Orchestrate_Patrol_BT_Tick");
-    }
-
-    [Fact]
-    public void Emit_OutputIsDeterministic()
-    {
-        var assetId = new Guid("a1b2c3d4-0001-0000-0000-000000000001");
-        var asset = new BehaviorTreeAsset(
-            assetId, "MasterAI", "/trees/MasterAI.cs", true,
-            "Hrot.Game.MasterBlackboard", "Hrot.Game.MasterContext",
-            EmptyBlob(), "Hrot.AI.Behaviors.Trees");
-        asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
-        var bindingId = new Guid("b1b2c3d4-0001-0000-0000-000000000002");
-        asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto), bindingId, bindingId));
-
-        string first  = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-        string second = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        first.Should().Be(second, "emitter output must be deterministic for the same input");
-    }
-
-    [Fact]
-    public void Emit_StartsWithEditorGeneratedMarker()
-    {
-        var asset = MakeAsset();
-        asset.AddVariable(new BlackboardVariableEntry("SharedFire", typeof(ShootBtDto), null));
-        asset.AddAlias("SharedFire", Binding("Shoot_BT", typeof(ShootBtDto)));
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        result.Should().StartWith(
-            Hrot.Editor.AiShared.Emit.FluentCSharpEmitterBase.EditorGeneratedMarker);
+        BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve).Should().BeNull(
+            "CE-337 retired the Approach-A alias arm: it emitted C# that never compiled, and its "
+            + "`ref master` projection needs a blackboard struct P4 deleted. Sub-tree hosting is "
+            + "declared per SITE and ticked by the brain — DESIGN §32.");
     }
 
     // ---- Private helpers ----
@@ -188,7 +138,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         });
     }
 
-    // ---- T1: returns null when neither Approach A aliases nor Approach B sync groups exist ----
+    // ---- T1: returns null, and since CE-337 that is the ONLY outcome ----
 
     [Fact]
     public void Emit_ReturnsNull_WhenNoAliasesAndNoSyncGroups()
@@ -196,149 +146,54 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         var asset = MakeAsset();
         asset.AddVariable(new BlackboardVariableEntry("X", typeof(int), null));
 
-        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
-
-        result.Should().BeNull();
+        BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve).Should().BeNull();
     }
 
-    // ---- T2: emits Approach B method when SyncIn binding exists ----
-
+    /// <summary>
+    /// ⭐⭐⭐ <b>SUPERSEDED <c>2026-09-23</c> (<c>CE-337</c>) — APPROACH B IS RETIRED TOO, AND SIX SHAPE
+    /// RAILS WENT WITH IT.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12.
+    ///
+    /// <para>🔴 <b>Removed:</b> <c>Emit_ContainsApproachBMethod_WhenSyncInBinding</c> ·
+    /// <c>…WhenSyncOutBinding</c> · <c>Emit_SyncInBeforeTick_SyncOutAfterTick</c> ·
+    /// <c>Emit_SyncInFields_InAlphaOrder</c> · <c>Emit_SkipsBinding_WhenNoMasterVar</c> ·
+    /// <c>Emit_ApproachAPreemptsApproachB_WhenSameSubtreeName</c>.</para>
+    ///
+    /// <para>⚠⚠ <b>Approach B was already dead on its own terms, and its own emitter said so</b>
+    /// before any of <c>CE-335</c>/<c>CE-336</c>: the sub-tree IDENTITY is session-local
+    /// (<c>_syncNodeMeta</c>, written only by an <c>InspectorWindow</c> draw and deliberately excluded
+    /// from the DTO), and the destination FIELD <i>"never reaches Blackboard.Variables and no
+    /// blackboard emitter declares it"</i>. ⇒ these rails passed only because the fixture supplied
+    /// by hand what production has no path to supply.</para>
+    ///
+    /// <para>⭐ The ONE claim worth keeping — <i>the hosted child is never ticked with the master's
+    /// state</i> — is pinned at RUNTIME by
+    /// <c>Fdp.Toolkits.Tests.Behavior.HostedSubtreeCursorTests.O4_R1</c>, which is stronger than
+    /// pinning the text that used to express it.</para>
+    /// </summary>
     [Fact]
-    public void Emit_ContainsApproachBMethod_WhenSyncInBinding()
+    public void Emit_ReturnsNull_EvenWithSyncGroups_BecauseApproachBIsRetired_CE337()
     {
         var asset = MakeAsset();
+        var masterVar = new BlackboardVariableEntry("MasterAmmo", typeof(int), null);
+        asset.AddVariable(masterVar);
+
         var nodeId = Guid.NewGuid();
-        RegisterGroup(asset, nodeId, "PatrolBT", "PatrolBlackboard", "Game.AI",
-            new[] { new SubtreeSyncBinding("Range", "MasterRange", SyncIn: true, SyncOut: false) });
+        RegisterGroup(asset, nodeId, "ShootBT", "ShootDto", "Hrot.Game",
+            new[] { new SubtreeSyncBinding("Ammo", "MasterAmmo", SyncIn: true, SyncOut: false) });
 
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        result.Should().Contain("Orchestrate_PatrolBT_Tick");
-        result.Should().Contain("[BTreeAction]   // Orchestrate_PatrolBT");
-    }
-
-    // ---- T3: emits Approach B method when SyncOut binding exists ----
-
-    [Fact]
-    public void Emit_ContainsApproachBMethod_WhenSyncOutBinding()
-    {
-        var asset = MakeAsset();
-        var nodeId = Guid.NewGuid();
-        RegisterGroup(asset, nodeId, "ScoutBT", "ScoutBlackboard", null,
-            new[] { new SubtreeSyncBinding("Found", "MasterFound", SyncIn: false, SyncOut: true) });
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        result.Should().Contain("Orchestrate_ScoutBT_Tick");
-    }
-
-    // ---- T4: sync-in assignments appear before Tick call, sync-out assignments after ----
-
-    [Fact]
-    public void Emit_SyncInBeforeTick_SyncOutAfterTick()
-    {
-        var asset = MakeAsset();
-        var nodeId = Guid.NewGuid();
-        RegisterGroup(asset, nodeId, "CombatBT", "CombatBlackboard", null,
-            new[]
-            {
-                new SubtreeSyncBinding("Ammo",   "MasterAmmo",   SyncIn: true,  SyncOut: false),
-                new SubtreeSyncBinding("Kills",  "MasterKills",  SyncIn: false, SyncOut: true),
-            });
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        int syncInPos  = result.IndexOf("subDto.Ammo = master.MasterAmmo",   StringComparison.Ordinal);
-        // ⭐ O4: re-anchored. Was "GetInterpreter().Tick" — the PRE-O4 spelling, which passed
-        //   `ref state`. This rail owns the ORDERING, not the spelling.
-        int tickPos    = result.IndexOf("HostedSubtree.Tick(",                StringComparison.Ordinal);
-        int syncOutPos = result.IndexOf("master.MasterKills = subDto.Kills", StringComparison.Ordinal);
-
-        syncInPos.Should().BePositive();
-        tickPos.Should().BeGreaterThan(syncInPos);
-        syncOutPos.Should().BeGreaterThan(tickPos);
-    }
-
-    // ---- T5: sync-in fields are emitted in alphabetical order ----
-
-    [Fact]
-    public void Emit_SyncInFields_InAlphaOrder()
-    {
-        var asset = MakeAsset();
-        var nodeId = Guid.NewGuid();
-        RegisterGroup(asset, nodeId, "AssaultBT", "AssaultBlackboard", null,
-            new[]
-            {
-                new SubtreeSyncBinding("Zeal",  "MasterZeal",  SyncIn: true, SyncOut: false),
-                new SubtreeSyncBinding("Alpha", "MasterAlpha", SyncIn: true, SyncOut: false),
-            });
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        int posAlpha = result.IndexOf("subDto.Alpha", StringComparison.Ordinal);
-        int posZeal  = result.IndexOf("subDto.Zeal",  StringComparison.Ordinal);
-
-        posAlpha.Should().BePositive();
-        posZeal.Should().BeGreaterThan(posAlpha);
-    }
-
-    // ---- T6: binding without master var is skipped entirely ----
-
-    [Fact]
-    public void Emit_SkipsBinding_WhenNoMasterVar()
-    {
-        var asset = MakeAsset();
-        var nodeId = Guid.NewGuid();
-        // All bindings have no MasterVariableName => no effective sync ops.
-        RegisterGroup(asset, nodeId, "IdleBT", "IdleBlackboard", null,
-            new[]
-            {
-                new SubtreeSyncBinding("Phase", MasterVariableName: null, SyncIn: true,  SyncOut: false),
-                new SubtreeSyncBinding("Tick",  MasterVariableName: null, SyncIn: false, SyncOut: true),
-            });
-
-        string? result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve);
-
-        result.Should().BeNull("no effective sync ops means no method should be emitted");
-    }
-
-    // ---- T7: Approach A alias preempts Approach B for the same sub-tree ----
-
-    [Fact]
-    public void Emit_ApproachAPreemptsApproachB_WhenSameSubtreeName()
-    {
-        var asset = MakeAsset();
-        // Register Approach A alias for "PatrolBT".
-        asset.AddVariable(new BlackboardVariableEntry("PatrolSlot", typeof(int), null));
-        asset.AddAlias("PatrolSlot", new BlackboardAliasBinding(
-            Guid.NewGuid(), Guid.NewGuid(), "PatrolBT", "/patrol.cs", typeof(int)));
-        // Register an Approach B group for the SAME sub-tree name.
-        var nodeId = Guid.NewGuid();
-        RegisterGroup(asset, nodeId, "PatrolBT", "PatrolBlackboard", null,
-            new[] { new SubtreeSyncBinding("Speed", "MasterSpeed", SyncIn: true, SyncOut: false) });
-
-        string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
-
-        // Should have exactly one method for PatrolBT (the Approach A one).
-        int count = 0;
-        int idx = 0;
-        while ((idx = result.IndexOf("Orchestrate_PatrolBT_Tick", idx, StringComparison.Ordinal)) >= 0)
-        {
-            count++;
-            idx += "Orchestrate_PatrolBT_Tick".Length;
-        }
-        count.Should().Be(1, "Approach A must preempt Approach B for the same sub-tree name");
+        BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve).Should().BeNull(
+            "CE-337 retired Approach B along with Approach A — same `ref master` projection, same "
+            + "missing blackboard struct, and no load path for its bindings in the first place");
     }
 }
 
 /// <summary>
 /// ⭐⭐ <b><c>Q49</c>: an EXPLICIT <i>"I cannot resolve"</i>, not a silent default.</b> These rails build
 /// their assets by hand and call <c>RecordSubtreeNodeMeta</c> themselves, so there is no catalog to
-/// consult — ⛔ and <c>BehaviorTreeAsset.RecomputeSubtreeSyncIdentity</c> leaves an unresolvable node's
-/// identity ALONE, which is why every assertion in this file is unchanged by the pull.
-/// <para>⚠ <c>Emit</c>'s resolver is REQUIRED on purpose *(<c>R-126</c>)* — an optional one would rebuild
-/// the very failure mode <c>Q49</c> fixes: an identity only some callers bother to supply.</para>
-/// <para>⭐ ONE helper for both fixtures in this file — 📌 <c>R-13</c>, even for a one-liner.</para>
+/// consult. ⚠ <c>Emit</c>'s resolver is REQUIRED on purpose *(<c>R-126</c>)* — an optional one would
+/// rebuild the very failure mode <c>Q49</c> fixes.
+/// <para>⭐ ONE helper for both fixtures in this file — 📌 <c>R-13</c>, even for a one-liner.
+/// ⚠ Retained after <c>CE-337</c>: <c>Emit</c> still takes the resolver, and the rails still pass it.</para>
 /// </summary>
 internal static class NoSubtreeCatalog
 {

@@ -84,112 +84,37 @@ public sealed class TheOrchestratorCopyTickCopyTests
     // ══ COPY · TICK · COPY ═══════════════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE rail — the ORDER is the contract.</b> ⛔ A sync-out that ran before the tick would
-    /// copy back last frame's value; a sync-in after it would arrive too late. ⇒ the assertion is on
-    /// the INDICES, not on mere presence.
+    /// ⭐⭐⭐ <b>SUPERSEDED <c>2026-09-23</c> (<c>CE-337</c>) — APPROACH B EMITS NOTHING, AND FIVE
+    /// SHAPE RAILS WENT WITH IT.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12.
+    ///
+    /// <para>🔴 <b>What was removed, named so it is not lost:</b>
+    /// <c>SyncInCopiesPrecedeTheTickAndSyncOutCopiesFollowIt</c> ·
+    /// <c>TheHostedChildIsNeverTickedWithTheMastersState</c> ·
+    /// <c>TheSubDtoIsTakenByRefFromTheAutoAllocatedSliceField</c> ·
+    /// <c>CopiesAreOrderedByFieldNameSoTheOutputIsDeterministic</c> ·
+    /// <c>AnAliasOnTheSameSubTreeSuppressesTheApproachBMethod</c>. ⛔ Each asserted the SHAPE of
+    /// emitted text that no longer exists, and there is no sibling arm to re-home them to — unlike
+    /// the de-duplication and <c>DtoTypeId</c>-split claims, which moved rather than died.</para>
+    ///
+    /// <para>⭐⭐ <b>The ONE claim among them that outlives the emission is already railed elsewhere:</b>
+    /// <i>"the hosted child is never ticked with the master's state"</i> is <c>O4</c>/<c>C1</c>'s
+    /// invariant, and <c>HostedSubtreeCursorTests.O4_R1</c> pins it at RUNTIME — which is stronger
+    /// than pinning the text that used to express it.</para>
+    ///
+    /// <para>⛔ <b>Why the mechanism went, in one line:</b> both arms project onto a master blackboard
+    /// STRUCT, and <c>P4</c> deleted <c>BrainBlackboard</c> — so no asset can satisfy them. Hosting is
+    /// per-SITE now (<c>E5</c>).</para>
     /// </summary>
     [Fact]
-    public void SyncInCopiesPrecedeTheTickAndSyncOutCopiesFollowIt()
+    public void ApproachBEmitsNothingBecauseTheArmIsRetired_CE337()
     {
         var group = Group(
-            new OrchestratorSyncBinding("InField",  "Health", syncIn: true,  syncOut: false),
-            new OrchestratorSyncBinding("OutField", "Health", syncIn: false, syncOut: true));
+            new OrchestratorSyncBinding("Ammo",   "MasterAmmo",   syncIn: true,  syncOut: false),
+            new OrchestratorSyncBinding("Health", "MasterHealth", syncIn: false, syncOut: true));
 
-        string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
-
-        int copyIn  = text.IndexOf("subDto.InField = master.Health;", StringComparison.Ordinal);
-        // ⭐ O4: re-anchored. This used to look for "var result = PatrolSubTree.GetInterpreter().Tick("
-        //   — the PRE-O4 spelling, which passed `ref state`. The property this rail owns is the
-        //   ORDERING (copy in → tick → copy out), not the spelling, so it anchors on the call itself.
-        int tick    = text.IndexOf("HostedSubtree.Tick(", StringComparison.Ordinal);
-        int copyOut = text.IndexOf("master.Health = subDto.OutField;", StringComparison.Ordinal);
-
-        copyIn.Should().BeGreaterThan(0,  "the sync-in copy must be emitted");
-        tick.Should().BeGreaterThan(copyIn,  "⛔ the tick must come AFTER every sync-in copy");
-        copyOut.Should().BeGreaterThan(tick, "⛔ the sync-out copy must come AFTER the tick");
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>O4</c> — the EMIT-LEVEL guard these tests never had.</b>
-    ///
-    /// <para>🔴 §18 measured that every subtree-hosting test in the repo asserted the generated TEXT,
-    /// and <c>Tick(ref subBb, ref state, ref ctx)</c> is exactly what the defect looks like when it is
-    /// correct ⇒ the emitted <c>ref state</c> was invisible to all of them. ⛔ This pins its ABSENCE.</para>
-    ///
-    /// <para>⚠ The behaviour underneath is pinned by <c>HostedSubtreeCursorTests</c>; this is the
-    /// cheap text-level companion, so a regression is caught at emit time rather than at runtime.</para>
-    /// </summary>
-    [Fact]
-    public void TheHostedChildIsNeverTickedWithTheMastersState()
-    {
-        var group = Group(new OrchestratorSyncBinding("InField", "Health", syncIn: true, syncOut: false));
-
-        string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
-
-        text.Should().Contain("HostedSubtree.Tick(",
-            "the hosted child must tick against its OWN BehaviorTreeState, from its own slot");
-        text.Should().NotContain("ref state, ref ctx)",
-            "⛔ passing the MASTER's state is the §3.1 defect — host and child would share one cursor");
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b>The slice field is <c>{SubtreeName}_{DtoTypeName}</c></b> — the auto-allocated master
-    /// slot the sub-tree's blackboard lives in. ⚠ 📌 <b>Nothing declares this field today</b> (see the
-    /// type remarks); this rail pins the NAME the emitter expects, so whoever closes that gap knows
-    /// exactly what to declare.
-    /// </summary>
-    [Fact]
-    public void TheSubDtoIsTakenByRefFromTheAutoAllocatedSliceField()
-    {
-        var group = Group(new OrchestratorSyncBinding("InField", "Health", syncIn: true, syncOut: false));
-
-        string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
-
-        text.Should().Contain("ref var subDto = ref master.PatrolSubTree_PatrolParams;");
-        text.Should().Contain("[BTreeAction]   // Orchestrate_PatrolSubTree");
-        text.Should().Contain("return result;", "the sub-tree's status is the orchestrator's status");
-    }
-
-    /// <summary>⭐ Bindings are ordered by field name, so the emitted text is deterministic.</summary>
-    [Fact]
-    public void CopiesAreOrderedByFieldNameSoTheOutputIsDeterministic()
-    {
-        var group = Group(
-            new OrchestratorSyncBinding("Zulu",  "Health", syncIn: true, syncOut: false),
-            new OrchestratorSyncBinding("Alpha", "Health", syncIn: true, syncOut: false));
-
-        string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
-
-        text.IndexOf("subDto.Alpha =", StringComparison.Ordinal)
-            .Should().BeLessThan(text.IndexOf("subDto.Zulu =", StringComparison.Ordinal));
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b>Approach A WINS.</b> When an alias already covers the same sub-tree, the Approach-B
-    /// method is suppressed — ⛔ two methods with the same <c>[BTreeAction]</c> name would collide in
-    /// the registry.
-    /// </summary>
-    [Fact]
-    public void AnAliasOnTheSameSubTreeSuppressesTheApproachBMethod()
-    {
-        var dto = MakeDto();
-        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
-        {
-            ["Health"] = new()
-            {
-                new BlackboardAliasBindingDto
-                {
-                    RequiringAssetName = "PatrolSubTree",
-                    DtoTypeId          = "Made.Up.Behaviors.PatrolParams",
-                },
-            },
-        };
-        var group = Group(new OrchestratorSyncBinding("InField", "Health", syncIn: true, syncOut: false));
-
-        string text = BTreeOrchestratorEmitCore.Emit(dto, new[] { group })!;
-
-        text.Should().Contain("Orchestrate_PatrolSubTree_Tick(");
-        text.Should().NotContain("ref var subDto = ref master.",
-            "⛔ the Approach-B body must not be emitted for a sub-tree Approach A already covers");
+        BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group }).Should().BeNull(
+            "CE-337 retired both orchestrator arms: the emission never compiled (CE-335/CE-336) and "
+            + "its `ref master` projection needs a blackboard struct P4 deleted. Sub-tree hosting is "
+            + "declared per SITE and ticked by the brain — DESIGN §32.");
     }
 }

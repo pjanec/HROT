@@ -6,7 +6,18 @@ using Hrot.AiEditor.Persistence.BTree;
 namespace Hrot.AiEditor.Persistence.Emit;
 
 /// <summary>
-/// ⭐⭐⭐ <b>Batch 92 (<c>92a</c>) — the BTree orchestrator emit BODY, moved off the editor model.</b>
+/// ⛔⛔⛔ <b>RETIRED <c>2026-09-23</c> (<c>CE-337</c>) — <see cref="Emit"/> ALWAYS RETURNS <c>null</c>,
+/// on BOTH arms.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12. ⭐ Sub-tree hosting is
+/// per-SITE now: a host declares <c>{SubtreeAssetId, SubtreeName}</c>, the bridge declares the child's
+/// tree-state slot and binds its interpreter through <c>HostedChildren</c>, and the brain ticks it
+/// every frame — <c>E5</c>'s shape. ⛔ The reasoning is in <see cref="Emit"/>'s body, at length,
+/// because it is the kind of removal a future reader will otherwise try to undo.
+/// ⚠ The type and its two production callers stay: a caller that gets <c>null</c> emits no file,
+/// which is what every shipped asset already did.
+///
+/// <para>⛔ HISTORY — what it was, kept so the supersession is legible:</para>
+///
+/// <para><b>Batch 92 (<c>92a</c>) — the BTree orchestrator emit BODY, moved off the editor model.</b>
 ///
 /// <para>📐 Companion to <see cref="HsmOrchestratorEmitCore"/>; the Approach-A alias arm is shared via
 /// <see cref="OrchestratorAliasCollector"/>. ⭐ <b>One body</b> serves the editor sidecar path
@@ -41,22 +52,18 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// </summary>
 public static class BTreeOrchestratorEmitCore
 {
-    private const string Indent = "    ";
-    private const string FbtNamespace          = "Fbt";
-    private const string BTreeContextNs        = "Fdp.Toolkit.Behavior";
-    private const string RuntimeCompilerServNs = "System.Runtime.CompilerServices";
-
-    /// <summary>Fallback namespace when the asset declares none — matches the editor emitter.</summary>
+    /// <summary>Fallback namespace when the asset declares none — matches the editor emitter.
+    /// ⚠ Retained: callers reference it.</summary>
     public const string DefaultTargetNamespace = "Hrot.AI.Behaviors";
 
     /// <summary>
-    /// Generates the orchestrator source text for <paramref name="dto"/>.
-    /// ⭐ Returns <c>null</c> when there is nothing to emit — ⛔ the caller emits <b>no file at all</b>,
-    /// which is what keeps the corpus byte-identical.
+    /// ⛔⛔ <b>Always <c>null</c> since <c>CE-337</c> — the caller emits no file.</b> See the body for
+    /// why both arms were retired rather than repaired.
     /// </summary>
     /// <param name="approachBGroups">
-    /// ⭐⭐ Field-sync groups, which <b>only the editor can supply</b> — see the type remarks.
-    /// Pass an empty list when the caller has none.
+    /// ⚠ Kept in the signature: two production callers pass it *(`BTreeJsonGenerator:352`, the editor
+    /// sidecar `BTreeOrchestratorEmitter:62`)*, and the argument-validation contract below is the one
+    /// thing about this method that never became untrue.
     /// </param>
     public static string? Emit(
         BehaviorTreeAssetDto dto, IReadOnlyList<OrchestratorSyncGroup> approachBGroups)
@@ -64,189 +71,42 @@ public static class BTreeOrchestratorEmitCore
         if (dto is null)              throw new ArgumentNullException(nameof(dto));
         if (approachBGroups is null)  throw new ArgumentNullException(nameof(approachBGroups));
 
-        var methods = OrchestratorAliasCollector.Collect(dto.Aliases, VariableNamesOf(dto), "BTreeAsset");
-
-        if (methods.Count == 0 && approachBGroups.Count == 0) return null;
-
-        var usingsSet = new HashSet<string>(StringComparer.Ordinal)
-        {
-            RuntimeCompilerServNs,
-            FbtNamespace,
-            BTreeContextNs,
-        };
-        OrchestratorAliasCollector.AddDtoNamespaces(usingsSet, methods, dto.TargetNamespace);
-
-        string targetNs = string.IsNullOrEmpty(dto.TargetNamespace)
-            ? DefaultTargetNamespace
-            : dto.TargetNamespace;
-
-        // Approach B: subtree nodes with at least one ACTIVE field-level sync binding.
-        var approachBMethods = new List<OrchestratorSyncGroup>();
-        foreach (var group in approachBGroups)
-        {
-            string key = OrchestratorAliasCollector.SanitizeIdentifier(group.SubtreeName, "BTreeAsset");
-            // Skip if already covered by Approach A.
-            bool coveredByA = false;
-            foreach (var m in methods)
-                if (string.Equals(m.SubTreeName, key, StringComparison.Ordinal)) { coveredByA = true; break; }
-            if (coveredByA) continue;
-
-            if (ActiveBindings(group, syncIn: true).Count == 0
-                && ActiveBindings(group, syncIn: false).Count == 0) continue;
-
-            approachBMethods.Add(group);
-
-            if (!string.IsNullOrEmpty(group.SubtreeDtoTypeNs)
-                && !string.Equals(group.SubtreeDtoTypeNs, targetNs, StringComparison.Ordinal))
-                usingsSet.Add(group.SubtreeDtoTypeNs!);
-        }
-
-        if (methods.Count == 0 && approachBMethods.Count == 0) return null;
-
-        var sortedUsings = AiEmitCoreBase.SortUsings(usingsSet);
-
-        // ⭐⭐⭐ CE-336 — THESE USED TO READ THE RAW DTO FIELDS, AND AN ASSET THAT DECLARES NEITHER
-        //    (the default for a freshly-created one) EMITTED `ref  master,` / `ref  ctx,` — two
-        //    EMPTY type names, i.e. C# that does not parse. 📐 Found by the first rail that ever
-        //    COMPILED this emitter's output. ⛔ `AiEmitCoreBase.Effective*TypeName` has been the
-        //    single source of truth for this exact fallback since CE-235, and BTreeBridgeEmitCore:329
-        //    already calls it — the seam existed and this emitter never adopted it.
-        // ⚠ The blackboard FALLBACK still names `BrainBlackboard`, which P4 RETIRED — see CE-337.
-        //    That is a defect in the default, not in this call site, and it is filed rather than
-        //    papered over here.
-        string bbShort   = OrchestratorAliasCollector.ShortTypeName(
-                               AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
-        string ctxShort  = OrchestratorAliasCollector.ShortTypeName(
-                               AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
-        string className = OrchestratorAliasCollector.SanitizeIdentifier(dto.Name, "BTreeAsset");
-
-        var sb = new StringBuilder();
-
-        sb.Append(AiEmitCoreBase.BuildHeader(dto.AssetId));
-        sb.AppendLine("// Auto-generated orchestrator actions for aliased sub-trees.");
-        sb.AppendLine($"// OwningAssetName: {dto.Name}");
-        sb.AppendLine();
-
-        foreach (var ns in sortedUsings)
-        {
-            if (ns.Length == 0) sb.AppendLine();
-            else                sb.AppendLine($"using {ns};");
-        }
-        sb.AppendLine();
-
-        sb.AppendLine($"namespace {targetNs};");
-        sb.AppendLine();
-        sb.AppendLine($"public static class {className}_Orchestrators");
-        sb.AppendLine("{");
-
-        for (int i = 0; i < methods.Count; i++)
-        {
-            var m = methods[i];
-
-            // ⭐⭐ CE-336 — `[BTreeAction(Name = "…")]` DOES NOT COMPILE: `Fbt.BTreeActionAttribute`
-            //    is an EMPTY attribute class (Fbt.Kernel/Attributes/BTreeActionAttribute.cs:10) with
-            //    no `Name` property, and every hand-authored use in the corpus is a bare
-            //    `[BTreeAction]`. ⛔ Four text rails asserted the named form; none compiled it.
-            // ⚠ The action's identity is its METHOD NAME, which is what Fbt.SourceGen registers —
-            //    so nothing is lost. How a tree NODE binds to `Orchestrate_X_Tick` is the alias arm's
-            //    own open question (CE-337), not something an invalid attribute argument answered.
-            sb.AppendLine($"{Indent}[BTreeAction]   // Orchestrate_{m.SubTreeName}");
-            sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{m.SubTreeName}_Tick(");
-            sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
-            sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
-            sb.AppendLine($"{Indent}{Indent}ref {ctxShort} ctx,");
-            sb.AppendLine($"{Indent}{Indent}int paramIndex)");
-            sb.AppendLine($"{Indent}{{");
-            // ⭐⭐⭐ O4 / C1 — the child ticks against ITS OWN BehaviorTreeState, from its own slot.
-            // ⛔⛔ THIS LINE WAS THE DEFECT: it passed `ref state`, the MASTER's state, so host and
-            //    child shared one RunningNodeIndex and the host won (its ExecuteAction writes AFTER
-            //    the hosting action returns). 📄 §3.1, §18; rail HostedSubtreeCursorTests.O4_R1.
-            // ⭐ The key is BAKED here (D3's optimisation) but computed by the SAME linked function a
-            //    hand-written host calls at runtime — ⛔ one arithmetic, two callers.
-            int slotKeyA = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
-                dto.AssetId, m.SiteElementId, m.SubtreeAssetId);
-            // ⭐⭐⭐ CE-335 — THIS LINE USED TO SAY `{m.SubTreeName}.GetInterpreter()`, AND THAT METHOD
-            //    IS DEFINED NOWHERE. 📐 Measured 2026-09-23: three emitter sites referenced it, three
-            //    tests asserted its TEXT, zero definitions existed ⇒ this arm has never compiled.
-            //    ⛔ It could not have: a generated thunk is STATIC and there is no ambient
-            //    BehaviorRegistry, so it cannot resolve a child by name at tick time. ⭐ HostedChildren
-            //    binds the child at REGISTRATION, keyed by the slot key this site already bakes.
-            // ⭐ The blackboard is the aliased DTO field reinterpreted as bytes: the registry holds
-            //    Interpreter<byte, BTreeContext> (BehaviorRegistry.cs:151), which is the ONE blackboard
-            //    shape every registered behaviour has. 📄 DESIGN §32.2.4.
-            sb.AppendLine($"{Indent}{Indent}ref var subBb = ref Unsafe.As<{m.DtoTypeName}, byte>(ref master.{m.VarName});");
-            sb.AppendLine($"{Indent}{Indent}return global::Fdp.Toolkit.Behavior.HostedSubtree.Tick(global::Fdp.Toolkit.Behavior.HostedChildren.Require({slotKeyA}), ref subBb, ref ctx, {slotKeyA});");
-            sb.AppendLine($"{Indent}}}");
-
-            if (i < methods.Count - 1 || approachBMethods.Count > 0)
-                sb.AppendLine();
-        }
-
-        // ⭐ §8.3's shape, preserved verbatim: COPY IN · TICK · COPY OUT.
-        foreach (var group in approachBMethods)
-        {
-            string subTreeId  = OrchestratorAliasCollector.SanitizeIdentifier(group.SubtreeName, "BTreeAsset");
-            // ⭐⭐⭐ Q50: ONE composer for this name. SubtreeSyncProjection DECLARES the field with it;
-            //    this WRITES through it. ⛔ A one-character divergence between the two is a build break
-            //    with no obvious cause, so neither side spells it out (ruling 9).
-            string sliceField = SubtreeSyncProjection.SliceFieldName(subTreeId, group.SubtreeDtoTypeName);
-            var syncIn  = ActiveBindings(group, syncIn: true);
-            var syncOut = ActiveBindings(group, syncIn: false);
-
-            sb.AppendLine($"{Indent}[BTreeAction]   // Orchestrate_{subTreeId}");   // CE-336, as above
-            sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{subTreeId}_Tick(");
-            sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
-            sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
-            sb.AppendLine($"{Indent}{Indent}ref {ctxShort} ctx,");
-            sb.AppendLine($"{Indent}{Indent}int paramIndex)");
-            sb.AppendLine($"{Indent}{{");
-            sb.AppendLine($"{Indent}{Indent}ref var subDto = ref master.{sliceField};");
-            foreach (var b in syncIn)
-                sb.AppendLine($"{Indent}{Indent}subDto.{b.FieldName} = master.{b.MasterVariableName};");
-            // ⭐⭐⭐ O4 / C1 — same fix, the COPY IN / TICK / COPY OUT variant. ⛔ Was `ref state`.
-            int slotKeyB = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
-                dto.AssetId, group.SiteNodeVisualId, group.SubtreeAssetId);
-            // ⭐ CE-335, the copy-in/tick/copy-out twin. Same substitution, same reason.
-            sb.AppendLine($"{Indent}{Indent}ref var subBbB = ref Unsafe.As<{group.SubtreeDtoTypeName}, byte>(ref subDto);");
-            sb.AppendLine($"{Indent}{Indent}var result = global::Fdp.Toolkit.Behavior.HostedSubtree.Tick(global::Fdp.Toolkit.Behavior.HostedChildren.Require({slotKeyB}), ref subBbB, ref ctx, {slotKeyB});");
-            foreach (var b in syncOut)
-                sb.AppendLine($"{Indent}{Indent}master.{b.MasterVariableName} = subDto.{b.FieldName};");
-            sb.AppendLine($"{Indent}{Indent}return result;");
-            sb.AppendLine($"{Indent}}}");
-        }
-
-        sb.AppendLine("}");
-
-        return sb.ToString();
-    }
-
-    /// <summary>
-    /// The bindings in one direction that actually copy something, ordered by field name.
-    /// ⚠ A binding with no <c>MasterVariableName</c> has no source/target and is skipped.
-    /// </summary>
-    private static List<OrchestratorSyncBinding> ActiveBindings(OrchestratorSyncGroup group, bool syncIn)
-    {
-        var result = new List<OrchestratorSyncBinding>();
-        foreach (var b in group.Bindings)
-        {
-            if (b is null || b.MasterVariableName is null) continue;
-            if (syncIn ? b.SyncIn : b.SyncOut) result.Add(b);
-        }
-        result.Sort(static (a, b) => string.CompareOrdinal(a.FieldName, b.FieldName));
-        return result;
-    }
-
-    /// <summary>
-    /// ⚠ Emission order follows the blackboard declaration order — ⛔ not the alias dictionary's key
-    /// order, which is not a contract.
-    /// </summary>
-    private static IEnumerable<string> VariableNamesOf(BehaviorTreeAssetDto dto)
-    {
-        var vars = dto.Blackboard?.Variables;
-        if (vars is null) yield break;
-        foreach (var v in vars) yield return v.Name;
+        // ⭐⭐⭐ CE-337 — BOTH ARMS RETIRED 2026-09-23, ROUTED THE WAY CE-333 ROUTED THE HSM TWIN.
+        //   🔒 User, 2026-09-23: "retire the arm."
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §32.12.
+        //
+        // 🔴🔴 THE EMISSION HAS NEVER COMPILED, AND CE-336's COMPILE RAIL FOUND WHY — FOUR TIMES:
+        //   ① `{Child}.GetInterpreter()` — a method defined NOWHERE in the repository (CE-335).
+        //   ② `[BTreeAction(Name = "…")]` — Fbt.BTreeActionAttribute is an EMPTY attribute class
+        //      with no Name property; every hand-authored use in the corpus is a bare [BTreeAction].
+        //   ③ `ref  master,` / `ref  ctx,` — two EMPTY type names for any asset that declares no
+        //      BlackboardTypeName/ContextTypeName, which is the default.
+        //   ④ 🔴 AND THE ONE THAT CANNOT BE PATCHED: both arms project onto a MASTER BLACKBOARD
+        //      STRUCT — `ref master.{VarName}` (Approach A) and `ref master.{sliceField}`
+        //      (Approach B). P4 DELETED BrainBlackboard, and every shipped *.btree.json still names
+        //      it, as does AiEmitCoreBase.DefaultBlackboardTypeName. ⇒ there is no master struct for
+        //      a non-managed asset and no corpus asset can satisfy either arm.
+        //   ⭐ ①–③ were fixed; ④ is a DESIGN question, and the answer is that the mechanism is wrong.
+        //
+        // ⛔⛔ AND APPROACH B WAS ALREADY DEAD ON ITS OWN TERMS — this type's own remarks said so
+        //   before any of the above: the sub-tree IDENTITY is session-local (`_syncNodeMeta`, written
+        //   only by an InspectorWindow draw, deliberately excluded from the DTO), and the destination
+        //   FIELD "never reaches Blackboard.Variables and no blackboard emitter declares it".
+        //
+        // ⭐⭐ WHERE THE CAPABILITY GOES. Hosting is per-SITE now, not per-alias: E5 gave an HSM STATE
+        //   a {SubtreeAssetId, SubtreeName} pair, a tree-state slot keyed by
+        //   OccurrenceSlotKey.ComputeTreeStateKey(host, site, child), a registration-time binding
+        //   through HostedChildren, and a host that ticks it every frame. ⇒ BTree-hosts-BTree is the
+        //   same shape with the NODE's visual id as the site — ⛔ NOT BUILT, and it is a slice, not a
+        //   patch. 🔒 One mechanism for one concept (ruling 9); this was the second and third.
+        //
+        // ⚠ Measured before removing: 0 shipped *.btree.json carries an alias, and Approach B has no
+        //   load path at all ⇒ nothing in the field loses a capability.
+        // ⛔ The ALIAS DATA and the sync BINDINGS are untouched — only the EMISSION is retired.
+        return null;
     }
 }
+
 
 /// <summary>
 /// ⭐ One subtree node needing an Approach-B orchestrator, in terms the netstandard2.0 emit core can

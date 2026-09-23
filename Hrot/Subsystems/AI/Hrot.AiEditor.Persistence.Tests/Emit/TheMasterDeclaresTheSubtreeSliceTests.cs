@@ -104,21 +104,33 @@ public sealed class TheMasterDeclaresTheSubtreeSliceTests
     // ══ declared name == written name ════════════════════════════════════════
 
     /// <summary>
-    /// ⭐⭐⭐ <b>THE RAIL GAP ② EXISTS FOR: what is DECLARED is exactly what is WRITTEN.</b>
-    /// ⛔ Asserted against the emitted TEXT, so a change to either side that breaks the agreement
-    /// reddens here rather than in a downstream build with an unexplained CS1061.
+    /// ⚠ <b>HALVED <c>2026-09-23</c> (<c>CE-337</c>).</b> This asserted <i>"what is DECLARED is
+    /// exactly what is WRITTEN"</i> against the ORCHESTRATOR'S EMITTED TEXT. ⛔ The orchestrator was
+    /// retired — both arms emit nothing — so the WRITTEN half has no subject.
+    ///
+    /// <para>⭐ The half that survives is the one that can still be wrong: the projection DECLARES the
+    /// field, and <see cref="SubtreeSyncProjection.SliceFieldName"/> is the single composer both sides
+    /// used. That is asserted here and in
+    /// <see cref="TheSliceFieldNameIsComposedInOnePlace"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>And the pairing is now a LOOSE END worth knowing about:</b> with no writer, the
+    /// declared slice field is a projection nothing consumes. ⛔ Not deleted here — that is a sweep
+    /// with its own evidence, and it is named in <c>CE-337</c> rather than done as a side effect.
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12.</para>
     /// </summary>
     [Fact]
-    public void TheDeclaredFieldIsTheFieldTheOrchestratorWrites()
+    public void TheProjectionDeclaresTheSliceField_TheWriterIsRetired_CE337()
     {
         var dto = DtoWithOneBoundSubtree();
         var (groups, slices) = SubtreeSyncProjection.Project(dto, Catalog);
 
-        string emitted = BTreeOrchestratorEmitCore.Emit(dto, groups)!;
+        slices.Should().NotBeEmpty("the projection must still declare the slice field");
+        slices[0].FieldName.Should().Be(
+            SubtreeSyncProjection.SliceFieldName("ShootBT", "ShootBlackboard"),
+            "one composer, and the declaration uses it");
 
-        emitted.Should().NotBeNull();
-        emitted.Should().Contain("ref master." + slices[0].FieldName,
-            "the orchestrator must write through the field the projection declares");
+        BTreeOrchestratorEmitCore.Emit(dto, groups).Should().BeNull(
+            "⛔ CE-337: there is no orchestrator to write through the field any more");
     }
 
     /// <summary>⭐ And the composer is shared, so neither side spells the name out.</summary>

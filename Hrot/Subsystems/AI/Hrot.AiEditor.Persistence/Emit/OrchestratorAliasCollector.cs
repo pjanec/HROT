@@ -5,6 +5,21 @@ using System.Text;
 namespace Hrot.AiEditor.Persistence.Emit;
 
 /// <summary>
+/// ⛔⛔ <b>ORPHANED <c>2026-09-23</c> by <c>CE-337</c> — ZERO PRODUCTION CALLERS.</b>
+/// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.12. Both orchestrator arms that consumed it —
+/// <c>HsmOrchestratorEmitCore</c> (<c>CE-333</c>) and <c>BTreeOrchestratorEmitCore</c> (<c>CE-337</c>)
+/// — now return <c>null</c> unconditionally, so nothing calls <c>Collect</c>, <c>ShortTypeName</c> or
+/// <c>AddDtoNamespaces</c> any more.
+///
+/// <para>⚠ <b>KEPT, NOT DELETED, and deliberately:</b> <i>"unreferenced is not unintentional"</i>. This
+/// type is pure, well-tested string work over an alias map, and the per-SITE hosting that replaces the
+/// alias arms may well want its identifier sanitising and namespace collection. ⛔ Deleting it is a
+/// SWEEP, to be decided on its own evidence — not a side effect of retiring its callers.</para>
+///
+/// <para>⭐ If you are here because nothing references it: that is expected, and this note is the
+/// design record saying so. Do not re-wire an emitter to it — hosting is per-site now.</para>
+/// </summary>
+/// <summary>
 /// ⭐⭐ <b>Batch 92 (<c>92a</c>) — the Approach-A alias arm, owned ONCE.</b>
 ///
 /// <para>📐 <c>BTreeOrchestratorEmitter</c> and <c>HsmOrchestratorEmitter</c> carried this loop

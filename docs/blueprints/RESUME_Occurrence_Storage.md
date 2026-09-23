@@ -10,8 +10,8 @@ build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Bran
   Rails `E5_R1`..`E5_R4` in `HsmOccurrenceKeyTests`, red-proved. 📄 §32.11 is the AS-BUILT.
   ✅ `CE-333` ROUTED (the HSM alias arm is retired) · ✅ `CE-335` FIXED · ✅ `CE-336` BUILT — the
   compile rail, and it found THREE more latent defects on its first run (§32.11.5) ⇒ `A2` is MET.
-  📋 OPEN: `CE-334` (the ActivityAction one-shot), `CE-337` (the BTree alias arm's blackboard type
-  is RETIRED — a decision, not a typo).
+  ✅ `CE-337` DONE — **both BTree orchestrator arms RETIRED** (user: "retire the arm"), §32.12.
+  📋 OPEN: `CE-334` (the ActivityAction one-shot — needs its own approval, it is an ExtDeps change).
   ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1` NOT BUILT** — see §0b.
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
 current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
@@ -116,7 +116,8 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 |---|---|---|
 | **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
-| **`CE-337`** | 🔴 **the BTree alias arm cannot compile for ANY corpus asset** — its `ref master` projection needs a blackboard STRUCT, and both the assets and `AiEmitCoreBase.DefaultBlackboardTypeName` name `BrainBlackboard`, which `P4` **deleted**. ⛔ A DECISION: skip-with-a-warning, or retire the arm the way `CE-333` retired its HSM twin *(lean: retire, ruling 9)* | ⭐ **ours** |
+| **BTree-hosts-BTree** | ⛔ **NOT BUILT, and no longer expressible the old way** — both orchestrator arms are retired (`CE-337`). ⭐ It is `E5`'s shape with the NODE's visual id as the site: a `{SubtreeAssetId, SubtreeName}` pair, `ComputeTreeStateKey`, a `HostedChildren` binding, and a per-frame tick. ⛔ A SLICE, not a patch — and nothing should re-wire an emitter to `OrchestratorAliasCollector` to fake it | ⭐ **ours, when wanted** |
+| **two loose ends from `CE-337`** | `OrchestratorAliasCollector` is **orphaned** (zero production callers, tombstoned not deleted), and `SubtreeSyncProjection`'s declared slice field now has **no writer** | ⚠ sweeps, each with its own evidence |
 | **`E5` items 6-7** | wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys`, then the `A`-hosts-`B`-hosts-`A` cycle check. ⛔ **Deferred with a measurement, not dropped:** `HsmDocumentFactory:87` builds `HsmGraphModel(hsmAsset)` with no resolver, and `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have | ⚠ **editor-lane shaped** — ask before absorbing |
 | **`E5` `A1`** | round-trip `SubtreeName` through real JSON text into a fresh model | ⭐ ours, small |
 | **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |

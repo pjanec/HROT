@@ -430,7 +430,6 @@ public static class BTreeBridgeEmitCore
 
         // 4b. Register definition
         sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
-        EmitHostedChildBindings(sb, dto, pad2);
         sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
         sb.AppendLine($"{pad2}{{");
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
@@ -1035,17 +1034,22 @@ public static class BTreeBridgeEmitCore
             }
         }
 
-        // ⭐⭐⭐ O4 / C1 — one slot per HOSTED SUBTREE, so the child gets its OWN BehaviorTreeState.
-        //    📄 DESIGN_Occurrence_Scoped_Storage.md §19, §20.
-        // ⛔⛔ THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER. HostedSubtree.Tick
-        //    THROWS on a slot the manifest never declared (§19.6 ⑤ — a silent miss is the failure A1
-        //    exists to kill), so emitting the call without this entry would turn every hosted subtree
-        //    into a hard failure.
-        // ⭐ The key comes from the LINKED OccurrenceSlotKey, which is the same arithmetic the runtime
-        //    and any hand-written host run — D3's "one function, two callers".
-        var hostedTreeStateSlots = CollectHostedTreeStateSlots(dto);
-
-        if (slotsBySeen.Count == 0 && hostedTreeStateSlots.Count == 0) return;
+        // ⛔ HISTORY — O4 / C1 emitted one slot per HOSTED SUBTREE here, from dto.Aliases, so the
+        //    child got its OWN BehaviorTreeState (§19, §20), under this rule:
+        //      "THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER. HostedSubtree.Tick
+        //       THROWS on a slot the manifest never declared (§19.6 ⑤ — a silent miss is the failure
+        //       A1 exists to kill)."
+        //    ⭐ The rule is still right; it is what makes the removal below CORRECT rather than merely
+        //    tidy. The key came from the LINKED OccurrenceSlotKey — D3's "one function, two callers" —
+        //    and that function is unchanged and now serves E5's per-site declaration instead.
+        // ⛔⛔ CE-337 (2026-09-23) — THE ALIAS-DRIVEN HOSTED SLOT IS GONE, and this file's own rule
+        //    is why: "THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER". The call
+        //    was retired with both orchestrator arms (BTreeOrchestratorEmitCore.Emit → null), so a
+        //    slot emitted here would be provisioned for a tick that never happens — storage nobody
+        //    reads, on every entity carrying the behaviour.
+        // ⭐ The slot MECHANISM is alive and unchanged; it moved to the per-SITE declaration E5 built
+        //    (HsmBridgeEmitCore.CollectHostedSubtrees). 📄 DESIGN §32.12.
+        if (slotsBySeen.Count == 0) return;
 
         sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
         sb.AppendLine($"{pad}{{");
@@ -1081,88 +1085,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
 
-        // ⭐ O4 — the hosted occurrences' tree-state slots, emitted after the authored ones so the
-        //   existing corpus's slot ORDER is byte-identical (nothing in today's corpus has an alias,
-        //   so this loop emits nothing for all 30 assets — measured).
-        foreach (var (slotKey, label, _) in hostedTreeStateSlots)
-        {
-            string escaped = label.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            sb.AppendLine(
-                $"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, " +
-                "global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>(), " +
-                $"unchecked({ComputeTypeNameHash("Fbt.BehaviorTreeState")}u ^ " +
-                "(uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Fbt.BehaviorTreeState>()), " +
-                $"typeof(global::Fbt.BehaviorTreeState), \"{escaped}\", " +
-                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, " +
-                "(byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),");
-        }
-
         sb.AppendLine($"{pad}}},");
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <c>CE-335</c> — bind each hosted child's interpreter to its tree-state slot key.
-    ///
-    /// <para>⛔ <b>The orchestrator thunk cannot do this itself.</b> It is a static method with a
-    /// blackboard and a <c>BTreeContext</c>; there is no ambient <see cref="BehaviorRegistry"/> to
-    /// resolve a child by name (measured <c>2026-09-23</c>). ⇒ resolve HERE, where <c>beh</c> is in
-    /// hand, and let the thunk look the answer up by the slot key it already bakes.</para>
-    ///
-    /// <para>⚠ Emits nothing when the asset has no alias — every shipped asset — so the corpus stays
-    /// byte-identical.</para>
-    /// </summary>
-    private static void EmitHostedChildBindings(StringBuilder sb, BehaviorTreeAssetDto dto, string pad2)
-    {
-        var hosted = CollectHostedTreeStateSlots(dto);
-        if (hosted.Count == 0) return;
-
-        foreach (var (slotKey, _, childName) in hosted)
-        {
-            if (string.IsNullOrEmpty(childName)) continue;
-            string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {slotKey}, \"{escaped}\");");
-        }
-        sb.AppendLine();
-    }
-
-    /// <summary>
-    /// ⭐⭐ <c>O4</c> — the tree-state slot each HOSTED subtree needs, keyed by
-    /// <c>(host identity, site, child asset)</c>.
-    ///
-    /// <para>⭐ The alias map is where a host asset NAMES its children: <c>RequiringAssetId</c> is the
-    /// child, <c>RequiringElementId</c> the hosting element. ⛔ <c>RequiringElementId</c> is the
-    /// <c>siteId</c> source on purpose (<c>D5</c>) — it is stable across a recompile, where a node
-    /// ordinal is not.</para>
-    ///
-    /// <para>📐 Measured: <b>0</b> assets in today's corpus carry an alias, so this returns empty for
-    /// all 30 and the generated output stays byte-identical (§19.6 ⑥).</para>
-    /// </summary>
-    private static List<(int SlotKey, string Label, string ChildName)> CollectHostedTreeStateSlots(BehaviorTreeAssetDto dto)
-    {
-        var result = new List<(int, string, string)>();
-        if (dto.Aliases == null || dto.Aliases.Count == 0) return result;
-
-        var seen = new HashSet<int>();
-        foreach (var bindings in dto.Aliases.Values)
-        {
-            if (bindings == null) continue;
-            foreach (var b in bindings)
-            {
-                if (b == null || b.RequiringAssetId == Guid.Empty) continue;
-
-                int key = Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeTreeStateKey(
-                    dto.AssetId, b.RequiringElementId, b.RequiringAssetId);
-
-                if (!seen.Add(key)) continue;
-                // ⭐ CE-335 — the NAME is carried now, not just a label: HostedChildren.Register
-                //   resolves the child's interpreter from it at registration, because a static thunk
-                //   has no registry to ask at tick time.
-                result.Add((key, string.IsNullOrEmpty(b.RequiringAssetName)
-                    ? "hosted subtree" : b.RequiringAssetName + " (hosted)",
-                    b.RequiringAssetName ?? string.Empty));
-            }
-        }
-        return result;
     }
 
     /// <summary>
