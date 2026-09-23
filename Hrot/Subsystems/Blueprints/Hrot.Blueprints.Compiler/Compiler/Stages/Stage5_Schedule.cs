@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Compiler.Determinism;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Ir;
+using Hrot.Blueprints.Core.Compiler.Lowering;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -2459,7 +2460,13 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
-                    Operation   = new IrOp_Const(ln.ValueJson, pinType),
+                    // ⭐⭐ CE-300 (2026-09-23): TYPE THE LITERAL BY ITS PIN instead of passing the
+                    //   author's text through verbatim. ⛔ A bare `0.2777778` on a System.Single pin
+                    //   used to emit a `double` and Roslyn refused the GENERATED file with CS0266.
+                    //   ⚠ Convert-or-pass-through, NOT convert-or-refuse — ValueJson holds C# source
+                    //   text, not JSON, and refusing what the JSON parser cannot read would reject 42
+                    //   of the 86 literals that ship today. 📄 DefaultLiteral.ForLiteralNode.
+                    Operation   = new IrOp_Const(DefaultLiteral.ForLiteralNode(pinType, ln.ValueJson), pinType),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ln.Id, PinId = sourcePinId },
                 });
                 break;

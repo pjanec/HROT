@@ -236,8 +236,10 @@ public static unsafe class RootHsmAccess
 
         if (BlueprintTierTable.Of(world, self) is null)
         {
-            int cost = AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
-                     + BlueprintBlackboardPartitions.SlotEntrySize;
+            // ⭐⭐ CE-318 (2026-09-23): PAYLOAD only. The slot entry is carved out of the store
+            //   up front, so Select's PayloadSize has already had it removed; the slot axis is the
+            //   `1` below. 📄 BlueprintBlackboardPartitions.PayloadCost.
+            int cost = BlueprintBlackboardPartitions.PayloadCost(bytes);
 
             var target = BlueprintTierTable.Select(cost, 1);
             if (!target.IsRegistered(world)) return false;

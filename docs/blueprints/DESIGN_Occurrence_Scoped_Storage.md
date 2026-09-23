@@ -7000,3 +7000,88 @@ behaviour that has since changed; **the golden's outcome is identical either way
 launching *(trap ⑦)*; and `SimTransform.Position` is a **JSON LIST** `[x,y,z]`, not `{X,Y,Z}` — a reader
 written for the object shape raises `AttributeError` inside the sampling loop and prints **nothing**,
 which reads exactly like an entity with no transform.
+
+---
+
+### 31.20 ⭐⭐⭐ `CE-318` AS BUILT — **THE TIER DEMAND CHARGED EVERY SLOT ENTRY TWICE** *(`2026-09-23`)*
+
+📐 **The allocator's own arithmetic is the specification, and it was measured before anything changed:**
+
+| claim | code — how it IS |
+|---|---|
+| the slot table is carved out ONCE, up front | `BlueprintBlackboardPartitions.Initialize:61-63` — `payloadStart = sizeof(header) + maxSlots × SlotEntrySize`, `PayloadFree = totalSize − payloadStart` |
+| `TryAttach` checks the SLOT axis on its own | `:239` — `header.SlotCount >= header.MaxSlots` |
+| `TryAttach` checks the PAYLOAD axis against the aligned size ALONE | `:247` — `alignedSize > header.PayloadFree` |
+| `TryAttach` deducts the aligned size ALONE | `:287` — `PayloadFree -= alignedSize` |
+
+⇒ ⛔ **six demand sites adding `+ SlotEntrySize` to the PAYLOAD were describing an allocator that does
+not exist.** ⭐ All six now route through **one named producer**, `BlueprintBlackboardPartitions.PayloadCost`,
+whose whole reason to exist is to make the ABSENCE of that term deliberate and documented.
+
+| what changed | |
+|---|---|
+| `HostedPayloadCost` · `RootStateCost` · `RootHsmCost` · `RootParamsCost` · the manifest loop · `RootHsmAccess`/`RootStateAccess`'s `EnsureRoot*` | payload = `PayloadCost(bytes)`; ⛔ **the slot axis is UNTOUCHED** — every caller still increments `requiredSlots` |
+| the FREED side | ⭐ already payload-only (`GetManifestSlotsToBeFreedPayload`), so the demand and the credit now use the SAME arithmetic. ⚠ They did not before, which made the comparison quietly inconsistent |
+
+⭐⭐ **The headline, restated as the measurement `O7_R55` makes:** a 128-byte machine with 24 bytes of
+root params on the 256 tier *(payload 176)* demanded `144 + 40 = 184 > 176` and promoted to **1024**;
+it now demands `128 + 24 = 152 ≤ 176` and **fits**. 🔒 **Missing by 8 bytes turned a −128 B saving into
+a +640 B cost.**
+
+#### 31.20.1 ⚠ THE RED-PROOF CAUGHT A DECORATIVE RAIL — **and that is the finding worth keeping**
+
+🔴 `O7_R55`'s first draft registered a behaviour with **no params**. ⇒ its demand was `128` (or `144`
+unfixed) — under 176 either way, so **the rail passed against the broken code too.** ⭐ The inverse edit
+is what exposed it: the rail did not go red. ⇒ the fixture now declares a 24-byte layout, and **only
+then** does the 8-byte margin the row is about actually exist.
+
+⚠ **`O7_R57` is the guard on the fix itself:** dropping the entry from the payload is safe ONLY because
+the slot axis is still counted. It asserts that **40 payload bytes with 5 slots selects a bigger tier
+than 40 bytes with 1**, so a future "simplification" that folds the two axes together reddens here.
+
+### 31.21 🔴🔴🔴 `CE-323` — **`BrainInterrupts` WAS REGISTERED NOWHERE IN PRODUCTION** *(`2026-09-23`)*
+
+⛔⛔ **A production regression this programme caused and did not notice**, found while chasing
+`CE-321`'s remaining example failures.
+
+📐 **The mechanism, in one line:** `O2` moved the interrupt byte OUT of `BrainBlackboard` into a new
+`BrainInterrupts` component; `P4` then deleted `RegisterComponent<BrainBlackboard>()` from
+`CognitiveComponentRegistry` **and added no replacement**. 🔴 Measured: **every**
+`RegisterComponent<BrainInterrupts>` in the tree was in a TEST.
+
+#### 31.21.1 ⛔⛔ IT FAILS SILENTLY THREE TIMES OVER — which is why no suite could see it
+
+| the guard | what it does when the type is unregistered |
+|---|---|
+| `BehaviorTkbTranslator:160` | attaches it only `if (IsComponentTypeRegistered<BrainInterrupts>())` ⇒ **never attached** |
+| `CognitiveInterruptSystem:89` | its query REQUIRES the component ⇒ **matches nothing**, so `Interrupt_MobilityLost` is never set |
+| `BrainTickSystem:343` | the enqueue is guarded by `HasComponent<BrainInterrupts>` ⇒ **never enqueues** |
+
+⇒ ⭐ **a disabled vehicle's HSM never receives `MobilityLost` and never leaves its cruising state.**
+⚠ Nothing throws and nothing logs — the `CE-315` shape, and **trap ① with a third column**: the check
+*"grep `RegisterComponent<BehaviorState>` and cross-reference `BlueprintTierTable.RegisterAll`"* now has
+to cross-reference `BrainInterrupts` as well. 📐 Run across the tree it found **five** brain-building
+worlds missing it, production included.
+
+#### 31.21.2 ⭐ WHAT IT UNBLOCKED, MEASURED ON THE UrbanCombatNew SCENARIO
+
+| | before | after |
+|---|---|---|
+| `BrainInterrupts.Interrupt_MobilityLost` | ⛔ component absent | ✅ `1` |
+| APC HSM active leaf | ⛔ `1` = **Cruising**, at tick 300 | ✅ `2` = **Disabled** |
+| APC `InteractionChannel.ActiveAction` | ⛔ `0` | ✅ `3` = EjectPassengers |
+| the four soldiers | ⛔ `embarked=True`, `caps=None` | ✅ `embarked=False`, `CanMove, CanShoot` |
+
+### 31.22 ⚠ WHAT REMAINS IN `CE-321` ② — **narrowed to a HIT-RESOLUTION defect, and it is not ours**
+
+📐 With `CE-323` fixed, the UrbanCombatNew chain runs to the point of firing and stops there:
+
+> the four soldiers disembark, acquire the **correct** target *(`tgt0` = the insurgent's packed id)*,
+> stand ~**120 m** away — inside their 150 m sensor range — and fire **all 30 rounds each**
+> *(`WeaponState.Ammo` → 0, `WeaponChannel.Status` → `Failure`, which is literally `Ammo == 0`)*.
+> **Bullets are live on 53 ticks.** ⛔ **The insurgent's `Health.Current` never leaves 100.**
+
+⇒ ⭐⭐ **120 rounds, correct target, in range, bullets in flight, zero damage.** That is
+`WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage`, and **nothing in it touches
+occurrence storage.** ⛔ Not folded into this programme: it is combat-pipeline work, and absorbing it
+would repeat exactly the mistake `CE-321` was filed to avoid — hiding which slice broke what.

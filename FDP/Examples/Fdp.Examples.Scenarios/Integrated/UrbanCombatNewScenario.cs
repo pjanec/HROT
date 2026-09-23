@@ -377,6 +377,10 @@ namespace Fdp.Examples.Scenarios.Integrated
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
+            // ⭐⭐ CE-323: the interrupt tail. Without it CognitiveInterruptSystem matches nothing,
+            //   so MobilityLost never fires, the APC's HSM never leaves Cruising, the soldiers are
+            //   never ejected and latches 3–5 cannot be reached — all silently. 📄 §31.21.
+            world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();

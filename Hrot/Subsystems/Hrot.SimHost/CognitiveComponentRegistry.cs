@@ -40,6 +40,19 @@ namespace Hrot.SimHost
             //   SimHost runs via CombatModule. ⛔ PreviousCapabilities stays HERE: its only readers are
             //   CognitiveInterruptSystem (Brain) and the Stride animation reactor (design §3.9a).
             world.RegisterComponent<PreviousCapabilities>();
+            // ⭐⭐⭐ CE-323 (2026-09-23) — THE INTERRUPT TAIL, AND ITS ABSENCE WAS A PRODUCTION
+            //   REGRESSION, NOT A TIDINESS GAP.
+            //   🔴 P4 deleted `RegisterComponent<BrainBlackboard>()` from this method and added no
+            //   replacement, but O2 had already moved the interrupt byte OUT of that component and
+            //   into BrainInterrupts. ⇒ from P4 until now, BrainInterrupts was registered NOWHERE in
+            //   production — every single registration in the tree was in a test.
+            //   ⛔⛔ AND IT FAILS SILENTLY, THREE TIMES OVER: BehaviorTkbTranslator attaches it only
+            //   `if (IsComponentTypeRegistered<BrainInterrupts>())`; CognitiveInterruptSystem's query
+            //   requires it, so it matched nothing; and BrainTickSystem's MobilityLost enqueue is
+            //   guarded by `HasComponent<BrainInterrupts>`. Nothing throws, nothing logs — the
+            //   MobilityLost interrupt simply never fires and a disabled vehicle's HSM never leaves
+            //   its cruising state. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.21.
+            world.RegisterComponent<BrainInterrupts>();
             // ⛔ O7c-② (2026-09-22): BrainBTreeState is RETIRED — the root tree cursor is an
             //    occurrence slot now (§31). Its id 29 stays RESERVED.
             // ⛔ P4-① (2026-09-22): Blackboard1024 is RETIRED. Its three tenants all left by a named

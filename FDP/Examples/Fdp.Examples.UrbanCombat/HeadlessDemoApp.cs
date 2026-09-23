@@ -254,6 +254,7 @@ namespace Fdp.Examples.UrbanCombat
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainInterrupts>();   // ⭐ CE-323 — the interrupt tail (§31.21).
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();

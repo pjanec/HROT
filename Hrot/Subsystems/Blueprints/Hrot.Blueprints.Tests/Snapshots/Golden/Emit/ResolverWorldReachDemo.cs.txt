@@ -21,7 +21,7 @@ public static class ResolverWorldReachDemo_AB7D5FF9_Bp
     public static global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams ResolveHillAttack(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Dto, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
     {
         var __t0 = Dto;
-        var __t1 = 4242;
+        var __t1 = 4242L;
         var __t2 = global::Hrot.AI.Behaviors.Brains.NetworkEntityMapOps.ResolveTarget(__t1, world);
         var __t3 = __t0;
         __t3.TargetAreaEntity = __t2;

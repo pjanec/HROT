@@ -551,6 +551,39 @@ public static unsafe class BlueprintBlackboardPartitions
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-318</c> — THE PAYLOAD BYTES ONE OCCURRENCE OF <paramref name="requestedSize"/>
+    /// COSTS. ⛔ It does NOT include the slot entry, and that is the whole point of this method
+    /// existing.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.20.
+    ///
+    /// <para>🔴 <b>The defect it closes, and it is arithmetic rather than judgement.</b> Six demand
+    /// sites each wrote <c>AlignUp(bytes, Alignment) + SlotEntrySize</c> and compared the result against
+    /// <c>PayloadSize</c> / <c>PayloadFree</c>. ⛔ <b>That charges the same 16 bytes twice</b>, because
+    /// the slot table is carved out of the store ONCE, UP FRONT — <see cref="Initialize"/> computes
+    /// <c>payloadStart = sizeof(header) + maxSlots × SlotEntrySize</c> and seeds
+    /// <c>PayloadFree = totalSize − payloadStart</c>. ⇒ the payload figure the demand is compared
+    /// against has ALREADY had every slot entry removed from it.</para>
+    ///
+    /// <para>⭐⭐ <b>The allocator's own arithmetic is the specification, and it charges the two axes
+    /// SEPARATELY</b> — <see cref="TryAttach"/> tests the slot axis at
+    /// <c>SlotCount >= MaxSlots</c>, tests the payload axis at <c>alignedSize > PayloadFree</c>, and
+    /// deducts <c>alignedSize</c> ALONE. ⇒ a demand that adds the entry to the payload is describing an
+    /// allocator that does not exist.</para>
+    ///
+    /// <para>⚠ <b>CONSERVATIVE, NEVER UNSAFE.</b> The old form over-reserved, so nothing could
+    /// overflow; the cost was spurious tier promotions and the memory they carry. 📐 Measured: an HSM
+    /// entity with a 128-byte instance and root params computed <c>40 + 144 = 184 > 176</c> and promoted
+    /// 256 → 1024 — <b>missing by 8 bytes</b>. Under the allocator's arithmetic it needs
+    /// <c>24 + 128 = 152 ≤ 176</c> and fits, turning a +640 B cost into a −128 B saving.</para>
+    ///
+    /// <para>⛔⛔ <b>The slot AXIS is still counted, and callers must keep counting it.</b> This method
+    /// deliberately answers only half the demand: every caller pairs it with a <c>requiredSlots</c>
+    /// increment, and <c>BlueprintTierTable.Select</c> takes both. ⚠ Dropping the entry from the
+    /// payload is correct ONLY because the slot count is checked on its own axis.</para>
+    /// </summary>
+    public static int PayloadCost(int requestedSize)
+        => requestedSize <= 0 ? 0 : AlignUp(requestedSize, Alignment);
+
     private static int AlignUp(int value, int alignment)
         => (value + alignment - 1) & ~(alignment - 1);
 

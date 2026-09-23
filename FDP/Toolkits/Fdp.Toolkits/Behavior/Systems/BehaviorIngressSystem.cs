@@ -660,10 +660,12 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <para>⚠ A <c>null</c> demand costs ZERO, which reproduces <c>E-cap</c>'s smallest tier
         /// exactly. ⛔ Not an error: <i>"nobody computed one"</i> is a real state (§27.7).</para>
         /// </summary>
+        // ⭐⭐ CE-318 (2026-09-23): the slot entries are NOT added here any more — the slot table is
+        //   carved out of the store once, up front, so PayloadSize has already had them removed.
+        //   The slot AXIS is still counted, by `requiredSlots += hosted.SlotCount` at the call site.
+        //   📄 BlueprintBlackboardPartitions.PayloadCost.
         private static int HostedPayloadCost(HostedOccurrenceDemand? hosted)
-            => hosted is null
-                 ? 0
-                 : hosted.PayloadBytes + hosted.SlotCount * BlueprintBlackboardPartitions.SlotEntrySize;
+            => hosted is null ? 0 : hosted.PayloadBytes;
 
         /// <summary>
         /// ⭐⭐⭐ <b><c>CE-302</c> — the store bytes the ROOT PARAMS slot costs</b>, in the same
@@ -703,8 +705,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             int bytes = RootStateAccess.RootStateBytes(def);
             if (bytes <= 0) return 0;
 
-            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
-                 + BlueprintBlackboardPartitions.SlotEntrySize;
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
         }
 
         /// <summary>
@@ -739,8 +741,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             int bytes = RootHsmAccess.RootHsmBytes(def);
             if (bytes <= 0) return 0;
 
-            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
-                 + BlueprintBlackboardPartitions.SlotEntrySize;
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
         }
 
         private static int RootParamsCost(BehaviorDefinition def)
@@ -750,8 +752,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             int bytes = RootParamsAccess.RootParamsBytes(def);
             if (bytes <= 0) return 0;
 
-            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
-                 + BlueprintBlackboardPartitions.SlotEntrySize;
+            // ⭐⭐ CE-318: PAYLOAD only — the caller adds the slot on its own axis.
+            return BlueprintBlackboardPartitions.PayloadCost(bytes);
         }
 
         private static OccurrenceKind KindOf(BehaviorDefinition def) => def.BrainTier switch
@@ -772,9 +774,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Compute aggregate required payload for the new manifest:
             // each slot at alignment-padded size + one BlueprintSlotEntry header per slot.
             int requiredPayload = 0;
+            // ⭐⭐ CE-318: PAYLOAD only; `requiredSlots` below carries the slot axis.
             foreach (var s in slots)
-                requiredPayload += AlignUp(s.PayloadSize, BlueprintBlackboardPartitions.Alignment)
-                                 + BlueprintBlackboardPartitions.SlotEntrySize;
+                requiredPayload += BlueprintBlackboardPartitions.PayloadCost(s.PayloadSize);
             int requiredSlots = slots.Count;
 
             // ⭐⭐⭐ O7b-3: the behaviour's HOSTED occurrences need room too, and they attach LAZILY —

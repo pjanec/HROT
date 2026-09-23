@@ -7,6 +7,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests
@@ -356,6 +358,13 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Array.Empty<ushort>());
         }
 
+        /// <summary>A 24-byte params layout — the width that makes CE-318's 8-byte margin real.</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct Ce318Params
+        {
+            public float A, B, C, D, E, F;
+        }
+
         private static Entity RegisterAndAssign(
             EntityRepository world, BehaviorIngressSystem sys, BehaviorRegistry registry,
             Entity entity, int docId, string name, HsmDefinitionBlob blob)
@@ -368,6 +377,135 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             AssignBehavior(world, sys, entity, name);
             return entity;
+        }
+
+        // ════════════════════════════════════════════════════════════════════════════════
+        // ⭐⭐⭐ CE-318 — THE TIER DEMAND NO LONGER CHARGES EACH SLOT ENTRY TWICE
+        // ════════════════════════════════════════════════════════════════════════════════
+        //
+        // 📐 The slot table is carved out of the store ONCE, up front: Initialize computes
+        //   payloadStart = sizeof(header) + MaxSlots × SlotEntrySize and seeds
+        //   PayloadFree = TotalSize − payloadStart. ⇒ the number a demand is compared against has
+        //   already had every slot entry removed. ⛔ Six demand sites nevertheless added
+        //   `+ SlotEntrySize` to the PAYLOAD, which is a second charge for the same 16 bytes.
+        // ⚠ CONSERVATIVE, NEVER UNSAFE — it over-reserved, so nothing could overflow. The cost was
+        //   spurious promotions and the memory they carry. 📄 §31.20.
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7_R55</c> — THE 8 BYTES THAT COST A 4× ALLOCATION.</b>
+        ///
+        /// <para>📐 <b>The exact arithmetic <c>CE-318</c> was filed on.</b> A 128-byte machine on the
+        /// 256 tier: the payload capacity is <c>256 − 32 (header) − 3 × 16 (slot table) = 176</c>.
+        /// ⛔ The old demand computed <c>144</c> for the instance <i>(128 + 16)</i> and <c>40</c> for
+        /// the root params <i>(24 aligned + 16)</i> = <b>184 &gt; 176</b> ⇒ promote to 1024.
+        /// ⭐ The allocator's own arithmetic needs <c>128 + 24 = 152 ≤ 176</c> at 2 slots ⇒ it FITS.
+        /// 🔒 <b>Missing by 8 bytes turned a −128 B saving into a +640 B cost.</b></para>
+        ///
+        /// <para>⛔ The tier is read from the ENTITY, not recomputed — a rail that re-derives the
+        /// demand would agree with the code by construction and prove nothing.</para>
+        /// </summary>
+        [Fact]
+        public void O7_R55_A128ByteMachineWithParamsFitsThe256Tier_O7c_CE318()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            // ⚠ regions <= 1 is the 64 tier and <= 2 is the 128 one (HsmInstanceManager.SelectTier),
+            //   so TWO regions is what puts a machine on 128. Asserted, not assumed.
+            var blob = BuildBlobWithRegions(0x0318u, regionCount: 2);
+            Assert.Equal(128, HsmInstanceManager.SelectTier(blob));   // the premise, not the claim
+
+            // ⛔⛔ THE PARAMS HALF IS LOAD-BEARING AND WAS MISSING FROM THE FIRST DRAFT OF THIS RAIL.
+            //   📐 The margin CE-318 turns on is EIGHT BYTES, and it only exists when the entity pays
+            //   for BOTH slots. With no params the demand is 128 (or 144 unfixed) — under 176 either
+            //   way, so the rail passed against the BROKEN code too. ⭐ Caught by the red-proof, which
+            //   is exactly what a red-proof is for.
+            //   ⚠ A 24-byte layout, so: fixed 128 + 24 = 152 ≤ 176 ⇒ fits 256.
+            //                           broken 144 + 40 = 184 > 176 ⇒ promotes to 1024.
+            Assert.Equal(24, System.Runtime.InteropServices.Marshal.SizeOf<Ce318Params>());
+
+            const string name = "Hsm318Doc";
+            registry.Register(9318, name, new BehaviorDefinition
+            {
+                Name                 = name,
+                BrainTier            = BehaviorConstants.BrainTierHsm,
+                HsmDefinition        = blob,
+                BlackboardLayoutType = typeof(Ce318Params),
+                ParseParams          = static (string _, byte* _, EntityRepository _, Entity _,
+                                               IHostVariableAccess? _) => { },
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            AssignBehavior(world, sys, e, name);
+
+            var tier = BlueprintTierTable.Of(world, e);
+            Assert.NotNull(tier);
+
+            // ⭐⭐ THE RAIL. 🔴 RED before CE-318: 1024, because the demand was 184 against a 176
+            //    payload — over by exactly the two slot entries it had already been charged for.
+            Assert.Equal(256, tier!.TotalSize);
+
+            // …and the instance really is in there at its true width, so "it fits" is not a claim
+            // about a store the machine never reached.
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out _, out int width));
+            Assert.Equal(128, width);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>O7_R56</c> — the payload cost is the ALIGNED SIZE, and nothing else.</b>
+        ///
+        /// <para>⛔ Stated directly on <c>BlueprintBlackboardPartitions.PayloadCost</c> so the rule has
+        /// a rail that does not depend on any particular behaviour reaching any particular tier.
+        /// ⚠ The <c>+ 16</c> column is what the six demand sites used to compute; it is spelled out
+        /// so a reader can see exactly what was removed.</para>
+        /// </summary>
+        [Theory]
+        [InlineData(0,   0)]                               // nothing demanded costs nothing
+        [InlineData(1,   8)]                               // aligned up to Alignment
+        [InlineData(8,   8)]
+        [InlineData(24,  24)]                              // the root-params case: was 40
+        [InlineData(64,  64)]                              // a 64-byte machine: was 80
+        [InlineData(128, 128)]                             // the CE-318 headline: was 144
+        [InlineData(256, 256)]                             // was 272
+        public void O7_R56_ThePayloadCostExcludesTheSlotEntry_O7c_CE318(int requested, int expected)
+        {
+            Assert.Equal(expected, BlueprintBlackboardPartitions.PayloadCost(requested));
+
+            // ⛔ Anti-vacuity: the value that WAS returned must no longer be.
+            if (requested > 0)
+                Assert.NotEqual(expected + BlueprintBlackboardPartitions.SlotEntrySize,
+                                BlueprintBlackboardPartitions.PayloadCost(requested));
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b><c>O7_R57</c> — DROPPING THE ENTRY FROM THE PAYLOAD IS ONLY SAFE BECAUSE THE SLOT
+        /// AXIS IS STILL COUNTED.</b>
+        ///
+        /// <para>🔴 <b>The failure mode the fix could have introduced</b>, and the reason <c>CE-318</c>
+        /// warned it is <i>"not a one-liner to apply blind"</i>: if the slot axis were lost along with
+        /// the payload charge, an entity would be sized by BYTES alone and then run out of SLOT
+        /// ENTRIES — <c>TryAttach</c> returns <c>false</c> at <c>SlotCount >= MaxSlots</c> and nothing
+        /// throws, so the symptom is a silent non-attach.</para>
+        ///
+        /// <para>⭐ Stated on <c>BlueprintTierTable.Select</c>, which is the one place the two axes meet:
+        /// <b>40 payload bytes</b> fits the 256 tier's 176 with room to spare, so if bytes were the
+        /// only axis this would answer 256 for both calls. It must not.</para>
+        /// </summary>
+        [Fact]
+        public void O7_R57_TheSlotAxisStillPromotes_WhenBytesWouldHaveFit_O7c_CE318()
+        {
+            var byBytes = BlueprintTierTable.Select(40, 1);
+            var bySlots = BlueprintTierTable.Select(40, 5);
+
+            // The premise: 40 bytes is comfortably inside the smallest tier.
+            Assert.Equal(256, byBytes.TotalSize);
+            Assert.True(byBytes.MaxSlots < 5,
+                "the premise is that the smallest tier CANNOT hold five slots");
+
+            // ⭐⭐ THE RAIL: the same byte demand, five slots, must select a bigger tier.
+            Assert.True(bySlots.TotalSize > byBytes.TotalSize,
+                $"the slot axis must still promote: got {bySlots.TotalSize} for 5 slots");
+            Assert.True(bySlots.MaxSlots >= 5);
         }
 
         /// <summary>

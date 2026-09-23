@@ -9,6 +9,7 @@ using Fbt.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Vis2D;
@@ -59,6 +60,22 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
         private const int MemThreatVisible = 0;
         private const int MemAmmoCount     = 4;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-321</c> ③ — the agent's root params layout, and the ONE place its width is
+        /// declared.</b> The conditions read it as raw bytes at <see cref="MemThreatVisible"/> and
+        /// <see cref="MemAmmoCount"/>, so the field offsets below must agree with those constants —
+        /// <c>Sequential</c> with a 4-byte pad makes that true by construction rather than by comment.
+        /// ⛔ Without a declared width the behaviour gets NO root params slot and the tick arm hands
+        /// the conditions a one-byte stack local (see the registration in <c>Configure</c>).
+        /// </summary>
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Explicit, Size = 8)]
+        private struct CombatParams
+        {
+            [System.Runtime.InteropServices.FieldOffset(MemThreatVisible)] public byte ThreatVisible;
+            [System.Runtime.InteropServices.FieldOffset(MemAmmoCount)]     public int  AmmoCount;
+        }
 
         private const int InitialAmmo = 10;
 
@@ -133,6 +150,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<ActorCapabilityState>();
+            world.RegisterComponent<BrainInterrupts>();   // ⭐ CE-323 — the interrupt tail (§31.21).
 
             // ── Behavior registry and BTree setup ─────────────────────────────
             var registry = new BehaviorRegistry();
@@ -152,6 +170,17 @@ namespace Fdp.Examples.Scenarios.Cognitive
                     Name             = "MockCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
                     BTreeInterpreter = interpreter,
+
+                    // ⭐⭐⭐ CE-321 ③ (2026-09-23) — DECLARING THE PARAMS WIDTH IS WHAT GIVES THIS
+                    //   BEHAVIOUR A ROOT PARAMS SLOT AT ALL, AND WITHOUT IT THE CONDITIONS READ
+                    //   OFF THE END OF A STACK LOCAL.
+                    //   📐 BrainTickSystem's BTree arm gates on RootParamsAccess.RootParamsBytes(def):
+                    //   when it is 0 it hands the interpreter `ref __noParamsScratch` — ONE byte on
+                    //   the stack. ⛔ Condition_HasAmmo then reads `*(int*)(mem + 4)`, four bytes PAST
+                    //   that byte. Not "reads zeros": an out-of-bounds stack read, with no throw.
+                    //   ⚠ This scenario runs no BehaviorIngressSystem, so nothing else could ever
+                    //   have declared the width for it.
+                    BlackboardLayoutType = typeof(CombatParams),
                 });
 
             // ── Systems (CognitiveRuntimeModule — no physics, no combat executors) ──
@@ -264,21 +293,31 @@ namespace Fdp.Examples.Scenarios.Cognitive
 
             RootStateAccess.EnsureRootState(world, e);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
-            // Initialise blackboard: ThreatVisible=false, AmmoCount=InitialAmmo.
-            // ⭐ P4-②: a params region this example owns — the base is a `ref byte` now.
-            var bbBuf = new byte[128];
-            ref byte bb = ref bbBuf[0];
-            // Memory[0] = 0 (ThreatVisible = false) — already zero from default struct.
-            // Write InitialAmmo as a little-endian int at offset MemAmmoCount=4.
-            unsafe
-            {
-                int val = InitialAmmo;
-                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)MemAmmoCount)     = (byte)val;
-                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 1)) = (byte)(val >> 8);
-                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 2)) = (byte)(val >> 16);
-                global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref bb, (nint)(MemAmmoCount + 3)) = (byte)(val >> 24);
-            }
-            world.AddComponent(e, bb);
+            // ⭐⭐⭐ CE-321 ③ (2026-09-23) — SEED THE ROOT PARAMS SLOT, NOT A SCRATCH ARRAY.
+            //
+            //   🔴🔴 WHAT THIS REPLACES, AND IT DID NOT MERELY FAIL TO WORK — IT THREW. A mechanical
+            //   P4-② edit rewrote `AddComponent(e, brainBlackboard)` into `AddComponent(e, bb)`
+            //   where `bb` is a `ref byte`, so the generic bound T = byte and the scenario died with
+            //   "Component Byte is not registered". ⚠ And even had it run, the bytes were written
+            //   into a LOCAL `byte[128]` that nothing ever read: after P3-C the params live in the
+            //   entity's root params slot, which is where EvaluateTick's RootRef writes already go.
+            //
+            //   ⭐ The slot is attached HERE because this scenario runs no BehaviorIngressSystem —
+            //   it stamps BehaviorState directly — so the provisioning ingress normally does has to
+            //   happen at spawn, exactly as EnsureRootState above does for the cursor.
+            byte* paramsPtr = RootParamsAccess.ResolveOrAttachRoot(
+                world, e, BehaviorValidationBehaviorIds.Combat,
+                sizeof(CombatParams), OccurrenceKind.BTree, out _);
+
+            if (paramsPtr == null)
+                throw new InvalidOperationException(
+                    "BehaviorValidationScenario could not attach the agent's root params slot. " +
+                    "The occurrence store is missing or full — check that BlueprintTierTable." +
+                    "RegisterAll(world) ran in Configure and that the tier has room beside the " +
+                    "BTree cursor slot.");
+
+            // ThreatVisible = 0 (TryAttach zeroes the payload); AmmoCount = InitialAmmo.
+            ((CombatParams*)paramsPtr)->AmmoCount = InitialAmmo;
 
             world.AddComponent(e, new LocomotionChannel());
             world.AddComponent(e, new WeaponChannel());

@@ -87,6 +87,7 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<BrainInterrupts>();   // ⭐ CE-323 — the interrupt tail (§31.21).
             // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
             //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
             //   instance — live in a BlueprintBlackboard* tier component now, and

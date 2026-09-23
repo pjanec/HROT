@@ -59,6 +59,36 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-323</c> — <c>BrainInterrupts</c> MUST BE REGISTERED IN PRODUCTION, AND FOR
+        /// FOUR TICKS BETWEEN <c>P4</c> AND <c>2026-09-23</c> IT WAS NOT.</b>
+        ///
+        /// <para>🔴 <b>What made it invisible.</b> <c>P4</c> deleted
+        /// <c>RegisterComponent&lt;BrainBlackboard&gt;()</c> from <c>CognitiveComponentRegistry</c>
+        /// and added no replacement — but <c>O2</c> had already moved the interrupt byte out of that
+        /// component into <c>BrainInterrupts</c>. 📐 Measured: EVERY
+        /// <c>RegisterComponent&lt;BrainInterrupts&gt;</c> in the tree was in a TEST.</para>
+        ///
+        /// <para>⛔⛔ <b>And it fails silently three times over</b>, which is why no suite caught it:
+        /// <c>BehaviorTkbTranslator</c> attaches it only
+        /// <c>if (IsComponentTypeRegistered&lt;BrainInterrupts&gt;())</c>;
+        /// <c>CognitiveInterruptSystem</c>'s query REQUIRES it, so it matched nothing; and
+        /// <c>BrainTickSystem</c>'s <c>MobilityLost</c> enqueue is guarded by
+        /// <c>HasComponent&lt;BrainInterrupts&gt;</c>. ⇒ a disabled vehicle's HSM never received
+        /// <c>MobilityLost</c> and never left its cruising state. Nothing throws, nothing logs.</para>
+        ///
+        /// <para>⚠ This asserts the REGISTRY, which is the one thing a unit test can reach — the
+        /// end-to-end consequence is the UrbanCombatNew APC reaching its Disabled state.</para>
+        /// </summary>
+        [Fact]
+        public void CognitiveComponentRegistry_RegistersTheInterruptTail_CE323()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainInterrupts>()));
+        }
+
         // ── PerceptionRoleComponentRegistry ───────────────────────────────────
         // 📄 docs/DESIGN_Role_Affinity_Ownership.md §3.9a/§3.9b. Extracted 2026-09-12 (CE-259bf):
         //    Perception was the ONE role with no registry, and its components were filed inside the
