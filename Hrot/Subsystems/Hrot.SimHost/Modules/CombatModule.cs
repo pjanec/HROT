@@ -17,8 +17,7 @@ namespace Hrot.SimHost.Modules
     /// <para>
     /// <see cref="Fdp.Toolkit.Behavior.Systems.HsmDamageBridgeSystem"/> was relocated
     /// to <see cref="Fdp.Toolkit.Behavior.Modules.CognitiveRuntimeModule"/> (PACK-M001)
-    /// so it runs on the Brain tier where <see cref="Fdp.Toolkit.Behavior.Components.BrainHsm128"/>
-    /// components reside.
+    /// so it runs on the Brain tier where the root HSM slot (<c>O7c</c>-④) resides.
     /// </para>
     /// </summary>
     public sealed class CombatModule

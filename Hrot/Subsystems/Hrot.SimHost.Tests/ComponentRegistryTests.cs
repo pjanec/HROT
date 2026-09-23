@@ -2,6 +2,7 @@ using Fdp.Core.Collections;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
@@ -40,14 +41,22 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
         }
 
+        /// <summary>
+        /// ⚠⚠ RE-HOMED by <c>O7c</c>-④d (2026-09-23), and the name changed with it: there are NO
+        /// brain components left to register. The probe is now the HSM TRACE buffer — still
+        /// registered by <c>CognitiveComponentRegistry</c>, still brain-only, so the claim
+        /// <i>"the cognitive set is present on this world"</i> survives the component's deletion.
+        /// ⛔ The occurrence TIER components would be the wrong probe: the blueprint side registers
+        /// those, so asserting them here would pass without the cognitive registry running at all.
+        /// </summary>
         [Fact]
-        public void CognitiveComponentRegistry_RegisterAll_RegistersBrainHsmComponents()
+        public void CognitiveComponentRegistry_RegisterAll_RegistersTheCognitiveSet_O7c4d()
         {
             using var world = new EntityRepository();
             CognitiveComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
-            // ⛔ O7c-①: the BrainHsm64 row is gone — the type's deletion makes the claim vacuous.
+            Assert.Null(Record.Exception(() => world.GetComponentTable<HsmTraceWorkingMemory1024>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
         }
 
         // ── PerceptionRoleComponentRegistry ───────────────────────────────────
@@ -112,7 +121,8 @@ namespace Hrot.SimHost.Tests
 
             // ⛔ Anti-vacuity: the cognitive set itself must still be there, or this would pass on a
             //    registry that had been emptied entirely.
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
+            //    ⚠ O7c-④d: re-homed off BrainHsm128, which is deleted.
+            Assert.Null(Record.Exception(() => world.GetComponentTable<HsmTraceWorkingMemory1024>()));
         }
 
         // ── CE-259bf slice 2: the strays move to homes BOTH hosts already compose ─────
@@ -249,9 +259,9 @@ namespace Hrot.SimHost.Tests
             // ⛔ P4: the BrainBlackboard and Blackboard1024 rows are gone. Each asserted that
             //    SimHostComponentRegistry does NOT register that component — a claim the type's
             //    deletion now makes vacuous.
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm128>());
-            // ⛔ O7c-①: likewise here — asserting SimHost does not register a type that no
-            //    longer exists proves nothing.
+            // ⛔ O7c-④d: the BrainHsm128 row is gone too — asserting SimHostComponentRegistry does
+            //    not register a type that no longer exists proves nothing, exactly as O7c-①/②
+            //    and P4 found for BrainHsm64, BrainBTreeState and the blackboards.
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<LocomotionChannel>());
         }
 

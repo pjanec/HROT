@@ -18,7 +18,6 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
             world.RegisterComponent<SimTier>();
-            world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();
             world.RegisterComponent<SimTransform>();

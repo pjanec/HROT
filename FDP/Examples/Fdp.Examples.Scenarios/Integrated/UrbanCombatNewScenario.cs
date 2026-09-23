@@ -375,7 +375,6 @@ namespace Fdp.Examples.Scenarios.Integrated
             //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
             Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<SimTier>();
-            world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<LocomotionChannel>();

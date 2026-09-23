@@ -48,7 +48,10 @@ namespace Hrot.SimHost
             //    adopted. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.13.
             // ⛔ O7c-① (2026-09-22): BrainHsm64 is RETIRED — zero production attach sites, so its
             //   tick query could never match. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
-            world.RegisterComponent<BrainHsm128>();
+            // ⛔ O7c-④d (2026-09-23): BrainHsm128 is RETIRED — the LAST root brain component. The
+            //   HSM instance is an occurrence slot sized by SelectTier, so what this host must
+            //   register for a brain is the tier ladder, which BlueprintComponentRegistry already
+            //   does. ⚠ Its id 36 stays RESERVED. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
             // ⭐ MOVED 2026-09-12 to MissionComponentRegistry (CE-259bf slice 2) — ActiveMissionPlan
             //   already lives there, and MissionPlanQueue is the same tier's queue. SimHost READS it:
             //   EntityMissionIngressTranslator writes it over the wire and MissionPlanTranslator

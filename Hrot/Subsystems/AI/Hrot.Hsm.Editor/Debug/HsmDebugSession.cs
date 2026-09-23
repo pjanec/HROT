@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using Fdp.Core;
+using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Diagnostics;
 using Hrot.Editor.AiShared.Debug;
@@ -87,28 +89,33 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         // === Snapshot ===
         HsmInstanceSnapshot? snap = null;
 
-        // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is gone — it decoded a component no production
-        //   path ever attached, so this session has only ever rendered the 128 tier.
-        // ⭐⭐ THE Decode*64 HELPERS ARE DELIBERATELY KEPT, unused for now. They take Fhsm's
-        //   HsmInstance64 (a live kernel tier, still returned by HsmInstanceManager.SelectTier), NOT
-        //   the deleted wrapper — and §11.3 / §31.5 step ⑤ turns these decoders SIZE-driven, where
-        //   the size-64 arm is exactly this code. ⛔ Deleting them would remove a capability the next
-        //   slice needs, which is the "unreferenced is not unintentional" trap.
-        if (repo.HasComponent<BrainHsm128>(entity))
+        // ⭐⭐⭐ O7c-④d (2026-09-23): THE DECODE IS SIZE-DRIVEN, AND THE SIZE COMES FROM THE SLOT.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //
+        //   ⛔ Before this, the snapshot read BrainHsm128 and therefore rendered the 128 tier and
+        //     nothing else — a 64-byte machine was decoded as if it were 128 (reading 64 bytes past
+        //     its own state), and a 256-byte machine showed 4 of its 8 regions. ⚠ Neither could
+        //     actually happen while the COMPONENT was the store, because the component WAS 128 bytes
+        //     for every machine. ⇒ the slot is what makes the other two tiers reachable, and it is
+        //     the same change that makes decoding them mandatory rather than hypothetical.
+        //
+        //   ⭐⭐ The Decode*64 helpers, kept unused since O7c-①, get their consumer here — exactly the
+        //     "unreferenced is not unintentional" call that spared them. The 256 siblings are new.
+        if (RootHsmAccess.TryGetInstance(repo, entity, out byte* instance, out int instanceSize))
         {
-            ref readonly var comp = ref repo.GetComponentRO<BrainHsm128>(entity);
+            var header = (InstanceHeader*)instance;
             snap = new HsmInstanceSnapshot(
                 entity, _metadataAssetId,
-                DecodeLeaves128(comp.State, 4),
-                DecodeEventQueue128(comp.State),
-                DecodeTimerSlots128(comp.State),
-                DecodeHistorySlots128(comp.State),
-                comp.State.Header.Phase,
-                comp.State.Header.MicroStep,
+                DecodeLeaves(instance, instanceSize),
+                DecodeEventQueue(instance, instanceSize),
+                DecodeTimerSlots(instance, instanceSize),
+                DecodeHistorySlots(instance, instanceSize),
+                header->Phase,
+                header->MicroStep,
                 0,
-                comp.State.Header.Flags,
-                comp.State.Header.RngState,
-                comp.State.Header.Generation);
+                header->Flags,
+                header->RngState,
+                header->Generation);
         }
         _currentSnapshot = snap;
 
@@ -263,14 +270,27 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         _heatmapModeActive      = false;
     }
 
-    // ---- BPF-023: active-leaf decode helpers -----------------------------
+    // ---- O7c-④d: size-driven dispatch ------------------------------------
+    //
+    // ⭐⭐ ONE arm per kernel tier, selected by the SLOT'S width. ⛔ An unrecognised width decodes to
+    //   nothing rather than guessing: the tiers are the kernel's, and a size this table does not know
+    //   is a kernel change, not a case to approximate. ⚠ A debug surface draws what is there.
 
-    private unsafe IReadOnlyList<Guid> DecodeLeaves64(HsmInstance64 state, int slotCount)
+    /// <summary>
+    /// ⭐⭐⭐ <b>The leaves come from the KERNEL, not from a tier table repeated here.</b>
+    /// <c>HsmKernel.GetActiveLeafIds</c> (the <c>ExtDeps</c> addition <c>O7c</c>-④b made, §31.16.1)
+    /// returns both the pointer AND the region count for the size — 2, 4 or 8. ⇒ the one fact that
+    /// would otherwise be duplicated in every size-driven reader stays in the one place that owns it.
+    /// </summary>
+    private unsafe IReadOnlyList<Guid> DecodeLeaves(byte* instance, int instanceSize)
     {
-        var result = new List<Guid>(slotCount);
-        for (int i = 0; i < slotCount; i++)
+        ushort* leaves = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int count);
+        if (leaves == null || count <= 0) return Array.Empty<Guid>();
+
+        var result = new List<Guid>(count);
+        for (int i = 0; i < count; i++)
         {
-            ushort id = state.ActiveLeafIds[i];
+            ushort id = leaves[i];
             if (id == 0xFFFF) continue;
             if (_metadata != null && _metadata.StateStableIds.TryGetValue(id, out var sid))
                 result.Add(sid);
@@ -278,18 +298,32 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         return result;
     }
 
-    private unsafe IReadOnlyList<Guid> DecodeLeaves128(HsmInstance128 state, int slotCount)
-    {
-        var result = new List<Guid>(slotCount);
-        for (int i = 0; i < slotCount; i++)
+    private unsafe IReadOnlyList<HsmEventQueueEntry> DecodeEventQueue(byte* instance, int instanceSize)
+        => instanceSize switch
         {
-            ushort id = state.ActiveLeafIds[i];
-            if (id == 0xFFFF) continue;
-            if (_metadata != null && _metadata.StateStableIds.TryGetValue(id, out var sid))
-                result.Add(sid);
-        }
-        return result;
-    }
+            64  => DecodeEventQueue64(*(HsmInstance64*)instance),
+            128 => DecodeEventQueue128(*(HsmInstance128*)instance),
+            256 => DecodeEventQueue256(*(HsmInstance256*)instance),
+            _   => Array.Empty<HsmEventQueueEntry>()
+        };
+
+    private unsafe IReadOnlyList<HsmTimerSlot> DecodeTimerSlots(byte* instance, int instanceSize)
+        => instanceSize switch
+        {
+            64  => DecodeTimerSlots64(*(HsmInstance64*)instance),
+            128 => DecodeTimerSlots128(*(HsmInstance128*)instance),
+            256 => DecodeTimerSlots256(*(HsmInstance256*)instance),
+            _   => Array.Empty<HsmTimerSlot>()
+        };
+
+    private unsafe IReadOnlyList<HsmHistorySlot> DecodeHistorySlots(byte* instance, int instanceSize)
+        => instanceSize switch
+        {
+            64  => DecodeHistorySlots64(*(HsmInstance64*)instance),
+            128 => DecodeHistorySlots128(*(HsmInstance128*)instance),
+            256 => DecodeHistorySlots256(*(HsmInstance256*)instance),
+            _   => Array.Empty<HsmHistorySlot>()
+        };
 
     // ---- BPF-010: event-queue, timer-slot and history-slot decode helpers ----
 
@@ -343,6 +377,41 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
         return result;
     }
 
+    /// <summary>
+    /// ⭐ The 256 tier's hybrid queue: one reserved interrupt slot then a shared ring of 5.
+    /// ⚠ The ring capacity differs from the 128 tier's 2 — that is the whole reason a tier table
+    /// cannot be shared between the two arms.
+    /// </summary>
+    private unsafe IReadOnlyList<HsmEventQueueEntry> DecodeEventQueue256(HsmInstance256 state)
+    {
+        int count = state.InterruptSlotUsed + state.EventCount;
+        if (count <= 0) return Array.Empty<HsmEventQueueEntry>();
+
+        var result = new List<HsmEventQueueEntry>(count);
+        // EventBuffer layout: [0-23] interrupt slot, [24-155] shared ring (up to 5 events).
+        int pos = 0;
+        if (state.InterruptSlotUsed != 0)
+        {
+            var ev = (HsmEvent*)(state.EventBuffer);
+            string name = _metadata != null
+                ? _metadata.GetEventName(ev->EventId)
+                : ev->EventId.ToString();
+            result.Add(new HsmEventQueueEntry(ev->EventId, name, ev->Flags, ev->Priority, pos));
+            pos++;
+        }
+        int ringCount = Math.Min((int)state.EventCount, 5);
+        for (int i = 0; i < ringCount; i++)
+        {
+            var ev = (HsmEvent*)(state.EventBuffer + 24 + i * sizeof(HsmEvent));
+            string name = _metadata != null
+                ? _metadata.GetEventName(ev->EventId)
+                : ev->EventId.ToString();
+            result.Add(new HsmEventQueueEntry(ev->EventId, name, ev->Flags, ev->Priority, pos));
+            pos++;
+        }
+        return result;
+    }
+
     private unsafe IReadOnlyList<HsmTimerSlot> DecodeTimerSlots64(HsmInstance64 state)
     {
         var result = new List<HsmTimerSlot>(2);
@@ -359,6 +428,18 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     {
         var result = new List<HsmTimerSlot>(4);
         for (int i = 0; i < 4; i++)
+        {
+            uint deadline = state.TimerDeadlines[i];
+            if (deadline == 0) continue;
+            result.Add(new HsmTimerSlot(i, OwningStateStableId: null, RemainingTicks: (float)deadline));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmTimerSlot> DecodeTimerSlots256(HsmInstance256 state)
+    {
+        var result = new List<HsmTimerSlot>(8);
+        for (int i = 0; i < 8; i++)
         {
             uint deadline = state.TimerDeadlines[i];
             if (deadline == 0) continue;
@@ -385,6 +466,20 @@ public sealed class HsmDebugSession : AiDebugSessionBase, IHsmDebugSession
     {
         var result = new List<HsmHistorySlot>(8);
         for (int i = 0; i < 8; i++)
+        {
+            ushort childId = state.HistorySlots[i];
+            if (childId == 0xFFFF) continue;
+            Guid? childSid = (_metadata != null && _metadata.StateStableIds.TryGetValue(childId, out var sg))
+                ? sg : (Guid?)null;
+            result.Add(new HsmHistorySlot(i, OwningCompositeStableId: null, childSid, IsDeepHistory: false));
+        }
+        return result;
+    }
+
+    private unsafe IReadOnlyList<HsmHistorySlot> DecodeHistorySlots256(HsmInstance256 state)
+    {
+        var result = new List<HsmHistorySlot>(16);
+        for (int i = 0; i < 16; i++)
         {
             ushort childId = state.HistorySlots[i];
             if (childId == 0xFFFF) continue;

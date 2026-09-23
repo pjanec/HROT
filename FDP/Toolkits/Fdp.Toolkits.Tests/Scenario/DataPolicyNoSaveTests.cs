@@ -66,28 +66,38 @@ namespace Fdp.Toolkit.Scenario.Tests
 
         // ── TASK-S103: Brain Execution Components ─────────────────────────────────
 
+        // ⚠⚠ RE-HOMED by O7c-④d (2026-09-23). The probe used to be BrainHsm128, which is deleted:
+        //   brain EXECUTION STATE now lives in the entity's occurrence store, so the component that
+        //   must carry DataPolicy.NoScenario is the store's tier component. ⭐ The CLAIM is
+        //   unchanged and it is the one that matters — brain execution state is RECORDABLE (a replay
+        //   must reproduce it exactly) and NOT SAVEABLE (a scenario file must never pin a machine
+        //   mid-transition). ⛔ It would have been easy to drop these two tests with the component;
+        //   the policy they protect outlived it. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+
         [Fact]
-        public void BrainComponents_AbsentFromSaveableTypeIds()
+        public void BrainExecutionState_AbsentFromSaveableTypeIds_O7c4d()
         {
-            _repo.RegisterComponent<BrainHsm128>();
+            _repo.RegisterComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>();
 
             var saveableIds = new HashSet<int>(ComponentTypeRegistry.GetSaveableTypeIds());
 
-            int hsm128Id = ComponentTypeRegistry.GetId(typeof(BrainHsm128));
+            int storeId = ComponentTypeRegistry.GetId(
+                typeof(global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024));
 
-            Assert.DoesNotContain(hsm128Id, saveableIds);
+            Assert.DoesNotContain(storeId, saveableIds);
         }
 
         [Fact]
-        public void BrainComponents_PresentInRecordableTypeIds()
+        public void BrainExecutionState_PresentInRecordableTypeIds_O7c4d()
         {
-            _repo.RegisterComponent<BrainHsm128>();
+            _repo.RegisterComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>();
 
             var recordableIds = new HashSet<int>(ComponentTypeRegistry.GetRecordableTypeIds());
 
-            int hsm128Id = ComponentTypeRegistry.GetId(typeof(BrainHsm128));
+            int storeId = ComponentTypeRegistry.GetId(
+                typeof(global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024));
 
-            Assert.Contains(hsm128Id, recordableIds);
+            Assert.Contains(storeId, recordableIds);
         }
 
         // ── TASK-S104: Transient Perception Components ────────────────────────────

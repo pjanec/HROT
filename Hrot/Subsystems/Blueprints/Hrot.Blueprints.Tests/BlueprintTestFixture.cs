@@ -630,6 +630,9 @@ public static class ThrowingRegistrar
         EnsureOccurrenceStore(entity);
 
         const uint MachineId = 0x07B0A5E1;
+        // The host behaviour the root HSM slot is keyed from WHEN THE ENTITY HAS NONE; arbitrary
+        // but non-zero, because RootHsmAccess.KeyForBehaviour(0) is 0 and would refuse to attach.
+        const int FallbackHostBehaviorHash = 0x0B57A11;
         var states = new global::Fhsm.Kernel.Data.StateDef[1];
         var transitions = Array.Empty<global::Fhsm.Kernel.Data.TransitionDef>();
 
@@ -677,12 +680,39 @@ public static class ThrowingRegistrar
             Array.Empty<global::Fhsm.Kernel.Data.GlobalTransitionDef>(),
             Array.Empty<ushort>(), Array.Empty<ushort>());
 
-        // ⭐ The instance lives in the entity's BrainHsm128 component, as in production — the debug
-        //   session recovers the hosting machine's id from there to LABEL each occurrence (§24.11).
-        if (!_repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.BrainHsm128>())
-            _repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BrainHsm128>();
-        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BrainHsm128>(entity))
-            _repo.AddComponent(entity, default(global::Fdp.Toolkit.Behavior.Components.BrainHsm128));
+        // ⭐⭐ O7c-④d (2026-09-23): THE INSTANCE LIVES IN THE ENTITY'S ROOT HSM SLOT, as in
+        //   production — BrainHsm128 is deleted. The debug session recovers the hosting machine's id
+        //   from that slot to LABEL each occurrence (§24.11), and the slot is keyed from
+        //   BehaviorState.ActiveBehaviorHash, so the host behaviour must be stamped first.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //   🔴🔴 NEVER OVERWRITE AN EXISTING ActiveBehaviorHash. Every root slot key — params,
+        //   BTree cursor, HSM instance — is COMPUTED from it, so stamping our own hash over a real
+        //   one ORPHANS the params slot the thunk is about to read, and the failure surfaces deep
+        //   inside the kernel as "Entity N has no ROOT PARAMS slot". 📐 Measured: doing exactly that
+        //   reddened 4 tests in this project. ⇒ adopt the entity's hash when it has one.
+        if (!_repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.BehaviorState>())
+            _repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
+
+        int hostHash = FallbackHostBehaviorHash;
+        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+        {
+            _repo.AddComponent(entity, new global::Fdp.Toolkit.Behavior.Components.BehaviorState
+            {
+                ActiveBehaviorHash = hostHash,
+                BrainTier          = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,
+                InstanceId         = 1,
+            });
+        }
+        else
+        {
+            int existing = _repo.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)
+                                .ActiveBehaviorHash;
+            if (existing != 0)
+                hostHash = existing;                    // ⭐ adopt, never overwrite
+            else
+                _repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)
+                     .ActiveBehaviorHash = hostHash;    // 0 keys nothing, so there is nothing to orphan
+        }
 
         var inst = new global::Fhsm.Kernel.Data.HsmInstance128();
         inst.Header.MachineId = MachineId;
@@ -705,7 +735,15 @@ public static class ThrowingRegistrar
         var page = default(global::Fhsm.Kernel.Data.CommandPage);
         global::Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in bridge, 0.016f, ref page);
 
-        _repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainHsm128>(entity).State = inst;
+        // ⭐ Write the ticked instance back into the ROOT HSM SLOT, at the width the kernel stepped.
+        //   ⚠ Attached AFTER the dispatch on purpose: the thunk attaches its own occurrence slots
+        //   during the tick, and TryAttach bump-allocates without moving what is already there.
+        byte* hostSlot = global::Fdp.Toolkit.Behavior.RootHsmAccess.ResolveOrAttachRoot(
+            _repo, entity, hostHash, sizeof(global::Fhsm.Kernel.Data.HsmInstance128),
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Hsm, out _);
+        if (hostSlot != null)
+            System.Runtime.CompilerServices.Unsafe.CopyBlock(
+                hostSlot, &inst, (uint)sizeof(global::Fhsm.Kernel.Data.HsmInstance128));
 
         // For a guard, "did it pass?" is observable as the transition having been TAKEN.
         return !asGuard || inst.ActiveLeafIds[0] == 1;

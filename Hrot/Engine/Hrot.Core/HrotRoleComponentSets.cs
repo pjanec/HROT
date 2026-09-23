@@ -134,7 +134,9 @@ public static class HrotRoleComponentSets
         //    whose tier components this mask already covers.
         // ⛔ O7c-① (2026-09-22): BrainHsm64 retired — nothing ever attached it, so this bit
         //    declined a component that was never present. ⚠ Its id 35 stays RESERVED, like 23 and 74.
-        brainOnly.SetBit(ComponentType<BrainHsm128>.ID);
+        // ⛔ O7c-④d (2026-09-23): BrainHsm128 retired — the HSM instance rides in the occurrence
+        //    store, whose tier components this mask already covers, exactly as the BTree cursor
+        //    does. ⚠ Its id 36 stays RESERVED, like 23, 31, 35 and 74.
         // ⭐ The three channels: their only consumers are ActionDispatchModule and
         //   ChannelArbitrationSystem, both registered by CgfLogicPack alone (§3.9a).
         brainOnly.SetBit(ComponentType<LocomotionChannel>.ID);

@@ -1,7 +1,7 @@
-using System.Runtime.InteropServices;
-using Fbt;
-using Fhsm.Kernel.Data;
-using Fdp.Core;
+// ⛔⛔⛔ O7c (2026-09-22 / 2026-09-23) — THIS FILE DECLARES NOTHING. It is kept as the TOMBSTONE for
+//   the three root brain components, because the reasoning for each deletion is what a future reader
+//   will come here looking for. ⭐ Deleting the file would leave those arguments only in git history.
+//   📄 DESIGN_Occurrence_Scoped_Storage.md §31.
 
 namespace Fdp.Toolkit.Behavior.Components
 {
@@ -33,11 +33,16 @@ namespace Fdp.Toolkit.Behavior.Components
     //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.5 step ①. Rail:
     //   CognitiveRuntimeModuleTests.EveryHsmTickSystem_IsRegisteredForAnAttachableComponent_O7c1.
 
-    [StructLayout(LayoutKind.Sequential)]
-    [ComponentId(GlobalComponentIds.BrainHsm128)]
-    [DataPolicy(DataPolicy.NoScenario)]
-    public struct BrainHsm128
-    {
-        public HsmInstance128 State;
-    }
+    // ⛔⛔⛔ O7c-④d (2026-09-23) — BrainHsm128 IS DELETED. THE FILE NOW DECLARES NOTHING.
+    //   ⭐⭐ THE REASON IS CAPABILITY, NOT BYTES — the same argument that retired BrainBTreeState.
+    //   A component is addressed by its TYPE, so the instance was permanently 128 bytes whatever
+    //   HsmInstanceManager.SelectTier said about the machine: a 2-region machine wasted half of it,
+    //   and an 8-region machine COULD NOT EXIST without a new component, a new GlobalComponentIds
+    //   entry and a new tick registration. ⭐ The instance now lives in a keyed occurrence slot at
+    //   OccurrenceSlotKey.ComputeRootHsmKey(ActiveBehaviorHash), sized by SelectTier at attach ⇒
+    //   §9.4 literally: the tier stops being a TYPE and becomes a PAYLOAD SIZE, and the 64- and
+    //   256-byte tiers become reachable for the first time.
+    //   ⚠ Its id 36 stays RESERVED, like 23, 31, 35 and 74: a stale recording must not bind it to a
+    //   different component.
+    //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19. Reached through RootHsmAccess.
 }

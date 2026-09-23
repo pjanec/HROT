@@ -9,7 +9,9 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Fhsm.Kernel;
+using Fhsm.Kernel.Data;
 using Hrot.Editor;
 using Xunit;
 
@@ -450,6 +452,202 @@ namespace Hrot.Editor.Tests
 
             Assert.Null(failureMsg); // no ArgumentNullException surfaced via OnReloadFailed
             Assert.NotNull(StubBTreeActionRegistryRegistrar.LastRegistry); // non-null registry injected
+        }
+
+        // ---- O7c-④d: the hot reload is a SLOT WALK ------------------------------
+        //
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §31.19; the problem it closes is
+        //    .dev/_DONE/btree-hsm-unif/DESIGN.md §Q6.
+        // ⚠ These are the FIRST rails on HSM hot reload at all. The chunk walk they replace had
+        //   none — it asked the ECS for BrainHsm128's component table and handed spans to
+        //   HotReloadManager, and nothing ever asserted that a live instance came back re-bound.
+
+        /// <summary>Minimal single-state machine with a chosen structure hash.</summary>
+        private static HsmDefinitionBlob BuildBlob(uint structureHash) =>
+            new HsmDefinitionBlob(
+                new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 1 },
+                new[] { new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF } },
+                Array.Empty<TransitionDef>(), Array.Empty<RegionDef>(),
+                Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+
+        /// <summary>An entity running <paramref name="name"/>, with a slot-resident instance bound to it.</summary>
+        private unsafe Entity GivenAnEntityRunning(string name, int hash, HsmDefinitionBlob blob)
+        {
+            _world.RegisterComponent<BehaviorState>();
+            BlueprintTierTable.RegisterAll(_world);
+
+            _registry.Register(hash, name, new BehaviorDefinition
+            {
+                Name = name, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob,
+            });
+
+            var e = _world.CreateEntity();
+            _world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = hash, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1,
+            });
+            Assert.True(RootHsmAccess.EnsureRootInstance(_world, e, hash, blob));
+            return e;
+        }
+
+        private static BehaviorRegistry StagingWith(string name, int hash, HsmDefinitionBlob blob)
+        {
+            var staging = new BehaviorRegistry();
+            staging.Register(hash, name, new BehaviorDefinition
+            {
+                Name = name, BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob,
+            });
+            return staging;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7_R52</c> — A REBUILT MACHINE RE-BINDS THE LIVE INSTANCE IN ITS SLOT.</b>
+        ///
+        /// <para>🔴 <b>The property that had to survive the walk's rewrite.</b> The chunk walk hard-reset
+        /// every instance whose <c>Header.MachineId</c> still matched the OLD structure hash; the slot
+        /// walk tests <c>MachineId != newHash</c> per instance. ⇒ this rail states the OUTCOME both
+        /// shapes owe, so it does not care which one is underneath.</para>
+        ///
+        /// <para>⚠ <b>Non-vacuity is asserted, not assumed:</b> the instance is checked to be bound to
+        /// V1 and mid-flight in <c>Activity</c> BEFORE the reload. ⛔ Without that, a walk that silently
+        /// found no entities would pass.</para>
+        ///
+        /// <para>⭐⭐ <b>And it pins <c>Phase == Entry</c>, which is a real behaviour change.</b>
+        /// <c>HotReloadManager.HardReset</c> left <c>Phase = Idle</c>, and <c>CE-322</c> measured that an
+        /// <c>Idle</c> instance with an empty queue never advances — a hot-reloaded machine would have
+        /// sat inert until something external enqueued an event. Routing through the kernel's own
+        /// <c>Initialize</c> (§31.18) makes it ENTER, which is what a reload is for.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void O7_R52_QuickReload_ReBindsALiveInstance_WhoseMachineWasRebuilt_O7c4d()
+        {
+            const string Name = "HotReloadHsmDoc";
+            const int    Hash = 0x4D01;
+            const uint   V1 = 0xAAAA1111, V2 = 0xBBBB2222;
+
+            var e = GivenAnEntityRunning(Name, Hash, BuildBlob(V1));
+
+            // Drive it into a running configuration, so a re-bind is observable as more than a hash write.
+            Assert.True(RootHsmAccess.TryGetInstance(_world, e, out byte* before, out int width));
+            ((InstanceHeader*)before)->Phase = InstancePhase.Activity;
+            HsmKernel.GetActiveLeafIds(before, width, out _)[0] = 7;
+            Assert.Equal(V1, ((InstanceHeader*)before)->MachineId);     // non-vacuity
+
+            using var coordinator = CreateCoordinator();
+            coordinator.ApplyQuickReload(
+                new AssemblyLoadContext("qr-hsm-rebind", isCollectible: true),
+                StagingWith(Name, Hash, BuildBlob(V2)),
+                _blueprintRegistry.BeginStaging());
+
+            Assert.True(RootHsmAccess.TryGetInstance(_world, e, out byte* after, out int afterWidth));
+            var hdr = (InstanceHeader*)after;
+
+            Assert.Equal(V2, hdr->MachineId);                           // ⭐ THE RAIL
+            Assert.Equal(InstancePhase.Entry, hdr->Phase);              // ⭐ and it will ENTER
+            Assert.Equal((ushort)0xFFFF, HsmKernel.GetActiveLeafIds(after, afterWidth, out _)[0]);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7_R53</c> — A MACHINE THAT WAS NOT REBUILT KEEPS RUNNING.</b>
+        ///
+        /// <para>⛔⛔ <b>This is the half a "reset everything" walk would silently destroy</b>, and it is
+        /// why the per-instance hash test is not merely a simplification: a rebuild of one behaviour
+        /// must not restart every other machine in the world. ⭐ The old code expressed this as
+        /// <c>ReloadResult.NoChange</c>; the slot walk expresses it as the mismatch test failing.</para>
+        ///
+        /// <para>🔴 <b>It also covers the defect the rewrite removed.</b> <c>HotReloadManager</c> cached
+        /// the blob per machine id and updated the cache on the FIRST call, so a SECOND chunk for the
+        /// same machine compared new-against-new and reset nothing — harmless with one chunk, but fatal
+        /// for a per-entity walk. ⇒ a second entity is included here for exactly that reason, and
+        /// <c>O7_R52</c>'s twin would have caught the inverse.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void O7_R53_QuickReload_LeavesAnUnchangedMachineRunning_O7c4d()
+        {
+            const string Name = "HotReloadHsmStableDoc";
+            const int    Hash = 0x4D02;
+            const uint   V1 = 0xCCCC3333;
+
+            var blob = BuildBlob(V1);
+            var first = GivenAnEntityRunning(Name, Hash, blob);
+
+            // A SECOND entity on the same machine — the per-entity walk must treat both alike.
+            var second = _world.CreateEntity();
+            _world.AddComponent(second, new BehaviorState
+            {
+                ActiveBehaviorHash = Hash, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1,
+            });
+            Assert.True(RootHsmAccess.EnsureRootInstance(_world, second, Hash, blob));
+
+            foreach (var e in new[] { first, second })
+            {
+                Assert.True(RootHsmAccess.TryGetInstance(_world, e, out byte* p, out int w));
+                ((InstanceHeader*)p)->Phase = InstancePhase.Activity;
+                HsmKernel.GetActiveLeafIds(p, w, out _)[0] = 3;
+            }
+
+            using var coordinator = CreateCoordinator();
+            coordinator.ApplyQuickReload(
+                new AssemblyLoadContext("qr-hsm-nochange", isCollectible: true),
+                StagingWith(Name, Hash, BuildBlob(V1)),      // SAME structure hash
+                _blueprintRegistry.BeginStaging());
+
+            foreach (var e in new[] { first, second })
+            {
+                Assert.True(RootHsmAccess.TryGetInstance(_world, e, out byte* p, out int w));
+                Assert.Equal(InstancePhase.Activity, ((InstanceHeader*)p)->Phase);   // ⭐ still running
+                Assert.Equal((ushort)3, HsmKernel.GetActiveLeafIds(p, w, out _)[0]); // ⭐ same state
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>O7_R54</c> — A REBUILD THAT CHANGES THE MACHINE'S TIER RE-ATTACHES THE SLOT.</b>
+        ///
+        /// <para>🔴 <b>Not tidiness — an out-of-bounds write.</b> A machine edited from one region to
+        /// three moves from the 64-byte tier to the 256-byte one. Initialising the new definition into
+        /// the old 64-byte allocation writes 192 bytes past the slot, straight into whatever occurrence
+        /// was attached after it. ⚠ No compiler check and no runtime check (§9.4).</para>
+        ///
+        /// <para>⭐ <c>O7_R44</c> pins the same property on the ASSIGN path; this is the reload path,
+        /// which reaches <c>ResolveOrAttachRoot</c> by a different route.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void O7_R54_QuickReload_ReAttachesAtTheNewWidth_WhenTheRebuildChangesTier_O7c4d()
+        {
+            const string Name = "HotReloadHsmGrowDoc";
+            const int    Hash = 0x4D03;
+
+            var narrow = BuildBlobWithRegions(0x0DD64, regionCount: 0);
+            var wide   = BuildBlobWithRegions(0x0DD256, regionCount: 3);
+            Assert.Equal(64,  HsmInstanceManager.SelectTier(narrow));
+            Assert.Equal(256, HsmInstanceManager.SelectTier(wide));
+
+            var e = GivenAnEntityRunning(Name, Hash, narrow);
+            Assert.True(RootHsmAccess.TryGetInstance(_world, e, out _, out int widthBefore));
+            Assert.Equal(64, widthBefore);                              // non-vacuity
+
+            using var coordinator = CreateCoordinator();
+            coordinator.ApplyQuickReload(
+                new AssemblyLoadContext("qr-hsm-grow", isCollectible: true),
+                StagingWith(Name, Hash, wide),
+                _blueprintRegistry.BeginStaging());
+
+            Assert.True(RootHsmAccess.TryGetInstance(_world, e, out byte* after, out int widthAfter));
+            Assert.Equal(256, widthAfter);                              // ⭐ THE RAIL
+            Assert.Equal(0x0DD256u, ((InstanceHeader*)after)->MachineId);
+        }
+
+        /// <summary>A blob whose region count drives <c>SelectTier</c> to the wanted width.</summary>
+        private static HsmDefinitionBlob BuildBlobWithRegions(uint structureHash, int regionCount)
+        {
+            return new HsmDefinitionBlob(
+                new HsmDefinitionHeader
+                {
+                    StructureHash = structureHash, StateCount = 1, RegionCount = (ushort)regionCount,
+                },
+                new[] { new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF } },
+                Array.Empty<TransitionDef>(), new RegionDef[regionCount],
+                Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
         }
     }
 

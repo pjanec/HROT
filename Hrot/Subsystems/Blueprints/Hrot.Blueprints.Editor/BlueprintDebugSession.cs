@@ -1594,11 +1594,24 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (store.IsEmpty) return false;
 
         // The hosting machine's id — the other half of the key the thunk computed.
+        //
+        // ⭐⭐⭐ O7c-④d (2026-09-23): READ FROM THE ROOT HSM SLOT, THROUGH THE VIEW.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //   ⭐ This is the consumer RootHsmAccess.TryCopyInstanceInView was built for in ④a: this
+        //     method is handed an ISimulationView that may be a read-only SNAPSHOT, so it must not
+        //     cast to EntityRepository — which is exactly why that seam returns a COPY rather than
+        //     the pointer TryGetInstance hands the tick arm.
+        //   ⚠ The buffer is the LARGEST kernel tier, because the width is a runtime value and a
+        //     short destination is refused (TryCopyInstanceInView reports the width it needed).
+        //   ⛔ MachineId is InstanceHeader's first field and the header is shared by all three tiers,
+        //     so this read does not depend on which tier the machine landed in.
         uint machineId = 0;
-        // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is gone — the branch was unreachable, because
-        //   no production path ever attached that component.
-        if (effectiveView.HasComponent<BrainHsm128>(self))
-            machineId = effectiveView.GetComponentRO<BrainHsm128>(self).State.Header.MachineId;
+        Span<byte> instanceCopy = stackalloc byte[256];
+        if (global::Fdp.Toolkit.Behavior.RootHsmAccess.TryCopyInstanceInView(effectiveView, self, instanceCopy, out int instanceWidth)
+            && instanceWidth >= sizeof(uint))
+        {
+            machineId = System.BitConverter.ToUInt32(instanceCopy);
+        }
 
         bool any = false;
         fixed (byte* mem = store)

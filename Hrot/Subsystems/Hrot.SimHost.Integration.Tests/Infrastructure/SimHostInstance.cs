@@ -892,8 +892,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
-            // HSM brain tiers (for APC-style HSM behaviors)
-            world.RegisterComponent<BrainHsm128>();
+            // ⛔ O7c-④d (2026-09-23): the HSM brain tier is no longer a component. The instance is
+            //   an occurrence slot, so what an HSM-brained entity needs registered is the tier
+            //   ladder — and BlueprintComponentRegistry already does that for this world.
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();

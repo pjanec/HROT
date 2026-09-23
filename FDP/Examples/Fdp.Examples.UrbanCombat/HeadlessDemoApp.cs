@@ -252,7 +252,6 @@ namespace Fdp.Examples.UrbanCombat
             //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
             Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(World);
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();

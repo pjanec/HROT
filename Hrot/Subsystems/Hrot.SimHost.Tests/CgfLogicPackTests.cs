@@ -38,7 +38,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();

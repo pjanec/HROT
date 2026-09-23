@@ -6832,3 +6832,127 @@ any state at all.
 `Phase == Entry` — a VALUE — and they would have been satisfied by *any* non-`Idle` value.
 ⭐ **Only `O7_R49` reads the consequence**, which is why it is the rail that had to be written: the
 existing ones pin that the phase is what we chose, not that the machine runs.
+
+---
+
+### 31.19 ⭐⭐⭐ `O7c`-④d AS BUILT — **`BrainHsm128` IS DELETED; NO ROOT BRAIN COMPONENT REMAINS** *(`2026-09-23`)*
+
+⭐⭐ **The programme's last brain component is gone.** `BrainBlackboard`/`Blackboard1024` (`P4`),
+`BrainBTreeState` (`O7c`-②), `BrainHsm64` (`O7c`-①) and now `BrainHsm128`. ⇒ **an entity's brain
+state is entirely occurrence-resident**, and `BehaviorState.BrainTier` is the only discriminator.
+
+#### 31.19.1 ⛔⛔ THE SURFACE WAS **THIRTEEN** SITES, NOT NINE — and the four extras were the REAL ones
+
+🔴 **The resumption doc's measured list was short, and the misses are worth naming** because they
+share a shape: each was a **READER** of the component, and the grep that produced the nine had
+filtered to registration/attach sites.
+
+| missed site | what it actually did |
+|---|---|
+| 🔴 `TelemetryReporterSystem.cs:95,98` | **queried `With<BrainHsm128>()` and read `ActiveLeafIds[0]`** — the `HSM TRANSITION` milestone the UrbanCombat suite asserts on |
+| 🔴 `BlueprintDebugSession.cs:1600` | read `Header.MachineId` **through an `ISimulationView`** — ⭐ and it is the genuine consumer `TryCopyInstanceInView` was built for |
+| `ComponentDamageScenario.cs:92,252` | registered **and attached** it |
+| `UrbanCombatNewScenario.cs:378` | registered it |
+
+⇒ ⭐⭐ **`search_code`/grep answered *"where is this name"* and the list was then hand-filtered by
+what each line looked like.** ⛔ The filter is where the four went. 🔒 **A deletion inventory must
+classify every hit, not drop the ones that do not look like the category being counted.**
+
+#### 31.19.2 🔴🔴 THE HOT RELOAD CAN NOW **GROW** AN ENTITY'S STORE — and the rail found it the hard way
+
+⭐ **What replaced `ReloadHsmChunks<T>`.** The chunk walk asked the ECS for `BrainHsm128`'s component
+table and handed each chunk's `Span<T>` to `HotReloadManager.TryReload`. ⛔ With instances in slots
+there is **no span of instances to hand anybody**, so `btree-hsm-unif` §Q6's request for a
+chunk-aware `TryReload` is **moot rather than answered**.
+
+⭐⭐ **The replacement is ONE slot walk over every entity, after the registry merge**, testing
+`Header.MachineId != blob.Header.StructureHash` per instance — the same predicate `TryReload` applied,
+with the remembered blob removed because **the instance already carries the fact**.
+
+| ⚠ three things the design did not predict | |
+|---|---|
+| ⛔⛔ **`HotReloadManager` had a latent bug the rewrite removes** | it cached the blob per machine id and updated the cache on the FIRST call ⇒ a SECOND chunk for the same machine compared new-against-new, answered `NoChange` and reset nothing. ⚠ Harmless while one chunk held every instance; **fatal for a per-entity walk**, where every entity after the first is skipped. ⇒ the stateless predicate is not a simplification, it is the only correct shape. `O7_R53` includes a second entity for exactly this |
+| 🔴🔴 **A TIER CHANGE MUST PROMOTE THE STORE FIRST — MEASURED, NOT FORESEEN** | `ResolveOrAttachRoot` **DETACHES** on a guard mismatch and only then attaches ⇒ when the store could not hold the wider instance the entity was left with **NO machine at all** — strictly worse than the stale one. 📐 `O7_R54` failed exactly this way (`TryGetInstance` → `false`) before `BlueprintTierTable.EnsureAtLeast` was added ahead of the attach. ⭐ **That failure IS the red-proof** |
+| ⚠ **`Initialize`, not `HardReset`** | `HotReloadManager.HardReset` left `Phase = Idle`, and §31.18 measured that an `Idle` instance with an empty queue **never advances** ⇒ a hot-reloaded machine would have sat inert. Routing through the kernel's own `Initialize` makes it ENTER — the `CE-322` ruling, in a second place |
+
+⇒ ⭐ **`HotReloadManager` now has NO consumer in HROT**, and the coordinator's field is gone with it.
+⛔ It is **not deleted** from `ExtDeps` — it is FastHSM's own type, and *"unreferenced is not
+unintentional"* applies across the line hardest.
+
+#### 31.19.3 ⭐⭐ THE DEBUG DECODERS ARE SIZE-DRIVEN — **and two tiers became TESTABLE for the first time**
+
+| | before ④d | after |
+|---|---|---|
+| where the snapshot reads | `BrainHsm128` component | ⭐ `RootHsmAccess.TryGetInstance` — pointer **and** width |
+| which tier it decodes | ⛔ **128, always** — the component WAS the width | ⭐ 64 / 128 / 256, switched on the slot's guard |
+| the leaves | `HsmInstance128.ActiveLeafIds`, count hard-coded 4 | ⭐ `HsmKernel.GetActiveLeafIds` — the kernel owns the per-tier region count (§31.16.1's second `ExtDeps` addition, **now with its third consumer**) |
+
+⛔⛔ **"Decodes the right tier" was not a property anything could fail before this slice** — the
+component was 128 bytes for every machine, so there was no wrong answer available. ⭐ `O7_R50`/`O7_R51`
+are the first rails that can, and they assert on the layouts that genuinely differ: the 64 tier's
+**single shared event slot at `EventBuffer[0]` with no interrupt reservation**, and the 256 tier's
+**eight regions, ring of five, and sixteen history slots**.
+
+⭐ **`RootHsmAccess.TryCopyInstanceInView` — built in ④a and consumer-less ever since — got its
+consumer**, and it is `BlueprintDebugSession`, not `HsmDebugSession`. 📐 The reason is measured:
+`HsmDebugSession.Update` takes an `EntityRepository`, so the pointer form is both available and
+cheaper; `BlueprintDebugSession` is handed an `ISimulationView` that may be a read-only snapshot, which
+is the case the copy exists for. ⚠ **The ④a doc-comment named the wrong one of the two.**
+
+#### 31.19.4 ⭐⭐ WHAT A DELETED COMPONENT'S TESTS OWED — **re-home the CLAIM, never drop the test**
+
+📐 **Eleven test sites across six projects.** ⛔ The tempting move — delete each test with the type —
+would have silently retired live claims. ⭐ Each was re-homed onto whatever now carries the property:
+
+| the claim | re-homed onto |
+|---|---|
+| brain execution state is **recordable but NOT saveable** | ⭐ `BlueprintBlackboard1024` — which carries the same `[DataPolicy(NoScenario)]` the component did |
+| the Stride node does **not** register cognitive components | `HsmTraceWorkingMemory1024` — still cognitive-only |
+| the wrapper is at least as big as the kernel instance | ⭐⭐ **STRONGER**: the three kernel tiers are **exactly** 64/128/256, because those three numbers are now the only thing that sizes a slot. ⛔ Equality, not `>=` — a slot may not carry slack |
+| *"the APC is the entity with an HSM brain"* | `BehaviorState.BrainTier == BrainTierHsm`, which is what the component selector always MEANT |
+
+⚠ **Three rows genuinely became vacuous and were deleted rather than re-homed** — every
+*"registry X does NOT register `BrainHsm128`"* assertion. ⭐ Asserting the absence of a type that no
+longer exists proves nothing; `O7c`-①/② and `P4` reached the same verdict for their components.
+
+#### 31.19.5 📐 THE RAILS
+
+| id | what it pins |
+|---|---|
+| `O7_R50` | ⭐ a **64-byte** machine decodes on the 64 arm — the deciding assertion is the event at `EventBuffer[0]`, which the 128 arm reads as the ring at `+24` |
+| `O7_R51` | ⭐ a **256-byte** machine shows **all eight** regions, the interrupt slot plus two ring entries, and history slot **15** |
+| `O7_R52` | ⭐⭐ a rebuilt machine **re-binds** the live instance in its slot, with `Phase == Entry` and the old configuration cleared. ⚠ Non-vacuity asserted before the reload |
+| `O7_R53` | ⛔⛔ a machine that was **not** rebuilt **keeps running** — the half a reset-everything walk destroys, over **two** entities |
+| `O7_R54` | 🔴 a rebuild that changes the machine's TIER re-attaches at the new width, **after promoting the store** |
+
+✅ **Red-proofs.** `O7_R50` red when the 64 arm is pointed at `DecodeEventQueue128`. `O7_R52` red when
+the mismatch predicate is inverted — ⭐ and `O7_R53` stays GREEN under that same edit, which is what
+makes the pair meaningful rather than one rail twice. `O7_R54` red-proved **by its own first run**,
+before the promotion existed.
+
+#### 31.19.6 ⚠ ONE THING FOUND AND NOT CAUSED — `Hrot.NodeComposition.Tests` DID NOT COMPILE
+
+📐 `MockNedReplicationModule` never implemented `INedReplicationModule.ExpectedPeers`. ⛔ Nothing to do
+with `O7c`: the project has no `obj/project.assets.json` in a fresh container, so it was **skipped,
+not run** — trap ③ again, and the third time this programme has found a defect hiding behind an
+unrestored project. ⭐ Fixed in place (`=> null`, matching every production `?.ExpectedPeers` call
+site) because otherwise this slice's own edit to that project could not be verified.
+
+#### 31.19.7 🔴🔴 TRAP ④ BIT AGAIN, IN A TEST FIXTURE — **never OVERWRITE `ActiveBehaviorHash`, ADOPT it**
+
+📐 **Measured, 4 reds in `Hrot.Blueprints.Tests`.** `BlueprintTestFixture.DispatchThroughKernel` needed
+a behaviour hash to key the host machine's root HSM slot from, and stamped its own over whatever the
+entity had. ⛔ **Every root slot key — params, BTree cursor, HSM instance — is computed from that
+field**, so the overwrite orphaned the ROOT PARAMS slot the thunk was about to read, and the failure
+surfaced four frames deep inside the kernel:
+
+> `System.InvalidOperationException : Entity 0 has no ROOT PARAMS slot` — thrown from a generated
+> thunk, inside `HsmKernelCore.InitializeSlot`.
+
+⭐ **The fix is the rule:** adopt the entity's hash when it has one, and stamp only when it is `0`
+*(which keys nothing, so there is nothing to orphan)*.
+
+⚠⚠ **This is the THIRD time this programme has hit it** — `CE-321` ③ in two example scenarios, the
+`AssignBehaviorHashEvent` leak in §31.16.7, and now a test fixture. ⇒ 🔒 **`ActiveBehaviorHash` is not
+a field, it is an ADDRESS.** ⭐ The error message earned its length: it named the cause in the first
+clause and that is what made this a five-minute diagnosis instead of a bisect.

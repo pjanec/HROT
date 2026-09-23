@@ -72,7 +72,7 @@ namespace Fdp.Examples.UrbanCombat
         // Auto-incrementing network ID counter used when _entityMap is provided.
         private long _nextNetId = 1;
 
-        // Cached APC HSM structure hash so BrainHsm128 can be pre-initialised.
+        // Cached APC HSM structure hash so the root HSM slot can be pre-initialised (O7c-④).
         private readonly uint _apcHsmStructureHash;
 
         /// <summary>

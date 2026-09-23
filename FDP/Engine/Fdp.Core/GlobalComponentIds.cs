@@ -121,8 +121,14 @@
         /// ⭐ The 64-byte HSM TIER survives; only the ECS wrapper is gone (§9.4).
         public const int BrainHsm64_RESERVED     = 35;
 
-        /// <summary><c>BrainHsm128</c> â€” 128-slot HSM runtime state for entity brains.</summary>
-        public const int BrainHsm128             = 36;
+        /// <summary>⛔ <b>RESERVED — was <c>BrainHsm128</c></b>, deleted by <c>O7c</c>-④d (2026-09-23).
+        /// The root HSM instance is an occurrence slot keyed by the behaviour hash, sized by
+        /// <c>HsmInstanceManager.SelectTier</c> at attach — 64, 128 or 256 bytes — and reached through
+        /// <c>RootHsmAccess</c>. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.19.
+        /// ⚠ <b>The id is BURNED, not freed</b> — same reason as 23, 31, 35 and 74: a stale recording or
+        /// a replayed stream must not bind id 36 to a different component.
+        /// ⭐ The 128-byte HSM TIER survives; only the ECS wrapper is gone (§9.4).</summary>
+        public const int BrainHsm128_RESERVED    = 36;
 
         /// <summary><c>PassengerBuffer</c> â€” fixed-capacity passenger roster on a vehicle entity.</summary>
         public const int PassengerBuffer         = 37;

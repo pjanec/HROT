@@ -11,9 +11,10 @@ namespace Fdp.Toolkit.Behavior.Translators
 {
     /// <summary>
     /// Translates <see cref="BehaviorProfileDto"/> into AI / behavior ECS components.
-    /// Selects brain memory components based on <see cref="BehaviorProfileDto.BrainTier"/>:
-    ///   <see cref="BehaviorConstants.BrainTierHsm"/> = FastHSM (<see cref="BrainHsm128"/>),
-    ///   <see cref="BehaviorConstants.BrainTierBTree"/> = FastBTree (<see cref="BrainBTreeState"/>).
+    ///
+    /// <para>⛔ <b><c>O7c</c>-④d (2026-09-23): there are no brain MEMORY COMPONENTS to select any
+    /// more.</b> <c>BrainTier</c> still branches here, but only the BTree arm provisions anything —
+    /// a root occurrence slot via <see cref="RootStateAccess.EnsureRootState"/>. 📄 §31.19.</para>
     /// </summary>
     public sealed class BehaviorTkbTranslator : ITkbEntityTranslator
     {
@@ -23,10 +24,8 @@ namespace Fdp.Toolkit.Behavior.Translators
         }
 
         /// <summary>
-        /// ⚠ Declared UNCONDITIONALLY, including the branch-selected pair
-        /// (<see cref="BrainBTreeState"/> / <see cref="BrainHsm128"/>, chosen by
-        /// <c>BrainTier</c>) — see the interface's contract for why over-declaring here is free and
-        /// omitting is not. ⭐ <see cref="EntityInfo"/> is the one entry carrying
+        /// ⚠ The branch-selected brain pair is no longer here at all — both roots are occurrence
+        /// slots (<c>O7c</c>). ⭐ <see cref="EntityInfo"/> is the one entry carrying
         /// <c>[PerInstanceValue]</c>: its <c>ForceId</c> is a TEMPLATE default that a per-spawn faction
         /// must beat, which is exactly what the promotion gate protects.
         /// </summary>
@@ -42,7 +41,9 @@ namespace Fdp.Toolkit.Behavior.Translators
             yield return typeof(InteractionChannel);
             yield return typeof(MissionPlanQueue);
             yield return typeof(PassengerBuffer);
-            yield return typeof(BrainHsm128);
+            // ⛔ O7c-④d: BrainHsm128 is gone. There is no brain COMPONENT left to declare — both
+            //   roots are occurrence slots, and the store's tier component is declared by the
+            //   blueprint side, not here.
         }
 
         public void Inject(EntityRepository repo, Entity entity, TkbTemplate template)
@@ -132,11 +133,18 @@ namespace Fdp.Toolkit.Behavior.Translators
                 //   provisioner is THIS site at spawn and BehaviorIngressSystem on every assign after.
                 RootStateAccess.EnsureRootState(repo, entity, dto.DefaultBehaviorHash);
             }
-            else if (dto.BrainTier == BehaviorConstants.BrainTierHsm)
-            {
-                if (repo.IsComponentTypeRegistered<BrainHsm128>() && !repo.HasComponent<BrainHsm128>(entity))
-                    repo.AddComponent(entity, new BrainHsm128());
-            }
+            // ⛔⛔ O7c-④d (2026-09-23) — THE HSM ARM IS GONE, AND IT HAS NO SLOT-BASED REPLACEMENT.
+            //   📄 §31.15.1 measured why, and the answer is that the arm PROVISIONED NOTHING USABLE:
+            //   it attached a ZEROED BrainHsm128, whose Header.MachineId is 0, and
+            //   HsmKernelCore.ValidateInstance rejects exactly that by `continue`. ⇒ an entity that
+            //   spawned with a default HSM behaviour and never received an assign carried a component
+            //   the kernel refused to step — the attach bought reachability, not a running machine.
+            //   ⛔ It cannot be ported: sizing the slot needs SelectTier(blob), the blob comes from
+            //   the BehaviorRegistry, and TkbTranslatorSet.Base() holds no registry. ⭐ Provisioning
+            //   an HSM instance is therefore BehaviorIngressSystem's alone — a faithful port of what
+            //   this site actually achieved, not a narrowing.
+            //   ⚠ The BTree arm above is NOT symmetric with this and must stay: every BTree behaviour
+            //   has a cursor, and sizeof(BehaviorTreeState) is a compile-time constant.
 
             // ⛔⛔ P4 §2 ② (2026-09-22) — THE BrainBlackboard ATTACH IS GONE WITH THE COMPONENT.
             //   🔴 This was the ONLY site that attached it, and it attached an EMPTY one: nothing had
