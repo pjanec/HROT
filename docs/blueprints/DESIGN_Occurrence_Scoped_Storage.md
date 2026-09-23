@@ -6443,3 +6443,95 @@ the HSM arm.**
 run · ④ the golden still green *(it proves the MERGE did not break the BTree arm — which it very much
 can)*. ⚠ **④ is the one that matters most about the merge**, and it is the reason the merge lands with
 the HSM slice rather than before it.
+
+### 31.15 ⭐⭐⭐ `O7c`-④a AS BUILT — **THE ROOT HSM INSTANCE IS AN OCCURRENCE SLOT** *(`2026-09-23`)*
+
+⭐ **What §31.14.7 asked for, and what it turned out to cost.** `RootHsmAccess` is the member-for-member
+mirror of `RootStateAccess` the design predicted. ⛔ **Four things the design did NOT predict** are below,
+each measured rather than reasoned, and two of them changed code outside the new file.
+
+#### 31.15.1 ⛔⛔ THE SPAWN TRAP HAS **NO HSM TWIN** — **and the reason is that the component was already inert**
+
+📐 **Measured, and it is the opposite of what `O7c`-②'s hardest finding would predict.** The BTree half's
+load-bearing surprise was that `BehaviorTkbTranslator` must provision at SPAWN, because spawn publishes no
+`AssignBehaviorEvent`. ⚠ **The HSM arm cannot do that, and does not need to:**
+
+| | |
+|---|---|
+| ⛔ **it CANNOT** | `TkbTranslatorSet.Base()` *(`Hrot/Engine/Hrot.Core/Tkb/TkbTranslatorSet.cs:94`)* is **static and holds no `BehaviorRegistry`**, so the translator cannot reach the `HsmDefinitionBlob` — and without the blob there is no `SelectTier`, hence no width. ⭐ A BTree cursor is a `sizeof`; an HSM instance is not |
+| ⭐⭐ **and it NEED NOT** | 📐 the old spawn attach was `repo.AddComponent(entity, new BrainHsm128())` — a **ZEROED** instance, whose `InstanceHeader.MachineId` is `0`, which `HsmKernelCore.ValidateInstance:77` rejects by `continue`. ⇒ **a spawned-but-never-assigned HSM brain has never run**, and two example scenarios hand-patch `MachineId` precisely because of it *(`ScenarioDirector.cs:238`, `UrbanCombatNewScenario.cs:611`)* |
+
+⇒ 🔒 **Ingress is, and always was, the only thing that makes an HSM brain runnable.** ⭐ Putting HSM
+provisioning at ingress alone is therefore a faithful port, not a narrowing — ⛔ and §31.14's sequence
+diagram had it right for the HSM arm even though the same diagram was wrong for BTree.
+
+#### 31.15.2 🔴🔴 `$occ.rootHsm` IS A **DISTINCT KEY**, AND THAT IS MEMORY SAFETY
+
+⚠ An entity is BTree-tier **or** HSM-tier, so the two root execution-state slots never coexist and one
+shared reserved id looks economical. ⛔ **It is a latent corruption.** The `ClearBehaviorEvent` handler
+calls `RootStateAccess.ResetState` **unconditionally** — it runs for both brains — and that resolves its
+slot by key and writes `default(BehaviorTreeState)`, **64 bytes**, through a `BehaviorTreeState*`.
+⇒ with a shared id it would find an HSM instance and zero its first 64 bytes while reading it as a tree
+cursor. ⭐ **Distinct ids make the mis-resolution unexpressible rather than merely unlikely.**
+
+#### 31.15.3 ⭐⭐ THE DETACH ASYMMETRY IS **INVERTED**, so the ordering constraint flips
+
+| | root params · root tree state | **root HSM instance** |
+|---|---|---|
+| slot kind | `BTree` | **`Hsm`** |
+| seen by `DetachHostedOccurrenceSlots`? | ⛔ **no** — it sweeps `Hsm\|Blueprint` only | ✅ **yes** |
+| ⇒ needs an explicit detach? | ✅ **yes**, and `CE-302` was the bill for forgetting | ⛔ **no — it is reclaimed for free** |
+| ⇒ ordering constraint | attach **after** the sweep *(kept uniform, not forced)* | 🔴 attach **after** the sweep — **FORCED**, or the sweep removes the slot on the very assign that created it |
+
+⭐ Both handlers already place the root attaches after the sweep, so nothing moved — ⛔ but the comment at
+that site now says WHY it may not move, because for the HSM arm it is load-bearing rather than tidy.
+
+#### 31.15.4 🔴🔴 `EnsureOccurrenceStore`'s EARLY RETURN WAS CORRECT BY ARITHMETIC — **and this slice breaks that**
+
+📐 **Measured, and it is a hole this slice OPENS rather than one it inherits.** Every root cost the
+provisioner could previously be asked for was a **CONSTANT** — the tree cursor is always 64, the root
+params always `MaxBehaviorParamByteSize`. ⇒ a store that fitted the first assign fitted every later one,
+and `if (GetCurrentTierSize(...) != 0) return;` was right **by arithmetic, not by luck**.
+
+⛔ **The root HSM instance is the first variable-width root cost.** Reassigning an entity from a
+one-region machine *(tier 64)* to a three-region one *(tier 256)* RAISES the demand: `256` aligned plus a
+`16`-byte slot entry is **272**, and the smallest store's payload is **176**. ⇒ the attach would return
+`null` and the machine would never run — **no throw, no log**, the `CE-315` shape again.
+
+⭐ **The fix, and why it is not `CE-318` in disguise:** the guard asks *"does the demand fit this tier's
+CAPACITY at all"*, never *"is there room right now"*. ⚠ Free space understates, because the previous
+behaviour's slots are reclaimed **after** provisioning returns. ⇒ comparing against `PayloadSize` /
+`MaxSlots` promotes **only** an entity whose tier could never hold the demand, and leaves every entity
+that fits exactly where it is. 🔒 **No BTree entity's tier moves, so the golden cannot shift under it.**
+
+#### 31.15.5 ⏳ `ResetHsmComponents` SURVIVES ④a **ON PURPOSE**
+
+⛔ This repo files duplicates as defects, so the exception is stated rather than assumed. ④a moves the
+instance INTO a slot; ④b moves the **READER** onto it. Between them `HsmTickSystem<BrainHsm128>` still
+steps the COMPONENT — ⇒ deleting the component reset now would leave every HSM brain at `MachineId == 0`,
+which `ValidateInstance` rejects **silently**. ⭐ The slot is provisioned and bound alongside it and is
+asserted by ④a's rails; **④b deletes the method in the same change that switches the reader.**
+
+⚠ **Measured difference, recorded so ④b is not a surprise:** the component branch clears only
+`Terminated`; `RootHsmAccess.ResetInstance` routes to `HsmInstanceManager.Initialize`, which zeroes the
+WHOLE instance and so also clears `Paused` and resets `Generation` to 1. 📐 Nothing in production ever
+SETS `InstanceFlags.Paused` on an HSM instance — `HsmKernelCore:79` is the only reference and it only
+READS — so the difference is unobservable today. ⭐ *"Unobservable today"* is a measurement, not a guarantee.
+
+#### 31.15.6 ⭐ WHY `Initialize` AND NOT `Reset`
+
+📐 `HsmInstanceManager.Reset` **preserves `MachineId`** — it restarts a machine that is already bound.
+⛔ Ingress's case is a behaviour CHANGE, where the instance must be re-bound to a **different** machine.
+⇒ `Initialize` is the correct call, and it is the one `O7c`-③ made size-driven.
+
+#### 31.15.7 📐 THE RAILS — **added to the feature's OWN suite** (`BehaviorIngressSystemHsmResetTests`)
+
+| rail | what it pins |
+|---|---|
+| `O7_R42` | ⭐⭐⭐ **a 64-byte machine reserves 64 bytes** — the headline, and the one claim `BrainHsm128` could never satisfy. §9.4's *"the tier stops being a TYPE and becomes a PAYLOAD SIZE"*, asserted |
+| `O7_R43` | the slot-resident instance is **BOUND** — `MachineId` stamped, `Phase` Entry, `Terminated` clear. ⛔ "the slot exists" is not the claim worth pinning; "the slot is runnable" is |
+| `O7_R44` | a machine that **outgrows its tier re-attaches at the new width** — 64 → 256, and is bound to the NEW machine. ⭐ **Red-proved** against §31.15.4's fix |
+| `O7_R45` | **five reassigns leave exactly ONE slot** — the `O7_R41` shape on the HSM root. A leak would read 5, and the 256 store has only 3 slots |
+
+⛔ **The component rails above them stay green and UNCHANGED**, which is the point of §31.15.5: ④a must
+not be able to break the path that is still executing.

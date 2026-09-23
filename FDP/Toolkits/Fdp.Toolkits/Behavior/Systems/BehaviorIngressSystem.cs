@@ -209,12 +209,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
                     ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def),
-                                           hosted, RootParamsCost(def), RootStateCost(def));
+                                           hosted, RootParamsCost(def), RootBrainStateCost(def));
                 }
                 else
                 {
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def), RootStateCost(def));
+                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def), RootBrainStateCost(def));
                 }
 
                 // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
@@ -299,11 +299,29 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
                 ResetHostedTreeStates(repo, evt.Entity, def);
 
-                // 3. BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
-                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
-                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
+                // 3. ⭐⭐⭐ O7c-④ — ATTACH the root HSM instance, then BIND it to the new behaviour's
+                //    topology. 📄 §31.14.
+                //
+                //    BHU-016 / CRITICAL FIX, unchanged in substance: InstanceHeader.MachineId must
+                //    equal the new blob's StructureHash or HsmKernelCore.ValidateInstance rejects the
+                //    instance on every subsequent tick — silently, by `continue`.
+                //
+                //    🔴🔴 ORDERING IS LOAD-BEARING, AND IN THE OPPOSITE DIRECTION FROM THE BTREE ROOT.
+                //      This slot declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots — which
+                //      sweeps exactly "kind Hsm|Blueprint and not named by the manifest" — CAN see it,
+                //      and a root key is never in a manifest. ⇒ attaching before that sweep would
+                //      remove the slot on the very assign that created it, which is the defect the
+                //      root PARAMS path already paid for once on HSM brains. ⛔ Do NOT move this block
+                //      above DetachHostedOccurrenceSlots.
                 if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
                 {
+                    RootHsmAccess.ResolveOrAttachRoot(
+                        repo, evt.Entity, behaviorId,
+                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                    RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
+
+                    // ⏳ O7c-④a ONLY — the COMPONENT is still what HsmTickSystem<BrainHsm128> steps.
+                    //    ⛔ Deleted in ④b together with that system; see ResetHsmComponents' own note.
                     ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
@@ -350,6 +368,11 @@ namespace Fdp.Toolkit.Behavior.Systems
                 //      been leaking the root params slot ever since. ⚠ Fixed here rather than filed,
                 //      because adding its exact twin while leaving it in place would be worse than
                 //      either doing both or neither.
+                //    ⭐ O7c-④: THE ROOT HSM SLOT NEEDS NO LINE HERE, AND THAT IS MEASURED, NOT FORGOTTEN.
+                //      It declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots(manifest: null) a
+                //      few lines above already reclaimed it — the same sweep that cannot see the two
+                //      BTree-kind slots below. ⚠ If that sweep's kind filter ever narrows, this is the
+                //      block that has to grow a RootHsmAccess.DetachRoot call.
                 if (previousBehaviorId != BehaviorIds.None)
                 {
                     RootStateAccess.ResetState(repo, evt.Entity);   // zero while the key still resolves
@@ -401,11 +424,21 @@ namespace Fdp.Toolkit.Behavior.Systems
                 }
                 ResetHostedTreeStates(repo, evt.Entity, def);
 
-                // BHU-016 / CRITICAL FIX: Reset HSM instance bound to the new behavior's topology.
-                // Supplying the StructureHash keeps InstanceHeader.MachineId in sync with the new
-                // HsmDefinitionBlob so HsmKernelCore.ValidateInstance passes on the very next tick.
+                // ⭐⭐ O7c-④ — attach + bind, as in the AssignBehaviorEvent handler.
+                //   🔴 ⚠ THIS HANDLER PROVISIONS NO STORE — the same pre-existing gap recorded above
+                //     for the root tree state (§22's F14b). ⇒ ResolveOrAttachRoot returns null when the
+                //     entity has no store and ResetInstance is then a no-op. ⛔ That is the SAME
+                //     reachability the BrainHsm128 component had here — it too was only touched if
+                //     already present — so this is not a regression, but it IS why a hash-assigned HSM
+                //     brain on a store-less entity does not run.
                 if (def != null && def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
                 {
+                    RootHsmAccess.ResolveOrAttachRoot(
+                        repo, evt.Entity, evt.BehaviorHash,
+                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                    RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
+
+                    // ⏳ O7c-④a ONLY — see the AssignBehaviorEvent handler's note.
                     ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
@@ -435,15 +468,13 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <para>⚠ <b>Brain tiers only.</b> A behaviour that is neither BTree nor HSM cannot host an
         /// occurrence, so it gets nothing — ⛔ this is not "a store for every entity".</para>
         /// </summary>
-        private static void EnsureOccurrenceStore(
+        private static unsafe void EnsureOccurrenceStore(
             EntityRepository repo, Entity entity, BehaviorDefinition def,
             HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0, int rootStateCost = 0)
         {
             if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
                 def.BrainTier != BehaviorConstants.BrainTierHsm)
                 return;
-
-            if (GetCurrentTierSize(repo, entity) != 0) return;   // already has one — idempotent
 
             // ⭐⭐ O7b-3: size it for what this behaviour will actually host. ⚠ A null demand means
             //   "nobody computed one" (§27.7), and the smallest tier is the same answer E-cap gave —
@@ -452,9 +483,46 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   or it is never counted at all.
             // ⭐ O7c-②: the ROOT TREE STATE slot is additive here on exactly the same footing as the
             //   root params slot — both attach after this returns, so both are counted before it.
-            int targetTier = SelectTierForPayload(
-                HostedPayloadCost(hosted) + rootParamsCost + rootStateCost,
-                (hosted?.SlotCount ?? 0) + (rootParamsCost > 0 ? 1 : 0) + (rootStateCost > 0 ? 1 : 0));
+            int demandPayload = HostedPayloadCost(hosted) + rootParamsCost + rootStateCost;
+            int demandSlots   = (hosted?.SlotCount ?? 0)
+                              + (rootParamsCost > 0 ? 1 : 0)
+                              + (rootStateCost  > 0 ? 1 : 0);
+
+            int currentTier = GetCurrentTierSize(repo, entity);
+            if (currentTier != 0)
+            {
+                // 🔴🔴 O7c-④a — "already has one" IS NO LONGER ENOUGH, and the reason is new with
+                //   this slice. Until now every cost this branch could be asked for was a CONSTANT:
+                //   the root tree state is always 64, the root params always MaxBehaviorParamByteSize.
+                //   ⇒ a store that fitted the first assign fitted every later one, and returning early
+                //   was correct by arithmetic rather than by luck.
+                //
+                //   ⭐ The root HSM instance breaks that: its width is SelectTier(blob) — 64, 128 or
+                //   256 — so reassigning an entity from a one-region machine to a three-region one
+                //   RAISES the demand. 📐 Measured: 256 bytes aligned plus a 16-byte slot entry is
+                //   272, and the smallest tier's payload is 176. ⇒ the attach a few lines later would
+                //   simply return null and the machine would never run — no throw, no log.
+                //
+                //   ⚠ THE GUARD IS DELIBERATELY "DOES IT FIT THE TIER AT ALL", NOT "IS THERE ROOM
+                //   RIGHT NOW". Free space understates: the PREVIOUS behaviour's slots are reclaimed
+                //   by DetachHostedOccurrenceSlots AFTER this returns. ⇒ comparing against capacity
+                //   promotes only an entity whose tier could never hold the demand, and leaves every
+                //   entity that fits exactly where it is. 📌 That is what keeps this off CE-318's
+                //   ground: no BTree entity's tier moves, so the golden cannot shift under it.
+                ref readonly var header =
+                    ref Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity));
+
+                if (demandPayload <= header.PayloadSize && demandSlots <= header.MaxSlots) return;
+
+                int grownTier = SelectTierForPayload(demandPayload, demandSlots);
+                if (grownTier <= currentTier) return;   // the ladder has nothing bigger to offer
+                if (!BlueprintTierTable.ByTotalSize(grownTier).IsRegistered(repo)) return;
+
+                UpgradeTier(repo, entity, currentTier, grownTier);
+                return;
+            }
+
+            int targetTier = SelectTierForPayload(demandPayload, demandSlots);
 
             // ⛔⛔ DO NOT WIDEN THE TOOLKIT'S CONTRACT. Registering the tier components is Hrot-wide
             //   (HrotSharedComponentRegistry, CE-161) but this system lives in Fdp.Toolkits, which
@@ -617,6 +685,42 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static int RootStateCost(BehaviorDefinition? def)
         {
             int bytes = RootStateAccess.RootStateBytes(def);
+            if (bytes <= 0) return 0;
+
+            return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
+                 + BlueprintBlackboardPartitions.SlotEntrySize;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7c</c>-④ — what the ROOT BRAIN'S EXECUTION STATE costs the tier demand,
+        /// whichever paradigm the brain is.</b> 📄 §31.14.
+        ///
+        /// <para>⭐⭐ <b>ONE cost, because it is ONE slot.</b> <see cref="RootStateCost"/> is non-zero
+        /// only for a BTree-tier behaviour and <see cref="RootHsmCost"/> only for an HSM-tier one —
+        /// <c>BehaviorState.BrainTier</c> is a single discriminator, so exactly one of the two can pay.
+        /// ⛔ Summing them is therefore not "reserve for both"; it is the one-line spelling of
+        /// <i>"reserve for whichever brain this is"</i>, and it is why the provisioners take a single
+        /// parameter rather than growing a second.</para>
+        /// </summary>
+        private static int RootBrainStateCost(BehaviorDefinition? def)
+            => RootStateCost(def) + RootHsmCost(def);
+
+        /// <summary>
+        /// ⭐⭐ <b>What the ROOT HSM INSTANCE slot costs the tier demand.</b>
+        ///
+        /// <para>🔴 <b>The one place this differs from every other cost in this file: the width is a
+        /// RUNTIME value</b> — <c>HsmInstanceManager.SelectTier(blob)</c> returns 64, 128 or 256 from
+        /// the machine's own shape. ⛔ Not a <c>sizeof</c>, and not 128 just because the retired
+        /// <c>BrainHsm128</c> component happened to be that wide. ⚠ A 64-byte machine now reserves 64,
+        /// which is the first time the kernel's smallest tier has been reachable at all.</para>
+        ///
+        /// <para>⛔⛔ <b>Counted HERE or never</b> — the slot attaches AFTER provisioning returns and
+        /// nothing later can grow the tier, which is a structural change inside a tick. That is
+        /// precisely the defect <c>CE-302</c> was on the params path.</para>
+        /// </summary>
+        private static int RootHsmCost(BehaviorDefinition? def)
+        {
+            int bytes = RootHsmAccess.RootHsmBytes(def);
             if (bytes <= 0) return 0;
 
             return AlignUp(bytes, BlueprintBlackboardPartitions.Alignment)
@@ -995,12 +1099,30 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         // ── HSM reset helper ─────────────────────────────────────────────────────
 
+        /// <summary>
+        /// ⛔⛔⛔ <b>DYING IN <c>O7c</c>-④b, AND DELIBERATELY STILL HERE FOR <c>O7c</c>-④a.</b> 📄 §31.14.
+        ///
+        /// <para>🔴 <b>Why a duplicate is the SAFE step here, when this repo files duplicates as
+        /// defects.</b> <c>O7c</c>-④a moves the instance INTO a slot; <c>O7c</c>-④b moves the READER
+        /// onto it. Between those two, <c>HsmTickSystem&lt;BrainHsm128&gt;</c> still steps the
+        /// COMPONENT — so deleting this now would leave every HSM brain with <c>MachineId == 0</c>,
+        /// which <c>HsmKernelCore.ValidateInstance</c> rejects SILENTLY by <c>continue</c>. ⇒ the
+        /// intermediate commit would be broken in the one way this programme's rails cannot see.
+        /// ⭐ The slot is provisioned and bound alongside it and is asserted by <c>O7c</c>-④a's rails;
+        /// ⛔ ④b deletes this method in the same change that switches the reader.</para>
+        ///
+        /// <para>⚠ <b>Measured difference against its replacement, stated so ④b is not a surprise.</b>
+        /// This branch clears only <c>Terminated</c>; <c>RootHsmAccess.ResetInstance</c> routes to
+        /// <c>HsmInstanceManager.Initialize</c>, which zeroes the WHOLE instance and so also clears
+        /// <c>Paused</c> and resets <c>Generation</c> to 1. 📐 Nothing in production ever SETS
+        /// <c>InstanceFlags.Paused</c> on an HSM instance — <c>HsmKernelCore:79</c> is the only
+        /// reference and it only READS — so the difference is unobservable today. ⭐ Recorded because
+        /// "unobservable today" is a measurement, not a guarantee.</para>
+        /// </summary>
         private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity, uint newMachineId)
         {
             // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is GONE with its component — it reset a
             //   component no production path ever attached. 📄 §31.5 step ①.
-            // ⚠ This method stays TYPE-driven on purpose: making it SIZE-driven is the HSM slice's
-            //   job (§31.8 — it needs a public size-driven Reset that FastHSM does not expose yet).
             if (repo.HasComponent<BrainHsm128>(entity))
             {
                 ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);

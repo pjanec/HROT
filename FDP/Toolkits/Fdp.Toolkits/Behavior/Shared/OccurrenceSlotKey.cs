@@ -267,6 +267,31 @@ namespace Fdp.Toolkit.Behavior.Shared
                    System.Guid.Empty,
                    RootStateVariableId);
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7c</c>-④ — the ROOT behaviour's HSM INSTANCE slot.</b>
+        ///
+        /// <para>⛔⛔ <b>A DISTINCT variable id from <see cref="RootStateVariableId"/>, and the reason is
+        /// a MEMORY-SAFETY hazard rather than tidiness.</b> An entity is BTree-tier or HSM-tier, so the
+        /// two root execution-state slots never coexist and ONE shared id would look economical. ⚠ But
+        /// the <c>ClearBehaviorEvent</c> handler calls <c>RootStateAccess.ResetState</c>
+        /// UNCONDITIONALLY — it runs for BTree and HSM brains alike — and that resolves its slot by key
+        /// and writes <c>default(BehaviorTreeState)</c>, 64 bytes, through a
+        /// <c>BehaviorTreeState*</c>. ⇒ with a shared id it would find an HSM instance and zero the
+        /// first 64 bytes of it while reading it as a tree cursor. ⭐ Distinct ids make that
+        /// mis-resolution unexpressible rather than merely unlikely.</para>
+        ///
+        /// <para>⭐ Otherwise the exact shape of <see cref="ComputeRootParamsKey"/>: no new arithmetic,
+        /// so every existing key stays byte-identical.</para>
+        /// </summary>
+        internal const string RootHsmVariableId = ReservedPrefix + "rootHsm";
+
+        internal static int ComputeRootHsmKey(int behaviourHash)
+            => Compute(
+                   BehaviourHashAsGuid(behaviourHash),
+                   OccurrenceSlotScope.Behavior,
+                   System.Guid.Empty,
+                   RootHsmVariableId);
+
         internal static int ComputeRootParamsKey(int behaviourHash)
             => Compute(
                    BehaviourHashAsGuid(behaviourHash),
