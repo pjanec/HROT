@@ -146,7 +146,7 @@ public sealed class TheOrchestratorCopyTickCopyTests
         string text = BTreeOrchestratorEmitCore.Emit(MakeDto(), new[] { group })!;
 
         text.Should().Contain("ref var subDto = ref master.PatrolSubTree_PatrolParams;");
-        text.Should().Contain("[BTreeAction(Name = \"Orchestrate_PatrolSubTree\")]");
+        text.Should().Contain("[BTreeAction]   // Orchestrate_PatrolSubTree");
         text.Should().Contain("return result;", "the sub-tree's status is the orchestrator's status");
     }
 

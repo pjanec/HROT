@@ -105,8 +105,19 @@ public static class BTreeOrchestratorEmitCore
 
         var sortedUsings = AiEmitCoreBase.SortUsings(usingsSet);
 
-        string bbShort   = OrchestratorAliasCollector.ShortTypeName(dto.BlackboardTypeName);
-        string ctxShort  = OrchestratorAliasCollector.ShortTypeName(dto.ContextTypeName);
+        // ⭐⭐⭐ CE-336 — THESE USED TO READ THE RAW DTO FIELDS, AND AN ASSET THAT DECLARES NEITHER
+        //    (the default for a freshly-created one) EMITTED `ref  master,` / `ref  ctx,` — two
+        //    EMPTY type names, i.e. C# that does not parse. 📐 Found by the first rail that ever
+        //    COMPILED this emitter's output. ⛔ `AiEmitCoreBase.Effective*TypeName` has been the
+        //    single source of truth for this exact fallback since CE-235, and BTreeBridgeEmitCore:329
+        //    already calls it — the seam existed and this emitter never adopted it.
+        // ⚠ The blackboard FALLBACK still names `BrainBlackboard`, which P4 RETIRED — see CE-337.
+        //    That is a defect in the default, not in this call site, and it is filed rather than
+        //    papered over here.
+        string bbShort   = OrchestratorAliasCollector.ShortTypeName(
+                               AiEmitCoreBase.EffectiveBlackboardTypeName(dto.BlackboardTypeName));
+        string ctxShort  = OrchestratorAliasCollector.ShortTypeName(
+                               AiEmitCoreBase.EffectiveContextTypeName(dto.ContextTypeName));
         string className = OrchestratorAliasCollector.SanitizeIdentifier(dto.Name, "BTreeAsset");
 
         var sb = new StringBuilder();
@@ -132,7 +143,14 @@ public static class BTreeOrchestratorEmitCore
         {
             var m = methods[i];
 
-            sb.AppendLine($"{Indent}[BTreeAction(Name = \"Orchestrate_{m.SubTreeName}\")]");
+            // ⭐⭐ CE-336 — `[BTreeAction(Name = "…")]` DOES NOT COMPILE: `Fbt.BTreeActionAttribute`
+            //    is an EMPTY attribute class (Fbt.Kernel/Attributes/BTreeActionAttribute.cs:10) with
+            //    no `Name` property, and every hand-authored use in the corpus is a bare
+            //    `[BTreeAction]`. ⛔ Four text rails asserted the named form; none compiled it.
+            // ⚠ The action's identity is its METHOD NAME, which is what Fbt.SourceGen registers —
+            //    so nothing is lost. How a tree NODE binds to `Orchestrate_X_Tick` is the alias arm's
+            //    own open question (CE-337), not something an invalid attribute argument answered.
+            sb.AppendLine($"{Indent}[BTreeAction]   // Orchestrate_{m.SubTreeName}");
             sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{m.SubTreeName}_Tick(");
             sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
             sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");
@@ -175,7 +193,7 @@ public static class BTreeOrchestratorEmitCore
             var syncIn  = ActiveBindings(group, syncIn: true);
             var syncOut = ActiveBindings(group, syncIn: false);
 
-            sb.AppendLine($"{Indent}[BTreeAction(Name = \"Orchestrate_{subTreeId}\")]");
+            sb.AppendLine($"{Indent}[BTreeAction]   // Orchestrate_{subTreeId}");   // CE-336, as above
             sb.AppendLine($"{Indent}public static NodeStatus Orchestrate_{subTreeId}_Tick(");
             sb.AppendLine($"{Indent}{Indent}ref {bbShort} master,");
             sb.AppendLine($"{Indent}{Indent}ref BehaviorTreeState state,");

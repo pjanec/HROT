@@ -7953,7 +7953,7 @@ production `HsmAssetValidator`; what is missing is the **canvas** path and its d
 | # | | |
 |---|---|---|
 | `A1` | round-trip `SubtreeName` through real JSON | ⚠ **NOT BUILT** — the mapper carries it both ways, but no rail drives real JSON text |
-| `A2` | the emitted registrar **COMPILES** | ⛔ **NOT BUILT** — still the missing rail, and `CE-333`/`CE-335` remain open until it exists |
+| `A2` | the emitted registrar **COMPILES** | ✅ **`CE336_R2`** — and it found three more defects, §32.11.5 |
 | `A3` | the child's cursor is its own | ✅ `E5_R3` |
 | `A4` | 🔴 **consecutive frames, EMPTY queue** | ✅ **`E5_R3`** — the direct red-proof of `F1` |
 | `A5` | an inactive host resets a `Running` child | ✅ `E5_R4` |
@@ -7968,6 +7968,32 @@ feature's own suite (`T-1` ④), not a parallel class.
 ⚠ **One fixture fact worth keeping:** a rail must **promote the tier** (`BlueprintTierTable.EnsureAtLeast`)
 before attaching the child's cursor slot — ingress sizes the store for the HSM instance alone. ⛔ Not a
 production concern: there the manifest declares the slot up front, so the tier is sized for both at once.
+
+#### 32.11.5 ⭐⭐⭐ `A2` IS MET — **and the compile rail found THREE more defects on its first run** *(`CE-336`, `2026-09-23`)*
+
+🔒 **The rail:** `CE336_R1` / `CE336_R2` in `TheOrchestratorIsGeneratedTests` compile **every generated
+tree** against the real loaded assemblies and assert **zero error diagnostics**.
+🔴 **Red-proof:** reintroducing `[BTreeAction(Name = …)]` reddens `R1` and leaves `R2` green.
+
+✅ **`CE336_R2` passed first time** ⇒ `E5`'s emission — the hosted slot, `HsmHostedSubtrees.Register`
+and `HostedChildren.Register` — is valid C#, which is what `A2` asks.
+
+⛔⛔ **`CE336_R1` did not, and what it found is the argument for the whole row:**
+
+| # | the defect | how long it had been latent |
+|---|---|---|
+| ① | **`[BTreeAction(Name = "…")]`** — 📐 `Fbt.BTreeActionAttribute` is an **EMPTY attribute class** *(`BTreeActionAttribute.cs:10`)* with no `Name` property; every hand-authored use in the corpus is a bare `[BTreeAction]` | **five** text rails asserted the named form |
+| ② | **`ref  master,` / `ref  ctx,`** — two EMPTY type names whenever the asset declares no `BlackboardTypeName`/`ContextTypeName`, which is the default | ⛔ `AiEmitCoreBase.Effective*TypeName` has been the single source of truth for that fallback since `CE-235`, and `BTreeBridgeEmitCore:329` already called it — **the seam existed and this emitter never adopted it** |
+| ③ | the fallback **names a type `P4` RETIRED** — `BrainBlackboard` — and every shipped `*.btree.json` still names it too | 📋 **`CE-337`**, filed rather than papered over |
+
+⭐ ① and ② are fixed. ⛔ ③ is a DECISION, not a typo: post-`P4` there is no per-asset master blackboard
+struct for a non-managed asset, so *"what does `ref master` mean?"* has no answer yet. ⇒ **no corpus
+asset can satisfy the BTree alias arm today**, and `CE-337` carries the two candidate shapes with a
+lean toward retiring that arm the way `CE-333` retired its HSM twin.
+
+🔒 **The durable lesson, and it is now measured four times over:** *a text-asserting golden cannot tell
+you the code it pins is not valid C#.* ⭐ One compile rail found in a single run what four text rails
+had been asserting past for months.
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 

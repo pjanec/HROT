@@ -66,7 +66,7 @@ public sealed class BTreeOrchestratorEmitterTests
         string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().NotBeNull();
-        result.Should().Contain("[BTreeAction(Name = \"Orchestrate_Shoot_BT\")]");
+        result.Should().Contain("[BTreeAction]   // Orchestrate_Shoot_BT");
         result.Should().Contain("Orchestrate_Shoot_BT_Tick");
         result.Should().Contain("ref master.SharedFire");
     }
@@ -214,7 +214,7 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         result.Should().Contain("Orchestrate_PatrolBT_Tick");
-        result.Should().Contain("[BTreeAction(Name = \"Orchestrate_PatrolBT\")]");
+        result.Should().Contain("[BTreeAction]   // Orchestrate_PatrolBT");
     }
 
     // ---- T3: emits Approach B method when SyncOut binding exists ----

@@ -287,7 +287,7 @@ public sealed class TheOrchestratorIsGeneratedTests
             BTreeJsonServices.Serialize(dto)));
 
         text.Should().NotBeNull();
-        text!.Should().Contain("[BTreeAction(Name = \"Orchestrate_PatrolSubTree\")]",
+        text!.Should().Contain("[BTreeAction]   // Orchestrate_PatrolSubTree",
             "the BTree arm registers through [BTreeAction]");
         text.Should().NotContain("[HsmAction",
             "⛔ the two hosts must not cross-emit each other's attribute");
@@ -371,7 +371,7 @@ public sealed class TheOrchestratorIsGeneratedTests
         // ① the orchestrator exists, and it is the Approach-B (copy · tick · copy) body.
         string? text = OrchestratorText(result);
         text.Should().NotBeNull("the generator can now resolve the callee from its sibling JSON");
-        text!.Should().Contain("[BTreeAction(Name = \"Orchestrate_ShootBT\")]");
+        text!.Should().Contain("[BTreeAction]   // Orchestrate_ShootBT");
         text.Should().Contain($"subDto.Health = master.{masterVar};", "SyncIn copies IN before the tick");
         text.Should().Contain($"master.{masterVar} = subDto.Health;", "SyncOut copies OUT after it");
 
@@ -481,4 +481,164 @@ public sealed class TheOrchestratorIsGeneratedTests
         OrchestratorText(result).Should().BeNull(
             "⛔ never a group against a field the compilation cannot type");
     }
+
+    // ══ CE-336 — THE EMITTED TEXT MUST COMPILE ═══════════════════════════════════════════
+    //
+    // 🔒 The rail this suite was missing, and its absence is what let TWO defects ship in one
+    //    emission: an [HsmAction] carrying the FastBTree ACTION signature (CE-333) and a call to
+    //    {Child}.GetInterpreter(), a method defined NOWHERE (CE-335).
+    // ⛔⛔ Every other rail here asserts STRINGS. A text-asserting golden cannot tell you the code
+    //    it pins is not valid C#. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.10 A2.
+
+    /// <summary>
+    /// ⭐⭐ A DTO type that EXISTS — the deliberate opposite of <see cref="UnloadableDtoTypeId"/>.
+    ///
+    /// <para>⚠ The other rails use an unloadable id on purpose, to prove the emitter never resolves a
+    /// <c>System.Type</c>. ⛔ A COMPILE rail cannot use it: the emitted text names the type, so the
+    /// type must be real. ⇒ the two fixtures are complementary, not redundant.</para>
+    /// </summary>
+    private static BlackboardAliasBindingDto CompilableAlias(string subAssetName) => new()
+    {
+        RequiringAssetId   = Guid.NewGuid(),
+        RequiringElementId = Guid.NewGuid(),
+        RequiringAssetName = subAssetName,
+        RequiredByPath     = "Root/Move",
+        DtoTypeId          = typeof(Ce336PatrolParams).FullName,
+    };
+
+    /// <summary>
+    /// ⭐⭐⭐ Every assembly this test process has loaded, as metadata references.
+    ///
+    /// <para>⭐ The <c>typeof</c> touches are load-bearing: a referenced assembly is not loaded until
+    /// something in it is used, and an emitted file that references <c>HostedSubtree</c> against a
+    /// compilation that never loaded <c>Fdp.Toolkits</c> fails for the WRONG reason.</para>
+    /// </summary>
+    private static MetadataReference[] RealReferences()
+    {
+        _ = typeof(Fdp.Toolkit.Behavior.HostedSubtree);
+        _ = typeof(Fdp.Toolkit.Behavior.HostedChildren);
+        _ = typeof(Fdp.Toolkit.Behavior.HsmHostedSubtrees);
+        _ = typeof(Fdp.Toolkit.Behavior.BehaviorRegistry);
+        _ = typeof(Fbt.NodeStatus);
+        _ = typeof(Fbt.Runtime.Interpreter<byte, Fdp.Toolkit.Behavior.BTreeContext>);
+        _ = typeof(Fhsm.Kernel.Data.HsmCommandWriter);
+        _ = typeof(Fdp.Core.EntityRepository);
+        _ = BehaviorsAssembly;
+
+        return AppDomain.CurrentDomain.GetAssemblies()
+            .Where(a => !a.IsDynamic && !string.IsNullOrEmpty(a.Location))
+            .GroupBy(a => a.GetName().Name, StringComparer.Ordinal)
+            .Select(g => (MetadataReference)MetadataReference.CreateFromFile(g.First().Location))
+            .ToArray();
+    }
+
+    /// <summary>Compiles every tree the generator produced and returns only the ERRORS.</summary>
+    private static IReadOnlyList<Diagnostic> CompileErrors(GeneratorDriverRunResult result)
+    {
+        var compilation = CSharpCompilation.Create(
+            assemblyName: "Ce336Emitted",
+            syntaxTrees:  result.GeneratedTrees,
+            references:   RealReferences(),
+            options:      new CSharpCompilationOptions(
+                              OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
+
+        return compilation.GetDiagnostics()
+            .Where(d => d.Severity == DiagnosticSeverity.Error)
+            .ToList();
+    }
+
+    private static string Describe(IReadOnlyList<Diagnostic> errors) =>
+        string.Join("\n", errors.Take(15).Select(d => $"  {d.Id} {d.GetMessage()} @ {d.Location}"));
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE336_R1</c> — the emitted BTree orchestrator COMPILES.</b>
+    ///
+    /// <para>🔴 <b>Red before <c>CE-335</c>:</b> this arm emitted
+    /// <c>{Child}.GetInterpreter()</c> — a method no type in the repository declares — so the
+    /// compilation fails with <c>CS0103</c>/<c>CS1061</c>. ⭐ It now resolves the child through
+    /// <c>HostedChildren.Require(slotKey)</c>, bound at registration.</para>
+    /// </summary>
+    [Fact]
+    public void CE336_R1_TheEmittedBTreeOrchestratorCompiles()
+    {
+        var dto = SampleScoutDto();
+        string varName = EnsureVariable(dto);
+        dto.BlackboardTypeName = typeof(Ce336MasterBlackboard).FullName!;
+        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
+        {
+            [varName] = new() { CompilableAlias("PatrolSubTree") },
+        };
+
+        var result = Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(dto));
+
+        OrchestratorText(result).Should().NotBeNull("the fixture must actually emit an orchestrator");
+
+        var errors = CompileErrors(result);
+        errors.Should().BeEmpty(
+            "the emitted orchestrator must be valid C# — this is the rail CE-333/CE-335 needed and "
+            + "did not have:\n" + Describe(errors));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE336_R2</c> — the emitted HSM registrar COMPILES with a hosting state.</b>
+    /// 📄 <c>E5</c> acceptance <c>A2</c>, §32.10.
+    ///
+    /// <para>⭐ This is the half of <c>E5</c> the runtime rails (<c>E5_R1</c>..<c>E5_R4</c>) cannot
+    /// reach: they drive hand-registered tables, so they prove the MECHANISM and not the EMISSION.
+    /// ⛔ Without this rail the emitter half of <c>E5</c> is proven only by inspection — which is
+    /// exactly the state <c>CE-333</c> lived in.</para>
+    /// </summary>
+    [Fact]
+    public void CE336_R2_TheEmittedHsmRegistrarWithAHostingStateCompiles()
+    {
+        var dto = SampleGuardDto();
+        dto.States.Should().NotBeEmpty("the fixture needs a state to host from");
+
+        // ⭐ What an author does in the editor: name a child on a state (Q36-B = A — BOTH halves).
+        var host = dto.States[0];
+        host.SubtreeAssetId = Guid.NewGuid();
+        host.SubtreeName    = "PatrolSubTree";
+
+        var result = Run(new HsmJsonGenerator(), "/p/SampleGuard.hsm.json",
+            HsmJsonServices.Serialize(dto));
+
+        string registrar = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
+        registrar.Should().Contain("HsmHostedSubtrees.Register(",
+            "the hosting table must be emitted for a state that names a child");
+        registrar.Should().Contain("HostedChildren.Register(beh,",
+            "and the child's interpreter must be bound where the registry is in hand");
+        registrar.Should().Contain("typeof(global::Fbt.BehaviorTreeState)",
+            "⛔ the child's tree-state SLOT ships with the hosting call or HostedSubtree.Tick throws");
+
+        var errors = CompileErrors(result);
+        errors.Should().BeEmpty("the emitted HSM registrar must be valid C#:\n" + Describe(errors));
+    }
 }
+
+// ── CE-336 fixture types ─────────────────────────────────────────────────────────────
+// ⚠ TOP-LEVEL on purpose: a NESTED type's Type.FullName carries a '+' separator, and the
+//   emitter splits an id at the last '.' — so a nested fixture emits `Outer+Inner`, which is
+//   not valid C#. ⛔ That is a property of the FIXTURE, not a defect in the emitter, and using
+//   a nested type here would have manufactured a failure that says nothing about production.
+public struct Ce336PatrolParams
+{
+    public float Health;
+    public int   Ammo;
+}
+
+/// <summary>
+/// ⭐⭐ The MASTER blackboard the alias projects onto — a real struct with a real field of the
+/// aliased DTO type, because <c>ref master.{VarName}</c> must bind.
+///
+/// <para>⚠⚠ <b>The fixture declares <c>BlackboardTypeName</c> explicitly, and that is a FINDING,
+/// not convenience.</b> 📐 The default is <c>AiEmitCoreBase.DefaultBlackboardTypeName</c> =
+/// <c>Fdp.Toolkit.Behavior.Components.BrainBlackboard</c> — a type <c>P4</c> <b>RETIRED</b> — and
+/// every shipped <c>*.btree.json</c> still names it. ⇒ no corpus asset can satisfy this arm today.
+/// 📋 <c>CE-337</c>.</para>
+/// </summary>
+public struct Ce336MasterBlackboard
+{
+    public Ce336PatrolParams Health;
+}
+

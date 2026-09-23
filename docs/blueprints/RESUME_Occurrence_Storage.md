@@ -8,8 +8,11 @@ build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Bran
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
   Rails `E5_R1`..`E5_R4` in `HsmOccurrenceKeyTests`, red-proved. 📄 §32.11 is the AS-BUILT.
-  ✅ `CE-333` ROUTED (the HSM alias arm is retired) · ✅ `CE-335` FIXED · 📋 `CE-334`, `CE-336` open.
-  ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1`/`A2` NOT BUILT** — see §0b.
+  ✅ `CE-333` ROUTED (the HSM alias arm is retired) · ✅ `CE-335` FIXED · ✅ `CE-336` BUILT — the
+  compile rail, and it found THREE more latent defects on its first run (§32.11.5) ⇒ `A2` is MET.
+  📋 OPEN: `CE-334` (the ActivityAction one-shot), `CE-337` (the BTree alias arm's blackboard type
+  is RETIRED — a decision, not a typo).
+  ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1` NOT BUILT** — see §0b.
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
 current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
@@ -113,7 +116,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 |---|---|---|
 | **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
-| **`CE-336`** | 🔴 **nothing compiles emitted orchestrator text** — the blindness that let `CE-333` and `CE-335` live. Until it exists, `E5`'s `A2` is UNMET and the EMITTER half of `E5` is proven only by inspection | ⭐ **ours, and the highest-value next rail** |
+| **`CE-337`** | 🔴 **the BTree alias arm cannot compile for ANY corpus asset** — its `ref master` projection needs a blackboard STRUCT, and both the assets and `AiEmitCoreBase.DefaultBlackboardTypeName` name `BrainBlackboard`, which `P4` **deleted**. ⛔ A DECISION: skip-with-a-warning, or retire the arm the way `CE-333` retired its HSM twin *(lean: retire, ruling 9)* | ⭐ **ours** |
 | **`E5` items 6-7** | wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys`, then the `A`-hosts-`B`-hosts-`A` cycle check. ⛔ **Deferred with a measurement, not dropped:** `HsmDocumentFactory:87` builds `HsmGraphModel(hsmAsset)` with no resolver, and `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have | ⚠ **editor-lane shaped** — ask before absorbing |
 | **`E5` `A1`** | round-trip `SubtreeName` through real JSON text into a fresh model | ⭐ ours, small |
 | **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |
@@ -132,6 +135,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | **5** | ⚠ **A fresh worktree is not automatically a valid baseline environment**, and ⛔ **do not tear one down while a run is still using it** — I killed the `Hrot.Blueprints.Tests` leg that way |
 | **6** | ⛔⛔ **A TEXT-ASSERTING golden cannot tell you the code it pins is not valid C#** — that is exactly how `CE-333` survived. 🔒 §32.8 `A2` makes "it COMPILES" an acceptance item |
 | **7** | 🔴🔴 **A DESIGN CAN CONTRADICT ITS OWN DOCUMENT.** §32 assumed a per-frame HSM hook while §31.18.1 — **in the same file, written the same day** — already proved the phase machine's fixed point. ⇒ `R-129`'s *"read the owning design"* bites hardest when the owning design **is the one you are writing**: re-read the sections your new one depends on, not only the ones it cites |
+| **9** | ⭐⭐⭐ **ONE COMPILE RAIL BEAT FOUR TEXT RAILS.** 📐 `CE-336`'s first run found **three** further defects in an emitter four text rails had been asserting past for months — a `Name =` argument on an attribute with no such property, two EMPTY type names, and a fallback naming a type `P4` deleted. 🔒 When a rail asserts EMITTED CODE, assert that it **compiles**; the text assertions are then about intent, not validity |
 | **8** | ⛔⛔ **"The model to copy" is a CLAIM, and it needs the same measurement as any other.** §32 rated `BTreeOrchestratorEmitCore` ⭐ from its text and 🔴 the HSM twin — 📐 they are the SAME arm, same collector, same emptiness, and **both** emit a method that does not exist (`CE-335`) |
 
 ---
