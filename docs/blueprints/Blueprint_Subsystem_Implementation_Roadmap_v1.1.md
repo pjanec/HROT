@@ -27,7 +27,7 @@
 1. **M0** — Per-project target frameworks explicitly specified. Generators must be `netstandard2.0`; everything else is `net8.0`. (Loose wording in v1.0 risked targeting generators at `net8.0`, which would fail to load in VS host.)
 2. **M0, NEW** — Filesystem layout in the engine repo explicitly captured.
 3. **M2** — Test fixture instantiates **real `Fdp.Core.EntityRepository`** instead of `MockEntityRepository`. Mock surface reduces to `MockSimulationView` (read-only enforcement) and `MockEntityCommandBuffer` (ECB queue + playback). Effort drops from 4-5 days to 2-3 days.
-4. **M6** — `BlueprintAiWorkingStateAccess.GetOrAttach` helper class removed. Compiler emits `Blackboard1024` projection inline in each thunk, with StructureHash header check directly in generated code. (See v1.2 Inline Patch 1.)
+4. **M6** — `BlueprintAiWorkingStateAccess.GetOrAttach` helper class removed. Compiler emits the occurrence-slot resolve inline in each thunk, with StructureHash check directly in generated code. (See v1.2 Inline Patch 1.)
 5. **M10** — `BlueprintTickSystem` phase declaration includes `[UpdateBefore]` for `LocomotionDispatcherSystem`, `WeaponDispatcherSystem`, `InteractionDispatcherSystem` to avoid one-frame CQRS jitter. (See v1.2 Inline Patch 2.)
 6. **M12** — Quick Reload path explicitly requires `InMemoryRoslynCompiler` with `EmitOptions(debugInformationFormat: DebugInformationFormat.PortablePdb)` and `EmbeddedText.FromSource(...)` for embedded source. PDB+EmbeddedSource is separate from MSBuild's `<EmitCompilerGeneratedFiles>`. (See v1.2 Inline Patch 3.)
 
@@ -145,7 +145,7 @@ graph TD
         C1[M3: Validator + diagnostics]
         C2[M4: IR + Library lowering]
         C3[M5: Instance lowering + state struct]
-        C4[M6: AiPrimitive lowering + thunks<br/>inline Blackboard1024 projection]
+        C4[M6: AiPrimitive lowering + thunks<br/>inline occurrence-slot resolve]
         C5[M7: Latent + channel commands + waits]
     end
 
@@ -343,7 +343,7 @@ Contract-enforcement tests:
 - `Validate(asset)` walks the asset and reports:
   - Library: no events / no state / no Self / no impure nodes.
   - AiPrimitive intent Condition: no Running return; no latent nodes.
-  - AiPrimitive: parameter size ≤ 100 bytes; intent + hostings compatibility.
+  - AiPrimitive: parameter size within the largest occurrence tier's payload (16 096 B); intent + hostings compatibility.
   - Instance: variable total size fits declared tier.
   - Cross-checks: peer references resolve; type references resolve.
 - `Diagnostic` records carry `(Severity, Code, Message, AssetId?, GraphId?, NodeId?, PinId?)`.
@@ -405,7 +405,7 @@ Contract-enforcement tests:
 
 ### M6 — AiPrimitive lowering + thunks **[v1.1 update]**
 
-**Goal:** AiPrimitive assets compile end-to-end. Generated code includes `TickCore` + one thunk per declared hosting. Inline `Blackboard1024` projection with StructureHash header check. Thunk signatures match engine's existing BTree/HSM contracts.
+**Goal:** AiPrimitive assets compile end-to-end. Generated code includes `TickCore` + one thunk per declared hosting. Inline occurrence-slot resolve with StructureHash check. Thunk signatures match engine's existing BTree/HSM contracts.
 
 **[v1.1 update]** No `BlueprintAiWorkingStateAccess` class. Inline projection per v1.2 Inline Patch 1.
 
@@ -416,29 +416,27 @@ Contract-enforcement tests:
 Lowering:
 - AiPrimitive lowering pass implemented.
 - Per declared hosting, emit corresponding thunk:
-  - BTreeAction/Condition: `NodeLogicDelegate<BrainBlackboard, BTreeContext>`-shaped.
+  - BTreeAction/Condition: `NodeLogicDelegate<byte, BTreeContext>`-shaped — `byte` is byte 0 of the root params slot.
   - HsmAction: `unsafe void M(void* instance, void* context, HsmCommandWriter* writer)`.
   - HsmGuard: `unsafe bool M(void* instance, void* context, ushort eventId)`.
   - BlueprintCall: direct typed `Call` method.
 
 Inline projection in each thunk:
 ```csharp
-ref var bb1024 = ref ctx.World.GetComponentRW<Blackboard1024>(ctx.Self);
-unsafe {
-    fixed (byte* memory = bb1024.Memory) {
-        ulong storedHash = *(ulong*)memory;
-        if (storedHash != StructureHash) {
-            Unsafe.InitBlock(memory, 0, (uint)sizeof(Blackboard1024));
-            *(ulong*)memory = StructureHash;
-            InitDefaultWorkingState((WorkingState*)(memory + 8));
-        }
-        ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
-        // ... call TickCore ...
-    }
-}
+// The occurrence's OWN params and working state, keyed by the (region, state) the kernel
+// stamped and by the hosting machine's id — so two occurrences of one action never collide.
+int occurrenceKey = HsmOccurrence.KeyFor(instance, AssetId, writer);
+ref var ws = ref HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
+    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);
+ref var p = ref *__params;
+// ... call TickCore ...
 ```
 
-Layout convention: first 8 bytes of `Blackboard1024.Memory` = `ulong StructureHash` header; rest = `WorkingState` struct.
+⭐ **The StructureHash check survived the move; the fixed component did not.** `ResolveOrAttach`
+seats the slot in whichever `BlueprintBlackboard*` tier fits and zeroes it on a hash mismatch —
+⛔ **that slot only**, never the whole region. The host behaviour's own params are a separate
+lookup, `RootParamsAccess.RequireRootBytes`, which hands back the extent as well as the pointer
+so a reader cannot run past the slot into the next occurrence.
 
 Tests:
 - `AiPrimitiveDispatchTests`:
@@ -653,7 +651,7 @@ Compile-mode test:
 
 **Entry:** M11 + M13.
 
-**[v1.1 update note]** Because M2 uses real `EntityRepository` already, M14 is mostly about ensuring the rest of the engine kernel (BTreeTickSystem running real BTrees, HsmTickSystem running real HSMs, hot-reload coordinator running real reloads) plays nicely with Blueprint code. Less surface than v1.0 implied.
+**[v1.1 update note]** Because M2 uses real `EntityRepository` already, M14 is mostly about ensuring the rest of the engine kernel (BrainTickSystem running real BTrees and real HSMs on its two arms, hot-reload coordinator running real reloads) plays nicely with Blueprint code. Less surface than v1.0 implied.
 
 **Acceptance:**
 - An integration test project wires a real (small) Hrot scenario.
@@ -709,7 +707,7 @@ Compile-mode test:
 1. **Library function used from C#** — `MathUtilsLib.bp.json`. Proves Library dispatch.
 2. **Instance Blueprint with engine event subscription** — `HealthRegen.bp.json`. Proves Instance dispatch, engine event polling, latent execution via cursor, debug protocol, editor live state view.
 3. **Multi-Blueprint composition with peer calls** — `DoorActor.bp.json` + `DoorSensor.bp.json`. Proves multi-Blueprint per entity, partition allocator, peer calls, `callablePeers` validation.
-4. **AiPrimitive shared between BTree and HSM** — `HasVisibleTarget.bp.json` (Condition, hostings: BTreeCondition + HsmGuard). Proves multi-hosting, BTree + HSM thunks, `Blackboard1024` integration, Condition validator.
+4. **AiPrimitive shared between BTree and HSM** — `HasVisibleTarget.bp.json` (Condition, hostings: BTreeCondition + HsmGuard). Proves multi-hosting, BTree + HSM thunks, occurrence-slot integration, Condition validator.
 5. **MoveToAndFire** — `MoveToAndFire.bp.json` (Action, hostings: BTreeAction + HsmAction). Proves channel commands, dispatch-aware Wait, full CQRS pattern, dual hosting. **The headline demo.**
 
 ---
@@ -792,7 +790,7 @@ Recommended write order: **Compiler → Runtime → Test Harness → Hot Reload 
 
 Slice 2 highest priorities:
 
-1. `Blackboard1024` partition allocator (lifts one-AiPrimitive-per-entity constraint).
+1. The occurrence-slot partition allocator over the `BlueprintBlackboard*` tier ladder (lifts the one-AiPrimitive-per-entity constraint).
 2. Cross-entity dispatcher calls (deferred events).
 3. Latent in AiPrimitive graphs hosted as BTree action.
 4. Visual node canvas (the real editor).

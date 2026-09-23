@@ -519,9 +519,19 @@ Remove `HsmDamageBridgeSystem` registration. Add `CognitiveInterruptSystem` and
 `CognitiveCleanupSystem`:
 
 ```
-Before: ChannelArbitrationSystem, HsmDamageBridgeSystem, BTreeTickSystem, HsmTickSystem<128>, HsmTickSystem<64>
-After:  ChannelArbitrationSystem, CognitiveInterruptSystem, BTreeTickSystem, HsmTickSystem<128>, HsmTickSystem<64>, CognitiveCleanupSystem
+Before this phase: ChannelArbitrationSystem, HsmDamageBridgeSystem, BTreeTickSystem, HsmTickSystem<128>, HsmTickSystem<64>
+After this phase:  ChannelArbitrationSystem, CognitiveInterruptSystem, BTreeTickSystem, HsmTickSystem<128>, HsmTickSystem<64>, CognitiveCleanupSystem
 ```
+
+⭐ **The list as it stands today is FIVE systems, not six** — `CognitiveRuntimeModule.cs:58-76`:
+
+```
+ChannelArbitrationSystem, CognitiveInterruptSystem, BrainTickSystem, CognitiveCleanupSystem, BehaviorFrameSystem
+```
+
+The three tick registrations collapsed into one `BrainTickSystem`, and `BehaviorFrameSystem` was added
+last so the behaviour-frame pulse means *"a brain tick has run"*. The step order this phase
+established — arbitration → interrupt → tick → cleanup — is unchanged.
 
 #### 3.5 — `CognitiveCleanupSystem` (new class)
 
