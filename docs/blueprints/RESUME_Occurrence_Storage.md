@@ -6,11 +6,14 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
 updated: 2026-09-23
 build-state: ✅ **NOTHING IS IN FLIGHT.** Tree clean, everything pushed, branch `behaviors`.
   ⭐⭐⭐ NEXT IS `E5` — an HSM state hosts a BTree. `DESIGN_Occurrence_Scoped_Storage.md` §32 is
-  READY-TO-BUILD with three UML diagrams, five items and acceptance A1-A6. Q36 is APPROVED.
+  ⚠ **`DESIGN`, NOT READY-TO-BUILD** — its own review (§32.2, `2026-09-23`) found eight gaps, two
+  blocking, and DEMOTED it. ⭐ §32.3 carries the corrected decision (user: "go with b"), §32.4-§32.6
+  three NEW UML diagrams, §32.8 seven items, §32.10 acceptance A1-A8. Q36 is APPROVED and still holds.
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE and gated this session.
-current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`) and the ONE document to read
-  (`DESIGN_Occurrence_Scoped_Storage.md` §32). §0a is what this session landed, §0b what is open and
-  whose it is, §0c the method lessons, §0d the gate baselines, §0e the standing constraints.
+current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
+  (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
+  §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
+  gate baselines, §0e the standing constraints.
   ⛔ §1-§5 are the O7c-era account and are HISTORY — see stale-below.
 stale-below: ⚠⚠ §1-§5 describe the programme AS OF `O7c`-④d and are superseded by §0a-§0e.
   ⛔ §2's "what is left" predates CE-325..333 and Q36's approval — use §0b.
@@ -24,7 +27,8 @@ related-designs:
     ⭐⭐ §32 = E5, THE NEXT SLICE (READY-TO-BUILD).
   - PLAN_Occurrence_Storage_Build.md — the task ladder; row E4 carries O7c's re-rating.
   - Architect_Question_36_Subtree_Hosting_Runtime.md — APPROVED; the options and the ruling behind §32.
-  - Blueprint_Issues_Tracker.md — CE-320/325..331 DONE · open: CE-321 ② (combat), CE-332 (UI), CE-333 (ours)
+  - Blueprint_Issues_Tracker.md — CE-320/325..331 DONE · open: CE-321 ② (combat), CE-332 (UI),
+    CE-333 + CE-334 + CE-335 (ours)
     · CE-322 (inertia, DONE) · CE-318 (deferred) · CE-300/301 (open).
   - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden. §1.1 and §4 are load-bearing.
 -->
@@ -43,34 +47,47 @@ RELEARN
 
 ### 🔒 FIRST ACTION ON RESUME
 
-⭐ **Read `DESIGN_Occurrence_Scoped_Storage.md` §32 end to end.** It is `build-state: READY-TO-BUILD`
-and carries the INVENTORY, three UML diagrams, five items and acceptance `A1`–`A6`.
+⭐ **Read `DESIGN_Occurrence_Scoped_Storage.md` §32 end to end**, in this order: **§32.2** *(the review
+— eight findings, the two blocking ones)* → **§32.3** *(the decision)* → §32.4–§32.6 *(the three UML
+diagrams)* → §32.8 *(seven items)* → §32.10 *(acceptance `A1`–`A8`)*.
 ⛔ **Do NOT re-derive it, and do NOT start from `Q36`** — that document holds the options and the
 approval; §32 is the buildable shape.
+⚠⚠ **`build-state` is `DESIGN`, not `READY-TO-BUILD`** — it was demoted on `2026-09-23` by its own
+review. ⛔ **The pre-review §32 is SUPERSEDED and its diagrams were DELETED**; what it claimed is
+recorded in the file's closing `## ⛔ HISTORY — §32's pre-review shape`. **Never quote it.**
 
-### ⭐⭐ WHAT `E5` IS, IN FOUR LINES
+### ⭐⭐ WHAT `E5` IS, AFTER THE REVIEW
 
 ✅ **`Q36` is APPROVED** *(user, `2026-09-23`: "Q36 approved")* — `Q36-A` = **B**, the host ticks the
-child inline; `Q36-B` = **A**, `SubtreeName` beside the Guid.
-⭐⭐ **The only NEW box is an EMITTER.** `HostedSubtree.Tick`, `OccurrenceSlotKey.ComputeTreeStateKey`,
-the HSM thunk ABI and the occurrence store **all already ship** ⇒ `E5` is a **code-generation slice,
-not a runtime one.**
+child inline; `Q36-B` = **A**, `SubtreeName` beside the Guid. **Both still stand.**
+🔒 **And the HOST is now `BrainTickSystem`, not a generated `[HsmAction]`** *(user, `2026-09-23`:
+**"go with b"**)*. ⛔⛔ **`E5` is therefore NO LONGER a pure code-generation slice** — it adds a
+registry (`HsmHostedSubtrees`, copied from `HsmParamBindings`) and a branch in `BrainTickSystem`.
+⭐ Zero `ExtDeps` change: `HsmKernel.GetActiveLeafIds`, `HsmDefinitionBlob.GetState` and
+`StateDef.ParentIndex` are **already public** *(§32.1 ⑭)*.
 
-### ⛔⛔ THREE THINGS THAT WILL MISLEAD YOU — **all three are drawn in §32.5's module diagram**
+### ⛔⛔ THE TWO BLOCKING FINDINGS — **why the old plan could not have worked**
+
+| # | |
+|---|---|
+| **F1** | 🔴 **A hosted child wired to an HSM action would tick ONCE, not every frame.** `UpdateBatchCore` runs **one phase per tick** (`HsmKernelCore.cs:49-71`); `Idle` advances only on a non-empty queue (`:108-116`); `Activity` ends by setting `Idle` (`:442-458`). ⇒ on a quiescent machine `ActivityAction` fires **exactly once**. 📌 The same fixed point §31.18.1 already proved for `CE-322`. 📋 **`CE-334`** — and the shipped APC machine pays it today (`ApcHsmSetup.cs:70`, no timers) |
+| **F2** | 🔴 **Nothing declared the tree-state slot, and `HostedSubtree.Tick` THROWS on one** (`HostedSubtree.cs:144-149`). The BTree side ships it with the call on purpose — *"THIS AND THE ORCHESTRATOR'S HOSTING CALL SHIP TOGETHER OR NEITHER"* (`BTreeBridgeEmitCore.cs:1045`). ⭐ Now **§32.8 item 3** |
+
+### ⛔⛔ FOUR THINGS THAT WILL MISLEAD YOU — **all drawn in §32.6's module diagram**
 
 | # | |
 |---|---|
 | **1** | 🔴 **`HsmOrchestratorEmitCore` is the ALIAS arm, NOT the state-hosting arm** — it collects from `dto.Aliases`, returns `null` for every shipped asset, and **its emission does not compile** *(`CE-333`)*. ⛔ Do not copy it |
-| **2** | 🔴 **`NodeType.Subtree` is a STUB** — `Interpreter.cs:249` returns `NodeStatus.Failure`. ⛔ Not the mechanism |
-| **3** | ⚠ **`StateNodeDto.SubtreeAssetId` is read by NOTHING that emits a tick** — the Guid ships, the name does not, and item 1 is adding it |
+| **2** | 🔴🔴 **NEITHER IS `BTreeOrchestratorEmitCore` — it does not compile either** *(`CE-335`, found `2026-09-23`)*. Both arms emit `{Child}.GetInterpreter()`, which is **defined nowhere**: `find.sh` agrees across graph and grep — 3 emitter sites, 3 text assertions, **0 definitions**. ⛔⛔ §32 called it *"the MODEL to copy"* and that was wrong |
+| **3** | 🔴 **`NodeType.Subtree` is a STUB** — `Interpreter.cs:249` returns `NodeStatus.Failure`. ⛔ Not the mechanism |
+| **4** | ⚠ **`StateNodeDto.SubtreeAssetId` is read by NOTHING that emits a tick** — the Guid ships, the name does not, and item 1 is adding it |
 
-### ⚠ THE ONE SHAPE TRAP, measured `2026-09-23`
+### ⭐ AND THE ONE PIECE OF PRIOR ART TO ACTUALLY COPY
 
-⛔⛔ **An `[HsmAction]` method must BE the thunk** — `static unsafe void M(void* instancePtr, void*
-contextPtr, HsmCommandWriter* writer)`. 📐 `HsmActionGenerator:405` takes `&method` and casts it to
-`delegate*<void*, void*, HsmCommandWriter*, void>`; `:599` is the shape to copy. ⭐ The child's world
-and self come from `contextPtr` → `HsmKernelBridge*`, which is exactly what `HostedSubtree.Tick` needs.
-⇒ 🔒 **the hosting action takes no `ref BehaviorTreeState`** — that is `CE-333`'s defect, not a pattern.
+⭐⭐⭐ **`HsmParamBindings.Register(blob, (Guid StableId, int Offset)[])`** *(`Behavior/HsmParamBindings.cs:43,58-80`)* —
+a side table baked as authoring `StableId`s and joined to the kernel's flat state indices at runtime
+through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, with a different payload.**
+⛔ It is what keeps the emitter off the flattener's ordering, and the first INVENTORY missed it.
 
 ---
 
@@ -95,7 +112,9 @@ and self come from `contextPtr` → `HsmKernelBridge*`, which is exactly what `H
 |---|---|---|
 | **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
-| **`CE-333`** | the alias-arm emission that does not compile | ⭐ **ours** — §32.7 says fix it in the same pass as `E5`; it wants the identical thunk shape |
+| **`CE-333`** | the HSM alias-arm emission that does not compile | ⭐ **ours** — §32.9 says fix it in the same pass as `E5` |
+| **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |
+| **`CE-335`** | 🔴 **the BTree alias arm does not compile either** — `{Child}.GetInterpreter()` is defined nowhere | ⭐ **ours** — one rail that COMPILES an emitted orchestrator closes it and `CE-333` together, and that rail is `E5`'s `A2` |
 
 ---
 
@@ -109,6 +128,8 @@ and self come from `contextPtr` → `HsmKernelBridge*`, which is exactly what `H
 | **4** | ⚠ **BASELINE BEFORE YOU RUN, not after.** I ran suites first and had to go back and measure to separate my reds from pre-existing ones |
 | **5** | ⚠ **A fresh worktree is not automatically a valid baseline environment**, and ⛔ **do not tear one down while a run is still using it** — I killed the `Hrot.Blueprints.Tests` leg that way |
 | **6** | ⛔⛔ **A TEXT-ASSERTING golden cannot tell you the code it pins is not valid C#** — that is exactly how `CE-333` survived. 🔒 §32.8 `A2` makes "it COMPILES" an acceptance item |
+| **7** | 🔴🔴 **A DESIGN CAN CONTRADICT ITS OWN DOCUMENT.** §32 assumed a per-frame HSM hook while §31.18.1 — **in the same file, written the same day** — already proved the phase machine's fixed point. ⇒ `R-129`'s *"read the owning design"* bites hardest when the owning design **is the one you are writing**: re-read the sections your new one depends on, not only the ones it cites |
+| **8** | ⛔⛔ **"The model to copy" is a CLAIM, and it needs the same measurement as any other.** §32 rated `BTreeOrchestratorEmitCore` ⭐ from its text and 🔴 the HSM twin — 📐 they are the SAME arm, same collector, same emptiness, and **both** emit a method that does not exist (`CE-335`) |
 
 ---
 
