@@ -617,8 +617,9 @@ namespace Hrot.Editor.Tests
             const string Name = "HotReloadHsmGrowDoc";
             const int    Hash = 0x4D03;
 
+            // ⚠ CE-325: five regions, not three — three now fits the 128 layout. See O7_R44.
             var narrow = BuildBlobWithRegions(0x0DD64, regionCount: 0);
-            var wide   = BuildBlobWithRegions(0x0DD256, regionCount: 3);
+            var wide   = BuildBlobWithRegions(0x0DD256, regionCount: 5);
             Assert.Equal(64,  HsmInstanceManager.SelectTier(narrow));
             Assert.Equal(256, HsmInstanceManager.SelectTier(wide));
 

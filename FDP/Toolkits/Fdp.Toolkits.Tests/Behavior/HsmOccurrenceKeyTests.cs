@@ -1941,8 +1941,15 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
             var blob = BuildTwoRegionBlob(ActionId);
 
-            // ⭐ GUARD: the premise of the whole rail. A 3-region machine is tier 256.
-            Assert.Equal(256, Fhsm.Kernel.HsmInstanceManager.SelectTier(blob));
+            // ⭐ GUARD: the premise of the whole rail — this machine gets a tier chosen from its own
+            //   shape, not a hard-coded 128.
+            // ⚠ CE-325 (2026-09-23): this asserted 256 and now asserts 128, and the CLAIM is
+            //   untouched. Three regions fit HsmInstance128's FOUR leaf slots; 256 was only ever
+            //   selected because SelectTier's own gate stopped at 2 regions while the layout held 4.
+            //   ⭐ What this rail is about — the machine running through the REAL system with its
+            //   instance slot-resident, and three occurrences on one entity — does not depend on
+            //   which tier that is.
+            Assert.Equal(128, Fhsm.Kernel.HsmInstanceManager.SelectTier(blob));
 
             var registry = new BehaviorRegistry();
             registry.Register(DocId, "TwoRegionSlotResident", new BehaviorDefinition

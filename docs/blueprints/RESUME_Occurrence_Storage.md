@@ -4,8 +4,9 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-23
-build-state: ⭐⭐⭐ O7c IS COMPLETE — ①②③④a④b④c④d all DONE and pushed, AND THE GOLDEN PASSES
-  (2026-09-23, §31.19.8, within 0.072 of gold). NOTHING IS IN FLIGHT.
+build-state: 🔴 **WORK IN FLIGHT AND UNCOMMITTED — `CE-325`. START AT §0.**
+  ⭐ O7c itself is COMPLETE — ①②③④a④b④c④d all DONE and pushed, golden passes (§31.19.8).
+  ⛔ But the tree is DIRTY with a half-finished `CE-325`; §0 lists exactly what is done and what is not.
 current-answer: ⭐⭐⭐ START AT §1 "WHERE IT STANDS", THEN §2 "WHAT IS LEFT IN THE PROGRAMME".
   📐 VERIFIED 2026-09-23 by grepping for the struct declarations, not from memory:
      BrainBlackboard / Blackboard1024  ✅ DELETED (P4)
@@ -30,6 +31,87 @@ related-designs:
 # RESUMPTION — **occurrence-scoped storage**, `behaviors` lane
 
 RELEARN
+
+---
+
+## 0. 🔴🔴🔴 IN FLIGHT — **`CE-325`, UNCOMMITTED, PARTLY UNVERIFIED** *(`2026-09-23`)*
+
+> ⛔ **`git status` is DIRTY — five modified files, nothing staged, nothing pushed.**
+> HEAD is `50cb9dd1c` *(`CE-324`)*. ⚠ Everything below §0 describes the COMMITTED state and is true;
+> §0 is the delta on top of it.
+
+### ⭐ What `CE-325` is
+
+🔴 **`HsmInstanceManager.SelectTier` and `HsmValidator.CheckTierBudget` were two tables of one fact,
+and they disagreed.** `SelectTier` admitted `regions ≤1 / ≤2` and `history ≤2 / ≤4`; the structs hold
+**2 / 4 / 8** regions and **2 / 8 / 16** history slots, which is exactly what `CheckTierBudget` says.
+⇒ a **3- or 4-region machine fitted `HsmInstance128` precisely and was sent to 256 anyway.**
+⛔ `SelectTier` also ignored **timer slots** entirely, which `CheckTierBudget` checks.
+
+🔒 **User asked for:** *"route `SelectTier` through `CheckTierBudget` and wire the check in."*
+
+### ✅ DONE and VERIFIED
+
+| | |
+|---|---|
+| `Fhsm.Kernel/HsmInstanceManager.cs` — `SelectTier` rewritten | layout limits now come from `CheckTierBudget` alone; **state/depth heuristics kept** *(they index nothing, so they are judgement not constraint)*; **throws** when no tier fits |
+| `Fhsm.Tests/Kernel/TierBudgetTests.cs` — **7 new rails** | ✅ **`Fhsm.Tests` 307/307** *(baseline was 300/300 — measured both sides)* |
+
+⚠⚠ **THE ONE JUDGEMENT CALL, and it was MEASURED, not chosen.** Tier 1 keeps an explicit
+`regions <= 1` rather than deferring to `CheckTierBudget(64)`. ⛔ The 64-byte layout holds **two**
+regions and the budget check accepts them — but **tier 1 is the only tier with NO RESERVED INTERRUPT
+SLOT**. 📐 Routing tier 1 through the budget check alone dropped every 2-region machine from 128 to 64
+and **reddened 9 rails, including `CE-324`'s two**. ⇒ it is a POLICY gate, commented as such at the
+branch. 🔒 **Do not "simplify" it away.**
+
+### ⏳ DONE but **NOT BUILT AND NOT RUN**
+
+⛔⛔ **These three edits are applied on disk and have never been compiled.** The build/test command
+that would have verified them was interrupted; the edits themselves had already landed.
+
+| file | what changed | why |
+|---|---|---|
+| `Fdp.Toolkits.Tests/…/BehaviorIngressSystemHsmResetTests.cs` | `O7_R44`'s `wide` blob **3 → 5 regions** | 3 regions no longer outgrows 128, and a rail about OUTGROWING a tier needs a machine that does. 5 preserves the 64 → 256 widening |
+| `Hrot.Editor.Tests/AiHotReloadCoordinatorTests.cs` | `O7_R54`'s `wide` blob **3 → 5 regions** | the hot-reload twin of the same claim |
+| `Fdp.Toolkits.Tests/…/HsmOccurrenceKeyTests.cs` | `O7_R48`'s premise **256 → 128** | its CLAIM *(3 occurrences on one entity, slot-resident, through the real system)* does not depend on the tier number |
+
+🔒 **FIRST ACTION ON RESUME:** build and run `Fdp.Toolkits.Tests` and `Hrot.Editor.Tests`.
+📐 Before these three edits the toolkit suite was **2 failed / 2328**, and the two failures were
+exactly `O7_R44` and `O7_R48`. ⇒ **the expected result is 2328/2328.**
+
+### ⛔ NOT DONE AT ALL
+
+| # | what | note |
+|---|---|---|
+| **1** | ⚠ **stale doc-comment** at `HsmOccurrenceKeyTests.cs:1917` — still says *"`SelectTier` answers **256** for a 3-region machine"* | the assert below it was corrected; this prose was not |
+| **2** | **`DESIGN` §31.24 — the `CE-325` as-built** | ⛔ referenced by name from the new `SelectTier` doc-comment and from the rails, so the reference currently DANGLES |
+| **3** | **`DESIGN` §9.4** — its tier table should gain the gate-vs-capacity columns and the two-tables finding | the capability table readers reason from |
+| **4** | **`DESIGN` §31.17.2** — says *"the FIRST machine in the suite that gets its true tier: `SelectTier` answers **256** for 3 regions"* ⇒ **now false** | same correction as item 1 |
+| **5** | **tracker row `CE-325`** — next free id, **not yet filed** | `CE-324` is the highest allocated |
+| **6** | red-proof, commit, push | ⚠ no red-proof has been run for `CE-325` yet |
+
+### ⚠ WHAT WAS DELIBERATELY **NOT** CHANGED
+
+⛔ **`BlueprintBlackboard512` was considered and NOT built.** The user asked whether it is a viable
+alternative if HSM256 turns out to be needed. 📐 Answer measured: **yes, and it is cheaper than when
+`O3b` added the 256 tier** — `EnsureAtLeast` and `IsLargerThan`, the two things that made `B4`
+expensive, now exist. ⭐ **But `CE-325` may remove the need**, because it roughly doubles what the 128
+tier accepts. ⇒ **re-measure after `CE-325` lands before spending a tier.**
+📄 Sizing if it is ever wanted: **512 / MaxSlots 6 / payload 384**; ladder stays legal
+*(`MaxSlots` 3→6→12→16→16 non-decreasing, payload 176→384→800→3808→16096 increasing, 6 ≤ the
+`MaxKindSlots` 16 ceiling)*; id **304**; `BlackboardTier.B512 = 4` **APPENDED** *(ordinal is ABI)*.
+⚠ And `B4`'s lesson: **ask which sites derive a tier from CONTENT rather than from the entity** before
+calling it additive.
+
+### 📐 THREE LATENT TRAPS FOUND WHILE ANSWERING, none yet recorded in the design
+
+| # | trap |
+|---|---|
+| **1** | ⚠ **the kernel drains ONE event per FOUR frames** — `Idle → Entry → RTC → Activity` is one phase per `Update`. ⇒ ~15 events/s at 60 Hz, and the ring count is a BURST tolerance, not a throughput |
+| **2** | 🔴 **the reserved interrupt slot is 1 deep at EVERY tier** — two interrupts inside ~66 ms and one is lost. ⛔ **No tier fixes this**; `CE-324` only made the loss visible |
+| **3** | ⚠ **nothing currently produces a normal/low event in production** — HROT's one site is now `Interrupt`; `FireTimerEvent` is unreachable *(nothing ever arms `TimerDeadlines`)*; no shipped asset declares deferred events. ⇒ the ring is empty today, so ring-capacity risk is **latent, not absent** |
+
+---
 
 > ⭐⭐ **Branch `behaviors`. Tree clean, everything pushed.**
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic

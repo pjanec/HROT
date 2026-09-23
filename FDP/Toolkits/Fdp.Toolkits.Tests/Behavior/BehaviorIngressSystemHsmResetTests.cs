@@ -590,8 +590,12 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var (world, sys, registry) = CreateFixture();
 
+            // ⚠ CE-325 (2026-09-23): `wide` was THREE regions, which selected 256 only because
+            //   SelectTier's own gate stopped at 2. The 128 layout holds FOUR, so three no longer
+            //   outgrows it — and a rail about outgrowing a tier needs a machine that does.
+            //   ⭐ FIVE regions genuinely overflows 128, so the 64 → 256 widening is preserved.
             var narrow = BuildBlobWithRegions(0x0064u, regionCount: 0);   // tier 64
-            var wide   = BuildBlobWithRegions(0x0256u, regionCount: 3);   // tier 256
+            var wide   = BuildBlobWithRegions(0x0256u, regionCount: 5);   // tier 256
             Assert.Equal(64,  HsmInstanceManager.SelectTier(narrow));
             Assert.Equal(256, HsmInstanceManager.SelectTier(wide));
 
