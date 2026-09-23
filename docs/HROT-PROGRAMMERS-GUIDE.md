@@ -195,9 +195,16 @@ noted. All are named constants in code (cite shown).
 | Weapon mounts enumerated / entity | **16** | truncated | `FDP/Toolkits/Fdp.Toolkits/Combat/WeaponMountQuery.cs:37` |
 | `UnitRoster` subordinates / commander | **16** | assignment rejected + event | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:32` |
 | Squad contact pool / role-slot members | **16** | lowest-threat evicted / OOB if exceeded | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs:128-134` |
-| Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:348-357` |
-| Blueprint Instance variable tiers | **176 / 800 / 3808 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
+| Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** ⚠ `CE-326` | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:490-502` |
+| Blueprint Instance variable tiers | **176 / 800 / 3808 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:525-537` |
 | Tuning piecewise curve control points | **64** | truncated + warn | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning/TuningRegistry.cs:19` |
+
+> ⚠ **`CE-326` — the AiPrimitive row's two numbers are RETIRED GEOMETRY, and they are still enforced.**
+> **100 B** was the width of `BrainBlackboard.BehaviorParameters` and **1016 B** the payload of
+> `Blackboard1024`; `P4` deleted both components. `CE-307` repointed the other four sites that
+> enforced 100 at the tier ladder (**16 096**), but `Stage2_Validate` hardcodes these two literals
+> and was missed. ✅ Latent — the check is compile-time and the tree builds green, so no shipped
+> asset exceeds either bound today. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30.15.
 | `DebugPrimitive` struct | **64 B** (one cache line) | overflow / payload aliasing | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs:16` |
 | Debug-draw buffer / persistent | **4096 / 256 slots** | `DroppedCount++`, discarded | `FDP/Diagnostics/Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:13-15` |
 | Sub-tick debug ring | **256 node entries** | oldest dropped | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Core/Debug/SubTickSnapshotRecorder.cs:49` |

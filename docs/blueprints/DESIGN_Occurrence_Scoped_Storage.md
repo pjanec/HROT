@@ -7322,3 +7322,70 @@ on the 64-tier interrupt slot.
 distinction**, not an oversight: `O7_R44`'s `wide` blob now has **5 regions, which selects 256 under
 the old table too** ⇒ its assertion never moved, only the setup that reaches it. 🔒 **That is what
 "bookkeeping, not a regression" means, stated as a measurement rather than as a reassurance.**
+
+### 30.29 ⭐⭐⭐ `[SharedAiHeavy*]` IS SUPERSEDED — **the statement §30.13 ⑥ asked for, before the attribute is removed** *(`2026-09-23`)*
+
+> 🔒 **§30.13 ⑥'s own words:** *"genuinely superseded, but **say so in the design before removing the
+> attribute**."* ⭐ This section is that statement. ⛔ Until it existed, removal was not authorised.
+> 🔒 **Prompted by a user question:** *"is `[SharedAiHeavy*]` still relevant?"*
+
+#### 30.29.1 ⛔⛔ IT HAS **TWO ARMS**, AND §30.13's ONE-LINE VERDICT ONLY COVERED ONE
+
+📐 `SharedAiHeavyActionAttribute` / `SharedAiHeavyConditionAttribute` *(`Fbt.Kernel/SharedAiAttributes.cs`)*
+have **two constructors**, and the generator branches on `heavyCompSymbol.IsReferenceType`
+*(`BTreeActionGenerator.cs:365`)*:
+
+| arm | what the generator emits | successor |
+|---|---|---|
+| **5-arg, UNMANAGED** | `GetComponentRW<THeavyComponent>` + `Unsafe.As` into `HeavyDtoType` — the `Blackboard1024.Memory` projection | ⭐ **the tier ladder** *(§30.15)*: a region needing more than 176 B simply lands on a larger tier. ⛔ And its container is DELETED |
+| **3-arg, MANAGED** | plain `GetComponent<TClass>` — the component IS the DTO, passed by reference | ⚠ **NOT the tier ladder.** An occurrence slot is unmanaged byte storage and **cannot hold a managed class** |
+
+⚠⚠ **So the obvious reading — *"heavy storage died, therefore the attribute dies"* — is only half an
+argument**, and on the managed arm it is the wrong half. 🔒 **The managed arm had to be disposed of on
+its own evidence.**
+
+#### 30.29.2 ⭐⭐⭐ THE MEASUREMENT THAT SETTLES THE MANAGED ARM — **it is SUGAR, not a capability**
+
+📐 **The plain `[SharedAiAction]` contract, quoted from its own doc-comment**
+*(`SharedAiAttributes.cs:30`)*:
+
+```
+static NodeStatus MethodName(ref TValue dto, Entity self, EntityRepository repo)
+```
+
+⇒ 🔒 **every shared action ALREADY receives `Entity self` and `EntityRepository repo`.** ⭐ The managed
+heavy arm therefore saves exactly one line in the method body:
+
+```csharp
+var heavy = repo.GetComponent<TClass>(self);   // what the 3-arg attribute emits for you
+```
+
+⛔⛔ **It grants no reach the plain attribute lacks.** ⇒ ⭐⭐ **removing it removes NO capability** —
+which is the precise test `CLAUDE.md`'s *"unreferenced is not unintentional"* rule demands, and the
+reason this is a DELETE rather than the ROUTE that rule usually prefers.
+
+#### 30.29.3 📐 ADOPTION — **zero, and measured with the graph rather than grep**
+
+| | |
+|---|---|
+| methods decorated `[SharedAiHeavy*]` **anywhere in the repo** | **ONE** — `ActionSchemaExporterTests.ActionFixtures.SharedHeavyActionMethod`, a **test fixture for the exporter itself** |
+| production adoption | 🔴 **ZERO** |
+| `HeavyDtoType` non-null anywhere | ⛔ never — both mappers hardcode `null`, all 30 shipped assets declare `null`, and `T30_BehaviorScopedShared_ProofTests.cs:302` **pins it** |
+
+⚠ **Method note:** an unqualified `grep "RegisterComponent<BrainInterrupts>"`-style pattern under-reports
+here, exactly as it did in `CE-323`'s cross-reference. ⭐ `search_graph` returns the decorated-method set
+directly and is what produced the ONE above.
+
+#### 30.29.4 ⛔ WHAT IS STILL WIRED, AND MUST COME OUT TOGETHER
+
+| site | note |
+|---|---|
+| `Fbt.Kernel/SharedAiAttributes.cs` — both attribute classes | ⚠ `ExtDeps`: an API removal, so it lands with its own gate |
+| `BTreeActionGenerator` / `HsmActionGenerator` — `IsSharedAiHeavy*Attr`, `BuildHeavyEntry`, `BuildHeavyConditionEntry` | the emission path — **functional today**, merely unadopted |
+| `ActionSchemaExporter.cs:151-166` + `IActionSchemaExporter.HeavyDtoType` | the **editor authoring surface** that still offers it |
+| `ActionSchemaExporterTests` fixture + `Rebuild_HeavyAction_HeavyDtoTypeNonNull` | ⭐ the rail goes with the feature — ⛔ it pins the exporter's heavy branch, nothing else |
+
+⚠ **Deliberately NOT in this scope:** the **persisted** `BehaviorTreeAssetDto.HeavyDtoType` /
+`HsmAssetDto.HeavyDtoType` fields. 🔒 They are in all 30 shipped assets *(always `null`)*, so removing
+them is an **asset-schema change** and gets its own deliberate call — exactly as `CE-308` ruled for
+`BlackboardTarget`. ⭐ Harmless to leave and ignore on read.
