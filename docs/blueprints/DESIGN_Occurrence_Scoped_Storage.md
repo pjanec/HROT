@@ -6742,3 +6742,93 @@ system passes an `HsmKernelBridge*` where the old rails passed a scratch integer
 
 ⚠ `O7_R37`/`O7_R38` are **UNCHANGED and stay green** — they prove the per-region keying itself, and
 leaving them untouched is what lets `O7_R48` claim only the thing it adds.
+
+### 31.18 ⭐⭐⭐ THE HSM INERTIA BUG — **the full argument, and WHOSE bug it is** *(`2026-09-23`)*
+
+> 🔒 **User, `2026-09-23`:** *"Approved to fix the hsm inertia bug providing it is a real bug in the
+> hsm engine. No one currently uses hsm actively so no big risk. But pls reason the changes well."*
+
+⭐⭐ **It is a real bug. ⛔ But it is NOT in the FastHSM engine — it is in HROT's glue**, and that
+distinction is worth more than the fix: it means nothing in `ExtDeps` changes, and the remedy is
+*stop hand-rolling the kernel's reset*.
+
+#### 31.18.1 📐 THE CLAIM TABLE
+
+| the claim | how it IS *(code)* | how it was MEANT to be *(design/contract)* |
+|---|---|---|
+| `Idle` advances to `Entry` **only** on a non-empty queue | ✅ `HsmKernelCore.cs:113-116` — `if (HsmEventQueue.GetCount(...) > 0)` | ✅ `InstancePhase.Idle = "Not executing"` *(`Enums.cs:76`)* |
+| the only in-kernel enqueue reachable from `Idle` is the timer | ✅ `ProcessTimerPhase` → `FireTimerEvent` → `TryEnqueue` | — |
+| …and it cannot fire on an un-entered machine | ✅ `ProcessTimerPhase` only acts on `timers[i] > 0`; timers are armed **on state entry** | — |
+| ⇒ `Idle` + `ActiveLeafIds[0] == 0xFFFF` is a **FIXED POINT** | ✅ **follows from the three rows above** | — |
+| `Entry` with `0xFFFF` leaves is what ENTERS the machine | ✅ `HsmKernelCore.cs:127-131` — `InitializeMachine` then `Phase = Activity` | — |
+| the ENGINE never produces `Idle` + un-entered | ✅ `HsmInstanceManager.Initialize` **and** `Reset` both leave `Entry` *(`:52`, `:88`, `:115`)* | ✅ **`HsmKernel.Trigger`'s own summary:** *"Trigger state machine to start processing from Idle"* — ⭐ the engine SHIPS a function whose only job is to break out of `Idle`, which is the engine stating that `Idle` does not self-start |
+| HROT wrote that excluded state anyway | ✅ the retired `ResetHsmComponents` — `hdr->Phase = InstancePhase.Idle` while setting every `ActiveLeafIds` to `0xFFFF` | ⛔ **searched `docs/` and `.dev/` for a design that wants an assigned HSM to wait for an event — none found** |
+
+⇒ 🔒 **Every load-bearing row is measured.** The one row that could not be measured — *"was the old
+behaviour intended?"* — is marked ⛔ and answered by CORROBORATION instead, below.
+
+#### 31.18.2 ⭐⭐ THE CORROBORATION — **three independent workarounds in the tree**
+
+⚠ *"Nobody meant this"* is the kind of claim that deserves evidence rather than confidence. Three
+places in the repo were **already paying to escape it**, each written without reference to the others:
+
+| where | what it does | ⇒ what that implies |
+|---|---|---|
+| `ScenarioDirector.cs` | hand-sets `Phase = RTC` **and** seeds `ActiveLeafIds[0] = Cruising` | the author wanted the machine RUNNING at spawn and could not get there by assigning |
+| `UrbanCombatNewScenario.cs` | the same two lines, independently | ⭐ two authors, same workaround |
+| `BHU-016`'s own rail | called `HsmKernel.Trigger(ref brainB)` **by hand** before ticking, with the comment *"Trigger transitions Phase from Idle to Entry"* | 🔴 **the test encoded the workaround** — it could not observe the machine run without forcing the phase |
+
+⇒ ⭐⭐ **A behaviour that every caller works around is not a policy; it is a defect.**
+
+#### 31.18.3 ⛔ WHY THIS IS *NOT* AN ENGINE BUG — stated plainly, because the approval was conditional
+
+⭐ The engine is **self-consistent**: `Initialize`/`Reset` are its only sanctioned ways to make an
+instance runnable, and both leave `Entry`. `Idle` means *"not executing"*, and `Trigger` is the
+documented door back in. ⇒ an instance that is `Idle` **and** un-entered is a state the engine's own
+API cannot produce.
+
+🔴 `ResetHsmComponents` produced it, because it re-implemented the reset by hand — `MachineId`,
+flags, phase, four `ActiveLeafIds`, `EventCount`, `InterruptSlotUsed` — and chose `Idle` for the
+phase. ⇒ **a third producer of a fact the kernel already owned**, which is the duplication shape this
+repo files repeatedly.
+
+⭐⭐ **The fix is therefore not a phase-policy change at all.** `RootHsmAccess.ResetInstance` calls
+`HsmInstanceManager.Initialize`, so the phase is whatever the ENGINE says it should be. ⛔ HROT stops
+having an opinion about it. 📌 That is why the diff contains no `Phase =` assignment anywhere.
+
+#### 31.18.4 ⚠ WHAT CHANGES AT RUNTIME, AND THE HONEST RISK
+
+| | |
+|---|---|
+| ⭐ **an assigned HSM brain now ENTERS its initial state on the next tick** | and runs that state's entry actions, which is what an assign has always meant everywhere else |
+| ⚠ **entry actions that never used to run, now run** | 🔒 the user's own risk assessment: *"No one currently uses hsm actively so no big risk."* 📐 Corroborated: **four `.hsm.json` assets ship** and essentially no production entity runs one |
+| ⭐ `Paused` is now cleared by a re-assign too | 📐 nothing in production ever SETS `InstanceFlags.Paused` — `HsmKernelCore:79` is the only reference and it only READS |
+| ⛔ **the two example scenarios' workarounds are now redundant, not wrong** | they set `Phase = RTC` + a seeded leaf to start the APC *already cruising*, which is a stronger statement than "enter normally" — ⚠ left in place deliberately, since removing them would change WHICH state those demos start in |
+
+#### 31.18.5 ⭐ THE RAIL — **`O7_R49` pins the CONSEQUENCE, not the phase value**
+
+⛔ `…ClearsTerminatedFlagAndLeavesTheMachineReadyToEnter` asserts `Phase == Entry` — a VALUE, and a
+value can be asserted while meaning nothing. ⭐ `O7_R49` assigns through the REAL ingress, ticks the
+REAL `BrainTickSystem`, and asserts **the machine entered state 0** — with the event queue asserted
+EMPTY throughout, because enqueueing anything would drive `Idle → Entry` and the rail would pass on
+the broken code.
+
+#### 31.18.6 ✅ THE RED-PROOF — **the bug DEMONSTRATED, not argued**
+
+📐 **The inverse edit:** `HsmInstanceManager.Initialize` patched to leave `Phase = Idle` — *exactly*
+the retired `ResetHsmComponents`' choice, in the engine's own entry point. Then the feature's suite:
+
+```
+Failed: 4, Passed: 4
+  O7_R49_AnAssignedHsmBehaviourEntersItsInitialState_WithNoExternalEvent
+    Assert.Equal() Failure: Expected: 0   Actual: 65535
+```
+
+⭐⭐⭐ **`65535` is `0xFFFF` — the uninitialised sentinel — after THREE ticks of the real system.**
+🔒 That is the bug, measured: the machine was assigned, bound, ticked repeatedly, and never entered
+any state at all.
+
+⚠ **The other three failures are the informative part of the shape.** They are the rails that assert
+`Phase == Entry` — a VALUE — and they would have been satisfied by *any* non-`Idle` value.
+⭐ **Only `O7_R49` reads the consequence**, which is why it is the rail that had to be written: the
+existing ones pin that the phase is what we chose, not that the machine runs.

@@ -238,6 +238,91 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>O7_R49</c> — AN ASSIGNED HSM BEHAVIOUR ENTERS ITS INITIAL STATE, WITH NO
+        /// EXTERNAL EVENT.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.18.
+        ///
+        /// <para>🔴🔴 <b>THIS IS THE CONSEQUENCE-LEVEL CLAIM, and it is the one that was broken.</b>
+        /// The rail above asserts <c>Phase == Entry</c> — a VALUE. ⛔ A value can be asserted and
+        /// still mean nothing; what matters is whether the machine actually RUNS. ⇒ this one ticks
+        /// the REAL system and asserts the machine ENTERED.</para>
+        ///
+        /// <para>📐 <b>Why the old glue made this impossible, read out of
+        /// <c>HsmKernelCore.ProcessInstancePhase</c> rather than inferred:</b></para>
+        /// <list type="number">
+        ///   <item>the <c>Idle</c> arm advances to <c>Entry</c> <b>only if
+        ///     <c>HsmEventQueue.GetCount(...) &gt; 0</c></b>;</item>
+        ///   <item>the only in-kernel enqueue reachable from <c>Idle</c> is <c>FireTimerEvent</c>,
+        ///     called from <c>ProcessTimerPhase</c> — which only fires for a timer that is already
+        ///     <c>&gt; 0</c>, and timers are armed on STATE ENTRY;</item>
+        ///   <item>⇒ a machine that has entered nothing has no armed timers, so nothing enqueues,
+        ///     so it never leaves <c>Idle</c>. <b><c>Idle</c> + <c>ActiveLeafIds[0] == 0xFFFF</c> is a
+        ///     FIXED POINT.</b></item>
+        /// </list>
+        ///
+        /// <para>⚠ <b>And that combination is one the ENGINE never produces.</b>
+        /// <c>HsmInstanceManager.Initialize</c>/<c>Reset</c> both leave <c>Entry</c>; the engine also
+        /// ships <c>HsmKernel.Trigger</c>, whose summary is literally <i>"Trigger state machine to
+        /// start processing from Idle"</i> — its existence is the engine SAYING that Idle does not
+        /// self-start. ⇒ the defect was HROT's hand-rolled <c>ResetHsmComponents</c> writing a state
+        /// the kernel's own contract excludes, not the kernel's phase policy.</para>
+        ///
+        /// <para>⛔ <b>No event is enqueued anywhere in this rail, deliberately</b> — enqueueing one
+        /// would drive <c>Idle → Entry</c> through step ① and the rail would pass on the broken code.
+        /// The queue count is asserted to stay 0 so that cannot creep in later.</para>
+        /// </summary>
+        [Fact]
+        public void O7_R49_AnAssignedHsmBehaviourEntersItsInitialState_WithNoExternalEvent_O7c4()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string behaviorName = "HsmEntersDoc";
+            const int    DocId        = 9350;
+            var blob = BuildMinimalBlob(0x9350);
+
+            registry.Register(DocId, behaviorName, new BehaviorDefinition
+            {
+                Name          = behaviorName,
+                BrainTier     = BehaviorConstants.BrainTierHsm,
+                HsmDefinition = blob,
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = DocId, BrainTier = BehaviorConstants.BrainTierHsm,
+            });
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, DocId, blob));
+
+            // Assign through the REAL ingress — this is the path that used to leave it inert.
+            AssignBehavior(world, sys, e, behaviorName);
+
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size));
+
+            // ⭐ NON-VACUITY: it has NOT entered yet, so the tick below is what does it.
+            ushort* leaves = HsmKernel.GetActiveLeafIds(inst, size, out int leafCount);
+            Assert.True(leaves != null && leafCount > 0);
+            Assert.Equal((ushort)0xFFFF, leaves[0]);
+            Assert.Equal(0, HsmEventQueue.GetCount(inst, size));
+
+            // ── Tick the REAL merged system. NOTHING enqueues an event. ──────────────────
+            var brain = new BrainTickSystem(registry);
+            for (int t = 0; t < 3; t++)
+                brain.Execute(world, 0.016f);
+
+            // ⭐⭐⭐ THE RAIL. The machine entered state 0 on its own.
+            //    🔴 With the retired ResetHsmComponents' Phase = Idle this stays 0xFFFF forever.
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* after, out int afterSize));
+            ushort* leavesAfter = HsmKernel.GetActiveLeafIds(after, afterSize, out _);
+            Assert.Equal((ushort)0, leavesAfter[0]);
+
+            // ⚠ And it got there WITHOUT an event — the queue was never fed.
+            Assert.Equal(0, HsmEventQueue.GetCount(after, afterSize));
+
+            world.Dispose();
+        }
+
         // ══ O7c-④a — THE ROOT HSM INSTANCE IS AN OCCURRENCE SLOT ════════════════════════════
         //
         // 📄 DESIGN_Occurrence_Scoped_Storage.md §31.14 (design) · §31.15–§31.16 (as-built).
