@@ -6245,3 +6245,201 @@ that slice's memory row would record real capacity rather than an accounting art
 ⇒ ⭐ **`CE-318` becomes its own change, gated by its own golden run**, because a tier-selection shift
 deserves one. ⚠ **It is NOT dropped** — the row stays open and §31.5's table is amended rather than
 rewritten, so the reason for the original order survives next to the reason it was changed.
+
+### 31.14 ⭐⭐⭐ `O7c`-④ — **THE BRAIN TICK SYSTEMS MERGE** *(design, `2026-09-23`)*
+
+> 🔒 **User, `2026-09-23`:** *"But there will likely be no hsm tick system, will it? Cant we merge all the
+> occurence traversal and ticking into a single system?"*
+> ⭐⭐ **Right on the first half, and it is stronger than "likely": `HsmTickSystem<T>` CANNOT survive.**
+> It is generic over the COMPONENT, so deleting `BrainHsm128` leaves it with no `T`. ⇒ it becomes either a
+> non-generic twin of `BTreeTickSystem` or it merges. ⛔ Keeping two near-identical non-generic systems is
+> the duplication `B3` already paid to remove once.
+
+#### 31.14.1 ⛔⛔ INVENTORY — **measured `2026-09-23`, and it decides the SCOPE of the merge**
+
+| shared structure | `BTreeTickSystem` | `HsmTickSystem` | `BlueprintTickSystem` |
+|---|---|---|---|
+| terminal-event dedup dictionary | ✅ | ✅ | ⛔ |
+| `DestructionOrder` / `ClearBehaviorEvent` pruning | ✅ | ✅ | ⛔ |
+| `BehaviorState.BrainTier` discriminator | ✅ | ✅ | ⛔ |
+| registry `TryGetDefinition` | ✅ | ✅ | ⛔ |
+| `DebugState` / trace-buffer resolution | ✅ | ✅ | ⛔ |
+| `BehaviorFinishedEvent` publish | ✅ | ✅ | ⛔ |
+| authority gate (`WithOwnedWhen`) | ✅ | ✅ | ⛔ |
+| ⚠ stale-dedup sweep (`_seenThisFrame`) | 🔴 **ABSENT** | ✅ | ⛔ |
+
+📐 **BTree and HSM share every structural element; Blueprint shares NONE — zero on all ten probes.**
+
+#### 31.14.2 ⛔⛔ WHY `BlueprintTickSystem` STAYS OUT — **four measured reasons, not conservatism**
+
+| | |
+|---|---|
+| ⭐⭐⭐ **a different MODULE, and two roots** | 📐 `CgfLogicPack.cs:211` and `BlueprintRuntimeWiring.cs:74` construct it — ⛔ **neither is `CognitiveRuntimeModule`**, which owns both brain ticks. Merging would make one module's schedule depend on another's |
+| ⭐⭐ **it is not entity-scoped at all** | `TickWorldSingletons` ticks blueprint singletons that belong to no entity |
+| ⭐⭐ **it iterates EVERY slot by kind** | the brain roots look up **ONE** slot by a computed key — §31.7's finding, and the reason a shared slot-walk fits one consumer of three |
+| ⭐ **no authority gate** | the brain ticks carry `P3` step-`3b`'s `WithOwnedWhen<BehaviorState>`; Blueprint does not |
+
+⇒ 🔒 **merging Blueprint in would be a SECOND, much weaker argument wearing the first one's clothes.**
+
+#### 31.14.3 ⭐ THE MODEL — `classDiagram`
+
+```mermaid
+classDiagram
+    class BrainTickSystem {
+        <<NEW - replaces BOTH>>
+        -BehaviorRegistry registry
+        -bool gateOnAuthority
+        -Dictionary~int,uint~ publishedTerminalForInstanceId
+        -EntityQuery[] tierQueries
+        +Execute(view, dt) void
+        -TickBTree(repo, entity, def, store) NodeStatus
+        -TickHsm(repo, entity, def, store) bool
+    }
+    class BTreeTickSystem {
+        <<DELETED by O7c-4>>
+    }
+    class HsmTickSystem~T~ {
+        <<DELETED - no T once BrainHsm128 dies>>
+    }
+    class BlueprintTickSystem {
+        <<EXISTS - STAYS SEPARATE, 31.14.2>>
+        +Execute(view, dt) void
+        -TickWorldSingletons(...) void
+    }
+    class RootStateAccess {
+        <<EXISTS - BTree cursor>>
+        +RequireStateRef(world, self) BehaviorTreeState
+    }
+    class RootHsmAccess {
+        <<NEW - mirrors RootStateAccess>>
+        +RequireInstance(world, self, out int size) byte*
+        +EnsureRootInstance(world, self, hash, blob) bool
+    }
+    class HsmKernel {
+        <<EXISTS - ExtDeps>>
+        +Update(blob, byte* inst, int size, ...) void
+    }
+    class HsmInstanceManager {
+        <<EXISTS - gained size-driven ops in O7c-3>>
+        +Initialize(byte*, int, blob) void
+        +Reset(byte*, int) void
+    }
+
+    BrainTickSystem ..> RootStateAccess : BTree arm
+    BrainTickSystem ..> RootHsmAccess : HSM arm
+    BrainTickSystem ..> HsmKernel : pointer + size
+    RootHsmAccess ..> HsmInstanceManager : init / reset at ingress
+    BTreeTickSystem ..> BrainTickSystem : merged into
+    HsmTickSystem ..> BrainTickSystem : merged into
+```
+
+*Caption — what the picture shows that the prose hid: the merged system has **two arms and one body**. The
+arms are the only per-paradigm code (~15 lines each); everything the inventory table lists is the body.
+⛔ `BlueprintTickSystem` is drawn deliberately UNCONNECTED — it shares no edge with the merge.*
+
+#### 31.14.4 ⭐ ONE BRAIN TICK — `sequenceDiagram`
+
+```mermaid
+sequenceDiagram
+    participant BTS as BrainTickSystem
+    participant TT as BlueprintTierTable
+    participant BS as BehaviorState
+    participant RSA as RootStateAccess / RootHsmAccess
+    participant K as Interpreter / HsmKernel
+
+    BTS->>TT: cached tier queries (smallest-first, skip unregistered)
+    loop per entity carrying a store
+        BTS->>BS: BrainTier?
+        alt BrainTier == BTree
+            BTS->>RSA: RequireStateRef(entity)
+            RSA-->>BTS: ref BehaviorTreeState (in the slot)
+            BTS->>K: Interpreter.Tick(ref params, ref cursor, ref ctx)
+            K-->>BTS: NodeStatus - terminal on Success or Failure
+        else BrainTier == Hsm
+            BTS->>RSA: RequireInstance(entity, out size)
+            RSA-->>BTS: byte* + size (from the slot)
+            BTS->>K: HsmKernel.Update(blob, ptr, size, bridge, dt, page)
+            K-->>BTS: instance mutated IN PLACE - terminal via InstanceFlags
+        end
+        BTS->>BTS: publish BehaviorFinishedEvent ONCE per InstanceId
+    end
+```
+
+*Caption — the two arms differ in exactly three things: where the state comes from, which kernel steps it,
+and how terminality is read. ⭐ The dedup, the pruning, the authority gate, the trace resolution and the
+publish are ONE body — which is what the inventory measured rather than assumed.*
+
+#### 31.14.5 ⭐⭐ WHO REGISTERS WHAT — the MODULE diagram *(obligation ①a)*
+
+```mermaid
+graph TD
+    subgraph cog["CognitiveRuntimeModule - Simulation"]
+        CA[ChannelArbitrationSystem]
+        CI[CognitiveInterruptSystem]
+        BTS["BrainTickSystem - NEW, replaces two"]
+        CC[CognitiveCleanupSystem]
+        BF[BehaviorFrameSystem]
+    end
+    subgraph other["a DIFFERENT module - two roots"]
+        BPS[BlueprintTickSystem]
+    end
+    CGF[CgfLogicPack] --> BPS
+    BRW[BlueprintRuntimeWiring] --> BPS
+    STORE[(occurrence store)]
+
+    CA --> CI --> BTS --> CC --> BF
+    BTS -->|root slot per entity| STORE
+    BPS -->|every slot, by kind| STORE
+
+    OLD1["BTreeTickSystem"]
+    OLD2["HsmTickSystem-T"]
+    OLD1 -.->|merged| BTS
+    OLD2 -.->|merged - has no T once BrainHsm128 dies| BTS
+
+    classDef dead stroke-dasharray: 5 5,stroke:#c00,color:#c00
+    class OLD1,OLD2 dead
+```
+
+*Caption — the load-bearing fact the class diagram cannot show: **`BlueprintTickSystem` is registered by
+two roots, neither of them `CognitiveRuntimeModule`.** ⇒ folding it in would couple one module's schedule
+to another's. ⭐ The brain order (arbitration → interrupt → **tick** → cleanup → pulse) is preserved
+exactly; the merge removes a NODE from that chain, never reorders it.*
+
+#### 31.14.6 🔴 THE `_seenThisFrame` ASYMMETRY — **decide it, do not inherit it**
+
+📐 The stale-dedup sweep exists in `HsmTickSystem` *(4 references)* and **not at all** in
+`BTreeTickSystem`. ⛔⛔ **Two systems that should behave identically do not**, and a merge that copies
+whichever twin I happened to start from would silently pick a winner.
+
+⚠ **Its stated justification is now OBSOLETE BY THIS PROGRAMME:** *"entities no longer in the query —
+brain component removed without a lifecycle event, e.g. dynamic reclassing or direct RemoveComponent"*.
+🔴 **There is no brain component any more.** An entity leaves the query when its STORE goes, or when its
+`BrainTier` changes — ⇒ the sweep's premise has to be restated in slot terms or dropped.
+
+⭐ **RULING FOR THE BUILD: keep the sweep, restate the premise.** The dictionary is keyed by
+`entity.Index`, which the ECS **reuses**; a stale entry whose index is recycled would suppress a genuine
+`BehaviorFinishedEvent` for a different entity. ⛔ That is a correctness argument, not a tidiness one, and
+it applies to the BTree arm exactly as much — ⇒ **the merge FIXES a latent BTree gap rather than
+importing an HSM quirk.** ⚠ Worth its own rail: churn an entity out of the query and assert the dedup
+entry is gone.
+
+#### 31.14.7 ⭐ THE SLICES
+
+| # | | |
+|---|---|---|
+| **④a** | `RootHsmAccess` + ingress provisioning, sized from `HsmInstanceManager.SelectTier(blob)` | ⚠ the ONE place HSM is harder than BTree: the width is a **runtime** value, not `sizeof` |
+| **④b** | **merge** `BTreeTickSystem` + `HsmTickSystem` → `BrainTickSystem`, resolving §31.14.6 | ⛔ the HSM arm calls `HsmKernel.Update(blob, ptr, size, …)` — never a generic |
+| **④c** | the **new rail**: the two-region machine driven through the REAL system with the instance in a slot | 🔒 user-requested. ⭐ `O7_R37`/`O7_R38` stay UNCHANGED and must stay green — they prove the per-region keying is untouched by the move |
+| **④d** | hot-reload chunk walk → slot walk; `HsmDebugSession` decoders size-driven; **`BrainHsm128` deleted** | 📄 `btree-hsm-unif` §Q6 |
+
+#### 31.14.8 ⚠⚠ ACCEPTANCE — **the golden CANNOT see this slice, and that is stated up front**
+
+⛔⛔ `hill-attack-close` runs `PlatoonHillAttack`, a **BTree**. Only **four** `.hsm.json` assets ship and
+essentially no production entity runs one. ⇒ **the cluster run that validated `O7c`-② proves nothing about
+the HSM arm.**
+
+⭐ **So the acceptance is:** ① `O7_R37`/`O7_R38` still green *(the keying survives the move)* · ② the new
+④c rail *(the slot-resident instance ticks through the real system)* · ③ the four showcase assets still
+run · ④ the golden still green *(it proves the MERGE did not break the BTree arm — which it very much
+can)*. ⚠ **④ is the one that matters most about the merge**, and it is the reason the merge lands with
+the HSM slice rather than before it.
