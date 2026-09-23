@@ -4,29 +4,27 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-23
-build-state: ✅ **NOTHING IS IN FLIGHT.** `O7c` is COMPLETE — ①②③④a④b④c④d all DONE and pushed,
-  golden passes (§31.19.8) — and `CE-325` *(SelectTier → CheckTierBudget)* is DONE, gated and red-proved.
-  ⚠ §0 records `CE-325` because it MOVED THE TIER NUMBERS §9.4 and several rails quote; the durable
-  account is `DESIGN_Occurrence_Scoped_Storage.md` §31.24.
-current-answer: ⭐⭐⭐ START AT §2 "WHAT IS LEFT IN THE LANE". §1 is the standing account of `O7c`;
-  §0 is `CE-325` and is only needed if you are about to reason about HSM INSTANCE TIER WIDTHS.
-  📐 VERIFIED 2026-09-23 by grepping for the struct declarations, not from memory:
-     BrainBlackboard / Blackboard1024  ✅ DELETED (P4)
-     BrainBTreeState                   ✅ DELETED, id 31 burned _RESERVED
-     BrainHsm64                        ✅ DELETED, id 35 burned _RESERVED
-     BrainHsm128                       ✅ DELETED, id 36 burned _RESERVED   ⇐ O7c-④d
-  ⭐ NO ROOT BRAIN COMPONENT REMAINS. BehaviorState.BrainTier is the only discriminator, and
-    BTreeTickSystem + HsmTickSystem<T> are ONE BrainTickSystem.
-  ⛔⛔ DO NOT re-derive any design. §31.14 has the merge with three UML diagrams; §31.15–§31.19 are
-    the as-built for ④a/④b/④c, the HSM inertia bug, and ④d.
-stale-below: nothing. ⚠ §5's GATE BASELINES were measured at the ④d commit and §0 supersedes two of
-  them: `Fdp.Toolkits.Tests` is now 2328 (was 2315) and `Fhsm.Tests` 307 (was 300). Re-verify, do not quote.
+build-state: ✅ **NOTHING IS IN FLIGHT.** Tree clean, everything pushed, branch `behaviors`.
+  ⭐⭐⭐ NEXT IS `E5` — an HSM state hosts a BTree. `DESIGN_Occurrence_Scoped_Storage.md` §32 is
+  READY-TO-BUILD with three UML diagrams, five items and acceptance A1-A6. Q36 is APPROVED.
+  ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE and gated this session.
+current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`) and the ONE document to read
+  (`DESIGN_Occurrence_Scoped_Storage.md` §32). §0a is what this session landed, §0b what is open and
+  whose it is, §0c the method lessons, §0d the gate baselines, §0e the standing constraints.
+  ⛔ §1-§5 are the O7c-era account and are HISTORY — see stale-below.
+stale-below: ⚠⚠ §1-§5 describe the programme AS OF `O7c`-④d and are superseded by §0a-§0e.
+  ⛔ §2's "what is left" predates CE-325..333 and Q36's approval — use §0b.
+  ⛔ §5's gate baselines are superseded by §0d (Fdp.Toolkits.Tests 2328, Fhsm.Tests 307, plus five
+  suites §5 never listed). Re-verify, do not quote either.
+  ⭐ §3's TRAPS and §4's DECISIONS remain TRUE and are still worth reading.
 known-rot: nothing.
 known-conflict: none.
 related-designs:
-  - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. §30 = P4, §31 = O7c end to end.
+  - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. §30 = P4, §31 = O7c end to end,
+    ⭐⭐ §32 = E5, THE NEXT SLICE (READY-TO-BUILD).
   - PLAN_Occurrence_Storage_Build.md — the task ladder; row E4 carries O7c's re-rating.
-  - Blueprint_Issues_Tracker.md — CE-320 (O7c, DONE) · CE-325 (SelectTier tiers, DONE) · CE-321 (example rot, ② open)
+  - Architect_Question_36_Subtree_Hosting_Runtime.md — APPROVED; the options and the ruling behind §32.
+  - Blueprint_Issues_Tracker.md — CE-320/325..331 DONE · open: CE-321 ② (combat), CE-332 (UI), CE-333 (ours)
     · CE-322 (inertia, DONE) · CE-318 (deferred) · CE-300/301 (open).
   - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden. §1.1 and §4 are load-bearing.
 -->
@@ -37,59 +35,115 @@ RELEARN
 
 ---
 
-## 0. ✅ `CE-325` IS DONE — **`SelectTier` now defers to `CheckTierBudget`** *(`2026-09-23`)*
+## 0. ⭐⭐⭐ NEXT: **`E5` — an HSM state hosts a BTree.** 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§32**
 
-> ⭐ **Nothing is in flight.** This section records the slice that WAS in flight at the last
-> compaction; it is kept because the next reader of §9.4's tier table needs to know the numbers moved.
-> ⛔ The durable account is 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§31.24**, not this section.
+> ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
+> ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
+> that must NEVER be committed.** Leave it stashed.
 
-🔴 **What it was.** `HsmInstanceManager.SelectTier` and `HsmValidator.CheckTierBudget` were **two
-tables of one fact and disagreed on every row** — regions, history, and timers, which `SelectTier`
-never looked at at all. ⇒ a 3- or 4-region machine that fits `HsmInstance128` exactly was sent to
-**256**, and a 9-region machine got a 256-byte instance that **cannot hold it**, with nothing
-refusing it. ⚠ `CheckTierBudget` was called from FastHSM's own tests **and nowhere else**.
+### 🔒 FIRST ACTION ON RESUME
 
-🔒 **User asked for:** *"route `SelectTier` through `CheckTierBudget` and wire the check in."*
+⭐ **Read `DESIGN_Occurrence_Scoped_Storage.md` §32 end to end.** It is `build-state: READY-TO-BUILD`
+and carries the INVENTORY, three UML diagrams, five items and acceptance `A1`–`A6`.
+⛔ **Do NOT re-derive it, and do NOT start from `Q36`** — that document holds the options and the
+approval; §32 is the buildable shape.
 
-| ✅ done | |
+### ⭐⭐ WHAT `E5` IS, IN FOUR LINES
+
+✅ **`Q36` is APPROVED** *(user, `2026-09-23`: "Q36 approved")* — `Q36-A` = **B**, the host ticks the
+child inline; `Q36-B` = **A**, `SubtreeName` beside the Guid.
+⭐⭐ **The only NEW box is an EMITTER.** `HostedSubtree.Tick`, `OccurrenceSlotKey.ComputeTreeStateKey`,
+the HSM thunk ABI and the occurrence store **all already ship** ⇒ `E5` is a **code-generation slice,
+not a runtime one.**
+
+### ⛔⛔ THREE THINGS THAT WILL MISLEAD YOU — **all three are drawn in §32.5's module diagram**
+
+| # | |
 |---|---|
-| layout limits come from `CheckTierBudget` alone; tier 3 **throws** rather than returning a size that cannot hold the machine | `Fhsm.Kernel/HsmInstanceManager.cs` |
-| **7 new rails** | `Fhsm.Tests` **307/307** *(baseline 300/300)* |
-| **3 premise corrections** — `O7_R48` → 128/128/4, `O7_R44` + `O7_R54` `wide` blob 3 → **5** regions | `Fdp.Toolkits.Tests` **2328/2328** · `Hrot.Editor.Tests` **423/424, 1 skipped** |
-| docs | §31.24 *(as-built + flowchart)*, §9.4 *(gate-vs-capacity columns)*, §31.17.2 *(corrected)*, tracker `CE-325` + corrections to `CE-320` / `CE-324` |
-| ✅ **red-proof** | `SelectTier` reverted **in full** ⇒ 5 of 7 rails red + `O7_R48` red; §31.24.7 says why the other two are green by construction and still load-bearing |
+| **1** | 🔴 **`HsmOrchestratorEmitCore` is the ALIAS arm, NOT the state-hosting arm** — it collects from `dto.Aliases`, returns `null` for every shipped asset, and **its emission does not compile** *(`CE-333`)*. ⛔ Do not copy it |
+| **2** | 🔴 **`NodeType.Subtree` is a STUB** — `Interpreter.cs:249` returns `NodeStatus.Failure`. ⛔ Not the mechanism |
+| **3** | ⚠ **`StateNodeDto.SubtreeAssetId` is read by NOTHING that emits a tick** — the Guid ships, the name does not, and item 1 is adding it |
 
-⚠⚠ **THE ONE JUDGEMENT CALL, MEASURED NOT CHOSEN — do not "simplify" it away.** Tier 1 keeps an
-explicit `regions <= 1` instead of deferring to `CheckTierBudget(64)`. ⛔ The 64-byte layout holds
-**two** regions and the budget check accepts them — but **64 is the only tier with NO RESERVED
-INTERRUPT SLOT**. 📐 Routing tier 1 through the budget check alone dropped every 2-region machine to
-64 and **reddened 9 rails, `CE-324`'s two included**. 🔒 **General shape: a layout check alone is not
-sufficient, because a tier differs from its neighbours in more than its byte counts.**
+### ⚠ THE ONE SHAPE TRAP, measured `2026-09-23`
 
-⚠ **One method note worth keeping.** `O7_R48` spelled the old answer in **THREE** places — the
-`SelectTier` guard, the provisioned `size`, and the leaf-array capacity — and the first edit changed
-only the guard. ⇒ the suite caught it; a follow-up sweep of **every `SelectTier` caller in the tree**
-found no fourth. 🔒 **Same shape as ④d's "thirteen sites, not nine": when a number moves, sweep for
-the number, not for the lines that look like the thing you are changing.**
+⛔⛔ **An `[HsmAction]` method must BE the thunk** — `static unsafe void M(void* instancePtr, void*
+contextPtr, HsmCommandWriter* writer)`. 📐 `HsmActionGenerator:405` takes `&method` and casts it to
+`delegate*<void*, void*, HsmCommandWriter*, void>`; `:599` is the shape to copy. ⭐ The child's world
+and self come from `contextPtr` → `HsmKernelBridge*`, which is exactly what `HostedSubtree.Tick` needs.
+⇒ 🔒 **the hosting action takes no `ref BehaviorTreeState`** — that is `CE-333`'s defect, not a pattern.
 
-### ⚠ WHAT WAS DELIBERATELY **NOT** CHANGED
+---
 
-⛔ **`BlueprintBlackboard512` was considered and NOT built.** The user asked whether it is a viable
-alternative if HSM256 turns out to be needed. 📐 Answer: **yes, and cheaper than when `O3b` added the
-256 tier** — `EnsureAtLeast` and `IsLargerThan` now exist. ⭐ **But `CE-325` roughly doubles what the
-128 tier accepts, so it may remove the need** ⇒ **re-measure before spending a tier.**
-📄 Sizing if ever wanted: **512 / MaxSlots 6 / payload 384**; ladder stays legal; id **304**;
-`BlackboardTier.B512 = 4` **APPENDED** *(ordinal is ABI)*. ⚠ And `B4`'s lesson: **ask which sites
-derive a tier from CONTENT rather than from the entity** before calling it additive.
+## 0a. ✅ WHAT THIS SESSION LANDED *(`2026-09-23`)* — **all pushed, all gated**
 
-### 📐 THREE LATENT TRAPS — **recorded in §31.24.6, none of them fixed**
-
-| # | trap |
+| row | |
 |---|---|
-| **1** | ⚠ **the kernel drains ONE event per FOUR frames** — `Idle → Entry → RTC → Activity` is one phase per `Update`. ⇒ ~15 events/s at 60 Hz, and the ring count is a BURST tolerance, not a throughput |
-| **2** | 🔴 **the reserved interrupt slot is 1 deep at EVERY tier** — two interrupts inside ~66 ms and one is lost. ⛔ **No tier fixes this**; `CE-324` only made the loss visible |
-| **3** | ⚠ **nothing currently produces a normal/low event in production** — HROT's one site is now `Interrupt`; `FireTimerEvent` is unreachable *(nothing ever arms `TimerDeadlines`)*; no shipped asset declares deferred events. ⇒ the ring is empty today, so ring-capacity risk is **latent, not absent** |
+| **`CE-325`** ✅ | `SelectTier` defers to `CheckTierBudget`. `Fhsm.Tests` **307/307**. Tier 1 keeps a measured `regions <= 1` POLICY gate — 64 is the only tier with no reserved interrupt slot. 📄 §31.24 |
+| **`CE-326`** ✅ | `BP1200`/`BP1201` read the tier ladder, not the widths of two deleted components. 📄 §30.30.1 |
+| **`CE-327`** ✅ | `[SharedAiHeavy*]` retired — superseded on BOTH arms. 📄 §30.29 |
+| **`CE-328`** ✅ | `Register` throws on an undeclared params width; the 100-byte fallback is gone. 📄 §30.30.2 |
+| **`CE-329`** ✅ | the two projects `P4`/`CE-314` left non-compiling. 📄 §30.31.1 |
+| **`CE-330`** ✅ | `ActionSchemaEntry.HeavyDtoType` + `ActionHosting.Heavy` deleted, 62 sites / 19 files. 📄 §30.31.2 |
+| **`CE-331`** ✅ | `ParseParamsDelegate` takes an `int capacity`. 📄 §30.31.3 |
+| **`Q36`** ✅ | APPROVED, corrected, and folded into **§32** |
 
+---
+
+## 0b. ⛔ OPEN, AND NONE OF IT IS OURS TO FIX UNASKED
+
+| row | what | lane |
+|---|---|---|
+| **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
+| **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
+| **`CE-333`** | the alias-arm emission that does not compile | ⭐ **ours** — §32.7 says fix it in the same pass as `E5`; it wants the identical thunk shape |
+
+---
+
+## 0c. 🔒 METHOD LESSONS FROM THIS SESSION — **each one cost real time**
+
+| # | |
+|---|---|
+| **1** | ⛔⛔ **For a DELEGATE SIGNATURE change, do not predict the site count — change it and let the COMPILER enumerate.** 📐 I estimated 21 and it was ~double, found over four build rounds: a grep for the shape misses **untyped lambdas**, **alternate parameter names** *(`ptr` vs `mem`)* and **`!`-suffixed invocations** *(`def.ParseParams!(`)* |
+| **2** | ⛔⛔ **A mechanical refactor's COMPLETENESS claim comes from a BUILD, never from the script's own count.** 📐 My sweep said *"61 of 62"* and was wrong about the **denominator**: it missed target-typed `=> new(…)` and aborted its whole walk on a **non-UTF-8 file** |
+| **3** | 🔴 **An unrestored project is SKIPPED, and its silence reads as a pass** — paid out **twice** in one session: it hid a compile break *(`CE-329`)* and, behind it, **seven failing rails** *(`CE-332`)*. ⇒ **a full-solution build is only a gate AFTER a full restore** |
+| **4** | ⚠ **BASELINE BEFORE YOU RUN, not after.** I ran suites first and had to go back and measure to separate my reds from pre-existing ones |
+| **5** | ⚠ **A fresh worktree is not automatically a valid baseline environment**, and ⛔ **do not tear one down while a run is still using it** — I killed the `Hrot.Blueprints.Tests` leg that way |
+| **6** | ⛔⛔ **A TEXT-ASSERTING golden cannot tell you the code it pins is not valid C#** — that is exactly how `CE-333` survived. 🔒 §32.8 `A2` makes "it COMPILES" an acceptance item |
+
+---
+
+## 0d. 📐 GATE BASELINES — **measured `2026-09-23` at `b6d2501b6`; re-verify, do not quote**
+
+| suite | |
+|---|---|
+| `Fdp.Toolkits.Tests` | **2328 / 2328** |
+| `Hrot.Blueprints.Tests` | **4054**, 18 skipped — ⚠ `DEBT-AIB-030`-style rotating flake seen twice; a single red whose identity CHANGES between runs is not a regression |
+| `Hrot.BTree.Editor.Tests` | **633 / 633** |
+| `Hrot.Hsm.Editor.Tests` | **567 / 567** |
+| `Fhsm.Tests` | **307 / 307** ⚠ out of the root solution — build it, never `--no-build` |
+| `Hrot.Editor.AiShared.Tests` | 2044 / 2046 — ⛔ 1 red `Aie030`, **baselined pre-existing** |
+| `Hrot.AiEditor.Generators.Tests` | 282 / 286 — ⛔ 4 red `S3`/`T30` shared-slot demos, **baselined pre-existing at HEAD in a worktree** |
+| `Hrot.IG.Tests` | 427 / 435 — ⛔ 7 red, **`CE-332`**, never ran before this session |
+| doc gates | `tracker-counts` OK · `rulings-check` **38/38** · `design-digest` OK · `mermaid-check` **30/30** |
+
+🔒 **Golden regeneration:** `AI_REGENERATE_SNAPSHOTS=1` for the AI corpus. ⭐ Report movement as a
+**diff SHAPE** — `CE-331`'s was *16 files, 16 insertions, 16 deletions, ONE unique change*.
+
+---
+
+## 0e. 🔒 STANDING CONSTRAINTS — **binding, carried verbatim**
+
+| | |
+|---|---|
+| ⭐ **branch** | push only to `behaviors`: `git push -u origin behaviors`, retry network errors 2s/4s/8s/16s |
+| ⛔⛔ **the stash** | `stash@{0}` is a diagnostic that must **NEVER** be committed |
+| ⭐ **questions** | plain chat prose, ⛔ **never** the `AskUserQuestion` widget |
+| ⭐ **links** | docs AND task ids as **GitHub blob links on `behaviors`** — the user is on mobile — and gloss every id on first mention |
+| ⭐ **slow work** | builds, tests and wide searches **in the background** |
+| ⛔ **`RW-S` rows** | do not "fix" the tracker's `RW-S` counting gap *(known, `CE-259at`)* |
+| ⛔ **attribution** | no model identifier in commits, PR titles/bodies, code comments or any repo artefact |
+| ⭐ **commit trailer** | `Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>` + `Claude-Session: https://claude.ai/code/session_01Y7DZG7BBQ8rNTesibu9NXo` |
+| ⛔ **PRs** | do not open one unless explicitly asked |
 ---
 
 > ⭐⭐ **Branch `behaviors`. Tree clean, everything pushed.**
@@ -98,7 +152,7 @@ derive a tier from CONTENT rather than from the entity** before calling it addit
 
 ---
 
-## 1. ⭐⭐⭐ WHERE IT STANDS — **`O7c` is finished**
+## 1. ⭐ WHERE IT STANDS — **`O7c` is finished** *(still true; §0a adds what came after)*
 
 | brain component | state |
 |---|---|
@@ -130,7 +184,7 @@ derive a tier from CONTENT rather than from the entity** before calling it addit
 
 ---
 
-## 2. ⭐⭐⭐ WHAT IS LEFT IN THE LANE
+## 2. ⛔ WHAT IS LEFT IN THE LANE — **SUPERSEDED `2026-09-23`, use §0b**
 
 ⛔ **`O7c` has no remaining slice, and `CE-300` / `CE-318` / `CE-321` ③ / `CE-323` are DONE
 (`2026-09-23`).** What is open:
@@ -181,7 +235,7 @@ registration all along.**
 
 ---
 
-## 5. 📐 GATE BASELINES — *(measured `2026-09-23` at the ④d commit; re-verify, do not quote)*
+## 5. ⛔ GATE BASELINES — **SUPERSEDED `2026-09-23`, use §0d** *(measured at the ④d commit)*
 
 | suite | result | vs baseline |
 |---|---|---|
