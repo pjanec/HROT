@@ -228,7 +228,7 @@ public static class PlatoonHillAttack2Registrar
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
-            __parseParams = static (string json, byte* memory, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
             {
                 // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
                 {
