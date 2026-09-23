@@ -4,7 +4,9 @@ build-state: ⛔ NOT BUILDABLE FROM THIS DOCUMENT. The RULINGS are approved (202
   is a decision document and carries NO UML. Per NO-IMPLEMENTATION-WITHOUT-UML, the approved
   shape must be folded into DESIGN_Occurrence_Scoped_Storage.md — which owns §18/§19's hosting
   call and already carries the diagrams — and marked buildable THERE before any batch.
-  §2a.3 is the item list, not a dispatch.
+  ✅ FOLDED 2026-09-23: DESIGN_Occurrence_Scoped_Storage.md §32 is the buildable shape, with the
+  three UML diagrams, the item list and acceptance A1-A6. §2a.3 remains the measurement; §32 is
+  what a batch is dispatched against.
 updated: 2026-09-23
 current-answer: ✅ APPROVED 2026-09-23 — Q36-A = B, Q36-B = A (§6). §2a.3 is the build list.
   §3 and §4 hold the two sub-questions and the leans that were approved, both UNCHANGED.

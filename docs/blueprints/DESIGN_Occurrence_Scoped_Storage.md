@@ -2,7 +2,17 @@
 state: LIVE
 updated: 2026-09-22
 build-state: READY-TO-BUILD
-current-answer: ⭐⭐⭐ NEXT TO BUILD IS §31 — O7c, RETIRE THE ROOT BRAIN COMPONENTS (2026-09-22).
+current-answer: ⭐⭐⭐ NEXT TO BUILD IS §32 — E5, AN HSM STATE HOSTS A BTREE (2026-09-23).
+  ✅ Q36 is APPROVED (Q36-A = B, the host ticks the child inline; Q36-B = A, SubtreeName beside the
+  Guid). §32 carries the INVENTORY, three UML diagrams, the item list and acceptance A1-A6.
+  ⭐ THE ONLY NEW BOX IS AN EMITTER: HostedSubtree.Tick, ComputeTreeStateKey, the thunk ABI and the
+  occurrence store all already ship, so E5 is a code-generation slice, not a runtime one.
+  ⛔ §32.5's module diagram draws the TWO DEAD ROUTES in red — the HsmOrchestrator alias arm
+  (CE-333, does not compile) and FastBTree NodeType.Subtree (a stub returning Failure). Build on
+  neither.
+  ✅ §31 (O7c) IS COMPLETE — no root brain component remains; §31.24 is CE-325's as-built.
+  ⛔ HISTORY — the previous current-answer:
+  ⭐⭐⭐ NEXT TO BUILD IS §31 — O7c, RETIRE THE ROOT BRAIN COMPONENTS (2026-09-22).
   P4 is COMPLETE: BrainBlackboard and Blackboard1024 are DELETED and the live-cluster acceptance
   passed (§30.28). §31 carries O7c's INVENTORY, its three UML diagrams and FOUR slices.
   ⭐ THE DRIVER IS CAPABILITY, NOT BYTES (user: "i thought the reason is to allow for subtrees
@@ -7529,3 +7539,179 @@ half, and it is the half that makes the guarantee *checkable* rather than *hoped
 `capacity`; only the Blueprint-generated arm *enforces* it. ⛔ **Do not read this section as "parsers are
 now safe"** — it makes the check POSSIBLE everywhere and MANDATORY in one place. 🔒 The rest is a
 follow-up, and it is honest to say so rather than imply the capability is finished.
+
+---
+
+## 32. ⭐⭐⭐ `E5` — **AN HSM STATE HOSTS A BTREE** *(DESIGN, `2026-09-23`)*
+
+> ✅ **`Q36` APPROVED `2026-09-23`** — 🔒 user, verbatim: *"Q36 approved."*
+> `Q36-A` = **B**, the host ticks the child inline · `Q36-B` = **A**, `SubtreeName` beside the Guid.
+> 📄 [`Architect_Question_36_Subtree_Hosting_Runtime.md`](Architect_Question_36_Subtree_Hosting_Runtime.md)
+> holds the options, the rejected alternatives and the approval; **this section is the buildable shape.**
+
+### 32.1 ⛔⛔ INVENTORY — **measured `2026-09-23`, before anything was drawn**
+
+| # | what exists | where | verdict |
+|---|---|---|---|
+| ① | `HostedSubtree.Tick / Reset / IsTreeStateSlot` — the hosting CALL, child cursor in its own slot | `Behavior/HostedSubtree.cs:48,88,102,124` | ⭐⭐ **REUSE. This is the mechanism; `E5` adds no new one** |
+| ② | `OccurrenceSlotKey.ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId)` | `Behavior/Shared/OccurrenceSlotKey.cs:179` | ⭐⭐ **REUSE unchanged** — see §32.4 |
+| ③ | `BTreeOrchestratorEmitCore` — the BTree host, already on `HostedSubtree.Tick` | `:148-151`, `:180-182` | ⭐ **the MODEL to copy** |
+| ④ | `HsmActionGenerator` — emits thunks `(void*, void*, HsmCommandWriter*)`, registers `&method` cast to that pointer type | `:405`, `:599` | ⭐ **the ABI the new emission must satisfy** |
+| ⑤ | `HsmKernelBridge { Entity Self; IntPtr WorldHandle; … }` reached through `contextPtr` | `Systems/HsmKernelBridge.cs:24` | ⭐⭐ **this is where the child's world+self come from** |
+| ⑥ | `StateNodeDto.SubtreeAssetId` / `StateNode.SubtreeAssetId` — **the Guid ALONE** | `HsmAssetDto.cs:98`, `HsmAsset.cs:870` | ⛔ **half the pair** — `Q36-B` adds the name |
+| ⑦ | `BTreeSubtreePayload { SubtreeAssetId; SubtreeName; IsResolved }` | `BehaviorTreeAsset.cs:93-96` | ⭐ **the proven triple to mirror** |
+| ⑧ | `HsmOrchestratorEmitCore` — the **ALIAS** arm, and its emission does not compile | `:91-98` | 🔴 **`CE-333`. NOT this section's arm** — fix alongside, §32.7 |
+| ⑨ | `BehaviorState { ActiveBehaviorHash; InstanceId; BrainTier }`, `BrainTickSystem:169/171` | — | ⛔ **UNCHANGED BY `E5`** — that is the point of `Q36-A` = B |
+
+### 32.2 ⭐ THE MODEL — `classDiagram`
+
+```mermaid
+classDiagram
+    class StateNodeDto {
+        +Guid StableId
+        +Guid SubtreeAssetId
+        +string SubtreeName
+    }
+    note for StateNodeDto "SubtreeName is the ONLY new field. The Guid already ships."
+    class HsmStateHostEmitter {
+        <<NEW>>
+        +Emit(HsmAssetDto) string
+    }
+    class HsmActionGenerator {
+        +registers &thunk as delegate*
+    }
+    class HostedSubtree {
+        +Tick(child, ref bb, ref ctx, slotKey) NodeStatus
+        +Reset(ref ctx, slotKey)
+    }
+    class OccurrenceSlotKey {
+        +ComputeTreeStateKey(host, site, child) int
+    }
+    class HsmKernelBridge {
+        +Entity Self
+        +IntPtr WorldHandle
+    }
+    class BehaviorRegistry {
+        +TryGetId(name) bool
+    }
+    class BlueprintBlackboardPartitions {
+        +TryGetSlotOffset(store, key)
+    }
+
+    StateNodeDto  <|.. HsmStateHostEmitter : reads SubtreeName + StableId
+    HsmStateHostEmitter ..> HsmActionGenerator : emits a method it registers
+    HsmStateHostEmitter ..> OccurrenceSlotKey : BAKES the key
+    HsmStateHostEmitter ..> HostedSubtree : emits the call
+    HostedSubtree ..> BlueprintBlackboardPartitions : resolves child cursor
+    HostedSubtree ..> HsmKernelBridge : world + self via ctx
+    HsmStateHostEmitter ..> BehaviorRegistry : child found BY NAME
+```
+
+*What the picture shows that the prose hid: **`HsmStateHostEmitter` is the only new box.** Every other
+participant already ships. `E5` is a code-generation slice, not a runtime one — which is exactly why
+`Q36-A` = B was the cheap answer, and why §9's blast radius no longer applies.*
+
+### 32.3 ⭐ ONE HOSTED TICK — `sequenceDiagram`
+
+```mermaid
+sequenceDiagram
+    participant K as HsmKernelCore
+    participant D as HsmActionDispatcher
+    participant T as Generated thunk
+    participant H as HostedSubtree
+    participant S as Occurrence store
+    participant C as Child interpreter
+
+    K->>D: ExecuteAction(actionId, instance, contextPtr, writer)
+    D->>T: (delegate*)(instance, contextPtr, writer)
+    Note over T: contextPtr IS HsmKernelBridge*
+    T->>T: repo = GCHandle.FromIntPtr(bridge->WorldHandle)
+    T->>H: Tick(child, ref childBb, ref ctx, BAKED slotKey)
+    H->>S: TryGetSlotOffset(store, slotKey)
+    S-->>H: ref BehaviorTreeState (the CHILD's own)
+    H->>C: Tick(ref childBb, ref childState, ref ctx)
+    C-->>H: NodeStatus
+    alt status != Running
+        H->>H: state = default (D4 half one)
+    end
+    H-->>T: NodeStatus
+    Note over T: thunk returns void — status is DISCARDED
+```
+
+*What the picture shows that the prose hid: **the thunk returns `void`, so the child's `NodeStatus`
+has nowhere to go.** That is not a defect — `Q33` §1.5.4 rules a hosted subtree **non-blocking**: it
+does not gate its state's transitions, and completion is raised through `HsmCommandWriter`, not through
+a return value. ⛔ Anyone tempted to "fix" the discard is re-opening a settled question.*
+
+### 32.4 ⭐⭐ THE KEY — **`ComputeTreeStateKey` is reused UNCHANGED, and the mapping is exact**
+
+| its parameter | BTree host | ⭐ HSM host |
+|---|---|---|
+| `hostAssetId` | `dto.AssetId` | `HsmAssetDto.AssetId` |
+| `siteNodeVisualId` | the hosting NODE's visual id | ⭐ **the hosting STATE's `StableId`** — the exact analogue |
+| `childAssetId` | `m.SubtreeAssetId` | `StateNodeDto.SubtreeAssetId` |
+
+🔒 **One arithmetic, two hosts** — ruling 9. ⛔ No new key function, and the scope stays
+`OccurrenceSlotScope.Behavior`, so a hosted child's cursor is per behaviour-instance exactly as the
+BTree host's is.
+
+### 32.5 ⭐⭐ WHO CALLS IT EACH FRAME — the MODULE diagram *(obligation ①a: the dead edges matter)*
+
+```mermaid
+graph TD
+    BTS["BrainTickSystem<br/>(one per entity, tier-branched)"]
+    KERNEL["HsmKernelCore.Update"]
+    DISP["HsmActionDispatcher.ExecuteAction"]
+    THUNK["Generated state-host thunk<br/>NEW"]
+    HS["HostedSubtree.Tick"]
+    CHILD["Child BTree interpreter"]
+    ALIAS["HsmOrchestrator alias arm<br/>CE-333 — DOES NOT COMPILE"]
+    SUB["FastBTree NodeType.Subtree<br/>stub: returns Failure"]
+
+    BTS -->|HSM arm| KERNEL
+    KERNEL -->|on state entry / activity| DISP
+    DISP --> THUNK
+    THUNK --> HS
+    HS --> CHILD
+    ALIAS -.->|unreachable: Emit returns null,<br/>no shipped asset has an alias| DISP
+    SUB -.->|never routed — no orchestration| CHILD
+
+    classDef dead fill:#f8d7da,stroke:#c00,color:#000
+    class ALIAS,SUB dead
+```
+
+*What the picture shows that neither other diagram could: **there are THREE candidate routes from a
+host to a child and only the solid one will work.** The alias arm is unreachable **and** uncompilable
+(`CE-333`); `NodeType.Subtree` is a stub the interpreter answers `Failure`. ⛔ A reader who finds either
+and assumes it is the mechanism will build on sand — which is why they are drawn rather than omitted.*
+
+### 32.6 ⭐ THE ITEMS
+
+| # | item | note |
+|---|---|---|
+| **1** | `StateNode.SubtreeName` + `StateNodeDto.SubtreeName`, both mapper directions | ⭐ nullable, omitted when empty ⇒ old assets load unchanged. ⚠ `hsm-persistence-shape` moves **only when an asset is re-saved**, not on the checked-in fixtures *(the `BP-302` correction)* |
+| **2** | **`HsmStateHostEmitter`** — for each state with a non-empty `SubtreeName`, emit one `[HsmAction]` **in the thunk ABI** | ⛔ **not** the BTree action shape — that is `CE-333`'s defect. `HsmActionGenerator:599` is the shape |
+| **3** | the thunk body: bridge → `repo`/`self`, then `HostedSubtree.Tick(child, ref childBb, ref ctx, bakedKey)` | key from §32.4 |
+| **4** | wire the state's entry action to the emitted name | `Q33` §1.5.4 — non-blocking |
+| **5** | register the hosting node's **deactivator** → `HostedSubtree.Reset` | the `F14` case: host abandons a still-`Running` child |
+
+### 32.7 ⚠ WHAT THIS DOES **NOT** DO
+
+| | |
+|---|---|
+| ⛔ **does not give the entity a second brain** | `BehaviorState` is untouched; the host ticks the child inline. 🔒 That IS `Q36-A` = B |
+| ⛔ **does not add an asset-id index to `BehaviorRegistry`** | `Q36-B` = A resolves by NAME, one mechanism with the shipped BTree path. The Guid stays as the rename-survivor |
+| ⚠ **inherits the `E3` hazard, named not fixed** | a hosted subtree's own actions still resolve DTOs at baked offsets. ⭐ Zero instances, as `E3` has |
+| 🔴 **does not fix `CE-333`** | the alias arm is a separate defect. ⭐ **Fix it in the same pass** — it wants the identical thunk shape, and leaving it emitting uncompilable C# beside a working emitter invites a copy of the wrong one |
+| ⛔ **does not touch `NodeType.Subtree`** | the interpreter stub stays `Failure`. ⚠ If it is ever wired it must route here, not become a second mechanism |
+
+### 32.8 ⭐ ACCEPTANCE
+
+| # | |
+|---|---|
+| **A1** | an HSM asset with a hosting state round-trips `SubtreeName` through real JSON text into a FRESH model *(⛔ never in-process set-then-read)* |
+| **A2** | the emitted thunk **COMPILES** — 🔒 the rail `CE-333` proves is missing; a text assertion is not enough |
+| **A3** | the child ticks and its cursor is its OWN — advance it, tick the host, assert the child resumes *(the `O4_R1` shape)* |
+| **A4** | the host abandoning a `Running` child resets it *(`F14`, via the deactivator)* |
+| **A5** | 🔴 **red-proof**: reverting the key to the host's own root key reddens A3 and nothing else |
+| **A6** | the golden corpus is **unmoved** — no shipped asset declares a hosting state |
