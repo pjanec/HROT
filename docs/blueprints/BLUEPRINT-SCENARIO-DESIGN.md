@@ -90,13 +90,13 @@ Uses the intent pattern (mirrors `InitialPassengersIntent` + `GenesisMaterializa
     map each id back to its `AssetId` GUID (via the registry/reverse map) → emit `BlueprintAssignmentDto[]`. (Slots
     are dense — no gap scan, no managed enumerator → zero-alloc.)
   - **`Inject` (load):** parse the JSON array → attach an `InitialBlueprintsIntent` component to the entity.
-  - **`GetOutputDomKeys` (REQUIRED — would crash load if omitted; verified vs `BrainBlackboardTranslator`):** must
+  - **`GetOutputDomKeys` (REQUIRED — would crash load if omitted; verified vs `BrainDiagnosticsTranslator`):** must
     return **both** (a) the custom array key it writes (e.g. `"BlueprintAssignments"`) and (b) the legacy
     `"BlueprintBlackboard1024"`/`"4096"`/`"16384"` keys claimed as a **black hole** (no-op `Inject`).
     `ScenarioSerializer` (`:389`) routes only declared keys to translators; anything else falls through to
     `FdpAutoSerializer`, which throws `InvalidOperationException` on (a) the unmapped custom array key and (b) old
     scenarios still carrying the now-`NoScenario` blackboard keys. This mirrors
-    `BrainBlackboardTranslator`'s claim-key + no-op `Inject` pattern.
+    `BrainDiagnosticsTranslator`'s claim-key + no-op `Inject` pattern. ⚠ Its DOM key is `BrainDiagnostics`, deliberately **not** a component name: `DebugApiService` builds an entity's `components` list from translator DOM keys, so a key naming a component publishes a phantom one.
 - **Register the managed intent (REQUIRED):** add `RegisterManagedComponent<InitialBlueprintsIntent>()` to the
   genesis intent registry (`GenesisIntentRegistry.RegisterAll`, where `InitialPassengersIntent`/
   `InitialUnitSubordinateIntent` are registered). Managed components can't be injected unless registered, or

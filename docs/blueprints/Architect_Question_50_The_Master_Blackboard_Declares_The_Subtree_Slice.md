@@ -130,8 +130,8 @@ require: 📌 ruling 9, and it makes *"a group without its field"* — the non-c
 | measured over **every** `*.btree.json` in the repo | |
 |---|---|
 | managed assets *(Category-2)* | **15** |
-| distinct asset-level `BlackboardTypeName` among them | ⭐ **ONE** — `Fdp.Toolkit.Behavior.Components.BrainBlackboard` |
-| is that type resolvable from the master's compilation? | ✅ **yes** — it is an ordinary referenced toolkit type |
+| distinct asset-level `BlackboardTypeName` among them | ⭐ **ONE** — the assets literally carry the string `Fdp.Toolkit.Behavior.Components.BrainBlackboard`, in all 26 of them |
+| is that type resolvable from the master's compilation? | ⛔ **NO — not any more.** 📐 The type was deleted by `P4`; the field is a **vestigial string** naming something that no longer exists. ⚠ Whatever this question builds on top of it must not assume the name resolves |
 
 ⇒ ⛔⛔ **a Category-2 callee never hits the "cannot be resolved" skip.** ⭐ And it cannot: the callee's own
 interpreter ticks against `byte` — its **root-params occurrence slot**, keyed by

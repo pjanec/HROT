@@ -22,7 +22,8 @@ current-answer: ✅✅✅ READ §5.0 — THE AGREED PLAN (user-confirmed 2026-09
   warning"; ③ user-ruled — build the IRoleShardProvider seam now, defer only the implementation), and
   ①c's own column reads "nothing measurable remains". ⇒ P3 IS NOT BLOCKED ON THE USER. What is left in
   its §5 is a per-system REVIEW: step 3b grew from ONE un-gated tick system to SEVEN, three of which
-  WRITE cognitive state (HsmTickSystem:110-113 the non-negotiable second).
+  WRITE cognitive state. (The two brain ticks have since merged into BrainTickSystem, so the
+  "gate one, forget its sibling" half of that finding is gone; the other writers remain.)
   ⭐⭐ A FOURTH READY-TO-BUILD DESIGN OF THIS PROGRAMME IS NOT IN THE PLAN AT ALL:
   ../DESIGN_Entity_Authoring_Surface.md — the ONE-method RequestEntityCreation(owner, …) surface that
   SUPERSEDES DESIGN_Entity_Creation_Unification.md §3.4. Measured 2026-09-11: zero occurrences in .cs,
@@ -322,7 +323,7 @@ alternative is a temporary bridge that would itself be the second registrar the 
 | ⭐⭐⭐ **ownership is NETWORK-AGNOSTIC** | 🔒 user: *"we can have multiple different network implementations - ownership can not be tied to one of them"*. 📐 Four factories: `Ned`, `Bdc`, `Offline`, + mocks. ⛔ **`DescriptorOwnershipMap` and `EDescriptorType` MUST NOT carry ownership** — the map is filled per implementation via `RegisterFromTranslator`. ⭐ The role carries a **`BitMask512` of component ids** |
 | ⭐⭐⭐ **TWO ownership categories** | ⭐ **cognitive** *(safe to default)* ⇒ role affinity · ⭐ **birth-critical** *(must be valid at birth)* ⇒ **creator birthright**, then the existing `DeferredTakeOwnership` handoff. 🔒 Architect: *"the position can not start empty"* |
 | ⭐⭐ **birth-criticality is a COMPONENT property declared by the TKB** | 🔒 user: *"TKB should define what components are birth critical"* — ⛔ not a descriptor *(networkless nodes have none)*. ⭐ Initial content: **`SimTransform` only**, via a new `TkbTemplate.BirthCriticalComponents` beside the existing `MandatoryComponents` |
-| 🔴 **authority does NOT stop execution** | 📐 `BTreeTickSystem.cs:62-65` has **no authority filter**, and no production system uses `QueryBuilder:97`'s `.WithAuthority<T>()`. ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic |
+| ⚠ **authority does NOT stop execution** | 📐 When this was written the brain tick had **no authority filter**. ✅ `BrainTickSystem` now builds every per-tier query with `WithOwnedWhen<BehaviorState>(gateOnAuthority)` — but the flag is off until a host holds a role policy. ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic |
 | 🔴 **a BDC node never promotes its ghosts** | 📐 `BdcReplicationModule.cs:66` registers `GhostCreationSystem` but **no** `GhostPromotionSystem`. ⭐ P2 closes this as a side effect |
 
 ### 📌 Committed `2026-09-01` — `44195801c..4a69ad3f8`

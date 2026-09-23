@@ -47,7 +47,7 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 |---|---|---|---|
 | ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into the **root-params occurrence slot** (a ROOT behaviour's own slot, keyed by `ComputeRootParamsKey`; a HOSTED occurrence's params are in its own nested slot, `E3a`), written by the generated `ParseParams` | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
 | ② | **`Role=State` @ `Behavior`/`Entity`** | ✅ partition slot, `FNV(assetId ++ variableName)` | ✅ **SHIPPED `E1`/`E2`** — `HsmBridgeEmitCore.EmitStatefulWorkingSlotsArray`, **the same allocator and the same key function** |
-| ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ⛔⛔ the action DTO sits at a **baked offset into the single 100-byte blackboard** ⇒ **`E3`** |
+| ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ✅ **CLOSED by `E3a`** — the action DTO used to sit at a **baked offset into the entity's one params region**; a hosted occurrence now owns its own slot |
 
 ⭐⭐ **The one class HSM has, it got by adopting BTree's algorithm verbatim.** ⇒ **the other two are the
 same move, twice more.** ⛔ **Nothing here needs a new mechanism.**
@@ -82,7 +82,7 @@ user's instinct *"are we building authoring for a not-ready runtime?"* was corre
 
 | | |
 |---|---|
-| ⛔ **today** | the generated thunk resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>` ⇒ ⭐⭐ **two concurrently-active regions running one action have ONE HOME BY CONSTRUCTION** |
+| ⛔ **the problem** | the generated thunk resolved its DTO at a baked offset into the **one** params region the entity had ⇒ ⭐⭐ **two concurrently-active regions running one action had ONE HOME BY CONSTRUCTION**. ✅ **Closed by `E3a`** — a hosted occurrence's params are its own occurrence slot |
 | ⭐ **the move** | per-occurrence bytes from `BlueprintBlackboardPartitions` under `ComputeStatefulSlotKey(assetId, Scope.Node, occurrence, variableId)` — ⭐⭐ **class ③'s existing algorithm, with HSM's `Guid.Empty` replaced by a real occurrence** |
 | ⭐ **ONE path, not two** | ⛔ **do NOT keep the baked-offset path "for the simple case"** — 📄 ruling 9, and ⚠ **the divergence is exactly what made this invisible** |
 | ⚠ **delivery is open** | 📄 **`Q35`** — the lean is that the delegate does **not** widen: `HsmCommandWriter` is a kernel struct already passed to every action and can carry `(regionSlotIndex, stateId)` |

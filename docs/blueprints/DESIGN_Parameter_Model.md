@@ -133,7 +133,7 @@ published row 2 *(usable params — **not authored**)* as if it were row 1.
 | member | is | read by |
 |---|---|---|
 | ⭐⭐ **`JsonParamsDtoType`** *(renamed from `ParamsDtoType`)* | **row 1 — the authored DTO** | `DtoJsonSchemaExtractor` → `GET /behaviors`; the mission panel; MCP |
-| 🔒 **`BlackboardLayoutType`** *(new; takes the old meaning)* | **row 2 — the blittable layout** | `BrainBlackboardTranslator` · `RootParamsProjection` (tier renderers) · `BlackboardReflection`/`RootParamsViewProvider` *(StructEdit)* · the ReplayBrowser predicate compiler + its two field drawers · the 60-byte size guard |
+| 🔒 **`BlackboardLayoutType`** *(new; takes the old meaning)* | **row 2 — the blittable layout** | `BrainDiagnosticsTranslator` · `RootParamsProjection` (tier renderers) · `BlackboardReflection`/`RootParamsViewProvider` *(StructEdit)* · the ReplayBrowser predicate compiler + its two field drawers · the 60-byte size guard |
 
 ⭐⭐ **BOTH were renamed on purpose** *(user: "forcing the compiler to expose all places where it is used
 so we never forget to revise its correct usage")* — the migration is a **compile error at every one of the
@@ -298,7 +298,7 @@ breaking change bought deliberately, rather than churning the delegate a third t
 > param area! interrupts and soft advices have no relation to the params."*
 
 ⭐ **Measured: no generated thunk touches the tail.** Every production reader/writer is a **system** —
-`CognitiveInterruptSystem` sets · `CognitiveCleanupSystem` clears · `HsmTickSystem:168` reads ·
+`CognitiveInterruptSystem` sets · `CognitiveCleanupSystem` clears · the brain tick's HSM arm reads ·
 `RouteContextSystem:190` writes `ExpectedThreatLevel`.
 
 | occurrence | ticked with |
@@ -415,7 +415,7 @@ blackboard live.
 
 | | |
 |---|---|
-| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch a blackboard component's members ⇒ swap the root-slot base expression at 3 generator emit sites, the interpreter type argument, one line in `BTreeTickSystem` |
+| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch a blackboard component's members ⇒ swap the root-slot base expression at 3 generator emit sites, the interpreter type argument, one line in the brain tick |
 | **Blueprint** | ⚠ moderate — `BlueprintSlotEntry`, `TryAttach`, `TryGetSlotOffset`, attach/detach events, `FieldLayout`. **No kernel change.** ⚠ `InstanceVersion` is **NOT free** — it is the latent-cursor staleness token |
 | **HSM** | ⚠ larger, ✅ **user accepted** — ⭐ **`r` (region) and `current` (state) are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening + thunk regeneration, **not** a data-flow redesign. ⚠ a `FastHSM` `ExtDeps` change. ⭐ **The params-base change folds into the same seam** |
 

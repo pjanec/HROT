@@ -43,8 +43,8 @@ per-projector tier taxonomy)*. ⛔ Both are gone; ⭐ this is the answer.
 | `grep -rh "GizmoProjector(" Hrot.{Common,AI.Behaviors,IG,ScenarioEditor}` | **11** | `Hrot.Common` **7** · `Hrot.AI.Behaviors` **1** · `Hrot.IG` **3** · ⛔⛔ **`Hrot.ScenarioEditor` ZERO — WRONG, see §6.3.** 📐 There is **no `Hrot.ScenarioEditor` PROJECT**; the **namespace** lives inside `Hrot.Presentation` and holds **7** projector files. ⇒ 🔴 **my grep searched for a DIRECTORY and read the miss as an absence** — the exact failure CLAUDE.md names *("an absence claim from grep is an absence in your pattern, not in the repo")*. ⭐ The real total is **18**, not 11 |
 | `grep Register Hrot/Subsystems/Hrot.IG/Gizmos/GizmoRegistrar.cs` | **4 families** | IG declares **all four** |
 | `grep RegisterComponent .../IgRoleComponentRegistry.cs` | ~20 | style · culling · selection · trails · effects · overlays · perception · weapon visuals |
-| the 4 components those 11 projectors need and IG lacks | **4** | ⛔ `BrainBlackboard` · `BehaviorState` · `EqsSensor` · `BallisticProjectile` · `NavigationIntent` **(5 with the intent)** |
-| ⭐ all of them located | **5 / 5** | ⭐⭐ **all in `Fdp.Toolkits`** — a project IG **already references** ⇒ ⛔ **zero new edges** |
+| the components those 11 projectors need and IG lacks | **3** | ⛔ `BehaviorState` · `EqsSensor` · `BallisticProjectile` · `NavigationIntent` **(4 with the intent)**. ⚠ This row also named `BrainBlackboard`, which no longer exists — a projector wanting a behaviour's params now needs `BehaviorState` **plus** the `BlueprintBlackboard*` tier components that carry its slot, and **which of the eleven actually want that has not been re-measured** |
+| ⭐ all of them located | **4 / 4** | ⭐⭐ **all in `Fdp.Toolkits`** — a project IG **already references** ⇒ ⛔ **zero new edges** |
 
 ### ⭐⭐ The two facts worth keeping
 
