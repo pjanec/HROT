@@ -582,6 +582,24 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
 
         _editor = new EditorSubsystem();
 
+        // ⭐⭐⭐ UXI-11 S-3d — THE 3-D SELECTION BECOMES A VIEW OF THE ONE SELECTION.
+        // 🔒 User, 2026-09-20: unify the nodes, and the bootstrap with them.
+        // 🔴 What this deletes: SyncSelection2D3D, a per-frame version-polling bridge that moved the
+        //    selection ONE DIRECTION PER FRAME between two independent stores, with two anti-bounce
+        //    trackers. With one truth there is nothing to bridge — and leaving the bridge in place
+        //    would be worse than redundant: each "push" writes through PrimarySelected, which bumps
+        //    the version, which the other arm reads as a change ⇒ a bump every frame, forever.
+        // ⭐ Bound to the editor's EXISTING public trio, all of which already route to the shared
+        //    EcsSelectionState, so nothing new is added on the 2-D side.
+        // ⚠⚠ `available` is load-bearing: the editor builds its selection during WINDOW REGISTRATION,
+        //    so a headless subsystem has none. ⛔ Binding regardless would make Select a silent no-op
+        //    and the 3-D highlight would never appear — while every rail still passed.
+        SelectionState.BindTo(
+            read:      () => _editor?.Selected2DEntity,
+            write:     e  => _editor?.SetSelection2D(e),
+            version:   () => _editor?.Selection2DVersion ?? 0,
+            available: () => _editor?.Has2DSelection ?? false);
+
         // Set MuscleCapabilitiesFactory BEFORE Initialize (mirrors boot-test pattern exactly).
         //
         // ⭐⭐ S2b / CE-208 — this used to be `MuscleModuleFactory`, a Func returning bare IEcsModules.
@@ -974,7 +992,10 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
         _viewBracket.RunPostKernelStep(World, dt, emitHostGizmos: () =>
         {
             _selectionSw.Restart();
-            SyncSelection2D3D(); // BATCH-S2-R: two-way 2D↔3D selection mirror (before ClearIfDead so sync sees live state)
+            // ⛔ SyncSelection2D3D() is GONE (UXI-11 S-3d): the 3-D state is a VIEW of the 2-D one,
+            //    so there are no longer two stores to mirror. ⚠ ClearIfDead is retained and is a
+            //    no-op while bound — EcsSelectionState reads the live world, so a destroyed entity
+            //    is already absent rather than a stale handle needing a scrub.
             SelectionState.ClearIfDead(World);
             EmitSelectionHighlight();
             EmitMoveMarker(dt); // BATCH-S2-O: destination marker
@@ -1048,8 +1069,8 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     private int _selDiagFrame;
 
     // BATCH-S2-R: 2D↔3D selection sync version trackers.
-    private int _last2dSelVersion = -1;
-    private int _last3dSelVersion = -1;
+    // ⛔ _last2dSelVersion / _last3dSelVersion are GONE with SyncSelection2D3D (UXI-11 S-3d):
+    //    anti-bounce trackers exist only when two stores are kept in step, and there is one now.
 
     // Half-extents of the selection box in metres (world-space; constant for v1).
     // 1.0 m on each side → 2 m total; tall enough to encircle a standing infantry soldier.
@@ -1092,35 +1113,6 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
     {
         _toastMessage = message ?? string.Empty;
         _toastSecondsRemaining = seconds;
-    }
-
-    /// <summary>
-    /// Keeps the 2D editor selection (<see cref="EditorSubsystem.Selected2DEntity"/>) and the 3D
-    /// <see cref="SelectionState"/> in sync, one direction per frame (whichever changed), using
-    /// version counters to prevent feedback bounce. (BATCH-S2-R)
-    /// </summary>
-    private void SyncSelection2D3D()
-    {
-        if (_editor == null) return;
-        int v2d = _editor.Selection2DVersion;
-        if (v2d != _last2dSelVersion)
-        {
-            // 2D changed this frame → push to 3D.
-            _last2dSelVersion = v2d;
-            var e = _editor.Selected2DEntity;
-            if (e.HasValue && e.Value != Fdp.Core.Entity.Null && World != null && World.IsAlive(e.Value))
-                SelectionState.Select(e.Value);
-            else
-                SelectionState.Clear();
-            _last3dSelVersion = SelectionState.Version; // sync tracker so we don't bounce back
-        }
-        else if (SelectionState.Version != _last3dSelVersion)
-        {
-            // 3D changed this frame (e.g. click-to-select) → push to 2D.
-            _last3dSelVersion = SelectionState.Version;
-            _editor.SetSelection2D(SelectionState.HasSelection ? SelectionState.SelectedEntity : (Fdp.Core.Entity?)null);
-            _last2dSelVersion = _editor.Selection2DVersion; // sync tracker
-        }
     }
 
     /// <summary>

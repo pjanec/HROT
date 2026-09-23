@@ -365,12 +365,22 @@ namespace Fdp.Examples.Scenarios.Integrated
 
             // FDP.Toolkit.Behavior
             world.RegisterComponent<BehaviorState>();
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<SimTier>();
-            world.RegisterComponent<BrainBlackboard>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainHsm128>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
+            // ⭐⭐ CE-323: the interrupt tail. Without it CognitiveInterruptSystem matches nothing,
+            //   so MobilityLost never fires, the APC's HSM never leaves Cruising, the soldiers are
+            //   never ejected and latches 3–5 cannot be reached — all silently. 📄 §31.21.
+            world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
@@ -449,7 +459,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 });
 
             // ── InfantrySoldier: aggressive InfantryCombat BTree ─────────────
-            var infantryReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var infantryReg = new ActionRegistry<byte, BTreeContext>();
             infantryReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             infantryReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             infantryReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -459,11 +469,11 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(infantryBlob, infantryReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(infantryBlob, infantryReg),
                 });
 
             // ── Insurgent: Ambush BTree ───────────────────────────────────────
-            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var ambushReg = new ActionRegistry<byte, BTreeContext>();
             ambushReg.Register("Condition_HasTarget", BTreeNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   BTreeNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", BTreeNodes.Action_HoldPosition);
@@ -473,7 +483,7 @@ namespace Fdp.Examples.Scenarios.Integrated
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });
         }
 
@@ -580,8 +590,8 @@ namespace Fdp.Examples.Scenarios.Integrated
                 new MissionDirectorSystem(),
                 new CognitiveInterruptSystem(), // detects CanMove→cleared from DamageSystem above
                 new ChannelArbitrationSystem(),
-                new BTreeTickSystem(_behaviorRegistry),
-                new HsmTickSystem<BrainHsm128>(_behaviorRegistry),
+                // ⭐ O7c-④b: ONE brain tick with a BTree arm and an HSM arm — these were two systems.
+                new BrainTickSystem(_behaviorRegistry),
                 weaponSys,
                 interactSys,
                 new LocomotionDispatcherSystem(),
@@ -610,14 +620,24 @@ namespace Fdp.Examples.Scenarios.Integrated
             _apc = SpawnEntity(world, TkbMilitaryApc, ApcSpawnPos, MathF.PI / 2f, BehaviorConvoyEscort);
 
             // Pre-initialise the APC HSM brain so HsmKernel.Update processes it correctly.
-            // Without this, BrainHsm128.Header.MachineId == 0 and ValidateInstance rejects it.
+            // Without this, InstanceHeader.MachineId == 0 and ValidateInstance rejects it.
+            //
+            // ⭐⭐ O7c-④ (2026-09-23): THE INSTANCE LIVES IN AN OCCURRENCE SLOT, NOT IN BrainHsm128.
+            //   EnsureRootInstance provisions the store, attaches a slot sized by
+            //   HsmInstanceManager.SelectTier(blob), and binds MachineId — which is the first two
+            //   lines below in one call. ⚠ The leaf seed stays explicit because it is what makes this
+            //   scenario start the APC ALREADY CRUISING rather than at the machine's entry state.
             if (_behaviorRegistry.TryGetDefinition(BehaviorConvoyEscort, out var convoyDef)
-                && convoyDef.HsmDefinition != null)
+                && convoyDef.HsmDefinition != null
+                && RootHsmAccess.EnsureRootInstance(world, _apc, BehaviorConvoyEscort, convoyDef.HsmDefinition)
+                && RootHsmAccess.TryGetInstance(world, _apc, out byte* apcInstance, out int apcSize))
             {
-                ref var brain = ref world.GetComponentRW<BrainHsm128>(_apc);
-                brain.State.Header.MachineId  = convoyDef.HsmDefinition.Header.StructureHash;
-                brain.State.Header.Phase      = InstancePhase.RTC;
-                brain.State.ActiveLeafIds[0]  = ApcHsmCruisingIndex;
+                ((InstanceHeader*)apcInstance)->Phase = InstancePhase.RTC;
+
+                // ⛔ The active-leaf array's offset AND its length are both functions of the instance
+                //   SIZE, so it is read through the kernel's own accessor rather than a struct field.
+                ushort* leaves = HsmKernel.GetActiveLeafIds(apcInstance, apcSize, out int leafCount);
+                if (leaves != null && leafCount > 0) leaves[0] = ApcHsmCruisingIndex;
             }
 
             // 4. Infantry soldiers — spawn co-located with APC, then embark
@@ -689,6 +709,14 @@ namespace Fdp.Examples.Scenarios.Integrated
             if (_behaviorRegistry.TryGetDefinition(behaviorId, out var def))
                 behavior.BrainTier = def.BrainTier;
 
+            // ⭐⭐⭐ O7c-② / O7c-④ — RE-PROVISION THE ROOT BRAIN STATE FOR *THIS* BEHAVIOUR.
+            //   🔴 Same reason as ScenarioDirector's copy: BehaviorTkbTranslator keyed a root slot by
+            //     the TEMPLATE'S DEFAULT behaviour, and the line above overwrites ActiveBehaviorHash
+            //     with a different one ⇒ the computed key stops resolving and the slot is orphaned.
+            //   ⛔ For a BTree brain, BrainTickSystem's RequireStateRef then THROWS.
+            if (def != null && def.BrainTier == BehaviorConstants.BrainTierBTree)
+                RootStateAccess.EnsureRootState(world, entity, behaviorId);
+
             _entityMap.Register(_nextNetId++, entity);
 
             return entity;
@@ -715,7 +743,7 @@ namespace Fdp.Examples.Scenarios.Integrated
         private static class BTreeNodes
         {
             public static NodeStatus Condition_HasTarget(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -728,7 +756,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static unsafe NodeStatus Action_AimAndFire(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)
@@ -758,7 +786,7 @@ namespace Fdp.Examples.Scenarios.Integrated
             }
 
             public static NodeStatus Action_HoldPosition(
-                ref BrainBlackboard blackboard,
+                ref byte blackboard,
                 ref BehaviorTreeState state,
                 ref BTreeContext ctx,
                 int paramIndex)

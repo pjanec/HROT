@@ -64,7 +64,7 @@ namespace Fdp.Toolkit.Utility
         /// else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander with a
-        /// <see cref="Blackboard1024"/>. Returns 0f if any prerequisite is missing.
+        /// <see cref="SquadCognitiveState"/>. Returns 0f if any prerequisite is missing.
         /// </para>
         /// </summary>
         [UtilityInput("SquadKnowsContact")]
@@ -74,10 +74,9 @@ namespace Fdp.Toolkit.Utility
             ref readonly var sub = ref ctx.Repo.GetComponentRO<UnitSubordinate>(ctx.Self);
             var commander = sub.Commander;
             if (commander.Equals(Entity.Null)) return 0f;
-            if (!ctx.Repo.HasComponent<Blackboard1024>(commander)) return 0f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
 
-            ref var bb = ref Unsafe.AsRef(in ctx.Repo.GetComponentRO<Blackboard1024>(commander));
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(commander);
 
             long candidateId = (long)ctx.Context.PackedValue;
             var span = MemoryMarshal.CreateReadOnlySpan(
@@ -103,10 +102,9 @@ namespace Fdp.Toolkit.Utility
             ref readonly var sub = ref ctx.Repo.GetComponentRO<UnitSubordinate>(ctx.Self);
             var commander = sub.Commander;
             if (commander.Equals(Entity.Null)) return 0f;
-            if (!ctx.Repo.HasComponent<Blackboard1024>(commander)) return 0f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
 
-            ref var bb = ref Unsafe.AsRef(in ctx.Repo.GetComponentRO<Blackboard1024>(commander));
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(commander);
 
             long candidateId = (long)ctx.Context.PackedValue;
             var span = MemoryMarshal.CreateReadOnlySpan(
@@ -131,7 +129,7 @@ namespace Fdp.Toolkit.Utility
         public static float SquadStrengthRatio(in UtilityInputCtx ctx)
         {
             if (!ctx.Repo.HasComponent<UnitRoster>(ctx.Self)) return 1f;
-            if (!ctx.Repo.HasComponent<Blackboard1024>(ctx.Self)) return 1f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 1f;
 
             ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(ctx.Self);
             float sumCurrent = 0f;
@@ -188,9 +186,8 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("ActiveFeatureThreatRating")]
         public static float ActiveFeatureThreatRating(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Blackboard1024>(ctx.Self)) return 0f;
-            ref var bb = ref ctx.Repo.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
             if (state.ActiveFeatureId == 0) return 0f;
             if (!ctx.Repo.HasComponent<DangerAreaCognitiveBuffer>(ctx.Self)) return 0f;
             ref readonly var buffer = ref ctx.Repo.GetComponentRO<DangerAreaCognitiveBuffer>(ctx.Self);
@@ -210,9 +207,8 @@ namespace Fdp.Toolkit.Utility
         [UtilityInput("ActiveFeatureKindIs")]
         public static float ActiveFeatureKindIs(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Blackboard1024>(ctx.Self)) return 0f;
-            ref var bb = ref ctx.Repo.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
             if (state.ActiveFeatureId == 0) return 0f;
             if (!ctx.Repo.HasComponent<DangerAreaCognitiveBuffer>(ctx.Self)) return 0f;
             ref readonly var buffer = ref ctx.Repo.GetComponentRO<DangerAreaCognitiveBuffer>(ctx.Self);
@@ -229,14 +225,13 @@ namespace Fdp.Toolkit.Utility
         /// <summary>
         /// Returns the aggregate threat across all contacts in the squad's contact pool,
         /// normalised to [0, 1] (max 16 contacts * 1.0f each = 16.0f).
-        /// Returns 0f when ctx.Self has no <see cref="Blackboard1024"/>.
+        /// Returns 0f when ctx.Self has no <see cref="SquadCognitiveState"/>.
         /// </summary>
         [UtilityInput("SquadPoolThreatAggregate")]
         public static float SquadPoolThreatAggregate(in UtilityInputCtx ctx)
         {
-            if (!ctx.Repo.HasComponent<Blackboard1024>(ctx.Self)) return 0f;
-            ref var bb = ref ctx.Repo.GetComponentRW<Blackboard1024>(ctx.Self);
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(ctx.Self)) return 0f;
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(ctx.Self);
             var span = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<SquadContactPoolSlots, SquadContact>(
                     ref Unsafe.AsRef(in state.Contacts.Contacts)), 16);
@@ -252,7 +247,7 @@ namespace Fdp.Toolkit.Utility
         /// encoded in <c>ctx.Params.BlueprintId</c> (low byte), else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander
-        /// with a <see cref="Blackboard1024"/> and <see cref="UnitRoster"/>.
+        /// with a <see cref="SquadCognitiveState"/> and <see cref="UnitRoster"/>.
         /// Returns 0f if any prerequisite is missing or the member is not in the roster.
         /// </para>
         /// </summary>
@@ -263,7 +258,7 @@ namespace Fdp.Toolkit.Utility
             ref readonly var sub = ref ctx.Repo.GetComponentRO<UnitSubordinate>(ctx.Self);
             var commander = sub.Commander;
             if (commander.Equals(Entity.Null)) return 0f;
-            if (!ctx.Repo.HasComponent<Blackboard1024>(commander)) return 0f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
             if (!ctx.Repo.HasComponent<UnitRoster>(commander)) return 0f;
 
             ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(commander);
@@ -275,8 +270,7 @@ namespace Fdp.Toolkit.Utility
             }
             if (memberIndex < 0) return 0f;
 
-            ref var bb = ref Unsafe.AsRef(in ctx.Repo.GetComponentRO<Blackboard1024>(commander));
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(commander);
 
             var roleSpan = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<RoleAssignmentArray, RoleSlot>(
@@ -291,7 +285,7 @@ namespace Fdp.Toolkit.Utility
         /// the slot kind encoded in <c>ctx.Params.BlueprintId</c> (low byte), else 0f.
         /// <para>
         /// ctx.Self must have a <see cref="UnitSubordinate"/> pointing at a commander
-        /// with a <see cref="Blackboard1024"/> and <see cref="UnitRoster"/>.
+        /// with a <see cref="SquadCognitiveState"/> and <see cref="UnitRoster"/>.
         /// Returns 0f if any prerequisite is missing or the member is not in the roster.
         /// </para>
         /// </summary>
@@ -302,7 +296,7 @@ namespace Fdp.Toolkit.Utility
             ref readonly var sub = ref ctx.Repo.GetComponentRO<UnitSubordinate>(ctx.Self);
             var commander = sub.Commander;
             if (commander.Equals(Entity.Null)) return 0f;
-            if (!ctx.Repo.HasComponent<Blackboard1024>(commander)) return 0f;
+            if (!ctx.Repo.HasComponent<SquadCognitiveState>(commander)) return 0f;
             if (!ctx.Repo.HasComponent<UnitRoster>(commander)) return 0f;
 
             ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(commander);
@@ -314,8 +308,7 @@ namespace Fdp.Toolkit.Utility
             }
             if (memberIndex < 0) return 0f;
 
-            ref var bb = ref Unsafe.AsRef(in ctx.Repo.GetComponentRO<Blackboard1024>(commander));
-            ref readonly var state = ref SquadCognitiveState.Project(ref bb);
+            ref readonly var state = ref ctx.Repo.GetComponentRO<SquadCognitiveState>(commander);
 
             var elemSpan = MemoryMarshal.CreateReadOnlySpan(
                 ref Unsafe.As<MemberElementIndexArray, byte>(

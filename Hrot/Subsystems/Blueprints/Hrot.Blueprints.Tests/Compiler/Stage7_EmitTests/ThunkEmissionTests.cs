@@ -54,8 +54,11 @@ public sealed class ThunkEmissionTests
 
         // BTree action thunk method should be present.
         Assert.Contains("BTreeTick", src);
-        // BrainBlackboard parameter should use correct namespace.
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.BrainBlackboard", src);
+        // ⭐ P4-②: the BTree dispatch blackboard is `byte` — the ROOT PARAMS SLOT BASE that
+        //   BTreeTickSystem resolves once per entity per tick and hands to the interpreter.
+        Assert.Contains("ref byte bb", src);
+        // ⛔ and the retired component must not come back as the dispatch type.
+        Assert.DoesNotContain("ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb", src);
         // BehaviorTreeState should use Fbt namespace.
         Assert.Contains("global::Fbt.BehaviorTreeState", src);
     }
@@ -73,7 +76,8 @@ public sealed class ThunkEmissionTests
         var src = EmitAndGetSource(asset);
 
         Assert.Contains("BTreeEvaluate", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.BrainBlackboard", src);
+        // ⭐ P4-②: same for the condition thunk — `ref byte`, not the retired component.
+        Assert.Contains("ref byte bb", src);
     }
 
     [Fact]
@@ -89,10 +93,23 @@ public sealed class ThunkEmissionTests
 
         // HSM activity thunk.
         Assert.Contains("HsmActivity", src);
-        // Blackboard1024 should use Fdp.Toolkit.Behavior.Components namespace.
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
         // HsmKernelBridge should use Fdp.Toolkit.Behavior.Systems namespace.
         Assert.Contains("global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge", src);
+
+        // ⭐⭐ O7 / E3 — the working state comes from THIS OCCURRENCE'S slot, keyed by the (region,
+        //    state) the kernel stamped. 🔴 It used to be Blackboard1024 at a hard-coded memory + 8,
+        //    which is ONE working state per ENTITY: two concurrently-active regions running this
+        //    asset wrote the same bytes, silently (BP-297).
+        Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer)", src);
+        // ⭐⭐⭐ E3a — and the PARAMS ride the same slot: one key, one lookup, one lifetime (§28).
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+
+        // ⭐ CE-297 — the params SEED comes from the blackboard, never from the kernel's instance
+        //   pointer. ⚠ E3a demoted it from the live home to the seed; HsmThunk_TakesParamsFromThe-
+        //   OccurrenceSlot_E3a pins that it sits inside the freshly-attached arm.
+        Assert.Contains("BrainBlackboard", src);
+        Assert.DoesNotContain("*(Params*)instance", src);
     }
 
     [Fact]
@@ -108,7 +125,11 @@ public sealed class ThunkEmissionTests
         var src = EmitAndGetSource(asset);
 
         Assert.Contains("HsmGuard", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+
+        // ⭐⭐ O7 / E3 / E3a + CE-297 — the same corrections as the action thunk; one shared body.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+        Assert.DoesNotContain("*(Params*)instance", src);
     }
 
     [Fact]
@@ -124,5 +145,170 @@ public sealed class ThunkEmissionTests
 
         Assert.Contains("BTreeTick", src);
         Assert.Contains("HsmActivity", src);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E3a</c> / <c>CE-298</c> — the thunk's params come from the OCCURRENCE SLOT, and the
+    /// blackboard is only the SEED.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.
+    ///
+    /// <para>⚠ <b>This rail was a DEFECT PIN and has now FLIPPED.</b> It asserted
+    /// <c>ref bb, (nint)0</c> as the LIVE projection while that was true, and
+    /// reddened the moment <c>E3a</c> landed — which is the whole point of a pin.</para>
+    ///
+    /// <para>🔒 <b>User, <c>2026-09-21</c>:</b> <i>"the simplest case like two actions running in two
+    /// hsm regions would overwrite the params. Forget the fact it is not in use now. it will be."</i>
+    /// ⛔ My own first answer — that it <i>"buys nothing measurable today"</i> because 0 of 27 goldens
+    /// mutate <c>Params</c> — reasoned from the corpus to a CAPABILITY question and was wrong.</para>
+    ///
+    /// <para>⚠ <b>Why a rail on emitted TEXT:</b> the property is an ADDRESS one — <i>"the params
+    /// address depends on the occurrence"</i> — and the address is baked by the emitter. ⭐ The
+    /// behavioural half is <c>O7_R24</c>/<c>O7_R25</c> in <c>Fdp.Toolkits.Tests</c>, which write
+    /// through two occurrences and prove they do not move each other.</para>
+    /// </summary>
+    [Fact]
+    public void HsmThunk_TakesParamsFromTheOccurrenceSlot_E3a()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ParamsPerEntity")
+            .WithHostings(AiPrimitiveHosting.HsmAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var src = EmitAndGetSource(asset);
+
+        // ⭐⭐ ONE slot carries BOTH — one key, one lookup, one lifetime.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.DoesNotContain("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
+
+        // ⭐ The live read is from the slot…
+        Assert.Contains("ref var p = ref *__params;", src);
+
+        // …and the blackboard survives ONLY as the seed, inside the freshly-attached arm.
+        int seed = src.IndexOf("*__params = ", StringComparison.Ordinal);
+        int fresh = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
+        Assert.True(fresh >= 0 && seed > fresh,
+            "the blackboard copy must sit INSIDE the freshlyAttached arm — a seed, not a live read");
+
+        // ⭐⭐⭐ E3b-0 (§28.6): and the seed offset is the STATE'S OWN BINDING, not a literal 0 —
+        //    that is what lets two parallel regions seed from different variables.
+        Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);", src);
+        // 🔴 P3-C: the anchor is the ROOT PARAMS SLOT now; the OFFSET is what this rail is about.
+        Assert.Contains("ref __rootParams, (nint)__seedOffset", src);
+        Assert.Contains("RootParamsAccess.RootRef(world, bridge->Self)", src);
+
+        // ⛔ …and the HSM thunk no longer bakes a literal 0 anywhere.
+        Assert.Equal(0, CountOccurrences(src, "ref __rootParams, (nint)0"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E3b-0</c> — the STANDALONE BTree thunk keeps the literal <c>0</c>, and that is CORRECT
+    /// BY CONSTRUCTION.</b>
+    ///
+    /// <para>⛔ Standalone hosting is the single-occurrence case — the <c>@0</c> in its own registration
+    /// key has always said so, and <c>O7d</c>'s slot key is ASSET-scoped for the same reason. ⭐ There is
+    /// no site to bind, so asking a binding table would be a lookup whose answer is always 0.</para>
+    ///
+    /// <para>⚠ The rail exists because the obvious wrong symmetry is to route BOTH paths through the
+    /// binding — which would add a per-dispatch lookup to the path that provably cannot need one.</para>
+    /// </summary>
+    [Fact]
+    public void StandaloneThunk_KeepsTheLiteralZeroSeed_E3b0()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("StandaloneSeed")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var src = EmitAndGetSource(asset);
+
+        Assert.Contains("ref __rootParams, (nint)0", src);
+        Assert.DoesNotContain("SeedParamsOffset", src);
+
+        // ⭐ C1′ — it still gets the RESOLVE stage, with a null host: it has none by construction,
+        //   but a resolver may still compute from world/self.
+        Assert.Contains("HostedParamResolvers.TryRun(", src);
+        Assert.Contains("ctx.World, ctx.Self, null)", src);
+        Assert.DoesNotContain("HsmHostVariableAccess", src);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>Q41-C1′</c> / <c>E7a</c> — the HSM thunk emits the RESOLVE stage WITH ITS HOST.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
+    ///
+    /// <para>🔴 <b>The pipeline <c>BehaviorParams.FromJson</c> specifies is bake → overlay → RESOLVE →
+    /// write, and the RESOLVE stage had never been emitted anywhere.</b> ⭐ This is it — and this is
+    /// the call site that finally gives <see cref="Fdp.Toolkit.Behavior.IHostVariableAccess"/> a
+    /// non-null value after it sat declared-not-implemented since <c>2026-08-16</c>.</para>
+    ///
+    /// <para>⚠ It sits INSIDE the freshly-attached arm: resolve-ONCE, at the child's activation, never
+    /// on a steady-state dispatch (§3.1, <c>R-84</c>).</para>
+    /// </summary>
+    [Fact]
+    public void HsmThunk_EmitsTheResolveStageWithItsHost_C1Prime()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("ResolvedParams")
+            .WithHostings(AiPrimitiveHosting.HsmAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var src = EmitAndGetSource(asset);
+
+        // ⭐⭐ THE RAIL. The resolve stage, and a REAL host access rather than null.
+        Assert.Contains("HostedParamResolvers.TryRun(", src);
+        Assert.Contains("HsmHostVariableAccess.For(instance, __hostParams", src);
+        Assert.DoesNotContain("bridge->Self, null)", src);
+
+        // ⚠ …and it is inside the freshly-attached arm — resolve ONCE, not per dispatch.
+        int fresh = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
+        int resolve = src.IndexOf("HostedParamResolvers.TryRun(", StringComparison.Ordinal);
+        Assert.True(fresh >= 0 && resolve > fresh,
+            "the resolve must run at activation, never on a steady-state dispatch");
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        int n = 0, i = 0;
+        while ((i = haystack.IndexOf(needle, i, StringComparison.Ordinal)) >= 0) { n++; i += needle.Length; }
+        return n;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>O7d</c> — the STANDALONE BTree thunks are on the occurrence store.</b>
+    ///
+    /// <para>⚠ <b>This rail was a DEFECT PIN and has now FLIPPED</b>, which is exactly what a pin is
+    /// for: it asserted <c>Blackboard1024 + 8</c> while that was true, and reddened the moment
+    /// <c>O7d</c> landed so the change could not ship silently.</para>
+    ///
+    /// <para>⛔ <b>ASSET-scoped, and that is forced, not chosen.</b> 📐 <c>Interpreter.cs:655</c> hands
+    /// an action delegate only <c>node.PayloadIndex</c> — no node identity — so one shared thunk cannot
+    /// key itself per-occurrence. ⭐ Per-node IS the BRIDGE's job (it bakes a key per adapter); the
+    /// standalone thunk is the degenerate single-occurrence case, which is what the <c>@0</c> in its
+    /// registration key has always meant.</para>
+    ///
+    /// <para>🔴 <b>And it fixed more than a collision:</b> <c>Blackboard1024</c> is on ZERO production
+    /// entities (both <c>AddComponent</c> sites gated on <c>HeavyDtoType</c>, which nothing sets) and
+    /// <c>GetComponentRW</c> throws on a missing component ⇒ this thunk would have <b>thrown</b> the
+    /// moment it was bound.</para>
+    /// </summary>
+    [Fact]
+    public void StandaloneBTreeThunks_UseTheOccurrenceStore_O7d()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("StandaloneBTree")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().Return())
+            .Build();
+
+        var src = EmitAndGetSource(asset);
+
+        // ⭐⭐ THE RAIL. Asset-scoped occurrence storage, through the SAME shared body the HSM path uses.
+        Assert.Contains("OccurrenceSlots.StandaloneStateKeyFor(AssetId)", src);
+        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>", src);
+
+        // 🔴 …and the legacy per-entity blackboard is gone from this thunk.
+        Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
+        Assert.DoesNotContain("memory + 8", src);
     }
 }

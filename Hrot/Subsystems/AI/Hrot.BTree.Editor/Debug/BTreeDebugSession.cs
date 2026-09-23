@@ -109,16 +109,20 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     public unsafe void Update(EntityRepository repo, Entity entity)
     {
         // === Snapshot ===
-        if (!repo.HasComponent<BrainBTreeState>(entity))
+        // ⭐⭐⭐ O7c-② / CE-319 — the cursor comes from the entity's ROOT STATE SLOT.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.
+        //   ⚠ A Try, not a Require: a debug session draws what is there, and "this entity has no
+        //     tree" is an ordinary answer here — exactly what HasComponent<BrainBTreeState> meant.
+        if (!Fdp.Toolkit.Behavior.RootStateAccess.TryGetState(repo, entity, out BehaviorTreeState* rootPtr))
         {
             _currentSnapshot = null;
         }
         else
         {
-            ref readonly var comp = ref repo.GetComponentRO<BrainBTreeState>(entity);
-            ushort runningNodeIndex = comp.State.RunningNodeIndex;
-            ushort sp               = comp.State.StackPointer;
-            uint   treeVersion      = comp.State.TreeVersion;
+            BehaviorTreeState comp = *rootPtr;
+            ushort runningNodeIndex = comp.RunningNodeIndex;
+            ushort sp               = comp.StackPointer;
+            uint   treeVersion      = comp.TreeVersion;
 
             int stackLen = Math.Min(8, (int)sp + 1);
             var stack    = new int[stackLen];
@@ -126,8 +130,7 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             var regs     = new int[4];
             var handles  = new ulong[3];
 
-            ref var stateMut = ref Unsafe.AsRef(in comp.State);
-            BehaviorTreeState* statePtr = (BehaviorTreeState*)Unsafe.AsPointer(ref stateMut);
+            BehaviorTreeState* statePtr = rootPtr;
             for (int i = 0; i < stackLen; i++) stack[i]   = statePtr->NodeIndexStack[i];
             for (int i = 0; i < 4; i++)        regs[i]    = statePtr->LocalRegisters[i];
             for (int i = 0; i < 3; i++)        handles[i] = statePtr->AsyncHandles[i];

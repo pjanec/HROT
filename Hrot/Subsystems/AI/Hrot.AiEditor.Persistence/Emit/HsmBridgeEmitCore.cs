@@ -179,6 +179,9 @@ public static class HsmBridgeEmitCore
         EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
         sb.AppendLine($"{pad2}}});");
 
+        // ⭐⭐⭐ E3b-0 — which variable does each STATE's occurrence seed its params from.
+        EmitStateParamBindings(sb, dto, packedFields, pad2);
+
         // ⛔⛔ W3 (Batch 59) — THE COUNTER-ALLOCATED STUB REGISTRATIONS ARE GONE.
         //
         // This used to emit, for each action FQN in the asset:
@@ -247,6 +250,65 @@ public static class HsmBridgeEmitCore
     /// <c>Pack</c> itself: they live in the partition tier, not the inline param region.
     /// </para>
     /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E3b-0</c> — the <c>state → params offset</c> table, so two parallel regions can seed
+    /// from DIFFERENT variables.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6 / §28.6a.
+    ///
+    /// <para>🔴 <b>The gap.</b> <c>E3a</c> gave every hosted occurrence its own params BYTES, but all of
+    /// them seeded from <c>BehaviorParameters[0] + 0</c> — the first packed variable. ⛔ The BTree bridge
+    /// avoids this by emitting <b>one adapter per node</b> at a per-site key; the HSM dispatcher takes
+    /// <b>one thunk per <c>ushort</c> action id</b>, so there is nowhere to bake a per-site offset.
+    /// ⭐ Since <c>E3a</c> moved the params into the slot, the binding only has to reach the SEED.</para>
+    ///
+    /// <para>⭐⭐ <b>Baked as authoring <c>StableId</c>s, resolved to flat state indices AT RUNTIME</b>
+    /// through <c>MachineMetadata.StateStableIds</c> — which the compiler already populates for the
+    /// editor projection layer. ⛔ That is why this emitter never needs the flattener's ordering.</para>
+    ///
+    /// <para>🔒 <b>And it keeps the user's ruling (<c>2026-09-21</c>).</b> This maps the asset's OWN
+    /// states to the asset's OWN blackboard variables. ⛔ Nothing here knows a blueprint exists — the
+    /// blueprint side only asks <i>"what offset for this (machine, state)?"</i>.</para>
+    ///
+    /// <para>⚠ <b>Emits NOTHING when no state is bound</b>, which is every asset authored before
+    /// <c>E3b-0</c> ⇒ their generated source stays byte-identical, and their occurrences keep seeding
+    /// from offset <c>0</c>. ⭐ That is the same gating rule the <c>AssetId</c> constant learned the
+    /// hard way: an emitter addition is gated on the feature that needs it.</para>
+    /// </summary>
+    private static void EmitStateParamBindings(
+        StringBuilder sb,
+        HsmAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
+        string pad2)
+    {
+        if (packedFields.Count == 0) return;
+
+        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
+        foreach (var f in packedFields)
+            offsetMap[f.Name] = f;
+
+        var bound = new List<(Guid StableId, int Offset)>();
+        foreach (var st in dto.States)
+        {
+            // ⛔ An unbound state is the COMMON case, not an error — it seeds from 0 as before.
+            if (string.IsNullOrEmpty(st.ExpressionTargetField)) continue;
+            // ⚠ A target naming a variable that is not packed (State-role, or renamed away) is
+            //   skipped rather than emitted as a guess — the same "fails closed" rule §3.4 states.
+            if (!offsetMap.TryGetValue(st.ExpressionTargetField!, out var field)) continue;
+            bound.Add((st.StableId, field.ByteOffset));
+        }
+
+        if (bound.Count == 0) return;
+
+        sb.AppendLine($"{pad2}// E3b-0: which blackboard variable each STATE's hosted occurrence seeds");
+        sb.AppendLine($"{pad2}//        its params from. Resolved to flat state indices at runtime via");
+        sb.AppendLine($"{pad2}//        the blob's own MachineMetadata.StateStableIds.");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HsmParamBindings.Register(blob, new (global::System.Guid, int)[]");
+        sb.AppendLine($"{pad2}{{");
+        foreach (var (stableId, offset) in bound)
+            sb.AppendLine($"{pad2}{Indent}(new global::System.Guid(\"{stableId}\"), {offset}),");
+        sb.AppendLine($"{pad2}}});");
+        sb.AppendLine();
+    }
+
     /// <returns>true when a <c>__parseParams</c> local was emitted.</returns>
     private static bool EmitParseParamsLocal(
         StringBuilder sb, HsmAssetDto dto,

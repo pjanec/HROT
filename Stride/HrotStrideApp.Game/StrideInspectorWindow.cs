@@ -81,20 +81,80 @@ public sealed class EditorSelectionState
 {
     private Entity _selectedEntity = Entity.Null;
 
+    // ══ UXI-11 S-3d — BOUND MODE: this is a VIEW of the host's one selection ═══════════════
+    // 🔒 User, 2026-09-20: "we should unify … make the nodes use same (best shared) stuff in the
+    //    same way", extended to the bootstrap. 📄 docs/UX/UX_Feature_Selection.md §2.7.11.
+    //
+    // 🔴 WHAT THIS CLOSES. Unbound, this class is a SIXTH selection store: the 3-D view kept its own
+    //    entity and reached the 2-D map only through EditorStrideSubsystem.SyncSelection2D3D, a
+    //    version-polling bridge that moved one direction per frame with two anti-bounce trackers.
+    //    ⇒ bound, there is nothing to bridge, and that method is DELETED.
+    //
+    // ⚠ BOUND vs UNBOUND is deliberate, not a half-measure. StrideNodeShell constructs one of these
+    //   with no editor behind it (the node-shell path has no 2-D map), and EditorSelectionStateTests
+    //   drive the unbound behaviour directly. ⛔ Unbound semantics are UNCHANGED.
+    private Func<Entity?>?  _read;
+    private Action<Entity?>? _write;
+    private Func<int>?      _version;
+    private Func<bool>?     _available;
+
+    /// <summary>
+    /// True when this state is a view of the host's shared selection rather than a store.
+    ///
+    /// <para>⚠⚠ <b><c>_available</c> is not defensive padding — it is the difference between a view
+    /// and a silent no-op.</b> The 2-D editor builds its selection only when it registers windows, so
+    /// a HEADLESS subsystem has none. ⛔ Bound unconditionally, <c>Select</c> would write nowhere and
+    /// <c>Version</c> would answer a constant 0 — indistinguishable from "nothing selected", and the
+    /// 3-D highlight would simply never appear. ⭐ Unbound-until-available keeps the local store
+    /// working in exactly that case, which is also what <c>EditorSelectionStateTests</c> drives.</para>
+    /// </summary>
+    public bool IsBound => _read != null && _write != null && _version != null
+                        && (_available?.Invoke() ?? true);
+
+    /// <summary>
+    /// ⭐⭐⭐ Binds this state to the host's ONE selection, making the 3-D view and the 2-D map the
+    /// same selection rather than two kept in step.
+    ///
+    /// <para>⚠ Deferred rather than a constructor argument because <c>EditorStrideSubsystem</c> creates
+    /// the <c>EditorSubsystem</c> it binds to <b>after</b> this property is initialised; a field
+    /// initializer cannot reference an instance field (CS0236).</para>
+    ///
+    /// <para>⭐ The three delegates are deliberately the editor's EXISTING public trio —
+    /// <c>Selected2DEntity</c>, <c>SetSelection2D</c>, <c>Selection2DVersion</c> — all of which already
+    /// route to the shared <c>EcsSelectionState</c>. ⛔ No new API on the 2-D side, which keeps the
+    /// blast radius of this (Windows-only, unbuildable on the Linux lane) change to one file plus the
+    /// deletion of the bridge.</para>
+    /// </summary>
+    /// <param name="available">
+    /// ⭐⭐⭐ Whether the host's shared selection EXISTS yet. Re-asked every time, because the editor
+    /// builds it during window registration — so a subsystem is unbound at construction and bound
+    /// once it has windows. ⛔ Without this, headless is a silent no-op.
+    /// </param>
+    public void BindTo(Func<Entity?> read, Action<Entity?> write, Func<int> version, Func<bool> available)
+    {
+        _read      = read      ?? throw new ArgumentNullException(nameof(read));
+        _write     = write     ?? throw new ArgumentNullException(nameof(write));
+        _version   = version   ?? throw new ArgumentNullException(nameof(version));
+        _available = available ?? throw new ArgumentNullException(nameof(available));
+    }
+
     /// <summary>
     /// The currently-selected FDP entity, or <see cref="Entity.Null"/> when nothing is selected.
     /// </summary>
-    public Entity SelectedEntity => _selectedEntity;
+    public Entity SelectedEntity => IsBound ? (_read!() ?? Entity.Null) : _selectedEntity;
 
     /// <summary>
     /// Monotonically-increasing counter.  Bumped every time <see cref="Select"/> or
     /// <see cref="Clear"/> changes the selection.  Readers can compare against their last-seen
     /// version to detect changes without polling the entity.
+    /// ⭐ When bound, this is the shared view's own change token — one counter, not two in step.
     /// </summary>
-    public int Version { get; private set; }
+    public int Version => IsBound ? _version!() : _localVersion;
+
+    private int _localVersion;
 
     /// <summary>Returns <c>true</c> when an entity is selected (not <see cref="Entity.Null"/>).</summary>
-    public bool HasSelection => _selectedEntity != Entity.Null;
+    public bool HasSelection => SelectedEntity != Entity.Null;
 
     /// <summary>
     /// Sets the selected entity and bumps <see cref="Version"/>.
@@ -102,8 +162,16 @@ public sealed class EditorSelectionState
     /// </summary>
     public void Select(Entity entity)
     {
+        if (IsBound)
+        {
+            // ⭐ A 3-D ray hit now moves the 2-D map ring, the inspector and the ORBAT, because they
+            //   all read the one selection. 🔴 Before, it moved only the 3-D highlight until the
+            //   version-poll bridge caught up a frame later.
+            _write!(entity == Entity.Null ? null : entity);
+            return;
+        }
         _selectedEntity = entity;
-        Version++;
+        _localVersion++;
     }
 
     /// <summary>
@@ -111,18 +179,27 @@ public sealed class EditorSelectionState
     /// </summary>
     public void Clear()
     {
+        if (IsBound)
+        {
+            if (SelectedEntity == Entity.Null) return;
+            _write!(null);
+            return;
+        }
         if (_selectedEntity == Entity.Null) return; // already clear — don't bump version
         _selectedEntity = Entity.Null;
-        Version++;
+        _localVersion++;
     }
 
     /// <summary>
     /// Checks whether the currently-selected entity is still alive in <paramref name="world"/>.
     /// If it is dead (or the world is null), the selection is cleared.
     /// Call once per frame from the host loop after the FDP kernel tick.
+    /// ⭐ A NO-OP when bound: <c>EcsSelectionState</c> reads the live world, so a destroyed entity is
+    /// already absent — there is no stale handle to scrub.
     /// </summary>
     public void ClearIfDead(Fdp.Core.EntityRepository? world)
     {
+        if (IsBound) return;
         if (_selectedEntity == Entity.Null) return;
         if (world == null || !world.IsAlive(_selectedEntity))
             Clear();
@@ -203,6 +280,19 @@ public sealed class StrideInspectorWindow : IDisposable
     // Icon atlas texture loaded into this window's GL context after InitWindow.
     // Kept for unload on Close().
     private Raylib_cs.Texture2D _atlasTexture;
+
+    // ⭐⭐⭐ CE-297 — the remote-desktop click latch for THIS window.
+    // 🔴 Without it the Stride host's editor window runs PRE-FIX input: a TeamViewer / Parsec / RDP
+    //    click injects WM_*BUTTONDOWN and WM_*BUTTONUP microseconds apart, both land in one
+    //    glfwPollEvents() drain, the polled state ends where it started, and the press is NEVER
+    //    OBSERVED. 📐 Measured 2026-09-20: clusterrunner installs this (Program.cs:603) and
+    //    FdpApplication.Run does (:54); PumpFrame below is a hand-written copy of that same loop
+    //    that omitted it, so this one window — alone among the hosts — still lost every click.
+    // ⚠ CreateForRaylibWindow(), not Create(): Create() binds to Process.MainWindowHandle, and this
+    //   process ALSO owns Stride's Direct3D window. Binding the wrong one installs cleanly and does
+    //   nothing — see the overload's own note.
+    private Fdp.Presentation.Input.IClickLatch _clickLatch =
+        Fdp.Presentation.Input.NoOpClickLatch.Instance;
 
     // ── P1 frame-timing instrumentation ──────────────────────────────────────
     // Measures PumpFrame cost and its sub-phases; logs ~once per second (throttled).
@@ -311,6 +401,12 @@ public sealed class StrideInspectorWindow : IDisposable
         Raylib_cs.Raylib.SetExitKey(Raylib_cs.KeyboardKey.Null);
         Raylib_cs.Raylib.SetTargetFPS(0);
 
+        // ── 1b. Install the remote-desktop click latch on THIS window ─────────
+        // Must follow InitWindow: before it there is no handle to subclass. Kill switch:
+        // HROT_DISABLE_CLICK_LATCH=1. Inert for local input and off Windows.
+        _clickLatch = Fdp.Presentation.Input.ClickLatch.CreateForRaylibWindow();
+        Log.Info("[StrideInspectorWindow] Click latch active={0}.", _clickLatch.IsActive);
+
         // ── 2. Set up ImGui for this window ───────────────────────────────────
         // rlImGui.Setup creates the ImGui context bound to the current GL window.
         // Enables DockingEnable so panels dock inside the dockspace (mirrors clusterrunner).
@@ -396,6 +492,15 @@ public sealed class StrideInspectorWindow : IDisposable
 
 
         var wm     = _windowManager;
+
+        // ⭐ CE-297 — before input is polled: replay anything the previous frame dropped.
+        //   Mirrors clusterrunner Program.cs:615 and FdpApplication.Run:60, which place the Tick at
+        //   the top of the frame for the same reason — raylib drains GLFW events inside EndDrawing,
+        //   so a replay issued here is seen by THIS frame's poll rather than sitting a frame late.
+        _clickLatch.Tick(
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Left),
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Right),
+            Raylib_cs.Raylib.IsMouseButtonDown(Raylib_cs.MouseButton.Middle));
 
         // ── P1 timing: total frame ────────────────────────────────────────────
         _timingTotal.Restart();
@@ -537,6 +642,12 @@ public sealed class StrideInspectorWindow : IDisposable
         //   3. UnloadTexture (GL call, still valid while the GLFW context is live).
         //   4. Raylib.CloseWindow() — tears down the GLFW/OpenGL context.
         _windowManager = null;
+
+        // ⭐ CE-297 — un-subclass the window proc BEFORE the GL/ImGui teardown below. The latch holds
+        //   a delegate installed into this window's proc chain; dropping it while messages can still
+        //   arrive is the one ordering mistake that would matter here.
+        _clickLatch.Dispose();
+        _clickLatch = Fdp.Presentation.Input.NoOpClickLatch.Instance;
 
         // If the hosted editor is still registered (from RegisterWindows), un-register it
         // by calling rlImGui.Shutdown immediately (the WindowManager holds no back-ref into

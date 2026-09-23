@@ -73,7 +73,11 @@ namespace Fdp.Toolkit.Scenario.Tests
             _repo.RegisterComponent<FixedByteComp>();
             _repo.RegisterComponent<FixedLongComp>();
             _repo.RegisterComponent<InlineFloatComp>();
-            _repo.RegisterComponent<BrainBlackboard>();
+            // ⭐ P4: was RegisterComponent<BrainBlackboard>(), the NoScenario stand-in this fixture
+            //   needs for the DOM-exclusion test. BehaviorState carries the same attribute and
+            //   outlives the retired component. ⚠ It must be REGISTERED, not merely set: SetComponent
+            //   goes through AddUnmanagedComponent, which refuses an unregistered type.
+            _repo.RegisterComponent<BehaviorState>();
             // Override NoScenario so FdpAutoSerializer includes MissionPlanQueue in round-trip tests.
             _repo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
         }
@@ -133,7 +137,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>();
 
             serializer.Deserialize(freshRepo, dom);
@@ -170,26 +173,28 @@ namespace Fdp.Toolkit.Scenario.Tests
             _repo.RegisterComponent<FixedByteComp>();
             _repo.RegisterComponent<FixedLongComp>();
             _repo.RegisterComponent<InlineFloatComp>();
-            _repo.RegisterComponent<BrainBlackboard>();
             _repo.RegisterComponent<MissionPlanQueue>();
         }
 
         // ── S303-SC1: BrainBlackboard excluded from DOM (DataPolicy.NoScenario) ─────
 
         /// <summary>
-        /// S303-SC1: <see cref="BrainBlackboard"/> is marked <c>[DataPolicy(DataPolicy.NoScenario)]</c>
-        /// and must therefore be absent from the serialized DOM.
-        /// A co-present saveable component must still appear.
+        /// S303-SC1: a component marked <c>[DataPolicy(DataPolicy.NoScenario)]</c> must be absent
+        /// from the serialized DOM, and a co-present saveable component must still appear.
+        ///
+        /// <para>⭐⭐ <b><c>P4</c> (2026-09-22) — RE-HOMED FROM <c>BrainBlackboard</c>, not deleted with
+        /// it.</b> ⛔ The retired component was only this test's FIXTURE; the claim under test is the
+        /// serializer's <c>DataPolicy</c> exclusion, which is very much alive. ⚠ <c>BehaviorState</c>
+        /// carries the same attribute and is the natural stand-in. 🔒 The <c>CE-314</c> lesson applied:
+        /// before deleting a test with the thing it names, ask which of its assertions were ABOUT that
+        /// thing and which merely USED it.</para>
         /// </summary>
         [Fact]
-        public unsafe void BrainBlackboard_DataPolicyNoSave_ExcludedFromDom()
+        public unsafe void NoScenarioComponent_IsExcludedFromDom_WhileSaveableCoPresentOneRemains()
         {
             var entity = _repo.CreateEntity();
 
-            var bb = new BrainBlackboard();
-            for (int i = 0; i < BehaviorConstants.MaxBehaviorParamByteSize; i++)
-                bb.BehaviorParameters[i] = (byte)(i & 0xFF);
-            _repo.SetComponent(entity, bb);
+            _repo.SetComponent(entity, new BehaviorState { ActiveBehaviorHash = 1234, BrainTier = 2 });
 
             var fixedComp = new FixedByteComp();
             fixedComp.Data[0] = 0xAB;
@@ -201,8 +206,8 @@ namespace Fdp.Toolkit.Scenario.Tests
             var entitiesNode = (JsonObject)dom["Entities"]!;
             var entityNode   = (JsonObject)entitiesNode.First().Value!;
 
-            Assert.False(entityNode.ContainsKey("BrainBlackboard"),
-                "BrainBlackboard must be excluded from the DOM (DataPolicy.NoScenario).");
+            Assert.False(entityNode.ContainsKey("BehaviorState"),
+                "A DataPolicy.NoScenario component must be excluded from the DOM.");
             Assert.True(entityNode.ContainsKey("FixedByteComp"),
                 "Saveable co-present component must still appear in the DOM.");
         }
@@ -254,7 +259,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>();
             serializer.Deserialize(freshRepo, dom);
 
@@ -299,7 +303,6 @@ namespace Fdp.Toolkit.Scenario.Tests
             freshRepo.RegisterComponent<FixedByteComp>();
             freshRepo.RegisterComponent<FixedLongComp>();
             freshRepo.RegisterComponent<InlineFloatComp>();
-            freshRepo.RegisterComponent<BrainBlackboard>();
             freshRepo.RegisterComponent<MissionPlanQueue>(DataPolicy.Default);
             serializer.Deserialize(freshRepo, dom);
 

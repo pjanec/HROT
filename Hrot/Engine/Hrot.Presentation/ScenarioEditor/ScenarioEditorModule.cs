@@ -59,7 +59,17 @@ public class ScenarioEditorModule : IEcsModule
         Func<DataDrivenGizmoSystem?>  Gizmos,
         Func<MapCamera?>              Camera,
         Action<Entity>?               AlsoSelect         = null,
-        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null);
+        Func<Hrot.ScenarioEditor.Tools.ToolController?>? Tools = null,
+        // ⭐⭐⭐ UXI-11 — THE SELECTION SYSTEMS ARE BUILT BY MapInteractionPack AND PASSED IN.
+        //    🔒 User, 2026-09-20: "unify across host also the bootstrap code as far as possible,
+        //    including this entity selection stuff." 📐 This module used to CONSTRUCT the request and
+        //    notification systems, so the editor and CGF got different instances from the ones the
+        //    other three hosts built by hand — five constructions of one thing.
+        // ⚠ A RESOLVER, because the editor registers this module BEFORE it builds the pack; the
+        //   systems are asked for at kernel.Initialize() time.
+        // ⚠⚠ ORDER IS PRESERVED BY THE CALLER: the pack hands back an ordered pair
+        //   (requests, then notifications) and this module registers it as given.
+        Func<System.Collections.Generic.IReadOnlyList<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>?>? SelectionSystems = null);
 
     // ⛔⛔ REMOVED 2026-09-09 (UXI-07 §4.10): GlobalGizmos and StartPlacementMode.
     //    🔴 Step 3b moved the tool REGISTRATIONS out of this module and into MapInteractionPack, which
@@ -97,9 +107,24 @@ public class ScenarioEditorModule : IEcsModule
         // 🔒 UXI-07 step 3b — the drain takes the host's ONE arbiter (MapInteraction.Tools). ⛔ A host that
         //    does not pass it gets a drain that REPORTS every dropped activation rather than swallowing it;
         //    TheViewportInteractionIsSharedTests rails that both production roots do pass it.
+        // ⭐⭐⭐ UXI-11 S-2 — THE REQUEST SYSTEM RUNS FIRST, AND THE ORDER IS LOAD-BEARING.
+        // 🔴 The drain reads deps.Selection to find the entity a target-less activation should arm on.
+        //    Once "select this, then arm that tool" became TWO EVENTS IN ONE FRAME (S-2 made the select
+        //    a request), the old order — drain first — armed the tool on the PREVIOUS selection.
+        // 📌 That is CE-259s, filed as "ToolActivationDrainSystem registered before the select system
+        //    ⇒ the menu arms on the pre-menu selection", and it discharges here: it stopped being a
+        //    latent ordering smell and became a live defect the moment the write was deferred.
+        // ⚠ Railed by TheViewportInteractionIsSharedTests' registration-order assertion; ⛔ that rail
+        //    is the ONLY thing standing between this and a silent regression, since nothing about the
+        //    two systems' code says they must run in this order.
+        // ⭐⭐⭐ UXI-11 — register what the PACK built, in the order it hands back.
+        // ⛔ Nothing is constructed here any more; a host that supplies no pair registers no selection
+        //   systems, which is a fact about that host rather than a silent default.
+        foreach (var selectionSystem in deps.SelectionSystems?.Invoke()
+                                        ?? System.Array.Empty<Fdp.ModuleHost.Abstractions.IEcsModuleSystem>())
+            registry.RegisterSystem(selectionSystem);
         registry.RegisterSystem(new ToolActivationDrainSystem(
             deps.Selection, deps.Gizmos, deps.Tools ?? (() => null)));
-        registry.RegisterSystem(new SelectEntitySystem(deps.Selection, deps.AlsoSelect));
         registry.RegisterSystem(new CenterOnEntitySystem(deps.Camera));
     }
 

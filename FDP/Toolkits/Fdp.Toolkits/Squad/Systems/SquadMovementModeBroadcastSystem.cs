@@ -19,10 +19,9 @@ namespace Fdp.Toolkit.Squad.Systems
         public static void Run(EntityRepository repo, Entity commander)
         {
             if (!repo.HasComponent<UnitRoster>(commander)) return;
-            if (!repo.HasComponent<Blackboard1024>(commander)) return;
+            if (!repo.HasComponent<SquadCognitiveState>(commander)) return;
 
-            ref readonly var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref readonly var state = ref repo.GetComponentRO<SquadCognitiveState>(commander);
             var mode = (MovementMode)((state.Flags & MovementModeMask) >> MovementModeShift);
 
             ref readonly var roster = ref repo.GetComponentRO<UnitRoster>(commander);

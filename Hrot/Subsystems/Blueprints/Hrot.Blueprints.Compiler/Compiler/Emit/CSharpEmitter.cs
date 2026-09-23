@@ -201,7 +201,7 @@ internal sealed class CSharpEmitter
         if (needsActionRegistry)
             paramParts.Add(
                 "global::Fbt.Runtime.ActionRegistry<" +
-                "global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, " +
+                "byte, " +   // P4-②
                 "global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry");
         if (hasConditionMet)
         {
@@ -258,6 +258,30 @@ internal sealed class CSharpEmitter
             Indent();
             foreach (var g in functionGraphs)
                 EmitLibraryFunctionAdapter(className, g);
+            Outdent();
+            WriteLine("},");
+        }
+
+        // ⭐⭐⭐ Q43-A2′ — the Construction graphs land in their OWN index, through the SAME adapter.
+        //
+        // ⭐ One adapter emitter, two tables: the marshalling problem is identical (blittable inputs in
+        // declaration order, return value out), so a second adapter would be ruling 9's "two
+        // implementations of one concept". ⛔ The tables are separate because the KIND is the only
+        // thing that distinguishes a resolver from a helper, and a binding site must not have to guess
+        // (Q43-A3).
+        //
+        // ⚠ Gated on Count > 0, like Functions above — the emitter-addition trap this programme paid
+        // for (O7b: emitting a constant unconditionally moved 11 golden baselines for assets that
+        // could not use the feature). With the gate, every asset without a Construction graph is
+        // byte-identical.
+        var constructionGraphs = asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction).ToList();
+        if (constructionGraphs.Count > 0)
+        {
+            WriteLine("Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)");
+            WriteLine("{");
+            Indent();
+            foreach (var g in constructionGraphs)
+                EmitResolverEntry(className, g);
             Outdent();
             WriteLine("},");
         }
@@ -336,6 +360,45 @@ internal sealed class CSharpEmitter
         WriteLine("},");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>R4</c> — publishes one <c>Construction</c> graph as a typed
+    /// <c>ResolveParams&lt;TDto&gt;</c>.</b> 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4, §7.1.
+    ///
+    /// <para>
+    /// ⭐⭐ <b>No marshalling, and that is the saving.</b> <see cref="EmitLibraryFunctionAdapter"/>
+    /// blits its arguments through two byte spans because <c>LibraryFunctionDelegate</c> is untyped.
+    /// ⛔ A resolver does not need that: <c>BP1677</c> guarantees the graph's input and output are the
+    /// SAME declared type, so the emitted method already has the exact shape
+    /// <c>ResolveParams&lt;TDto&gt;</c> wants — the lambda just unrolls <c>ref</c> into an assignment.
+    /// </para>
+    ///
+    /// <para>
+    /// ⚠ <b>Why a lambda and not a method group.</b> The emitted resolver RETURNS the DTO (a graph's
+    /// output is a return value), while <c>ResolveParams&lt;TDto&gt;</c> writes through <c>ref</c>.
+    /// ⭐ <c>BlueprintResolverEntry.For&lt;TDto&gt;</c> supplies the target type, so the lambda needs no
+    /// cast and the generated code stays one expression per resolver.
+    /// </para>
+    /// </summary>
+    private void EmitResolverEntry(string className, IrGraph graph)
+    {
+        // ⛔ BP1677 refuses anything else at Stage 2, and a fatal validation error stops the pipeline
+        //    before emit — so this cannot be reached with a malformed signature. Guarded anyway: an
+        //    emitter that indexes [0] on an empty list would crash the SOURCE GENERATOR, which reports
+        //    far worse than a diagnostic.
+        if (graph.Inputs.Count != 1) return;
+
+        string dto = LibraryEmitter.CSharpType(graph.Inputs[0].Type);
+
+        WriteLine($"[\"{graph.Name}\"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<{dto}>(");
+        Indent();
+        WriteLine($"static (ref {dto} __dto, global::Fdp.Core.EntityRepository __world, " +
+                  "global::Fdp.Core.Entity __self, " +
+                  // ⚠ unannotated for the same CS8669 reason LibraryEmitter documents.
+                  "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
+        WriteLine($"    __dto = {className}.{graph.Name}(__dto, __world, __self, __host)),");
+        Outdent();
+    }
+
     private void EmitAiPrimitiveRegistration(string className, IrAsset asset)
     {
         WriteLine($"staging.Add({className}.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition");
@@ -372,17 +435,45 @@ internal sealed class CSharpEmitter
         if (asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
             WriteLine(
                 $"actionRegistry.RegisterCondition(\"{fqnNs}.{className}.BTreeEvaluate@0\", " +
-                "static (ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb, " +
+                "static (ref byte bb, " +   // P4-②
                 "ref global::Fbt.BehaviorTreeState st, ref global::Fdp.Toolkit.Behavior.BTreeContext ctx, int pi) => " +
                 $"{className}.BTreeEvaluate(ref bb, ref st, ref ctx, pi) " +
                 "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);");
+
+        // ⭐⭐⭐ E8a — the asset's OWN parameter resolver, registered under the SAME key the emitted
+        //    thunk already resolves against. 📐 AiPrimitiveEmitter:413 emits
+        //    `HostedParamResolvers.TryRun(AssetId, ref *__params, …)`; this is `Register(AssetId, …)`.
+        //    ⇒ producer and consumer key on one value the asset already carries, so there is NO
+        //    BINDING STEP — which is the whole reason E8a needs no selection property (R-149, §7.2).
+        //
+        // ⚠ A METHOD GROUP, not a lambda: EmitOwnResolverMethod emits exactly the
+        //    ResolveParams<Params> signature, so the conversion is direct.
+        //
+        // ⛔ Register OVERWRITES on a duplicate and must keep doing so — it is keyed by ASSET id and
+        //    re-registered by every rescan. ⚠ Its sibling BehaviorRegistry.RegisterResolver THROWS on
+        //    a duplicate instead (R-149): that one is name-keyed on a FRESH staging registry per scan,
+        //    so a duplicate there can only be two bindings in one scan. Opposite policies, opposite
+        //    reasons — see that method's header.
+        if (AiPrimitiveEmitter.OwnResolverGraphOf(asset) is { } ownResolver)
+        {
+            // ⚠ A LAMBDA, not a method group: the emitted resolver returns the graph vocabulary's
+            //    NodeStatus (every Return node carries one) and a resolver has no status, so the
+            //    value is discarded HERE rather than by teaching the shared terminator emitter about
+            //    resolvers. ⭐ The lambda is still exactly ResolveParams<Params>.
+            WriteLine($"global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<{className}.Params>(");
+            WriteLine($"    {className}.AssetId,");
+            WriteLine($"    static (ref {className}.Params __p, global::Fdp.Core.EntityRepository __world, " +
+                      "global::Fdp.Core.Entity __self, " +
+                      "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
+            WriteLine($"        {className}.{ownResolver.Name}(ref __p, __world, __self, __host));");
+        }
 
         // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,
         // not injectable; Patch C1). The unmanaged function pointers are cast to IntPtr.
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction))
             WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{className}.HsmActivity);");
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard))
-            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, bool>)&{className}.HsmGuard);");
+            WriteLine($"global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard(unchecked((ushort){className}.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, ushort, global::Fhsm.Kernel.Data.HsmCommandWriter*, bool>)&{className}.HsmGuard);");
     }
 
     /// <summary>

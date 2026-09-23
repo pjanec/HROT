@@ -1,7 +1,9 @@
 ﻿using System.Collections.Generic;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
+using Fhsm.Kernel;
 using Fdp.Toolkit.Combat.Contracts;
 using Fdp.Toolkit.Combat.Events;
 using Fdp.Toolkit.Navigation;
@@ -90,14 +92,27 @@ namespace Fdp.Examples.UrbanCombat.Systems
                 _prevCapabilities[key] = caps.Capabilities;
             }
 
-            // -- HSM TRANSITION: BrainHsm128 active leaf index changed --
+            // -- HSM TRANSITION: the root machine's region-0 active leaf changed --
+            //
+            // ⭐⭐ O7c-④d (2026-09-23): the instance is an OCCURRENCE SLOT, not a BrainHsm128
+            //   component, so there is no brain component left to query on. The query becomes
+            //   "entities with a behaviour" and the slot lookup is the filter — an entity whose
+            //   brain is a BTree, or which was never assigned an HSM behaviour, simply has no
+            //   instance and is skipped. ⛔ Same set of reported entities, reached differently.
+            //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
 
-            _qHsm ??= repo.Query().With<BrainHsm128>().Build();
+            _qHsm ??= repo.Query().With<BehaviorState>().Build();
             foreach (var entity in _qHsm)
             {
-                ref readonly var brain = ref view.GetComponentRO<BrainHsm128>(entity);
+                if (!RootHsmAccess.TryGetInstance(repo, entity, out byte* instance, out int instanceSize))
+                    continue;
+
+                // ⭐ The region count is a function of the tier, so the KERNEL owns it (§31.16.1).
+                ushort* leaves = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int regionCount);
+                if (leaves == null || regionCount <= 0) continue;
+
                 int key = entity.Index;
-                ushort curState = brain.State.ActiveLeafIds[0];
+                ushort curState = leaves[0];
 
                 if (_prevHsmState.TryGetValue(key, out ushort prevState) && prevState != curState)
                     System.Console.Out.WriteLine($"{frameTag} HSM TRANSITION: entity {key} -> state {curState}");

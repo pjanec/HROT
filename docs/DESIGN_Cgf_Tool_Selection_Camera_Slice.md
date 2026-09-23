@@ -15,6 +15,10 @@ design-basis: PROGRAMME_Cgf_Equals_Editor_Gap_Map.md §2c line 171 (E3 = tool/se
 known-conflict: extracts from EditorSubsystem.cs (the 5k monolith) + edits CgfSubsystem.cs (delete its
   hand-rolled center/rotate parallels) + populates ScenarioEditorModule (Hrot.Presentation). Hot files —
   rule-4 re-pull. ⛔ Disjoint from the MCP lane (DebugApi) and the backend lane (test projects).
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11, which SUPERSEDED this file's selection half:
+    S-3e (2026-09-20) gave CGF its map-input path and MapInteractionPack now builds the selection for
+    every host. ⛔ Do not read this file for how CGF selects today; it remains current for tool + camera.
 -->
 # DESIGN — **CGF tool / selection / camera / rename** *(Axis-C increment E3)*
 

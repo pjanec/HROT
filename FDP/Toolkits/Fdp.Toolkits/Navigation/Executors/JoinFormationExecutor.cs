@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using CarKinem.Commands;
 using Fdp.Core.Logging;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Executors;
 using Fdp.Toolkit.Replication.Services;
@@ -13,7 +14,7 @@ namespace Fdp.Toolkit.Navigation.Executors
 
     /// <summary>
     /// Parameters for the <c>JoinFormation</c> behavior.
-    /// Written into <see cref="BrainBlackboard.BehaviorParameters"/> by <c>BehaviorDefinition.ParseParams</c>
+    /// Written into <c>the root params slot</c> by <c>BehaviorDefinition.ParseParams</c>
     /// and read by <see cref="JoinFormationExecutor.OnEnter"/>.
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
@@ -54,7 +55,7 @@ namespace Fdp.Toolkit.Navigation.Executors
     ///
     /// <para>
     /// <b>OnEnter:</b> reads <see cref="JoinFormationParams"/> from
-    /// <see cref="BrainBlackboard.BehaviorParameters"/>, resolves the leader via
+    /// <c>the root params slot</c>, resolves the leader via
     /// <see cref="NetworkEntityMap"/>, calls <c>VehicleAPI.JoinFormation</c> and sets
     /// <see cref="LocomotionChannel.Status"/> = <see cref="NodeStatus.Running"/>.
     /// If the leader entity cannot be resolved, sets <c>Status = Failure</c>.
@@ -85,12 +86,11 @@ namespace Fdp.Toolkit.Navigation.Executors
         /// <inheritdoc/>
         public unsafe void OnEnter(Entity entity, ref LocomotionChannel channel, EntityRepository world)
         {
-            // Read params written into BrainBlackboard.BehaviorParameters by BehaviorDefinition.ParseParams.
-            // Use ref to avoid stack-copying the struct (fixed buffer must stay on heap).
-            ref var bbRW = ref world.GetComponentRW<BrainBlackboard>(entity);
-            JoinFormationParams p;
-            fixed (byte* src = &bbRW.BehaviorParameters[0])
-                p = *(JoinFormationParams*)src;
+            // P3-C: read the params from the entity's ROOT PARAMS OCCURRENCE SLOT, where
+            // BehaviorDefinition.ParseParams commits them. 🔴 This used to be
+            // BrainBlackboard.BehaviorParameters, a per-entity component that is now retired.
+            JoinFormationParams p = *(JoinFormationParams*)
+                RootParamsAccess.RequireRootBytes(world, entity);
 
             // Resolve leader network ID → ECS entity.
             if (!_entityMap.TryGetEntity(p.LeaderNetworkId, out var leaderEntity))

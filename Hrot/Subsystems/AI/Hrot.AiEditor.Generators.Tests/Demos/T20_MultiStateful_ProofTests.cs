@@ -86,11 +86,11 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -217,7 +217,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     /// The bridge's Register method is called with _liveRegistry directly (not a staging copy)
     /// so that BehaviorIngressSystem can find the definition when it calls TryGetId / TryGetDefinition.
     /// </summary>
-    private (Interpreter<BrainBlackboard, BTreeContext> Interpreter, AssemblyLoadContext Alc)
+    private (Interpreter<byte, BTreeContext> Interpreter, AssemblyLoadContext Alc)
         BuildInterpreterFromJson(string assetName, string registrarName)
     {
         // Force required assemblies into the AppDomain so Roslyn's ForRuntimeAssemblies picks them up.
@@ -243,12 +243,12 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
         // Pass _liveRegistry directly so BehaviorIngressSystem can find the definition.
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)_liveRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
                            ? (object)actionReg
                            : (object)bpStaging)
             .ToArray();
@@ -271,11 +271,11 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
     // ── Helper: read a DTO at a packed byte offset ────────────────────────────────
 
-    private static unsafe ref T ReadDto<T>(ref BrainBlackboard bb, int byteOffset)
+    // 🔴 P3-C: the DTO is projected from the entity's ROOT PARAMS SLOT, which is where the real
+    //   ingress above committed it. ⭐ Same offsets, same bytes — only the anchor moved (§29.6).
+    private static unsafe ref T ReadDto<T>(EntityRepository world, Fdp.Core.Entity entity, int byteOffset)
         where T : unmanaged
-        => ref Unsafe.As<byte, T>(
-               ref Unsafe.AddByteOffset(
-                   ref bb.BehaviorParameters[0], (nint)byteOffset));
+        => ref RootParamsTestHarness.ReadDto<T>(world, entity, byteOffset);
 
     // ── PROOF TEST 1 ─────────────────────────────────────────────────────────────
 
@@ -304,8 +304,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Run BehaviorIngressSystem — this calls ParseParams (sets LimitA=3, LimitB=5, Threshold=1000)
         // and provisions the two stateful partition slots.
@@ -320,9 +319,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         ingress.Execute(world, 0.016f);
 
         // ── Assert: a tier was provisioned and both slots are attached ────────────
-        bool hasTier = world.HasComponent<BlueprintBlackboard1024>(entity)
-                    || world.HasComponent<BlueprintBlackboard4096>(entity)
-                    || world.HasComponent<BlueprintBlackboard16384>(entity);
+        bool hasTier = OccurrenceStoreAccess.HasStore(world, entity);
         hasTier.Should().BeTrue(
             "BehaviorIngressSystem must have provisioned a BlueprintBlackboard* tier for 2 slots × 4 bytes");
 
@@ -334,7 +331,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         for (int tick = 1; tick <= 7; tick++)
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState(); // fresh per tick (restart from root)
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
@@ -386,8 +383,7 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var world  = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         var ingress = new BehaviorIngressSystem(_liveRegistry);
         world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -401,10 +397,9 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
 
         // ── Assert ParseParams wrote expected defaults ─────────────────────────────
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorAParamOffset);
-            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorBParamOffset);
-            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterParamOffset);
+            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorAParamOffset);
+            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorBParamOffset);
+            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterParamOffset);
 
             cursorAParams.Limit.Should().Be(3, "ParseParams must have set cursorA.Limit=3");
             cursorBParams.Limit.Should().Be(5, "ParseParams must have set cursorB.Limit=5");
@@ -416,17 +411,16 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
         var ctx = new BTreeContext { Self = entity, World = world };
         for (int tick = 1; tick <= 7; tick++)
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState();
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
         // ── Assert: BrainBlackboard DTOs are correct and disjoint ─────────────────
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
-            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorAParamOffset);
-            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(ref bb, CursorBParamOffset);
-            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterParamOffset);
+            ref var cursorAParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorAParamOffset);
+            ref var cursorBParams = ref ReadDto<DemoCounterNodes.DemoCursorParams>(world, entity, CursorBParamOffset);
+            ref var counterParams = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterParamOffset);
 
             // Stateless IncrementCounter incremented once (tick 7, when both cursors returned Success).
             counterParams.Counter.Should().Be(1,
@@ -461,92 +455,33 @@ public sealed class T20_MultiStateful_ProofTests : IDisposable
     private static unsafe void AssertBothSlotsAttached(EntityRepository world, Fdp.Core.Entity entity)
     {
         // Check whichever tier the ingress provisioned.
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard16384");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard16384");
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard4096");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard4096");
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
-                    .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in BlueprintBlackboard1024");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
-                    .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in BlueprintBlackboard1024");
-            }
-            return;
-        }
-        false.Should().BeTrue("entity must have a BlueprintBlackboard* tier after ingress Execute");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out int tier);
+        (mem != null).Should().BeTrue("entity must have a BlueprintBlackboard* tier after ingress Execute");
+
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out _)
+            .Should().BeTrue($"slot A (key={SlotKeyA}) must be attached in the {tier}-byte tier");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out _)
+            .Should().BeTrue($"slot B (key={SlotKeyB}) must be attached in the {tier}-byte tier");
     }
 
     private static unsafe void ReadCursorStates(
         EntityRepository world, Fdp.Core.Entity entity, out int cursorA, out int cursorB)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (16384)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (16384)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (4096)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (4096)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
-                    .Should().BeTrue("slot A must exist when reading cursor states (1024)");
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
-                    .Should().BeTrue("slot B must exist when reading cursor states (1024)");
-                cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
-                cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
-            }
-            return;
-        }
-        throw new InvalidOperationException(
-            "entity has no BlueprintBlackboard* tier component — slot states cannot be read");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new InvalidOperationException(
+                "entity has no BlueprintBlackboard* tier component — slot states cannot be read");
+
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyA, out int offA)
+            .Should().BeTrue("slot A must exist when reading cursor states");
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SlotKeyB, out int offB)
+            .Should().BeTrue("slot B must exist when reading cursor states");
+        cursorA = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offA).Cursor;
+        cursorB = Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + offB).Cursor;
     }
 
     // ── ALC GC helper ─────────────────────────────────────────────────────────────

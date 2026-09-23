@@ -242,13 +242,19 @@ namespace Fdp.Examples.UrbanCombat
 
             // FDP.Toolkit.Behavior
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(World);
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
-            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
+            World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainInterrupts>();   // ⭐ CE-323 — the interrupt tail (§31.21).
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
@@ -299,7 +305,7 @@ namespace Fdp.Examples.UrbanCombat
                 });
 
             // ── InfantrySoldier: minimal hold-position BTree ──────────────────────────
-            var holdReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var holdReg = new ActionRegistry<byte, BTreeContext>();
             holdReg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
             var holdBlob = TreeCompiler.CompileFromJson(InfantryCombatJson);
             _behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
@@ -307,11 +313,11 @@ namespace Fdp.Examples.UrbanCombat
                 {
                     Name             = "InfantryCombat",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(holdBlob, holdReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(holdBlob, holdReg),
                 });
 
             // ── Insurgent: Ambush BTree ───────────────────────────────────────────────
-            var ambushReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var ambushReg = new ActionRegistry<byte, BTreeContext>();
             ambushReg.Register("Condition_HasTarget", InsurgentNodes.Condition_HasTarget);
             ambushReg.Register("Action_AimAndFire",   InsurgentNodes.Action_AimAndFire);
             ambushReg.Register("Action_HoldPosition", InsurgentNodes.Action_HoldPosition);
@@ -322,7 +328,7 @@ namespace Fdp.Examples.UrbanCombat
                 {
                     Name             = "Ambush",
                     BrainTier        = BehaviorConstants.BrainTierBTree,
-                    BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(ambushBlob, ambushReg),
+                    BTreeInterpreter = new Interpreter<byte, BTreeContext>(ambushBlob, ambushReg),
                 });
         }
 

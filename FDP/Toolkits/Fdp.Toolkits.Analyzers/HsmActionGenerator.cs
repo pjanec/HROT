@@ -548,7 +548,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + " },");
+                sb.AppendLine("            { " + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + " },");
             }
             sb.AppendLine("        };");
             sb.AppendLine();
@@ -561,10 +561,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("        }");
             sb.AppendLine();
 
-            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId)");
+            sb.AppendLine("        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId, HsmCommandWriter* writer)");
             sb.AppendLine("        {");
             sb.AppendLine("            if (GuardTable.TryGetValue(guardId, out var guardPtr))");
-            sb.AppendLine("                return ((delegate* <void*, void*, ushort, bool>)guardPtr)(instance, context, eventId);");
+            sb.AppendLine("                return ((delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)guardPtr)(instance, context, eventId, writer);");
             sb.AppendLine("            return true; // No guard = always pass");
             sb.AppendLine("        }");
             sb.AppendLine();
@@ -656,7 +656,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var guard in guards)
             {
                 ushort id = HsmActionKey.ForActionName(guard.FullName);
-                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + guard.FullName + ");");
+                sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + ");");
             }
 
             foreach (var entry in sharedAiEntries)
@@ -666,7 +666,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     ? "Guard_" + entry.MethodName + "_At" + entry.Offset
                     : "Action_" + entry.MethodName + "_At" + entry.Offset;
                 if (entry.IsCondition)
-                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, bool>)&" + thunkName + ");");
+                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + thunkName + ");");
                 else
                     sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + thunkName + ");");
             }
@@ -720,9 +720,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
             sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+            sb.AppendLine("                " + BlackboardParamsExpression.At("repo", "bridge->Self", entry.Offset) + ");");
             if (entry.IsHeavy)
             {
                 if (entry.IsHeavyManaged)
@@ -758,9 +757,35 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
             sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
             sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var bb = ref repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard>(bridge->Self);");
-            sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("bb", entry.Offset) + ");");
+            // ⭐⭐⭐ P2 / BP-297 — THIS THUNK USED TO READ ITS DTO AT A BAKED OFFSET INTO THE ENTITY'S
+            //   ONE BrainBlackboard, so two concurrently-active regions running the same action
+            //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
+            //   (region, state) the kernel stamped (O6) and by this action's compound key.
+            //
+            // ⭐ The ROOT PARAMS REGION survives ONLY as the SEED, inside the freshlyAttached arm —
+            //   the same shape AiPrimitiveEmitter.EmitParamSeed emits for a hosted blueprint
+            //   (E3a/E3b-0). 🔴 P3-C (2026-09-21): that region is now the entity's ROOT PARAMS SLOT,
+            //   not BrainBlackboard — the anchor moved, the offset arithmetic did not (§29.6).
+            sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
+            sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
+            sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
+                          + "UL ^ (ulong)sizeof(" + entry.FieldTypeFqn + ");");
+            sb.AppendLine("            ref var __ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<"
+                          + entry.FieldTypeFqn + ", global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
+            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out "
+                          + entry.FieldTypeFqn + "* __params);");
+            sb.AppendLine("            if (__freshlyAttached)");
+            sb.AppendLine("            {");
+            // ⭐⭐ E3b-0 composes with the attribute's offset: the STATE picks which blackboard variable
+            //   seeds this occurrence, and entry.Offset picks the field inside the action's own SLOT
+            //   struct. Neither is a blackboard address on its own.
+            sb.AppendLine("                int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer);");
+            sb.AppendLine("                *__params = Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
+            sb.AppendLine("                    " + BlackboardParamsExpression.AtExpr(
+                              "repo", "bridge->Self", "__seedOffset + " + entry.Offset) + ");");
+            sb.AppendLine("            }");
+            sb.AppendLine("            _ = __ws;");
+            sb.AppendLine("            ref var field = ref *__params;");
             if (entry.IsHeavy)
             {
                 if (entry.IsHeavyManaged)

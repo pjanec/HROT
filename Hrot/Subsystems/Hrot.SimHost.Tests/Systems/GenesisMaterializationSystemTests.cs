@@ -26,6 +26,7 @@ namespace Hrot.SimHost.Tests
         public GenesisMaterializationSystemTests()
         {
             _repo = new EntityRepository();
+            _repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();   // O1: GenesisMaterializationSystem provisions it for commanders
             _repo.RegisterComponent<PassengerBuffer>();
             _repo.RegisterComponent<IsEmbarkedTag>();
             _repo.RegisterComponent<VisHierarchyNode>();

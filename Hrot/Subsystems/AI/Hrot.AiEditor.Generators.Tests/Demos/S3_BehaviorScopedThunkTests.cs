@@ -60,11 +60,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -214,10 +214,10 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         bridge.Should().NotBeNull($"ScanForRegistrars must discover '{registrarName}'");
 
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters.OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)_liveRegistry
-                       : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>) ? (object)actionReg
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? (object)actionReg
                        : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -242,11 +242,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
 
     private static unsafe int SlotCount(EntityRepository world, Fdp.Core.Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return BlueprintBlackboardPartitions.GetSlotCount(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
     }
 
     private static unsafe int ReadCursor(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
@@ -257,11 +257,12 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
                 .Should().BeTrue("shared slot must exist when reading cursor");
             return Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + off).Cursor;
         }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        { ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity); fixed (byte* m = t.Memory) return Read(m); }
-        ref var t1 = ref world.GetComponentRW<BlueprintBlackboard1024>(entity); fixed (byte* m = t1.Memory) return Read(m);
+        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
+        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
+        //   production uses — it resolves whichever tier was actually chosen.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
+        return Read(m);
     }
 
     // ── TEST 1: BehaviorScoped_TwoNodes_ShareOneSlot ──────────────────────────────
@@ -307,8 +308,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
         SlotCount(world, entity).Should().Be(1, "exactly one shared partition slot must be provisioned");
@@ -316,7 +316,7 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         // One tick: A then B advance the SAME cursor (0→1→2).
         var ctx = new BTreeContext { Self = entity, World = world };
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state = new BehaviorTreeState();
             def.BTreeInterpreter!.Tick(ref bb, ref state, ref ctx);
         }

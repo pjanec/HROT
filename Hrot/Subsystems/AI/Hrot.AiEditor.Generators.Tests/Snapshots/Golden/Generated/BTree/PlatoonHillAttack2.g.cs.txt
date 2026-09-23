@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class PlatoonHillAttack2
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Sequence(seq =>
             {
                 seq.Action("Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.TickCore@0@719287041",

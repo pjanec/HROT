@@ -35,9 +35,11 @@ public sealed unsafe class HsmStatefulProvisioningTests
     private static EntityRepository CreateWorld()
     {
         var world = TestWorldFactory.Create();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -57,7 +59,6 @@ public sealed unsafe class HsmStatefulProvisioningTests
     {
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
         return entity;
     }
 
@@ -76,22 +77,11 @@ public sealed unsafe class HsmStatefulProvisioningTests
     /// <summary>Reads the entity's active tier and runs <paramref name="probe"/> over its memory.</summary>
     private static void WithTierMemory(EntityRepository world, Entity entity, Action<IntPtr> probe)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* m = t.Memory) { probe((IntPtr)m); return; }
-        }
-        Assert.Fail("Entity carries no BlueprintBlackboard* tier after assignment.");
+        // ⭐ B4: was THREE arms over the tier trio; it knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess answers this for ANY tier — the seam production uses.
+        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(m != null, "Entity carries no BlueprintBlackboard* tier after assignment.");
+        probe((IntPtr)m);
     }
 
     // ── The rail ────────────────────────────────────────────────────────────────

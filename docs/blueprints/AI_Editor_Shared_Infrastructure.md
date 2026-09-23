@@ -1,3 +1,57 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
+current-answer: the body below.
+known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
+  with it. Two measured facts, 2026-09-20:
+  ⭐⭐ ①+② ARE RESOLVED IN CODE 2026-09-21 by CE-300/CE-301 — CallbackSelectionBridge and
+     IGSelectionBridge are DELETED; SharedEntitySelection is now written ONLY by
+     SelectionNotificationSystem, from SelectionChangedNotification, so every cause moves it and
+     CGF's cell has a production writer for the first time. It is a PROJECTION, railed as one.
+     📄 DESIGN_Editor_Entity_Selection_Source.md §9. ⚠ The two entries below are kept as the
+     RECORD OF WHAT WAS WRONG — including a retraction worth not re-deriving.
+  ① 🔴 SharedEntitySelection (wrapped per-editor by EditorSelectionStore) is a SECOND entity-selection
+     store, held in production by BOTH authoring hosts — EditorSubsystem.cs:360 and CgfSubsystem.cs:199 —
+     alongside the ECS SelectionState component UXI-11 made the one truth everywhere else. ⛔ No UXI-11
+     slice addressed it; it is NOT a view. Whether it should become one is UNRULED (CE-301).
+     ⭐⭐ SPLIT THE STORE BEFORE JUDGING IT, 2026-09-21 — EditorSelectionStore holds TWO unrelated things
+     and only ONE is an entity selection:
+       · ActiveAsset + per-asset sub-selection (BTree/HSM/Blueprint NODES) — ⛔ NOT an entity store,
+         entirely outside UXI-11's scope, and §5.1.1's per-asset argument is about THIS half only.
+       · SelectedEntity, delegated to SharedEntitySelection — ⭐ THIS is the second store, and it is one
+         cell, not a set: "ONE FACT ABOUT THE WORLD" in its own header.
+     ⇒ the open question is about ONE Entity? cell, not about the asset bus. §5.1 already asks for the
+     engine sync ("the single source of selection truth for all three editors plus the engine's
+     selection-sync (map, outliner, game viewport)") and §5.1.1 says SelectedEntity "stays global".
+  ② ⛔⛔ CORRECTED 2026-09-21 — the 2026-09-20 entry below was WRONG and is kept so nobody re-derives
+     it. It read: "IGSelectionBridge has exactly ONE implementation, CallbackSelectionBridge, and ZERO
+     production construction sites — the only `new CallbackSelectionBridge` is in its own test."
+     📐 MEASURED: EditorSubsystem.cs:2092 constructs it and :2105 calls Connect(_aiEditorSelectionStore),
+     inside Initialize(), unconditionally, no #if. The ONE implementation is right; "zero production
+     sites" is not. ⚠ A graph query that misses a construction site looks identical to a real absence —
+     corroborate with grep before any zero (CLAUDE.md ③).
+     ⭐ WHAT IS ACTUALLY TRUE, and it is worse than the retracted claim (CE-300):
+       · the bridge does NOT consume the DDS SelectionChangedEvent this file's §5.3 describes. It
+         subscribes to SelectionInteractionSystem.OnSelectionChanged — the LOCAL MAP-GESTURE callback.
+       · ⇒ the AI editors' SelectedEntity moves on a MAP CLICK AND NOTHING ELSE. An entity-inspector
+         click, an orbat select, a context-menu Select, a remote CMD_SET_SELECTION: none of them move it,
+         so every live-value/Watch/Details row keeps projecting the PREVIOUS entity.
+       · 🔴 This is the THIRD instance of one defect shape — UXI-11 S-3 fixed it inbound, S-6 outbound,
+         and this one sits TWO LINES BELOW the comment at EditorSubsystem.cs:2085-2090 that explains why
+         the neighbouring hand-sync was retired for being gesture-driven.
+       · on CGF the cell is INERT, not wrong: CgfSubsystem.cs:2033-2035 build three stores over one
+         SharedEntitySelection, and measured — no production writer AND no reader (CGF passes no
+         liveValueProvider to CreateRegistrar). Every reader of the cell lives in Hrot.Editor.
+  ③ ⚠ §5.4's per-window ChainToMap toggle is ROTTED by UXI-11 ruling ① ("inspector selection changes
+     global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
+     with its operator toggle. Do not implement §5.4 as written.
+related-designs:
+  - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns WHERE an AI-editor view gets its
+    entity (unified selection when docked, frozen snapshot when pinned). SUPERSEDES this file's
+    §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: the ECS SelectionState component, the one store, the
+    request/notification protocol and the egress. It does NOT own this file's SharedEntitySelection.
+-->
 # AI Editor — Shared Infrastructure Detailed Design
 
 > **Status:** Detailed design, derived from `Blueprint_Subsystem_Editor_Detailed_Design.md` + Inline Patches + `Blueprint_Subsystem_Debug_Protocol_Detailed_Design.md` (+ Inline Patches) + `Blueprint_Subsystem_Architecture_v1_2.md` + FDP-ECS-AI-API research report + NodeEdit-docs + FastBTree + FastHSM source.

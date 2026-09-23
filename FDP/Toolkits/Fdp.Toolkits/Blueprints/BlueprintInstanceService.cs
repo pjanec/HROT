@@ -152,14 +152,16 @@ public static unsafe class BlueprintInstanceService
             resolvedParams = scratch;
         }
 
-        var tier = ChooseTier(def.StateSize);
+        var tier = ChooseTierHonouringCurrent(world, entity, def.StateSize);
         EnsureTierComponent(world, entity, tier);
 
         GetTierMemoryAndMeta(world, entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
         BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
 
+        // A3/D1': the occurrence declares its Kind at attach — see BlueprintTickSystem's note.
         if (!BlueprintBlackboardPartitions.TryAttach(
-                memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
+                memory, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out int payloadOffset))
             return new BlueprintAttachResult(
                 BlueprintAttachStatus.NoSlotAvailable, tier,
                 $"No free slot/payload for blueprint '{def.Name}' on entity {entity} " +
@@ -202,28 +204,17 @@ public static unsafe class BlueprintInstanceService
     {
         if (world is null) throw new ArgumentNullException(nameof(world));
 
-        // Scan all three tiers for the blueprint slot.
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ O3a / B3: scan every tier, in ladder order. ⛔ Was a hand-written three-arm scan.
+        //   ⚠ The scan is kept (rather than "resolve the entity's one tier") because it is what the
+        //     method did: a slot is looked for on ANY tier the entity happens to carry, which also
+        //     covers the transient mid-promotion moment when it carries two.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int i = 0; i < tiers.Count; i++)
         {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B1024, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId))
-            {
-                BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
-                return true;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B4096, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId))
-            {
-                BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
-                return true;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B16384, out byte* mem, out _, out _);
+            var spec = tiers[i];
+            if (!spec.Has(world, entity)) continue;
+
+            byte* mem = spec.Memory(world, entity);
             if (HasInitializedSlot(mem, blueprintId))
             {
                 BlueprintBlackboardPartitions.TryDetach(mem, blueprintId);
@@ -240,9 +231,9 @@ public static unsafe class BlueprintInstanceService
     /// </summary>
     public static BlackboardTier ChooseTier(int stateSize)
     {
-        if (stateSize <= BlueprintBlackboard1024.PayloadSize) return BlackboardTier.B1024;
-        if (stateSize <= BlueprintBlackboard4096.PayloadSize) return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
+        // ⭐ O3a / B3: SelectByPayload is deliberately the payload-ONLY selector — this caller sizes
+        //   ONE instance's state and has no slot count to offer. See BlueprintTierTable.SelectByPayload.
+        return BlueprintTierTable.SelectByPayload(stateSize).Tier;
     }
 
     // ── param-region round-trip (MX-030) ─────────────────────────────────────
@@ -291,22 +282,21 @@ public static unsafe class BlueprintInstanceService
     private static bool TryFindExistingTier(
         EntityRepository world, Entity entity, int blueprintId, out BlackboardTier tier)
     {
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ O3a / B3: same walk as DetachFromEntity, same reason for scanning rather than resolving.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int i = 0; i < tiers.Count; i++)
         {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B1024, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B1024; return true; }
+            var spec = tiers[i];
+            if (!spec.Has(world, entity)) continue;
+
+            if (HasInitializedSlot(spec.Memory(world, entity), blueprintId))
+            {
+                tier = spec.Tier;
+                return true;
+            }
         }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B4096, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B4096; return true; }
-        }
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(world, entity, BlackboardTier.B16384, out byte* mem, out _, out _);
-            if (HasInitializedSlot(mem, blueprintId)) { tier = BlackboardTier.B16384; return true; }
-        }
-        tier = BlackboardTier.B1024;
+
+        tier = BlueprintTierTable.Ascending[0].Tier;
         return false;
     }
 
@@ -320,55 +310,51 @@ public static unsafe class BlueprintInstanceService
         return BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out _);
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>The tier this attach must land on, given the tier the entity ALREADY carries.</b>
+    /// <c>O3b</c> / task <c>B4</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §17.7.
+    ///
+    /// <para>🔴🔴 <b>The defect this fixes, and it is a PRODUCTION one.</b> This call site used
+    /// <see cref="ChooseTier"/> alone and then added that component. ⛔ <c>ChooseTier</c> sizes the
+    /// ONE instance being attached and knows nothing about the entity — so whenever it named a
+    /// DIFFERENT tier from the one already present, <see cref="EnsureTierComponent"/> added a
+    /// <b>second</b> blackboard component and the entity ended up carrying two. That breaks the
+    /// <see cref="OccurrenceStoreAccess"/> invariant every consumer relies on — <i>"an entity carries
+    /// AT MOST ONE tier"</i> — and the probe order then decides which store is authoritative, so the
+    /// slots just written can become invisible.</para>
+    ///
+    /// <para>⚠ <b>Reachable before <c>B4</c> only upwards, and now in both directions.</b> With the
+    /// ladder <c>1024 / 4096 / 16384</c>, <c>ChooseTier</c> could only name a tier LARGER than a
+    /// present one (a big instance on a 1024 entity) — rare, and it left the small tier orphaned.
+    /// ⛔ <c>O3b</c>'s 256 tier made the DOWNGRADE direction the common case: every small instance
+    /// attached to an entity already carrying 1024 chose 256. 📌 That is what reddened
+    /// <c>BlueprintStateTranslatorTests.Extract_TwoBlueprintsAttached</c> — the slots landed in a
+    /// fresh 256 store while <c>Extract</c> probes largest-first and found the empty 1024.</para>
+    ///
+    /// <para>⭐ The rule: <b>never downgrade</b>. A tier already present is kept when the state fits
+    /// it. When it genuinely does not, the store is <b>PROMOTED</b> through
+    /// <see cref="BlueprintTierTable.Promote"/> — carrying the existing slots and their
+    /// <c>Kind</c> nibbles — rather than a second component being bolted on beside it.</para>
+    /// </summary>
+    private static BlackboardTier ChooseTierHonouringCurrent(
+        EntityRepository world, Entity entity, int stateSize)
+        => BlueprintTierTable.EnsureAtLeast(
+               world, entity, BlueprintTierTable.SelectByPayload(stateSize)).Tier;
+
     private static void EnsureTierComponent(EntityRepository world, Entity entity, BlackboardTier tier)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-                if (!world.HasComponent<BlueprintBlackboard1024>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard1024));
-                break;
-            case BlackboardTier.B4096:
-                if (!world.HasComponent<BlueprintBlackboard4096>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!world.HasComponent<BlueprintBlackboard16384>(entity))
-                    world.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
+        var spec = BlueprintTierTable.ByTier(tier);
+        if (!spec.Has(world, entity))
+            spec.Add(world, entity);
     }
 
     private static void GetTierMemoryAndMeta(
         EntityRepository world, Entity entity, BlackboardTier tier,
         out byte* memory, out int totalSize, out byte maxSlots)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-                totalSize = BlueprintBlackboard1024.TotalSize;
-                maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                return;
-            }
-            case BlackboardTier.B4096:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-                totalSize = BlueprintBlackboard4096.TotalSize;
-                maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                return;
-            }
-            default:
-            {
-                ref var bb = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-                memory    = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-                totalSize = BlueprintBlackboard16384.TotalSize;
-                maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                return;
-            }
-        }
+        var spec  = BlueprintTierTable.ByTier(tier);
+        memory    = spec.Memory(world, entity);
+        totalSize = spec.TotalSize;
+        maxSlots  = (byte)spec.MaxSlots;
     }
 }

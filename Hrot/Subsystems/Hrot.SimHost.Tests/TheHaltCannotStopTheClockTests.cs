@@ -38,7 +38,8 @@ public sealed class TheHaltCannotStopTheClockTests
             behaviorRegistry: new Fdp.Toolkit.Behavior.BehaviorRegistry(),
             entityMap:        new NetworkEntityMap(),
             scenarioSource:   new Hrot.Core.Network.ScenarioEntityCreationRequestSource(),
-            mapperRegistry:   new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry());
+            mapperRegistry:   new Fdp.Toolkit.Behavior.TacticalOrderMapper.TacticalIntentMapperRegistry(),
+            blueprintRegistry: new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
     /// <summary>
     /// ⭐⭐⭐ <b>The halt actuator gates the BRAIN and nothing that carries time.</b>

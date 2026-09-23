@@ -28,13 +28,16 @@ public class CgfComponentRegistryTests
     // ── Tier 2: Cognitive components ──────────────────────────────────────────
 
     [Fact]
-    public void CgfComponentRegistry_RegisterAll_RegistersBrainBTreeState()
+    public void CgfComponentRegistry_RegisterAll_RegistersTheOccurrenceTiers()
     {
         using var world = new EntityRepository();
         CgfComponentRegistry.RegisterAll(world);
 
         // Cognitive tier marker: BrainBTreeState must be queryable.
-        Assert.Null(Record.Exception(() => world.GetComponentTable<BrainBTreeState>()));
+        // ⛔ O7c-②: BrainBTreeState is retired. What a CGF node must now have for a BTree brain to
+        //    run is the TIER ladder — the cursor is a slot inside it (§31).
+        Assert.True(Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable
+                        .Ascending[0].IsRegistered(world));
     }
 
     /// <summary>

@@ -1010,23 +1010,72 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// the WRITE must too — a stale layout writing at a valid-looking offset is exactly how memory gets
     /// corrupted."</i> ⇒ the read would show the designer NOTHING while the write happily scribbled.</para>
     /// </summary>
-    private WorkingStateFieldRef? ResolveAiPrimitiveField(
+    /// <summary>
+    /// 🔴🔴 <b><c>CE-310</c> / <c>P4</c>-① (<c>2026-09-22</c>) — THIS ARM WAS DEAD AND NOBODY NOTICED.</b>
+    ///
+    /// <para>📐 It read <c>Blackboard1024</c> — ⚠ a <c>&lt;c&gt;</c>, not a <c>cref</c>, because
+    /// <c>P4</c>-① deleted that type and a cref to it no longer resolves — whose working state moved to the
+    /// Blueprint tier ladder in <c>SLICE2</c> — ⛔ <b>and nothing has added that component since.</b>
+    /// So <c>HasComponent</c> was false on every call and this returned <c>null</c> every time:
+    /// AiPrimitive working-state editing was broken in the editor <b>and</b> in the debug API, with no
+    /// exception and no failing test.</para>
+    ///
+    /// <para>⛔⛔ <b>The asymmetry that hid it:</b> the READ path had both arms
+    /// (<see cref="CaptureAiPrimitiveOccurrences"/> first, the legacy block behind it); the WRITE path
+    /// had only the legacy one — 📌 against this file's own header demand that <i>"if the read verifies
+    /// identity before trusting an offset, the WRITE must too."</i> ⇒ it is now <b>built by mirroring
+    /// the read</b>, exactly as Batch 102 built <see cref="ResolveInstanceField"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>NO <c>+8</c> ANY MORE, and that is not an omission.</b> The <c>WorkingStateLayout</c>
+    /// header belonged to the <c>Memory+8</c> block inside <c>Blackboard1024</c>. An occurrence slot has
+    /// no such header — <see cref="DecodeStateFields"/> reads at <c>PayloadOffset + field.OffsetBytes</c>
+    /// — ⛔ so applying <c>ComponentOffsetOf</c> here would land <b>8 bytes past every field</b>, which
+    /// is the same trap <see cref="ResolveInstanceField"/> documents for <c>Instance</c>.</para>
+    ///
+    /// <para>⛔ <b>AMBIGUITY REFUSES rather than guesses.</b> One blueprint may have several occurrences
+    /// on one entity (that is the whole point of <c>SLICE2</c>), and a bare field name cannot say which.
+    /// The read disambiguates with a per-occurrence LABEL; a writer has no such channel ⇒ <b>more than
+    /// one match returns <c>null</c></b>. 📌 §19.6 ⑤ — a slot the caller cannot name is a hard refusal,
+    /// never a write to the first one that matched.</para>
+    /// </summary>
+    private unsafe WorkingStateFieldRef? ResolveAiPrimitiveField(
         Entity entity, BlueprintDefinition def, DebugMapIndex? mapIndex, string fieldName)
     {
-        if (!_view.HasComponent<Blackboard1024>(entity)) return null;
-
-        // ⭐ The SAME identity gate the read applies before it trusts any offset in this block.
-        ref readonly var bb = ref _view.GetComponentRO<Blackboard1024>(entity);
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-        if (bytes.Length < WorkingStateLayout.HeaderBytes) return null;
-        if (System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes) != def.StructureHash) return null;
-
-        // ⭐⭐ The +8 through its ONE owner (📌 Q32 §2.1), applied HERE rather than by the writer —
-        //    see WorkingStateFieldRef.ComponentOffsetBytes for why that moved in Batch 102.
         if (FindField(mapIndex, def, fieldName) is not { } f) return null;
-        return new WorkingStateFieldRef(
-            typeof(Blackboard1024), WorkingStateLayout.ComponentOffsetOf(f.Offset), f.Size);
+
+        // ⭐ The read's own component pick, in the read's own order — the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+
+            ReadOnlySpan<byte> store = spec.BytesInView(_view, entity);
+            if (store.IsEmpty) return null;
+
+            int payloadOffset = -1;
+            int matches       = 0;
+            fixed (byte* mem = store)
+            {
+                int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+                for (int i = 0; i < slotCount; i++)
+                {
+                    if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                    // ⭐ The SAME identity gate the read applies before it trusts any offset.
+                    ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                    if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                    payloadOffset = entry.PayloadOffset;
+                    matches++;
+                }
+            }
+
+            if (matches != 1) return null;
+            return new WorkingStateFieldRef(spec.ComponentType, payloadOffset + f.Offset, f.Size);
+        }
+
+        return null;
     }
 
     /// <summary>
@@ -1053,13 +1102,15 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     {
         if (FindField(mapIndex, def, fieldName) is not { } f) return null;
 
-        // ⭐ The read's own component pick, in the read's own order.
-        if (TryInstanceSlot<BlueprintBlackboard1024>(entity, blueprintId, out int payload))
-            return Ref(typeof(BlueprintBlackboard1024), payload);
-        if (TryInstanceSlot<BlueprintBlackboard4096>(entity, blueprintId, out payload))
-            return Ref(typeof(BlueprintBlackboard4096), payload);
-        if (TryInstanceSlot<BlueprintBlackboard16384>(entity, blueprintId, out payload))
-            return Ref(typeof(BlueprintBlackboard16384), payload);
+        // ⭐ O3a / B3: the read's own component pick, in the read's own order — now the ladder.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
+        {
+            var spec = tiers[t];
+            if (!spec.HasInView(_view, entity)) continue;
+            if (TryGetInstancePayloadOffset(spec.BytesInView(_view, entity), blueprintId, out int payload))
+                return Ref(spec.ComponentType, payload);
+        }
 
         return null;
 
@@ -1067,19 +1118,10 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
             => new(component, payloadOffset + f.Offset, f.Size);
     }
 
-    /// <summary>⭐ One tier's "does this entity carry it, and where is my slot?" — the span acquisition
-    /// the read does inline, here as a generic so the three tiers are not three copies.</summary>
-    private bool TryInstanceSlot<T>(Entity entity, int blueprintId, out int payloadOffset)
-        where T : unmanaged
-    {
-        payloadOffset = 0;
-        if (!_view.HasComponent<T>(entity)) return false;
-
-        ref readonly var bb = ref _view.GetComponentRO<T>(entity);
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-        return TryGetInstancePayloadOffset(bytes, blueprintId, out payloadOffset);
-    }
+    // ⛔ O3a / B3 (2026-09-20): `TryInstanceSlot<T>` is DELETED. It was the local generic that kept
+    //   the three tiers from being three copies — the right instinct, but it still needed a named
+    //   type per call, so the ladder stayed spelled out at its one caller. Its two halves now live
+    //   in BlueprintTierSpec (HasInView + BytesInView) and its caller walks BlueprintTierTable.
 
     /// <summary>⭐ NAME → <c>(offset, size)</c> from the SAME two tables the read consults, in the same
     /// order: the debug map's editor-authored layout first, the compiled <c>StateFields</c> second.</summary>
@@ -1499,47 +1541,142 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
 
     // Reads AiPrimitive working-state fields from Blackboard1024 (BPF-001 section 8.6).
     // NGS-2.2: accepts an explicit view so the caller can redirect to the scratch repo.
-    private void CaptureAiPrimitiveState(
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b-2</c> — <b>SHOW ALL the occurrences, each LABELLED and DECODED.</b> 📄 §24.11.
+    ///
+    /// <para>🔴 <b>Why this changed shape.</b> Before <c>O7</c> an AiPrimitive's working state lived in
+    /// <c>Blackboard1024</c> at a fixed offset — <b>one per entity</b>, so one row. After <c>O7</c> it
+    /// lives in an occurrence slot keyed by the <c>(region, state)</c> the kernel stamps, so there can
+    /// be <b>N</b>. ⛔ Showing only the active one would hide exactly what <c>BP-297</c> is about: two
+    /// regions quietly holding different state for the same asset.</para>
+    ///
+    /// <para>⭐ <b>Legacy layout still read.</b> An entity with no occurrence store — or an asset whose
+    /// thunk predates the change — still resolves through the old path, so this is additive for
+    /// anything not yet migrated.</para>
+    /// </summary>
+    private unsafe void CaptureAiPrimitiveState(
         Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
         Dictionary<string, object> outFields,
         ISimulationView? view = null)
     {
         var effectiveView = view ?? _view;
-        if (!effectiveView.HasComponent<Blackboard1024>(self)) return;
-        ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
 
-        var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-            System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+        // ⛔⛔ P4-① (2026-09-22): the LEGACY ARM IS GONE, and with it the last `Blackboard1024` read.
+        //
+        // It decoded "one working state per entity" from that component's `Memory + 8` block behind
+        // an 8-byte StructureHash — the Slice-1 model. SLICE2 moved AiPrimitive working state to the
+        // Blueprint tier ladder and nothing has added the component since, so this fallback could
+        // only ever return immediately on its own `HasComponent` guard. 📄 §30.13.
+        //
+        // ⭐ `CaptureAiPrimitiveOccurrences` is now the WHOLE answer, not the preferred half of two:
+        //   it returns false when the entity has no store or no matching slot, and "no state to show"
+        //   is then the honest result rather than a cue to consult a component nobody writes.
+        CaptureAiPrimitiveOccurrences(self, def, mapIndex, outFields, effectiveView);
+    }
 
-        if (bytes.Length < WorkingStateLayout.HeaderBytes) return;
-
-        ulong storedHash = System.Runtime.InteropServices.MemoryMarshal.Read<ulong>(bytes);
-        if (storedHash != def.StructureHash) return;
-
-        var layoutFields = mapIndex?.StateLayout.Fields;
-        if (layoutFields != null && layoutFields.Count > 0)
+    /// <summary>
+    /// Walks the entity's occurrence store for every slot this asset owns, labels each by the
+    /// <c>(region, state)</c> it was keyed for, and decodes its fields.
+    /// Returns <c>true</c> when the store answered — so the caller knows not to fall back.
+    /// </summary>
+    private unsafe bool CaptureAiPrimitiveOccurrences(
+        Entity self, BlueprintDefinition def, DebugMapIndex? mapIndex,
+        Dictionary<string, object> outFields, ISimulationView effectiveView)
+    {
+        var tiers = BlueprintTierTable.Ascending;
+        ReadOnlySpan<byte> store = default;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            foreach (var field in layoutFields)
+            if (!tiers[t].HasInView(effectiveView, self)) continue;
+            store = tiers[t].BytesInView(effectiveView, self);
+            break;
+        }
+        if (store.IsEmpty) return false;
+
+        // The hosting machine's id — the other half of the key the thunk computed.
+        //
+        // ⭐⭐⭐ O7c-④d (2026-09-23): READ FROM THE ROOT HSM SLOT, THROUGH THE VIEW.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //   ⭐ This is the consumer RootHsmAccess.TryCopyInstanceInView was built for in ④a: this
+        //     method is handed an ISimulationView that may be a read-only SNAPSHOT, so it must not
+        //     cast to EntityRepository — which is exactly why that seam returns a COPY rather than
+        //     the pointer TryGetInstance hands the tick arm.
+        //   ⚠ The buffer is the LARGEST kernel tier, because the width is a runtime value and a
+        //     short destination is refused (TryCopyInstanceInView reports the width it needed).
+        //   ⛔ MachineId is InstanceHeader's first field and the header is shared by all three tiers,
+        //     so this read does not depend on which tier the machine landed in.
+        uint machineId = 0;
+        Span<byte> instanceCopy = stackalloc byte[256];
+        if (global::Fdp.Toolkit.Behavior.RootHsmAccess.TryCopyInstanceInView(effectiveView, self, instanceCopy, out int instanceWidth)
+            && instanceWidth >= sizeof(uint))
+        {
+            machineId = System.BitConverter.ToUInt32(instanceCopy);
+        }
+
+        bool any = false;
+        fixed (byte* mem = store)
+        {
+            int slotCount = BlueprintBlackboardPartitions.GetSlotCount(mem);
+            for (int i = 0; i < slotCount; i++)
             {
-                // ⭐ BATCH 84 — the +8 through its ONE owner (Q32 §2.1). ⛔ The write path computes the
-                //   same offset the same way; a read and a write that disagree by 8 bytes do not show
-                //   a wrong number, they scribble on the neighbouring field.
-                int start = WorkingStateLayout.ComponentOffsetOf(field.OffsetBytes);
-                if (start + field.SizeBytes > bytes.Length) continue;
+                if (BlueprintBlackboardPartitions.GetSlotKind(mem, i) != OccurrenceKind.Hsm) continue;
+
+                ref var entry = ref BlueprintBlackboardPartitions.GetSlot(mem, i);
+                if (entry.StructureHash != (uint)def.StructureHash) continue;
+
+                // ⭐ The label is EXACT or absent — never guessed. See HsmOccurrence.TryDescribe.
+                string label = global::Fdp.Toolkit.Behavior.HsmOccurrence.TryDescribe(
+                        machineId, def.AssetId, entry.BlueprintId,
+                        out int region, out ushort stateId)
+                    ? global::Fdp.Toolkit.Behavior.HsmOccurrence.DescribeLabel(region, stateId)
+                    : $"Occurrence 0x{entry.BlueprintId:X8}";
+
+                DecodeStateFields(store, entry.PayloadOffset,
+                                  mapIndex?.StateLayout, def, label, outFields);
+                any = true;
+            }
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>THE decode loop — one body, four former copies.</b> Prefers the DebugMap's
+    /// editor-authored layout and falls back to the registrar's compiled offsets.
+    ///
+    /// <para>⭐ <paramref name="namePrefix"/> is what makes "show all" legible: with N occurrences the
+    /// bare field name is ambiguous, so each is emitted as <c>"Region 0 / State 4 · Counter"</c>.
+    /// ⛔ A null prefix keeps the single-occurrence spelling for the legacy path.</para>
+    /// </summary>
+    private static void DecodeStateFields(
+        ReadOnlySpan<byte> bytes, int payloadOffset,
+        DebugStateLayout? stateLayout, BlueprintDefinition? def,
+        string? namePrefix, Dictionary<string, object> outFields)
+    {
+        string Name(string field) => namePrefix is null ? field : namePrefix + " \u00B7 " + field;
+
+        if (stateLayout != null && stateLayout.Fields.Count > 0)
+        {
+            foreach (var field in stateLayout.Fields)
+            {
+                int start = payloadOffset + field.OffsetBytes;
+                if (field.SizeBytes <= 0 || start + field.SizeBytes > bytes.Length) continue;
                 var fieldType = ResolveType(field.Type);
                 if (fieldType is null) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, field.SizeBytes).ToArray(), fieldType);
-                if (raw != null) outFields[field.Name] = raw;
+                if (raw != null) outFields[Name(field.Name)] = raw;
             }
+            return;
         }
-        else
+
+        if (def?.StateFields is { Count: > 0 } stateFields)
         {
-            foreach (var (name, descriptor) in def.StateFields)
+            foreach (var (name, descriptor) in stateFields)
             {
-                int start = WorkingStateLayout.ComponentOffsetOf(descriptor.OffsetBytes);
-                if (start + descriptor.SizeBytes > bytes.Length) continue;
+                int start = payloadOffset + descriptor.OffsetBytes;
+                if (descriptor.SizeBytes <= 0 || start + descriptor.SizeBytes > bytes.Length) continue;
                 var raw = MarshalFromBytes(bytes.Slice(start, descriptor.SizeBytes).ToArray(), descriptor.ClrType);
-                if (raw != null) outFields[name] = raw;
+                if (raw != null) outFields[Name(name)] = raw;
             }
         }
     }
@@ -1554,26 +1691,17 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         cursor = null;
         var effectiveView = view ?? _view;
 
-        if (effectiveView.HasComponent<BlueprintBlackboard1024>(self))
+        // ⭐ O3a / B3: was a three-arm if/else chain over the tiers, ascending. ⚠ The view form is
+        //   used because `effectiveView` may be a HISTORICAL snapshot, not the live repository.
+        var tiers = BlueprintTierTable.Ascending;
+        for (int t = 0; t < tiers.Count; t++)
         {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard1024>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
-        else if (effectiveView.HasComponent<BlueprintBlackboard4096>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard4096>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
-        }
-        else if (effectiveView.HasComponent<BlueprintBlackboard16384>(self))
-        {
-            ref readonly var bb = ref effectiveView.GetComponentRO<BlueprintBlackboard16384>(self);
-            var bytes = System.Runtime.InteropServices.MemoryMarshal.AsBytes(
-                System.Runtime.InteropServices.MemoryMarshal.CreateReadOnlySpan(in bb, 1));
-            ReadInstanceState(bytes, blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            var spec = tiers[t];
+            if (!spec.HasInView(effectiveView, self)) continue;
+
+            ReadInstanceState(spec.BytesInView(effectiveView, self),
+                blueprintId, mapIndex?.StateLayout, def, outFields, out cursor);
+            break;
         }
     }
 

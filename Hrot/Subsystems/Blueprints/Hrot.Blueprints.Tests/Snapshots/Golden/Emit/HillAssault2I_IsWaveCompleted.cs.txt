@@ -18,6 +18,7 @@ public static class HillAssault2IIsWaveCompleted_CDAC491D_Bp
 {
     public const int BlueprintId = unchecked((int)0xCDAC491D);
     public const ulong StructureHash = 8225198001537551741UL;
+    public static readonly global::System.Guid AssetId = new global::System.Guid("a8d44fe3-29fc-490a-9b84-33452321bec3");
     
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
     public struct Params
@@ -65,32 +66,32 @@ public static class HillAssault2IIsWaveCompleted_CDAC491D_Bp
     }
     
     public static unsafe global::Fbt.NodeStatus BTreeTick(
-        ref global::Fdp.Toolkit.Behavior.Components.BrainBlackboard bb,
+        ref byte bb,
         ref global::Fbt.BehaviorTreeState state,
         ref global::Fdp.Toolkit.Behavior.BTreeContext ctx,
         int paramIndex)
     {
-        // W13: the offset form — identical in shape to the BTree bridge's per-node adapter.
-        //      Standalone hosting is the single-method case, so the baked offset is 0.
-        ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                ref bb.BehaviorParameters[0], (nint)0));
-        ref var bb1024 = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>(ctx.Self);
-        unsafe
+        // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
+        //          store — NOT Blackboard1024, and no longer the SHARED param region.
+        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
+            ctx.World, ctx.Self, occurrenceKey, StructureHash,
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);
+        if (freshlyAttached)
         {
-            fixed (byte* memory = bb1024.Memory)
-            {
-                ulong storedHash = *(ulong*)memory;
-                if (storedHash != StructureHash)
-                {
-                    global::System.Runtime.CompilerServices.Unsafe.InitBlock(memory, 0, (uint)global::System.Runtime.CompilerServices.Unsafe.SizeOf<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>());
-                    *(ulong*)memory = StructureHash;
-                    InitDefaultWorkingState((WorkingState*)(memory + 8));
-                }
-                ref var ws = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<WorkingState>(memory + 8);
-                return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
-            }
+            // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
+            //   slot. Copying them makes the move byte-identical at the first dispatch.
+            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self);
+            *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
+                ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                    ref __rootParams, (nint)0));
+            // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
+            global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
+                AssetId, ref *__params, ctx.World, ctx.Self, null);
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
+        ref var p = ref *__params;
+        return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
     }
     
 }
@@ -98,7 +99,7 @@ public static class HillAssault2IIsWaveCompleted_CDAC491D_Bp
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
 public static class BlueprintRegistrar_HillAssault2IIsWaveCompleted_CDAC491D_Bp
 {
-    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<global::Fdp.Toolkit.Behavior.Components.BrainBlackboard, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
+    public static unsafe void Register(global::Fdp.Toolkit.Blueprints.BlueprintRegistryStaging staging, global::Fbt.Runtime.ActionRegistry<byte, global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry)
     {
         staging.Add(HillAssault2IIsWaveCompleted_CDAC491D_Bp.BlueprintId, new global::Fdp.Toolkit.Blueprints.BlueprintDefinition
         {

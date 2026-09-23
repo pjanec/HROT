@@ -35,20 +35,17 @@ public class BTreeVisualizerRendererTests
 
     // GetSummary returns structured string
     [Fact]
-    public void GetSummary_ReturnsNonNull()
+    public void SummaryOf_ReturnsNonNull()
     {
-        var renderer = new BTreeVisualizerRenderer();
-        var state = new Fdp.Toolkit.Behavior.Components.BrainBTreeState();
-        Assert.NotNull(renderer.GetSummary(state));
+        // ⭐ O7c-②: the summary is built from the CURSOR, not from a boxed component. The renderer
+        //   is no longer an [ImGuiRenderer] keyed on a type — it is a section of the tier renderer.
+        Assert.NotNull(BTreeVisualizerRenderer.SummaryOf(new Fbt.BehaviorTreeState()));
     }
 
-    // Non-entity-aware RenderValue always returns false
-    [Fact]
-    public void RenderValue_Object_ReturnsFalse()
-    {
-        var renderer = new BTreeVisualizerRenderer();
-        Assert.False(renderer.RenderValue(new Fdp.Toolkit.Behavior.Components.BrainBTreeState()));
-    }
+    // ⛔ O7c-②: `RenderValue_Object_ReturnsFalse` is REMOVED. It pinned the non-entity-aware
+    //    IImGuiRenderer arm, which existed only because the renderer was reached through
+    //    [ImGuiRenderer(typeof(BrainBTreeState))]. ⇒ the interface is gone with the component, so the
+    //    claim has no subject — an EXPIRED test, not a dropped one (§31).
 
     // IsAncestralPath returns false when tree is idle
     [Fact]

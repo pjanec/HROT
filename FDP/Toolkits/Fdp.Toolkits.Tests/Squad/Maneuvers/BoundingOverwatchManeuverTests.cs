@@ -74,8 +74,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         public void RoleAssignment_AtMost2Members_HaveMovingRole()
         {
             var (repo, commander, members) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             // Partition the squad.
             Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[4];
@@ -109,8 +108,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         public void RoleAssignment_AfterSwap_Element0MembersGetCoveringRole()
         {
             var (repo, commander, members) = BuildFixture(memberCount: 4);
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(commander));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
 
             Span<MemberPartitionInput> inputs = stackalloc MemberPartitionInput[4];
             BoundingOverwatchManeuver.ComputePartitionInputs(4, inputs);
@@ -153,13 +151,13 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<UnitRoster>();
-            repo.RegisterComponent<Blackboard1024>();
+            repo.RegisterComponent<SquadCognitiveState>();
             repo.RegisterComponent<NavigationStatus>();
             repo.RegisterComponent<UnitSubordinate>();
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new UnitRoster());
-            repo.AddComponent(commander, new Blackboard1024());
+            repo.AddComponent(commander, default(SquadCognitiveState));
 
             var members = new Entity[memberCount];
             for (int i = 0; i < memberCount; i++)

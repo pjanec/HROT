@@ -771,5 +771,105 @@ namespace Hrot.Presentation.Tests.Tools
             Assert.True(fx.Controller.Activate(ScenarioToolIds.Edit, entity));
             Assert.True(fx.DataDriven.HasInjectedGizmo(entity));
         }
+
+        // ══ UXI-11 S-5 — CancelArmedOn, ruling ②'s per-entity teardown ═════════════
+        // 📄 docs/UX/UX_Feature_Selection.md §2.6 ② / §2.7.15 · UX_Feature_Tool_Model.md §4.14.
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Ruling ②, the whole of it: the tool armed on the deselected entity is TORN DOWN —
+        /// gizmo included.</b>
+        ///
+        /// <para>⛔ <b>The second assertion is the one that matters and the reason this is not
+        /// <c>NotifyToolEnded</c>:</b> that method deliberately leaves the gizmo alone (<i>"the gizmo ENDED
+        /// ITSELF, so there is nothing of ours left to tear down"</i>), so using it here would empty the
+        /// stack and leave the gizmo armed and DRAWING — the mirror of <c>CE-259q</c>.</para>
+        /// </summary>
+        [Fact]
+        public void CancelArmedOn_TearsDownTheGizmo_NotJustTheStackEntry()
+        {
+            var fx     = new Fixture();
+            var entity = NetworkedEntity();
+            var gizmo  = new ProbeGizmo();
+
+            fx.Controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped),
+                target => { fx.DataDriven.ActivateGizmo(target, gizmo); return ToolActivationOutcome.Armed; });
+
+            fx.Controller.Activate("edit", entity);
+            Assert.NotNull(fx.Controller.ActiveModal);                 // ⛔ anti-vacuity
+            Assert.True(fx.DataDriven.HasInjectedGizmo(entity));
+
+            fx.Controller.CancelArmedOn(entity);
+
+            Assert.Null(fx.Controller.ActiveModal);                    // the stack entry is gone
+            Assert.False(fx.DataDriven.HasInjectedGizmo(entity));      // ⭐ AND so is the gizmo
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Per-entity, which is why <see cref="IToolController.Cancel"/> could not serve.</b>
+        /// Deselecting A must not disturb a tool armed on B. ⛔ <c>Cancel()</c> unwinds the WHOLE stack and
+        /// would take B's tool with it.
+        /// </summary>
+        [Fact]
+        public void CancelArmedOn_LeavesAToolArmedOnADifferentEntityAlone()
+        {
+            var fx = new Fixture();
+            var a  = NetworkedEntity();
+            var b  = NetworkedEntity();
+
+            fx.Controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped),
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
+
+            fx.Controller.Activate("edit", b);                         // armed on B
+            Assert.Equal(b, fx.Controller.ActiveModalTarget);
+
+            fx.Controller.CancelArmedOn(a);                            // A was never armed
+
+            Assert.NotNull(fx.Controller.ActiveModal);                 // ⭐ B's tool survives
+            Assert.Equal(b, fx.Controller.ActiveModalTarget);
+            Assert.True(fx.DataDriven.HasInjectedGizmo(b));
+        }
+
+        /// <summary>
+        /// ⚠ <b><c>Entity.Null</c> is a no-op, and that is a RULE not an accident:</b> a target-less tool
+        /// (Measure, the picker, placement) is exempt from ruling ② by construction — it is not editing an
+        /// entity. 📄 §4.14's arming-path inventory.
+        /// </summary>
+        [Fact]
+        public void CancelArmedOn_Null_LeavesATargetLessToolAlone()
+        {
+            var fx = new Fixture();
+
+            fx.Controller.Register(
+                new ToolDescriptor("measure", "Measure", ToolModality.Modal, ToolArbiter.Global),
+                _ => { fx.Global.Register(GlobalGizmoManager.NewId(), new ProbeGizmo()); return ToolActivationOutcome.Armed; });
+
+            fx.Controller.Activate("measure");                         // no target
+            Assert.NotNull(fx.Controller.ActiveModal);
+
+            fx.Controller.CancelArmedOn(Entity.Null);
+
+            Assert.NotNull(fx.Controller.ActiveModal);                 // ⭐ untouched
+        }
+
+        /// <summary>⚠ Idempotent, like the rest of this surface — an entity with nothing armed on it is a
+        /// no-op, not an error.</summary>
+        [Fact]
+        public void CancelArmedOn_IsIdempotent()
+        {
+            var fx     = new Fixture();
+            var entity = NetworkedEntity();
+
+            fx.Controller.Register(
+                new ToolDescriptor("edit", "Edit Shape", ToolModality.Modal, ToolArbiter.EntityScoped),
+                target => { fx.DataDriven.ActivateGizmo(target, new ProbeGizmo()); return ToolActivationOutcome.Armed; });
+
+            fx.Controller.Activate("edit", entity);
+            fx.Controller.CancelArmedOn(entity);
+            fx.Controller.CancelArmedOn(entity);                       // again — must not throw or over-pop
+
+            Assert.Null(fx.Controller.ActiveModal);
+        }
     }
 }

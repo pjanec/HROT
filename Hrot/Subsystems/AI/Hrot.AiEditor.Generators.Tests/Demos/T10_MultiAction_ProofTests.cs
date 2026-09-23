@@ -8,6 +8,7 @@ using System.Runtime.Loader;
 using Fbt;
 using Fbt.Runtime;
 using Fdp.Toolkit.Behavior;
+using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Attributes;
@@ -39,7 +40,7 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 ///   accum   (DemoAccumParams   {int,int} = 8 bytes, align 4) → offset 8
 ///
 /// Both DTOs are read back via:
-///   Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset))
+///   Unsafe.As&lt;byte, TDto&gt;(ref Unsafe.AddByteOffset(ref bb, (nint)offset))
 /// which is exactly what the emitted thunks do.
 ///
 /// Defaults note: managed-asset DefaultValueJson is NOT auto-written in the test harness
@@ -193,7 +194,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
     /// <summary>
     /// Full end-to-end: load JSON → generate → compile → bridge-register → return interpreter.
     /// </summary>
-    private (Interpreter<BrainBlackboard, BTreeContext> Interpreter, AssemblyLoadContext Alc)
+    private (Interpreter<byte, BTreeContext> Interpreter, AssemblyLoadContext Alc)
         BuildInterpreterFromJson(string assetName, string registrarName)
     {
         string json = LoadJsonFromCommittedFile(assetName);
@@ -213,8 +214,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)stagingRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
-                           ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
+                           ? new ActionRegistry<byte, BTreeContext>()
                            : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -315,8 +316,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)stagingRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
-                           ? new ActionRegistry<BrainBlackboard, BTreeContext>()
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
+                           ? new ActionRegistry<byte, BTreeContext>()
                            : (object)bpStaging)
             .ToArray();
         bridge.RegisterMethod.Invoke(null, args);
@@ -332,11 +333,23 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
 
     // ── Helper: project a DTO at a packed byte offset ─────────────────────────────
 
-    private static unsafe ref T ReadDto<T>(ref BrainBlackboard bb, int byteOffset)
+    // 🔴 P3-C: the DTO is projected from the entity's ROOT PARAMS SLOT, not from a stack-local
+    //   BrainBlackboard. ⭐ Same offsets, same bytes — only the anchor moved (§29.6).
+    private static unsafe ref T ReadDto<T>(EntityRepository world, Fdp.Core.Entity entity, int byteOffset)
         where T : unmanaged
-        => ref System.Runtime.CompilerServices.Unsafe.As<byte, T>(
-               ref System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                   ref bb.BehaviorParameters[0], (nint)byteOffset));
+        => ref RootParamsTestHarness.ReadDto<T>(world, entity, byteOffset);
+
+    /// <summary>
+    /// ⭐ A world these proof tests can attach a ROOT PARAMS SLOT on — <c>P3-C</c> made one necessary.
+    /// ⛔ Registers the tiers from the LADDER, never a hand-list (the same reason <c>T20</c>'s does).
+    /// </summary>
+    private static EntityRepository CreateWorld()
+    {
+        var world = new EntityRepository();
+        world.RegisterComponent<BehaviorState>();
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+        return world;
+    }
 
     // ── PROOF TEST 1 ─────────────────────────────────────────────────────────────
 
@@ -362,13 +375,17 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         const int N = 5;
 
         var (interpreter, alc) = BuildInterpreterFromJson("T10_MultiAction", "T10_MultiActionRegistrar");
-        var bb  = new BrainBlackboard();
-        var ctx = new BTreeContext();
+        // 🔴 P3-C: an emitted thunk resolves its params from (ctx.World, ctx.Self), so the test
+        //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
+        var world  = CreateWorld();
+        var entity = RootParamsTestHarness.NewBrainEntity(world);
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
+        var ctx = new BTreeContext { Self = entity, World = world };
 
         // DEBT-AIB-013: seed Threshold and Step manually.
-        ref var counterDto = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var counterDto = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         counterDto.Threshold = N;
-        ref var accumDto = ref ReadDto<DemoCounterNodes.DemoAccumParams>(ref bb, AccumOffset);
+        ref var accumDto = ref ReadDto<DemoCounterNodes.DemoAccumParams>(world, entity, AccumOffset);
         accumDto.Step = 3;
 
         // Ticks 1..N: condition passes → counter increments (Repeater(1)) → accum advances.
@@ -376,12 +393,12 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         {
             var state = new BehaviorTreeState();
             interpreter.Tick(ref bb, ref state, ref ctx);
-            ref var c = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+            ref var c = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
             c.Counter.Should().Be(tick,
                 because: $"tick {tick}: counter.Counter must equal {tick}");
         }
 
-        ref var afterN = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var afterN = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         afterN.Counter.Should().Be(N,
             because: $"after {N} ticks counter.Counter must equal Threshold={N}");
 
@@ -391,7 +408,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
-        ref var final = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var final = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         final.Counter.Should().Be(N,
             because: $"after condition-fails tick, counter must remain {N} (not incremented)");
 
@@ -418,13 +435,17 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         out WeakReference<AssemblyLoadContext>[] weakRefs)
     {
         var (interpreter, alc) = BuildInterpreterFromJson("T10_MultiAction", "T10_MultiActionRegistrar");
-        var bb  = new BrainBlackboard();
-        var ctx = new BTreeContext();
+        // 🔴 P3-C: an emitted thunk resolves its params from (ctx.World, ctx.Self), so the test
+        //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
+        var world  = CreateWorld();
+        var entity = RootParamsTestHarness.NewBrainEntity(world);
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
+        var ctx = new BTreeContext { Self = entity, World = world };
 
         // Seed: Threshold=3, Step=7.
-        ref var counterSetup = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var counterSetup = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         counterSetup.Threshold = 3;
-        ref var accumSetup = ref ReadDto<DemoCounterNodes.DemoAccumParams>(ref bb, AccumOffset);
+        ref var accumSetup = ref ReadDto<DemoCounterNodes.DemoAccumParams>(world, entity, AccumOffset);
         accumSetup.Step = 7;
 
         // Tick 1: Condition passes (0<3) → Repeater(IncrementCounter) → AddStepToSum.
@@ -433,8 +454,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
-        ref var counter1 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
-        ref var accum1   = ref ReadDto<DemoCounterNodes.DemoAccumParams>(ref bb, AccumOffset);
+        ref var counter1 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
+        ref var accum1   = ref ReadDto<DemoCounterNodes.DemoAccumParams>(world, entity, AccumOffset);
 
         counter1.Counter.Should().Be(1, because: "IncrementCounter ran once");
         counter1.Threshold.Should().Be(3, because: "Threshold must not have been touched by accum action");
@@ -448,8 +469,8 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
-        ref var counterF = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
-        ref var accumF   = ref ReadDto<DemoCounterNodes.DemoAccumParams>(ref bb, AccumOffset);
+        ref var counterF = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
+        ref var accumF   = ref ReadDto<DemoCounterNodes.DemoAccumParams>(world, entity, AccumOffset);
 
         // After 3 ticks: counter reached Threshold=3.
         counterF.Counter.Should().Be(3,
@@ -483,8 +504,12 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
         out WeakReference<AssemblyLoadContext>[] weakRefs)
     {
         var (interpreter, alc) = BuildInterpreterFromJson("T11_Aliasing", "T11_AliasingRegistrar");
-        var bb  = new BrainBlackboard();
-        var ctx = new BTreeContext();
+        // 🔴 P3-C: an emitted thunk resolves its params from (ctx.World, ctx.Self), so the test
+        //   needs a REAL entity — a stack-local BrainBlackboard can no longer stand in for one.
+        var world  = CreateWorld();
+        var entity = RootParamsTestHarness.NewBrainEntity(world);
+        ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);
+        var ctx = new BTreeContext { Self = entity, World = world };
 
         // T11 has no condition; Sequence[IncrementCounter_A, IncrementCounter_B] always runs both.
 
@@ -494,7 +519,7 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
-        ref var c1 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var c1 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         c1.Counter.Should().Be(2,
             because: "two aliased IncrementCounter nodes each add +1; after 1 tick Counter must be 2");
 
@@ -504,14 +529,15 @@ public sealed class T10_MultiAction_ProofTests : IDisposable
             interpreter.Tick(ref bb, ref state, ref ctx);
         }
 
-        ref var c2 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(ref bb, CounterOffset);
+        ref var c2 = ref ReadDto<DemoCounterNodes.DemoCounterParams>(world, entity, CounterOffset);
         c2.Counter.Should().Be(4, because: "after 2 ticks with 2 aliased nodes, Counter must be 4");
 
         // Verify via raw bytes: int at CounterOffset=0 must equal 4.
         {
             // Must pin bb before taking pointer (fixed statement not needed for ref/unsafe arithmetic
             // since BrainBlackboard.BehaviorParameters is a fixed buffer; indexing [0] is already safe).
-            ref var rawByte = ref bb.BehaviorParameters[CounterOffset];
+            ref var rawByte = ref System.Runtime.CompilerServices.Unsafe.AddByteOffset(
+                ref Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity), (nint)CounterOffset);
             int rawCounter  = System.Runtime.CompilerServices.Unsafe.As<byte, int>(ref rawByte);
             rawCounter.Should().Be(4,
                 because: "raw int at offset 0 must equal 4 — both thunks address the same bytes");

@@ -20,10 +20,21 @@ namespace Fhsm.Kernel
                 ((delegate* <void*, void*, HsmCommandWriter*, void>)actionPtr)(instance, context, writer);
         }
 
-        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId)
+        /// <summary>
+        /// O6 / <c>D2</c> — the guard signature carries the <see cref="HsmCommandWriter"/>, so a
+        /// guard learns which occurrence it is exactly as an action does.
+        /// <para>
+        /// ⚠ This is a SIGNATURE change, and it is safe for one reason only: every guard pointer in
+        /// this table is registered from EMITTED source (<c>HsmActionGenerator</c>,
+        /// <c>AiPrimitiveEmitter</c>, <c>CSharpEmitter</c>), and emitted behaviour source is
+        /// machine-owned and regenerated whole on save (<c>R-50</c>) — so this is a rebuild, not a
+        /// migration. ⛔ Not because the population is small.
+        /// </para>
+        /// </summary>
+        public static bool EvaluateGuard(ushort guardId, void* instance, void* context, ushort eventId, HsmCommandWriter* writer)
         {
             if (GuardTable.TryGetValue(guardId, out var guardPtr))
-                return ((delegate* <void*, void*, ushort, bool>)guardPtr)(instance, context, eventId);
+                return ((delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)guardPtr)(instance, context, eventId, writer);
             return true; // No guard = always pass
         }
 

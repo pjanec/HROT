@@ -14,7 +14,7 @@ namespace Fdp.Toolkit.Behavior
     /// a behaviour blackboard's inline memory — zero allocation, no boxing.
     /// </summary>
     /// <param name="json">Serialised parameter payload (cold path only).</param>
-    /// <param name="memory">Pointer to the first byte of <see cref="BrainBlackboard.BehaviorParameters"/>.</param>
+    /// <param name="memory">Pointer to the first byte of <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).</param>
     /// <summary>
     /// Cold-path resolver: parses the authored JSON parameter payload into the behavior's
     /// runtime params region, and may post-process it using world context — geographic transform,
@@ -31,7 +31,7 @@ namespace Fdp.Toolkit.Behavior
     public unsafe delegate void ParseParamsDelegate(
         string json, byte* memory, EntityRepository world, Entity self, IHostVariableAccess? host);
 
-    /// <summary>Variable metadata for one packed slot in BrainBlackboard.BehaviorParameters.</summary>
+    /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
     /// <summary>
@@ -68,6 +68,57 @@ namespace Fdp.Toolkit.Behavior
         byte Scope = 0);
 
     /// <summary>
+    /// ⭐⭐⭐ <b>How much store a behaviour's HOSTED occurrences will need — the half <c>E-cap</c>
+    /// deliberately did not deliver.</b> <c>O7b-3</c> — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+    ///
+    /// <para>⛔⛔ <b>Why this is a DEMAND and not a manifest.</b> A hosted occurrence attaches
+    /// <b>lazily</b>, on first dispatch (§24.8), and its KEY needs the region slot the kernel picks at
+    /// runtime — which is not knowable at registration. ⭐ But its SIZE is: the tier must be chosen
+    /// before the first tick, and choosing it needs only <i>how many</i> and <i>how big</i>. ⇒ this
+    /// carries exactly that, and nothing it cannot honestly know.</para>
+    ///
+    /// <para>⚠ <b>It is an UPPER BOUND, on purpose.</b> Counting every hosted <c>(state, blueprint)</c>
+    /// pair over-counts a machine whose regions never all activate at once. ⛔ The opposite error —
+    /// under-sizing — is a throw from inside a kernel dispatch, so the bound leans the safe way, and
+    /// over-sizing costs one tier step.</para>
+    ///
+    /// <para>⭐ <c>null</c> means <i>"nobody computed one"</i> — a behaviour registered by hand, or one
+    /// whose blueprints live in another assembly than the scan that found it. ⚠ That is the
+    /// pre-<c>O7b-3</c> behaviour exactly: the smallest tier, and the loud throw if it does not fit.
+    /// ⛔ It is NOT <i>"this behaviour hosts nothing"</i> — that is <c>SlotCount: 0</c>.</para>
+    /// </summary>
+    /// <param name="PayloadBytes">
+    /// Sum of the hosted working-state sizes, each ALREADY ROUNDED UP to the store's alignment.
+    /// ⛔ Slot-entry overhead is NOT included — <see cref="Systems.BehaviorIngressSystem"/> adds
+    /// <c>SlotCount × SlotEntrySize</c> itself, because it owns the identical arithmetic for the
+    /// manifest and the two must not drift. ⭐ Use <see cref="Of"/> rather than summing by hand.
+    /// </param>
+    /// <param name="SlotCount">How many distinct occurrences the host can have live at once.</param>
+    public sealed record HostedOccurrenceDemand(int PayloadBytes, int SlotCount)
+    {
+        /// <summary>
+        /// ⭐ The only correct way to build one: aligns each occurrence's payload the way the store
+        /// does, so a caller cannot under-count by summing raw <c>sizeof</c>s. ⛔ Returns a
+        /// <c>SlotCount: 0</c> demand for an empty set — which means <i>"hosts nothing"</i>, and is
+        /// deliberately different from a <c>null</c> demand.
+        /// </summary>
+        public static HostedOccurrenceDemand Of(IEnumerable<int> payloadSizes)
+        {
+            if (payloadSizes is null) throw new ArgumentNullException(nameof(payloadSizes));
+
+            int bytes = 0, count = 0;
+            foreach (int size in payloadSizes)
+            {
+                const int alignment = Fdp.Toolkit.Blueprints.Partitioning
+                                         .BlueprintBlackboardPartitions.Alignment;
+                bytes += (size + alignment - 1) & ~(alignment - 1);
+                count++;
+            }
+            return new HostedOccurrenceDemand(bytes, count);
+        }
+    }
+
+    /// <summary>
     /// Immutable definition of a single registered behavior (i.e., a named AI behaviour).
     /// Created once at startup; read-only thereafter.
     /// </summary>
@@ -87,7 +138,7 @@ namespace Fdp.Toolkit.Behavior
         /// Pre-built FastBTree interpreter for this behavior.
         /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierBTree"/>.
         /// </summary>
-        public Interpreter<BrainBlackboard, BTreeContext>? BTreeInterpreter { get; init; }
+        public Interpreter<byte, BTreeContext>? BTreeInterpreter { get; init; }
 
         /// <summary>
         /// FastHSM definition blob for this behavior.
@@ -105,7 +156,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Cold-path delegate that parses the behavior's JSON parameter payload into
-        /// <see cref="BrainBlackboard.BehaviorParameters"/>.  May be <c>null</c> if the behavior
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>).  May be <c>null</c> if the behavior
         /// carries no configurable parameters.
         /// <para>
         /// Settable (not <c>init</c>-only) so the registry can bind a <b>named resolver</b> to a
@@ -152,7 +203,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// 🔒 <b>ENGINE-INTERNAL.</b> The blittable struct laid out at the start of
-        /// <see cref="BrainBlackboard.BehaviorParameters"/>. Consumers project it <b>over raw
+        /// <c>RootParamsAccess</c> (the ROOT PARAMS SLOT; this was <c>BrainBlackboard.BehaviorParameters</c> before <c>P3-C</c>). Consumers project it <b>over raw
         /// blackboard bytes</b> (<c>Marshal.PtrToStructure</c> / <c>Unsafe.As</c>), so its field order
         /// and packing are load-bearing and the type must be unmanaged.
         ///
@@ -164,8 +215,9 @@ namespace Fdp.Toolkit.Behavior
         /// <c>CE-235</c> split the two members so the mistake cannot be made silently again.
         /// </para>
         ///
-        /// <para>Readers: <c>BrainBlackboardTranslator</c>, <c>BrainBlackboardRenderer</c>,
-        /// <c>BrainBlackboardViewProvider</c>/<c>BlackboardReflection</c> (StructEdit) and the
+        /// <para>Readers: <c>BrainDiagnosticsTranslator</c> (⚠ a historical NAME — it reads the root
+        /// params slot, §30.28), <c>RootParamsProjection</c>/<c>RootParamsViewProvider</c> (StructEdit,
+        /// <c>CE-312</c>) and the
         /// ReplayBrowser predicate compiler + its two field drawers.</para>
         /// </summary>
         public Type? BlackboardLayoutType { get; set; }
@@ -181,7 +233,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// For managed-blackboard BTree assets: ordered list of packed variables,
-        /// each at its bin-packed ByteOffset. Used by BrainBlackboardRenderer to
+        /// each at its bin-packed ByteOffset. Used by RootParamsProjection (CE-312) to
         /// project each DTO at its own offset instead of only reading offset 0.
         /// Null for non-managed or HSM behaviors.
         /// </summary>
@@ -227,6 +279,18 @@ namespace Fdp.Toolkit.Behavior
         // run before or after the [BlueprintRegistrar] scan that registers the topologies.
         private readonly Dictionary<string, Type> _jsonParamsDtoByName = new(StringComparer.Ordinal);
 
+        // ⭐⭐⭐ O7b-3: how much occurrence store each behaviour's HOSTED blueprints will need, so
+        // BehaviorIngressSystem can size the tier before the first dispatch instead of defaulting to
+        // the smallest. 📄 DESIGN_Occurrence_Scoped_Storage.md §27.7.
+        //
+        // ⛔⛔ AN OVERLAY, NOT A FIELD ON BehaviorDefinition, and for the same reason the two
+        //   dictionaries above are overlays: the definition's TOPOLOGY is registered by a generated
+        //   [BlueprintRegistrar] that must NOT know about blueprints (user ruling, 2026-09-21), while
+        //   the demand can only be computed once the BLUEPRINT registry is populated. ⇒ whichever
+        //   arrives second reconciles against the first, exactly as _resolversByName does.
+        private readonly Dictionary<string, HostedOccurrenceDemand> _hostedDemandByName
+            = new(StringComparer.Ordinal);
+
         /// <summary>
         /// Register a behavior <b>by name</b> — the preferred, name-as-identity entry point.
         /// The integer id is derived from the name via <see cref="BehaviorHash.FromName"/>, so
@@ -243,21 +307,29 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public void Register(int id, string name, BehaviorDefinition definition)
         {
-            // Startup-time firewall: ensure the params DTO won't overrun the 60-byte
-            // BehaviorParameters region and corrupt the SoftAdvice or Interrupt registers.
-            // Source generators enforce this at compile time via BHU_004; this check is
-            // the runtime backstop for behaviors whose DTO is bound without [SharedAiAction].
-            // ⭐ CE-235: this guard is about the BLACKBOARD REGION, so it reads the layout type, never
-            //   the authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing
-            //   here.
+            // Startup-time firewall: ensure the params DTO can actually be STORED.
+            // ⭐ CE-235: this guard is about the params REGION, so it reads the layout type, never the
+            //   authored JSON contract — a JSON DTO is a heap class whose Marshal size means nothing here.
+            //
+            // ⭐⭐⭐ CE-307 (2026-09-22) — THIS WAS A 100-BYTE CAP, AND THE REASON IT GAVE WAS ALREADY
+            //   FALSE. It read "would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard":
+            //   O2 moved those registers to BrainInterrupts, and P3-C moved params out of the blackboard
+            //   entirely. ⇒ there are no neighbours to corrupt — params occupy their own occurrence slot,
+            //   sized RootParamsBytes(def) and promoted up the tier ladder.
+            // ⛔ So this is no longer a CAP. It is a CAPACITY check, and the honest number is the largest
+            //   tier's whole payload: above it, no tier can hold the region at all.
+            // ⚠ Below it is NOT a guarantee of fit — the region shares its tier with the behaviour's
+            //   stateful slots and hosted occurrences, and ingress throws (naming CE-302) when the store
+            //   has no room. This catches the case that is impossible to satisfy, at registration.
             if (definition.BlackboardLayoutType != null)
             {
                 int dtoSize = System.Runtime.InteropServices.Marshal.SizeOf(definition.BlackboardLayoutType);
-                if (dtoSize > BehaviorConstants.MaxBehaviorParamByteSize)
+                if (dtoSize > BehaviorConstants.MaxRootParamsByteSize)
                     throw new InvalidOperationException(
                         $"Behavior '{name}' params DTO '{definition.BlackboardLayoutType.Name}' requires {dtoSize} bytes, " +
-                        $"which exceeds the maximum allowed parameter size of {BehaviorConstants.MaxBehaviorParamByteSize} bytes. " +
-                        "This would corrupt the SoftAdvice and Interrupt registers in BrainBlackboard.");
+                        $"which exceeds {BehaviorConstants.MaxRootParamsByteSize} — the payload of the largest occurrence " +
+                        "storage tier. No tier can hold a root params region this wide, so the behaviour could never be " +
+                        "assigned. Split the parameters, or add a larger tier to BlueprintTierLadder.");
             }
 
             // Duplicate-name hard error (Phase 1e, unblocked by Phase 2c factory retirement).
@@ -346,6 +418,39 @@ namespace Fdp.Toolkit.Behavior
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>O7b-3</c> — records how much occurrence store a behaviour's HOSTED blueprints will
+        /// need, so <see cref="Systems.BehaviorIngressSystem"/> can size the tier before the first
+        /// dispatch. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §27.7.
+        ///
+        /// <para>⭐ Order-independent, like the other two overlays: the demand can only be computed
+        /// once the BLUEPRINT registry is populated, which may be before or after the behaviour's
+        /// topology registers. ⛔ There is nothing to reconcile INTO the definition — the demand is read
+        /// through <see cref="TryGetHostedOccurrenceDemand"/>, so a late arrival is simply available
+        /// from then on.</para>
+        ///
+        /// <para>⚠ <b>Absent is not zero.</b> No entry means <i>"nobody computed one"</i> and the
+        /// smallest tier is used — the pre-<c>O7b-3</c> behaviour. A behaviour that genuinely hosts
+        /// nothing is recorded with <c>SlotCount: 0</c>.</para>
+        /// </summary>
+        public void RegisterHostedOccurrenceDemand(string name, HostedOccurrenceDemand demand)
+        {
+            if (name   == null) throw new ArgumentNullException(nameof(name));
+            if (demand == null) throw new ArgumentNullException(nameof(demand));
+
+            _hostedDemandByName[name] = demand;
+        }
+
+        /// <summary>
+        /// The hosted-occurrence demand recorded for <paramref name="name"/>, if any.
+        /// ⚠ <see langword="false"/> means <i>"nobody computed one"</i>, never <i>"hosts nothing"</i>.
+        /// </summary>
+        public bool TryGetHostedOccurrenceDemand(string name, out HostedOccurrenceDemand? demand)
+        {
+            if (name == null) { demand = null; return false; }
+            return _hostedDemandByName.TryGetValue(name, out demand);
+        }
+
+        /// <summary>
         /// Registers a named resolver overlay for a behavior, keyed by its <paramref name="name"/>.
         /// Used by curated <c>[BlueprintRegistrar]</c> classes to supply the geo/entity-aware parameter
         /// resolver (and, optionally, the engine-internal blackboard layout type for
@@ -373,6 +478,31 @@ namespace Fdp.Toolkit.Behavior
         {
             if (name     == null) throw new ArgumentNullException(nameof(name));
             if (resolver == null) throw new ArgumentNullException(nameof(resolver));
+
+            // ⭐⭐⭐ R-149 — TWO EXPLICIT BINDINGS FOR ONE PARAMS REGION MUST THROW, NEVER RACE.
+            //
+            // 🔒 The ruling is R-132's own sentence applied to its successor: "where a curated and a
+            //    generated artefact can both fill a slot, curated wins BY DECLARATION, not by arriving
+            //    first." ⇒ two CURATED bindings have no such tie-break, and the silent
+            //    last-writer-wins this line used to be would pick one by source order — the exact
+            //    "not a precedence rule, a race" shape R-132 names.
+            //
+            // ⛔⛔ THE SCOPE IS ONE REGISTRY INSTANCE, and that is load-bearing, not caution.
+            //    📐 Measured: every scan builds a FRESH staging registry
+            //    (AiHotReloadCoordinator.cs:315, QuickReloadService.cs:142) and the live registry is
+            //    written by MergeFrom, which is a separate overwrite path. ⇒ a duplicate seen HERE
+            //    can only be two registrations in ONE scan — a genuine authoring error — while
+            //    re-registration across a hot reload never reaches this check. A throw without that
+            //    distinction would have broken reload.
+            //
+            // ⚠ Its sibling HostedParamResolvers.Register deliberately does the OPPOSITE and
+            //    overwrites: it is keyed by ASSET id and re-registered by every rescan, so the two
+            //    registries need opposite duplicate policies for opposite reasons.
+            if (_resolversByName.ContainsKey(name))
+                throw new InvalidOperationException(
+                    $"Two resolvers are registered for behaviour '{name}' in one scan. A parameters "
+                    + "region names exactly one resolver (R-149), so this is an authoring error: "
+                    + "picking one by registration order would be a race, not a precedence rule.");
 
             var overlay = (resolver, blackboardLayoutType);
             _resolversByName[name] = overlay;
@@ -459,6 +589,8 @@ namespace Fdp.Toolkit.Behavior
             _nameToId.Clear();
             _resolversByName.Clear();
             _jsonParamsDtoByName.Clear();
+            // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
+            _hostedDemandByName.Clear();
         }
 
         /// <summary>
@@ -477,6 +609,12 @@ namespace Fdp.Toolkit.Behavior
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)
                 _jsonParamsDtoByName[name] = jsonDto;
+
+            // O7b-3: and the hosted-occurrence demands. ⛔ Dropping them here would silently return
+            //   every merged behaviour to the smallest tier — the exact regression this overlay fixes,
+            //   reintroduced at the staging→live boundary where nothing would look for it.
+            foreach (var (name, demand) in source._hostedDemandByName)
+                _hostedDemandByName[name] = demand;
 
             foreach (var (name, id) in source._nameToId)
             {

@@ -13,6 +13,7 @@ using Fdp.Presentation.Utils;
 using Fdp.Toolkit.Diagnostics;
 using Fdp.Toolkit.Scenario;
 using Fdp.Toolkit.Serialization;
+using Fdp.Toolkit.Vis2D.Abstractions;
 using ImGuiNET;
 using ImGuiApi = ImGuiNET.ImGui;
 
@@ -68,6 +69,99 @@ public class EntityInspectorPanel
     internal int _lastClickedIndex = -1;
 
     public IEntityStateExtractionService? ExtractionService { get; set; }
+
+    // ══ UXI-11 S-3 — the panel stops owning a selection ═════════════════════
+    // 📄 docs/UX/UX_Feature_Selection.md §2.7.3 rule 4 / §2.7.8.
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The host's GLOBAL selection.</b> When set, <c>_selectedEntities</c> stops being a store
+    /// and becomes a PROJECTION of this, refreshed every draw; clicks publish through
+    /// <see cref="RequestSelectionChange"/> instead of mutating locally.
+    ///
+    /// <para>⛔ <b>Leave it null and the panel keeps its own set</b> — that is not a fallback bolted on
+    /// for tests, it is the correct behaviour for a host with no global selection (ReplayBrowser
+    /// inspects a recording; there is nothing on a map to agree with).</para>
+    ///
+    /// <para>⚠ <b>A PROJECTION, not a subscription, and the reason is a hazard worth naming.</b>
+    /// §2.7.2 draws panels reacting to <c>SelectionChangedNotification</c>. ⛔ An ImGui panel is not a
+    /// reliable subscriber: a bus event is readable for exactly one frame, and a panel that is
+    /// collapsed, on a hidden tab, or simply not drawn that frame would MISS it and stay stale
+    /// forever. ⭐ Re-reading the view each draw cannot miss and cannot drift. 📌 The notification is
+    /// still published and still has real consumers — the ones that need an EDGE rather than a
+    /// state (§2.7.8).</para>
+    /// </summary>
+    public ISelectionState? Selection { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <b>How this surface asks for a selection change</b> — §2.7.1's <c>ISelectionRequester</c>,
+    /// as a delegate. The host publishes it on its own bus.
+    ///
+    /// <para>⚠ A delegate rather than an <c>FdpEventBus</c> on purpose: the panel must not know which
+    /// world it is looking at, and FDP has no business reaching for a host's bus.</para>
+    /// </summary>
+    public Action<SelectionChangeRequest>? RequestSelectionChange { get; set; }
+
+    /// <summary>True when this panel defers to a host-owned selection.</summary>
+    private bool DefersToHostSelection => Selection != null && RequestSelectionChange != null;
+
+    /// <summary>
+    /// Re-reads the host selection into the local view set. ⚠ Called at the top of every draw, so the
+    /// panel can never disagree with the map — 📌 it disagreed for months, which is what
+    /// <c>UXI-11</c> is about.
+    /// </summary>
+    internal void ProjectHostSelection()
+    {
+        if (!DefersToHostSelection) return;
+        _selectedEntities.Clear();
+        foreach (var e in Selection!.SelectedEntities) _selectedEntities.Add(e);
+    }
+
+    private void Request(SelectionChangeMode mode, IReadOnlyList<Entity> entities, string reason)
+        => RequestSelectionChange?.Invoke(new SelectionChangeRequest
+        {
+            Entities = entities,
+            Mode     = mode,
+            Reason   = reason,
+        });
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>UXI-11</c> S-4 — RIGHT-CLICK SELECTS.</b> 🔒 §2.3, ruled <c>2026-08-12</c>:
+    /// <list type="bullet">
+    ///   <item>already selected ⇒ the whole selection SURVIVES and the menu applies to all of it;</item>
+    ///   <item>not selected ⇒ the selection becomes just this one and the menu applies to it.</item>
+    /// </list>
+    /// <para>⭐⭐⭐ <b>THE GESTURE DECIDES THE MENU'S SUBJECT</b> — and that is what dissolves §2.3's
+    /// ordering hazard rather than racing it. 🔴 §2.3 warns the selection mutation must land BEFORE the
+    /// menu is built, <i>in the same frame</i>, or the menu is wrong exactly once. ⛔ Since S-3e a
+    /// selection change is a REQUEST, so it lands NEXT frame and that ordering can no longer be satisfied
+    /// by sequencing. ⭐ It does not need to be: <b>which case of §2.3 this click is</b> is knowable NOW,
+    /// at the gesture, without reading the store back after the write.</para>
+    /// <para>⚠ Extracted from the draw so it can be railed headlessly — the ImGui site only decides
+    /// <i>whether</i> a right-click happened.</para>
+    /// </summary>
+    internal void RightClick(Entity entity)
+    {
+        _contextMenuEntity      = entity;
+        _contextMenuUsesSelection = _selectedEntities.Contains(entity);
+
+        if (_contextMenuUsesSelection) return;
+
+        if (DefersToHostSelection)
+            Request(SelectionChangeMode.Replace, new[] { entity }, "Inspector.RightClick");
+        else
+        {
+            _selectedEntities.Clear();
+            _selectedEntities.Add(entity);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ How many entities the OPEN context menu is about — <c>1</c> when the right-click landed on an
+    /// unselected entity, otherwise the selection's size. ⛔ Never re-derive this from
+    /// <c>_selectedEntities.Count</c>: after a deferred right-click the set still holds the OLD selection
+    /// for one more frame, which is the "wrong exactly once" bug §2.3 warns about.
+    /// </summary>
+    internal int ContextMenuSubjectCount => _contextMenuUsesSelection ? _selectedEntities.Count : 1;
 
     /// <summary>
     /// When set, the "Copy JSON" and "Copy JSON (N items)" buttons use the unified
@@ -140,17 +234,15 @@ public class EntityInspectorPanel
     // ── Chain-to-map toggle (Task 46) ─────────────────────────────────────────
 
     /// <summary>
-    /// When <c>true</c>, clicking an entity in the inspector list also triggers
-    /// <see cref="OnEntitySelected"/> so the host can propagate the selection to
-    /// the map or other subsystems.  Defaults to <c>false</c> (one-directional:
-    /// map → inspector only).
-    /// </summary>
-    public bool ChainToMap { get; set; } = false;
-
-    /// <summary>
-    /// Raised when the user explicitly clicks an entity in the inspector list
-    /// AND <see cref="ChainToMap"/> is <c>true</c>.
-    /// The host can use this to drive map selection from the inspector.
+    /// Raised when the user clicks an entity in the inspector list <b>on a host with no global
+    /// selection</b> (<see cref="Selection"/> is null) — today that is ReplayBrowser.
+    ///
+    /// <para>⛔⛔ <b><c>ChainToMap</c> IS RETIRED (<c>UXI-11</c> <c>S-3</c>).</b> 🔒 User ruling,
+    /// <c>2026-09-10</c>: <i>"inspector selection changes global entity selection state. not just map,
+    /// not just editor, everywhere, every host, unified behavior."</i> ⇒ an opt-in toggle for
+    /// <i>"should my selection count?"</i> is the question the ruling deletes. 📐 It defaulted to
+    /// <c>false</c> and exactly one production host set it true, so on the editor an inspector click
+    /// never reached the map at all. ⚠ Its operator toggle button is gone with it.</para>
     /// </summary>
     public Action<Entity>? OnEntitySelected { get; set; }
 
@@ -158,6 +250,13 @@ public class EntityInspectorPanel
 
     private readonly List<IEntityContextMenuHandler> _contextMenuHandlers = new();
     private Entity _contextMenuEntity = Entity.Null;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Which case of §2.3 the open menu is:</b> <c>true</c> ⇒ it is about the whole selection
+    /// (right-clicked an already-selected entity), <c>false</c> ⇒ about <see cref="_contextMenuEntity"/>
+    /// alone. ⚠ Fixed at OPEN time on purpose — see the comment at the right-click site.
+    /// </summary>
+    private bool _contextMenuUsesSelection;
 
     /// <summary>
     /// Registers a context-menu handler. The handler's
@@ -245,6 +344,9 @@ public class EntityInspectorPanel
     /// </summary>
     public void DrawContent(IInspectableSession session, IInspectorContext context)
     {
+        // ⭐⭐⭐ UXI-11 S-3 — re-read the host selection before anything is drawn from it.
+        ProjectHostSelection();
+
         // 1. Top Bar: Statistics & Filter
         ImGuiApi.TextDisabled($"Total Entities: {session.EntityCount}");
 
@@ -252,13 +354,22 @@ public class EntityInspectorPanel
         ImGuiApi.SameLine();
         if (ImGuiApi.Button("Select All"))
         {
-            _selectedEntities.Clear();
-            var visibleEntities = GetFilteredEntities(session, _searchFilter);
-            foreach (var e in visibleEntities)
-                _selectedEntities.Add(e);
+            var visibleEntities = GetFilteredEntities(session, _searchFilter).ToList();
             _lastClickedIndex = -1;
-            if (_selectedEntities.Count == 1)
-                context.SelectedEntity = _selectedEntities.First();
+            if (DefersToHostSelection)
+            {
+                // ⭐ The request IS the action. ⚠ The list below still shows the OLD selection for one
+                //   frame — §2.5 rules that structural, and it is the same frame the map waits.
+                Request(SelectionChangeMode.Replace, visibleEntities, "Inspector.SelectAll");
+            }
+            else
+            {
+                _selectedEntities.Clear();
+                foreach (var e in visibleEntities)
+                    _selectedEntities.Add(e);
+                if (_selectedEntities.Count == 1)
+                    context.SelectedEntity = _selectedEntities.First();
+            }
         }
         if (ImGuiApi.IsItemHovered())
             ImGuiApi.SetTooltip("Select all visible entities (respects current search filter)");
@@ -386,19 +497,25 @@ public class EntityInspectorPanel
             if (ImGuiApi.Selectable($"##sel_{entity.Index}_{entity.Generation}", isSelected))
             {
                 HandleRowClick(entities, vi, ctrl, shift);
-                // Keep single-select compat: if exactly one selected, update context.
-                if (_selectedEntities.Count == 1)
+                // ⭐⭐⭐ UXI-11 S-3 — when the host owns the selection, HandleRowClick already published
+                //    the request and the local set is a projection; touching context here would write
+                //    a second store. 🔒 Ruling ① (2026-09-10): inspector selection IS the global
+                //    selection, on every host — so there is nothing left to "chain".
+                if (!DefersToHostSelection && _selectedEntities.Count == 1)
                 {
                     context.SelectedEntity = _selectedEntities.First();
-                    if (ChainToMap) OnEntitySelected?.Invoke(context.SelectedEntity.Value);
+                    OnEntitySelected?.Invoke(context.SelectedEntity.Value);
                 }
             }
 
-            // Context Menu logic.
+            // ⭐⭐⭐ UXI-11 S-4 — RIGHT-CLICK SELECTS. 🔒 §2.3, ruled 2026-08-12:
+            //    · already selected  -> the whole selection SURVIVES, menu applies to all;
+            //    · not selected      -> selection becomes just this one, menu applies to it;
+            //    (empty space is the canvas menu, which this list has no equivalent of).
             if (_contextMenuHandlers.Count > 0 && ImGuiApi.IsItemHovered() &&
                 ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
-                _contextMenuEntity = entity;
+                RightClick(entity);
                 ImGuiApi.OpenPopup("##EntityCtxMenu");
             }
 
@@ -442,7 +559,10 @@ public class EntityInspectorPanel
             ImGuiApi.BeginPopup("##EntityCtxMenu"))
         {
             var builder = new ContextMenuBuilder();
-            int selCount = _selectedEntities.Count;
+            // ⚠ The SUBJECT was fixed when the menu opened (§2.3 / S-4), not re-derived here: after a
+            //   right-click that changed the selection, _selectedEntities still holds the OLD set this
+            //   frame, and branching on its count is exactly the "wrong exactly once" bug.
+            int selCount = ContextMenuSubjectCount;
 
             if (selCount > 1)
             {
@@ -487,6 +607,38 @@ public class EntityInspectorPanel
     internal void HandleRowClick(List<Entity> viewList, int clickedIndex, bool ctrl, bool shift)
     {
         if (clickedIndex < 0 || clickedIndex >= viewList.Count) return;
+
+        // ⭐⭐⭐ UXI-11 S-3 — when the host owns the selection this method REQUESTS and writes nothing.
+        // ⚠ The modifier semantics are unchanged; only who applies them moved. 📌 That is the whole
+        //   point of the mode enum: shift-range and ctrl-toggle become Add/Remove/Replace, so the one
+        //   writer performs the same three gestures for every surface instead of each re-deriving them.
+        if (DefersToHostSelection)
+        {
+            if (shift && _lastClickedIndex >= 0 && _lastClickedIndex < viewList.Count)
+            {
+                int lo = Math.Min(_lastClickedIndex, clickedIndex);
+                int hi = Math.Max(_lastClickedIndex, clickedIndex);
+                var range = new List<Entity>(hi - lo + 1);
+                for (int i = lo; i <= hi; i++) range.Add(viewList[i]);
+                Request(SelectionChangeMode.Add, range, "Inspector.ShiftClick");
+                return;   // ⚠ shift does NOT move the anchor -- same as the local path below
+            }
+
+            var clicked = viewList[clickedIndex];
+            if (ctrl)
+            {
+                Request(_selectedEntities.Contains(clicked)
+                            ? SelectionChangeMode.Remove
+                            : SelectionChangeMode.Add,
+                        new[] { clicked }, "Inspector.CtrlClick");
+            }
+            else
+            {
+                Request(SelectionChangeMode.Replace, new[] { clicked }, "Inspector.Click");
+            }
+            _lastClickedIndex = clickedIndex;
+            return;
+        }
 
         if (shift && _lastClickedIndex >= 0 && _lastClickedIndex < viewList.Count)
         {
@@ -659,19 +811,11 @@ public class EntityInspectorPanel
             //    ImGuiApi.SetClipboardText(json);
             //}
 
-            // ── Chain-to-map toggle (Task 46) ──────────────────────────────
-            bool chain = ChainToMap;
-            if (chain)
-                ImGuiApi.PushStyleColor(ImGuiCol.Button, new Vector4(0.20f, 0.65f, 0.20f, 1f));
-            if (ImGuiApi.SmallButton(chain ? "🔗 Linked" : "✔ Unlinked"))
-                ChainToMap = !chain;
-            if (chain)
-                ImGuiApi.PopStyleColor();
-            if (ImGuiApi.IsItemHovered())
-                ImGuiApi.SetTooltip(chain
-                    ? "Inspector → Map propagation ON.  Click to disable."
-                    : "Inspector → Map propagation OFF.  Click to enable.");
-
+            // ⛔ The chain-to-map toggle (Task 46) is GONE -- UXI-11 S-3.
+            //    🔒 Ruling ① (user, 2026-09-10): selection is GLOBAL on every host, so there is no
+            //    longer a question for the operator to answer. 📐 It defaulted to OFF and exactly one
+            //    production host set it on, which is why an inspector click never moved the editor's
+            //    map. 📄 UX_Feature_Selection.md §2.6 ruling ① / §2.7.4.
             ImGuiApi.SameLine();
             // ── Expand / Collapse all toolbar ──────────────────────────
             if (ImGuiApi.SmallButton("▶▶ Expand All"))

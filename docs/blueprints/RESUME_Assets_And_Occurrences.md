@@ -28,7 +28,8 @@ related-designs:
 
 RELEARN
 
-> ⭐⭐⭐ **You are the COORDINATOR** on `claude/blueprint-authoring-status-6sr5ld`. ⛔ You do NOT implement.
+> ⭐⭐⭐ **You are the COORDINATOR** on **`coordinator`** *(the stable role-named trunk — `R-148`; the
+> web harness may mint a `…-<postfix>` default, so **switch the session onto the bare name**)*. ⛔ You do NOT implement.
 > You frame, dispatch, and **verify + merge** returned diffs. 🔒 **Rule 8: the REPORT substitutes for
 > re-running the gates** — read the diff, spot-check a *surprising* claim, ⛔ do not re-run the suite.
 >
@@ -41,15 +42,13 @@ RELEARN
 python3 scripts/session-design-brief.sh      # ledger · 7-day digest · probe verdict · 3 random rulings
 # then read docs/blueprints/RULINGS.md IN FULL  (RULE ZERO)
 git fetch origin
-git log --oneline -1 origin/claude/blueprint-authoring-status-6sr5ld   # coord   (snapshot: d3a0604ab)
-git log --oneline -1 origin/claude/blueprint-macro-feature-sdmspn      # BACKEND (snapshot: e735e5e17)
-git log --oneline -1 origin/claude/reset-working-branch-qd1qpv         # UI/CGF  (snapshot: 21eb374c9)
+for b in coordinator behaviors backend ui; do git log --oneline -1 origin/$b; done  # snapshot: all at 8bb96d472
 python3 scripts/rulings-check.py && python3 scripts/tracker-counts.py --check
 ```
 
-⚠ **Snapshot `2026-09-19`:** coordinator `d3a0604ab` contains **everything** below, including the
-backend lane merged in. `rulings-check` 36/36 · `design-digest --check` OK (66 docs) · tracker
-**112 open / 379 done**.
+⚠ **Snapshot `2026-09-19`:** coordinator `8bb96d472` contains **everything** below, including the
+backend and UI lanes merged in; `behaviors`/`backend`/`ui` were (re)created from it and sit at the same
+sha. `rulings-check` 37/37 · `design-digest --check` OK · tracker **112 open / 379 done**.
 
 ---
 

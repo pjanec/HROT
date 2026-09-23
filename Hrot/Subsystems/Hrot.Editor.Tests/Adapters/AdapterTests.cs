@@ -401,6 +401,15 @@ namespace Hrot.Editor.Tests.Adapters
     // A003 — ScenarioOrbatAdapter
     // ═══════════════════════════════════════════════════════════════════════════
 
+    // 🔒 SERIALIZED with the class that flips the process-global
+    //    FdpConfig.EnforceExplicitEventRegistration. ⛔ This class publishes MANAGED events, so a
+    //    parallel run that overlaps that flip makes it throw on an event it never had to register.
+    // 📌 Measured 2026-09-20 (UXI-11 S-2): RequestEmbark_PublishesEmbarkEntityCommand reddened once
+    //    in a full run and passed 8/8 in isolation and on every re-run — the exact leak
+    //    TheViewportInteractionIsSharedTests' own header records against
+    //    JsonEntityContextMenuHandlerTests on 2026-09-09. ⚠ The root cause is a process-global flag
+    //    toggled under parallel execution; serialising the victims is the same remedy applied before.
+    [Collection(Hrot.Editor.Tests.Windows.PanelSnapshotTestCollection.Name)]
     public sealed class EditorOrbatAdapterTests : IDisposable
     {
         private readonly EntityRepository _world;

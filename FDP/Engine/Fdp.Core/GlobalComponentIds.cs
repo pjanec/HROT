@@ -70,8 +70,12 @@
         /// <summary><c>BehaviorState</c> â€” active behavior (behavior tree / HSM) for an entity.</summary>
         public const int BehaviorState           = 22;
 
-        /// <summary><c>BrainBlackboard</c> â€” shared blackboard memory for behavior execution.</summary>
-        public const int BrainBlackboard         = 23;
+        /// <summary>
+        /// ⛔⛔ <b>RESERVED — <c>BrainBlackboard</c> was retired by <c>P4</c> (2026-09-22).</b>
+        /// ⚠ <b>Do NOT reuse 23.</b> A stale recording or scenario carrying this id must never bind to
+        /// a different component; the same reason 74 (<c>Blackboard1024</c>) stays reserved. 📄 §30.28.
+        /// </summary>
+        public const int BrainBlackboard_RESERVED = 23;
 
         /// <summary><c>LocomotionChannel</c> â€” active locomotion action slot for behavior control.</summary>
         public const int LocomotionChannel       = 24;
@@ -88,8 +92,11 @@
         /// <summary><c>ActorCapabilityState</c> â€” current actor capability bitmask.</summary>
         public const int ActorCapabilityState    = 28;
 
-        /// <summary><c>BrainBTreeState</c> â€” behavior tree runtime state for an entity brain.</summary>
-        public const int BrainBTreeState         = 29;
+        /// ⛔⛔ <b>RESERVED — <c>BrainBTreeState</c> was retired by <c>O7c</c>-② (2026-09-22).</b>
+        /// ⭐ The root tree cursor moved into an occurrence slot so a HOSTED subtree can own its own
+        /// — 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.
+        /// ⚠ <b>The id is BURNED, not freed</b>, as 23, 35 and 74 are.
+        public const int BrainBTreeState_RESERVED = 29;
 
         /// <summary><c>VehicleState</c> â€” kinematic vehicle physics state (speed, steer, accel).</summary>
         public const int VehicleState            = 30;
@@ -106,11 +113,22 @@
         /// <summary><c>SimTier</c> â€” simulation tier level for entity brain prioritization.</summary>
         public const int SimTier                 = 34;
 
-        /// <summary><c>BrainHsm64</c> â€” 64-slot HSM runtime state for entity brains.</summary>
-        public const int BrainHsm64              = 35;
+        /// ⛔⛔ <b>RESERVED — <c>BrainHsm64</c> was retired by <c>O7c</c>-① (2026-09-22).</b>
+        /// 📐 Zero production attach sites; its tick query could never match. 📄
+        /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.5.
+        /// ⚠ <b>The id is BURNED, not freed</b> — same reason as 23 and 74: a stale recording or a
+        /// replayed stream must not bind id 35 to a different component.
+        /// ⭐ The 64-byte HSM TIER survives; only the ECS wrapper is gone (§9.4).
+        public const int BrainHsm64_RESERVED     = 35;
 
-        /// <summary><c>BrainHsm128</c> â€” 128-slot HSM runtime state for entity brains.</summary>
-        public const int BrainHsm128             = 36;
+        /// <summary>⛔ <b>RESERVED — was <c>BrainHsm128</c></b>, deleted by <c>O7c</c>-④d (2026-09-23).
+        /// The root HSM instance is an occurrence slot keyed by the behaviour hash, sized by
+        /// <c>HsmInstanceManager.SelectTier</c> at attach — 64, 128 or 256 bytes — and reached through
+        /// <c>RootHsmAccess</c>. 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.19.
+        /// ⚠ <b>The id is BURNED, not freed</b> — same reason as 23, 31, 35 and 74: a stale recording or
+        /// a replayed stream must not bind id 36 to a different component.
+        /// ⭐ The 128-byte HSM TIER survives; only the ECS wrapper is gone (§9.4).</summary>
+        public const int BrainHsm128_RESERVED    = 36;
 
         /// <summary><c>PassengerBuffer</c> â€” fixed-capacity passenger roster on a vehicle entity.</summary>
         public const int PassengerBuffer         = 37;
@@ -238,10 +256,16 @@
         /// <summary><c>TargetMemory</c> â€” fixed-size threat table for perceived targets (FDP.Toolkit.Perception).</summary>
         public const int TargetMemory            = 73;
 
-        /// <summary><c>Blackboard1024</c> â€” 1024-byte generic heavy blackboard for behavior-specific large payloads.
-        /// Reusable across different behaviors to avoid exhausting the 256 component-type limit.
-        /// Projected into behavior-specific DTOs via <c>Unsafe.As</c> inside generated action thunks.</summary>
-        public const int Blackboard1024          = 74;
+        /// <summary>⛔⛔ <b>RESERVED — id 74 was <c>Blackboard1024</c>, retired by <c>P4</c>-①
+        /// (<c>2026-09-22</c>).</b> Its three tenants all moved: AiPrimitive working state to the
+        /// Blueprint tier ladder (<c>SLICE2</c>), squad state to its own component (<c>O1</c>), and the
+        /// <c>HeavyDtoType</c> overflow path was never adopted.
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §30.13.
+        /// <para>⛔ <b>DO NOT REUSE THIS ID.</b> Ids are explicit, so removing the constant drifts
+        /// nothing — but a recording or scenario written before the retirement still names 74, and
+        /// binding it to a different component would decode those bytes as the wrong type.</para>
+        /// </summary>
+        public const int Reserved_WasBlackboard1024 = 74;
 
         /// <summary><c>IGeographicTransform</c> â€” geographic⇄Cartesian coordinate transform service singleton (FDP.Toolkit).</summary>
         public const int IGeographicTransform    = 75;
@@ -471,8 +495,10 @@
 
         // ---- Squad coordination components (256–299) ----------------------------
 
-        /// <summary><c>SquadStateMarker</c> — zero-data ECS tag marking an entity whose
-        /// <see cref="Blackboard1024"/> is projected as a <c>SquadCognitiveState</c> (Squad P0).</summary>
+        /// <summary><c>SquadStateMarker</c> — ⛔ <b>RETIRED by `O1` (2026-09-20).</b> It marked an entity
+        /// whose <c>Blackboard1024</c> was PROJECTED as a <c>SquadCognitiveState</c>; the state is now a
+        /// component of its own (<see cref="SquadCognitiveState"/>), so its PRESENCE is the marker.
+        /// ⚠ The id stays allocated and is NOT recycled — ids are ABI (`R-44`).</summary>
         public const int SquadStateMarker = 256;
 
         // NOTE: IDs 257-261 are reserved by NavigationContractsComponentIds (NavAgentProfile, NavigationCorridorMuscle,
@@ -488,6 +514,26 @@
 
         /// <summary><c>MovementModeIntent</c> — per-member movement mode intent broadcast by the squad (Squad toolkit).</summary>
         public const int MovementModeIntent = 264;
+
+        /// <summary><c>SquadCognitiveState</c> — ⭐ <b>the commander's squad state, as its OWN 1024-byte
+        /// component</b> (`O1`, 2026-09-20). It used to be a PROJECTION over the commander's
+        /// <c>Blackboard1024</c>, which made "has a blackboard" an accidental proxy for "is a commander
+        /// with squad state" — the same accidental-filter shape `D1′` retired for blueprint slots.
+        /// ⚠ 1024 B is exactly <c>EntityCommandBuffer.MaxComponentSize</c>: it fits, with NO headroom.</summary>
+        public const int SquadCognitiveState = 270;
+
+        // 🔴🔴 DO NOT ALLOCATE 262-269 WITHOUT READING THIS. Measured 2026-09-20 while O1 needed an id:
+        //   the 256-299 block's comment says Navigation reserves only 257-261, and that is STALE —
+        //   NavigationContractsComponentIds now reaches 265 (CrowdMotorIntent) and NavFakeIds occupies
+        //   262-269. THREE ids are already allocated TWICE:
+        //     262 = DangerAreaSensor (here)          AND FakeNavmeshState      (NavFakeIds)
+        //     263 = DangerAreaCognitiveBuffer (here) AND FakeCrowdGlobalState  (NavFakeIds)
+        //     264 = MovementModeIntent (here)        AND FakeCrowdAgentState   (NavFakeIds)
+        //   ⚠ My first attempt took 265 and collided with CrowdMotorIntent. The tests PASSED IN
+        //     ISOLATION and failed only in the full suite, because ComponentTypeRegistry is
+        //     process-global — the same shape QA-008 measured. Filed for the backend lane.
+        //   ⇒ 270 is clear of the whole contested band. ⛔ An id census must read EVERY *Ids.cs file,
+        //     not just this one (R-44: ids are globally unique across all of them).
 
         // ---- Terrain / zone loading (300–319) -----------------------------------
         // NOTE: starts at 300 deliberately. The "Zone toolkit (201+)" block above is full (202–216 went
@@ -506,5 +552,22 @@
         /// load, so persisting it would create a second place the truth can live — and singletons ARE
         /// written to a recording unless the policy excludes them.</summary>
         public const int TerrainDefinition = 301;
+
+        /// <summary><c>BrainInterrupts</c> — ⭐ <b>the entity-fact tail split out of <c>BrainBlackboard</c></b>
+        /// by `O2` (2026-09-20): <c>ExpectedThreatLevel</c> and the edge-triggered interrupt registers.
+        /// They are PER ENTITY and never per occurrence, so they must stop travelling inside a struct
+        /// whose head is per-occurrence behaviour params.
+        /// ⚠ Placed at 302 rather than beside <c>BrainBlackboard</c> (23) because the low behaviour block
+        /// is dense and the block comments are measurably stale (`QA-037`). 302 is free by a census of
+        /// EVERY <c>*Ids*.cs</c>, which is the only census that counts (`R-44`).</summary>
+        public const int BrainInterrupts = 302;
+
+        /// <summary><c>BlueprintBlackboard256</c> — ⭐ <b>the SMALLEST occurrence-store tier</b>, added by
+        /// <c>O3b</c> / task <c>B4</c> (2026-09-20) to price the simple case: one root occurrence and at
+        /// most a couple of stateful slots. 📐 25 of 30 generated behaviours (83 %) fit it.
+        /// ⚠ <b>NOT beside its siblings at 204–206, and that is deliberate</b>: the 200–216 range is
+        /// fully allocated, so the tier family cannot stay contiguous. 303 is free by a census of EVERY
+        /// <c>*Ids*.cs</c>, which is the only census that counts (<c>R-44</c>, and <c>QA-037</c> is why).</summary>
+        public const int BlueprintBlackboard256 = 303;
     }
 }

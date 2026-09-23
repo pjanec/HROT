@@ -10,7 +10,7 @@ namespace Hrot.Blueprints.Tests.Compiler;
 ///
 /// <para>
 /// 🔴 <b>There were two.</b> The BTree bridge's per-node adapter projects at a bin-packed byte offset
-/// (<c>Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)48)</c>) that the packer budget-checks;
+/// (<c>Unsafe.AddByteOffset(ref bb, (nint)48)</c>) that the packer budget-checks;
 /// the blueprint's own standalone thunk projected at a <b>stride</b>,
 /// <c>bb.BehaviorParameters[paramIndex * Unsafe.SizeOf&lt;Params&gt;()]</c>, which nothing bounded.
 /// ⛔ <c>paramIndex</c> is the ordinal among <b>every distinct Action and Condition method name in the
@@ -29,7 +29,7 @@ public sealed class ParameterProjectionFormulaTests
 {
     /// <summary>⭐ The one permitted shape: a CONSTANT byte offset from the start of the region.</summary>
     private static readonly Regex OffsetForm = new(
-        @"Unsafe\.AddByteOffset\(\s*ref bb\.BehaviorParameters\[0\],\s*\(nint\)\d+\s*\)",
+        @"Unsafe\.AddByteOffset\(\s*ref (bb\.BehaviorParameters\[0\]|__rootParams|global::Fdp\.Toolkit\.Behavior\.RootParamsAccess\.RootRef\([^)]*\)),\s*\(nint\)\d+\s*\)",
         RegexOptions.Compiled);
 
     /// <summary>🔴 The retired shape: anything whose offset depends on the caller-supplied index.</summary>

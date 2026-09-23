@@ -43,7 +43,7 @@ public class OfflineKernelBootTests : IDisposable
 
         _kernel.RegisterModule(new SimHostCoreLogicPack(entityMap));
         _kernel.RegisterModule(new CgfLogicPack(behaviorRegistry, entityMap, new ScenarioEntityCreationRequestSource(),
-            new TacticalIntentMapperRegistry()));
+            new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry()));
         _kernel.RegisterModule(new OrchestrationLogicPack(clusterSlave));
         _kernel.RegisterModule(new ScenarioEditorModule(fileService));
 

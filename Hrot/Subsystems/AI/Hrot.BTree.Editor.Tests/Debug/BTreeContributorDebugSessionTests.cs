@@ -23,8 +23,11 @@ public sealed class BTreeContributorDebugSessionTests
     private static EntityRepository CreateWorld()
     {
         var world = new EntityRepository();
-        world.RegisterComponent<BrainBTreeState>();
         world.RegisterComponent<BTreeTraceWorkingMemory1024>();
+        // ⭐⭐ O7c-② / CE-319: the cursor is a SLOT now, so a world that wants one needs
+        //   BehaviorState (it carries the key's input) and the tier ladder (it holds the slot).
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -62,9 +65,9 @@ public sealed class BTreeContributorDebugSessionTests
         // Set up ECS: entity with RunningNodeIndex = 0 (which should map to expectedVisualId)
         var world  = CreateWorld();
         var entity = world.CreateEntity();
-        var brain  = new BrainBTreeState();
-        brain.State.RunningNodeIndex = 0;
-        world.AddComponent(entity, brain);
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 4242, BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
+        Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(world, entity);
+        Fdp.Toolkit.Behavior.RootStateAccess.SetState(world, entity, new Fbt.BehaviorTreeState { RunningNodeIndex = 0 });
 
         session.Update(world, entity);
 

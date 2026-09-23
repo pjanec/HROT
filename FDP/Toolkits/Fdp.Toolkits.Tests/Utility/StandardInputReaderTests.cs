@@ -340,8 +340,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var target = _world.Repo.CreateEntity();
 
             // Write assignment into leader's blackboard
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
@@ -359,8 +358,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var target2 = _world.Repo.CreateEntity();
 
             // Assign target1, query for target2
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target1.PackedValue;
@@ -399,8 +397,7 @@ namespace Fdp.Toolkit.Tests.Utility
             var member = _world.SpawnSquadMember(leader, 1f, 1f);
             var target = _world.Repo.CreateEntity();
 
-            ref var bb    = ref _world.Repo.GetComponentRW<Blackboard1024>(leader);
-            ref var state = ref SquadCognitiveState.Project(ref bb).Assignment;
+            ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
             int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;

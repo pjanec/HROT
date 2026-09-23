@@ -114,8 +114,13 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     public InstanceParamsSeamTests()
     {
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BrainBlackboard>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(_repo, maxTotalSize: 1024);
+        _repo.RegisterComponent<BrainInterrupts>();   // O2 — the entity-fact tail
+        _repo.RegisterComponent<BrainInterrupts>();
         _registry.RegisterInstance(BpId, MakeDefinition());
     }
 
@@ -123,8 +128,8 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     private byte* TierMemory(Entity e)
     {
-        ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(e);
-        return (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        return OccurrenceStoreAccess.TryGetStore(_repo, e, out _);
     }
 
     private ParamsShape ReadParams(Entity e)
@@ -255,7 +260,7 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
         Assert.Equal(BlueprintAttachStatus.ParamsParseFailed, r.Status);
         Assert.False(r.Success);
         // ⛔ No tier component was even added: the parse happens before EnsureTierComponent.
-        Assert.False(_repo.HasComponent<BlueprintBlackboard1024>(e));
+        Assert.False(OccurrenceStoreAccess.HasStore(_repo, e));
     }
 
     /// <summary>
@@ -283,24 +288,29 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
 
     /// <summary>
     /// ⭐⭐ <b>§8's "the tail is untouched".</b> Resolving an Instance's params must not reach into the
-    /// entity's <see cref="BrainBlackboard"/> — <c>ExpectedThreatLevel</c> and the two interrupts are
-    /// entity FACTS, unrelated to params, and they live in the region the behaviour path's own
-    /// <c>ParseParams</c> writes into. ⚠ One delegate type serving two destinations is exactly the
-    /// shape where a wrong pointer would land there.
+    /// entity's cognitive facts — <c>ExpectedThreatLevel</c> and the two interrupts are entity FACTS,
+    /// unrelated to params. ⚠ One delegate type serving two destinations is exactly the shape where a
+    /// wrong pointer would land there.
+    ///
+    /// <para>⭐ <b>`O2` (2026-09-20) made this claim STRONGER, not obsolete.</b> The tail used to be
+    /// bytes 120/126/127 of the same <c>BrainBlackboard</c> the behaviour path's <c>ParseParams</c>
+    /// writes into — one overrun away. It is now a separate <see cref="BrainInterrupts"/> component,
+    /// so reaching it takes a different component fetch rather than a stray offset. ⛔ The rail stays:
+    /// it now guards that the seam does not WANDER INTO ANOTHER COMPONENT, which is still possible.</para>
     /// </summary>
     [Fact]
     public void ResolvingInstanceParams_DoesNotWriteTheBrainBlackboardTail()
     {
         var e = _repo.CreateEntity();
-        _repo.AddComponent(e, default(BrainBlackboard));
-        ref var brain = ref _repo.GetComponentRW<BrainBlackboard>(e);
+        _repo.AddComponent(e, default(BrainInterrupts));
+        ref var brain = ref _repo.GetComponentRW<BrainInterrupts>(e);
         brain.ExpectedThreatLevel     = 3;
         brain.Interrupt_MobilityLost  = 1;
         brain.Interrupt_Reserved      = 2;
 
         BlueprintInstanceService.AttachToEntity(_repo, _registry, BpId, e, "{\"Speed\":99,\"Range\":4}");
 
-        ref var after = ref _repo.GetComponentRW<BrainBlackboard>(e);
+        ref var after = ref _repo.GetComponentRW<BrainInterrupts>(e);
         Assert.Equal(3, after.ExpectedThreatLevel);
         Assert.Equal(1, after.Interrupt_MobilityLost);
         Assert.Equal(2, after.Interrupt_Reserved);

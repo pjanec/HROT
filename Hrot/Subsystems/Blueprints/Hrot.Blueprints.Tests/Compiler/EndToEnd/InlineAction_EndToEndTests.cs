@@ -336,10 +336,23 @@ public sealed class InlineAction_EndToEndTests
         Assert.Contains("ResumeAt", src);
     }
 
+    /// <summary>
+    /// 🔴🔴 <b><c>CE-311</c> / <c>P4</c>-① — an inline AiPrimitive host takes its working state from the
+    /// OCCURRENCE STORE, and must never name <c>Blackboard1024</c> again.</b>
+    ///
+    /// <para>⛔ This rail used to assert <c>fixed (byte*</c> — the pointer pin around
+    /// <c>GetComponentRW&lt;Blackboard1024&gt;</c>. 📐 <b>That component has had no writer since
+    /// <c>SLICE2</c> moved AiPrimitive working state to the Blueprint tier ladder</b>, so the emitted
+    /// code would have THROWN on the first inline call in production. ⚠ It looked green only because
+    /// <c>BlueprintTestFixture:150</c> registers the component — the same blindness <c>CE-310</c> had,
+    /// and the reason the old assertion was pinning the defect rather than the behaviour.</para>
+    ///
+    /// <para>⭐ The negative assertion is the load-bearing half: a regression here is a SILENT return to
+    /// a component nothing provisions, exactly the shape <c>CE-304</c> cost a day to.</para>
+    /// </summary>
     [Fact]
-    public void ActionInvocation_AiPrimitive_EmittedSource_ContainsUnsafeBlock()
+    public void ActionInvocation_AiPrimitive_EmittedSource_ResolvesWorkingStateFromTheOccurrenceStore()
     {
-        // Blackboard1024 projection must be inside an unsafe block.
         var asset = BlueprintAssetBuilder
             .AiPrimitive("MoveAction")
             .WithHostings(AiPrimitiveHosting.BTreeAction)
@@ -351,8 +364,20 @@ public sealed class InlineAction_EndToEndTests
 
         var src = EmitAndGetSource(asset);
 
+        // ⭐ The projection is still unsafe — the seam hands back a ref into native storage.
         Assert.Contains("unsafe", src);
-        Assert.Contains("fixed (byte*", src);
+
+        // ⭐⭐ …and it comes from the occurrence store, keyed the way the STANDALONE thunk keys it,
+        //     so an inline call and a standalone tick of one asset address one slot.
+        Assert.Contains("OccurrenceSlots.StandaloneStateKeyFor", src);
+        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach", src);
+
+        // ⛔⛔ THE REGRESSION GUARD: no emitter may REFERENCE the retired component again.
+        // ⚠ Matched on the qualified form deliberately. A bare "Blackboard1024" also appears in an
+        //   emitted COMMENT — AiPrimitiveEmitter.EmitStandaloneOccurrenceBody writes "…store — NOT
+        //   Blackboard1024…" — and a guard that trips on prose would be rewritten to nothing the first
+        //   time it fired. ⭐ Every real use is emitted fully qualified, so this catches them all.
+        Assert.DoesNotContain("Components.Blackboard1024", src);
     }
 
     // =========================================================================

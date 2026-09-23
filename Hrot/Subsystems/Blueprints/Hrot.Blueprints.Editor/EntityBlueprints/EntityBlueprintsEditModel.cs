@@ -105,24 +105,16 @@ public sealed class EntityBlueprintsEditModel
     public unsafe void RefreshReality()
     {
         Reality.Clear();
-        if (_repo.HasComponent<BlueprintBlackboard1024>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+
+        // A2: the three-tier ladder, once, in OccurrenceStoreAccess.
+        // ⚠ Deliberately the RW form, to preserve behaviour EXACTLY — the old code used
+        //    GetComponentRW here even though it only reads, and GetComponentRW bumps the chunk
+        //    version. Moving this to TryGetStoreReadOnly would be an improvement AND a behaviour
+        //    change, so it is not A2's to make.
+        byte* mem = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                        .TryGetStore(_repo, _entity, out _);
+        if (mem != null)
             BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
-        if (_repo.HasComponent<BlueprintBlackboard4096>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard4096>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
-        if (_repo.HasComponent<BlueprintBlackboard16384>(_entity))
-        {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(_entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            BlueprintTierSummary.AppendSlots(mem, _registry, Reality);
-        }
     }
 
     // ── Projection ───────────────────────────────────────────────────────────
@@ -143,15 +135,18 @@ public sealed class EntityBlueprintsEditModel
 
         BlackboardTier tier = ChooseTierFromAggregate(totalSlots, totalBytes);
         UsageStatus status = UsageStatus.Ok;
-        if (totalSlots > BlueprintBlackboard16384.MaxSlots || totalBytes > BlueprintBlackboard16384.PayloadSize)
+        if (totalSlots > BlueprintTierTable.Largest.MaxSlots || totalBytes > BlueprintTierTable.Largest.PayloadSize)
         {
-            tier = BlackboardTier.B16384;
+            tier = BlueprintTierTable.Largest.Tier;
             status = UsageStatus.OverCeiling;
         }
         else
         {
             BlackboardTier currentTier = GetCurrentTier();
-            if (tier > currentTier) status = UsageStatus.UpgradeNeeded;
+            // ⛔⛔ B4 — §17.7: NOT `tier > currentTier`. BlackboardTier's ordinal is ABI, so B256
+            //   is the LAST member and the SMALLEST tier ⇒ a DOWNGRADE compared as `greater`.
+            if (BlueprintTierTable.IsLargerThan(tier, currentTier))
+                status = UsageStatus.UpgradeNeeded;
         }
 
         return new Projection(totalSlots, totalBytes, tier, status);
@@ -167,7 +162,8 @@ public sealed class EntityBlueprintsEditModel
         {
             var proj = ComputeProjection();
             BlackboardTier currentTier = GetCurrentTier();
-            if (proj.Tier > currentTier)
+            // ⛔⛔ B4 — §17.7: size order, not ordinal order. See IsLargerThan.
+            if (BlueprintTierTable.IsLargerThan(proj.Tier, currentTier))
                 plan.UpgradeToTier = proj.Tier;
 
             foreach (var assetId in StagedRemoves)
@@ -206,18 +202,18 @@ public sealed class EntityBlueprintsEditModel
 
     public BlackboardTier GetCurrentTier()
     {
-        if (_repo.HasComponent<BlueprintBlackboard16384>(_entity)) return BlackboardTier.B16384;
-        if (_repo.HasComponent<BlueprintBlackboard4096>(_entity)) return BlackboardTier.B4096;
-        return BlackboardTier.B1024;
+        // ⚠ NOT OccurrenceStoreAccess: this maps to the editor's BlackboardTier enum and
+        //    deliberately answers B1024 for an entity with NO store at all (the default the panel
+        //    opens on). The seam's GetStoreSize returns 0 there, which is a different answer.
+        // ⭐ O3a / B3: the probe order is BlueprintTierTable.Descending; the "no store ⇒ smallest"
+        //   default this method is documented for is spelled explicitly below.
+        return BlueprintTierTable.Of(_repo, _entity)?.Tier
+            ?? BlueprintTierTable.Ascending[0].Tier;
     }
 
     public static BlackboardTier ChooseTierFromAggregate(int totalSlots, int totalBytes)
     {
-        if (totalSlots <= BlueprintBlackboard1024.MaxSlots && totalBytes <= BlueprintBlackboard1024.PayloadSize)
-            return BlackboardTier.B1024;
-        if (totalSlots <= BlueprintBlackboard4096.MaxSlots && totalBytes <= BlueprintBlackboard4096.PayloadSize)
-            return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
+        return BlueprintTierTable.Select(totalBytes, totalSlots).Tier;
     }
 
     public string? GetBlueprintName(Guid assetId)

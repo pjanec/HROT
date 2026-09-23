@@ -4,6 +4,7 @@ using Hrot.Blueprints.Core.Compiler.Determinism;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Compiler.Ir;
+using Hrot.Blueprints.Core.Compiler.Lowering;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -2459,7 +2460,13 @@ internal sealed class GraphScheduler
                 stmts.Add(new IrStatement
                 {
                     ResultValue = result,
-                    Operation   = new IrOp_Const(ln.ValueJson, pinType),
+                    // ⭐⭐ CE-300 (2026-09-23): TYPE THE LITERAL BY ITS PIN instead of passing the
+                    //   author's text through verbatim. ⛔ A bare `0.2777778` on a System.Single pin
+                    //   used to emit a `double` and Roslyn refused the GENERATED file with CS0266.
+                    //   ⚠ Convert-or-pass-through, NOT convert-or-refuse — ValueJson holds C# source
+                    //   text, not JSON, and refusing what the JSON parser cannot read would reject 42
+                    //   of the 86 literals that ship today. 📄 DefaultLiteral.ForLiteralNode.
+                    Operation   = new IrOp_Const(DefaultLiteral.ForLiteralNode(pinType, ln.ValueJson), pinType),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ln.Id, PinId = sourcePinId },
                 });
                 break;
@@ -3863,7 +3870,16 @@ internal sealed class GraphScheduler
     /// </summary>
     private (bool AppendSelf, bool AppendView) ResolveFunctionCallTrailingContext(FunctionCallNode fc)
     {
-        if (_typed.Asset.Dispatch == AssetDispatchKind.Library)
+        // ⭐⭐⭐ R4 — the gate is per-GRAPH, not per-ASSET. 📄 DESIGN_Resolver_World_Reach.md §4.
+        //
+        // A Library asset's Function graphs are still stateless static methods with no self/view in
+        // scope, so appending either would emit an undefined identifier — that is the case below.
+        // ⛔ But a CONSTRUCTION graph on the same asset is a parameter RESOLVER, and LibraryEmitter
+        // now emits it with `(…, world, self, host)`. ⇒ it must take the normal trailing-context path,
+        // or the CLR escape hatch (the route the geo-authored motivating case needs) stays unreachable
+        // exactly where R4 exists to open it.
+        if (_typed.Asset.Dispatch == AssetDispatchKind.Library
+            && _graph.Kind != GraphKind.Construction)
             return (false, false);
 
         // P7.1 -- baked decision wins over reflection; no reflection attempted at all.

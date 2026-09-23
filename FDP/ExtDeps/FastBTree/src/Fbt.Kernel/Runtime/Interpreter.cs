@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace Fbt.Runtime
 {
@@ -15,15 +16,34 @@ namespace Fbt.Runtime
         // Used for diagnostics/debugging -- not currently used in tick but available for hot reload introspection.
         private readonly int _blobStructureHash;
 
+        private readonly string[] _unboundMethodNames;
+
         /// <summary>Exposes the compiled blob for diagnostic/visualizer tools.</summary>
         public BehaviorTreeBlob Blob => _blob;
+
+        /// <summary>
+        /// The blob method names the registry could NOT resolve at construction, so
+        /// <c>BindActions</c> substituted the <see cref="NodeStatus.Failure"/> fallback.
+        /// Empty when every node is bound.
+        ///
+        /// <para>
+        /// This exists because the fallback is otherwise INVISIBLE: it is a silent behavioural
+        /// change announced only by a <c>Console.WriteLine</c>. A registrar that is skipped —
+        /// e.g. because a reflection <c>typeof(ActionRegistry&lt;,&gt;)</c> filter disagrees with
+        /// the generator about <c>TBlackboard</c>, or because a registrar body threw and was
+        /// swallowed — produces a tree that ticks, returns <c>Failure</c> forever, and compiles
+        /// cleanly. Exposing the miss list lets a rail assert ZERO fallbacks instead of scraping
+        /// console output, which is the symptom rather than the definition.
+        /// </para>
+        /// </summary>
+        public IReadOnlyList<string> UnboundMethodNames => _unboundMethodNames;
 
         public Interpreter(BehaviorTreeBlob blob, ActionRegistry<TBlackboard, TContext> registry)
         {
             _blob = blob ?? throw new ArgumentNullException(nameof(blob));
             if (registry == null) throw new ArgumentNullException(nameof(registry));
-            
-            _actionDelegates = BindActions(blob, registry);
+
+            _actionDelegates = BindActions(blob, registry, out _unboundMethodNames);
             _registry = registry;
             _blobStructureHash = blob.StructureHash;
 
@@ -689,13 +709,19 @@ namespace Fbt.Runtime
         }
 
         private NodeLogicDelegate<TBlackboard, TContext>[] BindActions(
-            BehaviorTreeBlob blob, 
-            ActionRegistry<TBlackboard, TContext> registry)
+            BehaviorTreeBlob blob,
+            ActionRegistry<TBlackboard, TContext> registry,
+            out string[] unbound)
         {
-            if (blob.MethodNames == null) return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            if (blob.MethodNames == null)
+            {
+                unbound = Array.Empty<string>();
+                return Array.Empty<NodeLogicDelegate<TBlackboard, TContext>>();
+            }
 
             var delegates = new NodeLogicDelegate<TBlackboard, TContext>[blob.MethodNames.Length];
             var fallback = new NodeLogicDelegate<TBlackboard, TContext>((ref TBlackboard bb, ref BehaviorTreeState st, ref TContext ctx, int p) => NodeStatus.Failure);
+            List<string>? misses = null;
 
             for (int i = 0; i < blob.MethodNames.Length; i++)
             {
@@ -707,10 +733,12 @@ namespace Fbt.Runtime
                 else
                 {
                     Console.WriteLine($"[FastBTree] Warning: Action '{name}' not found in registry. Using fallback Failure.");
+                    (misses ??= new List<string>()).Add(name);
                     delegates[i] = fallback;
                 }
             }
 
+            unbound = misses?.ToArray() ?? Array.Empty<string>();
             return delegates;
         }
     }

@@ -1,8 +1,11 @@
+using System.Linq;
 using Fdp.Core;
 using Fdp.Interfaces;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Blueprints;
+using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Blueprints.Core.Debug;
 using System.Runtime.CompilerServices;
@@ -701,8 +704,17 @@ public sealed class StateSnapshotTests
 
         Assert.NotNull(snap);
         Assert.Equal(BlueprintDispatchKind.AiPrimitive, snap!.Dispatch);
-        Assert.True(snap.FieldValues.ContainsKey("Speed"), "FieldValues must contain 'Speed'");
-        Assert.Equal(Speed, (float)snap.FieldValues["Speed"]);
+
+        // ⭐⭐ P4-① (2026-09-22): the field is still decoded, but it is now LABELLED BY OCCURRENCE —
+        //    "Occurrence 0x…" + " · " + the field name. ⛔ That is not incidental: with N occurrences
+        //    of one asset on one entity the bare name is ambiguous, which is exactly why §25.1 rules
+        //    that every occurrence is shown labelled. The legacy Blackboard1024 arm passed
+        //    namePrefix: null because it could only ever have ONE block per entity.
+        // ⚠ The CLAIM is unchanged — a matching structure hash decodes the value — so the rail is
+        //   re-expressed, not weakened: it still pins the exact float, just under its real key.
+        var speedKey = Assert.Single(snap.FieldValues.Keys.Where(
+            k => k == "Speed" || k.EndsWith(" · Speed", StringComparison.Ordinal)));
+        Assert.Equal(Speed, (float)snap.FieldValues[speedKey]);
     }
 
     [Fact]
@@ -741,31 +753,52 @@ public sealed class StateSnapshotTests
     private static BlueprintDebugSession MakeSession(BlueprintRegistry reg, ISimulationView view)
         => new BlueprintDebugSession(reg, view, new MockTimeController());
 
-    // Provides a Blackboard1024 with the supplied structure hash in bytes 0-7
-    // and a float Speed value in bytes 8-11.
+    /// <summary>
+    /// ⭐⭐ Provides a REAL occurrence store — a <c>BlueprintBlackboard1024</c> tier component carrying
+    /// one <c>Hsm</c>-kind slot stamped with the supplied structure hash, with <c>Speed</c> written at
+    /// the allocator's own payload offset.
+    ///
+    /// <para>🔴 <b><c>P4</c>-① (<c>2026-09-22</c>)</b> — it used to fake a <c>Blackboard1024</c> with the
+    /// hash in bytes 0-7 and <c>Speed</c> at byte 8, i.e. the Slice-1 <c>Memory + 8</c> layout. ⛔ That
+    /// component is retired, and the legacy decode arm it fed is deleted with it — so a stub of that
+    /// shape would have been testing a path that no longer exists.</para>
+    ///
+    /// <para>⭐ <b>Both claims survive the move, which is why this is re-expressed rather than deleted:</b>
+    /// a MATCHING structure hash still decodes the field, and a MISMATCHED one still yields nothing —
+    /// now through <c>CaptureAiPrimitiveOccurrences</c>' own <c>entry.StructureHash</c> gate.
+    /// ⚠ And there is NO <c>+8</c> any more: an occurrence slot has no working-state header, so the
+    /// field sits at <c>PayloadOffset + 0</c>.</para>
+    /// </summary>
     private sealed unsafe class BlackboardStubSimulationView : ISimulationView
     {
-        private Blackboard1024 _bb;
+        private BlueprintBlackboard1024 _bb;
 
         public BlackboardStubSimulationView(ulong structureHash, float speed)
         {
-            fixed (Blackboard1024* p = &_bb)
+            fixed (byte* mem = _bb.Memory)
             {
-                byte* bytes = (byte*)p;
-                *(ulong*)bytes         = structureHash;
-                *(float*)(bytes + 8)   = speed;
+                BlueprintBlackboardPartitions.Initialize(
+                    mem, BlueprintBlackboard1024.TotalSize, (byte)BlueprintBlackboard1024.MaxSlots);
+
+                // ⭐ The kind the reader filters on, and the hash it gates on.
+                if (!BlueprintBlackboardPartitions.TryAttach(
+                        mem, blueprintId: 0x5B1A7, requestedSize: 64, structureHash,
+                        OccurrenceKind.Hsm, out int payloadOffset))
+                    throw new InvalidOperationException("stub store could not attach its slot");
+
+                *(float*)(mem + payloadOffset) = speed;
             }
         }
 
         public uint  Tick => 0;
         public float Time => 0f;
         public bool  IsAlive(Entity e)         => true;
-        public bool  HasComponent<T>(Entity e)        where T : unmanaged => typeof(T) == typeof(Blackboard1024);
+        public bool  HasComponent<T>(Entity e)        where T : unmanaged => typeof(T) == typeof(BlueprintBlackboard1024);
         public bool  HasManagedComponent<T>(Entity e) where T : class     => false;
         public ref readonly T GetComponentRO<T>(Entity e) where T : unmanaged
         {
-            if (typeof(T) == typeof(Blackboard1024))
-                return ref Unsafe.As<Blackboard1024, T>(ref _bb);
+            if (typeof(T) == typeof(BlueprintBlackboard1024))
+                return ref Unsafe.As<BlueprintBlackboard1024, T>(ref _bb);
             throw new NotImplementedException();
         }
         public T GetManagedComponentRO<T>(Entity e) where T : class

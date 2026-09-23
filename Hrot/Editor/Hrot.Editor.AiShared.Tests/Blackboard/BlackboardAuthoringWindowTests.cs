@@ -174,61 +174,28 @@ public sealed class BlackboardAuthoringWindowTests
 
     // ---- TASK-BB-1c-05: Memory budget indicator -----------------------------
 
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-314</c> — the panel PUBLISHES the packer's ceiling, whatever it is. ⛔ This asserted a
+    /// literal <c>100</c>, so it pinned a number rather than the wiring; when <c>CE-307</c> moved the
+    /// ceiling the assertion was simply wrong rather than informative.
+    ///
+    /// <para>⚠ Three sibling tests were DELETED with the heavy tier
+    /// (<c>budget_heavy_is_928</c>, <c>requires_heavy_false_when_all_fit_inline</c>,
+    /// <c>requires_heavy_true_when_aggregated_overflow_inline</c>) — they asserted a budget and a flag
+    /// for <c>Blackboard1024</c>, which <c>P4</c>-① deleted.</para>
+    /// </summary>
     [Fact]
-    public void BuildViewModel_budget_inline_only_when_no_aggregation()
-    {
-        var asset = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
-        var vm = BlackboardAuthoringWindow.BuildViewModel(asset);
-
-        Assert.False(vm.RequiresHeavyComponent);
-    }
-
-    [Fact]
-    public void BuildViewModel_budget_inline_budget_is_100()
-    {
-        var vm = BlackboardAuthoringWindow.BuildViewModel(
-            new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true });
-
-        Assert.Equal(100, vm.InlineBudget);
-    }
-
-    [Fact]
-    public void BuildViewModel_budget_heavy_is_928()
+    public void BuildViewModel_publishesThePackersBudget()
     {
         var vm = BlackboardAuthoringWindow.BuildViewModel(
             new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true });
 
-        Assert.Equal(928, vm.HeavyBudget);
+        Assert.Equal(BlackboardBinPacker.MaxInlineBytes, vm.InlineBudget);
     }
 
-    [Fact]
-    public void BuildViewModel_requires_heavy_false_when_all_fit_inline()
-    {
-        var asset = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
-        asset.AddVariable(new BlackboardVariableEntry("a", typeof(int), null));
-        asset.AddVariable(new BlackboardVariableEntry("b", typeof(int), null));
 
-        // One aggregated int: 8 + 4 = 12 B <= 100 B => all inline.
-        var aggRes = AggResult(Req(typeof(int), "path"));
-        var vm = BlackboardAuthoringWindow.BuildViewModel(asset, aggregationResult: aggRes);
 
-        Assert.False(vm.RequiresHeavyComponent);
-    }
-
-    [Fact]
-    public void BuildViewModel_requires_heavy_true_when_aggregated_overflow_inline()
-    {
-        var asset = new MutableBbAssetForWindowTests { IsBlackboardEditorManaged = true };
-        // 25 ints = 100 B inline (exactly at the budget ceiling).
-        for (int i = 0; i < 25; i++)
-            asset.AddVariable(new BlackboardVariableEntry($"m{i}", typeof(int), null));
-
-        // One aggregated int: 100 + 4 = 104 B > 100 B => spills to heavy.
-        var aggRes = AggResult(Req(typeof(int), "BT > Action#1"));
-        var vm = BlackboardAuthoringWindow.BuildViewModel(asset, aggregationResult: aggRes);
-
-        Assert.True(vm.RequiresHeavyComponent);
-    }
 
     // ---- S1-1: HardcodedDtoFields (BATCH-01) --------------------------------
 

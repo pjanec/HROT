@@ -1,5 +1,8 @@
 <!--STATUS
 state: LIVE
+updated: 2026-09-20 (§4.14 CORRECTED by UXI-11 S-5, red-proved: the member ruling ② needs is
+  IToolController.CancelArmedOn(Entity), NOT the NotifyToolEnded this file prescribed - that one
+  deliberately does not tear the gizmo down and would leave it armed and drawing.)
 build-state: BUILDING (A1 steps 1-3 + 3b BUILT 2026-09-09 - see 4.7 / 4.7b / 4.7c as-built; 4-6 open)
 verified: 2026-09-09 (PREMISE SWEEP - all 13 premises re-tested against source, see 0b; and the RED
   defect REPRODUCED by a headless probe with an inverse-edit red-proof - two exclusive tools hold focus
@@ -1835,7 +1838,32 @@ an earlier version of this section duplicated all five and that duplication is w
 
 | # | the tool-side obligation | |
 |---|---|---|
-| **②** | 🔒 *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐ a **per-entity predicate** — the tool armed on that entity ends via `NotifyToolEnded` *(§4.7h)*. ⛔ Never by sweeping an arbiter |
+| **②** | 🔒 *"if entity becomes unselected, it should cancel any editing on the entity losing the selection"* | ⭐ a **per-entity predicate** — the tool armed on that entity ends via ⛔ ~~`NotifyToolEnded`~~ **`IToolController.CancelArmedOn(Entity)`** *(corrected `2026-09-20`, see the box below)*. ⛔ Never by sweeping an arbiter |
+
+> ⛔⛔⛔ **CORRECTION `2026-09-20`, MEASURED AND RED-PROVED — this section prescribed the WRONG MEMBER.**
+> 📄 As-built: [`UX_Feature_Selection.md` §2.7.15](UX_Feature_Selection.md) (`UXI-11` `S-5`).
+>
+> 🔴 **`NotifyToolEnded` deliberately does NOT tear the gizmo down.** Its own body says so —
+> *"the gizmo ENDED ITSELF, so there is nothing of ours left to tear down"* — because it exists for the
+> case where the gizmo removed **itself** (`§4.7h`, `CE-259q`). ⇒ using it for ② would drop the stack
+> entry and leave the gizmo **armed and drawing**: the exact MIRROR of `CE-259q`, where the arbiter
+> forgot and the stack remembered. ⭐ **Proved, not argued:** implementing ② via `NotifyToolEnded`
+> reddens `CancelArmedOn_TearsDownTheGizmo_NotJustTheStackEntry` and
+> `SelectingAnotherEntity_CancelsTheEditOnTheOneThatLostTheSelection`.
+>
+> ⛔ **`Cancel()` is wrong too, for the opposite reason:** it unwinds the WHOLE stack, so deselecting A
+> would destroy a tool armed on a still-selected B. ⭐ Ruling ② is **per-entity**; the teardown must be too.
+>
+> ⭐⭐ **The member ② actually needs — `CancelArmedOn(Entity)`** — pops every entry targeting that entity
+> **with** its arbiter teardown (`CancelFocused`, not the `CancelInteractiveTools` sweep) and resumes
+> whatever each entry had suspended. ⚠ `Entity.Null` is a no-op: a target-less tool is exempt from ② by
+> construction, which this section's own arming inventory already establishes.
+>
+> ⚠ **One case is handled but is UNREACHABLE in production today:** a SUSPENDED entry on the losing
+> entity, underneath an interruption. Its gizmo holds no focus, so `CancelFocused` would reach the
+> interrupter's — and dropping the entry alone would leave it injected and drawing. ⇒ the whole stack is
+> unwound, which is the only action that leaves nothing drawing. 📐 Unreachable because the only
+> `PushModal` callers are `PickerToolHost` ×2 and **both push with no target**.
 | **③** | clicks during an edit must not select | ✅ **already true, and it is a MAP-INPUT rule** — `HandleInput` passes `exclusiveAnchorId` into the hit-test *(`GizmoMap…/DebugGizmoLayer.cs:213`)* and `:491` skips non-matching anchors ⇒ no `Started` ⇒ no selection change. ⛔ **It never governed panels and must not be extended to them** |
 
 ⭐⭐ **② and ③ do not conflict, and this is a tool fact worth keeping here:** while a tool is armed the MAP
@@ -1906,13 +1934,88 @@ right-click *should* select and the order matters again — ⛔ do not decide th
 
 ⭐ **The only dependency that is a TOOL fact**, measured above: **ruling ② needs §2.3's right-click-selects
 on the surface the menu opens from**, because a TARGETED arming deliberately does not select its target
-*(§4.7d)*. ✅ Satisfied on the map; 🔴 not in the entity inspector.
+*(§4.7d)*. ✅ Satisfied on the map; ⛔ ~~not in the entity inspector~~ ✅ **AND in the entity inspector since
+`UXI-11` `S-4`** *(`2026-09-20`)*, and on the map's right-click since `S-4b`. ⇒ **this dependency is
+DISCHARGED**, which is what unblocked `S-5`.
 #### 📐 What the tool side owes once the store is one
 
 | | |
 |---|---|
-| the cancel hook | a selection change cancels the modal tool armed on the previously-selected entity — ⭐ through `IToolController` (`Cancel` for a switch, or `NotifyToolEnded` per §4.7h), ⛔ **never by sweeping an arbiter directly** |
-| ⚠ **today nothing does it** | 📐 the ONLY production `ToolController.Cancel()` is IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem.cs:83` and `SelectionInteractionSystem` both write selection and touch no tool state |
+| ☑ **the cancel hook — BUILT `2026-09-20` (`S-5`)** | `IToolController.CancelArmedOn(Entity)`, called by `SelectionNotificationSystem` off the `SelectionChangedNotification` edge and wired for all five hosts in `MapInteractionPack`. ⛔ **never by sweeping an arbiter directly** — still true, and `CancelArmedOn` uses `CancelFocused` per entry rather than the sweep |
+| ⛔ **HISTORY — *"today nothing does it"*** | 📐 was true until `2026-09-20`. The ONLY production `ToolController.Cancel()` was IG's `MeasureToolGizmoAdapter.cs:124`; `SelectEntitySystem` and `SelectionInteractionSystem` both wrote selection and touched no tool state. ⭐ Now the notification system closes it, and the predicate reads the ONE store live rather than diffing |
+
+### 4.15 🔴🔴🔴 THE INPUT NEVER REACHED THE TOOL — **a host that forgot the click latch** *(`CE-297`/`CE-298`, `2026-09-20`)*
+
+> 🔒 **User, `2026-09-20`, on a TeamViewer session:** *"it almost does not allow me to make mouse clicks -
+> one of thousands have anny effect. This very trouble was solved some time ago for non stribe builds.
+> Is it is use in the strislde build?"* ⭐ **The answer was NO, and the user's recollection was exactly right.**
+
+⭐⭐ **Why this belongs in the TOOL MODEL and not in a host document.** Every §4.7x finding above is about a
+click that reached the frame and was routed wrongly. ⛔ **This one is the layer below: the click never
+became an event at all.** ⇒ a tool can be perfectly wired, focused and armed, and still look dead — which
+is indistinguishable, from the operator's chair, from every defect in §4.7.
+
+#### 📐 The mechanism — **it is a POLLING artefact, not a tool defect**
+
+Remote-desktop tools *(TeamViewer, Parsec, RDP)* inject `WM_*BUTTONDOWN` and `WM_*BUTTONUP` **microseconds
+apart**, so both land in **one** `glfwPollEvents()` drain and the polled button state **ends where it
+started** ⇒ ⛔ the press is never observed. 📄 The fix already existed —
+`Fdp.Presentation/ImGui/Input/{ClickLatch,ClickLatchCore,Win32ClickLatch}.cs`: it subclasses the window
+proc *(forwarding every message)*, watches the raw messages, and **replays** a lost click held across
+frames so the polled backend sees an ordinary slow one.
+
+#### 🔴 The finding — **one host ran pre-fix input, for a structural reason worth naming**
+
+| host | installs the latch? |
+|---|---|
+| clusterrunner | ✅ `Hrot.ClusterRunner/Program.cs:603` |
+| `FdpApplication.Run` *(SimHost, examples)* | ✅ `FdpApplication.cs:54` |
+| 🔴 **the Stride host's editor window** | ⛔ **NO** — `StrideInspectorWindow.PumpFrame()` |
+
+⚠⚠ **`PumpFrame` is a HAND-WRITTEN COPY of the clusterrunner frame sequence** — its own doc comment says
+*"mirrors clusterrunner Program.cs ~281-332"*. ⇒ ⭐⭐⭐ **the copy inherited the shape and not the fix, and
+nothing could notice: there is no seam that makes "a raylib frame loop" declare its obligations.** 📌 This
+is the duplicate-implementation disease in its quietest form — not two behaviours that disagree, but one
+behaviour and one *stale replica of it*.
+
+#### ⛔⛔ The trap the fix had to avoid — **`Create()` would have installed and done NOTHING**
+
+📐 `Win32ClickLatch(windowHandle = default)` resolves `Process.MainWindowHandle`. ⭐ Correct where the raylib
+window IS the main window *(both existing call sites)*; ⛔ **false in the Stride host, which also owns a
+Direct3D window.** ⇒ a default-constructed latch there subclasses the wrong window, reports `IsActive`,
+observes messages nobody is losing, **and the editor's clicks keep vanishing.**
+⇒ ✅ **`ClickLatch.CreateForRaylibWindow()`** resolves `Raylib.GetWindowHandle()` explicitly, keeping the
+one `unsafe` block *(it returns `void*`)* in the class that owns the latch instead of spreading it.
+⚠ **This is the `available` lesson from [`UX_Feature_Selection.md` §2.7.11](UX_Feature_Selection.md) again,
+in a different subsystem: a dependency that is PRESENT but pointed at the wrong thing is worse than an
+absent one, because it reports healthy.**
+
+#### ⭐ `CE-298` — **rotation had a keyboard binding nobody could reach**
+
+🔒 **User:** *"I need to be able to rotate the camera using cursor keys so that i do not need to use mouse."*
+📐 **Measured before building: it already existed** — `BasicCameraController` binds pitch/yaw to
+**NumPad 8/2/4/6**, and the controller IS attached *(`StrideHrotGame.cs:1713`, in code, not in the scene)*.
+⛔ **A remote session from a laptop or a phone has no numpad**, so the only reachable rotation was
+right-mouse-drag — i.e. the very thing `CE-297` is about.
+⇒ ✅ **`Ctrl` + cursor keys**, added *after* the numpad block and *before* the mouse block so RMB-drag still
+overrides and local behaviour is byte-identical. ⛔ **Deliberately NOT the bare arrows** — they are already
+movement aliases of `W/A/S/D`, which is equally mouse-free and equally needed; stealing them would fix
+looking around by breaking flying around.
+
+#### ✅ Verified in the product — **the only evidence that counts here**
+
+🔒 **User, `2026-09-20`, after the rebuild:** *"The selection works both ways, clicks as well."*
+📐 `[StrideInspectorWindow] Click latch active=True` confirms it bound to the right window.
+⚠ **No rail could have caught either defect** — the same blind spot §4.7 records: *a broken tool still
+draws*, and here a dead input path still renders a perfect frame.
+
+#### ⛔ STILL OPEN — **3-D entity picking, NOT closed by this**
+
+📐 Measured `2026-09-20`, before the fixes: **13 LMB presses reached the 3-D view** *(`[ClickDiag]`)* — so
+they were never lost — and **every one resolved `hitEntity=#-1`**, terrain and not an entity.
+`"LMB selected entity"` has **never once** been logged. ⚠ **Whether that is aim or a raycast that cannot
+resolve entities is NOT MEASURED**; the scene holds 13 FDP entities / 11 visuals, so the ray had targets.
+⇒ 🔒 **Do not read `CE-297` as having fixed 3-D picking — it fixed the 2-D window's clicks.**
 
 ## Migration
 

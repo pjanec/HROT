@@ -5,6 +5,7 @@ using CycloneDDS.Schema;
 using Fdp.Core;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Diagnostics.Gizmos.Events;
+using Fdp.Toolkit.Diagnostics.Gizmos.Interaction;
 using Fdp.Toolkit.Diagnostics.Gizmos.Network;
 using Hrot.Network.NED.Gizmos;
 using Xunit;
@@ -290,6 +291,85 @@ namespace Hrot.DDS.DataModel.Tests
 
             Assert.Single(writer.Written);
             Assert.Equal(0xAB01u, writer.Written[0].PickGizmoTypeId);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>UXI-11</c> <c>S-4b</c> — THE BUTTON SURVIVES THE WIRE, both ways.</b>
+        /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.14.
+        ///
+        /// <para>⚠ <b>No new wire field.</b> The button rides in <c>ActionId</c>, the slot <c>RawInput</c>
+        /// already uses for a <c>MapMouseButton</c>. ⭐ That is what makes this change wire-compatible:
+        /// <c>MapMouseButton.Left</c> is <c>0</c> and <c>ActionId</c> defaults to <c>0</c>, so an
+        /// un-migrated sender's <c>Started</c> decodes as a left-press — which is exactly what every
+        /// <c>Started</c> meant before this field existed.</para>
+        ///
+        /// <para>⛔ <b>Red-proof:</b> drop <c>actionId:</c> from the egress's <c>Started</c> arm and the
+        /// right-press decodes as <c>Left</c> on the receiving node — i.e. a remote operator's
+        /// right-click silently collapses the local multi-selection, which is the defect on the far side
+        /// of the wire.</para>
+        /// </summary>
+        [Fact]
+        public void SC_S4b_TheStartedButton_SurvivesEgressAndIngress()
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            NetworkedEntity(repo);          // ⭐ ingress resolves the anchor against the world (§6.7)
+            var writer = new CapturingWriter();
+            var interactionBus = new FdpEventBus();
+            interactionBus.Register<GizmoInteractionStartedEvent>();
+            var egress = new GizmoInteractionEgressTranslator(nodeId: 1, writer: writer, interactionBus: interactionBus);
+
+            interactionBus.Publish(new GizmoInteractionStartedEvent
+            {
+                Token    = new Fdp.Toolkit.Diagnostics.Gizmos.PickToken { AnchorId = NetId },
+                WorldPos = System.Numerics.Vector3.Zero,
+                Button   = MapMouseButton.Right,
+            });
+            interactionBus.SwapBuffers();
+            egress.ScanAndPublish(repo);
+
+            Assert.Single(writer.Written);
+            Assert.Equal((int)MapMouseButton.Right, writer.Written[0].ActionId);
+
+            // ── and back in ───────────────────────────────────────────────────
+            var inBus = new FdpEventBus();
+            inBus.Register<GizmoInteractionStartedEvent>();
+            var ingress = new GizmoInteractionIngressTranslator(
+                reader: new SingleItemReader(writer.Written[0]), interactionBus: inBus);
+            ingress.PollIngress(new EntityCommandBuffer(), repo);
+            inBus.SwapBuffers();
+
+            var received = inBus.Read<GizmoInteractionStartedEvent>().ToArray();
+            Assert.Single(received);
+            Assert.Equal(MapMouseButton.Right, received[0].Button);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The compatibility half, stated as a rail rather than asserted in prose.</b> A record
+        /// whose <c>ActionId</c> was never set — an un-migrated sender, or any non-<c>Started</c> path —
+        /// decodes as <c>Left</c>, which preserves the pre-<c>S-4b</c> meaning exactly.
+        /// </summary>
+        [Fact]
+        public void SC_S4b_AStartedRecordWithNoActionId_DecodesAsLeft()
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            var entity = NetworkedEntity(repo);
+            var inBus = new FdpEventBus();
+            inBus.Register<GizmoInteractionStartedEvent>();
+            var ingress = new GizmoInteractionIngressTranslator(
+                reader: new SingleItemReader(new GizmoInteractionBatch
+                {
+                    Kind         = GizmoInteractionEventKind.Started,
+                    PickAnchorId = NetId,
+                    // ⛔ ActionId deliberately not set
+                }),
+                interactionBus: inBus);
+
+            ingress.PollIngress(new EntityCommandBuffer(), repo);
+            inBus.SwapBuffers();
+
+            var received = inBus.Read<GizmoInteractionStartedEvent>().ToArray();
+            Assert.Single(received);
+            Assert.Equal(MapMouseButton.Left, received[0].Button);
         }
 
         /// <summary>

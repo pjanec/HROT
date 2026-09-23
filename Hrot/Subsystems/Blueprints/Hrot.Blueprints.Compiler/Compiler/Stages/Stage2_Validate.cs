@@ -3,6 +3,7 @@ using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
 using Hrot.Blueprints.Core.Compiler.Transform;
+using Ladder = Fdp.Toolkit.Blueprints.Shared.BlueprintTierLadder;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -25,6 +26,13 @@ internal static class Stage2_Validate
     {
         new V_AssetStructure(),
         new V_DispatchKindCompatibility(),
+        // ⭐⭐ Q43-C1 places this "beside V_DispatchKindCompatibility", and the ORDER is load-bearing,
+        // not cosmetic: Stage2_Validate.Run RETURNS on the first fatal error, and a resolver that
+        // contains a side-effecting node usually trips that node's OWN rule first (a SetVariable with
+        // no declaration is BP1670, a Delay is a latency error). ⛔ Reported late, BP1675 would be
+        // unreachable for exactly the assets it exists to refuse — and the designer would be told
+        // "that variable does not exist" instead of "a resolver may not write".
+        new V_ResolverPurity(),             // Q43-C1: BP1675/BP1676/BP1677
         new V_NodeStructure(),
         new V_LinkStructure(),
         new V_GraphStructure(),
@@ -498,19 +506,29 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.Instance:
                 int stateSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
+                // ⭐⭐⭐ O3a / B3② — THE BUDGETS COME FROM THE LADDER, NOT FROM LITERALS.
+                //   📐 These were `928 / 3936 / 16096` spelled as integers — a FOURTH copy of the
+                //      tier ladder, here, behind the netstandard2.0 wall that stops this project
+                //      referencing Fdp.Toolkits. ⇒ re-picking MaxSlots silently desynced
+                //      compile-time validation from runtime capacity: this stage would keep
+                //      accepting an asset the runtime can no longer seat, or reject one it could.
+                //   ⭐ BlueprintTierLadder is LINKED in (see the .csproj), so both sides now read
+                //      one set of numbers. 📄 design §17.1 N1, §17.5.
                 int tierBudget = (asset.TierHint, stateSize) switch
                 {
-                    (BlackboardTierHint.Force1024,  _)               => 928,
-                    (BlackboardTierHint.Force4096,  _)               => 3936,
-                    (BlackboardTierHint.Force16384, _)               => 16096,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 928  => 928,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 3936 => 3936,
-                    (BlackboardTierHint.Auto, _) when stateSize <= 16096 => 16096,
+                    (BlackboardTierHint.Force256,   _) => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Force1024,  _) => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Force4096,  _) => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Force16384, _) => Ladder.Tier16384PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier256PayloadSize   => Ladder.Tier256PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier1024PayloadSize  => Ladder.Tier1024PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier4096PayloadSize  => Ladder.Tier4096PayloadSize,
+                    (BlackboardTierHint.Auto, _) when stateSize <= Ladder.Tier16384PayloadSize => Ladder.Tier16384PayloadSize,
                     _ => 0
                 };
                 if (tierBudget == 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1210,
-                        $"Instance state {stateSize} bytes exceeds largest tier (16384). "
+                        $"Instance state {stateSize} bytes exceeds largest tier ({Ladder.Tier16384TotalSize}). "
                         + "Reduce variable count or split asset.",
                         asset.AssetId));
                 else if (asset.TierHint != BlackboardTierHint.Auto && stateSize > tierBudget)

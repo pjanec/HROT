@@ -41,8 +41,8 @@ public sealed class MultiPinSetSharedTests
     /// <summary>Attaches the shared slot to an already-initialised partition (blueprint attached first).</summary>
     private static unsafe void AttachSharedSlot(EntityRepository world, Entity entity)
     {
-        ref var tier = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-        fixed (byte* mem = tier.Memory)
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
         {
             bool ok = BlueprintBlackboardPartitions.TryAttach(
                 mem, SlotKey(), Marshal.SizeOf<MultiPinShared>(), ExpectedHash<MultiPinShared>(), out _);

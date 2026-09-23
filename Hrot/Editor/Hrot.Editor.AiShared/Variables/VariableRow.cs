@@ -167,6 +167,37 @@ public readonly record struct VariableRowOrigin(
     /// <summary>⭐ The identity triple §4a keys the highlight cache by. ⛔ <see cref="AssetName"/> and
     /// <see cref="Section"/> are excluded — a row does not change identity because it was regrouped.</summary>
     public (Guid, Entity, string) Key => (AssetId, Entity, VariablePath);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-305</c> — WHICH ENTITY THIS ROW IS ABOUT. 📌 <c>R-78</c>'s two kinds, in one
+    /// place.</b>
+    /// 📄 <c>DESIGN_Variable_Watch_Pinning.md</c> §3 · <c>DESIGN_Editor_Entity_Selection_Source.md</c> §5.4.
+    ///
+    /// <para>⭐ <b>CONCRETE</b> — a row bound to a specific entity answers that entity, always.
+    /// ⭐ <b>CHAMELEON</b> — a row carrying the sentinel (<c>default</c>) answers <i>"whoever is
+    /// selected"</i>, which is what <paramref name="chameleon"/> supplies.</para>
+    ///
+    /// <para>⛔⛔ <b>Why it lives HERE and not in each consumer.</b> 📐 Measured <c>2026-09-21</c>: the
+    /// yellow implemented this rule (<c>StagedWriteView.EntityFor</c>) and <b>the WRITE did not</b> —
+    /// <c>BlueprintLiveValueWriter</c> read the selection unconditionally, with a remark saying the
+    /// origin must never be read. ⇒ the two would have disagreed for the FIRST concrete row anyone
+    /// produced, and a designer would have watched one entity go yellow while another was written.
+    /// 🔒 The writer's own invariant — <i>"the write must target whatever the READ displayed"</i> —
+    /// was true only because no concrete row existed yet. ⭐ One method makes it true by construction
+    /// (📌 <c>R-13</c>: route, don't duplicate).</para>
+    ///
+    /// <para>⚠ <b>A frozen (PINNED) view produces CONCRETE rows</b>, which is exactly how 🔒 the user's
+    /// <c>2026-09-21</c> ruling — <i>"the write target should come from the same
+    /// <c>IDetailsContextSource</c> the view read from"</i> — is satisfied without any surface asking
+    /// a global what is selected.</para>
+    /// </summary>
+    /// <param name="chameleon">
+    /// ⚠ The FALLBACK, consulted only for a sentinel origin — ⛔ never an override. <c>null</c> means
+    /// nothing is selected, and the row then resolves to <see cref="Entity.Null"/>, which every caller
+    /// already treats as <i>"cannot project"</i>.
+    /// </param>
+    public Entity Resolve(Entity? chameleon)
+        => Entity.Equals(default(Entity)) ? chameleon ?? default : Entity;
 }
 
 /// <summary>§1a / §5 — the two kinds that can never get a writable dialog.</summary>

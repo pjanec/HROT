@@ -1,0 +1,470 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000144-0000-0000-0000-000000000001",
+  "Name": "ResolverWorldReachDemo",
+  "Dispatch": "Library",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000144-0000-0000-0000-000000000001",
+      "Name": "ResolveHillAttack",
+      "Kind": "Construction",
+      "Inputs": [
+        {
+          "Id": "a0000144-0000-0000-0000-000000000001",
+          "Name": "Dto",
+          "Type": {
+            "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "Outputs": [
+        {
+          "Id": "a0000144-0000-0000-0000-000000000002",
+          "Name": "Result",
+          "Type": {
+            "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+            "IsArray": false,
+            "GenericArgs": []
+          },
+          "DefaultValueJson": null,
+          "Tooltip": null,
+          "Comment": null
+        }
+      ],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000144-0000-0000-0000-000000000001",
+          "Pins": [
+            {
+              "Id": "e0000144-0000-0000-0000-000000000001",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000001",
+              "Name": "Dto",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Int64",
+          "ValueJson": "4242",
+          "Id": "20000144-0000-0000-0000-000000000002",
+          "Pins": [
+            {
+              "Id": "d0000144-0000-0000-0000-000000000002",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 420,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "FunctionCall",
+          "TargetTypeId": "Hrot.AI.Behaviors.Brains.NetworkEntityMapOps",
+          "MethodName": "ResolveTarget",
+          "IsPure": true,
+          "TargetGraphId": "",
+          "TrailingContext": "View",
+          "Id": "20000144-0000-0000-0000-000000000003",
+          "Pins": [
+            {
+              "Id": "d0000144-0000-0000-0000-000000000003",
+              "Name": "targetNetworkId",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Int64",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000004",
+              "Name": "Return",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 420,
+            "Y": 320,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetMembers",
+          "StructTypeId": "Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+          "Fields": [
+            {
+              "Name": "TargetAreaEntity",
+              "TypeId": "Fdp.Core.Entity"
+            },
+            {
+              "Name": "StartX",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "StartY",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "EndX",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "EndY",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "BaselineStartX",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "BaselineStartY",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "BaselineEndX",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "BaselineEndY",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "AttackDirX",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "AttackDirY",
+              "TypeId": "System.Single"
+            },
+            {
+              "Name": "TankSpacing",
+              "TypeId": "System.Single"
+            }
+          ],
+          "Id": "20000144-0000-0000-0000-000000000004",
+          "Pins": [
+            {
+              "Id": "d0000144-0000-0000-0000-000000000010",
+              "Name": "Source",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000011",
+              "Name": "TargetAreaEntity",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000012",
+              "Name": "StartX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000013",
+              "Name": "StartY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000014",
+              "Name": "EndX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000015",
+              "Name": "EndY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000016",
+              "Name": "BaselineStartX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000017",
+              "Name": "BaselineStartY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000018",
+              "Name": "BaselineEndX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000019",
+              "Name": "BaselineEndY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000020",
+              "Name": "AttackDirX",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000021",
+              "Name": "AttackDirY",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000022",
+              "Name": "TankSpacing",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000040",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 760,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000144-0000-0000-0000-000000000005",
+          "Pins": [
+            {
+              "Id": "e0000144-0000-0000-0000-000000000002",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "d0000144-0000-0000-0000-000000000050",
+              "Name": "Result",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1040,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000144-0000-0000-0000-000000000001",
+          "FromPinId": "e0000144-0000-0000-0000-000000000001",
+          "ToNodeId": "20000144-0000-0000-0000-000000000005",
+          "ToPinId": "e0000144-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000144-0000-0000-0000-000000000001",
+          "FromPinId": "d0000144-0000-0000-0000-000000000001",
+          "ToNodeId": "20000144-0000-0000-0000-000000000004",
+          "ToPinId": "d0000144-0000-0000-0000-000000000010"
+        },
+        {
+          "FromNodeId": "20000144-0000-0000-0000-000000000002",
+          "FromPinId": "d0000144-0000-0000-0000-000000000002",
+          "ToNodeId": "20000144-0000-0000-0000-000000000003",
+          "ToPinId": "d0000144-0000-0000-0000-000000000003"
+        },
+        {
+          "FromNodeId": "20000144-0000-0000-0000-000000000003",
+          "FromPinId": "d0000144-0000-0000-0000-000000000004",
+          "ToNodeId": "20000144-0000-0000-0000-000000000004",
+          "ToPinId": "d0000144-0000-0000-0000-000000000011"
+        },
+        {
+          "FromNodeId": "20000144-0000-0000-0000-000000000004",
+          "FromPinId": "d0000144-0000-0000-0000-000000000040",
+          "ToNodeId": "20000144-0000-0000-0000-000000000005",
+          "ToPinId": "d0000144-0000-0000-0000-000000000050"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "R4 acceptance A3\u002BA4 - a resolver graph that REACHES THE WORLD. Before R4 a Construction graph on a Library asset compiled to a static method whose only parameters were the graph\u0027s inputs (EmissionContext.HasSelfInScope was false for Library), so it could only do arithmetic on the DTO it was handed and the motivating case was not expressible. Here the FunctionCall declares TrailingContext=View, so the compiler appends the in-scope world, and NetworkEntityMapOps.ResolveTarget reads the NetworkEntityMap WORLD SINGLETON through it and returns the Entity - which SetMembers copies into PlatoonHillAttackParams.TargetAreaEntity, leaving every other member preserved. That DTO is the one R-132\u0027s silent failure was about, which is why it is the one used here.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

@@ -134,4 +134,52 @@ internal static class DefaultLiteral
         var core = csharp!.TrimEnd('F', 'f', 'D', 'd', 'M', 'm', 'L', 'l', 'U', 'u');
         return core is "0" or "0.0";
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-300</c> — the C# text for a <c>LiteralNode</c>'s value, TYPED BY ITS PIN.</b>
+    ///
+    /// <para>🔴 <b>The defect this closes.</b> <c>Stage5_Schedule</c> passed <c>LiteralNode.ValueJson</c>
+    /// to <c>IrOp_Const</c> verbatim, so a hand-authored <c>System.Single</c> literal spelled
+    /// <c>0.2777778</c> emitted <c>var __t5 = 0.2777778;</c> and Roslyn refused the GENERATED file with
+    /// <c>CS0266: cannot implicitly convert 'double' to 'float'</c> — an error naming a file the author
+    /// never wrote. ⚠ The editor's drawer appends the <c>f</c>, so the guard was <b>a drawer, not a
+    /// compiler rule</b>: any hand-authored asset, recipe or future tool reproduces it.</para>
+    ///
+    /// <para>⛔⛔ <b>CONVERT-OR-PASS-THROUGH, and the asymmetry with <see cref="TryToCSharp"/> is
+    /// MEASURED rather than chosen.</b> 📐 <c>CE-300</c>'s filed fix said to route this through
+    /// <see cref="TryToCSharp"/> and REFUSE what it cannot type. ⛔ That is wrong, and the corpus says
+    /// so: <b><c>ValueJson</c> does not hold JSON — it holds C# SOURCE TEXT.</b> Across the 104 shipped
+    /// assets its values are <c>0f</c>, <c>-1L</c>, <c>(ushort)0</c>, <c>"HullDownAttack"</c> and
+    /// <c>global::…NavigationResult.Arrived</c> — suffixes, casts, a quoted string and a qualified enum
+    /// member. 🔴 <b><c>TryToCSharp</c> parses JSON, so it REFUSES 42 of the 86 literal nodes that ship
+    /// today</b>; refusing them would turn a latent authoring trap into a corpus-wide build break.</para>
+    ///
+    /// <para>⭐ So: <b>convert when the converter can, keep the author's text when it cannot.</b> Every
+    /// corpus value either converts to an equivalent literal or falls through unchanged, and the one
+    /// value that was broken — a bare decimal on a float pin — is exactly the case the converter
+    /// handles.</para>
+    ///
+    /// <para>⚠⚠ <b>IT DOES MOVE ONE GOLDEN, and an earlier draft of this comment claimed it could
+    /// not.</b> 📐 Measured: <c>ResolverWorldReachDemo</c> emits <c>var __t1 = 4242;</c> for a literal
+    /// on a <c>System.Int64</c> pin, and now emits <c>4242L</c> — <b>one file, one line</b>. ⭐ That is
+    /// a CORRECTION of the same defect this method exists for: a bare <c>4242</c> is an <c>int</c> that
+    /// happened to widen implicitly. ⛔ Verified to be spelling ONLY, not binding —
+    /// <c>NetworkEntityMapOps.ResolveTarget</c> has a single overload taking <c>long</c>, so both forms
+    /// bind to it identically. 🔒 The row warned to check this rather than assume it; the assumption
+    /// was made anyway, and the suite is what caught it.</para>
+    ///
+    /// <para>⛔ <b>The empty-string guard is load-bearing, not defensive.</b>
+    /// <see cref="TryToCSharp"/> answers <c>true</c> with an EMPTY literal for <c>0</c> — its
+    /// "leave it zero-initialised" contract for DECLARATION defaults. ⚠ A literal NODE has no such
+    /// contract: emitting nothing produces <c>var __t5 = ;</c>. ⇒ an empty conversion is a
+    /// pass-through, and an <c>Int32</c> literal of <c>0</c> stays <c>0</c>.</para>
+    /// </summary>
+    public static string ForLiteralNode(IrTypeRef type, string? valueText)
+    {
+        string text = valueText ?? "";
+        return TryToCSharp(type, text, out string converted, out _)
+            && !string.IsNullOrEmpty(converted)
+                ? converted
+                : text;
+    }
 }

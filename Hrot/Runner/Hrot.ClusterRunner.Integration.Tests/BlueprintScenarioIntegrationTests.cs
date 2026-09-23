@@ -131,9 +131,11 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
     public BlueprintScenarioIntegrationTests()
     {
         _repo = new EntityRepository();
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BlueprintBlackboard4096>();
-        _repo.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(_repo);
         _repo.RegisterManagedComponent<InitialBlueprintsIntent>();
         _registry = new BlueprintRegistry();
     }
@@ -160,30 +162,17 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         return bpId;
     }
 
+    // ⭐ B4 — design §17.7: the store through the SEAM, not a named tier.
+    //   ⛔ This was a three-arm ladder blind to the 256 tier, so it returned -1 for a store that
+    //   was there. An entity carries AT MOST ONE store.
     private static unsafe int ReadCount(EntityRepository repo, Entity entity, int blueprintId)
     {
-        if (repo.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4); // offset after cursor
-        }
-        if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4);
-        }
-        if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var bb = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset))
-                return Unsafe.ReadUnaligned<int>(mem + offset + 4);
-        }
-        return -1;
+        byte* mem = OccurrenceStoreAccess.TryGetStoreReadOnly(repo, entity, out _);
+        if (mem == null) return -1;
+
+        return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, blueprintId, out int offset)
+            ? Unsafe.ReadUnaligned<int>(mem + offset + 4)   // offset after cursor
+            : -1;
     }
 
     // ── Test 3: Dynamic swap ─────────────────────────────────────────────────

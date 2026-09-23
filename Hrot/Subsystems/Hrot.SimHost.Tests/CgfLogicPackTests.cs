@@ -8,6 +8,8 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Modules;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Behavior.TacticalOrderMapper;
+using Fdp.Toolkit.Blueprints.Systems;
+using System.Linq;
 using Fdp.Toolkit.CarKinem.Systems;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Replication.Components;
@@ -36,10 +38,6 @@ namespace Hrot.SimHost.Tests
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.WeaponChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.InteractionChannel>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBTreeState>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainBlackboard>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm64>();
-            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PreviousCapabilities>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.PassengerBuffer>();
             world.RegisterComponent<Fdp.Toolkit.Behavior.Components.IsEmbarkedTag>();
@@ -100,7 +98,7 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack    = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             var view = (ISimulationView)world;
             var ex = Record.Exception(() =>
             {
@@ -121,7 +119,16 @@ namespace Hrot.SimHost.Tests
             //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
             //    every fusing node register each twice. They now come from the infrastructure
             //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            Assert.Equal(16, pack.SimulationSystems.Count);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
             //    re-baselines without reading why it moved.
@@ -142,14 +149,14 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // MissionControlModule systems in InputSystems + SimulationSystems
             Assert.Contains(pack.InputSystems,      s => s is BehaviorIngressSystem);
             Assert.Contains(pack.SimulationSystems, s => s is MissionDirectorSystem);
 
             // CognitiveRuntimeModule systems
             Assert.Contains(pack.SimulationSystems, s => s is ChannelArbitrationSystem);
-            Assert.Contains(pack.SimulationSystems, s => s is BTreeTickSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is BrainTickSystem);   // O7c-④b: was BTreeTickSystem
 
             // ActionDispatchModule systems
             Assert.Contains(pack.SimulationSystems, s => s is LocomotionDispatcherSystem);
@@ -166,7 +173,7 @@ namespace Hrot.SimHost.Tests
                 new BehaviorRegistry(),
                 new NetworkEntityMap(),
                 new ScenarioEntityCreationRequestSource(),
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             Assert.Equal("CgfLogicPack", pack.Name);
         }
 
@@ -183,7 +190,7 @@ namespace Hrot.SimHost.Tests
                     new BehaviorRegistry(),
                     new NetworkEntityMap(),
                     scenarioSource: null!,
-                    mapperRegistry: new TacticalIntentMapperRegistry()));
+                    mapperRegistry: new TacticalIntentMapperRegistry(), blueprintRegistry: new Fdp.Toolkit.Blueprints.BlueprintRegistry()));
 
             Assert.Equal("scenarioSource", ex.ParamName);
         }
@@ -291,7 +298,7 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack       = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // SC1: MissionControlExecutionSystem is in InputSystems.
             Assert.Contains(pack.InputSystems, s => s is MissionControlExecutionSystem);
             // SC2: BehaviorIngressSystem is in InputSystems.
@@ -312,7 +319,16 @@ namespace Hrot.SimHost.Tests
             //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
             //    every fusing node register each twice. They now come from the infrastructure
             //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
+            //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
+            //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            Assert.Equal(16, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -330,14 +346,20 @@ namespace Hrot.SimHost.Tests
             var scenarioSource   = new ScenarioEntityCreationRequestSource();
 
             var pack     = new CgfLogicPack(behaviorRegistry, entityMap, scenarioSource,
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
             // Total systems across both phases equals 21 (2 input + 19 sim) — see the note above.
             // ⭐⭐ CE-221 — 2 fewer: UnitHierarchySystem and EqsResultUpdateSystem left this pack.
             //    They are cross-role infrastructure (no role selects them; every carrier appended them
             //    at the tail of Simulation), and carrying them in BOTH the Brain and Muscle packs made
             //    every fusing node register each twice. They now come from the infrastructure
             //    capabilities, declared once per plan, so the NODE still runs exactly one of each.
-            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // ⭐⭐ A4/O0 (2026-09-20) — 1 MORE: BlueprintTickSystem. CgfLogicPack now splices it
+            //    before its own action dispatchers, so CGF ticks blueprint Instances too and not
+            //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
+            //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
+            // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
+            // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
+            Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────
@@ -351,7 +373,7 @@ namespace Hrot.SimHost.Tests
                 new BehaviorRegistry(),
                 new NetworkEntityMap(),
                 new ScenarioEntityCreationRequestSource(),
-                new TacticalIntentMapperRegistry());
+                new TacticalIntentMapperRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
         private static System.Collections.Generic.IReadOnlyList<Hrot.Common.Infrastructure.INodeCapability>
             ResolveBrain(CgfLogicPack pack)
@@ -368,7 +390,11 @@ namespace Hrot.SimHost.Tests
                 modules.AddRange(capability.ProvideModules());
 
             // Verbatim from the block this replaced: diagnostics first, then the pack.
-            Assert.Equal(2, modules.Count);
+            // ⭐⭐ A4/O0 (2026-09-20) — a THIRD module now follows: the BeforeSync blueprint
+            //    maintenance system, carried by a SingleSystemModule. ⛔ It cannot ride the pack's
+            //    SimulationSystems the way the tick does, and registering it per composition root is
+            //    the per-host chance to forget that CE-161 was made of.
+            Assert.Equal(3, modules.Count);
             Assert.IsType<BehaviorDiagnosticsModule>(modules[0]);
             Assert.Same(pack, modules[1]);
         }
@@ -415,6 +441,105 @@ namespace Hrot.SimHost.Tests
                 .Resolve(NodeRole.Map2D);
 
             Assert.Empty(resolved);
+        }
+
+        // ══ A4 / O0 — the blueprint runtime reaches EVERY Brain host, not only the Editor ═════════
+        //
+        // 📐 CE-161 (2026-09-03) measured a --mode all cluster aborting on CGF with "Component
+        //    BlueprintBlackboard1024 is not registered", because the only code registering the tiers
+        //    lived in Hrot.Blueprints.Editor. Its fix moved the COMPONENTS to a shared path. The
+        //    SCHEDULING stayed behind, so no host but the Editor ever ticked a blueprint Instance.
+        // ⇒ these rails pin the fix at the seam, so a future composition change cannot quietly undo it.
+
+        /// <summary>
+        /// ⭐⭐ A4-R1 — the pack carries EXACTLY ONE <see cref="BlueprintTickSystem"/>.
+        ///
+        /// <para>⛔ "Exactly one" is the load-bearing half. The Editor used to splice its own instance at
+        /// the composition root; with the pack splicing one too, a root that kept its splice would put
+        /// TWO in a single group — and <c>DistinctByType</c> runs BEFORE the root splice, so it cannot
+        /// catch it. Every slot would then tick twice per frame.</para>
+        /// </summary>
+        [Fact]
+        public void A4_R1_ThePack_CarriesExactlyOneBlueprintTickSystem()
+        {
+            var pack = NewPack();
+
+            Assert.Single(pack.SimulationSystems, s => s is BlueprintTickSystem);
+            Assert.DoesNotContain(pack.InputSystems, s => s is BlueprintTickSystem);
+        }
+
+        /// <summary>
+        /// 🔴 A4-R2 — the tick sits BEFORE the action dispatchers it declares <c>[UpdateBefore]</c> on.
+        ///
+        /// <para>Module-group execution order is ARRAY POSITION — the kernel does not re-apply ordering
+        /// attributes inside a module's system list. ⛔ An APPENDED tick runs after the dispatchers, so
+        /// an intent written by a blueprint is dispatched a tick late: the <c>Q#16-B</c> "intent is read
+        /// the same tick" contract, silently downgraded. That is exactly what both real compositions did
+        /// before <c>FC-1·G2</c>, and moving the splice into the pack is a chance to reintroduce it.</para>
+        /// </summary>
+        [Fact]
+        public void A4_R2_TheTick_IsSplicedBeforeTheActionDispatchers()
+        {
+            var pack = NewPack();
+            var sim  = pack.SimulationSystems;
+
+            int tickAt = -1, firstDispatcherAt = -1;
+            for (int i = 0; i < sim.Count; i++)
+            {
+                if (tickAt < 0 && sim[i] is BlueprintTickSystem) tickAt = i;
+                if (firstDispatcherAt < 0 &&
+                    (sim[i] is LocomotionDispatcherSystem || sim[i] is WeaponDispatcherSystem))
+                    firstDispatcherAt = i;
+            }
+
+            // anti-vacuity: an empty list, or one with no dispatcher, would make the ordering assert
+            // below trivially true — and "appended at the end" is the degenerate case it must not pass.
+            Assert.True(tickAt >= 0, "the pack must carry a BlueprintTickSystem at all");
+            Assert.True(firstDispatcherAt >= 0,
+                "the pack must carry an action dispatcher, or this rail asserts nothing");
+
+            Assert.True(tickAt < firstDispatcherAt,
+                $"BlueprintTickSystem is at {tickAt} but the first dispatcher is at {firstDispatcherAt} — " +
+                "an appended tick dispatches blueprint intent one tick late (Q#16-B).");
+        }
+
+        /// <summary>
+        /// ⭐ A4-R3 — the Brain capability carries the BeforeSync maintenance system into the kernel,
+        /// and it is the SAME instance the pack built.
+        ///
+        /// <para>🔴 Without it a host can tick Instances but never PROMOTE a tier — and since A3 the
+        /// promotion path is also what carries the <c>OccurrenceKind</c> nibble array across a tier
+        /// upgrade (<c>H1</c>).</para>
+        /// </summary>
+        [Fact]
+        public void A4_R3_TheBrainCapability_CarriesTheMaintenanceSystem()
+        {
+            var pack = NewPack();
+            var modules = new System.Collections.Generic.List<IEcsModule>();
+            foreach (var capability in ResolveBrain(pack))
+                modules.AddRange(capability.ProvideModules());
+
+            var carrier = Assert.Single(
+                modules.OfType<Fdp.ModuleHost.Scheduling.SingleSystemModule>());
+
+            var registry = new CapturingSystemRegistry();
+            carrier.RegisterSystems(registry);
+
+            Assert.Same(pack.MaintenanceSystem, Assert.Single(registry.Systems));
+        }
+
+        /// <summary>Minimal <see cref="ISystemRegistry"/> that records what a module registers.</summary>
+        private sealed class CapturingSystemRegistry : ISystemRegistry
+        {
+            public System.Collections.Generic.List<IEcsModuleSystem> Systems { get; } = new();
+
+            public void RegisterSystem<T>(T system) where T : IEcsModuleSystem => Systems.Add(system);
+
+            public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
+            {
+                Systems.Add(system);
+                return system;
+            }
         }
     }
 }

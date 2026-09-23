@@ -52,6 +52,21 @@ public sealed class AiPrimitiveStateMetadataTests
         SiblingSignatures: System.Array.Empty<BlueprintSignature>());
 
     /// <summary>An HSM-hosted AiPrimitive — the hosting whose thunk initialises <c>Blackboard1024</c>.</summary>
+
+    /// <summary>
+    /// ⭐⭐ <c>O7b-2</c> — an AiPrimitive's working state is now per-OCCURRENCE, so the debug session
+    /// labels every field with the <c>(region, state)</c> it belongs to. 📄 design §24.11.
+    ///
+    /// <para>🔒 <b>User ruling, <c>2026-09-21</c>:</b> <i>"Show all and properly labelled and properly
+    /// decoded into readable state."</i> ⇒ the bare field name is gone on purpose: with N occurrences
+    /// it is ambiguous, and an ambiguous label is what <c>BP-297</c> is about.</para>
+    ///
+    /// <para>⭐ These fixtures drive ONE dispatch, so there is exactly one occurrence —
+    /// <c>Region 0 / State 0</c>. ⚠ Asserting the full label rather than searching for a suffix is
+    /// deliberate: it pins the LABELLING, not just the value.</para>
+    /// </summary>
+    private const string Occ0 = "Region 0 / State 0 \u00B7 ";
+
     private static BlueprintAssetBuilder Primitive(string name)
         => BlueprintAssetBuilder
             .AiPrimitive(name)
@@ -96,11 +111,12 @@ public sealed class AiPrimitiveStateMetadataTests
         Assert.NotNull(snapshot);
         Assert.Equal(RuntimeDispatchKind.AiPrimitive, snapshot!.Dispatch);
 
-        Assert.True(snapshot.FieldValues.ContainsKey("Ticks"),
+        Assert.True(snapshot.FieldValues.ContainsKey(Occ0 + "Ticks"),
             "the working-state field did not come back at all — StateFields/StateLayout are empty, "
-            + "which is exactly the S1 gap: a consumer with no producer.");
-        Assert.Equal(42, snapshot.FieldValues["Ticks"]);
-        Assert.Equal(0.5f, snapshot.FieldValues["Ratio"]);
+            + "which is exactly the S1 gap: a consumer with no producer. (O7b-2: it is now keyed "
+            + "by occurrence label, so a bare-name lookup would also miss.)");
+        Assert.Equal(42, snapshot.FieldValues[Occ0 + "Ticks"]);
+        Assert.Equal(0.5f, snapshot.FieldValues[Occ0 + "Ratio"]);
     }
 
     /// <summary>
@@ -136,10 +152,10 @@ public sealed class AiPrimitiveStateMetadataTests
         var snapshot = session.CaptureLiveState(entity, asset.AssetId);
 
         Assert.NotNull(snapshot);
-        Assert.Equal(11,       snapshot!.FieldValues["A"]);
-        Assert.Equal(22,       snapshot.FieldValues["B"]);
-        Assert.Equal(33L,      snapshot.FieldValues["C"]);
-        Assert.Equal((byte)44, snapshot.FieldValues["D"]);
+        Assert.Equal(11,       snapshot!.FieldValues[Occ0 + "A"]);
+        Assert.Equal(22,       snapshot.FieldValues[Occ0 + "B"]);
+        Assert.Equal(33L,      snapshot.FieldValues[Occ0 + "C"]);
+        Assert.Equal((byte)44, snapshot.FieldValues[Occ0 + "D"]);
     }
 
     /// <summary>
@@ -208,7 +224,7 @@ public sealed class AiPrimitiveStateMetadataTests
         var snapshot = session.CaptureLiveState(entity, asset.AssetId);
 
         Assert.NotNull(snapshot);
-        Assert.Equal(77, snapshot!.FieldValues["AfterTheStruct"]);
+        Assert.Equal(77, snapshot!.FieldValues[Occ0 + "AfterTheStruct"]);
     }
 
     /// <summary>

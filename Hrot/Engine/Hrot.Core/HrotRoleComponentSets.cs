@@ -124,11 +124,19 @@ public static class HrotRoleComponentSets
 
         // ── ABSENT on a Muscle node: no SimHost system touches them, zero wire references ──────────
         brainOnly.SetBit(ComponentType<BehaviorState>.ID);
-        brainOnly.SetBit(ComponentType<BrainBlackboard>.ID);
-        brainOnly.SetBit(ComponentType<Blackboard1024>.ID);
-        brainOnly.SetBit(ComponentType<BrainBTreeState>.ID);
-        brainOnly.SetBit(ComponentType<BrainHsm128>.ID);
-        brainOnly.SetBit(ComponentType<BrainHsm64>.ID);
+        // ⛔ P4 §2 ② (2026-09-22): BrainBlackboard retired — nothing had filled it since P3-C
+        //    (CE-312), so replicating it shipped a permanently-zero region to every brain node.
+        //    ⚠ Its id 23 stays RESERVED, for the same reason 74 is.
+        // ⛔ P4-① (2026-09-22): Blackboard1024 retired — §30.13. ⚠ Its id 74 stays RESERVED in
+        //    GlobalComponentIds rather than being reused, so a stale recording cannot bind it to a
+        //    different component.
+        // ⛔ O7c-② (2026-09-22): BrainBTreeState retired — the cursor rides in the occurrence store,
+        //    whose tier components this mask already covers.
+        // ⛔ O7c-① (2026-09-22): BrainHsm64 retired — nothing ever attached it, so this bit
+        //    declined a component that was never present. ⚠ Its id 35 stays RESERVED, like 23 and 74.
+        // ⛔ O7c-④d (2026-09-23): BrainHsm128 retired — the HSM instance rides in the occurrence
+        //    store, whose tier components this mask already covers, exactly as the BTree cursor
+        //    does. ⚠ Its id 36 stays RESERVED, like 23, 31, 35 and 74.
         // ⭐ The three channels: their only consumers are ActionDispatchModule and
         //   ChannelArbitrationSystem, both registered by CgfLogicPack alone (§3.9a).
         brainOnly.SetBit(ComponentType<LocomotionChannel>.ID);

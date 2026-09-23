@@ -30,6 +30,11 @@ namespace Hrot.SimHost.Serializers
     {
         private const string OutputKey = "BlueprintAssignments";
 
+        // ⛔⛔ O3a / B3: these are HISTORICAL SCENARIO KEYS, deliberately NOT derived from
+        //   BlueprintTierTable. They name what OLD scenario files on disk actually contain, and that
+        //   set is frozen by history — a tier added today was never written by an old writer, so it
+        //   gets no legacy key. ⚠ Deriving them from the live ladder would be the natural-looking
+        //   change and it would be wrong.
         private static readonly string[] LegacyBlackboardKeys =
         {
             "BlueprintBlackboard1024",
@@ -46,26 +51,29 @@ namespace Hrot.SimHost.Serializers
 
         public BitMask512 GetConsumedComponentsMask()
         {
+            // ⭐ O3a / B3: the CONSUMED mask follows the live ladder — unlike LegacyBlackboardKeys
+            //   above, which follows history. The two look alike and must not be merged.
             var mask = new BitMask512();
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard1024));
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard4096));
-            SetBitIfRegistered(mask, typeof(BlueprintBlackboard16384));
+            var tiers = Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.Ascending;
+            for (int i = 0; i < tiers.Count; i++)
+                SetBitIfRegistered(mask, tiers[i].ComponentType);
             return mask;
         }
 
+        // A2: this predicate IS OccurrenceStoreAccess.HasStore, verbatim.
         public bool CanTranslate(EntityRepository repo, Entity entity)
-            => repo.HasComponent<BlueprintBlackboard1024>(entity)
-            || repo.HasComponent<BlueprintBlackboard4096>(entity)
-            || repo.HasComponent<BlueprintBlackboard16384>(entity);
+            => Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(repo, entity);
 
         public unsafe Dictionary<string, object> Extract(
             EntityRepository repo, Entity entity, IGuidResolver resolver)
         {
             var dtos = new List<BlueprintAssignmentDto>();
 
-            ExtractTier1024(repo, entity, dtos);
-            ExtractTier4096(repo, entity, dtos);
-            ExtractTier16384(repo, entity, dtos);
+            // A2: an entity carries AT MOST ONE tier, so the three per-tier passes were three
+            // probes of which at most one could ever do work. One read-only resolution replaces them.
+            // 🔴 READ-ONLY on purpose: GetComponentRW bumps the chunk version and this is a
+            //    serialisation pass — see the seam's TryGetStoreReadOnly.
+            ExtractFromStore(repo, entity, dtos);
 
             var node = JsonSerializer.SerializeToNode(dtos, FdpJsonOptionsRegistry.DefaultRelaxed);
             return new Dictionary<string, object>
@@ -125,46 +133,20 @@ namespace Hrot.SimHost.Serializers
 
         // ── Extract helpers: one per tier ────────────────────────────────────
 
-        private unsafe void ExtractTier1024(
+        /// <summary>
+        /// A2: resolves the entity's occurrence store ONCE, read-only, and collects from it.
+        /// Replaces ExtractTier1024/4096/16384, which were three copies of one probe.
+        /// </summary>
+        private unsafe void ExtractFromStore(
             EntityRepository repo, Entity entity,
             List<BlueprintAssignmentDto> dtos)
         {
-            if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
+            byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                               .TryGetStoreReadOnly(repo, entity, out _);
+            if (memory == null)
                 return;
 
-            ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard1024>(entity);
-            fixed (byte* memory = bb.Memory)
-            {
-                CollectAssignments(memory, dtos);
-            }
-        }
-
-        private unsafe void ExtractTier4096(
-            EntityRepository repo, Entity entity,
-            List<BlueprintAssignmentDto> dtos)
-        {
-            if (!repo.HasComponent<BlueprintBlackboard4096>(entity))
-                return;
-
-            ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard4096>(entity);
-            fixed (byte* memory = bb.Memory)
-            {
-                CollectAssignments(memory, dtos);
-            }
-        }
-
-        private unsafe void ExtractTier16384(
-            EntityRepository repo, Entity entity,
-            List<BlueprintAssignmentDto> dtos)
-        {
-            if (!repo.HasComponent<BlueprintBlackboard16384>(entity))
-                return;
-
-            ref readonly var bb = ref repo.GetComponentRO<BlueprintBlackboard16384>(entity);
-            fixed (byte* memory = bb.Memory)
-            {
-                CollectAssignments(memory, dtos);
-            }
+            CollectAssignments(memory, dtos);
         }
 
         private unsafe void CollectAssignments(

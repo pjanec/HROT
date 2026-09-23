@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Squad;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Squad.DangerArea;
@@ -27,9 +28,9 @@ namespace Fdp.Toolkit.Squad.Tests
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<TargetMemory>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<DangerAreaSensor>();
             _repo.RegisterComponent<DangerAreaCognitiveBuffer>();
             _repo.RegisterComponent<PartMetadata>();
@@ -54,8 +55,8 @@ namespace Fdp.Toolkit.Squad.Tests
         {
             var commander = _repo.CreateEntity();
             _repo.AddComponent(commander, new UnitRoster());
-            _repo.AddComponent(commander, new Blackboard1024());
-            _repo.AddComponent(commander, new SquadStateMarker());
+            _repo.AddComponent(commander, default(SquadCognitiveState));
+            _repo.AddComponent(commander, default(SquadCognitiveState));
 
             var members = new Entity[4];
             for (int i = 0; i < 4; i++)
@@ -100,8 +101,7 @@ namespace Fdp.Toolkit.Squad.Tests
 
         private ref SquadCognitiveState GetState(Entity commander)
         {
-            ref var bb = ref _repo.GetComponentRW<Blackboard1024>(commander);
-            return ref SquadCognitiveState.Project(ref bb);
+            return ref _repo.GetComponentRW<SquadCognitiveState>(commander);
         }
 
         private int FindContactIndex(Entity commander, long entityId)

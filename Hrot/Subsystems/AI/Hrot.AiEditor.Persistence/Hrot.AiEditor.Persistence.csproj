@@ -22,6 +22,16 @@
          on both sides, so no CS0436 arises for a project referencing both. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\BlackboardParamsExpression.cs"
              Link="Emit\Shared\BlackboardParamsExpression.cs" />
+
+    <!-- A1 (PLAN_Occurrence_Storage_Build): ONE spelling of the stateful slot key, shared with the
+         RUNTIME (Fdp.Toolkits, net8.0). Same reasoning as BP-306 above and deliberately the same
+         mechanism: LINKED, not referenced, because this assembly carries no project references by
+         design. The file is netstandard2.0-subset on purpose so it compiles on both sides, and it is
+         `internal` on both, so no CS0436 for a project referencing both.
+         ⛔ The compile-time key and the runtime key MUST be byte-identical — when they disagree the
+         slot is simply never found, with no error anywhere. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Behavior\Shared\OccurrenceSlotKey.cs"
+             Link="Emit\Shared\OccurrenceSlotKey.cs" />
   </ItemGroup>
 
 </Project>

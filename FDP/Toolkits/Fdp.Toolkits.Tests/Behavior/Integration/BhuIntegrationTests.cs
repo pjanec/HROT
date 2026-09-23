@@ -25,8 +25,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             var transitions = new TransitionDef[2];
             transitions[0] = new TransitionDef { SourceStateIndex = 0, TargetStateIndex = 1, EventId = EventX };
             transitions[1] = new TransitionDef { SourceStateIndex = 1, TargetStateIndex = 2, EventId = EventY };
-            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 3, TransitionCount = 2 };
-            return new HsmDefinitionBlob(header, states, transitions, Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+            // ⭐⭐ O7c-④b: RegionCount 2 is what makes HsmInstanceManager.SelectTier answer 128.
+            //   🔴 NOT cosmetic — the instance width decides the EVENT-QUEUE shape: a 64-byte
+            //   instance has ring capacity 1 and NO interrupt slot, while these rails inject two
+            //   events and assert interrupt-before-ring ordering. Before the move every instance
+            //   was 128 because the COMPONENT was, so the blob never had to say so.
+            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 3, TransitionCount = 2, RegionCount = 2 };
+            return new HsmDefinitionBlob(header, states, transitions, new RegionDef[2], Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
         }
 
         private static HsmDefinitionBlob Build2StateFinalBlob(uint structureHash)
@@ -36,8 +41,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             states[1] = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, TransitionCount = 0, Flags = StateFlags.IsFinal };
             var transitions = new TransitionDef[1];
             transitions[0] = new TransitionDef { SourceStateIndex = 0, TargetStateIndex = 1, EventId = EventX };
-            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 2, TransitionCount = 1 };
-            return new HsmDefinitionBlob(header, states, transitions, Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 2, TransitionCount = 1, RegionCount = 2 };  // O7c-④b: see Build3StateBlob
+            return new HsmDefinitionBlob(header, states, transitions, new RegionDef[2], Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
         }
 
         private static HsmDefinitionBlob BuildPatrolStoppedBlob(uint structureHash)
@@ -47,8 +52,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             states[1] = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, TransitionCount = 0 };
             var transitions = new TransitionDef[1];
             transitions[0] = new TransitionDef { SourceStateIndex = 0, TargetStateIndex = 1, EventId = BehaviorConstants.EventId_MobilityLost };
-            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 2, TransitionCount = 1 };
-            return new HsmDefinitionBlob(header, states, transitions, Array.Empty<RegionDef>(), Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
+            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 2, TransitionCount = 1, RegionCount = 2 };  // O7c-④b: see Build3StateBlob
+            return new HsmDefinitionBlob(header, states, transitions, new RegionDef[2], Array.Empty<GlobalTransitionDef>(), Array.Empty<ushort>(), Array.Empty<ushort>());
         }
 
         private static int CountBehaviorFinishedEvents(EntityRepository world, Entity e)
@@ -59,31 +64,47 @@ namespace Fdp.Toolkit.Behavior.Tests
             return count;
         }
 
-        private static void InjectEvents<T>(EntityRepository world, Entity e, params HsmEvent[] events) where T : unmanaged
+        /// <summary>⭐ O7c-④b: enqueue through the slot, sized from the allocation, never from a type.</summary>
+        private static void InjectEvents(EntityRepository world, Entity e, params HsmEvent[] events)
         {
-            ref var comp = ref world.GetComponentRW<T>(e);
-            T* ptr = (T*)Unsafe.AsPointer(ref comp);
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
             foreach (var evt in events)
-                HsmEventQueue.TryEnqueue(ptr, evt);
+                Assert.True(HsmEventQueue.TryEnqueue(ptr, size, evt),
+                    "The instance's event queue rejected an event. Its capacity follows the tier that " +
+                    "HsmInstanceManager.SelectTier chose for this machine: 64 holds ONE event and has " +
+                    "no interrupt slot; 128 holds an interrupt plus one ring entry.");
         }
 
-        private static BrainHsm128 MakeBrain128(HsmDefinitionBlob blob)
+        /// <summary>
+        /// ⭐ The first ACTIVE LEAF id, read size-driven through the kernel's own accessor.
+        /// ⛔ Both the array's offset and its length are functions of the instance size, so a caller
+        /// outside the kernel cannot compute them without copying the tier table.
+        /// </summary>
+        private static ushort ActiveLeaf0(EntityRepository world, Entity e)
         {
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0] = 0xFFFF;
-            return brain;
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
+            ushort* leaves = HsmKernel.GetActiveLeafIds(ptr, size, out int count);
+            Assert.True(leaves != null && count > 0);
+            return leaves[0];
         }
 
-        private static BrainHsm64 MakeBrain64(HsmDefinitionBlob blob)
+        /// <summary>⭐ The instance's header, read through the slot rather than a component field.</summary>
+        private static InstanceHeader* HeaderOf(EntityRepository world, Entity e)
         {
-            var brain = new BrainHsm64();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0] = 0xFFFF;
-            return brain;
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out _));
+            return (InstanceHeader*)ptr;
         }
+
+        /// <summary>
+        /// ⭐⭐ O7c-④b — provision the root HSM instance slot, which replaces
+        /// <c>world.AddComponent(e, MakeBrain128(blob))</c>. <c>EnsureRootInstance</c> stamps
+        /// <c>MachineId</c>, <c>Phase = Entry</c> and the 0xFFFF leaves, which is what that helper did.
+        /// </summary>
+        private static void SeedBrain(EntityRepository world, Entity e, int docId, HsmDefinitionBlob blob)
+            => Assert.True(RootHsmAccess.EnsureRootInstance(world, e, docId, blob));
+
+        // ⛔ O7c-① (2026-09-22): MakeBrain64 went with BrainHsm64.
+        // ⛔ O7c-④b (2026-09-23): MakeBrain128 went with the instance moving into an occurrence slot.
 
         // IT-BHU-A1: HSM reaches final state, BehaviorFinishedEvent published.
         // Proves BHU-005 (IsFinal flag emitted) + BHU-006 (Terminated set in kernel)
@@ -98,16 +119,16 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             registry.Register(docId, "A1Doc", new BehaviorDefinition { Name = "A1Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
+            SeedBrain(world, e, docId, blob);
+            world.AddComponent(e, new BrainInterrupts());
 
-            // BrainHsm128 Tier2 queue: 1 interrupt slot + 1 ring slot.
+            // Tier-2 (128-byte) queue: 1 interrupt slot + 1 ring slot — see Build3StateBlob's note.
             // EventX uses the interrupt slot; EventY goes to the ring slot.
             // Dequeue order: interrupt first (EventX), then ring (EventY).
-            InjectEvents<BrainHsm128>(world, e,
+            InjectEvents(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
 
@@ -118,10 +139,9 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
-            var brainAfter = world.GetComponent<BrainHsm128>(e);
-            ref var hdr = ref Unsafe.As<BrainHsm128, InstanceHeader>(ref brainAfter);
-            Assert.Equal(0, (int)(hdr.Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr.Phase);
+            InstanceHeader* hdr = HeaderOf(world, e);
+            Assert.Equal(0, (int)(hdr->Flags & InstanceFlags.Terminated));
+            Assert.Equal(InstancePhase.Idle, hdr->Phase);
 
             world.Dispose();
         }
@@ -138,14 +158,14 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             registry.Register(docId, "A2Doc", new BehaviorDefinition { Name = "A2Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
+            SeedBrain(world, e, docId, blob);
+            world.AddComponent(e, new BrainInterrupts());
 
             // Frame 1: drive to terminal.
-            InjectEvents<BrainHsm128>(world, e,
+            InjectEvents(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
             for (int i = 0; i < 20; i++)
@@ -179,15 +199,15 @@ namespace Fdp.Toolkit.Behavior.Tests
             registry.Register(docIdA, "A3DocA", new BehaviorDefinition { Name = "A3DocA", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
             registry.Register(docIdB, "A3DocB", new BehaviorDefinition { Name = "A3DocB", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = sharedBlob });
 
-            var sys        = new HsmTickSystem<BrainHsm128>(registry);
+            var sys        = new BrainTickSystem(registry);
             var ingressSys = new BehaviorIngressSystem(registry);
             var e          = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docIdA, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(sharedBlob));
-            world.AddComponent(e, new BrainBlackboard());
+            SeedBrain(world, e, docIdA, sharedBlob);
+            world.AddComponent(e, new BrainInterrupts());
 
             // Drive behavior A to terminal.
-            InjectEvents<BrainHsm128>(world, e,
+            InjectEvents(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
             for (int i = 0; i < 20; i++)
@@ -201,14 +221,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             ingressSys.Execute(world, 0.016f);
 
             // BHU-016: ActiveLeafIds must be 0xFFFF before the first tick of behavior B.
-            var brainBeforeTick = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal((ushort)0xFFFF, brainBeforeTick.State.ActiveLeafIds[0]);
+            Assert.Equal((ushort)0xFFFF, ActiveLeaf0(world, e));
 
             var behavior = world.GetComponent<BehaviorState>(e);
             Assert.Equal(2u, behavior.InstanceId);
 
             // Drive behavior B to terminal (same blob, so MachineId still valid).
-            InjectEvents<BrainHsm128>(world, e,
+            InjectEvents(world, e,
                 new HsmEvent { EventId = EventX, Priority = EventPriority.Interrupt },
                 new HsmEvent { EventId = EventY });
             for (int i = 0; i < 20; i++)
@@ -221,41 +240,14 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // IT-BHU-A4: BrainHsm64 also publishes BehaviorFinishedEvent (covers both instance sizes).
-        // Uses a 2-state blob because BrainHsm64 Tier1 queue capacity is one event.
-        [Fact]
-        public void A4_BrainHsm64_PublishesBehaviorFinishedEvent_LatchCleared()
-        {
-            var world    = TestWorldFactory.Create();
-            var registry = new BehaviorRegistry();
-            const int    docId = 99005;
-            var blob = Build2StateFinalBlob(0xA4000001);
+        // ⛔ IT-BHU-A4 REMOVED by O7c-① (2026-09-22).
+        //   📐 Its stated claim was "covers both instance sizes", and it asserted EXACTLY the three
+        //   things IT-BHU-A1 already asserts on the 128 tier: one BehaviorFinishedEvent, Terminated
+        //   cleared, Phase == Idle. ⇒ with BrainHsm64 gone the second size does not exist, so this
+        //   is a DUPLICATE of A1 rather than lost coverage.
+        //   ⚠ Said out loud because "covers both sizes" is the kind of claim that quietly becomes
+        //   false while the test keeps passing.
 
-            registry.Register(docId, "A4Doc", new BehaviorDefinition { Name = "A4Doc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
-
-            var sys = new HsmTickSystem<BrainHsm64>(registry);
-            var e   = world.CreateEntity();
-            world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain64(blob));
-            world.AddComponent(e, new BrainBlackboard());
-
-            // Inject single EventX (Tier1 holds only one event).
-            InjectEvents<BrainHsm64>(world, e, new HsmEvent { EventId = EventX });
-
-            for (int i = 0; i < 20; i++)
-                sys.Execute(world, 0.016f);
-
-            world.Bus.SwapBuffers();
-
-            Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
-
-            var brainAfter = world.GetComponent<BrainHsm64>(e);
-            ref var hdr = ref Unsafe.As<BrainHsm64, InstanceHeader>(ref brainAfter);
-            Assert.Equal(0, (int)(hdr.Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr.Phase);
-
-            world.Dispose();
-        }
 
         // IT-BHU-B1: Mobility-lost edge writes byte 126 and HSM receives the event.
         // Proves BHU-008 (CognitiveInterruptSystem) + BHU-009 (HsmTickSystem reads byte 126)
@@ -271,13 +263,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             registry.Register(docId, "PatrolDoc", new BehaviorDefinition { Name = "PatrolDoc", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var interruptSys = new CognitiveInterruptSystem();
-            var hsmSys       = new HsmTickSystem<BrainHsm128>(registry);
+            var hsmSys       = new BrainTickSystem(registry);
             var cleanupSys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
+            SeedBrain(world, e, docId, blob);
+            world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
@@ -296,7 +288,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Assert mid-frame: interrupt field was set.
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
@@ -309,13 +301,12 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Assert end-of-frame: field cleared.
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             // Assert: HSM transitioned from Patrol(0) to Stopped(1).
-            var finalBrain = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(1, finalBrain.State.ActiveLeafIds[0]);
+            Assert.Equal(1, ActiveLeaf0(world, e));
 
             world.Dispose();
         }
@@ -333,13 +324,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             registry.Register(docId, "PatrolDoc2", new BehaviorDefinition { Name = "PatrolDoc2", BrainTier = BehaviorConstants.BrainTierHsm, HsmDefinition = blob });
 
             var interruptSys = new CognitiveInterruptSystem();
-            var hsmSys       = new HsmTickSystem<BrainHsm128>(registry);
+            var hsmSys       = new BrainTickSystem(registry);
             var cleanupSys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(blob));
-            world.AddComponent(e, new BrainBlackboard());
+            SeedBrain(world, e, docId, blob);
+            world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
@@ -362,7 +353,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             interruptSys.Execute(world, 0.016f); // no edge: prev==curr==no CanMove
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
@@ -371,13 +362,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             cleanupSys.Execute(world, 0.016f);
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 
             // Assert: HSM remains in Stopped (index 1) -- no spurious second transition.
-            var finalBrain = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(1, finalBrain.State.ActiveLeafIds[0]);
+            Assert.Equal(1, ActiveLeaf0(world, e));
 
             world.Dispose();
         }
@@ -392,16 +382,16 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Create a BTree-tier entity with only BrainBlackboard.
             var e = world.CreateEntity();
-            world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Directly set Interrupt_MobilityLost = 1 (simulating what CognitiveInterruptSystem would do).
             {
-                ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
+                ref var bb = ref world.GetComponentRW<BrainInterrupts>(e);
                 bb.Interrupt_MobilityLost = 1;
             }
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(1, bb.Interrupt_MobilityLost);
             }
 
@@ -409,7 +399,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             cleanupSys.Execute(world, 0.016f);
 
             {
-                ref readonly var bb = ref world.GetComponentRO<BrainBlackboard>(e);
+                ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
             }
 

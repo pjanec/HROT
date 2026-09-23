@@ -74,7 +74,8 @@ public sealed class FIX2_009_InstanceStateInspectionTests
                     BlueprintBlackboard1024.MaxSlots);
 
                 bool ok = BlueprintBlackboardPartitions.TryAttach(
-                    mem, blueprintId, stateSize, /*structureHash*/ 0, out payloadOffset);
+                    mem, blueprintId, stateSize, /*structureHash*/ 0,
+                    OccurrenceKind.Blueprint, out payloadOffset);
                 Assert.True(ok, "TryAttach must succeed for a fresh blackboard");
 
                 // Write the known Health value at the correct field offset.

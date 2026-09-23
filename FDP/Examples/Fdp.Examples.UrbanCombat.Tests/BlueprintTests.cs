@@ -8,6 +8,7 @@ using Fdp.Core;
 using Fbt;
 using Fbt.Runtime;
 using Fbt.Serialization;
+using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -73,15 +74,15 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
         // ── Helper: build the Ambush interpreter ──────────────────────────────────
 
-        private static Interpreter<BrainBlackboard, BTreeContext> BuildAmbushInterpreter()
+        private static Interpreter<byte, BTreeContext> BuildAmbushInterpreter()
         {
-            var registry = new ActionRegistry<BrainBlackboard, BTreeContext>();
+            var registry = new ActionRegistry<byte, BTreeContext>();
             registry.Register("Condition_HasTarget",  InsurgentNodes.Condition_HasTarget);
             registry.Register("Action_AimAndFire",    InsurgentNodes.Action_AimAndFire);
             registry.Register("Action_HoldPosition",  InsurgentNodes.Action_HoldPosition);
 
             var blob = TreeCompiler.CompileFromJson(AmbushJson);
-            return new Interpreter<BrainBlackboard, BTreeContext>(blob, registry);
+            return new Interpreter<byte, BTreeContext>(blob, registry);
         }
 
         // ════════════════════════════════════════════════════════════════════════════
@@ -178,7 +179,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new WeaponChannel());
             _app.World.AddComponent(e, new TargetMemory { Count = 0 }); // no target
 
-            var blackboard = new BrainBlackboard();
+            byte blackboard = 0;   // P4: the node takes `ref byte` — the root params slot base
             var state      = new BehaviorTreeState();
             var ctx        = new BTreeContext { Self = e, World = _app.World };
 
@@ -202,7 +203,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
             _app.World.AddComponent(e, new WeaponChannel());
             _app.World.AddComponent(e, new TargetMemory { Count = 1 }); // target acquired
 
-            var blackboard = new BrainBlackboard();
+            byte blackboard = 0;   // P4: the node takes `ref byte` — the root params slot base
             var state      = new BehaviorTreeState();
             var ctx        = new BTreeContext { Self = e, World = _app.World };
 
@@ -231,7 +232,7 @@ namespace Fdp.Examples.UrbanCombat.Tests
 
         /// <summary>
         /// An APC entity initialised at CruisingStateIndex (1) with no event injected
-        /// must remain in Cruising after one HsmTickSystem pass.
+        /// must remain in Cruising after one BrainTickSystem pass.
         /// </summary>
         [Fact]
         public void ApcHsm_InitialState_IsCruising()
@@ -242,26 +243,29 @@ namespace Fdp.Examples.UrbanCombat.Tests
             const int docId = 9901;
             var registry = BuildHsmRegistry(blob, docId);
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = CreateApcEntity(world, docId);
 
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.RTC;
-            brain.State.ActiveLeafIds[0] = ApcHsmSetup.CruisingStateIndex;
-            // No event — Reserved1 stays 0 (default)
-            world.AddComponent(e, brain);
+            // ⭐ O7c-④b: seed the machine IN CRUISING through the slot. Phase Idle with an empty
+            //   queue is a no-op tick, which is exactly the claim.
+            SeedApcAt(world, e, docId, blob, ApcHsmSetup.CruisingStateIndex);
 
             sys.Execute(world, 0.016f);
 
-            var result = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(ApcHsmSetup.CruisingStateIndex, result.State.ActiveLeafIds[0]);
+            Assert.Equal(ApcHsmSetup.CruisingStateIndex, ActiveLeaf0(world, e));
         }
 
         /// <summary>
-        /// Injecting EventId_MobilityLost (1) via the Reserved1 scratch field while in
-        /// Cruising must cause a transition to DisabledStateIndex (2).
+        /// Injecting EventId_MobilityLost (1) while in Cruising must cause a transition to
+        /// DisabledStateIndex (2).
+        ///
+        /// <para>⭐⭐ <c>O7c</c>-④b: the event now goes through <c>HsmEventQueue.TryEnqueue</c> — the
+        /// PUBLIC size-driven API — instead of poking <c>HsmInstance128.Reserved1</c>, the kernel's
+        /// per-tier <c>CurrentEventId</c> scratch. ⛔ That offset was only ever right for a 128-byte
+        /// instance, and the width now follows the MACHINE. ⚠ It is also the path production uses, so
+        /// the rail got closer to the real thing rather than further from it — at the cost of needing
+        /// the full Idle→Entry→RTC phase cycle rather than one pass.</para>
         /// </summary>
         [Fact]
         public void ApcHsm_TransitionsToDisabled_OnMobilityLostEvent()
@@ -272,32 +276,59 @@ namespace Fdp.Examples.UrbanCombat.Tests
             const int docId = 9902;
             var registry = BuildHsmRegistry(blob, docId);
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = CreateApcEntity(world, docId);
 
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.RTC;
-            brain.State.ActiveLeafIds[0] = ApcHsmSetup.CruisingStateIndex;
-            brain.State.Reserved1        = BehaviorConstants.EventId_MobilityLost; // inject
-            world.AddComponent(e, brain);
+            SeedApcAt(world, e, docId, blob, ApcHsmSetup.CruisingStateIndex);
 
-            sys.Execute(world, 0.016f);
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size));
+            Assert.True(HsmEventQueue.TryEnqueue(
+                inst, size, new HsmEvent { EventId = BehaviorConstants.EventId_MobilityLost }));
 
-            var result = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(ApcHsmSetup.DisabledStateIndex, result.State.ActiveLeafIds[0]);
+            for (int t = 0; t < 10; t++)
+                sys.Execute(world, 0.016f);
+
+            Assert.Equal(ApcHsmSetup.DisabledStateIndex, ActiveLeaf0(world, e));
         }
 
         // ── T6 helpers ────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ O7c-④b — provision the slot-resident instance and park it in <paramref name="leafId"/>
+        /// with an empty queue, which replaces the hand-built <c>BrainHsm128</c> these rails used.
+        /// </summary>
+        private static unsafe void SeedApcAt(
+            EntityRepository world, Entity e, int docId, HsmDefinitionBlob blob, ushort leafId)
+        {
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, docId, blob));
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
+
+            ((InstanceHeader*)ptr)->Phase = InstancePhase.Idle;
+
+            ushort* leaves = HsmKernel.GetActiveLeafIds(ptr, size, out int count);
+            Assert.True(leaves != null && count > 0);
+            leaves[0] = leafId;
+        }
+
+        /// <summary>⭐ The first active leaf, read size-driven through the kernel's own accessor.</summary>
+        private static unsafe ushort ActiveLeaf0(EntityRepository world, Entity e)
+        {
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
+            ushort* leaves = HsmKernel.GetActiveLeafIds(ptr, size, out int count);
+            Assert.True(leaves != null && count > 0);
+            return leaves[0];
+        }
 
         /// <summary>Minimal ECS world for HSM tests (only the three components needed).</summary>
         private static EntityRepository BuildHsmWorld()
         {
             var world = new EntityRepository();
             world.RegisterComponent<BehaviorState>();
-            world.RegisterComponent<BrainHsm128>();
-            world.RegisterComponent<BrainBlackboard>();
+            // ⭐⭐ O7c-④b: the instance lives in an OCCURRENCE SLOT; the tier ladder replaces the
+            //   brain component. ⛔ Omitting it does not throw — the walk enumerates nothing and the
+            //   brain silently never ticks, which is why it is registered explicitly.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             return world;
         }
 
@@ -321,7 +352,6 @@ namespace Fdp.Examples.UrbanCombat.Tests
                 ActiveBehaviorHash = docId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
-            world.AddComponent(e, new BrainBlackboard());
             return e;
         }
     }

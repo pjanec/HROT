@@ -407,9 +407,10 @@ public sealed class SubTickRecorderIntegrationTests : IDisposable
     private static EntityRepository BuildScratchRepo(BlueprintTestFixture fixture)
     {
         var scratch = new EntityRepository();
-        MockTestComponents.Register(scratch);
-        scratch.RegisterComponent<BlueprintBlackboard1024>();
-        scratch.RegisterComponent<BlueprintBlackboard4096>();
+        // ⭐⭐ ONE registration set, shared with the fixture's own world. ⛔ This used to be a partial
+        //   hand-mirror — MockTestComponents plus the tier ladder, and NOT the channel components —
+        //   so a recorded entity carrying anything else replayed into "Component type ID N not found".
+        BlueprintTestFixture.RegisterWorldComponents(scratch);
         return scratch;
     }
 
@@ -430,12 +431,11 @@ public sealed class SubTickRecorderIntegrationTests : IDisposable
             return 0;
 
         // Try BB1024 tier (test assets always use BB1024 in the fixture).
-        if (!repo.HasComponent<BlueprintBlackboard1024>(entity))
+        if (!OccurrenceStoreAccess.HasStore(repo, entity))
             return 0;
 
-        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
-        byte* memory = (byte*)Unsafe.AsPointer(ref memRef);
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        byte* memory = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
 
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out int payloadOffset))
             return 0;

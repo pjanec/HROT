@@ -102,6 +102,7 @@ public sealed class GraphBuilder
     private readonly List<Node> _nodes = new();
     private readonly List<Link> _links = new();
     private readonly List<ParameterDecl> _inputs = new();
+    private readonly List<ParameterDecl> _outputs = new();
 
     // Tracks the last added node for automatic exec-wire chaining.
     private Guid _lastNodeId = Guid.Empty;
@@ -190,12 +191,100 @@ public sealed class GraphBuilder
         return this;
     }
 
-    /// <summary>Adds a ReturnNode (terminal node, exec-in only).</summary>
+    /// <summary>
+    /// ⭐ <c>R4</c> — declares a graph OUTPUT. Feeds <c>Graph.Outputs</c>, which
+    /// <c>LibraryEmitter.CSharpReturnType</c> reads to pick the emitted return type, and which
+    /// <c>BP1677</c> requires a resolver graph to have exactly one of.
+    /// </summary>
+    public GraphBuilder WithOutput(string name, string typeId)
+    {
+        _outputs.Add(new ParameterDecl { Name = name, Type = new BlueprintTypeRef { TypeId = typeId } });
+        return this;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>R4</c> — a PURE CLR <see cref="FunctionCallNode"/> whose return value is wired straight
+    /// into the graph's <c>Return</c> value pin.
+    ///
+    /// <para>
+    /// ⚠ <b>The wiring matters.</b> An unwired data node is not reachable from the return, so Stage 5
+    /// never schedules it and the call simply does not appear in the emitted source — a rail asserting
+    /// on that source would then pass or fail for the wrong reason.
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <paramref name="trailingContext"/> is the BAKED decision <c>P7.1</c> honours without
+    /// reflection — which is what a source generator needs, since it cannot load game assemblies.
+    /// </para>
+    /// </summary>
+    public GraphBuilder PureCallReturning(
+        string targetTypeId, string methodName, string returnTypeId,
+        FunctionCallContextKind trailingContext,
+        params (string Name, string TypeId)[] inputs)
+    {
+        var nodeId = MakeNodeId("FunctionCall", _nodes.Count);
+        var node = new FunctionCallNode
+        {
+            Id = nodeId, TargetTypeId = targetTypeId, MethodName = methodName,
+            IsPure = true, TrailingContext = trailingContext,
+        };
+        foreach (var (n, t) in inputs)
+        {
+            node.Pins.Add(new Pin
+            {
+                Id = MakePinId(nodeId, n), Name = n, Direction = "In",
+                TypeRef = new BlueprintTypeRef { TypeId = t },
+            });
+        }
+        var retPinId = MakePinId(nodeId, "Return");
+        node.Pins.Add(new Pin
+        {
+            Id = retPinId, Name = "Return", Direction = "Out",
+            TypeRef = new BlueprintTypeRef { TypeId = returnTypeId },
+        });
+        _nodes.Add(node);
+        _pendingReturnValue = (nodeId, retPinId);
+        return this;
+    }
+
+    private (Guid NodeId, Guid PinId)? _pendingReturnValue;
+
+    /// <summary>
+    /// Adds a ReturnNode (terminal node, exec-in only).
+    ///
+    /// <para>
+    /// ⭐ <c>R4</c>: when the graph declares an OUTPUT, the Return also carries a VALUE pin — and when
+    /// a <see cref="PureCallReturning"/> is pending, that pin is wired from the call. ⛔ Without the
+    /// wire the call is unreachable and Stage 5 drops it.
+    /// </para>
+    /// </summary>
     public GraphBuilder Return(NodeStatus status = NodeStatus.Success)
     {
         var nodeId = MakeNodeId("Return", _nodes.Count);
         var node = new ReturnNode { Id = nodeId, Status = status };
+
+        Guid valuePinId = Guid.Empty;
+        if (_outputs.Count == 1)
+        {
+            valuePinId = MakePinId(nodeId, _outputs[0].Name);
+            node.Pins.Add(new Pin
+            {
+                Id = valuePinId, Name = _outputs[0].Name, Direction = "In",
+                TypeRef = new BlueprintTypeRef { TypeId = _outputs[0].Type.TypeId },
+            });
+        }
+
         RegisterNode(node, hasExecIn: true, hasExecOut: false);
+
+        if (valuePinId != Guid.Empty && _pendingReturnValue is { } src)
+        {
+            _links.Add(new Link
+            {
+                FromNodeId = src.NodeId, FromPinId = src.PinId,
+                ToNodeId = nodeId, ToPinId = valuePinId,
+            });
+            _pendingReturnValue = null;
+        }
         return this;
     }
 
@@ -457,7 +546,7 @@ public sealed class GraphBuilder
             Nodes = new List<Node>(_nodes),
             Links = new List<Link>(_links),
             Inputs = new List<ParameterDecl>(_inputs),
-            Outputs = new(),
+            Outputs = new List<ParameterDecl>(_outputs),
         };
     }
 }

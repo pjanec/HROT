@@ -29,6 +29,7 @@ namespace Hrot.SimHost.Tests
         {
             var repo = new EntityRepository();
             repo.RegisterComponent<UnitRoster>();
+            repo.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
             repo.RegisterComponent<UnitSubordinate>();
             repo.RegisterComponent<FormationFollower>();
             repo.RegisterEvent<CmdAssignSubordinate>();

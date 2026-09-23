@@ -5,6 +5,7 @@ using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Blueprints.Components;
 using Xunit;
+using Fdp.Toolkit.Blueprints.Partitioning;
 
 namespace Fdp.Toolkit.Blueprints.Partitioning.Tests;
 
@@ -42,7 +43,11 @@ public sealed unsafe class BlueprintSharedStateTests
     private static EntityRepository CreateWorld()
     {
         var world = new EntityRepository();
-        world.RegisterComponent<BlueprintBlackboard1024>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        BlueprintTierTable.RegisterUpTo(world, maxTotalSize: 1024);
         return world;
     }
 

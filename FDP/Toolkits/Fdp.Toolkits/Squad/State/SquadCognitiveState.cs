@@ -180,8 +180,13 @@ namespace Fdp.Toolkit.Squad
     }
 
     /// <summary>
-    /// Full squad working state projected onto a commander's <see cref="Blackboard1024"/>.
-    /// A single contiguous 1024-byte claim; use <see cref="Project"/> to obtain a ref.
+    /// Full squad working state for a commander — <b>its own ECS component</b>.
+    /// <para>⛔ It used to be "projected onto a commander's <c>Blackboard1024</c>", a single
+    /// contiguous 1024-byte claim reached through a <c>Project</c> helper. <c>O1</c>
+    /// (<c>2026-09-20</c>) ended that, because it made <i>"has a <c>Blackboard1024</c>"</i> an
+    /// accidental proxy for <i>"is a commander with squad state"</i>; <c>P4</c>-① then retired the
+    /// component outright. ⇒ this is now a plain component with its own <c>[ComponentId]</c>,
+    /// provisioned by <c>SquadStateProvisioning</c>.</para>
     /// </summary>
     /// <remarks>
     /// Sub-region byte offsets (verified by <c>SquadCognitiveStateLayoutTests</c>):
@@ -194,6 +199,7 @@ namespace Fdp.Toolkit.Squad
     ///   <item>Contacts: 432 (592 B)</item>
     /// </list>
     /// </remarks>
+    [ComponentId(GlobalComponentIds.SquadCognitiveState)]
     [StructLayout(LayoutKind.Sequential)]
     [DataPolicy(DataPolicy.NoScenario)]
     public struct SquadCognitiveState
@@ -238,11 +244,15 @@ namespace Fdp.Toolkit.Squad
         /// <summary>Shared situational-awareness contact pool (merged from all member perceptions).</summary>
         public SquadContactPool Contacts;
 
-        /// <summary>
-        /// Projects the 1024-byte blackboard memory as a ref to <see cref="SquadCognitiveState"/>.
-        /// </summary>
-        public static ref SquadCognitiveState Project(ref Blackboard1024 bb)
-            => ref Blackboard1024.Project<SquadCognitiveState>(ref bb);
+        // ⛔⛔ `Project(ref Blackboard1024)` was DELETED by `O1` (2026-09-20).
+        //   📐 It aliased the commander's shared 1024-byte blackboard as this struct, which made
+        //      "has a Blackboard1024" an accidental proxy for "is a commander with squad state" — and
+        //      BehaviorIngressSystem gives that blackboard to ANY entity with a behaviour. The
+        //      SquadStateMarker meant to say otherwise had ZERO production writers.
+        //   ⭐ This is now its own ECS component (see the [ComponentId] above), provisioned by
+        //      UnitHierarchySystem beside the UnitRoster that makes an entity a commander. Read it with
+        //      GetComponentRO/RW<SquadCognitiveState>(commander) — ⛔ never by aliasing a blackboard.
+        //   ⚠ `Blackboard1024.Project<T>` itself is UNTOUCHED: BTree and HSM still use it (`R-65`).
     }
 
     // ── SquadCognitiveStateOffsets — compile-time byte-offset constants ──────────
@@ -265,8 +275,9 @@ namespace Fdp.Toolkit.Squad
     // ── SquadStateMarker — ECS tag component ────────────────────────────────────
 
     /// <summary>
-    /// Zero-data ECS tag marking an entity that carries a <see cref="SquadCognitiveState"/>
-    /// projected onto its <see cref="Blackboard1024"/>.
+    /// Zero-data ECS tag marking an entity that carries a <see cref="SquadCognitiveState"/>.
+    /// ⛔ The words "projected onto its <c>Blackboard1024</c>" were here and are no longer true —
+    /// <c>O1</c> made the state its own component and <c>P4</c>-① retired that one.
     /// Required for component-ID determinism across assemblies (Phase R0).
     /// </summary>
     [ComponentId(GlobalComponentIds.SquadStateMarker)]

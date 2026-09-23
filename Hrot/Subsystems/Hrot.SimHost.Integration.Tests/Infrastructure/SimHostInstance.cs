@@ -387,7 +387,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var brainPack  = new CgfLogicPack(_behaviorRegistry, _entityMap,
                 new ScenarioEntityCreationRequestSource(),
-                mapperRegistry);
+                mapperRegistry,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry());
 
             var inputList   = new List<IEcsModuleSystem>();
             var simList     = new List<IEcsModuleSystem>();
@@ -889,13 +890,11 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<InteractionChannel>();
             world.RegisterComponent<ActorCapabilityState>();
-            world.RegisterComponent<BrainBTreeState>();
-            world.RegisterComponent<BrainBlackboard>();
             world.RegisterComponent<Hrot.CGF.Components.MissionAdapterState>();
 
-            // HSM brain tiers (for APC-style HSM behaviors)
-            world.RegisterComponent<BrainHsm64>();
-            world.RegisterComponent<BrainHsm128>();
+            // ⛔ O7c-④d (2026-09-23): the HSM brain tier is no longer a component. The instance is
+            //   an occurrence slot, so what an HSM-brained entity needs registered is the tier
+            //   ladder — and BlueprintComponentRegistry already does that for this world.
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();

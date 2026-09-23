@@ -61,11 +61,11 @@ public sealed class T35_SharedWorkingState_ProofTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -97,8 +97,7 @@ public sealed class T35_SharedWorkingState_ProofTests : IDisposable
         var world  = CreateWorld();
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         // Assign -> BehaviorIngressSystem parses params (RunsNeeded=100 x3) and provisions BOTH
         // partition slots (the shared one dedup'd to a single manifest entry, plus the control's own).
@@ -112,15 +111,13 @@ public sealed class T35_SharedWorkingState_ProofTests : IDisposable
         world.Bus.SwapBuffers();
         ingress.Execute(world, 0.016f);
 
-        (world.HasComponent<BlueprintBlackboard1024>(entity)
-         || world.HasComponent<BlueprintBlackboard4096>(entity)
-         || world.HasComponent<BlueprintBlackboard16384>(entity))
+        (OccurrenceStoreAccess.HasStore(world, entity))
             .Should().BeTrue("BehaviorIngressSystem must provision a partition tier for the stateful slots");
 
         var ctx = new BTreeContext { Self = entity, World = world };
         NodeStatus Tick()
         {
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(entity);
+            ref byte bb = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, entity);   // P4-②: the ROOT PARAMS SLOT base, exactly as BTreeTickSystem hands it to the interpreter
             var state  = new BehaviorTreeState();
             return interpreter.Tick(ref bb, ref state, ref ctx);
         }
@@ -144,32 +141,13 @@ public sealed class T35_SharedWorkingState_ProofTests : IDisposable
 
     private static unsafe int ReadSlotTicks(EntityRepository world, Entity entity, int slotKey)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem != null)
         {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory)
-            {
-                BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
-                return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
-            }
+            BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off).Should().BeTrue();
+            return Unsafe.AsRef<DemoAiPrimitiveNodes.WorkingState>(mem + off).Ticks;
         }
         throw new InvalidOperationException("entity has no BlueprintBlackboard* tier — slot cannot be read");
     }

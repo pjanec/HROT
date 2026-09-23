@@ -387,11 +387,11 @@ public sealed class NetworkDemoPatrolAndEngageTests
     /// Builds the PatrolAndEngage BTree interpreter used in NDEMO-IT-3.
     /// The tree transitions from wander to aim-and-fire when TargetMemory is populated.
     /// </summary>
-    private static unsafe Interpreter<BrainBlackboard, BTreeContext> BuildPatrolAndEngageInterpreter()
+    private static unsafe Interpreter<byte, BTreeContext> BuildPatrolAndEngageInterpreter()
     {
         // Condition: return Success when the entity's TargetMemory has at least one entry.
-        NodeLogicDelegate<BrainBlackboard, BTreeContext> condition_HasTarget =
-            (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
+        NodeLogicDelegate<byte, BTreeContext> condition_HasTarget =
+            (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<TargetMemory>(ctx.Self)) return NodeStatus.Failure;
                 var tm = ctx.World.GetComponent<TargetMemory>(ctx.Self);
@@ -399,8 +399,8 @@ public sealed class NetworkDemoPatrolAndEngageTests
             };
 
         // Action: write AimAndFire to WeaponChannel when a target is present.
-        NodeLogicDelegate<BrainBlackboard, BTreeContext> action_AimAndFire =
-            (ref BrainBlackboard bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
+        NodeLogicDelegate<byte, BTreeContext> action_AimAndFire =
+            (ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p) =>
             {
                 if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))  return NodeStatus.Failure;
                 if (!ctx.World.HasComponent<TargetMemory>(ctx.Self))   return NodeStatus.Failure;
@@ -424,7 +424,7 @@ public sealed class NetworkDemoPatrolAndEngageTests
                 return NodeStatus.Running;
             };
 
-        var builder = new BTreeBuilder<BrainBlackboard, BTreeContext>();
+        var builder = new BTreeBuilder<byte, BTreeContext>();
         var blob = builder
             .Selector(sel => sel
                 .Sequence(seq => seq
@@ -432,6 +432,6 @@ public sealed class NetworkDemoPatrolAndEngageTests
                     .Action(action_AimAndFire))
                 .Action(CgfNodes.Action_Wander))
             .Compile("PatrolAndEngage");
-        return new Interpreter<BrainBlackboard, BTreeContext>(blob, builder.GetRegistry());
+        return new Interpreter<byte, BTreeContext>(blob, builder.GetRegistry());
     }
 }

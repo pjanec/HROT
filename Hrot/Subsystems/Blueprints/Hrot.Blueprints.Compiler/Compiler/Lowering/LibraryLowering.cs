@@ -38,16 +38,26 @@ internal static class LibraryLowering
         // skips them and IrGraphKind has no Macro member, so "declares only macros" and "declares
         // nothing" look identical here. Without DeclaredMacroCount this rule rejected the one asset
         // shape the macro feature was built to allow.
+        // ⭐⭐ Q43-A2′ — a CONSTRUCTION graph exposes something too. It is the blueprint-authored
+        // parameter resolver: `LibraryEmitter` emits a static method for it and the registrar puts it
+        // in `BlueprintDefinition.Resolvers`, so an asset whose only graph is a resolver is a complete,
+        // callable asset — not an empty one.
+        //
+        // ⚠ Measured 2026-09-21 BEFORE the change: a Library carrying only a Construction graph
+        // compiled to BP5001 and emitted NOTHING, so this rule — not the type system, not the emitter
+        // — was the single blocker on Q43-A2′. ⭐ The widening is purely additive: it can only turn a
+        // hard error into a successful compile, so no asset that compiles today moves.
         bool exposesFunctions = asset.Graphs.Any(g => g.Kind == IrGraphKind.Function);
+        bool exposesResolvers = asset.Graphs.Any(g => g.Kind == IrGraphKind.Construction);
         bool exposesMacros    = asset.DeclaredMacroCount > 0;
 
-        if (!exposesFunctions && !exposesMacros)
+        if (!exposesFunctions && !exposesResolvers && !exposesMacros)
             sink.Add(Diagnostic.Error(
                 DiagnosticCodes.BP5001_LibraryHasNoFunctions,
-                "This Function Library declares no Function graphs and no Macro graphs, so it exposes " +
-                "nothing to call. Add a Function graph (My Blueprint panel → Functions → +) or a Macro " +
-                "(Macros → +), or change the asset's dispatch to Instance if it is meant to run on an " +
-                "entity.",
+                "This Function Library declares no Function graphs, no Construction graphs and no Macro " +
+                "graphs, so it exposes nothing to call. Add a Function graph (My Blueprint panel → " +
+                "Functions → +), a Construction graph (a parameter resolver), or a Macro (Macros → +), " +
+                "or change the asset's dispatch to Instance if it is meant to run on an entity.",
                 asset.AssetId));
 
         return asset;

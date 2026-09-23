@@ -96,6 +96,35 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public static string CompoundKeyName(string fullyQualifiedName, int byteOffset)
             => fullyQualifiedName + "@" + byteOffset;
 
+        /// <summary>
+        /// ⭐⭐ <b><c>P2</c> — the 64-bit layout guard baked into a curated action's occurrence resolve.</b>
+        ///
+        /// <para>⛔ A curated <c>[SharedAiAction]</c> has no compiled <c>StructureHash</c>, but
+        /// <c>OccurrenceWorkingState.ResolveOrAttach</c> needs one: a mismatch detaches the stale slot
+        /// instead of reinterpreting its bytes as the new type. ⭐ This folds the action's IDENTITY,
+        /// and the emitter XORs the DTO's <c>sizeof</c> at runtime — so swapping the DTO type moves it,
+        /// and adding a field to the same type moves it too.</para>
+        ///
+        /// <para>⚠ 64-bit FNV-1a, spelled here rather than reusing <c>Compute</c>'s 16-bit fold:
+        /// ⛔ a <c>ushort</c> guard would collide far too easily for a value whose job is to say
+        /// "these bytes are not yours".</para>
+        /// </summary>
+        public static ulong Fnv64(string s)
+        {
+            unchecked
+            {
+                const ulong offsetBasis = 14695981039346656037UL;
+                const ulong prime       = 1099511628211UL;
+                ulong hash = offsetBasis;
+                foreach (byte b in System.Text.Encoding.UTF8.GetBytes(s ?? string.Empty))
+                {
+                    hash ^= b;
+                    hash *= prime;
+                }
+                return hash;
+            }
+        }
+
         /// <summary>The key for the generated exit-cleanup peer of a channel-writing action.</summary>
         public static ushort ForExitCleanup(string registeredName) => Compute(ExitCleanupName(registeredName));
 

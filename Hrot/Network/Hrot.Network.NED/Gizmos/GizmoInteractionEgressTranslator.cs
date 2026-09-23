@@ -49,8 +49,12 @@ namespace Hrot.Network.NED.Gizmos
             if (_writer == null) return;
 
             // Drain all interaction event types from the isolated bus.
+            // ⭐⭐⭐ UXI-11 S-4b — the BUTTON rides in ActionId, the slot RawInput already uses for one
+            //   (ingress :162). ⚠ MapMouseButton.Left is 0 and ActionId defaults to 0, so this is
+            //   wire-compatible with an un-migrated sender. 📄 UX_Feature_Selection.md §2.7.14.
             foreach (ref readonly var evt in _interactionBus.Read<GizmoInteractionStartedEvent>())
-                WriteRecord(GizmoInteractionEventKind.Started, evt.Token, evt.WorldPos);
+                WriteRecord(GizmoInteractionEventKind.Started, evt.Token, evt.WorldPos,
+                            actionId: (int)evt.Button);
 
             foreach (ref readonly var evt in _interactionBus.Read<GizmoDragUpdateEvent>())
                 WriteRecord(GizmoInteractionEventKind.DragUpdate, evt.Token, evt.WorldPos, evt.Space);
@@ -76,7 +80,8 @@ namespace Hrot.Network.NED.Gizmos
             GizmoInteractionEventKind kind,
             PickToken token,
             Vector3 worldPos,
-            CoordinateSpace space = default)
+            CoordinateSpace space = default,
+            int actionId = 0)
         {
             _writer!.Write(new GizmoInteractionBatch
             {
@@ -99,6 +104,9 @@ namespace Hrot.Network.NED.Gizmos
                 WorldY               = worldPos.Y,
                 WorldZ               = worldPos.Z,
                 Space                = (byte)space,
+                // ⭐ UXI-11 S-4b — the BUTTON for Started; 0 (= Left) for every other kind, which is
+                //   what they all carried before the field had a second meaning.
+                ActionId             = actionId,
             });
             SentSampleCount++;
         }

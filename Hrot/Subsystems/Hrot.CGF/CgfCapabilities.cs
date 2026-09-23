@@ -83,6 +83,17 @@ internal static class CgfCapabilities
         {
             yield return new BehaviorDiagnosticsModule();
             yield return _logicPack;
+
+            // ⭐⭐ A4 / O0 — the blueprint MAINTENANCE system (tier upgrade) reaches the kernel here.
+            //   ⚠ It is [UpdateInPhase(BeforeSync)], so it cannot ride the pack's SimulationSystems the
+            //     way the tick does; a lone system reaches a phase through a module.
+            //   ⛔ Deliberately NOT a RegisterGlobalSystem call at each composition root: that is a
+            //     per-host chance to forget, which is exactly how CE-161 arose. Providing it from the
+            //     ONE capability that provides the pack means CGF and the Editor cannot diverge.
+            //   🔴 Without it, a host that ticks Instances cannot PROMOTE a tier — and since A3 the
+            //     promotion path is also what carries the OccurrenceKind nibble array (H1).
+            yield return new Fdp.ModuleHost.Scheduling.SingleSystemModule(
+                "BlueprintMaintenance", _logicPack.MaintenanceSystem);
         }
 
         /// <inheritdoc/>

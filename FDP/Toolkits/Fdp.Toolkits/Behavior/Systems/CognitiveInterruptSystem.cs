@@ -7,7 +7,7 @@ using Fdp.Toolkit.Behavior.Events;
 namespace Fdp.Toolkit.Behavior.Systems
 {
     /// <summary>
-    /// Edge-triggered system that writes interrupt bytes into <see cref="BrainBlackboard"/>
+    /// Edge-triggered system that writes interrupt bytes into <see cref="BrainInterrupts"/>
     /// when capability transitions are detected.  Uses a paradigm-agnostic blackboard field
     /// rather than injecting HSM events directly, so that BTree behaviors can
     /// also react to the same signal without coupling to the HSM event queue.
@@ -66,12 +66,12 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (view is not EntityRepository repo) return;
 
             // Pass A: initialise PreviousCapabilities for brand-new entities.
-            // ⭐⭐ P3 step 3b — gated on BrainBlackboard, NOT BehaviorState: this query never required
+            // ⭐⭐ P3 step 3b — gated on BrainInterrupts (O2: was BrainBlackboard), NOT BehaviorState: this query never required
             //   BehaviorState, and gating on a component it did not demand would silently NARROW the
             //   matched set even with the gate OFF. Gate only on what is already required.
             var qNew = repo.Query()
                 .With<ActorCapabilityState>()
-                .WithOwnedWhen<BrainBlackboard>(_gateOnAuthority)
+                .WithOwnedWhen<BrainInterrupts>(_gateOnAuthority)
                 .Without<PreviousCapabilities>()
                 .Build();
 
@@ -89,7 +89,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             var q = repo.Query()
                 .With<ActorCapabilityState>()
                 .With<PreviousCapabilities>()
-                .WithOwnedWhen<BrainBlackboard>(_gateOnAuthority)
+                .WithOwnedWhen<BrainInterrupts>(_gateOnAuthority)
                 .Build();
 
             foreach (var entity in q)
@@ -102,7 +102,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 if (wasAbleToMove && !canMoveNow)
                 {
-                    ref var bb = ref repo.GetComponentRW<BrainBlackboard>(entity);
+                    ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
                     bb.Interrupt_MobilityLost = 1;
                     repo.Bus.Publish(new CognitiveInterruptEvent
                     {

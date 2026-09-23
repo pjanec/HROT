@@ -64,7 +64,7 @@ namespace Probe
     {
         [BTreeAction]
         public static NodeStatus PlainAction(
-            ref BrainBlackboard bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi)
+            ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int pi)
             => NodeStatus.Success;
 
         [SharedAiAction(typeof(ProbeSlot), nameof(ProbeSlot.Params))]
@@ -121,7 +121,10 @@ namespace Probe
         // ---- helpers -----------------------------------------------------------
 
         private static readonly Regex ProjectionRegex = new(
-            @"ref Unsafe\.AddByteOffset\(ref \w+\.BehaviorParameters(\[0\])?, \((nint|IntPtr)\)\d+\)",
+            // 🔴 P3-C: the anchor moved from BrainBlackboard to the ROOT PARAMS SLOT. ⭐ The claim this
+        //   rail makes — ONE spelling across the two emitters — is unchanged, so the pattern
+        //   follows the expression rather than the rail being deleted.
+        @"ref Unsafe\.AddByteOffset\(ref global::Fdp\.Toolkit\.Behavior\.RootParamsAccess\.RootRef\([^)]*\), \((nint|IntPtr)\)\d+\)",
             RegexOptions.Compiled);
 
         private static IReadOnlyList<string> ParamsProjections(string source) =>
@@ -180,7 +183,9 @@ namespace Probe
 
             foreach (var t in new[]
                      {
-                         typeof(Fdp.Toolkit.Behavior.Components.BrainBlackboard),
+                         // ⚠ Only the ASSEMBLY matters here (Roslyn metadata references), not the
+                         //   type. Was BrainBlackboard, retired by P4; BehaviorState is the same assembly.
+                         typeof(Fdp.Toolkit.Behavior.Components.BehaviorState),
                          typeof(Fdp.Toolkit.Behavior.BTreeContext),
                          typeof(Fdp.Core.Entity),
                          typeof(Fbt.NodeStatus),

@@ -15,12 +15,18 @@ namespace Hrot.Editor.AiShared.Shell;
 /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §0/§2.1: <c>SelectionState</c> <i>"is already correct for
 /// multi-select"</i>, is written by <c>SelectionInteractionSystem</c> *(click · rubber-band)* and read
 /// by the ring gizmos; ⛔ <c>ISelectionState</c>/<c>DefaultSelectionState</c>'s <c>HashSet</c> and
-/// <c>SimHostInspectorAdapter</c> are marked 🔴 <b>"the defect — a second, parallel in-memory
+/// <c>SimHostInspectorAdapter</c> were marked 🔴 <b>"the defect — a second, parallel in-memory
 /// store"</b>. ⇒ ⭐ <b>the World is the truth and everything else is a view.</b></para>
+///
+/// <para>☑ <b>DISCHARGED <c>2026-09-20</c> (<c>UXI-11</c> <c>S-1</c>…<c>S-3b</c>).</b> Both named
+/// stores are gone: <c>EcsSelectionState</c> is the read-through view every host holds, and
+/// <c>SimHostInspectorAdapter</c> and <c>SimHostSelectionManager</c> are <b>deleted</b>.
+/// 🔒 User ruling, <c>2026-09-20</c>: <i>"simhost is not special in how it should handle the UI; lets
+/// make the nodes use same (best shared) stuff in the same way."</i></para>
 ///
 /// <para>⚠⚠ <b>SCOPE, stated so nobody reads more into this than it does.</b> ⛔ This does NOT perform
 /// <c>UX_Feature_Selection.md</c>'s <c>ISelectionState</c> → <c>EcsSelectionState</c> migration — that
-/// is <c>UXI-11</c>'s own programme, and §2.1 is explicit that the interface <b>keeps its shape</b>.
+/// is <c>UXI-11</c>'s own programme *(⭐ done <c>2026-09-20</c>; §2.7.6–§2.7.9 carry the as-built)*.
 /// ⛔ Nor does it delete <c>EntityInspectorPanel</c>'s <c>HashSet</c>: 📄 §6 <c>L6.3</c> deletes that
 /// one, by name, when the Components view wraps it. ⭐ What this does is make <b>the Details
 /// context</b> read the World, so no view is ever fed a copy.</para>

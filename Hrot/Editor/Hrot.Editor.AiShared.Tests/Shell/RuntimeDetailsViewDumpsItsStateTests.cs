@@ -21,7 +21,7 @@ public sealed class RuntimeDetailsViewDumpsItsStateTests : IDisposable
     private sealed class StubPane : IRuntimeInspectorPane
     {
         public AssetKind TargetKind => AssetKind.BTree;
-        public void Draw() { }
+        public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context) { }
     }
 
     public RuntimeDetailsViewDumpsItsStateTests()

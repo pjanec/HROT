@@ -29,7 +29,7 @@ public static class T34_ComposedAiPrimitiveConditionRegistrar
     /// Registers the JSON-owned BTree definition and action/condition thunks.
     /// Called by <see cref="AiHotReloadCoordinator"/> during hot reload.
     /// </summary>
-    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<BrainBlackboard, BTreeContext> actionRegistry)
+    public static void Register(BehaviorRegistry beh, BlueprintRegistryStaging staging, ActionRegistry<byte, BTreeContext> actionRegistry)
     {
         // 1. Build the blob from the topology-core thunk.
         var blob = T34_ComposedAiPrimitiveCondition.Build();
@@ -45,65 +45,30 @@ public static class T34_ComposedAiPrimitiveConditionRegistrar
                 ") != predicted 4 bytes baked at offset 0. " +
                 "Rebuild the behavior blackboard layout so predicted and reflected sizes agree.");
         actionRegistry.RegisterCondition("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@690319695",
-            static (ref BrainBlackboard bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
             {
                 unsafe
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>(
-                        ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0));
-                    // Dispatch across tiers (16384 → 4096 → 1024) to locate the entity's active partition.
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
+                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 690319695;
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
                     {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 690319695 missing from BlueprintBlackboard16384");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
-                        }
+                        global::System.Diagnostics.Debug.Assert(false,
+                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
+                                ? "E2: stateful condition slot 690319695 missing from the entity's occurrence store"
+                                : "E2: entity has no BlueprintBlackboard* tier component for stateful condition slot 690319695");
+                        return Fbt.NodeStatus.Failure;
                     }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 690319695 missing from BlueprintBlackboard4096");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
-                        }
-                    }
-                    if (ctx.World.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self))
-                    {
-                        ref var tier = ref ctx.World.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(ctx.Self);
-                        fixed (byte* mem = tier.Memory)
-                        {
-                            if (!global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.TryGetSlotOffset(mem, __slotKey, out int wsOff))
-                            {
-                                global::System.Diagnostics.Debug.Assert(false, "E2: stateful condition slot 690319695 missing from BlueprintBlackboard1024");
-                                return Fbt.NodeStatus.Failure;
-                            }
-                            ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(mem + wsOff);
-                            return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
-                        }
-                    }
-                    // No tier component found — fail loud.
-                    global::System.Diagnostics.Debug.Assert(false, "E2: entity has no BlueprintBlackboard* tier component for stateful condition slot 690319695");
-                    return Fbt.NodeStatus.Failure;
+                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(__wsPtr);
+                    return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;
                 }
             });
 
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
-        var interpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, actionRegistry);
+        var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.

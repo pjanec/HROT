@@ -1,4 +1,5 @@
 using CarKinem.Formation;
+using Fdp.Toolkit.Squad;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.ModuleHost.Abstractions;
@@ -151,6 +152,12 @@ namespace Hrot.Common.Systems
                     repo.SetComponent(cmd, roster);
                 else
                     repo.AddComponent(cmd, roster);
+
+                // ⭐⭐⭐ O1 — a commander has squad state. ⛔ Hook the FACT (the roster written just
+                //   above), not this path: GenesisMaterializationSystem builds a roster independently
+                //   for scenario-loaded hierarchies, and provisioning only here left the commander with
+                //   NO squad state in a live --mode all run. See SquadStateProvisioning's header.
+                SquadStateProvisioning.EnsureForCommander(repo, cmd);
 
                 // c. FormationFollower when HasFormationSlot is set
                 if (evt.HasFormationSlot == 1)

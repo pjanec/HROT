@@ -67,11 +67,11 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     {
         var world = new EntityRepository();
         world.RegisterComponent<BehaviorState>();
-        world.RegisterComponent<BrainBlackboard>();
-        world.RegisterComponent<BrainBTreeState>();
-        world.RegisterComponent<BlueprintBlackboard1024>();
-        world.RegisterComponent<BlueprintBlackboard4096>();
-        world.RegisterComponent<BlueprintBlackboard16384>();
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+        //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+        //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+        //   O3b added one. Production never had the bug: it registers from the table.
+        BlueprintTierTable.RegisterAll(world);
         return world;
     }
 
@@ -259,12 +259,12 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         bridge.Should().NotBeNull($"ScanForRegistrars must discover '{registrarName}'");
 
         var bpStaging = _blueprintRegistry.BeginStaging();
-        var actionReg = new ActionRegistry<BrainBlackboard, BTreeContext>();
+        var actionReg = new ActionRegistry<byte, BTreeContext>();
         var args = bridge!.Parameters
             .OrderBy(p => p.OrdinalIndex)
             .Select(p => p.ParameterType == typeof(BehaviorRegistry)
                          ? (object)_liveRegistry
-                         : p.ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)
+                         : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>)
                            ? (object)actionReg
                            : (object)bpStaging)
             .ToArray();
@@ -283,43 +283,22 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
     private static unsafe int GetProvisionedSlotCount(EntityRepository world, Fdp.Core.Entity entity)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.GetSlotCount(mem);
-        }
-        throw new InvalidOperationException(
-            "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new InvalidOperationException(
+                "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
+
+        return BlueprintBlackboardPartitions.GetSlotCount(mem);
     }
 
     private static unsafe bool TrySlotOffset(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
-        if (world.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard16384>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard4096>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        if (world.HasComponent<BlueprintBlackboard1024>(entity))
-        {
-            ref var t = ref world.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = t.Memory) return BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
-        }
-        return false;
+        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
+        //   OccurrenceStoreAccess is the seam production uses for exactly this.
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        return mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out _);
     }
 
     private void AssignBehavior(EntityRepository world, Fdp.Core.Entity entity, string behaviorName)
@@ -387,8 +366,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
 
@@ -455,8 +433,7 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
-        world.AddComponent(entity, new BrainBlackboard());
-        world.AddComponent(entity, new BrainBTreeState());
+        RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
 

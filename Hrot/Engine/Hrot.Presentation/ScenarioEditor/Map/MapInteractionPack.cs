@@ -29,9 +29,18 @@ namespace Hrot.ScenarioEditor.Map
     /// (<c>DESIGN_Subsystem_Composition_Unification.md</c> §3.1/§3.2).</para>
     ///
     /// <para>⛔ <b>Equally deliberately NOT here:</b> DDS publishers, ingress/egress translators, action
-    /// registries, selection systems, canvas menus and layer-control gizmos. Those are the host's role or
+    /// registries, canvas menus and layer-control gizmos. Those are the host's role or
     /// its own affordances; a host adds its gizmos through
     /// <see cref="MapInteractionContext.ContributeExtras"/>.</para>
+    ///
+    /// <para>⚠⚠ <b>AMENDED <c>2026-09-20</c>: <i>"selection systems"</i> WAS on that exclusion list and is
+    /// now BUILT HERE.</b> 🔒 User: <i>"we want to unify across host also the bootstrap code as far as
+    /// possible, including this entity selection stuff."</i> 📐 The exclusion was written when selection
+    /// genuinely was host-shaped — five hosts, three different parallel stores, five hand-rolled writers.
+    /// <c>UXI-11</c> <c>S-1</c>…<c>S-3b</c> made the wiring <b>identical on every host</b>, at which point
+    /// the exclusion preserved exactly the five-way duplication this pack exists to remove. ⭐ The ruling
+    /// it was protecting is untouched: <b>the pack constructs, the host schedules.</b>
+    /// 📄 <c>docs/UX/UX_Feature_Selection.md</c> §2.7.10.</para>
     /// </summary>
     public static class MapInteractionPack
     {
@@ -187,9 +196,60 @@ namespace Hrot.ScenarioEditor.Map
 
             var gate = new GizmoExecutionController(group, globalManager, dataDriven);
 
+            // ⭐⭐⭐ UXI-11 — THE SELECTION, BUILT HERE SO ALL FIVE HOSTS GET THE SAME ONE.
+            // 🔒 User, 2026-09-20: "unify across host also the bootstrap code as far as possible,
+            //    including this entity selection stuff."
+            // 📐 What this replaces: five composition roots each constructing EcsSelectionState, the
+            //    interaction system, the request system and the notification system in their own order,
+            //    plus — before S-1..S-3b — three different parallel stores. Same disease as the buffer
+            //    and the three gizmo systems this pack was written for, and the same cure.
+            // ⛔ The pack still CONSTRUCTS ONLY. Scheduling stays the host's, per the 2026-08-28 ruling
+            //   and enforced structurally: MapInteractionContext carries no kernel.
+            var selection = new Hrot.ScenarioEditor.Selection.EcsSelectionState(ctx.World);
+
+            // ⭐⭐⭐ THE MARQUEE, BUILT AND DRAWN HERE SO ALL FIVE HOSTS HAVE ONE.
+            // 🔒 User ruling, 2026-09-20: "any perspective showing 2d map should support marquee and
+            //    rubberband, not just editor and cgf."
+            // 🔴 MEASURED, and the shape is sharper than "it is missing": the box-select LOGIC already
+            //    ran everywhere — SelectionInteractionSystem tracks _isBoxSelecting and commits the box
+            //    on all five hosts. What only the editor and ReplayBrowser had was the STATE OBJECT and
+            //    the GIZMO THAT DRAWS IT. ⇒ on IG, SimHost and CGF the drag worked and was invisible.
+            // ⭐ Same cure as S-3c: the thing every host needs is constructed in the one place that
+            //    builds the map, not in five composition roots three of which forgot.
+            // ⚠ ctx.RubberBand is still honoured — a host that needs the handle before Build() returns
+            //   passes its own and the pack adopts it rather than making a second one.
+            var rubberBand = ctx.RubberBand ?? new Hrot.ScenarioEditor.Gizmos.RubberBandState();
+            statelessRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(rubberBand));
+
+            var selectionInteraction = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(
+                ctx.World, bus, rubberBand, selection);
+            if (ctx.OnMapSelectionChanged != null)
+                selectionInteraction.OnSelectionChanged += ctx.OnMapSelectionChanged;
+
+            // ⚠ ORDER IS LOAD-BEARING and the pack cannot enforce it — the host schedules. Requests must
+            //   apply BEFORE the announcement is consumed, or a cause and its consequence land a frame
+            //   apart. MapInteraction.SelectionSystemsInOrder exists so a host cannot get it wrong.
+            var selectionRequests = new Hrot.ScenarioEditor.Systems.SelectionRequestSystem(() => selection);
+
+            // ⭐⭐⭐ UXI-11 S-5 — ruling ②: "if entity becomes unselected, it should cancel any editing on
+            //   the entity losing the selection." The arbiter and the store are BOTH built right here, so
+            //   the hook is a constructor argument rather than a per-host wiring step — all five hosts get
+            //   it, in one place, exactly as S-3c did for the selection itself.
+            // 🔒 THE SILENT-DEFAULT RULE, applied: both parameters are optional so a lightweight host or a
+            //   test need not supply them, but this caller HOLDS them and therefore PASSES them.
+            // ⭐⭐⭐ CE-300 — the AI editors' entity cell joins the SAME announcement, as a third
+            //   consequence. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1 / §4.
+            // ⛔ NOT a fourth system: this class already IS "what a selection change causes", and a
+            //   parallel consumer of one edge would be two implementations of one concept (ruling 9) —
+            //   the same argument S-5 made for putting CancelArmedOn here.
+            var selectionNotifications = new Hrot.ScenarioEditor.Systems.SelectionNotificationSystem(
+                ctx.Inspector ?? (static () => null), tools, selection, ctx.AiEntitySelection);
+
             return new MapInteraction(
                 buffer, bus, gizmoRegistry, statelessRegistry, settings,
-                globalManager, dataDriven, stateless, group, gate, selfCheck, tools);
+                globalManager, dataDriven, stateless, group, gate, selfCheck, tools,
+                selection, selectionInteraction, selectionRequests, selectionNotifications,
+                rubberBand);
         }
     }
 }

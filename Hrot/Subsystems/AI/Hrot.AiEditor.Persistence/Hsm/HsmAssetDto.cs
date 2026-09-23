@@ -56,6 +56,31 @@ public sealed class StateNodeDto
     public string? ActivityAction { get; set; }
     public string? TimerAction { get; set; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>E3b-0</c> — <b>the blackboard variable THIS STATE's actions are bound to.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    ///
+    /// <para>🔴 <b>Why it had to exist.</b> A site reaches a variable through
+    /// <c>ExpressionTargetField</c> — BTree action/condition nodes have one, and so do
+    /// <see cref="TransitionNodeDto"/> and <see cref="GlobalTransitionNodeDto"/>. ⛔ <b>A STATE did
+    /// not</b>, so two parallel regions hosting one asset had nothing to bind them to different
+    /// variables and both fell back to the first packed variable — <c>E3a</c>'s offset-<c>0</c> seed.
+    /// ⇒ <c>CE-298</c>'s motivating case stayed open even after the params moved into the slot.</para>
+    ///
+    /// <para>⭐ <b>ONE field for all four action slots, and that is not a shortcut.</b> The occurrence
+    /// key is <c>(region, state, childAsset)</c> ⇒ every action slot of one state hosting one blueprint
+    /// resolves to the SAME occurrence and therefore the same params region. ⛔ Four fields would offer
+    /// a distinction the storage model cannot express.</para>
+    ///
+    /// <para>⚠ <b>It names a variable in the HSM's OWN blackboard</b> — ⛔ nothing here learns about
+    /// blueprint catalogs (the user's ruling, <c>2026-09-21</c>).</para>
+    ///
+    /// <para>⛔ <c>null</c> ⇒ the state is unbound and its occurrences seed from offset <c>0</c>,
+    /// exactly as before <c>E3b-0</c>. ⭐ That is the compatible default, not a sentinel.</para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? ExpressionTargetField { get; set; }
+
     // Region membership
     public int RegionIndex { get; set; }
 

@@ -155,9 +155,14 @@ public sealed class StatefulSlotKeyTests
         bridgeSrc.Should().Contain(expectedSlotKey.ToString(),
             $"emitted bridge must contain the baked SlotKey literal {expectedSlotKey} (FNV-1a result)");
 
-        // (b) TryGetSlotOffset is called.
-        bridgeSrc.Should().Contain("TryGetSlotOffset",
-            "emitted bridge must call BlueprintBlackboardPartitions.TryGetSlotOffset");
+        // (b) The slot is resolved through the partition allocator.
+        // ⚠ A2b (2026-09-20) — this used to pin the literal "TryGetSlotOffset", because the emitter
+        //   hand-rolled the 16384 → 4096 → 1024 ladder and called it in each arm. The ladder is now ONE
+        //   call to OccurrenceStoreAccess.TryResolveOccurrence, which calls TryGetSlotOffset itself.
+        //   ⭐ The CLAIM is unchanged — resolution goes through the partition slot — so the assertion
+        //   moves to the seam rather than being deleted or weakened.
+        bridgeSrc.Should().Contain("OccurrenceStoreAccess.TryResolveOccurrence",
+            "emitted bridge must resolve the slot through the one occurrence-store seam (A2b)");
 
         // (c) WorkingState projection at the returned offset.
         bridgeSrc.Should().Contain("Unsafe.AsRef",

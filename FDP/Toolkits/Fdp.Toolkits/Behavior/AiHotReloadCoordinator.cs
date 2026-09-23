@@ -409,7 +409,7 @@ public sealed class AiHotReloadCoordinator : IDisposable
             .ToList();
     }
 
-    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+    private void InvokeRegistrar(ResolvedRegistrar registrar, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<byte, BTreeContext> btreeActionRegistry)
     {
         var args = registrar.Parameters
             .OrderBy(p => p.OrdinalIndex)
@@ -424,13 +424,13 @@ public sealed class AiHotReloadCoordinator : IDisposable
     /// throwing registrar cannot partially corrupt the live registry.
     /// Throws <see cref="HotReloadRegistrarException"/> for forbidden or unknown types (Patch 2, Patch 4).
     /// </summary>
-    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<BrainBlackboard, BTreeContext> btreeActionRegistry)
+    private object ResolveRegistrarArgument(Type paramType, BlueprintRegistryStaging blueprintStaging, BehaviorRegistry behaviorStaging, ActionRegistry<byte, BTreeContext> btreeActionRegistry)
     {
         if (paramType == typeof(BlueprintRegistryStaging)) return blueprintStaging;
         // BPF-042: inject the staging registry, not the live one.
         if (paramType == typeof(BehaviorRegistry))         return behaviorStaging;
         // BTree action delegates populated from the reloaded assembly's [FbtRegistrar].
-        if (paramType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>)) return btreeActionRegistry;
+        if (paramType == typeof(ActionRegistry<byte, BTreeContext>)) return btreeActionRegistry;
 
         // Patch 4: explicitly forbidden — would bypass the atomic RCU contract.
         if (paramType == typeof(BlueprintRegistry))

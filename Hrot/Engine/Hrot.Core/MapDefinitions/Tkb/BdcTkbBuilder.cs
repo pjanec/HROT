@@ -239,7 +239,7 @@ namespace Hrot.Map.Definitions.Tkb
         ///   <item><see cref="SimVelocity"/> — world-space velocity written by locomotion.</item>
         ///   <item><see cref="BehaviorState"/> (BrainTier = BTree) — active behavior hash.</item>
         ///   <item><see cref="MissionPlanQueue"/> — phase queue maintained by MissionAdapterSystem.</item>
-        ///   <item><see cref="BrainBTreeState"/> / <see cref="BrainBlackboard"/> — brain execution state.</item>
+        ///   <item><see cref="BrainBTreeState"/> / <c>BrainBlackboard</c> — brain execution state.</item>
         ///   <item><see cref="LocomotionChannel"/> / <see cref="WeaponChannel"/> / <see cref="InteractionChannel"/> — action dispatch channels.</item>
         ///   <item><see cref="ActorCapabilityState"/> (CanMove | CanShoot) — capability bits.</item>
         /// </list>
@@ -262,21 +262,18 @@ namespace Hrot.Map.Definitions.Tkb
             return this;
         }
 
-        /// <summary>
-        /// Adds the <see cref="Blackboard1024"/> heavy working-memory component to the
-        /// template.  Required for commander entities that project
-        /// <c>Blackboard1024.Memory</c> onto a behavior-specific mutable-state struct
-        /// (e.g., <c>HillAttackMutableState</c>).
-        /// </summary>
-        public NedTkbBuilder WithHeavyMemory(long tkbId)
-        {
-            var template = _db.GetByType(tkbId);
-            if (template == null)
-                throw new InvalidOperationException($"Template {tkbId} not found");
-
-            // Blackboard1024 ECS component will be applied by translator in Phase 6.
-            return this;
-        }
+        // ⛔⛔ `WithHeavyMemory(long)` WAS HERE — deleted by `P4`-⑥ (`2026-09-22`).
+        //
+        // 🔴 It was a NO-OP WITH TWO LIVE CALL SITES. Its body looked the template up, threw if it
+        //    was missing, and returned `this`; the one line that would have done the work was a
+        //    comment — "Blackboard1024 ECS component will be applied by translator in Phase 6" —
+        //    and that Phase 6 never landed. ⚠ It survived the P4-① deletion untouched precisely
+        //    BECAUSE it never referenced the type in code, only in prose.
+        //
+        // ⭐ Its INTENT — "this template's commander needs heavy working memory" — is not lost, it
+        //    is SUBSUMED: commander working state now lives in the occurrence store, whose tier
+        //    components are registered Hrot-wide (BlueprintBlackboardTiers.RegisterAll), so a
+        //    template does not declare the need at all. 📄 §30.13, §30.15.
         
         /// <summary>
         /// Add composite (ORBAT) definition.

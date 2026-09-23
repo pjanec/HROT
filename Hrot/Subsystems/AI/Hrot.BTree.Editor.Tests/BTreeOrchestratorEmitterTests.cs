@@ -249,7 +249,9 @@ public sealed class BTreeOrchestratorSyncEmitterTests
         string result = BTreeOrchestratorEmitter.Emit(asset, NoSubtreeCatalog.Resolve)!;
 
         int syncInPos  = result.IndexOf("subDto.Ammo = master.MasterAmmo",   StringComparison.Ordinal);
-        int tickPos    = result.IndexOf("GetInterpreter().Tick",              StringComparison.Ordinal);
+        // ⭐ O4: re-anchored. Was "GetInterpreter().Tick" — the PRE-O4 spelling, which passed
+        //   `ref state`. This rail owns the ORDERING, not the spelling.
+        int tickPos    = result.IndexOf("HostedSubtree.Tick(",                StringComparison.Ordinal);
         int syncOutPos = result.IndexOf("master.MasterKills = subDto.Kills", StringComparison.Ordinal);
 
         syncInPos.Should().BePositive();

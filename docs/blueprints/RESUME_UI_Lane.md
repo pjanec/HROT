@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-22
+updated: 2026-09-20
 current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (c)" block is the live state
   (CE-306 closed §2.7.7 deviation ③, and THREE of the five UXI-11 residuals were measured and struck —
   the list had rotted). Below it "SESSION 2026-09-21 (b)"
@@ -1533,7 +1533,7 @@ each. ⚠ **Every one of them takes a `configure` lambda the catalog fills in, a
 | **`WithCombat`** `:103` | `SimCombatDef` | **4 DTOs** ✅ | ⭐ **the one that IS finished** — the model to copy |
 | **`WithVisual`** `:65` | **5** `IgVisualDef` fields | 🔴 **ZERO** | ⛔⛔ **`configure` is NEVER INVOKED** — the whole catalog lambda *(`SymbolCode`, `ModelPath`, `ColorHex`, `Scale`, `ShowLabel`)* is dead code, and **`VisualDefinitionDto` has ZERO producers repo-wide.** ⇒ **`CE-118`** |
 | **`WithFaction`** `:170` | `factionId` | 🔴 **ZERO** | ⛔ ignores its argument entirely, **and `WithBehavior` `:204` never sets `BehaviorProfileDto.Faction`** ⇒ `BehaviorTkbTranslator.cs:35` stamps `EntityInfo { ForceId = dto.Faction }` = **0 for every TKB entity**. ⇒ **`CE-117`** |
-| **`WithHeavyMemory`** `:222` | — | 🔴 **ZERO** | never attached anything despite the doc-comment promising it, and ⛔ the concept it promised is retired anyway — there is no overflow component any more, only occurrence slots (`DESIGN_Occurrence_Scoped_Storage.md` §30.13/§30.15) |
+| **`WithHeavyMemory`** `:222` | — | 🔴 **ZERO** | `Blackboard1024` never added despite the doc-comment promising it |
 
 ⭐⭐ **The design sweep that must precede touching the visual half** *(`R-129`, and it changed the verdict)*:
 📄 **[`docs/UX/UX_Feature_Entity_Symbology.md`](../UX/UX_Feature_Entity_Symbology.md)** §0 — *"HROT has two
@@ -2131,7 +2131,7 @@ written by the coordinator, **amended by this lane `2026-08-22`**:
 |---|---|
 | ✅ **`Q49` option C is BUILT** *(`BP-440`–`BP-442`)* | the identity is recomputed from the catalog resolver already wired at `PerspectiveWorkspaceRegistrar:289`, through ONE derivation *(`SubtreeSyncIdentity`)*, pulled from inside `Emit` so no path can forget *(`R-126`)* |
 | ✅ **`Q50` option A + `Q49` option D are BUILT** *(`BP-444`–`BP-447`)* | 🔒 user: *"i hoped the editor automatically adds the subtree's data."* ⭐⭐ **A and D turned out to be the SAME change**: every input is persisted, so it is a **generator-side projection over a document** — no editor, no ordering. `SubtreeSyncProjection` does one walk yielding both the groups and the slice fields, so *"a group without its field"* is unrepresentable |
-| ⛔⛔⛔ **RE-MEASURED `2026-08-22` — `BP-446`'s LIMIT WAS DESCRIBED WRONG, and the wall it found is since RETIRED. 📄 Read [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md) *"THE LIMIT — re-measured"* BEFORE reasoning about this area** | ⛔ *(was: "a generated Category-2 callee blackboard does not exist in the master's compilation")* — 📐 **all 15 managed assets declare an ordinary resolvable type; that skip never fires.** ⭐⭐ **The real wall AT THE TIME was the BYTE BUDGET** — a fixed-width inline field vs a per-behaviour params region ⇒ **"declare the slice as a field" could never hold a Category-2 callee.** ⛔⛔ **`P4`-④ (`DESIGN_Occurrence_Scoped_Storage.md` §30.11/§30.15) has since retired that fixed budget entirely** — every behaviour's params, root or callee, is now its own occurrence slot sized by the partition allocator, so there is no embedded field left to overflow. ⚠ The exact wiring for a *hosted* callee's own slot is still open (`G5`, same doc §30.18) |
+| ⛔⛔⛔ **RE-MEASURED `2026-08-22` — `BP-446`'s LIMIT WAS DESCRIBED WRONG. 📄 Read [`Q50`](Architect_Question_50_The_Master_Blackboard_Declares_The_Subtree_Slice.md) *"THE LIMIT — re-measured"* BEFORE reasoning about this area** | ⛔ *(was: "a generated Category-2 callee blackboard does not exist in the master's compilation")* — 📐 **all 15 managed assets declare `BrainBlackboard`, an ordinary resolvable type; that skip never fires.** ⭐⭐ **The real wall is the BYTE BUDGET** — 128 bytes vs a 100-byte inline budget ⇒ **"declare the slice as a field" can never hold a Category-2 callee.** ⚠ Architectural, ⛔ not a missing helper |
 | 🔴 **THE REACH — the honest state of `S4`** | the panel can only author against a **Category-2** callee *(it needs `BlackboardVariables`)*, and the generator skips **every** Category-2 callee ⇒ ⛔ **the authorable and emittable sets are DISJOINT today.** ⭐ The panel is real and writes real persisted data; ⛔ no authorable binding reaches the runtime yet |
 | ✅ **POSTPONED BY THE USER, ON THE RECORD** *(`BP-452`)* | 🔒 *"is that safely postponable, providing you record it thoroughly as such?"* ⇒ ⭐ **yes**: every failure is a **build-time skip**, never a partial emit or a bad runtime copy; 📐 **no corpus asset has a sync binding.** ⭐ Three routes with a lean *(`C′` — declare the slice `Role = State`, reusing the partition tier that already escapes the budget)* — ⚠ it moves the emitted body, so it wants a nod |
 | ⛔ **ONE REAL DEFECT, not postponable indefinitely** *(`BP-451`)* | **nothing validates a binding's `FieldName` against the callee's type** ⇒ the generator **can emit CS1061** — 📌 `BP-306` re-armed. ⭐ Unreachable through the UI, reachable by hand-edited JSON. 🛠 Small, needs no design call ⇒ **do it in the next batch touching this generator** |
@@ -2223,7 +2223,7 @@ accumulated `current-answer` text of earlier programmes, newest first. The live 
   · THE AUTHORITY MASK IS READ BY NO EGRESS TRANSLATOR (§3.6, re-measured). Every production egress calls
     the ISimulationView EXTENSION, which reads DescriptorOwnership/NetworkAuthority; the overload
     resolution hides it (packedKey is a long). The mask's WHOLE production readership is SimTransform,
-    BehaviorState, the entity's `BlueprintBlackboard{tier}` component, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
+    BehaviorState, BrainBlackboard, plus a Position query matching ZERO HROT entities. ⇒ narrowing the
     mask changes what a node EXECUTES, never what it PUBLISHES.
   · THE ROLE TABLES ARE COMPLEMENTS (§3.9c). Brain = ALL − birthCritical; Muscle = that − brainOnly. An
     enumerated set is a WHITELIST and reproduces CE-256. EveryUnclassifiedComponentStaysOwnedByBothRoles

@@ -18,16 +18,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys   = new CognitiveCleanupSystem();
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new BrainBlackboard());
+            world.AddComponent(e, new BrainInterrupts());
 
             // Set both interrupt fields.
-            ref var bb = ref world.GetComponentRW<BrainBlackboard>(e);
+            ref var bb = ref world.GetComponentRW<BrainInterrupts>(e);
             bb.Interrupt_MobilityLost = 1;
             bb.Interrupt_Reserved     = 1;
 
             sys.Execute(world, 0.016f);
 
-            var bbAfter = world.GetComponent<BrainBlackboard>(e);
+            var bbAfter = world.GetComponent<BrainInterrupts>(e);
             Assert.Equal(0, bbAfter.Interrupt_MobilityLost);
             Assert.Equal(0, bbAfter.Interrupt_Reserved);
 

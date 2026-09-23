@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T34_ComposedAiPrimitiveCondition
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Condition("Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore@0@690319695",
                 visualId: new Guid("bb340000-0000-0000-0000-000000000002"));
 

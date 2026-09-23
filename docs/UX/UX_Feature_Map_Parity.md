@@ -8,7 +8,7 @@ build-state: S1 BUILT (3.9b) / S2 + S2a BUILT (3.9j.5b, 2026-08-30) / S2b BUILT 
   "lift both mechanisms, layer definitions as S4 config, shareable between multiple subsystems".
 verified: 2026-09-09 (source measurement: five MapInteractionPack.Build call sites; S-slice markers
   in production code; per-host grep for each seam). Earlier: 2026-08-28 (five cluster boots).
-updated: 2026-09-09
+updated: 2026-09-20
 known-rot: THIS BLOCK ITSELF said "S2 / S3 / S4 / S5 are READY-TO-BUILD" until 2026-09-09, while the
   file's OWN 3.9j.5b and 3.2f recorded S2 and S4 as built. Four slices had shipped. Obligation-(5)
   repair; the prior wording must NOT be quoted. The measured slice ledger also lives in
@@ -89,6 +89,10 @@ known-conflict: DESIGN_Subsystem_Composition_Unification section 3.2 forbids a b
   system. RECONCILED in section 3.2a: the pack CONSTRUCTS (deduplication, since all five hosts already
   register the same three systems) and the HOST SCHEDULES (the run-set follows its role). Enforced by
   MapInteractionContext carrying no ModuleHostKernel.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11, this file's PREREQUISITE. ☑ COMPLETE 2026-09-20
+    (S-1..S-6): one store, one request, one writer, one announcement, on every node. ⇒ the "selection
+    chain" dependency §7 orders before this work is MET.
 -->
 # Feature design — map-interaction parity
 
@@ -289,6 +293,40 @@ plus an unclamped counter that only misbehaves for whichever host happens to BOO
 🔒 **Change the default perspective from `SimHost` to `Scenario` and CGF would break instead** — same code,
 different victim. ⇒ ⭐⭐ **no per-host inspection can find this**, which is why it survived a seven-hypothesis
 elimination pass *(`CE-123`)* and was found only by a user looking at two screens.
+
+## ✅✅ `2026-09-20` — **THE SAME DISEASE, CAUGHT AGAIN, AND IT IS THE STRONGEST EVIDENCE FOR THIS DESIGN**
+
+🔒 **Operator:** *"Mouse clicking does not select, marquee rubber band not shown."* ✅ **Fixed and verified
+in the product the same day.**
+
+📐 **Root cause — ONE MISSING NAMED ARGUMENT.** `CgfSubsystem.cs:1598` built its `DebugGizmoLayer`
+without `camera:`, so the layer's `Camera2D` stayed **`default`** — `zoom=0, offset=(0,0)`.
+`Raylib.GetScreenToWorld2D` is `(screen − Offset) / Zoom + Target`, so it **divided by zero**: every
+mouse position became `NaN`, every hit-test comparison `false`, and **every click on that map fell
+through to the canvas.**
+
+⭐⭐⭐ **This is `CE-123` again, exactly.** §3.2's argument for the pack opens with it: *"the difference
+between a working map and a dark one was **a single constructor argument** that one host passed and four
+did not."* ⇒ 🔒 **the pack was written to make that class of fault impossible, and this instance proves
+the argument rather than weakening it — because the layer is one of the few things the pack does NOT
+construct.**
+
+| ⚠ why it hid for so long, and the lesson is not "be careful" | |
+|---|---|
+| ⭐⭐ **DRAWING is unaffected** | the map rendered perfectly. Only INPUT was dead, and there is no error anywhere on that path |
+| ⭐ **the camera was TWO LINES ABOVE** | `_canvas` built at `:1550`, its offset set at `:1551`, the layer built at `:1598` and added to that same canvas at `:1599`. 🔒 The silent-default rule verbatim: **a caller that HAD the dependency and did not pass it** |
+| ⛔⛔ **every rail stayed green** | nothing covered a production construction site's ARGUMENTS. ⭐ `EveryProductionGizmoLayerIsGivenACamera` now does, parsing the balanced argument list *(CGF's site was one line; the editor's and IG's span five, and a line-based scan would have called those clean)* |
+| ⛔⛔ **and it defeated SEVEN read-only hypotheses** | registration, ticking, bus identity, bus swapping, module registration, frame ordering, pick-box emission — all measured, all correct. ⭐ **One log line of STATE settled in one run what reading could not** |
+
+⭐⭐ **The generalisable finding, and it is the one worth carrying:** ⛔ **a dependency that is ABSENT and
+a dependency that is WRONG both report healthy on this path.** ⇒ the layer now **warns once** when it has
+no camera, and the pick diagnostic warns once when a frame has primitives but none pickable. ⚠ Both are
+**silent in normal operation** — a canvas fallback is what an empty-space click IS, so logging every one
+would drown the log and the tripwire with it.
+
+📌 **Related, same day:** the marquee had never been constructed on IG, SimHost or CGF at all — box-select
+LOGIC ran on all five hosts while only two drew it. ⇒ moved into `MapInteractionPack`, which is this
+design's own remedy applied once more. 📄 `UX_Feature_Selection.md` §2.7.16.
 
 📐 **Confirmed by prediction:** SimHost read **605 primitives / 3 non-`Line`** on visit 1, 2 **and** 3
 across alternating switches, while `Scenario` read **739 / 69** on each of its visits — exactly what an

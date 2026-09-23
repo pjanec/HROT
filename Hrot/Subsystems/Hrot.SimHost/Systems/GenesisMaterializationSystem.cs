@@ -195,6 +195,10 @@ namespace Hrot.SimHost.Systems
                     Designation = intent.Designation,
                 });
 
+                // ⭐⭐⭐ O1 — the SECOND roster creator, and the one the live run proved was needed:
+                //   scenario-loaded hierarchies never go through UnitHierarchySystem's assign event.
+                Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(repo, commander);
+
                 roster.SubordinateEntities[roster.Count]  = (long)entity.PackedValue;
                 roster.TacticalDesignations[roster.Count] = (ushort)intent.Designation;
                 roster.Count++;

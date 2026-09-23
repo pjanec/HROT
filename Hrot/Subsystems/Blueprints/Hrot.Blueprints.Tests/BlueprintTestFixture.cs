@@ -56,7 +56,7 @@ public sealed class BlueprintTestFixture : IDisposable
     /// bridge registrars) populate. Exposed so a test can build an <see cref="Interpreter{TBlackboard,TContext}"/>
     /// that binds a blueprint-authored action by its registered key and tick it for real.
     /// </summary>
-    public ActionRegistry<BrainBlackboard, BTreeContext> ActionRegistry { get; } = new();
+    public ActionRegistry<byte, BTreeContext> ActionRegistry { get; } = new();
 
     /// <summary>
     /// When set, passed to generated registrars that declare an IPredicateCompiler parameter.
@@ -107,21 +107,52 @@ public sealed class BlueprintTestFixture : IDisposable
             Registry,
             new AiHotReloadCoordinatorOptions());
 
-        MockTestComponents.Register(_repo);
-        _repo.RegisterComponent<BlueprintBlackboard1024>();
-        _repo.RegisterComponent<BlueprintBlackboard4096>();
-        // BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
-        // reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
-        // NativeMemoryAllocator.  Tests that need BB16384 must use a standalone fixture.
-
-        // Register behavior channel components needed for end-to-end compiled blueprint tests.
-        _repo.RegisterComponent<LocomotionChannel>();
-        _repo.RegisterComponent<WeaponChannel>();
-        _repo.RegisterComponent<InteractionChannel>();
-        _repo.RegisterComponent<BrainBlackboard>();
-        _repo.RegisterComponent<Blackboard1024>();   // FBT behavior blackboard (AiPrimitive working state)
+        RegisterWorldComponents(_repo);
 
         DebugProbe.Sink = DebugSession;   // route generated probe calls to the capturing session
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>THE component registration set for a fixture world — and for any SCRATCH world that
+    /// has to receive its recordings.</b>
+    ///
+    /// <para>🔴 <b>Why this is a method and not eight lines in the constructor.</b> The sub-tick
+    /// recorder replays a recorded frame into a scratch <c>EntityRepository</c>, and
+    /// <c>PlaybackSystem</c> throws <i>"Component type ID N not found in repository"</i> for anything
+    /// the source world had and the scratch world does not. ⇒ the two registration lists MUST match,
+    /// and until now they were hand-mirrored in three places — ⛔ already imperfectly: the scratch
+    /// builders never registered the three channel components, which only worked because no recorded
+    /// entity happened to carry one.</para>
+    ///
+    /// <para>📌 <b>Measured <c>2026-09-21</c>:</b> adding <see cref="BehaviorState"/> here for
+    /// <c>P3-C</c> reddened <c>SubTickRecorderIntegrationTests</c> and <c>VirtualPointerTests</c> with
+    /// exactly that message — the fixture gained a component the scratch world did not know. ⭐ One
+    /// list makes the class of failure impossible rather than fixing this instance of it.</para>
+    /// </summary>
+    public static void RegisterWorldComponents(EntityRepository repo)
+    {
+        MockTestComponents.Register(repo);
+
+        // ⭐ B4: register from the LADDER, not a hand-list. ⛔ A hand-list silently leaves a
+        //   newly-appended tier unregistered — O3b's 256 tier reddened 192 tests this way.
+        //   The bound keeps this world's deliberate exclusion of the larger tiers (their
+        //   virtual-address reservation exceeds the allocator's paranoid-mode cap).
+        // ⚠ BlueprintBlackboard16384 (16 384 bytes) would require ~16 GB of virtual-address
+        //   reservation for MAX_ENTITIES = 1 000 000, which exceeds the paranoid-mode cap in
+        //   NativeMemoryAllocator. Tests that need BB16384 must use a standalone fixture.
+        BlueprintTierTable.RegisterUpTo(repo, maxTotalSize: 4096);
+
+        // Behavior channel components needed for end-to-end compiled blueprint tests.
+        repo.RegisterComponent<LocomotionChannel>();
+        repo.RegisterComponent<WeaponChannel>();
+        repo.RegisterComponent<InteractionChannel>();
+        // ⛔⛔ P4-① (2026-09-22): the Blackboard1024 registration is GONE. ⚠ This line is why
+        //    CE-311 looked green — the fixture was the ONE world where the inline AiPrimitive host's
+        //    emitted GetComponentRW<Blackboard1024> could run. Working state lives in the tier ladder.
+
+        // 🔴 P3-C (2026-09-21): an emitted thunk's SEED reads the entity's ROOT PARAMS SLOT, whose key
+        //   comes from BehaviorState.ActiveBehaviorHash ⇒ the component is no longer optional here.
+        repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
     }
 
     // ---- Tick ---------------------------------------------------------------
@@ -487,7 +518,7 @@ public static class ThrowingRegistrar
                     else if (paramInfos[i].ParameterType == typeof(BehaviorRegistry))
                         args[i] = behaviorStaging;
                     // I1: BTree-hosted AiPrimitive registrars register their thunks here.
-                    else if (paramInfos[i].ParameterType == typeof(ActionRegistry<BrainBlackboard, BTreeContext>))
+                    else if (paramInfos[i].ParameterType == typeof(ActionRegistry<byte, BTreeContext>))
                         args[i] = ActionRegistry;
                     // Patch 4: BlueprintRegistry is forbidden — violates the RCU contract.
                     else if (paramInfos[i].ParameterType == typeof(BlueprintRegistry))
@@ -556,75 +587,181 @@ public static class ThrowingRegistrar
         return status;
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>O7b</c> — invokes the asset's HSM thunk <b>through a real kernel dispatch</b>.
+    ///
+    /// <para>🔴 <b>Why it can no longer be called directly.</b> The thunk now keys its working state by
+    /// the <c>(region, state)</c> pair the kernel stamps (<c>O6</c>) and by the hosting machine id in
+    /// the instance header. ⛔ <c>HsmCommandWriter.StampOccurrence</c> is <b>internal to the kernel on
+    /// purpose</b> — a harness that could forge a stamp could forge a cross-occurrence alias — so the
+    /// only honest way to invoke one is to let the kernel dispatch it.</para>
+    ///
+    /// <para>⭐ <b>This makes the fixture more truthful, not less convenient:</b> it now exercises the
+    /// production path (kernel → dispatcher → thunk → occurrence store) instead of a hand-rolled
+    /// approximation of it. ⚠ The old shape passed a pinned <c>Params</c> box as <c>instance</c>, which
+    /// is exactly the convention <c>CE-297</c> records as wrong.</para>
+    /// </summary>
     public unsafe bool InvokeHsmAction(BlueprintAsset asset, Entity entity)
     {
-        var genType = FindGeneratedType(asset);
-
-        // The generated registrar calls:
-        // HsmActionDispatcher.RegisterAction(unchecked((ushort)ClassName.BlueprintId), ...)
-        int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
-        ushort actionId = unchecked((ushort)blueprintId);
-
-        // Generated HsmActivity reads Blackboard1024 from the entity; ensure it exists.
-        if (!_repo.HasComponent<Blackboard1024>(entity))
-            _repo.AddComponent(entity, default(Blackboard1024));
-
-        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
-
-        var paramsType = genType.GetNestedType("Params");
-        if (paramsType != null && paramsType.IsValueType)
-        {
-            var paramsBoxed = Activator.CreateInstance(paramsType)!;
-            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
-            try
-            {
-                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
-                HsmActionDispatcher.ExecuteAction(actionId, paramsPtr, &bridge, null);
-            }
-            finally
-            {
-                paramsHandle.Free();
-            }
-        }
-        else
-        {
-            HsmActionDispatcher.ExecuteAction(actionId, null, &bridge, null);
-        }
+        DispatchThroughKernel(asset, entity, asGuard: false, eventId: 0);
         return true;
     }
 
+    /// <summary>The guard twin of <see cref="InvokeHsmAction"/> — same kernel dispatch, same reasons.</summary>
     public unsafe bool InvokeHsmGuard(BlueprintAsset asset, Entity entity, ushort eventId = 0)
+        => DispatchThroughKernel(asset, entity, asGuard: true, eventId);
+
+    /// <summary>
+    /// Builds a one-state HSM whose entry action (or whose single guarded transition) is the asset's
+    /// thunk, and ticks it once. ⭐ The kernel stamps <c>(region 0, state 0)</c> before the dispatch,
+    /// which is the identity the thunk keys on.
+    /// </summary>
+    private unsafe bool DispatchThroughKernel(BlueprintAsset asset, Entity entity, bool asGuard, ushort eventId)
     {
-        var genType = FindGeneratedType(asset);
+        _ = FindGeneratedType(asset);   // keeps the "asset was compiled" precondition explicit
 
         int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
-        ushort guardId  = unchecked((ushort)blueprintId);
+        ushort id = unchecked((ushort)blueprintId);
 
-        // Generated HsmGuard reads Blackboard1024 from the entity; ensure it exists.
-        if (!_repo.HasComponent<Blackboard1024>(entity))
-            _repo.AddComponent(entity, default(Blackboard1024));
+        // ⭐ P4 (2026-09-22): the thunk projects its params from the entity's ROOT PARAMS SLOT and its
+        //   working state from the occurrence store — both live in the SAME store now, so one call
+        //   covers it. ⛔ The BrainBlackboard attach that used to precede this is gone with the
+        //   component (CE-297's "project from BrainBlackboard" was superseded by P3-C).
+        EnsureOccurrenceStore(entity);
 
-        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+        const uint MachineId = 0x07B0A5E1;
+        // The host behaviour the root HSM slot is keyed from WHEN THE ENTITY HAS NONE; arbitrary
+        // but non-zero, because RootHsmAccess.KeyForBehaviour(0) is 0 and would refuse to attach.
+        const int FallbackHostBehaviorHash = 0x0B57A11;
+        var states = new global::Fhsm.Kernel.Data.StateDef[1];
+        var transitions = Array.Empty<global::Fhsm.Kernel.Data.TransitionDef>();
 
-        var paramsType = genType.GetNestedType("Params");
-        if (paramsType != null && paramsType.IsValueType)
+        if (asGuard)
         {
-            var paramsBoxed = Activator.CreateInstance(paramsType)!;
-            var paramsHandle = GCHandle.Alloc(paramsBoxed, GCHandleType.Pinned);
-            try
+            // A guard only runs while a transition is being SELECTED, so give it one to guard — and
+            // ⛔ NOT a self-transition: 0 -> 0 leaves the leaf unchanged whether the guard passed or
+            //    not, so it cannot be the observable. 0 -> 1 can.
+            states = new[]
             {
-                void* paramsPtr = (void*)paramsHandle.AddrOfPinnedObject();
-                return HsmActionDispatcher.EvaluateGuard(guardId, paramsPtr, &bridge, eventId);
-            }
-            finally
+                new global::Fhsm.Kernel.Data.StateDef
+                {
+                    ParentIndex = 0xFFFF, FirstTransitionIndex = 0, TransitionCount = 1,
+                },
+                new global::Fhsm.Kernel.Data.StateDef
+                {
+                    ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF,
+                },
+            };
+            transitions = new[]
             {
-                paramsHandle.Free();
-            }
+                new global::Fhsm.Kernel.Data.TransitionDef
+                {
+                    SourceStateIndex = 0, TargetStateIndex = 1, EventId = eventId, GuardId = id,
+                },
+            };
         }
         else
         {
-            return HsmActionDispatcher.EvaluateGuard(guardId, null, &bridge, eventId);
+            states[0] = new global::Fhsm.Kernel.Data.StateDef
+            {
+                ParentIndex = 0xFFFF, FirstTransitionIndex = 0xFFFF, OnEntryActionId = id,
+            };
         }
+
+        var header = new global::Fhsm.Kernel.Data.HsmDefinitionHeader
+        {
+            StructureHash = MachineId,
+            StateCount = (ushort)states.Length,
+            TransitionCount = (ushort)transitions.Length,
+        };
+        var blob = new global::Fhsm.Kernel.Data.HsmDefinitionBlob(
+            header, states, transitions,
+            Array.Empty<global::Fhsm.Kernel.Data.RegionDef>(),
+            Array.Empty<global::Fhsm.Kernel.Data.GlobalTransitionDef>(),
+            Array.Empty<ushort>(), Array.Empty<ushort>());
+
+        // ⭐⭐ O7c-④d (2026-09-23): THE INSTANCE LIVES IN THE ENTITY'S ROOT HSM SLOT, as in
+        //   production — BrainHsm128 is deleted. The debug session recovers the hosting machine's id
+        //   from that slot to LABEL each occurrence (§24.11), and the slot is keyed from
+        //   BehaviorState.ActiveBehaviorHash, so the host behaviour must be stamped first.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.19.
+        //   🔴🔴 NEVER OVERWRITE AN EXISTING ActiveBehaviorHash. Every root slot key — params,
+        //   BTree cursor, HSM instance — is COMPUTED from it, so stamping our own hash over a real
+        //   one ORPHANS the params slot the thunk is about to read, and the failure surfaces deep
+        //   inside the kernel as "Entity N has no ROOT PARAMS slot". 📐 Measured: doing exactly that
+        //   reddened 4 tests in this project. ⇒ adopt the entity's hash when it has one.
+        if (!_repo.IsComponentTypeRegistered<global::Fdp.Toolkit.Behavior.Components.BehaviorState>())
+            _repo.RegisterComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>();
+
+        int hostHash = FallbackHostBehaviorHash;
+        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+        {
+            _repo.AddComponent(entity, new global::Fdp.Toolkit.Behavior.Components.BehaviorState
+            {
+                ActiveBehaviorHash = hostHash,
+                BrainTier          = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierHsm,
+                InstanceId         = 1,
+            });
+        }
+        else
+        {
+            int existing = _repo.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)
+                                .ActiveBehaviorHash;
+            if (existing != 0)
+                hostHash = existing;                    // ⭐ adopt, never overwrite
+            else
+                _repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity)
+                     .ActiveBehaviorHash = hostHash;    // 0 keys nothing, so there is nothing to orphan
+        }
+
+        var inst = new global::Fhsm.Kernel.Data.HsmInstance128();
+        inst.Header.MachineId = MachineId;
+        // ⚠ 0 is a VALID state index, so every unused region slot must read 0xFFFF or the kernel
+        //   treats all four as sitting in state 0 (measured — design §23.5).
+        for (int r = 0; r < 4; r++) inst.ActiveLeafIds[r] = 0xFFFF;
+
+        if (asGuard)
+        {
+            inst.ActiveLeafIds[0] = 0;
+            inst.Header.Phase = global::Fhsm.Kernel.Data.InstancePhase.RTC;
+            inst.Reserved1 = eventId;
+        }
+        else
+        {
+            inst.Header.Phase = global::Fhsm.Kernel.Data.InstancePhase.Entry;
+        }
+
+        var bridge = new HsmKernelBridge { Self = entity, WorldHandle = _repo.UnmanagedHandle };
+        var page = default(global::Fhsm.Kernel.Data.CommandPage);
+        global::Fhsm.Kernel.HsmKernel.Update(blob, ref inst, in bridge, 0.016f, ref page);
+
+        // ⭐ Write the ticked instance back into the ROOT HSM SLOT, at the width the kernel stepped.
+        //   ⚠ Attached AFTER the dispatch on purpose: the thunk attaches its own occurrence slots
+        //   during the tick, and TryAttach bump-allocates without moving what is already there.
+        byte* hostSlot = global::Fdp.Toolkit.Behavior.RootHsmAccess.ResolveOrAttachRoot(
+            _repo, entity, hostHash, sizeof(global::Fhsm.Kernel.Data.HsmInstance128),
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Hsm, out _);
+        if (hostSlot != null)
+            System.Runtime.CompilerServices.Unsafe.CopyBlock(
+                hostSlot, &inst, (uint)sizeof(global::Fhsm.Kernel.Data.HsmInstance128));
+
+        // For a guard, "did it pass?" is observable as the transition having been TAKEN.
+        return !asGuard || inst.ActiveLeafIds[0] == 1;
+    }
+
+    /// <summary>The entity's occurrence store — where an HSM-hosted occurrence's working state lives.</summary>
+    private unsafe void EnsureOccurrenceStore(Entity entity)
+    {
+        if (_repo.HasComponent<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(entity))
+            return;
+
+        _repo.AddComponent(entity, default(global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024));
+        ref var tier = ref _repo.GetComponentRW<global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>(entity);
+        fixed (byte* mem = tier.Memory)
+            global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.Initialize(
+                mem,
+                global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.TotalSize,
+                (byte)global::Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024.MaxSlots);
     }
 
     private Type FindGeneratedType(BlueprintAsset asset)
@@ -688,78 +825,99 @@ public static class ThrowingRegistrar
     {
         int blueprintId = BlueprintIdHash.Compute(assetId);
 
-        if (_repo.HasComponent<BlueprintBlackboard1024>(entity))
+        // ⭐ B4: walk the LADDER, not a hand-list — this was three copied arms that did not
+        //   know about the 256 tier. ⚠ Largest-first, the same probe order the seam documents.
+        var descending = BlueprintTierTable.Descending;
+        for (int i = 0; i < descending.Count; i++)
         {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B1024, out byte* memory, out _, out _);
+            var spec = descending[i];
+            if (!spec.Has(_repo, entity)) continue;
+
+            GetTierMemoryAndMeta(entity, spec.Tier, out byte* memory, out _, out _);
             if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
             {
-                tier = BlackboardTier.B1024;
-                return true;
-            }
-        }
-        if (_repo.HasComponent<BlueprintBlackboard4096>(entity))
-        {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B4096, out byte* memory, out _, out _);
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
-            {
-                tier = BlackboardTier.B4096;
-                return true;
-            }
-        }
-        if (_repo.HasComponent<BlueprintBlackboard16384>(entity))
-        {
-            GetTierMemoryAndMeta(entity, BlackboardTier.B16384, out byte* memory, out _, out _);
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(memory, blueprintId, out payloadOffset))
-            {
-                tier = BlackboardTier.B16384;
+                tier = spec.Tier;
                 return true;
             }
         }
 
-        tier = BlackboardTier.B1024;
+        tier = BlueprintTierTable.Ascending[0].Tier;
         payloadOffset = -1;
         return false;
     }
+
+    // ⛔⛔ O3b / B4 (2026-09-20) — THIS FIXTURE CARRIED ITS OWN COPY OF THE TIER LADDER, and it
+    //   was the FIFTH. `ChooseTier` still held the pre-B3② literals `928 / 3936`;
+    //   `EnsureTierComponent` and `GetTierMemoryAndMeta` were the same three-arm switches B3①
+    //   collapsed in production. B3①'s census covered PRODUCTION files, so these were invisible
+    //   to it.
+    // 🔴 And it passed B3②'s gate because it is SELF-CONSISTENT: the test asserts the fixture's
+    //   own answer, so both sides were wrong together. A fixture that duplicates production logic
+    //   cannot fail when production changes — it just silently diverges, and hands entities a
+    //   different tier than the code under test would.
+    // ⇒ all three now delegate to BlueprintTierTable, like every production caller.
 
     private unsafe void GetTierMemoryAndMeta(
         Entity entity, BlackboardTier tier,
         out byte* memory, out int totalSize, out byte maxSlots)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard1024.TotalSize;
-                maxSlots  = BlueprintBlackboard1024.MaxSlots;
-                return;
-            }
-            case BlackboardTier.B4096:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard4096>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard4096, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard4096.TotalSize;
-                maxSlots  = BlueprintBlackboard4096.MaxSlots;
-                return;
-            }
-            default:
-            {
-                ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard16384>(entity);
-                ref byte memRef = ref Unsafe.As<BlueprintBlackboard16384, byte>(ref bb);
-                memory    = (byte*)Unsafe.AsPointer(ref memRef);
-                totalSize = BlueprintBlackboard16384.TotalSize;
-                maxSlots  = BlueprintBlackboard16384.MaxSlots;
-                return;
-            }
-        }
+        var spec  = BlueprintTierTable.ByTier(tier);
+        memory    = spec.Memory(_repo, entity);
+        totalSize = spec.TotalSize;
+        maxSlots  = (byte)spec.MaxSlots;
     }
 
     // ---- Entity convenience -------------------------------------------------
 
-    public Entity CreateEntity() => _repo.CreateEntity();
+    /// <summary>
+    /// ⭐⭐ <c>E-cap</c> — a fixture entity carries an occurrence store, because a PRODUCTION brained
+    /// entity does: <c>BehaviorIngressSystem</c> provisions one at assign even when the behaviour
+    /// declares no stateful slots (design §27).
+    ///
+    /// <para>⛔ Without it, every test that ticks a blueprint action would have to remember to add one
+    /// — and the first one that forgot would report <i>"carries no occurrence store"</i>, which reads
+    /// as a product defect rather than a fixture gap. ⚠ That is exactly how this landed the first
+    /// time.</para>
+    /// </summary>
+    public Entity CreateEntity()
+    {
+        var entity = _repo.CreateEntity();
+        EnsureOccurrenceStore(entity);
+        EnsureRootParams(entity);
+        return entity;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>P3-C</c> (<c>2026-09-21</c>) — a fixture entity needs a ROOT PARAMS SLOT, because an
+    /// emitted thunk's SEED now reads one.</b>
+    ///
+    /// <para>🔴 <b>What changed.</b> A blueprint thunk seeds a freshly-attached occurrence from the
+    /// hosting behaviour's params region. That region used to be <c>BrainBlackboard</c> — a component
+    /// every entity in this fixture carried by construction, readable whether or not anyone had ever
+    /// written it. ⇒ the seed silently read zeros and nothing noticed. ⛔ The region is now an
+    /// occurrence slot, and <c>RootParamsAccess</c> THROWS rather than inventing one, so a fixture
+    /// entity with no slot fails at the first dispatch.</para>
+    ///
+    /// <para>⚠ <b>The values are still zeros</b> — this fixture never runs ingress, so nothing parses
+    /// params into the slot. ⭐ That is deliberate and is exactly the old behaviour: these rails are
+    /// about the thunk's STRUCTURE (offsets, slot keys, working state), not about parameter values.
+    /// ⛔ What has changed is that the absence is now explicit instead of accidental.</para>
+    /// </summary>
+    private unsafe void EnsureRootParams(Entity entity)
+    {
+        const int HarnessBehaviourHash = 0x7E5702;
+
+        if (!_repo.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity))
+            _repo.AddComponent(entity, new global::Fdp.Toolkit.Behavior.Components.BehaviorState());
+
+        ref var st = ref _repo.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(entity);
+        if (st.ActiveBehaviorHash == 0) st.ActiveBehaviorHash = HarnessBehaviourHash;
+
+        global::Fdp.Toolkit.Behavior.RootParamsAccess.ResolveOrAttachRoot(
+            _repo, entity, st.ActiveBehaviorHash,
+            global::Fdp.Toolkit.Behavior.BehaviorConstants.MaxBehaviorParamByteSize,
+            OccurrenceKind.BTree, out _);
+    }
 
     // ---- Attach Blueprint ---------------------------------------------------
 
@@ -769,14 +927,22 @@ public static class ThrowingRegistrar
             throw new InvalidOperationException(
                 $"Blueprint '{asset.Name}' not loaded into registry. Call CompileAndLoad first.");
 
-        var tier = ChooseTier(def!.StateSize);
+        // ⭐ B4 — design §17.7. Mirror production EXACTLY: the payload-only pick is reconciled with
+        //   the tier the entity may already carry. ⛔ ChooseTier alone would add a SECOND store the
+        //   moment the pick disagrees — which the 256 tier made the common case.
+        var tier = BlueprintTierTable.EnsureAtLeast(
+            _repo, entity, BlueprintTierTable.SelectByPayload(def!.StateSize)).Tier;
         EnsureTierComponent(entity, tier);
 
         GetTierMemoryAndMeta(entity, tier, out byte* memory, out int totalSize, out byte maxSlots);
         BlueprintBlackboardPartitions.Initialize(memory, totalSize, maxSlots);
 
         int blueprintId = BlueprintIdHash.Compute(asset.AssetId);
-        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash, out int payloadOffset))
+        // ⭐ A3/D1' — declare the kind, exactly as the production attach paths do
+        //   (BlueprintInstanceService / BlueprintTickSystem / BlueprintMaterializationSystem).
+        //   ⛔ Without it the slot reads Invalid and A4's walker skips it, so nothing ticks.
+        if (!BlueprintBlackboardPartitions.TryAttach(memory, blueprintId, def.StateSize, def.StructureHash,
+                OccurrenceKind.Blueprint, out int payloadOffset))
             throw new InvalidOperationException(
                 $"Failed to attach Blueprint '{asset.Name}' to entity {entity} (tier {tier}).");
 
@@ -788,30 +954,17 @@ public static class ThrowingRegistrar
         }
     }
 
+    /// <summary>⛔ Delegates — see the note above <c>GetTierMemoryAndMeta</c>. This is the SAME
+    /// payload-only selector <c>BlueprintInstanceService.ChooseTier</c> uses, so the fixture seats a
+    /// blueprint exactly where production would.</summary>
     internal static BlackboardTier ChooseTier(int stateSize)
-    {
-        if (stateSize <= 928)  return BlackboardTier.B1024;
-        if (stateSize <= 3936) return BlackboardTier.B4096;
-        return BlackboardTier.B16384;
-    }
+        => BlueprintTierTable.SelectByPayload(stateSize).Tier;
 
     private void EnsureTierComponent(Entity entity, BlackboardTier tier)
     {
-        switch (tier)
-        {
-            case BlackboardTier.B1024:
-                if (!_repo.HasComponent<BlueprintBlackboard1024>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard1024));
-                break;
-            case BlackboardTier.B4096:
-                if (!_repo.HasComponent<BlueprintBlackboard4096>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard4096));
-                break;
-            case BlackboardTier.B16384:
-                if (!_repo.HasComponent<BlueprintBlackboard16384>(entity))
-                    _repo.AddComponent(entity, default(BlueprintBlackboard16384));
-                break;
-        }
+        var spec = BlueprintTierTable.ByTier(tier);
+        if (!spec.Has(_repo, entity))
+            spec.Add(_repo, entity);
     }
 
     // ---- BPF-008: Fixture helpers ------------------------------------------
@@ -867,28 +1020,24 @@ public static class ThrowingRegistrar
         var ms     = new MemoryStream();
         var writer = new BinaryWriter(ms);
 
-        var query1024 = _repo.Query().With<BlueprintBlackboard1024>().Build();
-        foreach (var entity in query1024)
+        // ⭐ B4: snapshot every REGISTERED tier from the ladder. ⛔ This was two copied blocks
+        //   naming 1024 and 4096, so a 256-tier store was simply absent from the snapshot and a
+        //   "nothing changed" assertion over it was vacuously true.
+        // ⚠ Ascending, so the byte order is stable and does not depend on the probe order.
+        var ascending = BlueprintTierTable.Ascending;
+        for (int t = 0; t < ascending.Count; t++)
         {
-            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard1024>(entity);
-            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-            int   size           = Unsafe.SizeOf<BlueprintBlackboard1024>();
-            writer.Write(entity.Index);
-            writer.Write(entity.Generation);
-            for (int i = 0; i < size; i++)
-                writer.Write(ptr[i]);
-        }
+            var spec = ascending[t];
+            if (!spec.IsRegistered(_repo)) continue;
 
-        var query4096 = _repo.Query().With<BlueprintBlackboard4096>().Build();
-        foreach (var entity in query4096)
-        {
-            ref readonly var bb  = ref _repo.GetComponentRO<BlueprintBlackboard4096>(entity);
-            byte* ptr            = (byte*)Unsafe.AsPointer(ref Unsafe.AsRef(in bb));
-            int   size           = Unsafe.SizeOf<BlueprintBlackboard4096>();
-            writer.Write(entity.Index);
-            writer.Write(entity.Generation);
-            for (int i = 0; i < size; i++)
-                writer.Write(ptr[i]);
+            foreach (var entity in spec.BuildQuery(_repo))
+            {
+                byte* ptr = spec.MemoryReadOnly(_repo, entity);
+                writer.Write(entity.Index);
+                writer.Write(entity.Generation);
+                for (int i = 0; i < spec.TotalSize; i++)
+                    writer.Write(ptr[i]);
+            }
         }
 
         writer.Flush();

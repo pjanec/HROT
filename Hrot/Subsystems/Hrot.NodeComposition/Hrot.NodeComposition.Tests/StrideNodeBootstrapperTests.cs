@@ -4,6 +4,7 @@ using CarKinem.Core;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Diagnostics.Gizmos;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Vis2D.Components;
@@ -135,16 +136,21 @@ public sealed class StrideNodeBootstrapperTests
     // ── SC_SM003_7 ────────────────────────────────────────────────────────────
 
     /// <summary>
-    /// SC_SM003_7: CognitiveComponentRegistry components (e.g. BrainHsm128) are NOT
-    /// registered in the ECS world on the Stride node — Brain AI data stays on the
-    /// CGF node only.
+    /// SC_SM003_7: CognitiveComponentRegistry components are NOT registered in the ECS world on
+    /// the Stride node — Brain AI data stays on the CGF node only.
+    ///
+    /// <para>⚠ RE-HOMED by <c>O7c</c>-④d (2026-09-23): the probe used to be <c>BrainHsm128</c>, which
+    /// is deleted — the HSM instance is an occurrence slot now. <c>HsmTraceWorkingMemory1024</c> is
+    /// the replacement probe: still registered by <c>CognitiveComponentRegistry</c> and still
+    /// brain-only, so the CLAIM is unchanged. ⛔ The occurrence TIER components would be the wrong
+    /// probe — they are registered by the blueprint side, which is not what this asserts.</para>
     /// </summary>
     [Fact]
     public void CognitiveComponents_NotRegisteredInWorld()
     {
         var bootstrapper = CreateAndBoot();
 
-        Assert.False(bootstrapper.Context.World.IsComponentTypeRegistered<BrainHsm128>());
+        Assert.False(bootstrapper.Context.World.IsComponentTypeRegistered<HsmTraceWorkingMemory1024>());
     }
 
     // ── SC_SM003_8 ────────────────────────────────────────────────────────────

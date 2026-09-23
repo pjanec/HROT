@@ -303,7 +303,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, slotIndex, stateId);
                 }
             }
             
@@ -447,7 +447,7 @@ namespace Fhsm.Kernel
                     // Execute activity if present
                     if (state.ActivityActionId != 0 && state.ActivityActionId != 0xFFFF)
                     {
-                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                        ExecuteAction(state.ActivityActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, r, current);
                     }
 
                     current = state.ParentIndex;
@@ -503,6 +503,7 @@ namespace Fhsm.Kernel
                     currentEventId,
                     contextPtr,
                     traceCtx,
+                    ref cmdWriter,
                     out int selectedRegion);
 
                 if (selectedTransition == null)
@@ -521,6 +522,8 @@ namespace Fhsm.Kernel
             header->Phase = InstancePhase.Activity;
         }
 
+        // ⭐ O6 — `cmdWriter` is threaded in ONLY so a guard can be stamped with its occurrence
+        //   before it is evaluated. Selection itself does not write commands.
         private static TransitionDef? SelectTransition(
             HsmDefinitionBlob definition,
             byte* instancePtr,
@@ -530,6 +533,7 @@ namespace Fhsm.Kernel
             ushort eventId,
             void* contextPtr,
             HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
             out int regionIndex)
         {
             // The region the winning transition was selected in. ExecuteTransition needs it to write
@@ -544,7 +548,7 @@ namespace Fhsm.Kernel
                 ref readonly var gt = ref globalSpan[i];
                 if (gt.EventId == eventId)
                 {
-                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                    if (gt.GuardId == 0 || EvaluateGuard(gt.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, 0, activeLeafIds[0]))
                     {
                         return new TransitionDef
                         {
@@ -587,7 +591,7 @@ namespace Fhsm.Kernel
                                 // Priority is top 4 bits (12-15) of Flags
                                 byte priority = (byte)((ushort)(trans.Flags) >> 12);
 
-                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx))
+                                if (trans.GuardId == 0 || EvaluateGuard(trans.GuardId, instancePtr, contextPtr, eventId, traceCtx, ref cmdWriter, r, current))
                                 {
                                     if (bestTransition == null || priority > highestPriority)
                                     {
@@ -610,9 +614,34 @@ namespace Fhsm.Kernel
             return bestTransition;
         }
         
-        private static bool EvaluateGuard(ushort guardId, byte* instancePtr, void* contextPtr, ushort eventId, HsmTraceContext* traceCtx)
+        /// <summary>
+        /// O6 / <c>D2</c> — THE ONE STAMPING SITE FOR GUARDS, and the reason
+        /// <c>HsmActionDispatcher.EvaluateGuard</c> now carries the writer.
+        /// <para>
+        /// ⛔ <c>Q35</c> accepted "guards are unserved" on the strength of a census that counted
+        /// HAND-AUTHORED guards and missed the EMITTER: <c>AiPrimitiveHosting.HsmGuard</c> is a
+        /// first-class hosting mode, so "blueprint as an HSM condition" is exactly the composition
+        /// an unserved guard cannot deliver. One mechanism for actions and guards alike — the
+        /// occurrence arrives the same way in both, so there is no second route to keep in step.
+        /// </para>
+        /// </summary>
+        private static bool EvaluateGuard(
+            ushort guardId,
+            byte* instancePtr,
+            void* contextPtr,
+            ushort eventId,
+            HsmTraceContext* traceCtx,
+            ref HsmCommandWriter cmdWriter,
+            int regionSlotIndex,
+            ushort stateId)
         {
-            bool result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId);
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
+
+            bool result;
+            fixed (HsmCommandWriter* writerPtr = &cmdWriter)
+            {
+                result = HsmActionDispatcher.EvaluateGuard(guardId, instancePtr, contextPtr, eventId, writerPtr);
+            }
 
             if (traceCtx != null)
             {
@@ -680,7 +709,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnExitActionId != 0 && state.OnExitActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnExitActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, stateId);
                 }
 
                 // Save history if this state has history
@@ -695,7 +724,7 @@ namespace Fhsm.Kernel
             // 2. Execute transition action
             if (transition.ActionId != 0 && transition.ActionId != 0xFFFF)
             {
-                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                ExecuteAction(transition.ActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, sourceStateId);
             }
 
             // 3. Execute entry actions (LCA -> leaf)
@@ -727,7 +756,7 @@ namespace Fhsm.Kernel
 
                 if (state.OnEntryActionId != 0 && state.OnEntryActionId != 0xFFFF)
                 {
-                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx);
+                    ExecuteAction(state.OnEntryActionId, instancePtr, contextPtr, ref cmdWriter, traceCtx, regionIndex, stateId);
                 }
                 
                 // If composite, resolve to initial child
@@ -759,12 +788,22 @@ namespace Fhsm.Kernel
             HsmEventQueue.RecallDeferredEvents(instancePtr, instanceSize);
         }
 
+        /// <summary>
+        /// O6 — THE ONE STAMPING SITE FOR ACTIONS. Every action dispatch funnels through here, so
+        /// the occurrence pair is written in exactly one place and cannot go out of step with the
+        /// dispatch it describes. Callers supply <paramref name="regionSlotIndex"/> and
+        /// <paramref name="stateId"/> because only they know which region and which state this
+        /// action belongs to; the kernel supplies IDENTITY, the thunk does the LOOKUP.
+        /// DESIGN_Occurrence_Scoped_Storage.md §4.2.
+        /// </summary>
         private static void ExecuteAction(
             ushort actionId,
             byte* instancePtr,
             void* contextPtr,
             ref HsmCommandWriter cmdWriter,
-            HsmTraceContext* traceCtx)
+            HsmTraceContext* traceCtx,
+            int regionSlotIndex,
+            ushort stateId)
         {
             if (traceCtx != null)
             {
@@ -774,6 +813,8 @@ namespace Fhsm.Kernel
                     traceCtx->WriteActionExecuted(header->MachineId, actionId);
                 }
             }
+
+            cmdWriter.StampOccurrence(regionSlotIndex, stateId);
 
             fixed(HsmCommandWriter* writerPtr = &cmdWriter)
             {
@@ -1088,7 +1129,9 @@ namespace Fhsm.Kernel
             }
         }
 
-        private static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
+        // ⭐ O7c-④ (2026-09-23): internal rather than private so HsmKernel can expose the ONE public
+        //   facade over it. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.1. The body is unchanged.
+        internal static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
         {
             switch (instanceSize)
             {

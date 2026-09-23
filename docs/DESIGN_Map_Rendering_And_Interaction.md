@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
 build-state: REFERENCE (describes the AS-IS; the TO-BE is owned by UXI-23 and UXI-07)
-updated: 2026-08-28
-verified: 2026-08-28 — every AS-IS claim measured from source this session; file:line cited inline.
+updated: 2026-09-19
+verified: 2026-09-19 — the AS-IS was measured 2026-08-28; sections 3.2 and 4.2 were RE-measured 2026-09-19
+  (graph + grep, coverage checked) and corrected in place. Every other numeric claim carries its own date.
 current-answer: read section 1 (the two halves) first — it is the orientation. Section 2 is the
   AS-IS with diagrams, section 3 the interaction path, section 4 the TO-BE including the restored
   tool stack, section 5 the risk register that governs any merge.
@@ -12,16 +13,21 @@ rulings: R-137 unification may not cost a feature; if it does, put it back as co
 known-conflict: docs/designs/gizmos-1/gizmo-input-focus-design.md section 14 says the FRONTEND keeps a
   tool stack; UX_Feature_Tool_Model.md (UXI-07, newer and user-ruled) puts the MODAL stack in the
   BACKEND. RECONCILED in section 1.3: the word names two different mechanisms at two layers.
-known-rot: ⚠ TWO items found 2026-09-10, listed in docs/SNAPSHOT_Map_Interaction_Architecture.md §6 and
-  NOT yet repaired here: (a) §3.2's sequence diagram shows ToolActivationDrainSystem owning
-  ToggleEntityGizmo — since UXI-07 step 3b the drain is "an EVENT ADAPTER and nothing else" and the tool
-  bodies live in ScenarioToolRegistrations; (b) §4.2's table marks IToolController / ActiveModal /
-  ModalStack / PushModal / Cancel as "NOT-BUILT" — all are BUILT (UXI-07, 2026-09-09) and PushModal's
-  suspend/resume was operator-confirmed. Otherwise every numeric claim carries its measurement date.
+known-rot: ✅ NONE OPEN. The two items found 2026-09-10 (SNAPSHOT_Map_Interaction_Architecture.md §6)
+  were REPAIRED 2026-09-19, in place, each with a correction banner naming what the old text said:
+  (a) §3.2's sequence diagram now shows the drain as the EVENT ADAPTER it became at UXI-07 step 3b, with
+  the tool bodies in ScenarioToolRegistrations; (b) §4.2's table no longer marks IToolController /
+  ActiveModal / ModalStack / PushModal / Cancel "NOT-BUILT" — all are BUILT (UXI-07, 2026-09-09), and the
+  section's "suspend != deactivate" warning is marked resolved with the mechanism that resolved it.
+  ⚠ One NEW caveat recorded in §4.2 rather than as rot: ShowOnToolbar is set on 6 descriptors and read by
+  0 consumers (UXI-07 steps 5-6, open, CE-259m). Otherwise every numeric claim carries its measurement date.
 see-also: docs/SNAPSHOT_Map_Interaction_Architecture.md — a 2026-09-10 SNAPSHOT of composition,
   ownership and data flow as built, plus a findings ledger and the user rulings of that date. It owns
   nothing and does not redraw this file's diagrams; it records what this file's layer view does not:
   who BUILDS what per host, and the four-store selection reality.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: what a pick BECOMES once this file's chain has
+    produced one (the store, the request, the notification, the egress). This file stops at the pick.
 -->
 # Map rendering & interaction — how it works, and where it is going
 
@@ -93,7 +99,12 @@ It delegates to the inner terminal (`:83`) and translates `Commit`/`Cancel` into
 |---|---|---|
 | holds | which input handler receives mouse/keys | which editing **operation** is active vs suspended |
 | doc | `gizmo-input-focus-design.md` §14 — *"for routing … no semantic decisions in the stack"* | `UXI-07` — `IToolController`, `ModalStack`, `PushModal` |
-| today | ⚠ collapsed to a single `_activeTool` slot | 🔴 **does not exist** |
+| today | ⚠ collapsed to a single `_activeTool` slot | ✅ **BUILT** *(`UXI-07`, `2026-09-09`)* — ⚠ **corrected `2026-09-19`; this cell used to read "🔴 does not exist"** |
+
+⭐⭐ **And the FOCUS slot behind the frontend column is now ONE, shared** — `GizmoFocusRegistry`, a single
+instance handed to **both** arbiters by `MapInteractionPack`. ⛔ Before that, `GlobalGizmoManager` and
+`DataDrivenGizmoSystem` each held a private `_focusedGizmo` and *"at most one exclusive focus per
+subsystem"* was true only by `ToolController` convention. 🔒 `R-144` · 📄 `Architect_Question_68` §6.
 
 ---
 
@@ -270,31 +281,46 @@ handle still draws** — and a single-process test cannot see it, because both s
 
 ### 3.2 Tool activation
 
+> ⭐⭐ **CORRECTED `2026-09-19`.** The diagram below used to show `ToolActivationDrainSystem` owning
+> `ToggleEntityGizmo` and constructing each tool's gizmo. ⛔ **That has been false since `UXI-07` step 3b**
+> *(`2026-09-09`)*: the drain is **an EVENT ADAPTER and nothing else** — it turns a target-less
+> `ActivateEditorToolEvent` into `IToolController.Activate(id, target)` by supplying the primary selection,
+> and **the tool bodies live in `ScenarioToolRegistrations`**. 📄 The rot was recorded in
+> [`SNAPSHOT_Map_Interaction_Architecture.md`](SNAPSHOT_Map_Interaction_Architecture.md) §6 and is repaired here.
+
 ```mermaid
 sequenceDiagram
     participant UI as Toolbar / context menu
     participant Bus as World bus
     participant Drain as ToolActivationDrainSystem
+    participant TC as ToolController
+    participant Reg as ScenarioToolRegistrations
     participant D as DataDrivenGizmoSystem
     participant M as GlobalGizmoManager
 
     UI->>Bus: ActivateEditorToolEvent(Tool)
     Bus->>Drain: drained each frame
+    Drain->>Drain: target = PrimarySelected
+    Drain->>TC: Activate(ScenarioToolIds.ForEditorTool, target)
+    TC->>TC: CancelOtherArbiter, then the registered activation
+    TC->>Reg: run the tool's activation body
     alt Edit or Route
-        Drain->>Drain: ToggleEntityGizmo of required component
-        Drain->>D: add VertexEditGizmo / RouteWaypointGizmo
+        Reg->>D: ActivateGizmo VertexEdit / RouteWaypoint
     else Measure
-        Drain->>M: Register(MeasureGizmo)
+        Reg->>M: Register MeasureGizmo
     else Rotate
-        Drain->>D: inject EntityRotatorGizmo
+        Reg->>D: ActivateGizmo EntityRotator
     else collaborator missing
-        Drain-->>UI: REPORT unserviceable - tool name + reason
+        Reg-->>UI: Unserviceable - tool name + reason
     end
 ```
 
-⭐⭐ **`ToolActivationDrainSystem` already implements *declare-and-report-unserviceable*** — per tool, with
-name and reason, defaulting to the log and rail-injectable. 🔒 **It is the pattern the map should copy, not
-redesign.**
+⭐⭐ **The *declare-and-report-unserviceable* pattern survives the move** — per tool, with name and reason,
+defaulting to the FDP log and rail-injectable. ⚠ **But the REPORTER moved with the bodies:** it is
+`ScenarioToolRegistrations` / `ToolReport` that reports now, not the drain *(the drain keeps only its own
+refusals — "no arbiter wired")*. 🔒 **It is still the pattern the map should copy, not redesign.**
+⚠ Where an operator actually SEES that report is measured in
+[`UX/UX_Feature_Tool_Model.md`](UX/UX_Feature_Tool_Model.md) §4.7e — the Message Log window, not a toast.
 
 ### 3.3 Why a handle may or may not appear — **three gates, all silent**
 
@@ -407,14 +433,21 @@ stateDiagram-v2
     ModalActive --> NullModal : action with CancelsModalTool
 ```
 
-| element | source |
+> ⭐⭐⭐ **CORRECTED `2026-09-19` — THIS SECTION IS NO LONGER "TO-BE". IT IS BUILT.** The table below used to
+> mark every element *"NOT-BUILT"*. ⛔ All of them shipped with `UXI-07` on `2026-09-09`.
+
+| element | state, measured `2026-09-19` |
 |---|---|
-| `IToolController` · `ActiveModal` · `ModalStack` · `PushModal` *("SUSPENDS the top; dispose pops & resumes")* · `Cancel` *("pops ONE level")* | 🔒 **`UXI-07`, already designed, user-ruled, NOT-BUILT** |
-| `ToolDescriptor { Id, Label, Modality, ShowOnToolbar, ToggleOnReactivate }` | `UXI-07` — registration-time flags |
+| `IToolController` · `ActiveModal` · `ModalStack` · `PushModal` *("SUSPENDS the top; dispose pops & resumes")* · `Cancel` *("pops ONE level")* | ✅ **BUILT** — `Hrot.Presentation/ScenarioEditor/Tools/ToolController.cs`. ⭐⭐ **`PushModal`'s suspend/resume was OPERATOR-CONFIRMED** *(`2026-09-09`: a picker armed over a half-drawn shape left it drawn and live — the first human verification of the capability)* |
+| `ToolDescriptor { Id, Label, Modality, ShowOnToolbar, ToggleOnReactivate }` | ✅ **BUILT** — ⚠ **but `ShowOnToolbar` is set on 6 descriptors and READ BY 0 consumers**; nothing binds `ActiveModalChanged`. That is `UXI-07` steps 5–6, still open *(`CE-259m`)* |
 | `CancelsModalTool` on the **action**, not the tool | `UXI-07`, corrected `2026-08-10` — *"must be driven by focus changes only"* |
 
-⚠ **Suspend ≠ deactivate.** Both current teardown paths **destroy** the gizmo; a stack needs a suspend that
-preserves state. 🔒 That is `UXI-07`'s work, **not** `UXI-23`'s.
+⚠ **"Suspend ≠ deactivate" is RESOLVED, and the resolution is worth keeping.** This section used to warn
+that *"both current teardown paths destroy the gizmo; a stack needs a suspend that preserves state."*
+⭐ That suspend now exists — `GizmoFocusRegistry.Suspend()` is `SetFocus(false)` **without** the `Dispose()`,
+and the gizmo stays registered so it keeps drawing. ⛔ The pop needs `CancelFocused()` *(one holder)*, **not**
+`CancelInteractiveTools()` *(a sweep)* — conflating them destroyed the tool the push had just suspended, and
+a rail now pins it. 📄 [`designs/gizmos-1/gizmo-input-focus-design.md`](designs/gizmos-1/gizmo-input-focus-design.md) §6.2b.
 
 ### 4.3 Who owns what
 

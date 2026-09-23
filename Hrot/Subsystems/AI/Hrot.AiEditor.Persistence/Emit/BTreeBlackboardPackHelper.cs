@@ -16,8 +16,20 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// </summary>
 public static class BTreeBlackboardPackHelper
 {
-    /// <summary>Maximum inline bytes available (mirrors BehaviorConstants.MaxBehaviorParamByteSize).</summary>
-    public const int MaxInlineBytes = 100;
+    /// <summary>
+    /// Maximum bytes a behaviour's packed variable table may occupy — mirrors
+    /// <c>BehaviorConstants.MaxRootParamsByteSize</c>, the payload of the largest occurrence storage
+    /// tier. Inlined because this assembly is netstandard2.0 and cannot reference the net8.0 runtime;
+    /// pinned against every other copy by <c>InlineBudgetConstantAgreementTests</c>.
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — was <b>100</b>.</b> ⛔ That number was a buffer-overrun
+    /// guard for params stored inline in <c>BrainBlackboard</c> beside tail registers; <c>O2</c> moved
+    /// the registers out and <c>P3-C</c> moved params into their own slot, so nothing neighbours them.
+    /// 🔴 <b>This mirror is the one with teeth:</b> <c>BTreeJsonGenerator</c> treats an overflow as
+    /// <i>"asset skipped"</i> — it emits NO code for the asset at all — so 100 was a hard authoring
+    /// limit on every generated BTree blackboard.</para>
+    /// </summary>
+    public const int MaxInlineBytes = 16096;
 
     private const int AlignmentCap = 8;
 

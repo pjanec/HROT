@@ -36,8 +36,9 @@ public sealed class LiveVariableTableTests : IDisposable
     /// <summary>Reads the live <c>TickCount</c> field bytes straight out of the entity's slot.</summary>
     private static unsafe byte[] ReadTickCountBytes(BlueprintTestFixture fixture, Entity entity)
     {
-        ref var bb    = ref fixture.World.GetComponentRW<BlueprintBlackboard1024>(entity);
-        ref byte mem  = ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb);
+        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
+        ref byte mem  = ref Unsafe.AsRef<byte>(
+                            OccurrenceStoreAccess.TryGetStore(fixture.World, entity, out _));
         byte* memory  = (byte*)Unsafe.AsPointer(ref mem);
 
         if (!BlueprintBlackboardPartitions.TryGetSlotOffset(

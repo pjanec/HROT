@@ -27,7 +27,7 @@ namespace Hrot.SimHost.UI
     /// publishes them over DDS, making them visible on the IG map.</para>
     ///
     /// <para>Each spawned entity carries a <see cref="BehaviorState"/> and
-    /// <see cref="BrainBlackboard"/> so the BTree cognitive tier drives its behaviour
+    /// <c>BrainBlackboard</c> so the BTree cognitive tier drives its behaviour
     /// autonomously from the first frame.</para>
     /// </summary>
     public class SimHostScenarioManager

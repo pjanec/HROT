@@ -6,6 +6,7 @@ using CarKinem.Tkb;
 using Fdp.Interfaces;
 using Fdp.Core;
 using Fhsm.Compiler;
+using Fhsm.Kernel;
 using Fhsm.Kernel.Data;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
@@ -71,7 +72,7 @@ namespace Fdp.Examples.UrbanCombat
         // Auto-incrementing network ID counter used when _entityMap is provided.
         private long _nextNetId = 1;
 
-        // Cached APC HSM structure hash so BrainHsm128 can be pre-initialised.
+        // Cached APC HSM structure hash so the root HSM slot can be pre-initialised (O7c-④).
         private readonly uint _apcHsmStructureHash;
 
         /// <summary>
@@ -230,18 +231,43 @@ namespace Fdp.Examples.UrbanCombat
             behavior.ActiveBehaviorHash = behaviorId;
             unchecked { behavior.InstanceId++; }   // trigger ChannelArbitrationSystem preemption
 
-            // Set BrainTier from registry so BTreeTickSystem / HsmTickSystem processes this entity.
+            // Set BrainTier from the registry so BrainTickSystem picks the right arm for this entity.
             if (_registry.TryGetDefinition(behaviorId, out var def))
                 behavior.BrainTier = def.BrainTier;
 
+            // ⭐⭐⭐ O7c-② / O7c-④ — RE-PROVISION THE ROOT BRAIN STATE FOR *THIS* BEHAVIOUR.
+            //   🔴🔴 THE LINE ABOVE IS WHY THIS IS NEEDED, and it is the "ORDER MATTERS" trap
+            //     RootStateAccess documents. BehaviorTkbTranslator already provisioned a root slot at
+            //     spawn — but keyed by the TEMPLATE'S DEFAULT behaviour, because that is the hash it
+            //     stamped. This method then overwrites ActiveBehaviorHash with a DIFFERENT behaviour,
+            //     so the computed key no longer resolves and the slot the translator attached is
+            //     orphaned.
+            //   ⛔ For a BTree brain the consequence is loud but easy to lose: BrainTickSystem's
+            //     RequireStateRef THROWS, and a module host that swallows system exceptions turns
+            //     that into "the brain silently never ticks".
+            //   ⚠ This scenario publishes no AssignBehaviorEvent, so BehaviorIngressSystem — the
+            //     other provisioner — never runs for it either. ⇒ this site owns it.
+            if (def != null && def.BrainTier == BehaviorConstants.BrainTierBTree)
+                RootStateAccess.EnsureRootState(_world, entity, behaviorId);
+
             // Pre-initialise the APC HSM brain so HsmKernel.Update processes it correctly.
-            // Without this, BrainHsm128.Header.MachineId = 0 and ValidateInstance rejects it.
-            if (tkbTypeId == 2001 && _world.HasComponent<BrainHsm128>(entity))
+            // Without this, InstanceHeader.MachineId = 0 and ValidateInstance rejects it.
+            //
+            // ⭐⭐ O7c-④ (2026-09-23): THE INSTANCE LIVES IN AN OCCURRENCE SLOT, NOT IN BrainHsm128.
+            //   🔴 This scenario never publishes an AssignBehaviorEvent — it stamps BehaviorState by
+            //   hand above — so BehaviorIngressSystem never runs for it and this IS the provisioner.
+            //   ⇒ EnsureRootInstance, which sizes the slot from HsmInstanceManager.SelectTier(blob).
+            if (tkbTypeId == 2001 && def?.HsmDefinition != null
+                && RootHsmAccess.EnsureRootInstance(_world, entity, behaviorId, def.HsmDefinition)
+                && RootHsmAccess.TryGetInstance(_world, entity, out byte* apcInstance, out int apcSize))
             {
-                ref var brain = ref _world.GetComponentRW<BrainHsm128>(entity);
-                brain.State.Header.MachineId     = _apcHsmStructureHash;
-                brain.State.Header.Phase         = InstancePhase.RTC;         // already running
-                brain.State.ActiveLeafIds[0]     = Brains.ApcHsmSetup.CruisingStateIndex;
+                ((InstanceHeader*)apcInstance)->Phase = InstancePhase.RTC;    // already running
+
+                // ⛔ Offset AND length are both functions of the instance SIZE — read through the
+                //   kernel's accessor, never a struct field.
+                ushort* leaves = HsmKernel.GetActiveLeafIds(apcInstance, apcSize, out int leafCount);
+                if (leaves != null && leafCount > 0)
+                    leaves[0] = Brains.ApcHsmSetup.CruisingStateIndex;
             }
 
             // Register entity in NetworkEntityMap with a sequential network ID so the

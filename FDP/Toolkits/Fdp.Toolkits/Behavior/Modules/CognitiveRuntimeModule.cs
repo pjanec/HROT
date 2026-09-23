@@ -16,9 +16,8 @@ namespace Fdp.Toolkit.Behavior.Modules
     ///     <list type="number">
     ///       <item><see cref="ChannelArbitrationSystem"/> — clears stale channels on behavior change</item>
     ///       <item><see cref="CognitiveInterruptSystem"/> — edge-triggered blackboard interrupt bytes</item>
-    ///       <item><see cref="BTreeTickSystem"/> — zero-alloc BTree tick per entity</item>
-    ///       <item><see cref="HsmTickSystem{BrainHsm128}"/> — HSM tick for 128-byte HSM instances</item>
-    ///       <item><see cref="HsmTickSystem{BrainHsm64}"/> — HSM tick for 64-byte HSM instances</item>
+    ///       <item><see cref="BrainTickSystem"/> — the ONE brain tick: BTree and HSM arms over one
+    ///         occurrence-store tier walk (<c>O7c</c>-④b)</item>
     ///       <item><see cref="CognitiveCleanupSystem"/> — clears per-frame interrupt bytes after all brain ticks</item>
     ///       <item><see cref="BehaviorFrameSystem"/> — advances the global behaviour-frame pulse (Q46 rule 2b)</item>
     ///     </list>
@@ -60,9 +59,13 @@ namespace Fdp.Toolkit.Behavior.Modules
             {
                 new ChannelArbitrationSystem(gateOnAuthority),
                 new CognitiveInterruptSystem(gateOnAuthority),   // BHU-008: before HSM/BTree ticks
-                new BTreeTickSystem(_registry, gateOnAuthority),
-                new HsmTickSystem<BrainHsm128>(_registry, gateOnAuthority),
-                new HsmTickSystem<BrainHsm64>(_registry, gateOnAuthority),
+                // ⭐⭐⭐ O7c-④b (2026-09-23) — ONE BRAIN TICK, TWO ARMS. 📄 §31.14 / §31.16.
+                //   ⛔ BTreeTickSystem and HsmTickSystem<BrainHsm128> are BOTH gone. The generic one
+                //   could not survive retiring its component; keeping two near-identical non-generic
+                //   systems is the duplication B3 already paid to remove once.
+                //   ⭐ The chain is UNCHANGED in order — arbitration → interrupt → tick → cleanup →
+                //   pulse. This removes a NODE from it, never a step.
+                new BrainTickSystem(_registry, gateOnAuthority),
                 new CognitiveCleanupSystem(gateOnAuthority),     // BHU-015: clears interrupt bytes last
                 // ⭐⭐⭐ Batch 94 (94b) — the behaviour-frame pulse, LAST, so it means "a brain tick
                 //    HAS RUN". Q46 §2 rule 2b: ONE tick source for every host, gated on dt > 0.

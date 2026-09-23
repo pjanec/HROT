@@ -209,6 +209,11 @@ public sealed class SharedApplicationBootstrapperTests
         public NetworkLifecycleSystemGroup NetworkLifecycleGroup { get; } = new NetworkLifecycleSystemGroup();
         public Action? AfterSeekCallback => null;
         public Fdp.Toolkit.Replication.Services.DescriptorOwnershipMap? DescriptorOwnershipMap => null;
+        // ⚠ UNRELATED TO O7c — a PRE-EXISTING compile break in this project, which has no
+        //   obj/project.assets.json in a fresh container and was therefore never built (trap ③,
+        //   §31.19.3). INedReplicationModule gained ExpectedPeers and this test double was never
+        //   updated. Implemented as null, matching every production `?.ExpectedPeers` call site.
+        public Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? ExpectedPeers => null;
 
         public string Name => "MockNedReplication";
         public ExecutionPolicy Policy => ExecutionPolicy.Synchronous();

@@ -14,8 +14,8 @@ namespace Hrot.AI.Behaviors.Trees;
 
 public static class T33_ComposedParamBlueprint
 {
-    public static BTreeBuilder<BrainBlackboard, BTreeContext> CreateBuilder() =>
-        new BTreeBuilder<BrainBlackboard, BTreeContext>()
+    public static BTreeBuilder<byte, BTreeContext> CreateBuilder() =>
+        new BTreeBuilder<byte, BTreeContext>()
             .Action("Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.TickCore@0@658677001",
                 visualId: new Guid("bb330000-0000-0000-0000-000000000011"));
 

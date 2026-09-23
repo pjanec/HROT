@@ -68,7 +68,7 @@ public class EditorCapabilitiesTests : IDisposable
     {
         var entityMap  = new NetworkEntityMap();
         var mapper     = new TacticalIntentMapperRegistry();
-        var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, new ScenarioEntityCreationRequestSource(), mapper);
+        var cgf        = new CgfLogicPack(new Fdp.Toolkit.Behavior.BehaviorRegistry(), entityMap, new ScenarioEntityCreationRequestSource(), mapper, new Fdp.Toolkit.Blueprints.BlueprintRegistry());
         var muscle     = new SimHostCoreLogicPack(entityMap);
         var perception = new CognitiveSpatialModule(world, colliderRadiusReader: static (_, _) => 0f);
         Track(cgf); Track(muscle); Track(perception);

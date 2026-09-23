@@ -25,6 +25,13 @@ namespace Fdp.Toolkit.Behavior.Tests
             CreateFixture()
         {
             var world    = TestWorldFactory.Create();
+
+            // 🔴 P3-C: a behaviour's params live in an OCCURRENCE SLOT now, so a world that never
+            //   registered the tier components has nowhere to put them — and the ingress says so
+            //   loudly rather than dropping the parse. ⭐ Production registers these Hrot-wide
+            //   (HrotSharedComponentRegistry:174); a bare test world has to ask.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+
             var registry = new BehaviorRegistry();
             var sys      = new BehaviorIngressSystem(registry);
             return (world, sys, registry);
@@ -52,7 +59,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainBlackboard());
 
             // Publish event then swap buffers so ConsumeManaged returns it.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -65,11 +71,12 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             sys.Execute(world, 0.016f);
 
-            // Verify: BrainBlackboard.BehaviorParameters[0..3] == 50.0f.
-            ref var blackboard = ref world.GetComponentRW<BrainBlackboard>(e);
-            var bbPtr = (BrainBlackboard*)Unsafe.AsPointer(ref blackboard);
-            var fb    = *(FleeBlackboard*)bbPtr->BehaviorParameters;
-            Assert.Equal(50.0f, fb.SafeDistance);
+            // 🔴 P3-C (2026-09-21): verify the ROOT PARAMS OCCURRENCE SLOT, not BrainBlackboard.
+            //   This rail is what caught the cut's one real gap — this behaviour declares a
+            //   ParseParams and NEITHER a manifest NOR a BlackboardLayoutType, so RootParamsBytes
+            //   returned 0 and the parse went nowhere. See RootParamsAccess.RootParamsBytes.
+            Assert.True(RootParamsAccess.TryGetRoot<FleeBlackboard>(world, e, out var fb));
+            Assert.Equal(50.0f, fb->SafeDistance);
 
             world.Dispose();
         }
@@ -91,7 +98,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { InstanceId = 0 });
-            world.AddComponent(e, new BrainBlackboard());
 
             // --- Assignment 1 ---
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
@@ -128,19 +134,25 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainBlackboard());
-            // Give entity a mid-execution BTree state (RunningNodeIndex != 0).
-            world.AddComponent(e, new BrainBTreeState
-            {
-                State = new Fbt.BehaviorTreeState { RunningNodeIndex = 5 }
-            });
+            // ⛔⛔ O7c-② — THE CLAIM IS RE-HOMED, NOT WEAKENED. It was "seed a mid-execution cursor,
+            //    assign, see it reset". 📐 A cursor can no longer pre-exist the FIRST assign: its slot key
+            //    is computed from ActiveBehaviorHash, which is 0 until a behaviour is assigned. ⇒ the
+            //    same claim is made across the SECOND assign, which is where "a new behaviour starts at
+            //    the root" actually has to hold.
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            // Now drive it mid-execution, and re-assign.
+            RootStateAccess.SetState(world, e, new Fbt.BehaviorTreeState { RunningNodeIndex = 5 });
+            Assert.Equal(5, RootStateAccess.GetStateOrDefault(world, e).RunningNodeIndex);   // guard: the seed took
 
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviorName, JsonParams = "" });
             world.Bus.SwapBuffers();
             sys.Execute(world, 0.016f);
 
-            var btState = world.GetComponent<BrainBTreeState>(e);
-            Assert.Equal(0, btState.State.RunningNodeIndex); // reset to start
+            var btState = RootStateAccess.GetStateOrDefault(world, e);
+            Assert.Equal(0, btState.RunningNodeIndex); // reset to start
 
             world.Dispose();
         }
@@ -174,7 +186,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveAction       = 1,
                 BehaviorInstanceId = 1, // matches BehaviorState.InstanceId — not yet stale
             });
-            world.AddComponent(e, new BrainBlackboard());
 
             // Step 1: assign new behavior → InstanceId becomes 2.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -223,7 +234,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { InstanceId = 5 });
-            world.AddComponent(e, new BrainBlackboard());
 
             world.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -282,7 +292,6 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ActiveBehaviorHash = OldId,
                 InstanceId         = 0
             });
-            world.AddComponent(e, new BrainBlackboard());
 
             // Attempt to switch to NewBehavior — ParseParams will throw.
             world.Bus.PublishManaged(new AssignBehaviorEvent
@@ -317,10 +326,10 @@ namespace Fdp.Toolkit.Behavior.Tests
                 InstanceId         = 5,
                 BrainTier          = BehaviorConstants.BrainTierBTree,
             });
-            world.AddComponent(e, new BrainBTreeState
-            {
-                State = new Fbt.BehaviorTreeState { RunningNodeIndex = 3 }
-            });
+            // ⭐ O7c-②: the cursor is an occurrence slot; this entity already carries a hash, so the
+            //   slot can be provisioned and seeded directly.
+            RootStateAccess.EnsureRootState(world, e);
+            RootStateAccess.SetState(world, e, new Fbt.BehaviorTreeState { RunningNodeIndex = 3 });
 
             world.Bus.Publish(new ClearBehaviorEvent { Entity = e });
             world.Bus.SwapBuffers();
@@ -331,8 +340,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(6u,              behavior.InstanceId);           // incremented
             Assert.Equal(0,               behavior.BrainTier);            // reset to none
 
-            var btState = world.GetComponent<BrainBTreeState>(e);
-            Assert.Equal(0, btState.State.RunningNodeIndex);              // execution pointer reset
+            var btState = RootStateAccess.GetStateOrDefault(world, e);
+            Assert.Equal(0, btState.RunningNodeIndex);                    // execution pointer reset
 
             world.Dispose();
         }
@@ -397,7 +406,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var entityA = world.CreateEntity();
             world.AddComponent(entityA, new BehaviorState { ActiveBehaviorHash = 0, InstanceId = 0 });
-            world.AddComponent(entityA, new BrainBlackboard());
 
             var entityB = world.CreateEntity();
             world.AddComponent(entityB, new BehaviorState { ActiveBehaviorHash = PatrolId, InstanceId = 1 });
@@ -412,6 +420,150 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(PatrolId,        docA.ActiveBehaviorHash); // assigned
             Assert.Equal(BehaviorIds.None, docB.ActiveBehaviorHash); // cleared
+
+            world.Dispose();
+        }
+
+        // ══ CE-307 — PARAMS WIDER THAN 100 BYTES ═══════════════════════════════════════════
+        //  🔴🔴 Every one of these was IMPOSSIBLE before CE-307, and each was blocked by a
+        //     DIFFERENT site, which is why they are asserted separately:
+        //       · BehaviorRegistry.Register  threw on a >100-byte BlackboardLayoutType;
+        //       · BehaviorIngressSystem      parsed into a `stackalloc byte[100]` shadow, so a wider
+        //                                    ParseParams wrote PAST THE END OF THE STACK BUFFER;
+        //       · the carry-over seed        clamped to the constant 100, not to the region's width.
+        //  ⭐⭐ These are POSITIVE rails — they write known values and assert they READ BACK. ⛔ The
+        //     CE-312 lesson: a rail that asserts only REFUSALS is satisfied by a zero-filled region.
+
+        /// <summary>256 bytes — comfortably over the retired 100-byte cap, under the 16096 ceiling.</summary>
+        private const int WideParamsBytes = 256;
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential, Size = WideParamsBytes)]
+        private struct WideParams { public byte First; }
+
+        [System.Runtime.InteropServices.StructLayout(
+            System.Runtime.InteropServices.LayoutKind.Sequential, Size = 16)]
+        private struct NarrowParams { public byte First; }
+
+        /// <summary>The pattern a wide parser writes — distinct per offset, so a truncation SHOWS.</summary>
+        private static byte Pattern(int i) => unchecked((byte)(i ^ 0x5A));
+
+        private static void RegisterWide(BehaviorRegistry registry, int id, string name) =>
+            registry.Register(id, name, new BehaviorDefinition
+            {
+                Name                 = name,
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(WideParams),
+                // ⚠ Writes the FULL width. Before CE-307 this ran against a 100-byte stackalloc.
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    for (int i = 0; i < WideParamsBytes; i++) mem[i] = unchecked((byte)(i ^ 0x5A));
+                },
+            });
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>A behaviour with 256 bytes of params parses IN FULL and lands in its slot.</b>
+        /// ⛔ The assertion that matters is the tail: bytes at offsets ≥ 100 are exactly the region the
+        /// retired cap made unreachable, and a partial fix would leave them zero.
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_ParamsWiderThanTheRetiredCap_RoundTripInFull()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string behaviorName = "WideParamsBehavior";
+            RegisterWide(registry, 0x0C_E3_07_01, behaviorName);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = e, BehaviorName = behaviorName, JsonParams = "",
+            });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out int len),
+                "the wide behaviour got no root params slot");
+
+            // ⭐ The slot is sized to the behaviour — promoted off the 256 tier (176-byte payload)
+            //   onto the 1024 tier automatically, which is the whole point of the ladder.
+            Assert.Equal(WideParamsBytes, len);
+
+            for (int i = 0; i < WideParamsBytes; i++)
+                Assert.Equal(Pattern(i), root[i]);
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>Registration no longer refuses a wide layout type.</b> 🔴 <c>BehaviorRegistry.Register</c>
+        /// threw <i>"exceeds the maximum allowed parameter size of 100 bytes … would corrupt the
+        /// SoftAdvice and Interrupt registers in BrainBlackboard"</i> — a rationale that was already
+        /// false when <c>O2</c> moved those registers out.
+        /// </summary>
+        [Fact]
+        public void BehaviorRegistry_AcceptsALayoutTypeWiderThanTheRetiredCap()
+        {
+            var registry = new BehaviorRegistry();
+
+            Assert.Null(Record.Exception(
+                () => RegisterWide(registry, 0x0C_E3_07_02, "WideRegistrationBehavior")));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Switching WIDE → NARROW truncates the carry-over at the NEW region's width.</b>
+        ///
+        /// <para>⛔⛔ This is the line the cap was hiding. The seed copies the PREVIOUS behaviour's slot
+        /// into the parse shadow so a partial parse behaves as it always has; the clamp used to be the
+        /// constant <c>100</c>. ⇒ with a 256-byte previous region and a 16-byte new one, clamping to
+        /// 100 would have written <b>84 bytes past the end of the shadow</b>. ⭐ The clamp is now the
+        /// shadow's own width, which IS the new region's width.</para>
+        ///
+        /// <para>⚠ Asserts the NEW region is exactly 16 bytes and holds the narrow parser's marker —
+        /// ⛔ not that it is zero, which a broken implementation could also produce.</para>
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_SwitchingFromWideToNarrow_ClampsTheCarryOverToTheNewWidth()
+        {
+            var (world, sys, registry) = CreateFixture();
+
+            const string wideName   = "WideThenNarrow_Wide";
+            const string narrowName = "WideThenNarrow_Narrow";
+            RegisterWide(registry, 0x0C_E3_07_03, wideName);
+            registry.Register(0x0C_E3_07_04, narrowName, new BehaviorDefinition
+            {
+                Name                 = narrowName,
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(NarrowParams),
+                // ⚠ Writes ONLY its first byte — a deliberately PARTIAL parse, which is exactly the
+                //   case the carry-over seed exists for.
+                ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    mem[0] = 0xC7;
+                },
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = wideName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = narrowName, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out int len),
+                "the narrow behaviour got no root params slot");
+            Assert.Equal(16, len);
+
+            Assert.Equal(0xC7, root[0]);
+            // ⭐ Bytes 1..15 carried over from the wide region's head — the partial-parse contract.
+            for (int i = 1; i < 16; i++)
+                Assert.Equal(Pattern(i), root[i]);
 
             world.Dispose();
         }

@@ -21,7 +21,13 @@ public sealed class HsmRuntimeInspectorPane : IRuntimeInspectorPane
     /// <summary>Attaches or detaches the debug session providing live data.</summary>
     public void SetSession(IHsmDebugSession? session) => _session = session;
 
-    public void Draw()
+    /// <summary>
+    /// ⚠ <b>The context is IGNORED, deliberately, and this says so rather than leaving a reader to
+    /// check.</b> 📌 <c>CE-303</c> made it a parameter because the Blueprint pane read a GLOBAL and
+    /// therefore could not be pinned; ⭐ this pane is keyed on its debug SESSION, not on an entity,
+    /// so there is nothing here for a frozen context to change.
+    /// </summary>
+    public void Draw(Hrot.Editor.AiShared.Shell.DetailsContext context)
     {
         var snapshot = _session?.GetCurrentStateSnapshot();
         if (snapshot is null)

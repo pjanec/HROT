@@ -60,7 +60,14 @@ public sealed class GoldenCorpusTests
         //    the constructed witness for the runtime layout gate — no shipped asset declares a type
         //    whose CLR alignment `FieldLayout.TypeAlignment` mispredicts, so the corpus could not
         //    witness `W2` at all. See EmittedStateLayoutTests.
-        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo` is the first asset in the corpus whose only
+        //    graph is a `Construction` graph — a parameter resolver authored AS A BLUEPRINT. Before it,
+        //    `GraphKind.Construction` had no emitter consumer anywhere and no golden coverage at all.
+        // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo` — a resolver that REACHES THE WORLD
+        //    (acceptance A3+A4), which no asset could express before.
+        // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo` — an AiPrimitive carrying its OWN resolver, the case
+        //    that needs no binding at all (R-149).
+        Assert.Equal(47, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

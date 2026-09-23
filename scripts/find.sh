@@ -62,13 +62,40 @@ GRAPH_FILES=""; GRAPH_NOTE=""
 if [ -z "$BIN" ]; then
   GRAPH_NOTE="UNAVAILABLE -- binary not found. Say so explicitly in any exhaustive claim."
 else
+  # ⛔⛔ MEASURED 2026-09-20: this parser was JSON-only and `cli list_projects` prints the
+  #   SAME human-readable TABLE the search_code note below describes. ⇒ PROJ came back empty
+  #   on a FULLY INDEXED repo and the script reported "NO INDEXED PROJECT" on every call,
+  #   sending the reader off to re-index for nothing and then to grep alone. Same defect as
+  #   the one fixed below on 2026-09-12, one call earlier in the same script.
+  # ⭐ Understands BOTH shapes: the MCP envelope ({"content":[{"text": "<table>"}]}, which the
+  #   global --json flag wraps the table in), a bare projects JSON, and the raw table.
   PROJ="$("$BIN" cli list_projects 2>/dev/null | python3 -c '
-import sys, json
-try:
-    d = json.loads(sys.stdin.read().strip().splitlines()[-1])
-    print(d["projects"][0]["name"] if d.get("projects") else "")
-except Exception:
-    print("")' 2>/dev/null)"
+import sys, json, re
+raw = sys.stdin.read()
+
+def from_table(text):
+    # "projects: N  (cols: name root_path branch)" then one indented row per project.
+    rows = [l for l in text.splitlines() if l.startswith((" ", "\t")) and l.strip()]
+    return rows[0].split()[0] if rows else ""
+
+name = ""
+for line in reversed(raw.strip().splitlines()):
+    line = line.strip()
+    if not line.startswith("{"):
+        continue
+    try:
+        d = json.loads(line)
+    except Exception:
+        continue
+    if d.get("projects"):
+        name = d["projects"][0].get("name", "")
+    elif d.get("content"):
+        name = from_table("".join(c.get("text", "") for c in d["content"]))
+    if name:
+        break
+if not name:
+    name = from_table(raw)
+print(name)' 2>/dev/null)"
   if [ -z "$PROJ" ]; then
     GRAPH_NOTE="NO INDEXED PROJECT -- run: $BIN cli index_repository --repo-path \"$PWD\"  (tens of seconds)"
   else

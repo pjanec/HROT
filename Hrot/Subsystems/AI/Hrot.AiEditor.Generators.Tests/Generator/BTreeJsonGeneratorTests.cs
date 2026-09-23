@@ -236,7 +236,7 @@ public sealed class BTreeJsonGeneratorTests
     }
 
     [Fact]
-    public void EmitTopologyCore_EmptyTypeNames_DefaultsToBrainBlackboardAndBTreeContext()
+    public void EmitTopologyCore_EmptyTypeNames_NeverEmitAnUnboundGeneric()
     {
         // Regression: a freshly-created (empty) BTree asset is saved with blank
         // BlackboardTypeName/ContextTypeName and no nodes. Before the fix, EmitCreateBuilder
@@ -261,13 +261,21 @@ public sealed class BTreeJsonGeneratorTests
 
         string core = BTreeEmitCore.EmitTopologyCore(dto);
 
-        core.Should().Contain("BTreeBuilder<BrainBlackboard, BTreeContext>",
-            "empty BlackboardTypeName/ContextTypeName must default to the standard Brain-tier types, " +
-            "not be emitted as an unbound generic name");
+        // ⭐ P4-③ (CE-313): the BLACKBOARD argument is now unconditionally `byte` — the root params
+        //   slot base the Interpreter actually dispatches on — so the empty-blackboard half of the
+        //   CS7003 hazard is structurally IMPOSSIBLE rather than defaulted around.
+        // ⚠ The CONTEXT half is NOT: ctxShort still comes from the asset, so the claim this rail
+        //   exists for is unchanged and still worth asserting.
+        core.Should().Contain("BTreeBuilder<byte, BTreeContext>",
+            "the blackboard generic is always `byte`, and an empty ContextTypeName must still default " +
+            "to the standard Brain-tier context rather than emit an unbound generic name");
         core.Should().NotContain("<, >",
             "an empty type name must never produce an unbound generic argument list (CS7003)");
+        // ⚠ The namespace collector still runs on the asset's BlackboardTypeName, so this using is
+        //   still emitted even though the builder no longer names the type. Asserted deliberately:
+        //   if that collector is ever changed, this says so rather than the change passing silently.
         core.Should().Contain("using Fdp.Toolkit.Behavior.Components;",
-            "the defaulted BrainBlackboard namespace must be in the usings so the short type name resolves");
+            "the blackboard namespace collector still runs off the asset's declared type name");
         core.Should().Contain("using Fdp.Toolkit.Behavior;",
             "the defaulted BTreeContext namespace must be in the usings so the short type name resolves");
     }
@@ -671,14 +679,21 @@ namespace Stub
 
     public static class StubNodes
     {
-        // VALID: matches NodeLogicDelegate<StubBb, StubCtx> exactly.
+        // ⭐⭐⭐ CE-316: param 0 is `ref byte` — the ROOT PARAMS SLOT BASE — and the asset that binds
+        //   these still declares BlackboardTypeName = ""Stub.StubBb"". That pairing IS the rail: after
+        //   CE-313 the emitted registrar is ActionRegistry<byte, TCtx>, so TBB comes from the EMITTER,
+        //   never from the asset's declared type. ⛔ These stubs used to take `ref StubBb`, which is
+        //   the rule P4-② retired — and the validator kept enforcing it, silently skipping six real
+        //   assets (§30.25 ⑤).
+        // VALID: matches NodeLogicDelegate<byte, StubCtx> exactly.
         public static NodeStatus CompatAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref StubCtx ctx,
             int paramIndex) => NodeStatus.Running;
 
-        // INVALID: param 0 is a DTO struct, not the declared blackboard type.
+        // INVALID: param 0 is a DTO struct, not the slot base. ⭐ The NEGATIVE CONTROL — it proves the
+        //   check still has teeth, and that CE-316 moved its source of truth rather than removing it.
         public struct SomeDtoParam { }
         public static NodeStatus DtoParamAction(
             ref SomeDtoParam dto,
@@ -686,15 +701,15 @@ namespace Stub
             ref StubCtx ctx,
             int paramIndex) => NodeStatus.Running;
 
-        // INVALID: param 0 matches the blackboard but wrong arity (3 params instead of 4).
+        // INVALID: param 0 is correct but wrong arity (3 params instead of 4).
         public static NodeStatus WrongArityAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             int paramIndex) => NodeStatus.Running;
 
         // INVALID: returns void instead of NodeStatus.
         public static void WrongReturnAction(
-            ref StubBb blackboard,
+            ref byte blackboard,
             ref BehaviorTreeState state,
             ref StubCtx ctx,
             int paramIndex) { }
@@ -985,7 +1000,7 @@ namespace Stub
         structSource!.Should().Contain("[MarshalAs(UnmanagedType.I1)]",
             "bool fields require [MarshalAs(UnmanagedType.I1)] for sequential layout correctness");
 
-        // Total must be within 100-byte inline budget.
+        // Total must be within the params ceiling (CE-307: was a 100-byte inline budget).
         packResult.TotalInlineBytes.Should().BeLessOrEqualTo(BlackboardBinPacker.MaxInlineBytes,
             "test fixture must fit in the inline budget");
     }
@@ -1096,7 +1111,7 @@ namespace Stub
     /// (a) the registrar registers under the SAME keys the topology blob uses
     ///     ("{conditionFqn}@0", "{actionFqn}@4") — proving blob key == registry key, and
     /// (b) each thunk projects at the baked offset
-    ///     (Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0) for @0,
+    ///     (Unsafe.AddByteOffset(ref bb, (nint)0) for @0,
     ///      and (nint)4 for @4) — proving the offset is wired in, not @0 for everything.
     /// </summary>
     [Fact]
@@ -1184,27 +1199,39 @@ namespace Stub
             "action registry key must be {actionFqn}@4 (== blob key)");
 
         // (b) Baked offset must be wired into each thunk projection.
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0)",
             "the @0 binding must project at byte offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)4)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)4)",
             "the @4 binding must project at byte offset 4 (not @0 for everything)");
     }
 
     /// <summary>
-    /// S1-2: A managed asset whose variables exceed 100 bytes must be SKIPPED BY THE GENERATOR
-    /// with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
+    /// S1-2: A managed asset whose variables exceed the params ceiling must be SKIPPED BY THE
+    /// GENERATOR with a BTREE0002 Warning — never a hard build break, and no oversized struct emitted.
     ///
-    /// Corrective round (BATCH-02 review): this test now RUNS THE GENERATOR on the 13×Vector3
-    /// managed asset (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only
-    /// poking WouldOverflow/Pack directly, so it verifies the real generator path (the previous
-    /// version never exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    /// Corrective round (BATCH-02 review): this test RUNS THE GENERATOR on the oversized managed asset
+    /// (same harness as ManagedAsset_Generator_EmitsThreeFiles_*) instead of only poking
+    /// WouldOverflow/Pack directly, so it verifies the real generator path (the previous version never
+    /// exercised GenerateOneAsset and so could not catch a silent oversized emit).
+    ///
+    /// <para>⭐⭐⭐ <b><c>CE-307</c> (2026-09-22) — THE MECHANISM IS UNCHANGED; THE THRESHOLD MOVED.</b>
+    /// This used to overflow with <b>13 × Vector3 = 156 B</b> against a 100-byte cap. ⛔ That cap was a
+    /// buffer-overrun guard for params stored inline in <c>BrainBlackboard</c>; params now occupy their
+    /// own occurrence slot, so the only real bound is the largest tier's payload. ⭐ <b>The fixture is
+    /// sized FROM the constant</b>, so it keeps testing the skip-on-overflow path if the ceiling moves
+    /// again — ⛔ a hard-coded count would have to be found and edited by hand, which is how the
+    /// previous number outlived its reason.</para>
     /// </summary>
     [Fact]
-    public void ManagedAsset_MasterDtoOver100Bytes_HardErrors()
+    public void ManagedAsset_MasterDtoOverTheParamsCeiling_IsSkipped()
     {
-        // Build a managed DTO with 13 × Vector3 (13 × 12 = 156 bytes > 100).
+        // Vector3 is 12 bytes and packs at alignment 4 with no padding between fields, so the
+        // aggregate is 12 × count. Two spare fields put it unambiguously over the ceiling.
+        const int Vector3Bytes = 12;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / Vector3Bytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 13; i++)
+        for (int i = 0; i < fieldCount; i++)
         {
             vars.Add(new BlackboardVariableDto
             {
@@ -1215,7 +1242,9 @@ namespace Stub
 
         // Small standalone sanity check on the pack helper (kept from the original test).
         bool overflow = BTreeBlackboardPackHelper.WouldOverflow(vars, out string? unknownType);
-        overflow.Should().BeTrue("13 Vector3 fields (156 bytes) exceeds 100-byte inline budget");
+        overflow.Should().BeTrue(
+            $"{fieldCount} Vector3 fields ({fieldCount * Vector3Bytes} bytes) exceeds the "
+            + $"{BTreeBlackboardPackHelper.MaxInlineBytes}-byte params ceiling");
         unknownType.Should().BeNull("Vector3 is a known type");
 
         // Build a managed asset (Wait node — no method binding, avoids validator interference)
@@ -1897,7 +1926,7 @@ namespace Stub
         packed[1].ByteSize.Should().Be(12, "ThreeFieldParams is 12 bytes");
 
         total.Should().Be(20, "total = 8+12 = 20 bytes");
-        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in 100-byte budget");
+        total.Should().BeLessOrEqualTo(BTreeBlackboardPackHelper.MaxInlineBytes, "must fit in the params ceiling");
 
         // Emit struct and verify both fields declared with global::-qualified names.
         var dto = BuildManagedDtoWithVars("StructDtoPackTest", vars);
@@ -2016,9 +2045,9 @@ namespace Stub
             "registrar key for Params1 must be @0");
         registrar.Should().Contain($"\"{actionFqn2}@8\"",
             "registrar key for Params2 must be @8 (== blob key)");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)0)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0)",
             "Params1 thunk must project at offset 0");
-        registrar.Should().Contain("Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)8)",
+        registrar.Should().Contain("Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)8)",
             "Params2 thunk must project at resolved offset 8 (single offset source)");
     }
 
@@ -2095,22 +2124,27 @@ namespace Stub
             "valid nested-DTO asset must emit topology + struct + bridge");
     }
 
-    // ── Test 5: StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002 ───
+    // ── Test 5: StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002 ───
 
     /// <summary>
-    /// S1-2b: A managed asset whose resolved struct sizes sum >100 bytes must emit
+    /// S1-2b: A managed asset whose resolved struct sizes sum past the params ceiling must emit
     /// a BTREE0002 Warning and no .Blackboard.g.cs (generator skips entirely).
     /// Uses the full generator pipeline (same pattern as BATCH-02 overflow rewrite).
+    ///
+    /// <para>⭐⭐ <b><c>CE-307</c> (2026-09-22)</b> — was 6 × <c>VecParams</c> against a 100-byte cap.
+    /// ⭐ The fixture is now sized FROM the constant; the resolved-struct-size path it exercises is
+    /// unchanged.</para>
     /// </summary>
     [Fact]
-    public void StructDtoVariable_AggregateOver100Bytes_SkipsWithBtree0002()
+    public void StructDtoVariable_AggregateOverTheParamsCeiling_SkipsWithBtree0002()
     {
-        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24).
-        // Each VecParams: size=24, align=min(24,8)=8.
-        // V0@0(24), V1@24(24), V2@48(24), V3@72(24), V4@96(24), end@120 > 100B.
-        // 5 VecParams already exceeds 100. Use 6 to be safe.
+        // VecParams is 24 bytes (managed sequential: int@0, Vector3@8, AlignUp(20,8)=24)
+        // and packs at alignment min(24,8)=8, so 24 divides evenly and there is no padding.
+        const int VecParamsBytes = 24;
+        int fieldCount = (BTreeBlackboardPackHelper.MaxInlineBytes / VecParamsBytes) + 2;
+
         var vars = new List<BlackboardVariableDto>();
-        for (int i = 0; i < 6; i++)
+        for (int i = 0; i < fieldCount; i++)
             vars.Add(new BlackboardVariableDto
             {
                 Name = $"V{i}",
@@ -2156,7 +2190,7 @@ namespace Stub
         result.Diagnostics.Should().ContainSingle(d =>
             d.Id == BTreeJsonGenerator.CodegenWarningId &&
             d.Severity == DiagnosticSeverity.Warning,
-            "struct-DTO aggregate >100 bytes must produce exactly one BTREE0002 Warning");
+            "a struct-DTO aggregate over the params ceiling must produce exactly one BTREE0002 Warning");
         result.Diagnostics.Where(d => d.Severity == DiagnosticSeverity.Error)
             .Should().BeEmpty("overflow must never be a hard build break");
 
@@ -2294,6 +2328,8 @@ using Fbt;
 
 namespace Stub
 {
+    // ⭐ CE-316: HajsonBb is kept but no longer bound as TBB — the 4-param shape's param 0 is
+    //   `ref byte` (the root params slot base) after CE-313 made the registrar ActionRegistry<byte,_>.
     public struct HajsonBb { }
     public struct HajsonCtx { }
 
@@ -2304,13 +2340,13 @@ namespace Stub
     {
         // 4-param action (FourParamFull)
         public static NodeStatus Action_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
             => NodeStatus.Running;
 
         // 4-param deactivator paired with Action_Full (key = bare FQN)
         [BTreeDeactivator(""Stub.HajsonNodes.Action_Full"")]
         public static void Deactivate_Full(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
         { }
 
         // 3-param action (ThreeParamReusable), DTO = HajsonDto at offset 0
@@ -2326,7 +2362,7 @@ namespace Stub
 
         // 4-param action with NO paired deactivator
         public static NodeStatus Action_NoDe(
-            ref HajsonBb bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
+            ref byte bb, ref BehaviorTreeState state, ref HajsonCtx ctx, int pi)
             => NodeStatus.Running;
     }
 }

@@ -42,7 +42,7 @@ namespace Hrot.SimHost.Tests
     ///
     /// <para>
     /// All SC-HA015-1…4 tests exercise the commander behavior exclusively via
-    /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
+    /// <see cref="BrainTickSystem"/> — no BTree node methods are called directly.
     /// The EQS solver (<see cref="AreaQuerySolverSystem"/>) is invoked in the same
     /// simulated tick as the BTree (collapsing the production 10-Hz EqsModule latency
     /// to zero for deterministic in-process testing).
@@ -76,9 +76,11 @@ namespace Hrot.SimHost.Tests
             _repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
-            _repo.RegisterComponent<BlueprintBlackboard1024>();
-            _repo.RegisterComponent<BlueprintBlackboard4096>();
-            _repo.RegisterComponent<BlueprintBlackboard16384>();
+            // ⭐ B4: register from the LADDER, not a hand-list. ⛔ This was three explicit
+            //   RegisterComponent calls and it did NOT know about the 256 tier — 11 tests
+            //   failed with "Component BlueprintBlackboard256 is not registered" the moment
+            //   O3b added one. Production never had the bug: it registers from the table.
+            BlueprintTierTable.RegisterAll(_repo);
 
             // 100 x 100 cells, 5 m each → covers 0..500 m in both axes.
             _grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
@@ -156,13 +158,10 @@ namespace Hrot.SimHost.Tests
                 new Guid("1a000000-0000-0000-0000-0000000000dd"),
                 StatefulSlotScope.Behavior, Guid.Empty, "State");
 
-            byte* mem;
-            if (repo.HasComponent<BlueprintBlackboard16384>(entity))
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard16384>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
-            else if (repo.HasComponent<BlueprintBlackboard4096>(entity))
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard4096>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
-            else
-            { ref var t = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity); mem = (byte*)Unsafe.AsPointer(ref t); }
+            // ⭐ B4 — design §17.7. This was the three-arm ladder, and its ELSE branch assumed
+            //   1024 was the floor. O3b's 256 tier made that assumption false, so a small store
+            //   threw here. The seam probes the whole ladder, largest-first, and always has.
+            byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
 
             BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off);
             return ref Unsafe.AsRef<HillAttackMutableState>(mem + off);
@@ -187,7 +186,7 @@ namespace Hrot.SimHost.Tests
         // Builds the reusable pipeline tuple for BTree-based tests.
         private static (BehaviorIngressSystem ingress,
                         TacticalIntentResolutionSystem resolution,
-                        BTreeTickSystem btree,
+                        BrainTickSystem brainTick,
                         AreaQuerySolverSystem eqs)
             BuildPipeline(NetworkEntityMap entityMap)
         {
@@ -197,7 +196,7 @@ namespace Hrot.SimHost.Tests
             return (
                 new BehaviorIngressSystem(registry),
                 new TacticalIntentResolutionSystem(mapperRegistry, registry),
-                new BTreeTickSystem(registry),
+                new BrainTickSystem(registry),
                 new AreaQuerySolverSystem()
             );
         }
@@ -213,7 +212,7 @@ namespace Hrot.SimHost.Tests
         private static void TickOnce(EntityRepository repo,
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
-            BTreeTickSystem btreeTick,
+            BrainTickSystem brainTick,
             AreaQuerySolverSystem eqsSolver,
             float dt = 0.1f)
         {
@@ -222,7 +221,7 @@ namespace Hrot.SimHost.Tests
             behaviorIngress.Execute(repo, dt);
             tacticalResolution.Execute(repo, dt);
             // BTree runs: may publish AreaQueryRequestEvent to WRITE buffer.
-            btreeTick.Execute(repo, dt);
+            brainTick.Execute(repo, dt);
 
             // Collapse EQS latency: swap so solver can read the request events just published.
             repo.Bus.SwapBuffers();
@@ -241,13 +240,13 @@ namespace Hrot.SimHost.Tests
         /// publishes non-EQS events (AssignTacticalIntentEvent, BehaviorFinishedEvent, etc.)
         /// that must survive to the test assertion.
         ///
-        /// After this call, any events published by btreeTick are in the WRITE buffer.
+        /// After this call, any events published by brainTick are in the WRITE buffer.
         /// The caller must call <c>repo.Bus.SwapBuffers()</c> once to move them to READ.
         /// </summary>
         private static void TickBTreeOnly(EntityRepository repo,
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
-            BTreeTickSystem btreeTick,
+            BrainTickSystem brainTick,
             float dt = 0.1f)
         {
             // Begin frame: swap previous write->read so ingress systems can see last frame's events.
@@ -256,7 +255,7 @@ namespace Hrot.SimHost.Tests
             tacticalResolution.Execute(repo, dt);
             // BTree runs: publishes events (BFE, ATIE, etc.) to WRITE buffer.
             // Caller swaps once more to move WRITE→READ before asserting.
-            btreeTick.Execute(repo, dt);
+            brainTick.Execute(repo, dt);
         }
 
         private static long ParseTargetNetworkId(string json)
@@ -351,9 +350,7 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
-            _repo.AddComponent<Blackboard1024>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
                         + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
@@ -382,7 +379,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// SC-HA015-4: With 3 tanks and 2 EQS targets, the BTree orchestrator
-        /// assigns targets in round-robin order via <see cref="BTreeTickSystem"/>:
+        /// assigns targets in round-robin order via <see cref="BrainTickSystem"/>:
         /// the first and third dispatched tank receive the same target, while the
         /// second receives the other.
         /// </summary>
@@ -409,13 +406,11 @@ namespace Hrot.SimHost.Tests
             _repo.AddComponent(hostile1, new NetworkIdentity { Value = netId1 });
             _repo.AddComponent(hostile2, new NetworkIdentity { Value = netId2 });
 
-            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
-            _repo.AddComponent<Blackboard1024>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
@@ -448,7 +443,7 @@ namespace Hrot.SimHost.Tests
             //         AreAllAtBaseline (arrived) → RequestAreaQuery (submits, returns
             //         Success) → IsAreaQueryResolved (not ready yet, returns Running).
             //         EQS solver resolves the query: TargetCount = 2.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             // Tick 2: BTree resumes at IsAreaQueryResolved (result ready, TargetCount=2
             //         → Success) → Action_DispatchWaveWithTargets publishes one
@@ -456,7 +451,7 @@ namespace Hrot.SimHost.Tests
             //         Condition_IsWaveCompleted returns Running (wave active).
             // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the
             // AssignTacticalIntentEvents before the test can read them.
-            TickBTreeOnly(_repo, ingress, resolution, btree);
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
 
             // Move the HullDownAttack events from the write buffer to the read buffer.
             _repo.Bus.SwapBuffers();
@@ -485,7 +480,7 @@ namespace Hrot.SimHost.Tests
         /// <summary>
         /// SC-HA015-2: No two tanks dispatched in the same wave receive the same
         /// firing-line slot.  The test drives the commander through
-        /// <see cref="BTreeTickSystem"/> — no BTree node methods are called directly.
+        /// <see cref="BrainTickSystem"/> — no BTree node methods are called directly.
         /// </summary>
         [Fact]
         public void SC_HA015_2_DispatchWaveWithTargets_AssignsUniqueSlots_ViaBTreeSystem()
@@ -507,13 +502,11 @@ namespace Hrot.SimHost.Tests
             _repo.AddComponent(hostile1, new NetworkIdentity { Value = 101L });
             _repo.AddComponent(hostile2, new NetworkIdentity { Value = 202L });
 
-            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
-            _repo.AddComponent<Blackboard1024>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -540,13 +533,13 @@ namespace Hrot.SimHost.Tests
             });
 
             // Tick 1: activates behavior, BTree submits EQS request, solver resolves.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             // Tick 2: BTree reads EQS result (2 targets) → DispatchWaveWithTargets
             //         publishes 3 "HullDownAttack" events → IsWaveCompleted Running.
             // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the
             // AssignTacticalIntentEvents before the test can read them.
-            TickBTreeOnly(_repo, ingress, resolution, btree);
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
 
             _repo.Bus.SwapBuffers();
 
@@ -576,7 +569,7 @@ namespace Hrot.SimHost.Tests
 
         /// <summary>
         /// SC-HA015-3: When a tank is killed mid-wave, <c>Condition_IsWaveCompleted</c>
-        /// (invoked via <see cref="BTreeTickSystem"/>) permanently burns that tank's
+        /// (invoked via <see cref="BrainTickSystem"/>) permanently burns that tank's
         /// firing-line slot into <c>BurnedSlotsMask</c>.  The wave still completes
         /// once the surviving tank finishes its run.
         /// </summary>
@@ -600,13 +593,11 @@ namespace Hrot.SimHost.Tests
             _repo.AddComponent(hostile1, new NetworkIdentity { Value = 301L });
             _repo.AddComponent(hostile2, new NetworkIdentity { Value = 302L });
 
-            var (ingress, resolution, btree, eqs) = BuildPipeline(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
-            _repo.AddComponent<Blackboard1024>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subs at baseline.
             var subs = new Entity[2];
@@ -634,11 +625,11 @@ namespace Hrot.SimHost.Tests
             });
 
             // Tick 1: behavior activated, EQS query submitted and resolved (2 targets).
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             // Tick 2: IsAreaQueryResolved → Success → DispatchWaveWithTargets dispatches
             //         2 "HullDownAttack" events → IsWaveCompleted Running.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             // Post-dispatch: read mutable state to locate the dispatched tanks.
             ref var s = ref GetHeavyState(_repo, commander);
@@ -653,12 +644,12 @@ namespace Hrot.SimHost.Tests
             byte burnedSlot = s.ActiveSlotIndex[0];
             _repo.DestroyEntity(tank0);
 
-            // Tick 3: BTreeTickSystem resumes at Condition_IsWaveCompleted.
+            // Tick 3: BrainTickSystem resumes at Condition_IsWaveCompleted.
             //         Dead tank0 → its slot is burned into BurnedSlotsMask (independent
             //         of HasStartedRun).
             //         Alive tank1 → HasStartedRun=0, behavior not yet HullDownAttackRun
             //         (TacticalResolution delivers that event in the next tick) → Running.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             Assert.Equal((ushort)(1 << burnedSlot), s.BurnedSlotsMask);
             Assert.Equal(1, s.ActiveAttackerCount);
@@ -672,7 +663,7 @@ namespace Hrot.SimHost.Tests
             beh1.ActiveBehaviorHash = 0;  // run finished
 
             // Tick 4: Condition_IsWaveCompleted sees surviving tank done → Success.
-            TickOnce(_repo, ingress, resolution, btree, eqs);
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
 
             Assert.Equal(0, s.ActiveAttackerCount);
         }
@@ -708,14 +699,12 @@ namespace Hrot.SimHost.Tests
 
             var behaviorIngress    = new BehaviorIngressSystem(registry);
             var tacticalResolution = new TacticalIntentResolutionSystem(mapperRegistry, registry);
-            var btreeTick          = new BTreeTickSystem(registry);
+            var brainTick          = new BrainTickSystem(registry);
             var eqsSolver          = new AreaQuerySolverSystem();
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            _repo.AddComponent<BrainBTreeState>(commander, default);
-            _repo.AddComponent<BrainBlackboard>(commander, default);
-            _repo.AddComponent<Blackboard1024>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subordinates already at the baseline.
             var subs = new Entity[2];
@@ -751,13 +740,13 @@ namespace Hrot.SimHost.Tests
             //              (0 targets, empty polygon).
             //       Tick 2: BTree resumes, Condition_IsAreaQueryResolved → Failure
             //              (TargetCount == 0), Repeater exits, BTree returns Failure,
-            //              BTreeTickSystem publishes BehaviorFinishedEvent.
+            //              BrainTickSystem publishes BehaviorFinishedEvent.
             // Tick 1 uses the full EQS pipeline to collapse latency.
-            TickOnce(_repo, behaviorIngress, tacticalResolution, btreeTick, eqsSolver);
+            TickOnce(_repo, behaviorIngress, tacticalResolution, brainTick, eqsSolver);
             // Tick 2: BTree reads the resolved result and publishes BFE to WRITE.
             // TickBTreeOnly avoids the extra T-B/T-C swaps that would destroy the BFE
             // before the test can read it.
-            TickBTreeOnly(_repo, behaviorIngress, tacticalResolution, btreeTick);
+            TickBTreeOnly(_repo, behaviorIngress, tacticalResolution, brainTick);
 
             // Move the BFE from write buffer to read buffer.
             _repo.Bus.SwapBuffers();

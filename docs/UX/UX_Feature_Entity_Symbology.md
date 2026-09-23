@@ -14,6 +14,9 @@ known-rot: 3.0 is SUPERSEDED by 3.8.9 - the JSON style cascade is IG-ONLY, so St
 known-rot: 3.0 is SUPERSEDED by 3.8.9 - the user ruled the JSON style cascade an IG-ONLY speciality, so
   StyleResolutionSystem is NOT lifted to every host. 3.8's own first draft is in the HISTORY section and
   must not be quoted.
+related-designs:
+  - docs/UX/UX_Feature_Selection.md — owns UXI-11: WHICH entities are selected and how that is stored,
+    requested and announced. This file owns only what a selected entity LOOKS like (the ring, the symbol).
 -->
 # Feature design — entity symbology on the map
 

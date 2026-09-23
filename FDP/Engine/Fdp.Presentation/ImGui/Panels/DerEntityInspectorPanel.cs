@@ -75,6 +75,59 @@ public sealed class DerEntityInspectorPanel
     // ── Per-instance state ────────────────────────────────────────────────────
 
     private int    _selectedEntityId = NoSelection;
+
+    // ══ UXI-11 S-4 — THE DER INSPECTOR'S SEAM ══════════════════════════════════
+    // 📄 docs/UX/UX_Feature_Selection.md §2.7.5 assigned this panel's seam to S-4, and §2.7.8
+    //    recorded why S-3 left it alone: it addresses entities by DER id, not by Fdp.Core.Entity.
+    //
+    // ⭐⭐⭐ THAT TURNS OUT TO BE THE ANSWER, NOT THE OBSTACLE. IDerEntity.EntityId is the NETWORK
+    //    entity id (from EntityMaster) — which is exactly what SelectEntityCommand carries. ⇒ this
+    //    panel needs NO new event and no Entity handle: it speaks the network-id boundary the
+    //    protocol already has (§2.7.7 deviation ①, kept for precisely this kind of surface).
+    //
+    // ⚠ Both members are OPTIONAL. A host with no global selection — a DER viewer inspecting a
+    //   recording — supplies neither and the panel keeps its own id, unchanged. ⛔ Not a silent
+    //   default: supplying one without the other is a wiring bug, which DefersToHostSelection makes
+    //   visible by requiring both.
+
+    /// <summary>
+    /// ⭐ Publishes *"select this network id"* — the host turns it into a <c>SelectEntityCommand</c>.
+    /// </summary>
+    public Action<int>? RequestSelectEntity { get; set; }
+
+    /// <summary>
+    /// ⭐ The host's currently-selected network id, or <see cref="NoSelection"/>. Re-read every draw,
+    /// so this panel cannot disagree with the map — ⚠ a PROJECTION, for the same reason
+    /// <c>EntityInspectorPanel</c> projects rather than subscribes (§2.7.8 deviation ②).
+    /// </summary>
+    public Func<int>? HostSelectedNetworkId { get; set; }
+
+    private bool DefersToHostSelection => RequestSelectEntity != null && HostSelectedNetworkId != null;
+
+    /// <summary>The id this panel should paint as selected — the host's when bound, its own otherwise.</summary>
+    private int EffectiveSelectedId
+        => DefersToHostSelection ? HostSelectedNetworkId!() : _selectedEntityId;
+
+    /// <summary>
+    /// Applies §2.3's click semantics for this surface. ⚠ Right-click on the ALREADY-selected entity
+    /// changes nothing, which is the ruling's first row and also what keeps its menu correct.
+    /// </summary>
+    internal void RequestSelect(int entityId)
+    {
+        if (DefersToHostSelection) RequestSelectEntity!(entityId);
+        else                       _selectedEntityId = entityId;
+    }
+
+    /// <summary>
+    /// ⭐⭐ §2.3's right-click row for this surface: on the already-selected entity nothing moves; on any
+    /// other entity the selection becomes that one. ⚠ No ordering hazard here — the menu's subject is
+    /// <c>_contextMenuEntity</c>, never the selection read back — so unlike <c>EntityInspectorPanel</c>
+    /// this needs no gesture-time flag. ⭐ Extracted from the draw so it can be railed headlessly.
+    /// </summary>
+    internal void RightClick(int entityId)
+    {
+        if (entityId != EffectiveSelectedId) RequestSelect(entityId);
+    }
     private string _searchFilter     = "";
 
     // Context-menu support.
@@ -137,9 +190,9 @@ public sealed class DerEntityInspectorPanel
         var ids = entities.Select(e => e.EntityId).ToList();
 
         var headers = new List<string>();
-        if (_selectedEntityId != NoSelection)
+        if (EffectiveSelectedId != NoSelection)
         {
-            var selected = repo.GetEntity(_selectedEntityId);
+            var selected = repo.GetEntity(EffectiveSelectedId);
             if (selected != null)
             {
                 foreach (var (type, partId, _) in selected.GetAllRawDescriptors())
@@ -148,7 +201,7 @@ public sealed class DerEntityInspectorPanel
         }
 
         return new DerEntityInspectorPanelViewModel(
-            panelId, panelKind, repo.GetAllEntities().Count(), _searchFilter, ids, _selectedEntityId, headers);
+            panelId, panelKind, repo.GetAllEntities().Count(), _searchFilter, ids, EffectiveSelectedId, headers);
     }
 
     // ── Draw ──────────────────────────────────────────────────────────────────
@@ -218,18 +271,22 @@ public sealed class DerEntityInspectorPanel
 
         foreach (var entity in entities)
         {
-            bool   selected = entity.EntityId == _selectedEntityId;
+            bool   selected = entity.EntityId == EffectiveSelectedId;
             string label    = $"Entity {entity.EntityId}##der{entity.EntityId}";
 
             if (ImGuiApi.Selectable(label, selected))
-                _selectedEntityId = entity.EntityId;
+                RequestSelect(entity.EntityId);
 
-            // Right-click context menu.
+            // ⭐⭐⭐ UXI-11 S-4 — RIGHT-CLICK SELECTS HERE TOO (§2.3, ruled 2026-08-12).
+            // ⚠ No ordering hazard on this surface: the menu's subject is _contextMenuEntity, the
+            //   entity clicked — it never reads the selection back, so a deferred write cannot make
+            //   it wrong. ⭐ The ECS panel needed an explicit flag only because it has a MULTI menu.
             if (_contextMenuHandlers.Count > 0 &&
                 ImGuiApi.IsItemHovered() &&
                 ImGuiApi.IsMouseClicked(ImGuiMouseButton.Right))
             {
                 _contextMenuEntity = entity;
+                RightClick(entity.EntityId);
                 ImGuiApi.OpenPopup("##DerEntityCtxMenu");
             }
         }
@@ -251,23 +308,26 @@ public sealed class DerEntityInspectorPanel
     {
         ImGuiApi.BeginChild("##DerDetails");
 
-        if (_selectedEntityId == NoSelection)
+        if (EffectiveSelectedId == NoSelection)
         {
             ImGuiApi.TextDisabled("Select an entity to view its descriptors.");
             ImGuiApi.EndChild();
             return;
         }
 
-        var entity = repo.GetEntity(_selectedEntityId);
+        var entity = repo.GetEntity(EffectiveSelectedId);
         if (entity == null)
         {
-            _selectedEntityId = NoSelection;
+            // ⚠ Only the LOCAL id is scrubbed. ⛔ When the host owns the selection, a vanished entity
+            //   is the host's to clear — this panel is a view and must not write the shared selection
+            //   from a draw (§2.7.3 rule 1). The next frame reports it gone either way.
+            if (!DefersToHostSelection) _selectedEntityId = NoSelection;
             ImGuiApi.TextDisabled("Entity no longer exists.");
             ImGuiApi.EndChild();
             return;
         }
 
-        ImGuiApi.Text($"Entity {_selectedEntityId}");
+        ImGuiApi.Text($"Entity {EffectiveSelectedId}");
         ImGuiApi.Separator();
 
         // Read live descriptor data every frame — no cache, no stale values.

@@ -27,8 +27,8 @@ namespace Fdp.Toolkit.Squad.Tests
             _repo = new EntityRepository();
             _repo.RegisterComponent<UnitRoster>();
             _repo.RegisterComponent<UnitSubordinate>();
-            _repo.RegisterComponent<Blackboard1024>();
-            _repo.RegisterComponent<SquadStateMarker>();
+            _repo.RegisterComponent<SquadCognitiveState>();
+            _repo.RegisterComponent<SquadCognitiveState>();
             _repo.RegisterComponent<Health>();
             _repo.RegisterComponent<WeaponState>();
             _repo.RegisterComponent<DangerAreaCognitiveBuffer>();
@@ -41,8 +41,8 @@ namespace Fdp.Toolkit.Squad.Tests
             // Build commander with everything needed.
             _commander = _repo.CreateEntity();
             _repo.AddComponent(_commander, new UnitRoster());
-            _repo.AddComponent(_commander, new Blackboard1024());
-            _repo.AddComponent(_commander, new SquadStateMarker());
+            _repo.AddComponent(_commander, default(SquadCognitiveState));
+            _repo.AddComponent(_commander, default(SquadCognitiveState));
             _repo.AddComponent(_commander, new UtilityResultBuffer());
             _repo.AddComponent(_commander, new UtilityTraceWorkingMemory1024());
             _repo.AddComponent(_commander, new DangerAreaCognitiveBuffer());
@@ -68,8 +68,7 @@ namespace Fdp.Toolkit.Squad.Tests
 
         private void SetupFeature(uint featureId, DangerAreaKind kind, float threatRating = 0.8f)
         {
-            ref var state = ref SquadCognitiveState.Project(
-                ref _repo.GetComponentRW<Blackboard1024>(_commander));
+            ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(_commander);
             state.ActiveFeatureId = featureId;
 
             ref var buf = ref _repo.GetComponentRW<DangerAreaCognitiveBuffer>(_commander);
@@ -83,7 +82,7 @@ namespace Fdp.Toolkit.Squad.Tests
         }
 
         private ref SquadCognitiveState State() =>
-            ref SquadCognitiveState.Project(ref _repo.GetComponentRW<Blackboard1024>(_commander));
+            ref _repo.GetComponentRW<SquadCognitiveState>(_commander);
 
         // ── SC-P3-04-1: StreetCrossing feature -> DangerAreaCross (option 0) ─────
 

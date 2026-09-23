@@ -20,7 +20,7 @@ namespace Fdp.Toolkit.Squad.Mappers
                            out AssignBehaviorEvent assignment)
         {
             assignment = null!;
-            if (!repo.HasComponent<Blackboard1024>(self)) return false;
+            if (!repo.HasComponent<SquadCognitiveState>(self)) return false;
 
             // Parse JSON.
             ForceManeuverParams p;
@@ -31,8 +31,7 @@ namespace Fdp.Toolkit.Squad.Mappers
             }
             catch { return false; }
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(self));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(self);
 
             state.ManeuverKind   = p.ManeuverKind;
             state.Flags         |= MissionOverrideBit;
@@ -58,10 +57,9 @@ namespace Fdp.Toolkit.Squad.Mappers
                            out AssignBehaviorEvent assignment)
         {
             assignment = null!;
-            if (!repo.HasComponent<Blackboard1024>(self)) return false;
+            if (!repo.HasComponent<SquadCognitiveState>(self)) return false;
 
-            ref var state = ref SquadCognitiveState.Project(
-                ref repo.GetComponentRW<Blackboard1024>(self));
+            ref var state = ref repo.GetComponentRW<SquadCognitiveState>(self);
 
             state.Flags &= ~MissionOverrideBit;
 

@@ -2,6 +2,7 @@ using Fdp.Core.Collections;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
@@ -40,14 +41,52 @@ namespace Hrot.SimHost.Tests
             Assert.Null(Record.Exception(() => world.GetComponentTable<NavigationIntent>()));
         }
 
+        /// <summary>
+        /// ⚠⚠ RE-HOMED by <c>O7c</c>-④d (2026-09-23), and the name changed with it: there are NO
+        /// brain components left to register. The probe is now the HSM TRACE buffer — still
+        /// registered by <c>CognitiveComponentRegistry</c>, still brain-only, so the claim
+        /// <i>"the cognitive set is present on this world"</i> survives the component's deletion.
+        /// ⛔ The occurrence TIER components would be the wrong probe: the blueprint side registers
+        /// those, so asserting them here would pass without the cognitive registry running at all.
+        /// </summary>
         [Fact]
-        public void CognitiveComponentRegistry_RegisterAll_RegistersBrainHsmComponents()
+        public void CognitiveComponentRegistry_RegisterAll_RegistersTheCognitiveSet_O7c4d()
         {
             using var world = new EntityRepository();
             CognitiveComponentRegistry.RegisterAll(world);
 
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm64>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<HsmTraceWorkingMemory1024>()));
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-323</c> — <c>BrainInterrupts</c> MUST BE REGISTERED IN PRODUCTION, AND FOR
+        /// FOUR TICKS BETWEEN <c>P4</c> AND <c>2026-09-23</c> IT WAS NOT.</b>
+        ///
+        /// <para>🔴 <b>What made it invisible.</b> <c>P4</c> deleted
+        /// <c>RegisterComponent&lt;BrainBlackboard&gt;()</c> from <c>CognitiveComponentRegistry</c>
+        /// and added no replacement — but <c>O2</c> had already moved the interrupt byte out of that
+        /// component into <c>BrainInterrupts</c>. 📐 Measured: EVERY
+        /// <c>RegisterComponent&lt;BrainInterrupts&gt;</c> in the tree was in a TEST.</para>
+        ///
+        /// <para>⛔⛔ <b>And it fails silently three times over</b>, which is why no suite caught it:
+        /// <c>BehaviorTkbTranslator</c> attaches it only
+        /// <c>if (IsComponentTypeRegistered&lt;BrainInterrupts&gt;())</c>;
+        /// <c>CognitiveInterruptSystem</c>'s query REQUIRES it, so it matched nothing; and
+        /// <c>BrainTickSystem</c>'s <c>MobilityLost</c> enqueue is guarded by
+        /// <c>HasComponent&lt;BrainInterrupts&gt;</c>. ⇒ a disabled vehicle's HSM never received
+        /// <c>MobilityLost</c> and never left its cruising state. Nothing throws, nothing logs.</para>
+        ///
+        /// <para>⚠ This asserts the REGISTRY, which is the one thing a unit test can reach — the
+        /// end-to-end consequence is the UrbanCombatNew APC reaching its Disabled state.</para>
+        /// </summary>
+        [Fact]
+        public void CognitiveComponentRegistry_RegistersTheInterruptTail_CE323()
+        {
+            using var world = new EntityRepository();
+            CognitiveComponentRegistry.RegisterAll(world);
+
+            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainInterrupts>()));
         }
 
         // ── PerceptionRoleComponentRegistry ───────────────────────────────────
@@ -112,7 +151,8 @@ namespace Hrot.SimHost.Tests
 
             // ⛔ Anti-vacuity: the cognitive set itself must still be there, or this would pass on a
             //    registry that had been emptied entirely.
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainHsm128>()));
+            //    ⚠ O7c-④d: re-homed off BrainHsm128, which is deleted.
+            Assert.Null(Record.Exception(() => world.GetComponentTable<HsmTraceWorkingMemory1024>()));
         }
 
         // ── CE-259bf slice 2: the strays move to homes BOTH hosts already compose ─────
@@ -245,11 +285,13 @@ namespace Hrot.SimHost.Tests
             SimHostComponentRegistry.RegisterAll(world);
 
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BehaviorState>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBTreeState>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainBlackboard>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<Blackboard1024>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm128>());
-            Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<BrainHsm64>());
+            // ⛔ O7c-②: the BrainBTreeState row is gone — the type's deletion makes it vacuous.
+            // ⛔ P4: the BrainBlackboard and Blackboard1024 rows are gone. Each asserted that
+            //    SimHostComponentRegistry does NOT register that component — a claim the type's
+            //    deletion now makes vacuous.
+            // ⛔ O7c-④d: the BrainHsm128 row is gone too — asserting SimHostComponentRegistry does
+            //    not register a type that no longer exists proves nothing, exactly as O7c-①/②
+            //    and P4 found for BrainHsm64, BrainBTreeState and the blackboards.
             Assert.ThrowsAny<System.Exception>(() => world.GetComponentTable<LocomotionChannel>());
         }
 
@@ -289,7 +331,7 @@ namespace Hrot.SimHost.Tests
             CognitiveComponentRegistry.RegisterAll(world);
 
             Assert.Null(Record.Exception(() => world.GetComponentTable<BehaviorState>()));
-            Assert.Null(Record.Exception(() => world.GetComponentTable<BrainBTreeState>()));
+            // ⛔ O7c-②: likewise — the cursor is an occurrence slot now (§31).
             Assert.Null(Record.Exception(() => world.GetComponentTable<LocomotionChannel>()));
         }
 

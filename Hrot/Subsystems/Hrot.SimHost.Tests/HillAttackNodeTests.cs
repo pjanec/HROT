@@ -3,6 +3,7 @@ using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using Fbt;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Core.CommandHierarchy;
 using Fdp.Toolkit.Behavior;
@@ -74,9 +75,10 @@ namespace Hrot.SimHost.Tests
             repo.RegisterComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>();
             // S3-G: PlatoonHillAttack's Behavior-scoped working state is provisioned into a
             // BlueprintBlackboard* partition tier (registered in production by BlueprintRuntimeWiring).
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard1024>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard4096>();
-            repo.RegisterComponent<Fdp.Toolkit.Blueprints.Components.BlueprintBlackboard16384>();
+            // ⭐⭐ B4: register from the LADDER, never a hand-list. 🔴 This WAS three explicit calls and
+            //   did not know about the 256 tier, so the smallest tier — which is what a params-only
+            //   behaviour selects — was silently unregistered and provisioning skipped it.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(repo);
             return repo;
         }
 
@@ -94,15 +96,26 @@ namespace Hrot.SimHost.Tests
         // ── Helper: get mutable hill attack state ─────────────────────────────────
 
         // These are direct node-logic UNIT tests: they invoke the node methods with an explicit
-        // `ref HillAttackMutableState`, so a Blackboard1024 component is used purely as a convenient
-        // per-entity scratch buffer for that ref. This is NOT the production working-state path — in
-        // production (and in T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped
-        // BlueprintBlackboard* partition slot; the Blackboard1024 + Unsafe.As hack was removed from the
-        // node bodies in S3-G.
-        private static ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
+        // `ref HillAttackMutableState`, so this is purely a convenient per-entity scratch buffer for
+        // that ref. This is NOT the production working-state path — in production (and in
+        // T30/HillAttackIntegrationTests) the state lives in a Behavior-scoped BlueprintBlackboard*
+        // partition slot; the Blackboard1024 + Unsafe.As hack was removed from the node bodies in S3-G.
+        //
+        // ⭐⭐ P4-① (2026-09-22): the scratch buffer no longer BORROWS AN ECS COMPONENT for the job.
+        //    It used to `Unsafe.As` a Blackboard1024 into HillAttackMutableState — harmless in intent
+        //    (the comment above always said so) but it made these unit tests depend on a component
+        //    production had already stopped provisioning, which is the exact shape CE-310 and CE-311
+        //    turned out to be. ⛔ A plain per-instance cell cannot be mistaken for a storage path.
+        // ⚠ Per-INSTANCE, not static: xUnit gives each test its own class instance, so this cannot
+        //   leak state between tests the way a static dictionary keyed on a reused entity id would.
+        private readonly Dictionary<ulong, HillAttackMutableState[]> _scratchState = new();
+
+        private ref HillAttackMutableState GetHeavyState(EntityRepository repo, Entity entity)
         {
-            ref var heavy = ref repo.GetComponentRW<Blackboard1024>(entity);
-            return ref Unsafe.As<Blackboard1024, HillAttackMutableState>(ref heavy);
+            _ = repo;   // kept in the signature so every call site reads the same as before
+            if (!_scratchState.TryGetValue(entity.PackedValue, out var cell))
+                _scratchState[entity.PackedValue] = cell = new HillAttackMutableState[1];
+            return ref cell[0];
         }
 
         // ── Corrective-1: SC-HA007 — Condition_HasTarget ─────────────────────────
@@ -429,6 +442,79 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(20f, written.Destination.Y, 0.001f);
         }
 
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>CE-304</c> — the ADDRESSING twin of <c>SC-HA008-4</c> above, and the rail whose
+        /// absence let <c>P3-C</c> ship a live regression through four green suites.</b>
+        ///
+        /// <para>⛔⛔ <b>What every other tank rail does NOT test.</b> They call
+        /// <c>Action_ReverseToBaseline(ref p, …)</c> with a HAND-BUILT <c>p</c>, so they exercise the
+        /// node BODY and say nothing about where the runtime FINDS those bytes. ⇒ when <c>P3-C</c>
+        /// moved the params home out of <c>BrainBlackboard</c> and left
+        /// <c>BTreeActionGenerator</c>'s 3-param bridge arm reading the (now never-written) component,
+        /// 2303 + 4017 + 420 + 299 tests stayed green while the product wrote a ZERO destination into
+        /// <c>LocomotionChannel</c> and no tank ever returned to its baseline.</para>
+        ///
+        /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
+        /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
+        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref byte</c> the
+        /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
+        /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
+        ///
+        /// <para>📐 Red-proof: restore <c>BTreeActionGenerator.cs:655</c> to
+        /// <c>Unsafe.As&lt;TBlackboard, TValue&gt;(ref bb)</c> ⇒ <c>Destination</c> is <c>(0, 0)</c>.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void CE304_ReverseToBaseline_Thunk_ReadsAuthoredParams_FromTheRootSlot()
+        {
+            using var repo = CreateWorld();
+            repo.SetSingletonManaged<NetworkEntityMap>(new NetworkEntityMap());
+
+            var registry = new BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            var ingress = new BehaviorIngressSystem(registry);
+
+            var tank = repo.CreateEntity();
+            repo.AddComponent(tank, new BehaviorState());
+            RootStateAccess.EnsureRootState(repo, tank);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            repo.AddComponent(tank, new LocomotionChannel());
+
+            // The exact shape Action_DispatchWaveWithTargets publishes.
+            string json = JsonSerializer.Serialize(
+                new HullDownAttackParams { BaselineX = 523f, BaselineY = 401f },
+                Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
+
+            repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = tank,
+                BehaviorName = BehaviorNames.HullDownAttackRun,
+                JsonParams   = json,
+            });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.016f);
+
+            // The thunk exactly as the Interpreter resolves it — key, delegate and all.
+            var actions = new ActionRegistry<byte, BTreeContext>();
+            FbtActionRegistrar.RegisterAll(actions);
+            Assert.True(actions.TryGetAction(
+                "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
+                out var thunk));
+
+            // BTreeTickSystem:123 — the kernel is handed the entity's live BrainBlackboard component.
+            ref byte bb    = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(repo, tank);
+            var     state = new BehaviorTreeState();
+            var     ctx   = new BTreeContext { Self = tank, World = repo };
+
+            thunk(ref bb, ref state, ref ctx, 0);
+
+            ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
+            MoveToParams written;
+            fixed (byte* raw = loco.Params)
+                written = *(MoveToParams*)raw;
+
+            Assert.Equal(523f, written.Destination.X, 0.001f);
+            Assert.Equal(401f, written.Destination.Y, 0.001f);
+        }
+
         /// <summary>SC-HA008-5: Action_ReverseToBaseline returns Success when
         /// LocomotionChannel.Status == Success.</summary>
         [Fact]
@@ -504,7 +590,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -532,7 +617,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -556,7 +640,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var p = new PlatoonHillAttackParams
             {
@@ -581,7 +664,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[4];
             for (int i = 0; i < 4; i++)
@@ -623,7 +705,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -648,7 +729,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var sub1 = repo.CreateEntity();
             var sub2 = repo.CreateEntity();
@@ -672,7 +752,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var aliveSub = repo.CreateEntity();
             var deadSub  = repo.CreateEntity();
@@ -703,7 +782,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.CachedEqsRequestId = -1;
@@ -735,7 +813,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
 
@@ -773,7 +850,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -809,7 +885,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -857,7 +932,6 @@ namespace Hrot.SimHost.Tests
 
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             try
             {
@@ -907,7 +981,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates. Their indices are assigned sequentially after commander.
             var subs = new Entity[4];
@@ -961,7 +1034,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1008,7 +1080,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1074,7 +1145,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             ref var s = ref GetHeavyState(repo, commander);
             s.ActiveAttackerCount = 0;
@@ -1096,7 +1166,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Destroy the attacker so IsAlive == false.
@@ -1138,7 +1207,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // Attacker is alive but has a different behavior hash (intent still propagating).
@@ -1172,7 +1240,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var attacker = repo.CreateEntity();
             // HullDownAttackRunBehaviorId == 3013.
@@ -1216,7 +1283,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             // Create 4 subordinates.
             var subs = new Entity[4];
@@ -1266,7 +1332,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -1315,7 +1380,6 @@ namespace Hrot.SimHost.Tests
             using var repo = CreateWorld();
 
             var commander = repo.CreateEntity();
-            repo.AddComponent<Blackboard1024>(commander, default);
 
             var subs = new Entity[2];
             for (int i = 0; i < 2; i++)
@@ -1400,7 +1464,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             repo.Bus.PublishManaged(new AssignBehaviorEvent
             {
@@ -1696,7 +1759,6 @@ namespace Hrot.SimHost.Tests
 
             var commander = repo.CreateEntity();
             repo.AddComponent(commander, new BehaviorState());
-            repo.AddComponent(commander, new BrainBlackboard());
 
             // PickableGeoPoint uses [latitude, longitude]. FiringLineStart = lat 2, lon 7.
             const string json =
@@ -1715,10 +1777,11 @@ namespace Hrot.SimHost.Tests
             repo.Bus.SwapBuffers();
             ingress.Execute(repo, 0.016f);
 
-            ref readonly var bb = ref repo.GetComponentRO<BrainBlackboard>(commander);
-            PlatoonHillAttackParams parms;
-            fixed (BrainBlackboard* bp = &bb)
-                parms = *(PlatoonHillAttackParams*)bp;
+            // 🔴 P3-C: ingress commits the parsed params into the ROOT PARAMS OCCURRENCE SLOT now,
+            //   not into BrainBlackboard. Same bytes at the same offset — only the anchor moved.
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRoot<PlatoonHillAttackParams>(
+                repo, commander, out PlatoonHillAttackParams* parmsPtr));
+            PlatoonHillAttackParams parms = *parmsPtr;
 
             // FiringLineStart lon=7 -> X = 7*1000 = 7000 (geo used), NOT 7 (null fallback).
             Assert.Equal(7000f, parms.StartX, 0.5f);

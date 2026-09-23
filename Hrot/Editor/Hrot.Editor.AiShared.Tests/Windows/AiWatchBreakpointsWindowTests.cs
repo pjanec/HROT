@@ -183,7 +183,10 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
         //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
         //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
-        Assert.Equal(8, reg.RegisteredWindows.Count);
+        // ⚠ CE-303 (2026-09-21): ONE FEWER per perspective — RuntimeInspectorWindow is dissolved
+        //    into details.runtime.<kind> views (§4's closed question Q-iii). ⭐ The count is kept
+        //    EXACT rather than relaxed: it is what makes an accidental extra window visible.
+        Assert.Equal(7, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC4: With manager, 8 windows per perspective (+1 in Batch 79) ─
@@ -204,7 +207,10 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
         //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
         //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
-        Assert.Equal(10, reg.RegisteredWindows.Count);
+        // ⚠ CE-303 (2026-09-21): ONE FEWER per perspective — RuntimeInspectorWindow is dissolved
+        //    into details.runtime.<kind> views (§4's closed question Q-iii). ⭐ The count is kept
+        //    EXACT rather than relaxed: it is what makes an accidental extra window visible.
+        Assert.Equal(9, reg.RegisteredWindows.Count);
     }
 
     // ── AIE-034 SC5: All ids are distinct across three perspectives ───────────
@@ -244,8 +250,10 @@ public sealed class AiWatchBreakpointsWindowTests : IDisposable
         //    (§7.6 ⑤). All six of its arms are Details views or asset-row menu items now, and after S4
         //    removed the last one it drew nothing. 📌 B101c: the design commissions the retirement, so
         //    this is a designed loss, ⛔ not an expectation relaxed to hide a red.
-        Assert.Equal(29, allIds.Count);
-        Assert.Equal(29, allIds.Distinct().Count());
+        // ⚠ CE-303 (2026-09-21): THREE fewer — one dissolved RuntimeInspectorWindow per AI
+        //    registrar (§4's Q-iii). ⭐ Exact, not relaxed: the DISTINCT half is the real claim.
+        Assert.Equal(26, allIds.Count);
+        Assert.Equal(26, allIds.Distinct().Count());
     }
 
     // ── AIE-034 SC6: Diagnostics window carries the correct id suffix ─────────

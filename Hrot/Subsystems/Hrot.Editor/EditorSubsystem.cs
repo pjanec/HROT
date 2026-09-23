@@ -331,11 +331,20 @@ namespace Hrot.Editor
 
         // ?? Selection state ???????????????????????????????????????????????????????
 
-        private DefaultSelectionState? _selectionState;
+        // ⭐⭐⭐ UXI-11 S-1 -- the VIEW, not a store. 📄 UX_Feature_Selection.md §2.7.
+        // ⛔ This was a DefaultSelectionState: a HashSet with no connection to the world, while
+        //   SelectionInteractionSystem wrote the SelectionState component. ⇒ Update() fed the
+        //   Mission Editor from the hash set and ctx.Entities read the component, and the two
+        //   disagreed on every map click -- the divergence ScenarioMissionView's remarks record.
+        private ISelectionState? _selectionState;
+
+        /// ⭐ UXI-11 — the shared map pack, kept so the selection view and the systems this host
+        ///   schedules are the SAME instances. ⛔ Two packs would mean two selections.
+        private Hrot.ScenarioEditor.Map.MapInteraction? _editorMapInteraction;
         private Hrot.ScenarioEditor.Gizmos.RubberBandState? _rubberBandState;
         private Hrot.ScenarioEditor.Systems.SelectionInteractionSystem? _selectionSystem;
         // ⭐⭐⭐ Batch 95 (95b) — THE SELECTED ENTITY, ONCE, for every store this subsystem holds.
-        // 🔴🔴 Measured: this editor builds FOUR EditorSelectionStores and calls
+        // 🔴🔴 Measured (Batch 95): this editor builds FOUR EditorSelectionStores and called
         //    CallbackSelectionBridge.Connect exactly ONCE, on _aiEditorSelectionStore below. ⇒
         //    SelectedEntity was null on all three PERSPECTIVE stores, always ⇒ every live-value
         //    provider returned null on its second line ⇒ every Details/Watch row on every host read
@@ -350,7 +359,6 @@ namespace Hrot.Editor
         //    abolish. ⭐ One fact, read by every store; the bridge still connects exactly one.
         private readonly Hrot.Editor.AiShared.Selection.SharedEntitySelection _sharedEntitySelection = new();
         private readonly Hrot.Editor.AiShared.Selection.EditorSelectionStore _aiEditorSelectionStore;
-        private Hrot.Editor.AiShared.Selection.CallbackSelectionBridge? _selectionBridge;
         // ?? Behavior registry (promoted for tooltip rendering) ?????????????????
 
         private BehaviorRegistry? _behaviorRegistry;
@@ -671,11 +679,12 @@ namespace Hrot.Editor
         /// ⭐⭐⭐ Batch 95 (<c>95b</c>) — internal test hook: <b>the ONE store the selection bridge
         /// writes to.</b>
         ///
-        /// <para>⭐ <c>CallbackSelectionBridge.Connect</c>'s entire action is
-        /// <c>store.SelectedEntity = entity</c> on this store, so writing here IS how production
-        /// selects an entity. ⛔ A rail that instead wrote to a PERSPECTIVE store would assert the
-        /// defect away rather than expose it — the whole finding is that the perspective stores are
-        /// not the ones production writes.</para>
+        /// <para>⚠⚠ <b><c>CE-300</c> CORRECTED THIS.</b> It used to read: <i>"CallbackSelectionBridge
+        /// .Connect's entire action is store.SelectedEntity = entity on this store, so writing here IS
+        /// how production selects an entity."</i> ⛔ That bridge is DELETED. ⭐ Production now writes
+        /// the SHARED CELL from <c>SelectionChangedNotification</c>, so writing to ANY of the four
+        /// stores is equivalent — they are one cell. 📄
+        /// <c>DESIGN_Editor_Entity_Selection_Source.md</c> §3.1.</para>
         /// </summary>
         internal Hrot.Editor.AiShared.Selection.EditorSelectionStore AiEditorSelectionStore
             => _aiEditorSelectionStore;
@@ -751,12 +760,29 @@ namespace Hrot.Editor
         /// </summary>
         public Fdp.Core.Entity? Selected2DEntity
         {
+            // ⭐ The GETTER stays a read-through — it is a VIEW read, not a second store (S-1).
             get => _selectionState?.PrimarySelected;
-            set { if (_selectionState != null) _selectionState.PrimarySelected = value; }
+            // ⭐⭐⭐ CE-306 — the SETTER routes to SetSelection2D, so the two seams are ONE operation
+            //    with one implementation. 🔒 User: "same operation should not be done in different
+            //    ways." ⛔ Two setters that both wrote the view was the duplication, not the sync-ness.
+            set => SetSelection2D(value);
         }
 
         /// <summary>Monotonic version of the 2D selection; 0 in headless.</summary>
         public int Selection2DVersion => _selectionState?.Version ?? 0;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>Whether this editor actually HAS a 2-D selection to share.</b>
+        /// <c>false</c> in headless, where <c>_selectionState</c> is never built.
+        ///
+        /// <para>🔴 <b>Why it exists (<c>UXI-11</c> <c>S-3d</c>):</b> the Stride 3-D view binds its
+        /// selection to this editor's. ⛔ Binding unconditionally would make <c>Select</c> a SILENT
+        /// NO-OP on a headless subsystem — <c>SetSelection2D</c> would write nothing and
+        /// <see cref="Selection2DVersion"/> would answer a constant 0, which is indistinguishable
+        /// from "nothing is selected". ⚠ <c>0</c> is also a legitimate version, so the caller cannot
+        /// infer absence from it; this says so explicitly.</para>
+        /// </summary>
+        public bool Has2DSelection => _selectionState != null;
 
         /// <summary>
         /// Sets the 2D editor selection to <paramref name="entity"/> (or clears it when null),
@@ -765,30 +791,42 @@ namespace Hrot.Editor
         /// </summary>
         public void SetSelection2D(Fdp.Core.Entity? entity)
         {
+            // ⭐⭐⭐ CE-306 — THIS PUBLISHES A REQUEST, like every other surface.
+            // 🔒 User, 2026-09-21: "same operation should not be done in different ways for
+            //    consistency, unification is desired." ⇒ selecting an entity is ONE operation with ONE
+            //    implementation: publish, and let SelectionRequestSystem (the one writer) apply and
+            //    announce it. 📄 UX_Feature_Selection.md §2.7.7 deviation ③, now CLOSED.
+            //
+            // ⚠⚠ THE OLD JUSTIFICATION FOR STAYING SYNCHRONOUS WAS STALE, and it is worth saying why
+            //    rather than deleting it. It read: "its ONE caller is
+            //    EditorStrideSubsystem.SyncSelection2D3D, which reads Selection2DVersion BACK IN THE
+            //    SAME FRAME to arm its anti-bounce tracker." 📐 Measured 2026-09-21:
+            //      · SyncSelection2D3D was DELETED by S-3d — its own commit comment says so;
+            //      · its replacement, StrideInspectorWindow.SelectionState.BindTo, calls _write(...)
+            //        and RETURNS — it does not read the version;
+            //      · `.Version` has NO consumer anywhere in the Stride app.
+            //    ⇒ the anti-bounce tracker the exception protected no longer exists.
+            //
+            // ⚠ THE ONE BEHAVIOUR CHANGE, named: the write now lands on the next drain rather than
+            //   immediately, so a 3-D click's own highlight reads the PREVIOUS entity for one frame
+            //   (SelectionState.SelectedEntity reads back through `read`). 🔒 User: "one frame lag is
+            //   neglectable in terms of perceptibility." ⛔ It cannot affect the CONTEXT MENU —
+            //   measured: the menu's subject is the entity the GESTURE hit (ContextMenuSystem builds
+            //   the request from `target`'s NetworkIdentity, and the cache is a per-entity component),
+            //   never the selection store. That is why §2.3's same-frame constraint is SUPERSEDED.
             if (_world == null) return;
 
-            // Clear existing ECS selection flags.
-            var q = _world.Query().With<Hrot.IG.Components.SelectionState>()
-                .WithLifecycle(Fdp.Core.EntityLifecycle.All).Build();
-            foreach (var e in q)
-            {
-                var st = _world.GetComponent<Hrot.IG.Components.SelectionState>(e);
-                if (st.IsSelected || st.IsPrimarySelection)
-                    _world.SetComponent(e, new Hrot.IG.Components.SelectionState { IsSelected = false, IsPrimarySelection = false });
-            }
-
-            // Set the new primary selection (ECS component) when a live entity is given.
-            if (entity.HasValue && entity.Value != Fdp.Core.Entity.Null && _world.IsAlive(entity.Value))
-            {
-                if (!_world.HasComponent<Hrot.IG.Components.SelectionState>(entity.Value))
-                    _world.AddComponent(entity.Value, new Hrot.IG.Components.SelectionState());
-                _world.SetComponent(entity.Value, new Hrot.IG.Components.SelectionState { IsSelected = true, IsPrimarySelection = true });
-            }
-
-            // Keep the UI-level primary in sync (drives inspector/tools).
-            if (_selectionState != null)
-                _selectionState.PrimarySelected = entity;
+            _world.Bus.PublishManaged(entity is { } e
+                ? Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(e, Selection2DReason)
+                : Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll(Selection2DReason));
         }
+
+        /// <summary>
+        /// ⭐ The reason both facade seams publish under. ⚠ NOT <c>SelectionEgressSystem</c>'s
+        /// <c>Remote.</c> prefix: a 3-D click is a LOCAL cause and must reach remote observers like any
+        /// other. ⛔ Naming it once is what stops the two seams drifting into two reasons.
+        /// </summary>
+        internal const string Selection2DReason = "Editor.Facade2D";
 
         /// <summary>
         /// Replaces the muscle tier built during <see cref="Initialize"/> with a host's own
@@ -1133,8 +1171,11 @@ namespace Hrot.Editor
 
             // Expose the registry to the diagnostic renderers so the entity inspector
             // can project BrainBlackboard memory and visualize the BTree execution state.
-            Hrot.Presentation.Renderers.BrainBlackboardRenderer.BehaviorRegistryAccessor = behaviorRegistry;
-            Hrot.Presentation.Renderers.Blackboard1024Renderer.BehaviorRegistryAccessor = behaviorRegistry;
+            // ⭐ P4-③: see CgfSubsystem. ⚠ This host also sets the same static at the
+            //   StatefulWorkingStateProjection line below; they are one static now, so the
+            //   duplicate is harmless — kept so each section's wiring stays visible.
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.BehaviorRegistry = behaviorRegistry;
+            // ⛔ P4-①: Blackboard1024Renderer is gone with its component (§30.13).
             Hrot.Presentation.Renderers.BTreeVisualizerRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BehaviorStateRenderer.BehaviorRegistryAccessor = behaviorRegistry;
             Hrot.Presentation.Renderers.BTreeTraceWorkingMemoryRenderer.BehaviorRegistryAccessor = behaviorRegistry;
@@ -1142,9 +1183,9 @@ namespace Hrot.Editor
 
             // Expose the blueprint registry to the Entity Inspector renderers so
             // BlueprintBlackboard* components can show per-tier slot summaries.
-            Hrot.Presentation.Renderers.BlueprintBlackboard1024Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-            Hrot.Presentation.Renderers.BlueprintBlackboard4096Renderer.BlueprintRegistryAccessor  = _blueprintRegistry;
-            Hrot.Presentation.Renderers.BlueprintBlackboard16384Renderer.BlueprintRegistryAccessor = _blueprintRegistry;
+            // ⭐ O3a / B3: ONE static for the whole renderer family. ⛔ Was one line per tier,
+            //   here and in the other host — a per-tier, per-host chance to forget (CE-161).
+            Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry = _blueprintRegistry;
 
             // Feature A (BATCH-10): expose the behavior registry to the shared stateful
             // working-state projection helper so BlueprintBlackboard* renderers can decode
@@ -1528,7 +1569,8 @@ namespace Hrot.Editor
             mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
             var cgfLogicPackInst = new CgfLogicPack(behaviorRegistry, entityMap,
                 scenarioLoadSource,
-                mapperRegistry);
+                mapperRegistry,
+                _blueprintRegistry);
 
             // ⭐⭐⭐ S2a — HOST (d) ON THE CAPABILITY AXIS. The editor was the last ECS composition root
             //    still hand-assembling its unit list; SimHost (§4.1s), IG (§4.1t) and CGF (§4.1x) all
@@ -1572,29 +1614,22 @@ namespace Hrot.Editor
                 Fdp.ModuleHost.Scheduling.SystemComposition
                     .DistinctByType(planInputSystems, System.Array.Empty<IEcsModuleSystem>()).ToArray());
 
-            // ── Blueprint runtime (MVE-BATCH-02) ──────────────────────────────────────
-            // Wire the Instance-Blueprint runtime into THIS kernel (the real composition the
-            // running editor uses — no sandbox world). The shared helper registers the three
-            // blackboard tier components on _world and registers BlueprintMaintenanceSystem
-            // (BeforeSync) as a global system; it returns the Simulation-phase tick system,
-            // which must be scheduled inside a module's sim list. We tick against the SAME
-            // _blueprintRegistry the editor's AiHotReloadCoordinator compiles blueprints into
-            // (see field declaration + _aiCoordinator construction above), so editor-registered
-            // blueprints run live. Both this composition and the integration-test EditorHarness
-            // call WireBlueprintRuntime so the wiring stays a single source of truth.
-            var bpTick = Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.WireBlueprintRuntime(
-                _kernel, _world!, _blueprintRegistry);
-
-            // FC-1·G2: splice bpTick BEFORE the action dispatchers (its [UpdateBefore] targets)
-            // instead of appending it -- module-group order is array position, so an appended tick
-            // ran AFTER the dispatchers and intent writes were only dispatched next tick, silently
-            // violating the Q#16-B same-tick contract. See BlueprintRuntimeWiring.SpliceIntoSimulation.
+            // ── Blueprint runtime ─────────────────────────────────────────────────────
+            // ⭐⭐⭐ A4 / O0 (2026-09-20) — THE EDITOR NO LONGER WIRES THIS AT ITS ROOT.
+            //   The tick system is spliced by CgfLogicPack (constructed above with
+            //   _blueprintRegistry), and BlueprintMaintenanceSystem is provided by
+            //   CgfCapabilities.Brain as a SingleSystemModule. Both reach this composition through
+            //   the plan, exactly as they now reach CGF's.
+            //   ⛔ THE ROOT SPLICE HAD TO GO, not merely become redundant: the pack's tick is inside
+            //     planSimSystems, so splicing a SECOND instance here would put two BlueprintTickSystems
+            //     in one group (DistinctByType runs BEFORE the splice and cannot see it).
+            //   📐 The tier COMPONENTS are unaffected — HrotSharedComponentRegistry.RegisterAll has
+            //     registered them on every node since CE-161.
             var toggleSim = new TogglableSimulationGroup(
                 "EditorSim",
-                Hrot.Blueprints.Editor.Runtime.BlueprintRuntimeWiring.SpliceIntoSimulation(
-                    Fdp.ModuleHost.Scheduling.SystemComposition        // CE-165 — see toggleInput above
-                        .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>()),
-                    bpTick).ToArray());
+                Fdp.ModuleHost.Scheduling.SystemComposition            // CE-165 — see toggleInput above
+                    .DistinctByType(planSimSystems, System.Array.Empty<IEcsModuleSystem>())
+                    .ToArray());
 
             var togglePostSim = new TogglablePostSimulationGroup(
                 "EditorPostSim",
@@ -1612,6 +1647,8 @@ namespace Hrot.Editor
                 fileService,
                 new ScenarioEditorModule.InteractionDeps(
                     Selection:          () => _selectionState,
+                    // ⭐⭐⭐ UXI-11 — the pack's ordered pair, not systems this module builds.
+                    SelectionSystems:   () => _editorMapInteraction?.SelectionSystemsInOrder,
                     Gizmos:             () => _editorDataDrivenGizmoSystem,
                     Camera:             () => _camera,
                     Tools:              () => _editorToolController));
@@ -1868,10 +1905,17 @@ namespace Hrot.Editor
             // visibility cache from registry.Rules.Count, so a rule added later would silently ignore its
             // visibility policy. MissionPresentationGizmo needs an IGeographicTransform and
             // EntityEditorLabelGizmo a BehaviorRegistry; reflection cannot supply either.
-            var editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
+            _editorMapInteraction = Hrot.ScenarioEditor.Map.MapInteractionPack.Build(
                 new Hrot.ScenarioEditor.Map.MapInteractionContext
                 {
                     World = _world,
+                    Inspector = () => _fdpInspectorState,
+                    // ⭐⭐⭐ CE-300 — the AI editors' entity cell follows the ANNOUNCEMENT, not a map
+                    //   gesture. 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1.
+                    // 🔒 R-67 — this caller HOLDS the cell, so it PASSES it.
+                    AiEntitySelection = e => _sharedEntitySelection.Selected = e,
+                    // ⭐ UXI-11 — the pack builds the gesture system, so it needs the marquee state.
+                    RubberBand = _rubberBandState ??= new Hrot.ScenarioEditor.Gizmos.RubberBandState(),
                     IsSelectedPredicate = static (view, entity) =>
                         view.HasComponent<SelectionState>(entity) &&
                         view.GetComponentRO<SelectionState>(entity).IsSelected,
@@ -1903,16 +1947,16 @@ namespace Hrot.Editor
                     },
                 });
 
-            _gizmoBuffer                 = editorMapInteraction.Buffer;
-            var editorGizmoRegistry      = editorMapInteraction.GizmoRegistry;
-            var editorStatelessGizmoRegistry = editorMapInteraction.StatelessRegistry;
-            var editorGizmoSettings      = editorMapInteraction.Settings;
+            _gizmoBuffer                 = _editorMapInteraction.Buffer;
+            var editorGizmoRegistry      = _editorMapInteraction.GizmoRegistry;
+            var editorStatelessGizmoRegistry = _editorMapInteraction.StatelessRegistry;
+            var editorGizmoSettings      = _editorMapInteraction.Settings;
             // Editor has no DDS transport so no network ingress/egress translators.
-            var interactionBus           = editorMapInteraction.InteractionBus;
+            var interactionBus           = _editorMapInteraction.InteractionBus;
             _interactionBus              = interactionBus;
-            _editorDataDrivenGizmoSystem = editorMapInteraction.DataDrivenSystem;
-            _globalGizmoManager          = editorMapInteraction.GlobalManager;
-            _editorToolController        = editorMapInteraction.Tools;
+            _editorDataDrivenGizmoSystem = _editorMapInteraction.DataDrivenSystem;
+            _globalGizmoManager          = _editorMapInteraction.GlobalManager;
+            _editorToolController        = _editorMapInteraction.Tools;
             var actionRegistry = new GlobalActionRegistry();
             long layerControlId = GlobalGizmoManager.NewId();
             var layerControlGizmo = new Hrot.Common.Diagnostics.Gizmos.LayerControlGizmo(layerControlId, interactionBus, new StructEdit.Reflection.ComponentEditServiceBuilder().Build(), _gizmoUiHub);
@@ -1985,15 +2029,16 @@ namespace Hrot.Editor
             {
                 if (target == Entity.Null) return;
 
-                var q = _world!.Query().With<SelectionState>().WithLifecycle(EntityLifecycle.All).Build();
-                foreach (var e in q)
-                {
-                    if (_world.IsAlive(e))
-                        _world.SetComponent(e, new SelectionState { IsSelected = false, IsPrimarySelection = false });
-                }
-
-                _world.SetComponent(target, new SelectionState { IsSelected = true, IsPrimarySelection = true });
-                if (_selectionState != null) _selectionState.PrimarySelected = target;
+                // ⭐⭐⭐ UXI-11 S-2 — an action handler REQUESTS; it does not write the selection.
+                //    📄 UX_Feature_Selection.md §2.7.3 rule 1. ⛔ This used to hand-roll the clear-loop,
+                //    set the component, AND assign through the view — three ways to say one thing.
+                //    ⚠ One frame later than before, which §2.5 already rules structural. 📌 §2.5 also
+                //    calls a menu item that changes selection "an action handler", which is exactly
+                //    the deferred path ruling 15 gives every action.
+                _world!.Bus.PublishManaged(
+                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ReplaceWith(target, "ContextMenu.Select"));
+                // ⚠ Panel view state, not the selection store. S-3 turns this into a notification
+                //   consumer; until then the handler still points the inspector at its own choice.
                 _fdpInspectorState.SelectedEntity = target;
             });
             actionRegistry.Register(GlobalActionIds.ToggleAiTrace, (view, target) =>
@@ -2048,44 +2093,42 @@ namespace Hrot.Editor
             });
 
             var contextIngress = new ContextActionIngressSystem(entityMap, interactionBus);
-            _rubberBandState = new Hrot.ScenarioEditor.Gizmos.RubberBandState();
-            editorStatelessGizmoRegistry.RegisterGlobal(new Hrot.ScenarioEditor.Gizmos.RubberBandGizmo(_rubberBandState));
-            _selectionSystem = new Hrot.ScenarioEditor.Systems.SelectionInteractionSystem(_world, interactionBus, _rubberBandState);
-            _selectionSystem.OnSelectionChanged += (entity, _) =>
-            {
-                if (entity == Entity.Null)
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = null;
-                    _fdpInspectorState.SelectedEntity = null;
-                }
-                else if (_world.IsAlive(entity))
-                {
-                    if (_selectionState != null) _selectionState.PrimarySelected = entity;
-                    _fdpInspectorState.SelectedEntity = entity;
-                }
-            };
-            // Wire the AI editor selection store so AI editor windows track the selected entity.
-            _selectionBridge = new Hrot.Editor.AiShared.Selection.CallbackSelectionBridge(onEntitySelected =>
-            {
-                Action<Entity, System.Numerics.Vector3> handler = (entity, _) =>
-                {
-                    onEntitySelected(_world != null && entity != Entity.Null && _world.IsAlive(entity)
-                        ? entity
-                        : (Entity?)null);
-                };
-                _selectionSystem!.OnSelectionChanged += handler;
-                return new DelegateDisposable(() =>
-                {
-                    if (_selectionSystem != null)
-                        _selectionSystem.OnSelectionChanged -= handler;
-                });
-            });
-            _selectionBridge.Connect(_aiEditorSelectionStore);
+            // ⛔ The RubberBandGizmo registration MOVED into MapInteractionPack (2026-09-20, §2.7.16) —
+            //    the marquee belongs to every host with a 2-D map. The editor still creates the STATE
+            //    early (see the MapInteractionContext above) because it needs the handle; the pack
+            //    adopts that instance rather than making a second one.
+            // ⭐⭐⭐ UXI-11 — the PACK's gesture system. 📐 The state itself is created before the pack
+            //    is built (see the MapInteractionContext above), because the pack hands it to the
+            //    system it constructs.
+            _selectionSystem = _editorMapInteraction!.SelectionInteraction;
+            // ⭐⭐⭐ UXI-11 S-2 — the two _selectionState writes that used to live here are DELETED as
+            //    PROVABLY REDUNDANT, not merely moved. 📐 Since S-1 the view is a read-through over the
+            //    SelectionState component, and SelectionInteractionSystem has ALREADY written that
+            //    component through the very same view before it raises this callback
+            //    (ClearAllSelections + SetSelected, then Invoke). ⇒ assigning PrimarySelected here
+            //    re-derived a state that was already true.
+            //
+            // ⭐⭐⭐ UXI-11 S-3 — AND THE CALLBACK ITSELF IS GONE. 📄 §2.7.4 listed this hand-sync for
+            //    retirement; SelectionNotificationSystem below does it from the NOTIFICATION instead.
+            // ⚠⚠ The difference is not cosmetic: this callback fired ONLY for a MAP click, because it
+            //    hung off SelectionInteractionSystem. ⇒ an inspector click, a context-menu Select, a
+            //    CMD_SET_SELECTION from ExCon — none of them moved _fdpInspectorState. 📌 That is the
+            //    whole argument for an announcement: one publisher, every cause, one consumer.
+            // ⭐⭐⭐ CE-300 — CallbackSelectionBridge IS DELETED, and the gap is the point.
+            // 🔴 It subscribed to _selectionSystem.OnSelectionChanged — a MAP GESTURE — two lines below
+            //    the comment above explaining why the neighbouring hand-sync was retired for exactly
+            //    that. ⇒ an inspector click, an orbat select, a context-menu Select or a remote
+            //    CMD_SET_SELECTION never moved the AI editors' entity, so every Watch/Details
+            //    live-value row kept projecting the PREVIOUS one.
+            // ⭐ The cell is now a SINK of SelectionChangedNotification, passed to the pack as
+            //    MapInteractionContext.AiEntitySelection above.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §3.1; the third instance of the shape S-3
+            //    fixed inbound and S-6 outbound.
             // UXI-23 S2b: the group, its three members and the gate come from the pack.
-            var gizmoGroup   = editorMapInteraction.GizmoGroup;
-            _gizmoController = editorMapInteraction.Gate;
+            var gizmoGroup   = _editorMapInteraction.GizmoGroup;
+            _gizmoController = _editorMapInteraction.Gate;
             // ⭐⭐ UXI-23 S3: report anything constructed but not scheduled (§3.2e).
-            foreach (string problem in editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
+            foreach (string problem in _editorMapInteraction.Unserviceable(new object[] { gizmoGroup }))
                 Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info("[Map] {0}", problem);
             _kernel.RegisterModule(new GizmoInteractionModule(
                 interactionBus,
@@ -2317,7 +2360,21 @@ namespace Hrot.Editor
                     _debugApiService = debugService;
                     _debugApiHost.AttachService(debugService);
                     _debugApiHost.Start();
-                    System.Console.WriteLine($"[DebugApi] AI-debug API (MCP control plane) listening on http://localhost:{debugApiPort}/");
+                    // ⛔⛔ TWO TRAPS THIS LINE EXISTS TO DEFUSE, both measured 2026-09-20 and both
+                    //    cost a Windows session a round trip:
+                    //    ① It used to be Console.WriteLine. A host that captures the LOG but not
+                    //       stdout therefore had no record at all, and "the debug API is absent in
+                    //       -m editor" was reported when it was running fine. ⇒ it goes through
+                    //       FdpLog like every other lifecycle line.
+                    //    ② The phrase must MATCH the cluster's (Program.cs "Debug API listening on"),
+                    //       because that is the string people grep. It used to read "AI-debug API
+                    //       (MCP control plane) listening on", so grepping the cluster's wording
+                    //       found nothing here and read as "never started".
+                    // ⚠ And the URL is spelled out because HttpListener binds the HOSTNAME: a request
+                    //    to 127.0.0.1 404s on EVERY route (RUNBOOK_Cluster_Debugging_Over_Http §2.1).
+                    Fdp.Core.Logging.FdpLog<EditorSubsystem>.Info(
+                        "[Editor] Debug API listening on {0} — AI-debug/MCP control plane at http://localhost:{0}/ (use localhost, NOT 127.0.0.1).",
+                        debugApiPort);
                 }
             }
 
@@ -2350,7 +2407,20 @@ namespace Hrot.Editor
                 _zoneAdapter      = new EditorZoneAdapter(
                     _canvas!, _world.Bus, _globalGizmoManager!, _editorToolController);
                 _mapConfigAdapter = new ScenarioMapConfigAdapter(_mapViewConfig, _canvas!);
-                _selectionState   = new DefaultSelectionState();
+                // ⭐⭐⭐ UXI-11 S-1 -- read through to the ECS SelectionState component, the one truth.
+                //   ⚠ Same lifecycle as _fdpRepoAdapter below: nulled on teardown and rebuilt here,
+                //     because both hold the World and the World is replaced on reload.
+                // ⭐⭐⭐ UXI-11 — the PACK's view, so this host and the systems it schedules read the
+                //   same one. ⛔ A locally-built view would be a second one over the same world.
+                _selectionState   = _editorMapInteraction!.Selection;
+                // ⭐⭐⭐ UXI-11 S-3 — the entity inspector stops owning a selection.
+                // 🔒 Ruling ① (2026-09-10): inspector selection IS the global selection, on every host.
+                //    ⛔ ChainToMap -- the opt-in that gated exactly this -- is retired with the panel's
+                //    toggle; it defaulted to OFF here, which is why an inspector click never moved the
+                //    editor's map. 📄 UX_Feature_Selection.md §2.6 ruling ① / §2.7.8.
+                _fdpEntityInspector.Selection = _selectionState;
+                _fdpEntityInspector.RequestSelectionChange =
+                    req => _world!.Bus.PublishManaged(req);
 
                 // ⭐⭐ CE-051 — the shared rename modal. ⭐ Commits through IEditorLogic.CommitPropertyEdit,
                 //    which publishes an UpdateEntityCommand — ⛔ NOT a direct component write, which is what
@@ -3808,18 +3878,27 @@ namespace Hrot.Editor
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── BSA-205: "Entity Blueprints" perspective window ───────────────────────────────
-            // Registered via RegisterExtraWindow so it appears in the Window → Blueprint menu.
-            var entityBpWindow = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsManagedWindow(
-                () =>
-                {
-                    var model = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsEditModel(
-                        _world!, _blueprintRegistry!, Entity.Null);
-                    var panel = new Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsPanel(
-                        model, _world!, _blueprintRegistry!,
-                        entityResolver: () => _aiEditorSelectionStore?.SelectedEntity);
-                    return panel;
-                });
-            _blueprintRegistrar!.RegisterExtraWindow(windowManager, entityBpWindow);
+            // ⭐⭐⭐ CE-302 — ENTITY BLUEPRINTS IS A DETAILS VIEW, not a standalone window.
+            // 🔒 User, 2026-09-21: "EntityBlueprintsManagedWindow … sound[s] like [it] needs converting
+            //    into [a] proper details panel view[] with all the pinning support."
+            // 🔴 What it was: a ManagedWindow whose panel read `_aiEditorSelectionStore.SelectedEntity`
+            //    — a GLOBAL. ⇒ it could only show "whoever is selected", and a pinned copy on a second
+            //    entity was not expressible at all.
+            // ⭐ As a view it is handed a DetailsContext per draw: LIVE when docked, FROZEN when pinned
+            //    (R-100's snapshot) ⇒ pinning costs the panel nothing and is opted into nowhere.
+            // ⛔⛔ REGISTERED HERE BY CONSTRUCTION, NOT CONVENIENCE — the reference wall: the view lives
+            //    in Hrot.Blueprints.Editor and the registrar in Hrot.Editor.AiShared BELOW it, so the
+            //    root is the only assembly that sees both ends. 📌 The same wall BP-475 hit.
+            // ⚠ AND IT MUST BE REACHABLE: 📌 BP-475 shipped a view that was BUILT AND UNREGISTERED with
+            //   every one of its unit rails passing. TheEntityBlueprintsViewIsRegisteredTests asserts
+            //   the Blueprint catalogue OFFERS it, on the CONSTRUCTED editor.
+            // 📄 DESIGN_Editor_Entity_Selection_Source.md §5.
+            // ⚠ DELEGATES, not values: RegisterWindows runs BEFORE Initialize assigns _world, so an
+            //   eager For(_world!, …) throws here. 📌 The retired window hid that inside its lazy
+            //   factory lambda — which is exactly why the eager form looked equivalent.
+            _blueprintRegistrar!.DetailsViews.Add(
+                Hrot.Blueprints.Editor.EntityBlueprints.EntityBlueprintsDetailsViewDescriptor.For(
+                    () => _world, () => _blueprintRegistry));
             // ─────────────────────────────────────────────────────────────────────────────────────
 
             // ── PU-603/PU-D11: "Save All" callback — FlushNow + SaveAllAiDocumentsCommand ─────────
@@ -4103,27 +4182,30 @@ namespace Hrot.Editor
             {
                 var btreePane = new BTreeRuntimeInspectorPane();
                 btreePane.SetSession(_btreeDebugSession);
-                _btreeRegistrar.RuntimeInspector.RegisterPane(btreePane);
+                _btreeRegistrar.RegisterRuntimePane(btreePane);
             }
             if (_hsmDebugSession != null)
             {
                 var hsmPane = new HsmRuntimeInspectorPane();
                 hsmPane.SetSession(_hsmDebugSession);
-                _hsmRegistrar.RuntimeInspector.RegisterPane(hsmPane);
+                _hsmRegistrar.RegisterRuntimePane(hsmPane);
             }
             if (_blueprintDebugSession != null)
             {
                 var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
                 blueprintPane.SetSession(_blueprintDebugSession);
+                // ⭐⭐⭐ CE-303 — the selectedEntityResolver is GONE. It read the AI store — a GLOBAL —
+                //    so a PINNED copy of this view showed whatever was selected NOW. The entity now
+                //    arrives with the DetailsContext: LIVE when docked, FROZEN when pinned.
+                // ⚠ The ASSET id stays a resolver: it follows the active DOCUMENT, not the selection.
                 blueprintPane.SetResolvers(
-                    selectedEntityResolver: () => _aiEditorSelectionStore?.SelectedEntity,
                     activeAssetIdResolver:  () =>
                     {
                         var ctx = _aiDocumentManager?.Active?.ViewState
                             as Hrot.Editor.AiShared.Windows.AiCanvasContext;
                         return (ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset)?.AssetId;
                     });
-                _blueprintRegistrar.RuntimeInspector.RegisterPane(blueprintPane);
+                _blueprintRegistrar.RegisterRuntimePane(blueprintPane);
             }
             // ────────────────────────────────────────────────────────────────────────────────────
 
@@ -5178,8 +5260,6 @@ namespace Hrot.Editor
             _zoneEditorPanel  = null;
             _fdpRepoAdapter   = null;
             _selectionState   = null;
-            _selectionBridge?.Dispose();
-            _selectionBridge  = null;
             // (Phase 5: _interactionTool was here; removed)
             _clusterMaster?.Dispose();
             _clusterMaster  = null;
@@ -5654,13 +5734,6 @@ namespace Hrot.Editor
         // IEcsModule wrapper for Simulation-phase systems in the offline Editor.
         // The kernel forbids registering SystemPhase.Simulation systems as global systems;
         // they must be routed through a module.
-
-        private sealed class DelegateDisposable : IDisposable
-        {
-            private Action? _action;
-            public DelegateDisposable(Action action) => _action = action;
-            public void Dispose() { _action?.Invoke(); _action = null; }
-        }
 
         private sealed class EditorSimulationModule : IEcsModule        {
             private readonly TogglableSimulationGroup _simulationGroup;

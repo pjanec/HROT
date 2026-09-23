@@ -86,33 +86,37 @@ namespace Fdp.Toolkit.Behavior
         /// </list>
         /// Result masked to a non-negative int.
         /// </summary>
+        /// <remarks>
+        /// ⭐⭐ <b>A1 (<c>PLAN_Occurrence_Storage_Build</c>): this is now a THIN WRAPPER.</b> The
+        /// algorithm lives in <see cref="Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey"/>, one file
+        /// LINKED into the authoring assembly as well, so the compile-time and runtime keys cannot
+        /// drift. ⛔ Do not re-inline the FNV here — that divergence is <c>F5</c> and it fails
+        /// silently (the slot is never found, nothing throws).
+        /// <para>⚠ The cast is safe because the two enums are pinned value-for-value by
+        /// <c>OccurrenceSlotKeyParityTests</c>.</para>
+        /// </remarks>
         public static int ComputeStatefulSlotKey(
             Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
-        {
-            unchecked
-            {
-                uint hash = FnvOffsetBasis;
-                switch (scope)
-                {
-                    case StatefulSlotScope.Node:
-                        foreach (byte b in assetId.ToByteArray())      { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in nodeVisualId.ToByteArray()) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.Compute(
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
-                    case StatefulSlotScope.Behavior:
-                        foreach (byte b in assetId.ToByteArray())                          { hash ^= b; hash *= FnvPrime; }
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    case StatefulSlotScope.Entity:
-                        foreach (byte b in System.Text.Encoding.UTF8.GetBytes(variableId)) { hash ^= b; hash *= FnvPrime; }
-                        return (int)(hash & 0x7FFFFFFFu);
-
-                    default:
-                        throw new ArgumentOutOfRangeException(nameof(scope), scope, null);
-                }
-            }
-        }
+        /// <summary>
+        /// ⭐ The NESTED form — <c>DESIGN_Occurrence_Scoped_Storage</c> §3's <c>(assetId, hostPath)</c>.
+        /// <paramref name="hostKey"/> <c>== 0</c> means a ROOT occurrence and returns exactly what
+        /// <see cref="ComputeStatefulSlotKey(Guid, StatefulSlotScope, Guid, string)"/> returns.
+        /// </summary>
+        public static int ComputeOccurrenceSlotKey(
+            int hostKey, int siteId, Guid assetId, StatefulSlotScope scope, Guid nodeVisualId, string variableId)
+            => Fdp.Toolkit.Behavior.Shared.OccurrenceSlotKey.ComputeNested(
+                   hostKey,
+                   siteId,
+                   assetId,
+                   (Fdp.Toolkit.Behavior.Shared.OccurrenceSlotScope)(int)scope,
+                   nodeVisualId,
+                   variableId);
 
         /// <summary>
         /// FNV-1a-32 of the UTF-8-ish bytes of a type name, matching
@@ -194,50 +198,22 @@ namespace Fdp.Toolkit.Behavior
                         ref TParams p = ref Unsafe.As<TBB, TParams>(
                             ref Unsafe.AddByteOffset(ref bb, paramOffset));
 
-                        if (ctx.World.HasComponent<BlueprintBlackboard16384>(ctx.Self))
+                        // A2: the 16384 -> 4096 -> 1024 ladder, once, in OccurrenceStoreAccess.
+                        // ⛔ HOT PATH — this runs per action, per tick, so the seam is deliberately
+                        //    allocation-free. The pointer is used inside this call only
+                        //    (see the seam's LIFETIME RULE).
+                        // ⚠ The old code asserted with the TIER NAME in the message; the tier is no
+                        //    longer visible here and does not change the diagnosis — "no slot for
+                        //    this key on this entity" is the whole finding either way.
+                        if (!Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess
+                                 .TryResolveOccurrence(ctx.World, ctx.Self, slotKey, out byte* wsPtr))
                         {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard16384>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard16384");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
+                            System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} not resolvable on this entity (no tier component, or the slot is not attached)");
+                            return NodeStatus.Failure;
                         }
-                        if (ctx.World.HasComponent<BlueprintBlackboard4096>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard4096>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard4096");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        if (ctx.World.HasComponent<BlueprintBlackboard1024>(ctx.Self))
-                        {
-                            ref var tier = ref ctx.World.GetComponentRW<BlueprintBlackboard1024>(ctx.Self);
-                            fixed (byte* mem = tier.Memory)
-                            {
-                                if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int wsOff))
-                                {
-                                    System.Diagnostics.Debug.Assert(false, $"S3-G: stateful slot {slotKey} missing from BlueprintBlackboard1024");
-                                    return NodeStatus.Failure;
-                                }
-                                ref var ws = ref Unsafe.AsRef<TWorkingState>(mem + wsOff);
-                                return logic(ref p, ref ws, ref st, ref ctx);
-                            }
-                        }
-                        System.Diagnostics.Debug.Assert(false, $"S3-G: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}");
-                        return NodeStatus.Failure;
+
+                        ref var ws = ref Unsafe.AsRef<TWorkingState>(wsPtr);
+                        return logic(ref p, ref ws, ref st, ref ctx);
                     }
                 };
 
