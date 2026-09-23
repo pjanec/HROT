@@ -69,20 +69,20 @@ RELEARN
 
 ---
 
-## 2. ⭐⭐⭐ WHAT IS LEFT IN THE PROGRAMME
+## 2. ⭐⭐⭐ WHAT IS LEFT IN THE LANE
 
-⛔ **`O7c` has no remaining slice.** What is open is elsewhere in the lane:
+⛔ **`O7c` has no remaining slice, and `CE-300` / `CE-318` / `CE-321` ③ / `CE-323` are DONE
+(`2026-09-23`).** What is open:
 
-| id | what | why it was not folded into `O7c` |
+| id | what | why it is not ours |
 |---|---|---|
-| **`CE-321`** | the example-scenario rot — ② fixed, **①/③ open** *(the `ref byte`-as-component, and the generator slot counts that need re-baselining after `O7c`-②'s `+1`)* | it is `P3`/`P4`-era breakage in EXAMPLES; absorbing it would hide which slice broke what |
-| **`CE-318`** | the tier demand double-charges each slot's 16-byte entry | §31.13 — it moves tiers for EVERY entity, so it must not ride along and blur a golden regression |
-| **`CE-300` / `CE-301`** | open, unrelated to `O7c` | — |
+| ⚠ **`CE-321` ②** | 🔴 **NARROWED AND RE-SCOPED — it is a COMBAT-PIPELINE defect, not a storage one.** 📄 §31.22. The UrbanCombatNew soldiers disembark, acquire the **correct** target, stand ~**120 m** away inside their 150 m range, fire **all 30 rounds each**, and **bullets are live on 53 ticks** — yet the insurgent's `Health.Current` never leaves **100**. ⇒ the break is in `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage`. **3 `UrbanCombatNewScenarioTests` red** | nothing in that chain touches occurrence storage; absorbing it would repeat the mistake `CE-321` was filed to avoid |
+| **`CE-301`** | cache the root-params slot offset per entity with a generation dirty-bit — a PERF idea, user-suggested, movers measured | **explicitly excluded by the user `2026-09-23`** |
 
-⚠ **A `CE-318` run needs its own golden**, and §31.9 acceptance ⑤ says the memory row is re-measured
-**after** it, never before.
-
----
+⭐ **What `CE-323` unblocked, worth knowing before touching `CE-321` ②:** `Fdp.Examples.UrbanCombat.Tests`
+went **1 failed → 29/29**. The `HSM TRANSITION` milestone — the failure this lane had carried as
+*"pre-dates `O7c` entirely"* since the programme began — **was the missing `BrainInterrupts`
+registration all along.**
 
 ## 3. ⛔⛔ THE TRAPS — **every one of these cost a build loop in this programme**
 
@@ -96,6 +96,8 @@ RELEARN
 | **⑥** | ⚠ **the instance TIER decides EVENT-QUEUE capacity** | 64 B holds ONE event and has **no interrupt slot**; 256 B has an interrupt slot plus a ring of 5. ⭐ A test blob that needs interrupt priority must declare `RegionCount ≥ 2` so `SelectTier` answers 128 |
 | **⑦** | 🔴 **`ResolveOrAttachRoot` DETACHES BEFORE IT ATTACHES** | on a width mismatch. ⇒ if the store cannot hold the wider instance the entity is left with **NO machine**, worse than the stale one. ⭐ **Promote the store FIRST** (`BlueprintTierTable.EnsureAtLeast`) — §31.19.2 |
 | **⑧** | ⚠ **the golden needs a FRESH ClusterRunner dll and the `Scenario` perspective** | `--mode all` answers for ONE node at a time; a stale binary gave a confident wrong reading once |
+| **⑨** | 🔴🔴🔴 **THE REGISTRATION CHECK HAS THREE COLUMNS NOW, NOT TWO** | `CE-323`: `BrainInterrupts` was registered **nowhere in production** and three separate guards skipped silently *(translator attach, `CognitiveInterruptSystem`'s query, `BrainTickSystem`'s enqueue)*. 🔒 **The command:** for every file that does `RegisterComponent<BehaviorState>`, cross-reference **`BlueprintTierTable.RegisterAll` AND `RegisterComponent<BrainInterrupts>`**. 📐 It found five brain-building worlds missing the third |
+| **⑩** | ⚠ **`SimTransform.Position` is a JSON LIST `[x,y,z]` over the debug API**, not `{X,Y,Z}` | a reader written for the object shape raises inside a sampling loop and prints **nothing**, which reads exactly like a missing entity |
 
 ---
 
