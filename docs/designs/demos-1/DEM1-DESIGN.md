@@ -217,7 +217,7 @@ Fdp.Examples.Common/
 ├── ScenarioFailureException.cs     ← Typed failure with diagnostics
 ├── Components/
 │   ├── DemoScenarioTracker.cs      ← ECS component: phase latches + tick counter
-│   └── MockBlackboardState.cs      ← Unsafe overlay for BrainBlackboard.Memory
+│   └── MockBlackboardState.cs      ← Unsafe overlay for the root params occurrence slot's bytes
 ├── Events/
 │   ├── DemoTestLogEvent.cs         ← Synthetic logging event (FixedString32 name, int phase)
 │   └── DemoScenarioTriggerEvent.cs ← Inject artificial world-state changes (type + target)
@@ -302,7 +302,7 @@ Max ticks: `15`.
 
 **Topology:** Single headless kernel, `CognitiveRuntimeModule` only.
 
-A Commander entity runs a synthetic BTree: `Selector[ Sequence(Condition_ThreatVisible, Condition_HasAmmo, Action_AimAndFire), Action_Flee ]`. The scenario script acts as the perception layer, directly writing to `BrainBlackboard.Memory`.
+A Commander entity runs a synthetic BTree: `Selector[ Sequence(Condition_ThreatVisible, Condition_HasAmmo, Action_AimAndFire), Action_Flee ]`. The scenario script acts as the perception layer, directly writing into the entity's root params occurrence slot.
 
 | Phase | Tick | Blackboard | Expected Channels |
 |-------|------|-----------|-------------------|

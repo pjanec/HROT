@@ -1,55 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-21
-current-answer: the whole file AS A BEFORE-PICTURE. Read the banner below first.
-known-rot: 2026-09-21 - the HOSTED half of this document's storage map is now BUILT and therefore
-  HISTORY, not intent. E3a moved a hosted occurrence's PARAMS into its own occurrence slot
-  ([WorkingState][Params]), so this file's "params live in BrainBlackboard.BehaviorParameters for
-  every host" (the table near line 46) and "params would COLLIDE" (near line 343) describe the
-  BEFORE state only. The prediction near line 432 - "give a hosted occurrence its own params region
-  inside its slot" - CAME TRUE; see DESIGN_Occurrence_Scoped_Storage.md 28 and
-  DESIGN_Parameter_Model.md 4.7. A ROOT behaviour's params ARE still in BrainBlackboard.
-  (earlier) none as of 2026-08-18; the BP1031 claims were repaired in Batch 82 (BP-318)
+current-answer: §1, the storage map. The rest explains and evidences it.
+known-rot: none as of 2026-09-22.
 -->
 # Where parameters and state actually live — all hosts, one picture
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
->
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
-> `2026-08-17` and reopened on `2026-09-19`.
->
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
->
-> ⭐⭐ **This file keeps its value as the BEFORE measurement record** — that is what it was written to
-> be. ⛔ Do not quote its storage map as the target.
->
-> ### ✅ `2026-09-21` — **THE HOSTED HALF IS NOW BUILT, so this file's params map is HISTORY**
->
-> 📄 **`E3a`** — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28 ·
-> [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §4.7.
->
-> | this file says | ✅ now |
-> |---|---|
-> | *"`BrainBlackboard.BehaviorParameters` — every input, every host, every tier"* | ⚠ **true only for a ROOT behaviour.** A **HOSTED** occurrence's params live in **its own occurrence slot** |
-> | *"params **would COLLIDE** — one region for the one active behaviour"* | ✅ **they no longer do** — that collision is what `E3a` closed |
-> | ⭐ *"give a hosted occurrence its own params region inside its slot and tick it against that"* | ✅ **BUILT** — the slot payload is `[WorkingState M][Params N]` |
->
-> ⚠ **What is still ahead:** each occurrence gets its own **copy**, seeded from the same authored
-> variable. **Per-site authored VALUES** are `E3b` — `Q41-C1′` then `C2′`, approved and unbuilt.
-
-
 > ## ⭐ This is the MEASUREMENT RECORD + the diagrams.
 > ⛔ **The design is [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) — it wins on any
-> disagreement.** Read that first; come here for the file:line evidence behind it.
+> disagreement**, and [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)
+> owns the storage model itself. Read those first; come here for the file:line evidence behind them.
 
-> **Why this exists.** The question *"is every input variable in the 100-byte blackboard?"* has a
-> one-word answer (**yes**) and a five-part explanation. This is the explanation, measured on
-> `HEAD` (`2026-08-16`), not inferred.
+> **Why this exists.** The question *"where does an input variable actually live?"* has a one-word
+> answer (**a slot**) and a five-part explanation. This is the explanation, measured, not inferred.
 >
 > ⭐⭐ **Headline: most of the unification we were designing already exists as a design record** —
 > 📄 [`Behavior_Parameter_Resolver_Detailed_Design.md`](Behavior_Parameter_Resolver_Detailed_Design.md)
@@ -62,23 +25,34 @@ known-rot: 2026-09-21 - the HOSTED half of this document's storage map is now BU
 
 ![storage map](EXPLAINER_Storage_Map.svg)
 
-| region | holds | size | who writes it |
-|---|---|---|---|
-| **`BrainBlackboard.BehaviorParameters`** | ⭐ **every input, every host, every tier** | **100 B** — **ONE params struct for the ACTIVE BEHAVIOUR** | `BehaviorIngressSystem`, once at activation |
-| `Blackboard1024.Memory` | AiPrimitive / shared-AI **state** | 1024 B, `StructureHash` @0, state @8 | the action itself, every tick |
-| `BlueprintBlackboard{1024,4096,16384}` | ⭐ **Instance blueprint state — the allocatable one** | payload **928 / 3936 / 16368 B**, 4 slots | `BlueprintInstanceService.AttachToEntity` |
-| a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
+Everything an entity's brain owns lives in **one** component — the smallest
+`BlueprintBlackboard{256,1024,4096,16384}` tier that fits — carved into **occurrence slots** by
+`BlueprintBlackboardPartitions`:
 
-⭐ **All four are `[DataPolicy(NoScenario)]`.** Nothing here is serialised — inputs are **re-supplied at
+| slot | holds | sized by | who writes it |
+|---|---|---|---|
+| ⭐ **the root params slot** | ⭐ **every input of the ACTIVE ROOT behaviour** | `RootParamsBytes(def)` — the packed variable table | `BehaviorIngressSystem`, once at activation |
+| ⭐ **a hosted occurrence's slot** | that occurrence's **own** params **and** working state, laid out `[WorkingState M][Params N]` | the asset's declared types | the hosting thunk, at attach; the action, every tick |
+| ⭐ **a node working-state slot** | AiPrimitive / shared-AI **state**, `StructureHash` @0, state @8 | the asset's `WorkingState` | the action itself, every tick |
+| ⭐ **an Instance blueprint slot** | Instance blueprint state | the blueprint's state struct | `BlueprintInstanceService.AttachToEntity` |
+| a managed component *(outside the store)* | `[SharedAiHeavyAction]` managed state | unbounded (a class) | the action itself |
+
+The tier payloads are **176 / 800 / 3 808 / 16 096 B**; the allocator promotes an entity to a larger tier
+rather than refusing an allocation.
+
+⭐ **The store is `[DataPolicy(NoScenario)]`.** Nothing here is serialised — inputs are **re-supplied at
 each activation**, which is why the tier question is about *addressing*, not persistence.
+
+⚠ **Each occurrence gets its own copy**, seeded from the same authored variable. **Per-site authored
+VALUES** are `E3b` — `Q41-C1′` then `C2′`, approved and unbuilt.
 
 ### The three things people get wrong
 
 | | |
 |---|---|
-| ⛔ *"blueprints keep inputs in allocated space"* | **No.** `asset.Parameters` has **one emitter in the entire compiler** — `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them *(⚠ `BP1031` used to refuse them outright; ⛔ **it is RETIRED** — Batch 70, `Stage2_Validate.cs:168`, tracker `BP-278`)*. ⇒ **a blueprint has inputs only when it IS a BTree/HSM action**, and they land in the same 100 bytes |
-| ⛔ *"going heavy moves the params"* | **No.** `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy state from the component. ⭐ **The heavy tier extends STATE, never INPUT** |
-| ⛔ *"the 100 bytes are carved up per action"* | **No — corrected `2026-08-16`.** It holds **ONE params struct belonging to the behaviour** (`BehaviorDefinition.ParamsDtoType`, singular). ⭐ `[SharedAiAction(typeof(Dto),"Field")]` makes an action **bind a FIELD of that struct** — actions reference the behaviour's params, they do not each own an allocation. Per-action scratch lives in the **state** area, not here. The cap is on that one struct, enforced three times, the last a runtime `throw` |
+| ⛔ *"blueprints keep inputs in allocated space"* | **No.** `asset.Parameters` has **one emitter in the entire compiler** — `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them *(⚠ `BP1031` used to refuse them outright; ⛔ **it is RETIRED** — Batch 70, `Stage2_Validate.cs:168`, tracker `BP-278`)*. ⇒ **a blueprint has inputs only when it IS a BTree/HSM action**, and they land in that occurrence's params region |
+| ⛔ *"a separate component moves the params"* | **No.** `EmitHeavySharedAiAdapter` emits **both**: params from the occurrence's params region, extra state from the component. ⭐ **A separate component extends STATE, never INPUT** |
+| ⛔ *"the params region is carved up per action"* | **No — corrected `2026-08-16`.** It holds **ONE params struct belonging to the behaviour** (`BehaviorDefinition.ParamsDtoType`, singular). ⭐ `[SharedAiAction(typeof(Dto),"Field")]` makes an action **bind a FIELD of that struct** — actions reference the behaviour's params, they do not each own an allocation. Per-action scratch lives in its own **working-state** slot, not here |
 
 ---
 
@@ -147,7 +121,7 @@ region and every leaf's ancestor chain in one tick. Per-region storage exists �
 
 🔴 **The addressing has no region in it.** The slot key is `hash(methodName @ compileTimeOffset)`,
 resolved through one shared `ActionTable`, projected at a static offset in the **one**
-`BrainBlackboard` the entity has. All four action slots — Entry / Exit / Activity / Timer — dispatch
+root params slot the entity has. All four action slots — Entry / Exit / Activity / Timer — dispatch
 identically. ⇒ **two concurrently-active regions running the same action write the same bytes.**
 
 ⭐ **BTree does not have this problem** — it provisions per-scope partition slots via
@@ -177,9 +151,9 @@ pre-provisions the tier; `BlueprintEventIngressSystem` attaches/switches by even
 | | **Instance blueprint** | **BTree/HSM behavior** |
 |---|---|---|
 | verb | **attached** | **assigned** |
-| how many per entity | ⭐ **several** — 4 slots (1024) … 16 (16384) | ⭐ **one active** |
+| how many per entity | ⭐ **several** — 3 slots (256) … 16 (16384) | ⭐ **one active** |
 | comes from | scenario state, at load | a command / tactical intent |
-| state home | its own partition slot, keyed `blueprintId + StructureHash` | the shared 1024 / 100 B regions |
+| state home | its own partition slot, keyed `blueprintId + StructureHash` | the root params slot, keyed `ComputeRootParamsKey(ActiveBehaviorHash)` |
 | boots to | `InitDefault` | zero-init, after the resolver writes inputs |
 
 ⇒ An Instance is **a script component bolted onto an entity**; a behavior is **what the entity is
@@ -361,7 +335,7 @@ built**, with the alternative on the table being a **dead control that silently 
 | | multiple Instances at once |
 |---|---|
 | **state** | ✅ **already isolated** — each attach gets its own zeroed partition slot with its own `StructureHash` |
-| **params** | 🔴 **would COLLIDE** — the resolver writes into `BrainBlackboard.BehaviorParameters`, which is **one region for the one active behaviour** |
+| **params** | ✅ **also isolated** — each occurrence's slot carries its own params region; only the ROOT behaviour's params are a single per-entity region |
 
 ⭐⭐ **The fix is already in the delegate's shape:**
 
@@ -369,7 +343,7 @@ built**, with the alternative on the table being a **dead control that silently 
 public unsafe delegate void ParseParamsDelegate(string json, byte* memory, EntityRepository world, Entity self);
 ```
 
-`memory` is a **destination pointer**. Behaviours pass `&bb.BehaviorParameters[0]`; ⭐ **an Instance
+`memory` is a **destination pointer**. Behaviours pass the base of their root params slot; ⭐ **an Instance
 passes `slotPayload + paramsOffset` — its own slot.** ⇒ **the pipeline is reusable UNCHANGED; only the
 pointer differs**, and each instance then owns both its params and its state.
 
@@ -428,7 +402,7 @@ edit is small.
 ### ⭐⭐⭐ 5e. Do hand-written DTO param structs survive multi-instancing? **Yes — unchanged.**
 
 ⭐ **Why they work today:** `BehaviorState.ActiveBehaviorHash` is **singular** — exactly one behaviour is
-active per entity, so the shared 100 bytes has exactly **one consumer**. ⛔ **Not luck** — it is the same
+active per entity, so the root params slot has exactly **one consumer**. ⛔ **Not luck** — it is the same
 invariant preemption is defined against. BTree's multi-occurrence is about **nodes within one
 behaviour** *(state)*, never about params.
 
@@ -447,7 +421,7 @@ def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);   //
 | | |
 |---|---|
 | ⭐ the kernel is **generic in the blackboard type** | the instance arrives **by ref from the caller** |
-| ⭐ `BrainBlackboard` is **just a 128-byte struct** | it happens to be registered as a component; ⛔ **nothing requires it to be the ENTITY's instance** |
+| ⭐ a params region is **just a struct's worth of bytes** | ⛔ nothing requires it to be a whole component, or to be the ENTITY's one instance |
 | ⭐ a hand-written DTO's field offsets are **relative to the struct base** | and `Method@byteOffset` bakes only the **field** offset ⇒ **valid wherever the struct lives** |
 
 ⇒ ⭐⭐⭐ **Give a hosted occurrence its own params region inside its slot and tick it against that.**
@@ -455,11 +429,11 @@ Every `[SharedAiAction]` thunk keeps working — same offsets, different instanc
 
 | occurrence | its params live in | status `2026-09-21` |
 |---|---|---|
-| **root behaviour** | the entity's `BrainBlackboard` component *(as today)* | ⚠ **unchanged** — and still scheduled to move |
+| **root behaviour** | the entity's **root params slot** | ✅ **BUILT** — located by `RootParamsAccess` |
 | **hosted sub-behaviour** | its own params region **in its slot** | ✅ **BUILT as `E3a`** — payload `[WorkingState][Params]` |
 | **blueprint Instance** | its own params region in its slot *(§5c ruling)* | ⚠ still intent |
 
-⇒ ⭐⭐ **Params belong to the OCCURRENCE.** The 100-byte layout is the **shape of one occurrence's
+⇒ ⭐⭐ **Params belong to the OCCURRENCE.** A params layout is the **shape of one occurrence's
 params**, not a per-entity singleton.
 
 ### ⛔ CARRY THE PARAMS AREA ONLY — *(user correction, `2026-08-16`)*
@@ -467,15 +441,15 @@ params**, not a per-entity singleton.
 > ⭐ **User, verbatim:** *"params area in 128 byte behav blackboard component does not mean we copy whole
 > component, just the param area! interrupts and soft advices have no relation to the params."*
 
-⛔ **My earlier lean — copy the whole 128-byte struct — was WRONG**, and the corrected version is also
+⛔ **My earlier lean — copy a whole component — was WRONG**, and the corrected version is also
 the **cheaper** one. ⭐ **Measured, which is what settles it:**
 
 | | |
 |---|---|
-| ⭐⭐ **NO generated thunk touches the tail** | every production reader/writer is a **system**: `CognitiveInterruptSystem` sets it · `CognitiveCleanupSystem` clears it · `HsmTickSystem:168` reads it · `RouteContextSystem:190` writes `ExpectedThreatLevel` |
+| ⭐⭐ **NO generated thunk touches the tail** | every production reader/writer is a **system**: `CognitiveInterruptSystem` sets it · `CognitiveCleanupSystem` clears it · the brain tick's HSM arm reads it · `RouteContextSystem:190` writes `ExpectedThreatLevel` |
 | ⭐⭐⭐ **actions never see the blackboard at all** | the thunk calls `Method(ref field, ctx.Self, ctx.World)` — ⇒ **the blackboard ref exists ONLY so the thunk can locate the params** |
 
-⇒ ⭐ **Carry a params-region type, not the component.** `BrainBlackboard` holds one at `[FieldOffset(0)]`;
+⇒ ⭐ **Carry a params-region type, not a component.** The root params slot holds one at offset 0;
 interrupts and soft advice stay on the component, reached by systems via the entity, **untouched**.
 
 | occurrence | ticked with |
@@ -487,8 +461,8 @@ interrupts and soft advice stay on the component, reached by systems via the ent
 
 | | |
 |---|---|
-| ⭐⭐ **BTree: no `ExtDeps` change at all** | `NodeLogicDelegate<TBlackboard,…>` and `Interpreter<TBlackboard,…>` are **generic and never touch the blackboard's members** ⇒ **FastBTree needs nothing.** The edit is `ref bb.BehaviorParameters` → `ref bb` at the generator's three emit sites, the interpreter's type argument, and one line in `BTreeTickSystem` |
-| ⭐ **HSM: folds into a change already accepted** | HSM thunks fetch `GetComponentRW<BrainBlackboard>(bridge->Self)` **themselves**, so they need the params base passed in — ⇒ **the same `ExecuteAction` signature widening that occurrence-keying already requires (§5d).** ⭐ **One seam, two problems** |
+| ⭐⭐ **BTree: no `ExtDeps` change at all** | `NodeLogicDelegate<TBlackboard,…>` and `Interpreter<TBlackboard,…>` are **generic and never touch the blackboard's members** ⇒ **FastBTree needs nothing.** The edit was binding the interpreter's type argument to `byte` and resolving the root slot once per entity in `BrainTickSystem` |
+| ⭐ **HSM: folds into a change already accepted** | HSM thunks resolve the params base **themselves**, so they need it passed in — ⇒ **the same `ExecuteAction` signature widening that occurrence-keying already requires (§5d).** ⭐ **One seam, two problems** |
 
 📌 **Multiple BTrees/HSMs on one entity: ⛔ not as PEERS** *(root exclusivity is load-bearing — it is what
 preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
@@ -499,7 +473,7 @@ preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
 
 | | |
 |---|---|
-| **`D2` — which `DeclarationKind`?** | ⭐ **Largely dissolved.** The resolver design already rules there is no "Param" role: `Input` *is* the parameter role, and inputs stay in the params region. `D2` reduces to *"let the compiler own the layout"* rather than *"move to the heavy tier"* |
+| **`D2` — which `DeclarationKind`?** | ⭐ **Largely dissolved.** The resolver design already rules there is no "Param" role: `Input` *is* the parameter role, and inputs stay in the params region. `D2` reduces to *"let the compiler own the layout"* rather than *"move it somewhere else"* |
 | **inputs-in-1024** | ⛔ **not needed for the unification.** The decoupling motive is answered by generating the layout; the *size* motive survives only as an **opt-in overflow tier** |
 | **the real work** | `S5` (one picker, so parameters can be struct-typed) · the `G1` split of deserialize from resolve · and for HSM, wiring `Role`/`Scope` at all |
 

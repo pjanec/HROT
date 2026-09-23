@@ -4,7 +4,7 @@
 > **One-line:** lift the Slice 1 constraint of "one stateful AiPrimitive working-state per entity" by moving working state into a **Blueprint-owned, partition-allocated** component, keyed by `BlueprintId` — without touching the engine's BTree/HSM kernels.
 
 ## 1. The constraint and why it exists (verified)
-A stateful AiPrimitive's **WorkingState** (local variables, latent cursors) is projected **inline over the engine's `Blackboard1024`**, at `Memory + 8` (just past an 8-byte `StructureHash` header). The generated `BTreeTick`/`BTreeEvaluate` thunk does, each tick:
+A stateful AiPrimitive's **WorkingState** (local variables, latent cursors) used to be projected **inline over a single shared per-entity block**, at `Memory + 8` (just past an 8-byte `StructureHash` header). The generated `BTreeTick`/`BTreeEvaluate` thunk did, each tick:
 ```
 ulong storedHash = *(ulong*)memory;
 if (storedHash != StructureHash) { zero(memory); *(ulong*)memory = StructureHash; InitDefaultWorkingState(memory + 8); }
@@ -15,14 +15,14 @@ ref var ws = ref Unsafe.AsRef<WorkingState>(memory + 8);
 Codified in: `docs/blueprints/Blueprint_Subsystem_Architecture_v1.2.md` (Slice 1 constraint); `docs/blueprints/Blueprint_Subsystem_Slice2_Candidates.md` Theme C / item **C1** "AiPrimitive concurrent working-state per entity"; Roadmap v1.1 ranks the allocator as the **#1** Slice 2 task.
 
 ## 2. The plan
-Move AiPrimitive working state **out of** the shared engine `Blackboard1024` into a **Blueprint-owned component managed by a partition allocator**. The architect explicitly **rejected** retrofitting a partition allocator onto the engine's `Blackboard1024` (it is used internally by the FastHSM/BTree kernels; altering its layout would ripple across the engine).
+Move AiPrimitive working state into a **Blueprint-owned component managed by a partition allocator**. The architect explicitly **rejected** retrofitting a partition allocator onto the shared engine blackboard component the working state sat in, because its layout was reached by the FastHSM/BTree kernels' generated thunks and changing it would ripple across the engine. (That component, `Blackboard1024`, has since been retired outright by `P4`-①; its id 74 stays `_RESERVED` so a stale recording cannot bind it to something else.)
 
-**Decision (user, 2026-06-15): Option β.** Merge AiPrimitive working-state allocations into the existing `BlueprintBlackboard{1024,4096,16384}` tiers — AiPrimitive thunks look up their slots exactly like Instance dispatch does today. **No dedicated `BlueprintAiWorking1024` component** (Option α rejected — avoids a parallel allocator/component and reuses the most proven machinery).
+**Decision (user, 2026-06-15): Option β.** Merge AiPrimitive working-state allocations into the existing `BlueprintBlackboard{256,1024,4096,16384}` tiers — AiPrimitive thunks look up their slots exactly like Instance dispatch does today. **No dedicated `BlueprintAiWorking1024` component** (Option α rejected — avoids a parallel allocator/component and reuses the most proven machinery).
 
-The change is contained **entirely within the Blueprint subsystem**; the BTree/HSM **kernels stay unchanged** (they still pass a `Blackboard1024*` to the thunk, which the thunk ignores for working state).
+The change is contained **entirely within the Blueprint subsystem**; the BTree/HSM **kernels stay unchanged** (they still pass the root-slot `ref byte` to the thunk, which the thunk ignores for working state).
 
 ## 3. The thunk change (kernels untouched)
-The kernel keeps passing `Blackboard1024*`; the generated thunk **ignores it for working state** and instead:
+The kernel keeps passing the root-slot `ref byte`; the generated thunk **ignores it for working state** and instead:
 1. Uses the entity reference (`ctx.Self`) it already receives.
 2. Fetches the new Blueprint-owned component.
 3. Does a partition lookup `BlueprintBlackboardPartitions.TryGetSlotOffset(memory, slotKey, out int payloadOffset)`. **The slot key is NOT plain `BlueprintId`** — the same stateful blueprint used by multiple BTree nodes needs a distinct slot **per node instance**; see §6.2.
@@ -32,7 +32,7 @@ Cost: **+1 dictionary/component lookup per AiPrimitive tick** — deemed negligi
 
 ## 4. Reusable infrastructure (already exists — Slice-1-proven)
 - `BlueprintBlackboardPartitions.{Initialize, TryAttach, TryDetach, TryGetSlotOffset, GetSlotCount, GetSlot, CopyToLargerTier}` — `FDP/Toolkits/Fdp.Toolkits/Blueprints/Partitioning/BlueprintBlackboardPartitions.cs` (used by Instance dispatch, breakpoints, blueprint-scenario).
-- `BlueprintBlackboard{1024,4096,16384}` tier components + tier-selection-by-aggregate-size.
+- `BlueprintBlackboard{256,1024,4096,16384}` tier components + tier-selection-by-aggregate-size.
 - `BehaviorIngressSystem` provisioning pattern (mirror it to add/size the working-state component on assignment).
 - `BlueprintAttachService.AttachToEntity` / re-pack flow (from blueprint-scenario).
 
@@ -42,8 +42,8 @@ So Slice 2 is mostly **wiring proven pieces** + the thunk emission change + prov
 Goal: prove **multiple stateful** primitives coexist per entity with isolated state.
 - **Demo S2-1 — two stateful counters.** A stateful "increment-with-internal-cursor" primitive instantiated **twice** on one entity (two nodes, two WorkingState slices). Each maintains its own cursor; assert no cross-contamination (one resetting/advancing does not touch the other).
 - **Demo S2-2 — stateful "wait N ticks then succeed" reused with different N.** Same primitive, two nodes with different params + independent latent cursors; assert each completes on its own schedule.
-- **Demo S2-3 — mixed stateless + multiple stateful.** Combine Slice 1 stateless actions with ≥2 stateful primitives; assert stateless bindings (baked offsets in `BrainBlackboard`) and stateful slices (partitioned working component) coexist.
-- **Observation:** runtime proof tests (tick, assert per-slice WorkingState) + live inspector (extend a renderer to show the partitioned working component, or reuse `Blackboard1024Renderer` pattern for the new component).
+- **Demo S2-3 — mixed stateless + multiple stateful.** Combine Slice 1 stateless actions with ≥2 stateful primitives; assert stateless bindings (baked offsets in the root params occurrence slot) and stateful slices (partitioned working-state occurrence slots) coexist.
+- **Observation:** runtime proof tests (tick, assert per-slice WorkingState) + live inspector (extend a renderer to show the partitioned working component, reusing the tier renderers' root-params-arm pattern for the new component).
 - **Migration/tier check:** assert tier upgrade (e.g. 1024→4096) preserves existing slots when a 4th stateful primitive is added (exercise `CopyToLargerTier`).
 
 ## 6. Decisions & open questions (updated 2026-06-15 from user)
@@ -80,12 +80,12 @@ Distinctions to settle:
 ## 9. Architect review (2026-06-15) — confirmations & resolutions
 Reviewed by architect; reconciled against code (✓ = verified this session).
 - **Slot identity — CONFIRMED (our reframing was right).** `BlueprintId` alone collides when the same stateful blueprint is used by multiple nodes. The allocator key is **strictly a 32-bit `int`** (no composite key — `BlueprintSlotEntry` packs to 16 B). **Synthesize a unique id per node instance = FNV-1a hash of `(BehaviorAssetId, NodeVisualId)`**, bake it into the per-node adapter thunk, use it as the slot key.
-- **adapter-calls-`TickCore` — CONFIRMED for both params + working state.** Adapter projects `Params` (bin-packed offset over `BrainBlackboard`) + `WorkingState` (node partition slot over `BlueprintBlackboard*`), then calls the blueprint's shared `TickCore`.
+- **adapter-calls-`TickCore` — CONFIRMED for both params + working state.** Adapter projects `Params` (bin-packed offset over the root params occurrence slot) + `WorkingState` (node partition slot over `BlueprintBlackboard*`), then calls the blueprint's shared `TickCore`.
 - **Provisioning (Q1) — CONFIRMED: static worst-case at assignment.** No lazy mid-tick allocation (ECS structural changes are forbidden mid-`Simulation` without an `EntityCommandBuffer`; a mid-tick tier upgrade would drop ticks). `BehaviorIngressSystem` sums all **reachable** stateful nodes' state sizes, pre-provisions the correct tier component, and eager-allocates every slot.
 - **Behavior change (Q2) — CONFIRMED.** On `AssignBehaviorEvent` (Input phase), `BehaviorIngressSystem` `TryDetach`es the old behavior's stateful slots before attaching the new (dense-compact + coalesce) — no slot leak.
 - **Hot-reload (Q2) — CONFIRMED (✓ ResetSlot/InstanceVersion exist).** Slots survive ALC swaps; on `StructureHash` mismatch the thunk calls `BlueprintBlackboardPartitions.ResetSlot` (zero payload + bump `InstanceVersion`, keep the allocation). Cursor implicitly resets to `{ResumeAt=0, InstanceVersion=0}`.
 - **Latent/await (Q5) — CONFIRMED.** A 16-byte `BlueprintLatentCursor` is emitted at **offset 0** of `WorkingState`; lives in the partition payload → survives ticks + soft reloads.
-- **Mixing stateless + stateful (Q6) — CONFIRMED: no hazard.** Disjoint memory — `Params` over `BrainBlackboard` inline; `WorkingState` over the `BlueprintBlackboard*` partition slot. The adapter does both projections sequentially before `TickCore`.
+- **Mixing stateless + stateful (Q6) — CONFIRMED: no hazard.** Disjoint memory — `Params` over the root params occurrence slot; `WorkingState` over the `BlueprintBlackboard*` partition slot. The adapter does both projections sequentially before `TickCore`.
 - **Shared blackboard (Q4) — see §7 (resolved):** first iteration = single-behavior single-entity scratch in the `BlueprintBlackboard*` tier; squad-scope via the **virtual-leader entity's blackboard** (read by members).
 
 > **Note:** the provisioning (Q1) and hot-reload (Q2) answers above are **refined/corrected by §10** (a later architect review found three hazards). §10 is authoritative where it conflicts.

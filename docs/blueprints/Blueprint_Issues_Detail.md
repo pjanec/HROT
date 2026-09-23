@@ -1898,7 +1898,7 @@ Strongest area of the subsystem — several capabilities **exceed** stock Unreal
 | **BTree** | ✅ 16 refs in `BTreeBridgeEmitCore` | ❌ none (only `NestedParallel`) |
 | **HSM** | ❌ **0 refs**; no compose command | ✅ `CheckConcurrentStatefulSubtrees` + `CheckConcurrentSharedScopeKeys` |
 
-- **Failure mode:** HSM-hosted AiPrimitives use the legacy fixed offset (`Blackboard1024`+8, single 8-byte `StructureHash`). Two stateful AiPrimitives on one HSM entity alternately `InitBlock`-zero and re-init each other every tick — **neither retains state**.
+- **Failure mode:** HSM-hosted AiPrimitives collide on a single shared occurrence slot (no per-node/per-primitive `{fqn}@{offset}@{slotKey}`). Two stateful AiPrimitives on one HSM entity alternately zero-init and re-init each other's slot every tick — **neither retains state**.
 - **Fix:** an `HsmBridgeEmitCore` analogue of `EmitBlueprintActionThunks` plus an HSM compose command. Reuses the FNV-1a key math and `BlueprintBlackboardPartitions` verbatim — same rail, new emitter surface.
 - *(BTree is fine: `ComposeAiPrimitiveAction` auto-creates a distinct `Role=State, Scope=Node` host variable per placement, so two blueprints — or one placed twice — separate correctly. Option β's Fix-1/Fix-2/`ClearBehaviorEvent` detach are all shipped and tested.)*
 
@@ -2003,7 +2003,7 @@ Cheap, and currently actively misleading.
 **Complexity:** WIRING · **Confidence:** ✔
 
 > ✅ **DONE (2026-08-04).** ⚠ **Citation was wrong** — it is Runtime DD **§9.6** ("Cross-AiPrimitive reconciliation"), not §13.5. Both that section and `Blueprints_Overview.md` §1 now carry a correction table: BTree provisions a real partition slot per placement (so multiple AiPrimitives separate correctly), HSM still uses the legacy fixed offset with no compose command (so they collide — BP-30). The stale "one Blueprint per entity" invariant is called out as no longer holding uniformly.
-- `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md` §1/§5 describe AiPrimitive working state as living only in `Blackboard1024`. True for the legacy/HSM path, **wrong for BTree-composed nodes** (partition tiers).
+- `Blueprint_Subsystem_Runtime_Detailed_Design.md` §13.5 and `Blueprints_Overview.md` §1/§5 describe AiPrimitive working state as living only in a single fixed-offset region. **Wrong for both paths now** — BTree- and HSM-composed nodes alike land working state in occurrence slots across the Blueprint tier ladder (partition tiers).
 
 <a id="bp-49"></a>
 ### BP-49 — Aspirational prose presented as current

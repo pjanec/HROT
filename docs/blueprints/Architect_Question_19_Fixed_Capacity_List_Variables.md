@@ -4,7 +4,7 @@
 > capability (`Blueprint_Fixed_Collections_Design.md`). Full implementation design: `Blueprint_List_Variables_Design.md`.
 
 **Context.** Blueprint variables (`asset.Variables`) and AiPrimitive `WorkingState` live in a fixed-size
-**unmanaged** blackboard blob (`BlueprintBlackboard1024/4096/16384`, tiered via `TierHint`), emitted as a
+**unmanaged** blackboard blob (`BlueprintBlackboard256/1024/4096/16384`, tiered via `TierHint`), emitted as a
 `[StructLayout(Sequential)] struct State`/`WorkingState` with one typed field per declared variable and
 `Unsafe.As`-cast onto the raw `fixed byte` payload. `Stage4_TypeResolve.CheckUnmanagedConstraint` (BP1503)
 rejects any variable whose type is not blittable, so **array/list variables are impossible today**. The

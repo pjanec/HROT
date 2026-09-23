@@ -270,7 +270,7 @@ Triggers = new List<MissionTrigger> { new MissionTrigger { Type = "BehaviorFinis
 ```
 
 `BehaviorFinished` is the architecturally correct default. The backend pipeline already supports it:
-- `BTreeTickSystem` publishes `BehaviorFinishedEvent` when a behavior tree reaches a terminal state.
+- `BrainTickSystem` publishes `BehaviorFinishedEvent` when a brain reaches a terminal state — the BTree arm on a terminal root status, the HSM arm on `InstanceFlags.Terminated`.
 - `MissionDirectorSystem` natively evaluates `EcsMissionTrigger.BehaviorFinished`.
 - `MissionControlRequestSystem` already parses the string `"BehaviorFinished"` from the DDS payload.
 

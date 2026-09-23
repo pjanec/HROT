@@ -239,7 +239,7 @@ Editor-side blackboard variable management shared across BTree and HSM editors.
 | `BlackboardAliasBinding.cs` | `record BlackboardAliasBinding` | Records a sub-tree requirement bound to a variable: `RequiringAssetId`, `RequiringElementId`, `RequiringAssetName`, `RequiredByPath`, `DtoType`. |
 | `BlackboardLoadState.cs` | `enum BlackboardLoadState` | Load-time health: `Clean`, `SpanCaptureFailed`, `StructParseFailed`, `AssemblyFailed`. Drives banner display and save-gate logic in `BlackboardAuthoringWindow`. |
 | `BlackboardDiagnosticCode.cs` | `enum BlackboardDiagnosticCode` | Three codes: `UnusedVariable` (Info), `VariableTypeNotFound` (Warning), `CrossRegionConflict` (Error). |
-| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Classifies variables into `Inline` vs `Heavy` tiers, computes byte sizes, and emits `PackWarning` when budgets are exceeded. Constants: `MaxInlineBytes = 100`, `MaxHeavyBytes` TBD per tier. |
+| `BlackboardBinPacker.cs` | `static class BlackboardBinPacker` | Computes byte sizes and sequential offsets for the asset's variables, emitting `PackWarning` when the total exceeds what any occurrence tier could seat. Constant: `MaxInlineBytes = 16096` (the largest tier's payload). ⭐ `CE-314` removed the inline/heavy split — there is one region, not two. |
 | `BlackboardVariableDescriptor.cs` | `record BlackboardVariableDescriptor` | `Name` + `FieldType`; packing input. |
 | `BlackboardFieldClassifier.cs` | `static class BlackboardFieldClassifier` | Maps a CLR type to a `BlackboardFieldKind` for display in the Variables panel. |
 | `BlackboardNameValidator.cs` | `static class BlackboardNameValidator` | Validates that a proposed variable name is a legal C# identifier and does not collide with existing names. |
@@ -825,7 +825,7 @@ public sealed record ActionSchemaEntry(
     Type            DtoType,       // first ref parameter type
     ActionHosting   Hostings,      // BTreeAction | HsmAction | SharedAi | Heavy
     BlackboardAccess ParamAccess,  // ReadOnly | ReadWrite | Unknown
-    Type?           HeavyDtoType); // set for [SharedAiHeavyAction]; null otherwise
+    Type?           HeavyDtoType); // the extra component's DTO for [SharedAiHeavyAction]; null otherwise
 
 [Flags]
 public enum ActionHosting
@@ -897,15 +897,18 @@ Diagnostic codes emitted by BTree/HSM validators for blackboard-related issues:
 ```csharp
 public enum BlackboardDiagnosticCode
 {
-    UnusedVariable,               // Info: variable declared but not referenced
-    VariableTypeNotFound,         // Warning: DTO type dropped from assembly after reload
-    UnboundActionNode,            // Error: action/condition node with null ExpressionTargetField
-    UnboundSubTreeRequirement,    // Warning: sub-tree DTO requirement not aliased or promoted
-    CrossRegionBlackboardConflict, // Warning: concurrent writes to same variable across parallel regions
-    InlineMemoryExceeded,         // Error: master variables exceed 100 B inline budget
-    DuplicateAliasAcrossRegions,  // Error: same variable aliased by sub-trees in concurrent regions
+    UnusedVariable,        // Info: variable declared but not referenced by any node
+    VariableTypeNotFound,  // Warning: FieldType unresolvable after a schema rebuild;
+                           //          the variable is preserved verbatim, authoring suspended
+    CrossRegionConflict,   // Error: two sub-trees in different parallel regions write
+                           //        the same variable
 }
 ```
+
+Over-capacity is reported separately, by `BlackboardBinPacker`'s `PackWarning` enum
+(`None` | `InlineMemoryExceeded`), when the packed total exceeds `MaxInlineBytes` (16 096 --
+the largest occurrence tier's payload). ⚠ `InlineMemoryExceeded` keeps its name although there is
+no second region to contrast with: "inline" now simply means *the params region*.
 
 ---
 
@@ -952,16 +955,14 @@ requirements from action nodes. Results populate the "Unbound Sub-Tree Requireme
 panel section. Designers bind these to master variables via drag-drop (Approach A
 aliasing) or promote them to new standalone variables.
 
-### Memory tier bin-packing
+### Occurrence-slot allocation
 
-`BlackboardBinPacker` partitions variables between:
-- **Inline tier:** `BrainBlackboard.BehaviorParameters` — 100 bytes max.
-- **Heavy tier:** `Blackboard1024.Memory` — 928 usable bytes, allocated on demand.
-
-Master variables always stay inline. Aggregated sub-tree variables fill remaining
-inline space first, then overflow to heavy. When heavy variables exist, the asset's
-`[BTreeDefinition]` / `[HsmDefinition]` attribute carries `HeavyDtoType = typeof(X)`
-so the source generator wires up the `Blackboard1024` component provisioning.
+`BlackboardBinPacker` places variables into occurrence slots in the tier ladder
+(`BlueprintBlackboard{256,1024,4096,16384}`). Master variables and aggregated sub-tree
+variables are both ordinary occurrence slots — there is no separate inline/heavy split.
+`BlueprintTierTable.ResolveTier` picks the smallest tier whose payload and slot count both
+fit the asset's requirements (up to 16 096 usable bytes across ≤16 slots at the top tier),
+promoting up the ladder as needed.
 
 ---
 

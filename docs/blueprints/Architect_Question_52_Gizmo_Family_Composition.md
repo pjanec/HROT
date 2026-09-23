@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT
-updated: 2026-08-23
+updated: 2026-09-22
 current-answer: §0 — the user's rule, and it settles the whole question: support ALL, decide on the
   CURRENT PRESENCE of the component. §2 is the fix, §3 the rail, §4 the UML.
 design-basis: 🔒 user ruling 2026-08-23 (§0) · docs/UX/UX_Feature_Map_Parity.md §3.2 (uniform
@@ -24,7 +24,7 @@ known-conflict: none. ⭐ UXI-23's MapInteractionPack is the TARGET and is not b
 | ⭐ | |
 |---|---|
 | ⭐⭐⭐ **EVERY host SUPPORTS every projector** | ⛔ **no per-host curation, no per-tier verdict.** 📄 UXI-23 §3.2's *"the pack decides; the host does not curate"* |
-| ⭐⭐⭐ **WHETHER A GIZMO DRAWS is decided at RUNTIME by whether the ENTITY carries the components** | ⇒ ⭐ **no IG entity carries `BrainBlackboard`, so `HillAttackGizmo` matches nothing and never draws.** 🔒 The ruling holds **by data**, not by curation |
+| ⭐⭐⭐ **WHETHER A GIZMO DRAWS is decided at RUNTIME by whether the ENTITY carries the components** | ⇒ ⭐ **no IG entity carries `BehaviorState` + `SimTransform`, so `HillAttackGizmo` matches nothing and never draws.** 🔒 The ruling holds **by data**, not by curation |
 | ⭐⭐⭐ **TIER IS IRRELEVANT to the decision** | ⛔ so `NavigationIntent` being brain-tier — ⭐ **which it is** — changes nothing |
 | ⭐⭐ **the registry keeps THROWING** | ⛔ no loosening. ⭐ It is a **bootstrap-time SCHEMA** check, a different thing from **runtime component PRESENCE** |
 
@@ -43,8 +43,8 @@ per-projector tier taxonomy)*. ⛔ Both are gone; ⭐ this is the answer.
 | `grep -rh "GizmoProjector(" Hrot.{Common,AI.Behaviors,IG,ScenarioEditor}` | **11** | `Hrot.Common` **7** · `Hrot.AI.Behaviors` **1** · `Hrot.IG` **3** · ⛔⛔ **`Hrot.ScenarioEditor` ZERO — WRONG, see §6.3.** 📐 There is **no `Hrot.ScenarioEditor` PROJECT**; the **namespace** lives inside `Hrot.Presentation` and holds **7** projector files. ⇒ 🔴 **my grep searched for a DIRECTORY and read the miss as an absence** — the exact failure CLAUDE.md names *("an absence claim from grep is an absence in your pattern, not in the repo")*. ⭐ The real total is **18**, not 11 |
 | `grep Register Hrot/Subsystems/Hrot.IG/Gizmos/GizmoRegistrar.cs` | **4 families** | IG declares **all four** |
 | `grep RegisterComponent .../IgRoleComponentRegistry.cs` | ~20 | style · culling · selection · trails · effects · overlays · perception · weapon visuals |
-| the 4 components those 11 projectors need and IG lacks | **4** | ⛔ `BrainBlackboard` · `BehaviorState` · `EqsSensor` · `BallisticProjectile` · `NavigationIntent` **(5 with the intent)** |
-| ⭐ all of them located | **5 / 5** | ⭐⭐ **all in `Fdp.Toolkits`** — a project IG **already references** ⇒ ⛔ **zero new edges** |
+| the components those 11 projectors need and IG lacks | **3** | ⛔ `BehaviorState` · `EqsSensor` · `BallisticProjectile` · `NavigationIntent` **(4 with the intent)**. ⚠ This row also named `BrainBlackboard`, which no longer exists — a projector wanting a behaviour's params now needs `BehaviorState` **plus** the `BlueprintBlackboard*` tier components that carry its slot, and **which of the eleven actually want that has not been re-measured** |
+| ⭐ all of them located | **4 / 4** | ⭐⭐ **all in `Fdp.Toolkits`** — a project IG **already references** ⇒ ⛔ **zero new edges** |
 
 ### ⭐⭐ The two facts worth keeping
 
@@ -145,13 +145,13 @@ sequenceDiagram
     Schema->>Types: register the 5 projector-required types
     Host->>Reg: Register(4 families, 11 projectors)
     Reg->>Stateless: Register(HillAttackGizmo)
-    Stateless->>Types: are BrainBlackboard, BehaviorState known?
+    Stateless->>Types: are BehaviorState, SimTransform known?
     Types-->>Stateless: yes
     Note over Stateless: today: NO, and it THROWS here (ST-020)
 
     Note over Host,World: EVERY FRAME
     Host->>Stateless: project(view)
-    Stateless->>World: which entities carry BrainBlackboard?
+    Stateless->>World: which entities carry BehaviorState + SimTransform?
     World-->>Stateless: none on IG
     Note over Stateless,World: nothing drawn — the ruling holds BY DATA
 ```

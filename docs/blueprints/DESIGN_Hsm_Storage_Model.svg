@@ -15,7 +15,7 @@
 
   <!-- column headers -->
   <text x="250" y="80" class="lbl" text-anchor="middle">① Role=Input — the params</text>
-  <text x="250" y="95" class="sub" text-anchor="middle">BrainBlackboard.BehaviorParameters[100]</text>
+  <text x="250" y="95" class="sub" text-anchor="middle">root params slot (RootParamsAccess)</text>
   <text x="520" y="80" class="lbl" text-anchor="middle">② Role=State @Behavior/Entity</text>
   <text x="520" y="95" class="sub" text-anchor="middle">partition allocator slot</text>
   <text x="780" y="80" class="lbl" text-anchor="middle">③ per-OCCURRENCE bytes</text>
@@ -56,7 +56,7 @@
 
   <rect x="660" y="242" width="230" height="62" rx="6" class="gap" stroke-width="1.5"/>
   <text x="672" y="262" class="note">⛔ action DTO at a BAKED offset</text>
-  <text x="672" y="279" class="note">into the single 100-byte blackboard</text>
+  <text x="672" y="279" class="note">into ONE shared params region</text>
   <text x="672" y="296" class="note" font-weight="700">E3 — two regions, one home</text>
 
   <!-- arrows: the fix direction -->

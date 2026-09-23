@@ -50,15 +50,15 @@ All Brain-resident, all on the commander entity, all unit-type-agnostic.
 
 ## Architecture
 
-### 3.1 State on the Blackboard — `SquadCognitiveState`
+### 3.1 State in its own component — `SquadCognitiveState`
 
-All squad working state projects as a **single** `SquadCognitiveState` struct
-onto the commander's `Blackboard1024`. A single contiguous offset claim; one
-collision check rather than competing projections.
+All squad working state lives in a **single** `SquadCognitiveState` component,
+attached to the commander by `SquadStateProvisioning.EnsureForCommander`. One
+component, one `[ComponentId]`; no offset claim or projection collision to reason about.
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-public struct SquadCognitiveState   // single projection onto Blackboard1024 (= 1024 B)
+public struct SquadCognitiveState   // the commander's own ECS component (1024 B, [ComponentId] = 270)
 {
     // --- maneuver scalars (16 B) ---
     public ushort ManeuverKind;        // catalog entry; 0 = none
@@ -103,14 +103,15 @@ projection is removed; call sites read `SquadCognitiveState.Project(ref bb).Assi
 
 ### Substrate Reuse
 
-The squad layer adds **no new hierarchy or blackboard component**. It reuses:
+The squad layer adds its own `SquadCognitiveState` component; it otherwise adds
+**no new hierarchy**. It reuses:
 
 ```
 UnitRoster (capacity 16) + UnitSubordinate.Commander
     maintained by UnitHierarchySystem
 
-Commander Blackboard1024
-    projected via Unsafe.As into SquadCognitiveState
+Commander SquadCognitiveState
+    its own [ComponentId], provisioned by SquadStateProvisioning.EnsureForCommander
     [DataPolicy.NoScenario] -- transient cognitive state
 
 AssignTacticalIntentEvent rail
@@ -318,7 +319,7 @@ behavior — including the "resume-trap" avoidance.
 FDP/Toolkits/Fdp.Toolkits/Squad/
     SquadHsmShell.cs                     -- lightweight HSM authoring shell over PhaseSequencer
     State/
-        SquadCognitiveState.cs           -- single 1024 B projection onto Blackboard1024
+        SquadCognitiveState.cs           -- single 1024 B ECS component, own [ComponentId]
     Primitives/
         ElementPartitionPrimitive.cs     -- hysteresis-guarded member->element mapping
         TacticalFeatureHandles.cs        -- handles on danger areas / tactical features
@@ -413,7 +414,7 @@ primitives co-located in the toolkit layer alongside the Utility AI machinery th
 | `UnitRoster` (commander; capacity 16) | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs` |
 | `UnitSubordinate` (back-pointer) | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitSubordinate.cs` |
 | `UnitHierarchySystem` | `Hrot/Subsystems/Hrot.SimHost/Systems/UnitHierarchySystem.cs` |
-| `Blackboard1024` + `Project<T>()` | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BehaviorComponents.cs` |
+| `SquadCognitiveState` (own ECS component) + `SquadStateProvisioning` | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs` |
 | `AssignTacticalIntentEvent` rail | `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs` |
 | `TacticalIntentResolutionSystem` | `Hrot/Subsystems/Hrot.CGF/Systems/TacticalIntentResolutionSystem.cs` |
 | `ITacticalOrderMapper` | `FDP/Toolkits/Fdp.Toolkits/Behavior/TacticalOrderMapper/ITacticalOrderMapper.cs` |
@@ -469,7 +470,7 @@ distinguishes altitude-separated contacts.
 
 | Project | Role |
 |---|---|
-| `Fdp.Toolkits` | `ThreatMatrixAssignmentSystem`, `Blackboard1024`, `TargetMemory`, `EqsComponents`, `UnitRoster`, Utility scoring core |
+| `Fdp.Toolkits` | `ThreatMatrixAssignmentSystem`, `SquadCognitiveState`, `TargetMemory`, `EqsComponents`, `UnitRoster`, Utility scoring core |
 | `Fdp.Core` | `Entity`, `EntityRepository` |
 | `Hrot.Core` | Entity type constants |
 | `Hrot.AI.Behaviors` | Maneuver HSM shells, Blueprint recipe prototypes |

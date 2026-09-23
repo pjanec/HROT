@@ -2,10 +2,19 @@
 
 > ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** retires the root
+> behaviour params component and the AiPrimitive working-state component entirely — there is no
+> per-entity blackboard component of any kind any more — moving both **the root params** (keyed by
+> `OccurrenceSlotKey.ComputeRootParamsKey`) and every node's working state into **per-occurrence
+> slots** of the partition allocator. The tier components keep their names,
+> `BlueprintBlackboard{256,1024,4096,16384}`.
+>
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included. The root tree
+> cursor is one (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`), which is why a
+> HOSTED subtree can own its own cursor at all: a component is addressed by TYPE, so an entity could
+> only ever have one.
+>
+> It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
 >
@@ -32,7 +41,7 @@
 |---|---|
 | `BlueprintSlotEntry` | `int BlueprintId(4) · uint InstanceVersion(4) · ushort PayloadOffset(2) · ushort PayloadSize(2) · uint StructureHash(4)` = ⭐ **exactly 16, no padding, no spare bit** |
 | `SlotEntrySize` | `= 16`, a **public const** used by all three tier components and by `Migrate` |
-| tiers | `1024`/`4096`/`16384` ⇒ **MaxSlots 4 / 8 / 16**, slot tables **64 / 128 / 256**, payload **928 / 3936 / 16096** |
+| tiers | `256`/`1024`/`4096`/`16384` ⇒ **MaxSlots 3 / 12 / 16 / 16**, slot tables **48 / 192 / 256 / 256**, payload **176 / 800 / 3808 / 16096** |
 | ⛔ `BlueprintBlackboardHeader.Reserved` (8 B, unused) | ⛔ **wrong granularity** — the header is **per entity-tier**; one entity hosts many slots |
 | ⛔ `InstanceVersion` | ⛔ **taken** — the latent-cursor staleness token *(bumped on hard reload, compared against `BlueprintLatentCursor.InstanceVersion`)* |
 | `StructureHash` in the entry | already *"truncated from ulong to fit the 16-byte slot-entry budget"* ⇒ ⭐ **the budget has been binding once already** |

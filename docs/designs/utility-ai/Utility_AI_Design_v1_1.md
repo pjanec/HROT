@@ -9,7 +9,7 @@ as a single architecture doc and grew the editor/compiler docs afterward).
 > - **PREREQ expanded:** the original single-field `MaxAmmo` cache becomes a six-item Phase-0
 >   bundle — see [`PREREQ_Phase0_Bundle.md`](./PREREQ_Phase0_Bundle.md). New items: multi-mount
 >   weapon entities (P0.2), `MaxTrackedTargets` raised to 16 (P0.3), `UnitRoster.Add`/`IndexOf`
->   helpers (P0.4), `Blackboard1024.Project<T>` helper (P0.5), `UtilityTestWorld` test helper (P0.6).
+>   helpers (P0.4), `UtilityTestWorld` test helper (P0.6).
 > - **EQS multi-sensor resolution (§6.6):** an agent that consumes multiple EQS templates uses
 >   the engine's existing **child-entity-per-sensor** pattern (each child carries `EqsSensor` +
 >   `EqsCognitiveBuffer` + `PartMetadata.ParentEntity = self`). `EqsTopScore("CoverQuery")` resolves
@@ -20,8 +20,8 @@ as a single architecture doc and grew the editor/compiler docs afterward).
 >   ranking is non-truncating, and squad assignment over a 16-member roster fits exactly.
 > - **§6.4 weapon enumeration:** per-mount entities (P0.2) make Weapon Selection a real candidate
 >   scorer over a real list. The starter pack's `WeaponSelectionDecision` ships in Slice 1.
-> - **§10.1 projection:** uses the new `Blackboard1024.Project<T>(ref bb)` helper (P0.5);
->   the existing raw `Unsafe.As<Blackboard1024, T>` form remains valid.
+> - **§10.1 projection:** reads `SquadCognitiveState.Assignment` directly — a typed field, no
+>   pointer projection.
 > - **Reader bindings (§6) honest about the position component:** distance is derived from
 >   `Fdp.Toolkit.Geographic.Components.Position` (the real component), not an invented
 >   `WorldPosition`. LOS-proxy reads `TargetMemory.Modalities[i]` bitmask (`Visual` bit set).
@@ -29,7 +29,7 @@ as a single architecture doc and grew the editor/compiler docs afterward).
 >   today; `MaxAmmo` added by P0.1.
 
 > **Changelog v1.0 → v1.1** (historical):
-> - Q-2 resolved (§10.1): squad uses commander `Blackboard1024` + projected `ThreatMatrixAssignmentState`.
+> - Q-2 resolved (§10.1): squad uses the commander's `SquadCognitiveState.Assignment` sub-region.
 > - Q-3 resolved (§8.1): now superseded by v1.2's corrected invariant.
 > - Prerequisite added (§6.7): `MaxAmmo` cache (now P0.1).
 > - Input readers mapped to real components.
@@ -153,7 +153,7 @@ the (member × target) score matrix and writes per-member assignments into the s
 │                                                                   │
 │  Leader entity (virtual)                                          │
 │    └─ ThreatMatrixAssignmentSystem (greedy, focus-fire bias)      │
-│         └─ writes per-member assignment → Blackboard1024          │
+│         └─ writes per-member assignment → SquadCognitiveState      │
 │            (ThreatMatrixAssignmentState via Unsafe.As)            │
 │                                                                   │
 │  Member entity                                                    │
@@ -335,7 +335,7 @@ HSM action thunks), so the tick path is pointer-call fast with no reflection.
 | `DistanceToContext` | `Fdp.Toolkit.Geographic.Components.Position` (`Vector3 Value`) on both endpoints; normalized by reader-owned max range | the *position* is the geographic one; `TargetMemory` stores **last-known** positions in `PositionsX/Y` for known contacts |
 | `ContactThreatLevel` | `TargetMemory.ThreatScores[i]` (decay-tracked, insertion-sorted) | populated by `TargetMemory.AddOrUpdateTarget(...)`; index 0 = highest threat |
 | `HasLineOfSight` | derived: `TargetMemory.Modalities[i] & (byte)SensorModality.Visual` | no first-class LOS field; the `Visual` modality bit being set is the proxy for "currently visible" |
-| `IsAssignedTarget` | the commander's projected `ThreatMatrixAssignmentState` (looked up via `UnitSubordinate.Commander` → `Blackboard1024.Project<ThreatMatrixAssignmentState>`) | §10.1 |
+| `IsAssignedTarget` | the commander's projected `ThreatMatrixAssignmentState` (looked up via `UnitSubordinate.Commander` → `SquadCognitiveState.Assignment``) | §10.1 |
 | `EqsTopScore` / `EqsResultCount` | the **child sensor entity**'s `EqsCognitiveBuffer` (resolved by `EqsSensor.BlueprintId` match) | §6.6 |
 | `EnemyStrengthRatio` | derived: sum of `TargetMemory.ThreatScores` (or acquired-target `Health`) vs. own strength | §6.4 derived reader |
 | `WeaponEffectivenessVsTarget` / `WeaponRangeBandFit` | the candidate mount's `WeaponMountInfo.EffectiveRange` vs. target distance and armor | requires P0.2 multi-mount infra |
@@ -431,7 +431,6 @@ batch in [`PREREQ_Phase0_Bundle.md`](./PREREQ_Phase0_Bundle.md):
 - **P0.3** — `PerceptionConstants.MaxTrackedTargets` raised from 4 to 16 so threat ranking is
   non-truncating against the Utility Top-N cap.
 - **P0.4** — `UnitRoster.Add` / `UnitRoster.IndexOf` zero-alloc helpers.
-- **P0.5** — `Blackboard1024.Project<T>(ref bb)` helper wrapping `Unsafe.As<,>`.
 - **P0.6** — `UtilityTestWorld` Brain-only test scaffolding (replaces the v1.1 starter pack's
   invented `TestRepository.CreateBrainOnly`).
 
@@ -576,26 +575,22 @@ for it. The mapping:
 - **Hierarchy** — the commander carries a `UnitRoster` component (fixed-capacity list of
   subordinate handles, `Capacity == 16`); each subordinate carries a `UnitSubordinate` component
   pointing back via `UnitSubordinate.Commander`.
-- **Shared memory** — the commander carries the existing `Blackboard1024` component (a 1024-byte
-  unmanaged block). The engine's convention is to project that block into a typed mutable struct
-  via `Unsafe.As` (the same pattern `HillAttackMutableState` uses at
-  [`HillAttackCommanderNodes.cs:48`](../../Hrot/Subsystems/Hrot.AI.Behaviors/Brains/HillAttackCommanderNodes.cs#L48)).
-  P0.5 adds a `Blackboard1024.Project<T>(ref bb)` thin wrapper so callers can write
-  `ref var s = ref Blackboard1024.Project<ThreatMatrixAssignmentState>(ref bb)` instead of the raw
-  `Unsafe.As` chain. The raw form remains valid; the helper is purely additive.
+- **Shared memory** — the commander carries the `SquadCognitiveState` component, which has a typed
+  `Assignment` sub-region. Callers write `ref var s = ref repo.GetComponentRW<SquadCognitiveState>(leader).Assignment`
+  — a typed field, with no pointer projection and no offset convention to respect.
 - **Assignment state** — the utility layer defines an unmanaged `ThreatMatrixAssignmentState`
-  struct (per-member assigned-target handles + scores + focus-fire counters) and projects it onto
-  the commander's `Blackboard1024`. The leader writes assignments into it; each member reads its
+  struct (per-member assigned-target handles + scores + focus-fire counters) which **is** the
+  commander's `SquadCognitiveState.Assignment` sub-region. The leader writes assignments into it; each member reads its
   own slot through `UnitSubordinate.Commander` and `UnitRoster.IndexOf` (P0.4).
 
 The v1.0 `SharedSquadBlackboard` component is **removed** — it was an invention that duplicated
-`Blackboard1024`. Fire coordination is still the leader running an **assignment pass**, not each
+`SquadCognitiveState`. Fire coordination is still the leader running an **assignment pass**, not each
 member independently maximizing (which would dogpile one target).
 
-> Sizing note: `ThreatMatrixAssignmentState` must fit in 1024 bytes. At 16 members, that is 64
-> bytes/member — ample for a target handle (8B), score (4B), and flags. If a future layout needs
-> more, it shares the block with other projected states by offset, per existing `Blackboard1024`
-> convention; confirm no other system already claims the same offset range on commander entities.
+> Sizing note: at 16 members, the assignment sub-region gives ample room for a target handle (8B),
+> score (4B), and flags per member. Growing it is a change to `SquadCognitiveState`'s own layout,
+> pinned by `SquadCognitiveStateLayoutTests` — there is no shared offset range to negotiate with
+> another system.
 
 ### 10.2 Greedy assignment with focus-fire bias
 
@@ -609,7 +604,7 @@ by running the **same threat-scoring core** for each (member, target) pair — i
    estimate, it is treated as consumed so the squad doesn't over-commit.
 3. Sort pairs by score, assign highest, mark shooter consumed (and target per the bias), repeat.
 4. Write the resulting per-member assignments into `ThreatMatrixAssignmentState` on the
-   commander's `Blackboard1024`.
+   commander's `SquadCognitiveState`.
 
 Greedy is O(n·m log(n·m)); with `UnitRoster.Capacity == 16` the matrix is at most 16×16 and well
 within budget, avoiding the weight of an optimal (Hungarian) solver. Optimality buys little when
@@ -717,7 +712,7 @@ Fdp.Toolkits/Utility/
 ├── Components/
 │   ├── UtilityResultBuffer.cs         // [InlineArray(16)] Top-N (§8)
 │   ├── UtilityDebugFlags.cs
-│   └── ThreatMatrixAssignmentState.cs // unmanaged; projected onto commander Blackboard1024 (§10.1)
+│   └── ThreatMatrixAssignmentState.cs // unmanaged; the commander's SquadCognitiveState.Assignment (§10.1)
 ├── Diagnostics/
 │   ├── UtilityTraceRecord.cs
 │   ├── UtilityTraceWorkingMemory1024.cs
@@ -755,7 +750,7 @@ the FBT/HSM analyzers; details in the source-generator follow-on doc.)
 
 ### Resolved by the v236 codebase review (v1.1, historical)
 
-- **Q-2.** Leader entity reuse — commander `Blackboard1024` + projected `ThreatMatrixAssignmentState`. (§10.1)
+- **Q-2.** Leader entity reuse — the commander's `SquadCognitiveState.Assignment` sub-region. (§10.1)
 - **Q-3.** Candidate cap vs. `TargetMemory` size — *superseded by v1.2*; see §8.1 corrected invariant.
 
 ### Resolved by the 2026-05-28 review (v1.2)

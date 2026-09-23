@@ -111,7 +111,7 @@ The compiler **already emits** `Event_{Name}` + `Event_{Name}_Thunk` and fills `
    `[BlueprintRegistrar]` scan (extend the existing scan; identity registry stays).
 2. **Dispatch pump** — a per-tick system: for each event on the bus this frame, resolve subscribers and invoke
    their thunk. Home: a new Input-phase system after `Bus.SwapBuffers()` / before `BlueprintTickSystem`, or
-   folded into `BlueprintTickSystem`'s per-slot loop (it already holds `view/ecb/entity/def`). `BTreeTickSystem`
+   folded into `BlueprintTickSystem`'s per-slot loop (it already holds `view/ecb/entity/def`). `BrainTickSystem`
    already drains the bus — precedent.
 3. **Recipient filter** — the pump delivers iff `TargetFilter == None` OR `event.<Target> == entity`.
 4. **Payload marshalling** — `EmitEventThunk` currently stubs `default(T)`; fill from carrier bytes via the

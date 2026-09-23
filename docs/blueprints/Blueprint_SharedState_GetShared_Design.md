@@ -39,7 +39,7 @@ Byte-matched between emitter and runtime:
   - **Entity:** `FNV(variableId)` — assetId excluded, so the slot survives a behavior switch (cross-behavior / cross-entity).
 - **Scope resolution** — `ResolveStatefulSlotKey(dto, targetField, nodeVisualId)` reads the *host* blackboard variable bound to `targetField` where `Role == State`, takes its `Scope`, else `Node`. `StatefulScopeVariable(p)` prefers `WorkingStateTargetField` over `ExpressionTargetField`.
 - **Scope/role model** — `WorkingStateScope { Node, Behavior, Entity }` and `BlackboardVariableRole { Input, State }` on the **host** BTree/HSM blackboard variable (`BlackboardVariableDto` / `BlackboardVariableEntry`), authored in the BTree blackboard variables panel (`VariablesPanelControl` / `BlackboardAuthoringWindow`). Runtime twin `StatefulSlotScope : byte`.
-- **Per-entity provisioning** — `StatefulSlotInfo` manifest on `BehaviorDefinition.StatefulWorkingSlots`; `BehaviorIngressSystem.ProvisionStatefulSlots` (Input phase) attaches each `SlotKey` into the entity's `BlueprintBlackboard{1024,4096,16384}` tier on `AssignBehaviorEvent`; detached on switch / `ClearBehaviorEvent`.
+- **Per-entity provisioning** — `StatefulSlotInfo` manifest on `BehaviorDefinition.StatefulWorkingSlots`; `BehaviorIngressSystem.ProvisionStatefulSlots` (Input phase) attaches each `SlotKey` into the entity's `BlueprintBlackboard{256,1024,4096,16384}` tier on `AssignBehaviorEvent`; detached on switch / `ClearBehaviorEvent`.
 - **Lookup** — `BlueprintBlackboardPartitions.TryGetSlotOffset(byte* memory, int slotKey, out int offset)` — a **linear scan of only the slots already attached to this entity**. There is **no** lazy/on-demand allocation on the read path.
 
 **Aspirational (no code):** the Mode-1 two-`ref`-state delegate shape, and the entire `GetShared`/`GetSharedRW` accessor.
@@ -48,7 +48,10 @@ Byte-matched between emitter and runtime:
 
 - **Q1 — Slot key is by NAMED `variableId`, not by type.** Type-keying was rejected (two same-typed variables would collide). Accessor signature carries the name: `GetShared<T>(Entity, WorkingStateScope, variableId)`. All keys stay compile-time constants.
 - **Q2 — No blueprint-model change.** `Role`/`Scope` live **only** on the host BTree/HSM blackboard variable. A blueprint declares its WorkingState as ordinary scope-agnostic fields; the host node binds it via `WorkingStateTargetField` to a scoped host variable, and the adapter keys the slot by the **host** variable's scope. No `SharedStateDecl`, no scope on blueprint `VariableDecl`.
-- **Q3 — `Blackboard1024` stays untouched.** Self-hosted blueprint thunks keep the legacy `Blackboard1024 + 8` WorkingState offset; only composed/shared nodes use the partitioned `BlueprintBlackboard*` tiers. Adding a partition allocator to `Blackboard1024` is explicitly out of scope.
+- **Q3 — self-hosted thunks use the SAME partitioned tiers as composed/shared nodes.** There is no
+  separate legacy WorkingState offset: a self-hosted blueprint thunk's working state is an occurrence
+  slot in `BlueprintBlackboard{256,1024,4096,16384}`, allocated by the same partition allocator as
+  composed/shared nodes.
 - **Q4 — Slice 1 = Behavior scope, same-behavior only.** Race-free by construction (one entity, sequential ticks). Entity/cross-entity reintroduce multi-writer hazards and are deferred.
 - **Q5 — Slice 2 cross-entity contract:** owner (e.g. commander) provisions the Entity-scoped slot on itself in the Input phase; members only read, supplying the target `Entity` via a graph pin; ≤1-frame latency by fixed tick order; `TryGetShared`→bool for the not-ready case (member ticks before owner's assignment processes) — never a throwing hard `ref`.
 
@@ -81,12 +84,12 @@ Byte-matched between emitter and runtime:
 
 - **Named-`variableId` keying** — never type-only (collision safety, Q1). Both provisioner and reader must agree on the `variableId` string (a compile-time constant on each side).
 - **Scope is host-side only** (Q2) — the blueprint stays memory-topology-agnostic.
-- **`Blackboard1024` unmodified** (Q3) — shared/composed state lives exclusively in `BlueprintBlackboard*` partition tiers.
+- **One storage model for every thunk** (Q3) — self-hosted, shared and composed state all live exclusively in `BlueprintBlackboard*` occurrence-slot tiers.
 - **Owner-provisions, readers-get-not-ready** (Q5) — the read path can only see already-attached slots; `TryGetShared` returns false otherwise.
 - **Slice-1 is race-free** (Q4) — Behavior scope, one entity, sequential ticks; broader scopes gated behind Slice-2 safeguards.
 
 ## 7. Deferred / open
 
-- Migrating self-hosted thunks off `Blackboard1024 + 8` onto the partition rail (Q3 says not now — its own cleanup if ever).
+- ~~Migrating self-hosted thunks onto the partition rail~~ — done (Q3): every thunk now allocates its working state as an occurrence slot in the tier ladder.
 - Mode-1 two-`ref`-state delegate shape (aspirational; the accessor supersedes the need for blueprints).
 - Group/squad scope is *not* a separate scope — it is an `Entity`-scoped slot on the coordinator, read by members via the Slice-2 accessor.

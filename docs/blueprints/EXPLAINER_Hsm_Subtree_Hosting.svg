@@ -73,7 +73,7 @@
   <rect x="28" y="436" width="456" height="30" class="box"/>
   <text x="36" y="455" class="m">ParseParams(json, slotPayload + paramsOffset, world, self)</text>
   <text x="28" y="482" class="s">⭐ The delegate already takes a destination pointer — the pipeline is reused unchanged,</text>
-  <text x="28" y="494" class="s">only the pointer differs. Behaviours pass &amp;bb.BehaviorParameters[0]; a child passes its slot.</text>
+  <text x="28" y="494" class="s">only the pointer differs. A root behaviour passes its root params slot; a child passes its own.</text>
 
   <!-- 4 TICK -->
   <rect x="510" y="368" width="474" height="132" class="ok"/>

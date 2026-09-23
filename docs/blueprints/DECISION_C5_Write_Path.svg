@@ -21,7 +21,7 @@
   <rect width="980" height="640" fill="#ffffff"/>
 
   <text x="16" y="24" class="h1">C5 — where does a value edited at a breakpoint actually go?</text>
-  <text x="16" y="42" class="s">Blackboard1024 is [DataPolicy(NoSave)] — NOT NoRecord, NOT NoSnapshot. So it IS snapshotted and IS recorded. The objection applies to it.</text>
+  <text x="16" y="42" class="s">The occurrence store is [DataPolicy(NoSave)] — NOT NoRecord, NOT NoSnapshot. So it IS snapshotted and IS recorded. The objection applies to it.</text>
 
   <!-- OPTION A -->
   <rect x="16" y="58" width="948" height="238" class="lane"/>

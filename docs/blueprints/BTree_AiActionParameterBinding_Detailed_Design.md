@@ -1,21 +1,11 @@
 <!--STATUS
-state: SUPERSEDED
+state: LIVE
 updated: 2026-09-22
-current-answer: ⛔ DO NOT QUOTE THIS FILE'S MEMORY MODEL. It describes the pre-occurrence
-  design: params inline in BrainBlackboard with overflow spilling to Blackboard1024 via
-  HeavyDtoType / [SharedAiHeavyAction]. ⭐ The CURRENT model is
-  DESIGN_Occurrence_Scoped_Storage.md §30.15 — there is no "heavy" tier at all; params and
-  working state are both OCCURRENCE SLOTS in the BlueprintBlackboard tier ladder.
-stale-below: §1's memory model and §8's overflow rule (line 16: "Overflow beyond 100 B inline
-  -> Blackboard1024 heavy tier"). Blackboard1024 was DELETED by P4-① on 2026-09-22.
-superseded-by: DESIGN_Occurrence_Scoped_Storage.md
-known-rot: ① the 100-byte inline cap is being retired (CE-307 / P4-④) — the real structural
-  ceiling is 16096 B, the 16384 tier's whole payload. ② "exactly one stateful AiPrimitive per
-  entity" was lifted by SLICE2 and again by CE-311. ③ HeavyDtoType was NEVER ADOPTED: null at
-  every production site and in all 30 shipped assets.
+current-answer: §3 (stateless multi-action binding) and §4 (multiple stateful primitives per
+  entity). Both are built.
 related-designs:
-  - DESIGN_Occurrence_Scoped_Storage.md — owns the CURRENT storage model; §30.13 argues why
-    Blackboard1024 could be retired and §30.15 what replaced the heavy-DTO concept.
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the storage model this binds against: the root
+    params slot and the node working-state slots in the BlueprintBlackboard tier ladder.
   - DESIGN_Parameter_Model.md — owns WHAT a parameter is, as opposed to where it lives.
 -->
 
@@ -28,14 +18,14 @@ related-designs:
 > **Related canonical docs:** `Blackboard_Authoring_Detailed_Design.md` (Category-2 variables, bin-packing, cross-region validation), `Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md` (whole-DTO binding, node-owned variables), `Blueprint_Subsystem_Architecture_v1.2.md` (AiPrimitive, partition allocator, the Slice-1 working-state constraint this design lifts), `BTree_HSM_JSON_Persistence_Detailed_Design.md` (the `[BlueprintRegistrar]` masquerade registrar, D14), `Blueprint_Subsystem_Slice2_Candidates.md` §C1 (the candidate this realizes).
 
 ## 1. Goal & motivation
-A real behavior composes many actions/conditions, each with a **different** parameter DTO (and the same action may be reused with **different** DTO instances). Binding every DTO to offset 0 of `BrainBlackboard` is useless. This design makes the authored/JSON path bind each node to its own **bin-packed, non-zero byte offset**, surfaced and edited in the visual blackboard authoring UI, with runnable demos. **Slice 1** covers multiple **stateless** actions/conditions; **Slice 2** lifts the "one stateful AiPrimitive working-state per entity" constraint.
+A real behavior composes many actions/conditions, each with a **different** parameter DTO (and the same action may be reused with **different** DTO instances). Binding every DTO to offset 0 of the root params slot is useless. This design makes the authored/JSON path bind each node to its own **bin-packed, non-zero byte offset**, surfaced and edited in the visual blackboard authoring UI, with runnable demos. **Slice 1** covers multiple **stateless** actions/conditions; **Slice 2** lifts the "one stateful AiPrimitive working-state per entity" constraint.
 
 ## 2. Shared memory model (ground truth)
-- `BrainBlackboard` (128 B): `BehaviorParameters = fixed byte[100]` at offset 0; interrupt/tail registers at 120–127. `MaxBehaviorParamByteSize=100` (master params must fit inline; oversize → `FDP_001` hard compiler error).
-- A reusable action/condition is `static NodeStatus M(ref TDto p, ref BehaviorTreeState, ref BTreeContext)`; its DTO is projected via `Unsafe.As<…>(ref Unsafe.AddByteOffset(ref bb.BehaviorParameters, (nint)offset))` at a **baked, bin-packed** byte offset (the legacy `paramIndex * sizeof(Params)` form is superseded; `paramIndex` is ignored on this path).
-- `BlackboardBinPacker` computes sequential, C#-alignment-padded offsets (`MaxInlineBytes=100`, `MaxHeavyBytes=928`). The **authoritative** offset is the compiled struct layout (`Marshal.OffsetOf`); the editor bin-packer is advisory for the budget UI but must replicate C# sequential layout exactly (natural alignment capped at 8; padding before `fixed`/`[InlineArray]`).
-- Overflow beyond 100 B inline → `Blackboard1024` heavy tier (`BehaviorDefinition.HeavyDtoType` + `[SharedAiHeavyAction]`).
-- **Blueprints (AiPrimitives) are the primary authoring source** of actions/conditions; they compile to the **same** projection/memory model as hardcoded `[SharedAiAction]` methods (Params→`BrainBlackboard`, WorkingState→tiered component, registered into `BehaviorRegistry`), so blueprint-authored and hardcoded actions are interchangeable at the binding layer.
+- **The root params slot**: the packed variable table of the behaviour assigned to the entity, located by `RootParamsAccess` and keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`. Its size is `RootParamsBytes(def)`, and the allocator promotes the entity to a larger tier if the current one cannot hold it — the only ceiling is the largest tier's payload, **16 096 B**, which `FDP_001` refuses at build time as a capacity bound.
+- A reusable action/condition is `static NodeStatus M(ref TDto p, ref BehaviorTreeState, ref BTreeContext)`; its DTO is projected via `Unsafe.As<…>(ref Unsafe.AddByteOffset(ref bb, (nint)offset))` — where `bb` is byte 0 of the slot — at a **baked, bin-packed** byte offset (the legacy `paramIndex * sizeof(Params)` form is superseded; `paramIndex` is ignored on this path).
+- `BlackboardBinPacker` computes sequential, C#-alignment-padded offsets, bounded by the tier payload the allocator can supply (**176 / 800 / 3 808 / 16 096 B**). The **authoritative** offset is the compiled struct layout (`Marshal.OffsetOf`); the editor bin-packer is advisory for the budget UI but must replicate C# sequential layout exactly (natural alignment capped at 8; padding before `fixed`/`[InlineArray]`).
+- There is no overflow path: a declaration that outgrows the entity's tier promotes the entity to the next one.
+- **Blueprints (AiPrimitives) are the primary authoring source** of actions/conditions; they compile to the **same** projection/memory model as hardcoded `[SharedAiAction]` methods (Params→the root params slot, WorkingState→a working-state slot, registered into `BehaviorRegistry`), so blueprint-authored and hardcoded actions are interchangeable at the binding layer.
 
 ## 3. Slice 1 — stateless multi-action binding (architect-greenlit)
 
@@ -46,24 +36,24 @@ Editor-managed (Category-2) blackboard variables, each the **whole parameter DTO
 For each managed BTree asset the JSON generator emits:
 1. a per-asset blackboard **struct** from the authored variables (reusing `BlackboardDtoEmitter`), `[StructLayout(Sequential)]`, bin-packed ≤100 B. **`bool` fields MUST be decorated `[MarshalAs(UnmanagedType.I1)]`** — `Marshal.OffsetOf` defaults `bool` to a 4-byte `BOOL` while the bin-packer/managed layout use 1 byte, so omitting it silently drifts offsets and corrupts Flight-Recorder/replay schemas;
 2. the **topology over that struct**, so each binding compiles to a blob key `{Type}.{Method}@{offset}`;
-3. a per-asset **`[BlueprintRegistrar]` masquerade registrar** (the D14 pattern from `BTree_HSM_JSON_Persistence_Detailed_Design.md`) of `ref BrainBlackboard` thunks keyed identically, each `Unsafe.As`/`AddByteOffset` projecting the DTO at its baked offset and calling the method.
+3. a per-asset **`[BlueprintRegistrar]` masquerade registrar** (the D14 pattern from `BTree_HSM_JSON_Persistence_Detailed_Design.md`) of `ref byte` thunks keyed identically, each `Unsafe.As`/`AddByteOffset` projecting the DTO at its baked offset and calling the method.
 
-**Composition model — "BTree owns layout, blueprint provides `TickCore`".** When the bound action is a blueprint AiPrimitive, the BTree generator **ignores** the blueprint's standalone `BTreeTick` (which uses `paramIndex*sizeof`) and emits a per-node **adapter** that projects `Params` at the BTree-controlled bin-packed offset (and, in Slice 2, `WorkingState` at the node's partition slot), then calls the blueprint's `TickCore(ref Params, ref WorkingState, self, world, time)`. The runtime stays `Interpreter<BrainBlackboard, BTreeContext>` (no generic-runtime change).
+**Composition model — "BTree owns layout, blueprint provides `TickCore`".** When the bound action is a blueprint AiPrimitive, the BTree generator **ignores** the blueprint's standalone `BTreeTick` (which uses `paramIndex*sizeof`) and emits a per-node **adapter** that projects `Params` at the BTree-controlled bin-packed offset (and, in Slice 2, `WorkingState` at the node's partition slot), then calls the blueprint's `TickCore(ref Params, ref WorkingState, self, world, time)`. The runtime is `Interpreter<byte, BTreeContext>` — the tree ticks against the root slot's bytes, so no kernel change is needed.
 
 ### 3.3 Validator
 Unblock `ThreeParamReusable` when the method has the 3-param reusable shape and `ExpressionTargetField` resolves to an authored variable whose declared type equals param-0's DTO type (FQN string equality — no implicit subtyping; reference catalog keys `{DtoTypeFqn}::{FieldName}`). Otherwise emit a `BTREE0002` skip (never a build break). Defaults are baked into a generated `ParseParamsDelegate` (editor `DefaultValueJson` → static defaults, scenario JSON overlays at runtime, `Unsafe.Write` into the inline slot).
 
 ### 3.4 Constraints
-Aggregate of all bound master DTOs must fit the 100 B inline region (else `FDP_001`). Exactly **one stateful** AiPrimitive per entity in Slice 1 (lifted by Slice 2, §4).
+The aggregate of all bound master DTOs must fit the payload the allocator can reserve for the root params slot; beyond that the entity is promoted a tier, and only the top tier's payload (16 096 B) is a hard stop. Exactly **one stateful** AiPrimitive per entity in Slice 1 (lifted by Slice 2, §4).
 
 ## 4. Slice 2 — multiple stateful primitives per entity (architect-approved)
-Lifts the Slice-1 constraint (caused by inline working-state collision at `Blackboard1024 Memory+8` / single `StructureHash`).
+Lifts the Slice-1 constraint, which was caused by every stateful primitive on an entity sharing one fixed working-state region behind a single `StructureHash`.
 
 ### 4.1 Storage — Option β (no new component)
-Move AiPrimitive **WorkingState** out of the engine `Blackboard1024` into the existing **`BlueprintBlackboard{1024,4096,16384}` tiers**, allocated by the Slice-1-proven `BlueprintBlackboardPartitions`. (Option α — a dedicated `BlueprintAiWorking1024` — was rejected.) Kernels are untouched: the generated thunk ignores the kernel's `Blackboard1024*`, fetches the Blueprint-owned tier component via `ctx.Self`, does `BlueprintBlackboardPartitions.TryGetSlotOffset(...)`, and projects WorkingState at its slot. Working-state sizes are statically known from each blueprint's `WorkingState` declarations; a 16-byte `BlueprintLatentCursor` sits at offset 0 of `WorkingState`.
+AiPrimitive **WorkingState** lives in the **`BlueprintBlackboard{256,1024,4096,16384}` tiers**, allocated by the Slice-1-proven `BlueprintBlackboardPartitions`. (Option α — a dedicated AI-only working-state component with its own allocator — was rejected.) Kernels are untouched: the generated thunk fetches the tier component via `ctx.Self`, does `BlueprintBlackboardPartitions.TryGetSlotOffset(...)`, and projects WorkingState at its slot. Working-state sizes are statically known from each blueprint's `WorkingState` declarations; a 16-byte `BlueprintLatentCursor` sits at offset 0 of `WorkingState`.
 
 ### 4.2 Slot identity
-The same stateful blueprint used by multiple nodes must get a distinct slot per node (so `BlueprintId` alone is insufficient). The allocator key is a 32-bit int, so the composition layer synthesizes a unique key = **`FNV-1a(BehaviorAssetId, NodeVisualId)`**, baked into the per-node adapter thunk. The adapter projects `Params` (bin-packed offset over `BrainBlackboard`) **and** `WorkingState` (partition slot over `BlueprintBlackboard*`), then calls `TickCore` — disjoint memory regions, no interference with Slice 1 stateless params.
+The same stateful blueprint used by multiple nodes must get a distinct slot per node (so `BlueprintId` alone is insufficient). The allocator key is a 32-bit int, so the composition layer synthesizes a unique key = **`FNV-1a(BehaviorAssetId, NodeVisualId)`**, baked into the per-node adapter thunk. The adapter projects `Params` (bin-packed offset over the root params slot) **and** `WorkingState` (its own partition slot), then calls `TickCore` — disjoint memory regions, no interference with Slice 1 stateless params.
 
 ### 4.3 Three mandated fixes (architect, must be implemented)
 1. **Tier-upgrade race.** Provision/upgrade tiers **synchronously in the `Input` phase** inside `BehaviorIngressSystem` (`AddComponent`+`CopyToLargerTier`+`RemoveComponent`) — never deferred ECB, because the BTree ticks the same frame's `Simulation` phase before `BlueprintMaintenanceSystem` (`BeforeSync`) would run, and a missing slot would crash. Sum **reachable** stateful nodes and pre-provision worst-case at assignment.
@@ -92,7 +82,7 @@ Authoring names: a **local variable** = `state` @ `Node` (isolated per node inst
 
 There is **no separate "squad/group" scope.** A group is represented by a virtual/leader entity (the existing command-hierarchy concept — the hill-attack commander), so group-shared state is simply an `Entity`-scoped slot **hosted on the commander entity**, read by members via the Mode-2 accessor below. "Commander" names the *target entity*, not a scope.
 
-**Tier.** State is **always heavy** — it must persist across ticks and be slot-keyed, which the transient 100 B inline region cannot host — so it uses the heavy tier regardless of size. (Contrast: *params* are size-driven inline-vs-heavy, `Blackboard_Authoring_Detailed_Design.md §6`.)
+**Tier.** State is **always a working-state slot** — it must persist across ticks and be slot-keyed. ⭐ There is no size threshold to cross and no second region to spill into: params and working state are both ordinary occurrence slots, differing in their key, and the tier the allocator seats the entity in is chosen from the total it has to hold. 📄 `Blackboard_Authoring_Detailed_Design.md §6`.
 
 #### 4.4.1 Runtime access — two modes
 
@@ -127,8 +117,8 @@ Declared like params in the Variables panel (`Blackboard_Authoring_Detailed_Desi
 
 > The two open questions were resolved by code-grounded architecture analysis (2026-07-12, standing in for the architect; evidence in `.dev/_DONE/test-health/diagnostics/` sibling investigation). Both resolve **without new architecture**.
 
-**(a) Heavy-tier — RESOLVED: use the partitioned tier; `Blackboard1024`-fixed is legacy.**
-The apparent drift is old-doc vs forward-direction. `Blackboard1024` fixed-offset (working state at offset 8, one struct per entity — `InlineActionLowering`) is the Slice-1/hardcoded, inherently *single-slot* path (the source of the "one stateful primitive per entity" cap). The partitioned `BlueprintBlackboard{1024,4096,16384}` (`BlueprintBlackboardPartitions`: `TryAttach`/`TryDetach`/`TryGetSlotOffset`, tier-upgrade, free-list) is the Slice-2/forward mechanism. **All authored working state — local and shared — uses the partitioned tier, with scope as the slot key** (Node = `FNV-1a(assetId,nodeId)`, Behavior = `FNV-1a(assetId,entityId)`, Entity = `entityId`). So shared state needs **no new storage** — the existing allocator + provisioning with a different key. `Blackboard1024`-fixed stays legacy (not extended); the `Blueprint_Subsystem_Architecture_v1.2.md` "AiPrimitive working state → Blackboard1024" line is **superseded**.
+**(a) Working-state storage — RESOLVED: the partitioned tier, for every scope.**
+The partitioned `BlueprintBlackboard{256,1024,4096,16384}` (`BlueprintBlackboardPartitions`: `TryAttach`/`TryDetach`/`TryGetSlotOffset`, tier-upgrade, free-list) is the mechanism. The single fixed working-state region it replaced — one struct per entity at a fixed offset — is what caused the "one stateful primitive per entity" cap. **All authored working state — local and shared — uses the partitioned tier, with scope as the slot key** (Node = `FNV-1a(assetId,nodeId)`, Behavior = `FNV-1a(assetId,entityId)`, Entity = `entityId`). So shared state needs **no new storage** — the existing allocator + provisioning with a different key. `Blueprint_Subsystem_Architecture_v1.2.md` §6.1 describes the same single storage story.
 
 **(b) Lifetime + concurrency — RESOLVED.**
 - **`Behavior` (MVP):** behavior lifetime — provision on `AssignBehaviorEvent` (Input phase), free on switch/clear. **Single owner, no ref-counting.** *Required fix:* the `ClearBehaviorEvent` handler must also `DetachStatefulSlots` (today it frees only on switch, so a clear-without-successor leaks the slot until the next assign).
@@ -139,13 +129,13 @@ The apparent drift is old-doc vs forward-direction. `Blackboard1024` fixed-offse
 **MVP = `Behavior` scope**, delivered by existing machinery + three small changes: (1) scope-aware slot key, (2) the `ClearBehaviorEvent` detach fix, (3) shared-scope keys in the Fix-3 guard. `Entity`/`Group` are clean follow-ons (scope-aware detach + the cross-entity accessor).
 
 #### 4.4.5 Worked example — hill-attack commander
-`PlatoonHillAttack`'s `HillAttackMutableState` (120 B: wave/slot bitmasks + SoA attacker arrays) is shared across `CalculateSegments` / `DispatchWave` / `IsWaveCompleted` on one commander → a `Behavior`-scoped **shared variable**. The nodes bind `(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, …)` (Mode-1, 4-param, scope `Behavior`), replacing today's manual `ctx.World.GetComponentRW<Blackboard1024>() + Unsafe.As`. Subordinate state the commander inspects stays Mode-2 / ECS component reads. This behavior is the concrete driver for this pass.
+`PlatoonHillAttack`'s `HillAttackMutableState` (120 B: wave/slot bitmasks + SoA attacker arrays) is shared across `CalculateSegments` / `DispatchWave` / `IsWaveCompleted` on one commander → a `Behavior`-scoped **shared variable**. The nodes bind `(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, …)` (Mode-1, 4-param, scope `Behavior`), replacing the earlier manual component fetch plus `Unsafe.As`. Subordinate state the commander inspects stays Mode-2 / ECS component reads. This behavior is the concrete driver for this pass.
 
 ## 5. Demos
-Stateless multi-action (Slice 1): a managed blackboard with ≥2 distinct-DTO variables at distinct offsets, each bound to a different action/condition, plus a `Repeater`; counter climbs to threshold then a condition fails; observed via a runtime proof test (mirroring blueprint `CountingDemo_ProofTests`) and live in `BrainBlackboardRenderer`/`BTreeVisualizerRenderer`. Stateful multi-primitive (Slice 2): the same stateful primitive at two nodes maintains independent state; mixed stateless+stateful coexist. Full demo specs in `.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN §5` and `SLICE2-DESIGN §5`.
+Stateless multi-action (Slice 1): a managed blackboard with ≥2 distinct-DTO variables at distinct offsets, each bound to a different action/condition, plus a `Repeater`; counter climbs to threshold then a condition fails; observed via a runtime proof test (mirroring blueprint `CountingDemo_ProofTests`) and live in the tier renderers' root-params arm and `BTreeVisualizerRenderer`. Stateful multi-primitive (Slice 2): the same stateful primitive at two nodes maintains independent state; mixed stateless+stateful coexist. Full demo specs in `.dev/_DONE/btree-ai-action-binding/SLICE1-DESIGN §5` and `SLICE2-DESIGN §5`.
 
 ## 6. Cross-references / supersedes
-- **`Blueprint_Subsystem_Architecture_v1.2.md`** — the "one AiPrimitive working-state per entity" Slice-1 constraint (§ around the partition-allocator discussion) is **lifted by Slice 2 here** via Option β (not a `Blackboard1024` allocator / `BlueprintAiWorking1024`).
+- **`Blueprint_Subsystem_Architecture_v1.2.md`** — the "one AiPrimitive working-state per entity" Slice-1 constraint (§ around the partition-allocator discussion) is **lifted by Slice 2 here** via Option β (not a second, AI-only allocator).
 - **`Blueprint_Subsystem_Slice2_Candidates.md` §C1** — realized by §4 (Option β, FNV-1a slot key, three fixes).
 - **`Blueprint_Subsystem_Hot_Reload_Detailed_Design.md`** — §4.3 Fix 2 adds synthetic-key (BTree-hosted stateful) reconciliation, which the current reconciler does not cover.
 - **`Blackboard_Authoring_Detailed_Design.md`** — Category-2 variables, bin-packing, and the cross-region validator (§4.3 Fix 3 extends it); the `bool [MarshalAs(I1)]` rule applies to the generated struct.

@@ -177,7 +177,7 @@ noted. All are named constants in code (cite shown).
 |---|---|---|---|
 | Registered component types (`BitMask512`) | **511** max ID | out-of-range, guarded only in `FDP_PARANOID_MODE` | `FDP/Engine/Fdp.Core/ComponentIdAttribute.cs:20` |
 | ECB unmanaged component payload | **1024 B** | throws `ArgumentException` at record | `FDP/Engine/Fdp.Core/EntityCommandBuffer.cs:35` |
-| `BehaviorParameters` DTO | **100 B** | compile error FDP_001 / startup throw | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26` |
+| Root params occurrence slot | **16 096 B** — the largest tier's payload | compile error FDP_001 / attach-time failure | `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:39` |
 | Channel `Params` / `State` buffers | **32 B each** (≤96 B struct) | corrupts adjacent state | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:10-16` |
 | Action types per dispatcher channel | **64** (0 = none) | — | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorConstants.cs:31` |
 | Mission plan phases | **8** | excess tasks dropped + Warn | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/MissionComponents.cs:143` |
@@ -196,7 +196,7 @@ noted. All are named constants in code (cite shown).
 | `UnitRoster` subordinates / commander | **16** | assignment rejected + event | `FDP/Engine/Fdp.Core/CommandHierarchy/UnitRoster.cs:32` |
 | Squad contact pool / role-slot members | **16** | lowest-threat evicted / OOB if exceeded | `FDP/Toolkits/Fdp.Toolkits/Squad/State/SquadCognitiveState.cs:128-134` |
 | Blueprint AiPrimitive Params / WorkingState | **100 B / 1016 B** | compile error BP1200/BP1201 | `Hrot/Subsystems/Blueprints/Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:348-357` |
-| Blueprint Instance variable tiers | **928 / 3936 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
+| Blueprint Instance variable tiers | **176 / 800 / 3808 / 16096 B** | compile error BP1210 | `.../Stage2_Validate.cs:361-382` |
 | Tuning piecewise curve control points | **64** | truncated + warn | `Hrot/Diagnostics/Hrot.Diagnostics.Tuning/TuningRegistry.cs:19` |
 | `DebugPrimitive` struct | **64 B** (one cache line) | overflow / payload aliasing | `FDP/ExtDeps/GizmoMap/GizmoMap.Contracts/Primitives/DebugPrimitive.cs:16` |
 | Debug-draw buffer / persistent | **4096 / 256 slots** | `DroppedCount++`, discarded | `FDP/Diagnostics/Fdp.Diagnostics.Contracts/DebugPrimitiveBuffer.cs:13-15` |
@@ -215,9 +215,12 @@ noted. All are named constants in code (cite shown).
 >   while `CODE-STANDARDS.md:94` and the architecture narrative still say **256 / `BitMask256`**.
 >   `BitMask256` exists and is the 32-byte query/header mask, but the registrable-ID ceiling
 >   the runtime enforces is 511. Treat 511 as authoritative; fix the docs.
-> - The behavior-parameter cap is **100 B** in code (FDP_001 + `BehaviorConstants.cs:27`),
->   while `AI_DEV_GUIDE.md:859` describes a **60-byte** parameter region in a 128-byte
->   blackboard. Treat **100 B** as authoritative.
+> - The behaviour-parameter bound is **16 096 B**, the largest occurrence tier's payload, enforced
+>   at compile time by `FDP_001` and structurally at attach time by the allocator. `CE-307`
+>   (`2026-09-22`) replaced the old 100-byte corruption guard with this capacity bound when params
+>   moved into an occurrence slot sized by `RootParamsBytes(def)`
+>   (`docs/blueprints/DESIGN_Occurrence_Scoped_Storage.md` §30.25). ⚠ Older text describing a
+>   **100-byte** or **60-byte** parameter region belongs to the deleted fixed-size blackboard.
 
 ---
 
@@ -475,7 +478,7 @@ noted. All are named constants in code (cite shown).
 - 🔴 **`CognitiveInterruptSystem` is the sole writer of `PreviousCapabilities`**; reactors read
   it and must run `[UpdateBefore]` it. **Interrupt bytes are edge-triggered and cleared
   end-of-frame** — consume them within the same tick. `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs:38-41`
-- 🔴 **Only `BTreeTickSystem` publishes `BehaviorFinishedEvent`** (root-level); dispatchers
+- 🔴 **Only `BrainTickSystem` publishes `BehaviorFinishedEvent`** (root-level, from either arm); dispatchers
   (leaf-level) must not. **`IActionExecutor.OnEnter` must fully initialize state** so the
   same-frame `Execute` is safe. **Behavior-param parse is atomic** — a parse failure leaves
   the entity on its old behavior entirely. `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/BehaviorFinishedEvent.cs:16-20`, `Systems/BehaviorIngressSystem.cs:27-104`
@@ -511,8 +514,10 @@ noted. All are named constants in code (cite shown).
   `WhenNode(EventFired)` + `FallingEdge` never fires. `.../Stage2_Validate.cs:829-838,813-818`
 
 ### 6.3 Roslyn generators & analyzers (compile-time invariants)
-- 🔴 **FDP_001** errors if any `[SharedAiAction]`/`[SharedAiCondition]` DTO > **100 B** (would
-  overrun `BrainBlackboard`). Keep that analyzer in the FDP Behavior domain — never in generic
+- 🔴 **An oversized `[SharedAiAction]`/`[SharedAiCondition]` DTO fails at ATTACH, structurally** — a
+  behaviour's params must fit its occurrence-slot tier (`RootParamsBytes(def)`); the partition
+  allocator's `TryAttach` refuses a payload that will not fit any tier, up to 16 096 B at the top
+  tier (`BlueprintBlackboard16384`). Keep that bound in the FDP Behavior domain — never in generic
   FastBTree/FastHSM. `FDP/Toolkits/Fdp.Toolkits.Analyzers/BehaviorParameterSizeAnalyzer.cs:26`
 - 🔴 **Never add/remove ECS components inside HSM/BTree `SharedAi` thunks** — they write
   directly during chunk iteration; structural mutation corrupts the chunk arrays. `FDP/Toolkits/Fdp.Toolkits.Analyzers/HsmActionGenerator.cs:695`

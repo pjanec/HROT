@@ -11,19 +11,20 @@ source. Implementation not yet started.
 
 ## 1. Background — dispatch kinds & state homes
 
-- **Instance Blueprints** store state in the unmanaged `BlueprintBlackboard{1024,4096,16384}` components, managed by
+- **Instance Blueprints** store state in the unmanaged `BlueprintBlackboard{256,1024,4096,16384}` components, managed by
   a **partition allocator** (`BlueprintBlackboardPartitions`, core `Fdp.Toolkits`). One entity can host **multiple**
   Instance Blueprints concurrently — each occupies a slot in the tier's dense slot table. `BlueprintTickSystem`
   ticks every populated slot; `BlueprintMaintenanceSystem` upgrades a tier (1024→4096→16384) when it overflows.
-- **AiPrimitive Blueprints** (behaviors) project a single working state over `Blackboard1024`. **One per entity**
-  (Slice-1 constraint). Assigned via the behavior/TKB path (§9), not this design.
+- **AiPrimitive Blueprints** (behaviors) project working state over **node working-state occurrence slots**
+  in the same `BlueprintBlackboard*` tier ladder — one slot per stateful node instance, no per-entity
+  singleton limit. Assigned via the behavior/TKB path (§9), not this design.
 
 Tier capacities (verified):
 
 | Tier | MaxSlots | Payload bytes |
 |---|---|---|
-| `BlueprintBlackboard1024` | 4 | 928 |
-| `BlueprintBlackboard4096` | 8 | 3936 |
+| `BlueprintBlackboard1024` | 12 | 800 |
+| `BlueprintBlackboard4096` | 16 | 3808 |
 | `BlueprintBlackboard16384` | 16 | 16096 |
 
 ---
@@ -33,7 +34,7 @@ Tier capacities (verified):
 Scenario JSON is a **declarative authoring template**; live blackboard memory (latent cursors, tick counters,
 mid-execution phase) is volatile runtime state that belongs in **checkpoints / Flight-Recorder**, not scenarios.
 
-**Current bug:** `BlueprintBlackboard{1024,4096,16384}` carry `[ComponentId]` but **no `[DataPolicy]`**, so they
+**Current bug:** `BlueprintBlackboard{256,1024,4096,16384}` carry `[ComponentId]` but **no `[DataPolicy]`**, so they
 serialize into scenario JSON by default (the AiPrimitive blackboards are correctly `[DataPolicy(DataPolicy.NoScenario)]`).
 
 **Fix:** mark the three `BlueprintBlackboard*` components `[DataPolicy(DataPolicy.NoScenario)]`, and persist a
@@ -89,13 +90,13 @@ Uses the intent pattern (mirrors `InitialPassengersIntent` + `GenesisMaterializa
     map each id back to its `AssetId` GUID (via the registry/reverse map) → emit `BlueprintAssignmentDto[]`. (Slots
     are dense — no gap scan, no managed enumerator → zero-alloc.)
   - **`Inject` (load):** parse the JSON array → attach an `InitialBlueprintsIntent` component to the entity.
-  - **`GetOutputDomKeys` (REQUIRED — would crash load if omitted; verified vs `BrainBlackboardTranslator`):** must
+  - **`GetOutputDomKeys` (REQUIRED — would crash load if omitted; verified vs `BrainDiagnosticsTranslator`):** must
     return **both** (a) the custom array key it writes (e.g. `"BlueprintAssignments"`) and (b) the legacy
     `"BlueprintBlackboard1024"`/`"4096"`/`"16384"` keys claimed as a **black hole** (no-op `Inject`).
     `ScenarioSerializer` (`:389`) routes only declared keys to translators; anything else falls through to
     `FdpAutoSerializer`, which throws `InvalidOperationException` on (a) the unmapped custom array key and (b) old
-    scenarios still carrying the now-`NoScenario` blackboard keys. This mirrors `BrainBlackboardTranslator`/
-    `Blackboard1024Translator` (claim-key + no-op `Inject`).
+    scenarios still carrying the now-`NoScenario` blackboard keys. This mirrors
+    `BrainDiagnosticsTranslator`'s claim-key + no-op `Inject` pattern. ⚠ Its DOM key is `BrainDiagnostics`, deliberately **not** a component name: `DebugApiService` builds an entity's `components` list from translator DOM keys, so a key naming a component publishes a phantom one.
 - **Register the managed intent (REQUIRED):** add `RegisterManagedComponent<InitialBlueprintsIntent>()` to the
   genesis intent registry (`GenesisIntentRegistry.RegisterAll`, where `InitialPassengersIntent`/
   `InitialUnitSubordinateIntent` are registered). Managed components can't be injected unless registered, or
@@ -140,7 +141,7 @@ is only for persistence; load is what makes a saved scenario a repeatable test f
 
 ## 5. Tier pre-provisioning (avoid mid-tick upgrades)
 
-"Largest-first" is insufficient (4 × 300-byte blueprints = 1200 > 928 → forces a 1024→4096 upgrade mid-load). The
+"Largest-first" is insufficient (3 × 300-byte blueprints = 900 > 800 → forces a 1024→4096 upgrade mid-load). The
 materializer **pre-computes aggregate requirements** and provisions the correct tier up front:
 
 - Sum `StateSize` over valid defs **and** count them; pick the smallest tier satisfying **both** the slot count and
@@ -244,7 +245,7 @@ No authoring-UX unification is needed: there is no TKB editing UI today (behavio
 | `BlueprintStateTranslator : IEntityScenarioTranslator` (declares `BlueprintAssignments` + black-holes legacy blackboard keys) | **CGF** scenario path |
 | `RegisterManagedComponent<InitialBlueprintsIntent>()` | `GenesisIntentRegistry.RegisterAll` (genesis bootstrap) |
 | `BlueprintMaterializationSystem` (intent → preprovision → attach → remove intent) | **CGF** genesis |
-| `[DataPolicy(NoScenario)]` on `BlueprintBlackboard{1024,4096,16384}` | `Fdp.Toolkits.Blueprints` (edit in place) |
+| `[DataPolicy(NoScenario)]` on `BlueprintBlackboard{256,1024,4096,16384}` | `Fdp.Toolkits.Blueprints` (edit in place) |
 | Editor `BlueprintAttachService` → thin forwarder to the core seam | `Hrot.Blueprints.Editor.Runtime` |
 | Entity "Blueprints" authoring inspector (§12) | Editor (Details/Inspector; mirrors `ComponentEditDrawer`/`InspectorWindow`) |
 
@@ -285,14 +286,14 @@ components and the authoring flow is a *staged, transactional* diff — both fig
 component-per-header, immediate-`IsDirty`-commit `ComponentEditDrawer`/`StructEdit` model. So split:
 
 ### 12.1 Entity Inspector — read-only monitoring
-A custom **`IEntityAwareImGuiRenderer`** for each `BlueprintBlackboard{1024,4096,16384}` component (mirrors the
-existing `BrainBlackboardRenderer` / `Blackboard1024Renderer`). On a blackboard component it reads the unmanaged
+A custom **`IEntityAwareImGuiRenderer`** for each `BlueprintBlackboard{256,1024,4096,16384}` component (mirrors the
+existing tier renderers' root-params occurrence arm — `DESIGN_Occurrence_Scoped_Storage.md` §25.3). On a blackboard component it reads the unmanaged
 memory, `GetSlotCount`/`GetSlot`s the dense table, resolves each `BlueprintId` → name via the registry, and renders
 a **read-only** live list (name, `InstanceVersion`, tick/latent-cursor status); `RenderValue` returns `true` to
 replace the default byte-dump. Pure visibility — never tempts `StructEdit` to corrupt the partition bytes.
 **These 3 renderers do NOT exist yet** — today the Entity Inspector shows a raw byte-dump of the partition memory.
 Build one per tier, registered via `[ImGuiRenderer(typeof(BlueprintBlackboard1024))]` (etc.) in the
-`ImGuiRendererRegistry` (infra + the `Brain`/`Blackboard1024Renderer` precedents are verified to exist). Each is a
+`ImGuiRendererRegistry` (infra + the tier renderers' occurrence-decoding precedent are verified to exist). Each is a
 *per-tier* summary; the unified cross-tier views are §12.4.
 
 ### 12.2 Dedicated "Entity Blueprints" panel — authoring (detached view-model)
@@ -305,7 +306,7 @@ defers all structural mutation to **Apply**. Wireframe:
 ┌ Entity Blueprints ──────────────────────────────────────────┐
 │ Target: [42,v1] (OrcGuard)            Sim: [ RUNNING ]       │
 │ Active Tier: BlueprintBlackboard1024                         │
-│ Projected Usage: 3 / 4 Slots  |  650 / 928 Bytes            │
+│ Projected Usage: 3 / 12 Slots |  650 / 800 Bytes            │
 ├──────────────────────────────────────────────────────────────┤
 │ [ + Add Blueprint... ▾ ]                                     │
 │  Blueprint          Status     Size   Action                 │
@@ -349,7 +350,7 @@ add/remove only.
 
 ### 12.4 The "complete view" across tiers (multi-tier fragmentation)
 
-Because one entity's blueprints can be spread across `BlueprintBlackboard{1024,4096,16384}`, inspecting the raw
+Because one entity's blueprints can be spread across `BlueprintBlackboard{256,1024,4096,16384}`, inspecting the raw
 components separately never gives a whole picture. The design resolves this with **tier-abstracted surfaces** — the
 designer never decodes or pieces together the raw components:
 

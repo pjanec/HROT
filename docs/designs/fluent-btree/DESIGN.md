@@ -60,8 +60,9 @@ the compiler process). Instead, the generator uses Roslyn’s `ITypeSymbol` Sema
 APIs to compute the struct field byte offsets at compile time, then hardcodes the raw
 integer directly into the generated `Unsafe.AddByteOffset` call. The generator also emits
 a Roslyn diagnostic error (`BTreeDiagnostics.BlackboardTooLarge`) when the computed DTO
-size exceeds `BehaviorConstants.BrainBlackboardByteSize` (128 bytes), preventing silent
-memory corruption via out-of-bounds offset arithmetic.
+size exceeds the occurrence store's largest tier payload (16 096 bytes, the
+`BlueprintBlackboard16384` ceiling), preventing silent memory corruption via out-of-bounds
+offset arithmetic.
 
 ### 2.3 Source Generator for Zero-Boilerplate Registration
 
@@ -105,7 +106,8 @@ a directory for new DLLs, loads each into a new collectible `AssemblyLoadContext
 the generated `FbtActionRegistrar.RegisterAll` via reflection to overwrite delegate
 pointers in the `ActionRegistry`, extracts new blobs from `FbtTreeCatalog`, and calls
 `BTreeHotReloadManager.TryReload`. ALC operates in the same process memory space so that
-`ref BrainBlackboard` and `ref BrainBTreeState` parameters still point to live ECS memory.
+`ref byte` (the root-params occurrence slot's bytes) and `ref BehaviorTreeState` (the root
+tree-state slot, reached through `RootStateAccess`) parameters still point to live ECS memory.
 The old ALC is unloaded after all in-flight delegates complete.
 
 ### 2.6 Node Debug Metadata
@@ -130,18 +132,22 @@ The old ALC is unloaded after all in-flight delegates complete.
 `ComponentReflector.DrawComponents` is updated to check for this extended interface first.
 Simple renderers implementing only `IImGuiRenderer` continue to work unchanged.
 
-### 2.8 BrainBlackboard Typed DTO Rendering
+### 2.8 Root-Params Occurrence Slot Typed DTO Rendering
 
 `BehaviorDefinition` receives an optional `Type? ParamsDtoType` property. When set, the
-`BrainBlackboardRenderer` (implementing `IEntityAwareImGuiRenderer`) uses it to marshal
-the 128-byte `BrainBlackboard.Memory` as the registered DTO and render its fields via
-`ImGuiPropertyTree`, completely replacing the raw hex byte display.
+tier renderer's root-params arm (implementing `IEntityAwareImGuiRenderer`) uses it to
+marshal the root-params occurrence slot's bytes as the registered DTO and render its
+fields via `ImGuiPropertyTree`, completely replacing the raw hex byte display.
 
 ### 2.9 BTree Live Visualizer in Entity Inspector
 
-`BTreeVisualizerRenderer` implements `IEntityAwareImGuiRenderer` for `BrainBTreeState`.
-Using `IInspectableSession` it reads the sibling `BehaviorState` to look up the active
-`BehaviorTreeBlob` from the `BehaviorRegistry`. It then renders a recursive ImGui tree
+`BTreeVisualizerRenderer` (`Hrot/Engine/Hrot.Presentation/Renderers/BTreeVisualizerRenderer.cs`)
+draws the execution path as a **section of the occurrence-store tier renderer**, invoked from
+`BlueprintBlackboardRendererBase` beside root params and working state; the cursor it draws comes
+from `RootStateAccess`. It is no longer keyed on a component's identity — an
+`[ImGuiRenderer(typeof(...))]` attribute on a brain component was the entry point, and there is no
+such component. Using `IInspectableSession` it reads the sibling `BehaviorState` to look up the
+active `BehaviorTreeBlob` from the `BehaviorRegistry`. It then renders a recursive ImGui tree
 with:
 - Active execution path highlighted (green for current leaf, yellow for active composites)
   using `RunningNodeIndex` and `NodeIndexStack`.
@@ -229,7 +235,7 @@ References: `Microsoft.CodeAnalysis.CSharp` (analyzer reference, like `Fhsm.Sour
 - New file: `Fbt.Kernel/HotReload/BTreeHotReloadManager.cs`
 
 #### Tasks
-- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BrainBTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `BehaviorRegistry` patching before returning.
+- **FBT-020** Implement `BTreeHotReloadManager` with `TryReload(string treeName, BehaviorTreeBlob newBlob, Span<BehaviorTreeState> liveInstances)`, `ReloadResult` enum (NewTree / NoChange / SoftReload / HardReset), and `BehaviorRegistry` patching before returning.
 - **FBT-021** Implement the hot reload check in `Interpreter.Tick` — compare `_blob.StructureHash` vs stored hash in state; call `state.Reset()` on structure change.
 - **FBT-022** Tests for hot reload — SoftReload preserves state, HardReset clears state, NoChange is a no-op, old ALC GC'd after reload.
 - **FBT-023** `FbtAssemblyHotReloader` — `FileSystemWatcher`-driven ALC load/unload orchestrator with `OnReloadCompleted`/`OnReloadFailed` events and thread-safe debounced reload queue.
@@ -245,17 +251,17 @@ in the Entity Inspector.
 - `Fdp.Toolkits/Behavior/BehaviorDefinition.cs` — add `ParamsDtoType`.
 
 **New files in `Hrot.Presentation`** (or a suitable location with access to `BehaviorRegistry`):
-- `Behavior/BrainBlackboardRenderer.cs`
+- `Behavior/RootParamsRenderArm.cs` (the tier renderer's root-params arm)
 - `Behavior/BTreeVisualizerRenderer.cs`
 
 #### Tasks
 - **FBT-030** Define `IEntityAwareImGuiRenderer` extending `IImGuiRenderer` with `bool RenderValue(IInspectableSession, Entity, object)`.
 - **FBT-031** Update `ComponentReflector.DrawComponents` to prefer `IEntityAwareImGuiRenderer` when available (pass `session` and `entity` to it).
 - **FBT-032** Add `Type? ParamsDtoType` to `BehaviorDefinition`.
-- **FBT-033** Implement `BrainBlackboardRenderer : IEntityAwareImGuiRenderer` for `BrainBlackboard` — reads `BehaviorState`, looks up `ParamsDtoType`, marshals blackboard memory to typed DTO, renders via `ImGuiPropertyTree`.
-- **FBT-034** Implement `BTreeVisualizerRenderer : IEntityAwareImGuiRenderer` for `BrainBTreeState` — reads sibling `BehaviorState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
+- **FBT-033** Implement the tier renderer's root-params arm (`IEntityAwareImGuiRenderer`) for the root-params occurrence slot — reads `BehaviorState`, looks up `ParamsDtoType`, marshals the slot's bytes to typed DTO, renders via `ImGuiPropertyTree`.
+- **FBT-034** Implement `BTreeVisualizerRenderer` as a section of the tier renderer — resolves the cursor via `RootStateAccess`, reads sibling `BehaviorState`, retrieves `BehaviorTreeBlob`, renders color-coded recursive tree.
 - **FBT-035** Tests for `ComponentReflector` extended renderer dispatch.
-- **FBT-036** Tests for `BrainBlackboardRenderer` — verifies DTO field rendering with a mock session.
+- **FBT-036** Tests for the tier renderer's root-params arm — verifies DTO field rendering with a mock session.
 - **FBT-037** Tests for `BTreeVisualizerRenderer` — verifies correct node coloring and metadata display.
 
 ### Phase 5: Sample Project
@@ -309,7 +315,7 @@ Fdp.Presentation    -> Fdp.Core (already)
                     -> (new) IEntityAwareImGuiRenderer lives here
 
 Hrot.Presentation   -> Fdp.Presentation, Fdp.Toolkits
-                    -> (new) BrainBlackboardRenderer, BTreeVisualizerRenderer live here
+                    -> (new) the tier renderer's root-params arm, BTreeVisualizerRenderer live here
 ```
 
 No circular dependencies introduced. `Fbt.SourceGen` is consumed only as an analyzer reference.
@@ -330,7 +336,7 @@ No circular dependencies introduced. `Fbt.SourceGen` is consumed only as an anal
 | **Modified** | `FDP/Engine/Fdp.Presentation/ImGui/Renderers/IImGuiRenderer.cs` — add `IEntityAwareImGuiRenderer` |
 | **Modified** | `FDP/Engine/Fdp.Presentation/ImGui/Utils/ComponentReflector.cs` — dispatch extended renderer |
 | **Modified** | `FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorRegistry.cs` — add `ParamsDtoType` to `BehaviorDefinition` |
-| **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BrainBlackboardRenderer.cs` |
+| **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/RootParamsRenderArm.cs` — the tier renderer's root-params arm |
 | **Created** | `Hrot/Engine/Hrot.Presentation/Behavior/BTreeVisualizerRenderer.cs` |
 | **Modified** | `FDP/ExtDeps/FastBTree/FastBTree.sln` — add new projects |
 | **Modified** | `IOS-IG-SimHost.sln` — add `Fbt.Compiler`, `Fbt.SourceGen`, sample project |

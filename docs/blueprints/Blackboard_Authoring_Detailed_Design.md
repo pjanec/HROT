@@ -2,7 +2,7 @@
 
 > **Status:** Detailed design. **v2 — JSON-backed (revised 2026-06-04).** Originally derived from `AI_Editor_Shared_Infrastructure.md` + `BTree_Editor_NodeEditor_Host_Design.md` + `HSM_Editor_NodeEditor_Host_Design.md` + the `design-talk.md` brainstorm sessions.
 > **Audience:** Implementation agent and human reviewer.
-> **Drives:** Visual blackboard authoring across BTree and HSM editors. Adds a Blackboard Variables panel, recursive sub-tree aggregation, opt-in DTO aliasing, field-level synchronization, and **JSON-backed editor-owned blackboard schema** — the param/heavy DTO struct is *generated from JSON at build* (no editor-emitted `.Blackboard.cs`).
+> **Drives:** Visual blackboard authoring across BTree and HSM editors. Adds a Blackboard Variables panel, recursive sub-tree aggregation, opt-in DTO aliasing, field-level synchronization, and **JSON-backed editor-owned blackboard schema** — the params DTO struct and any working-state struct are *generated from JSON at build* (no editor-emitted `.Blackboard.cs`); both are ordinary occurrence slots in the tier ladder, sized to fit (§6.3).
 > **Doesn't cover:** Kernel-side DTO projection / pointer arithmetic (owned by FastBTree / FastHSM). Blueprint AiPrimitive blackboard authoring (the Blueprint editor already supports visual `Params`/`WorkingState` declaration).
 > **Companion code lives in:** `Hrot/Subsystems/AI/Hrot.Editor.AiShared/Blackboard/` for the panel and aggregation services; `Hrot.BTree.Editor/Blackboard/` and `Hrot.Hsm.Editor/Blackboard/` for subsystem-specific projection.
 > **➤ See also (authoritative refinement):** [`Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md`](./Blackboard_Authoring_Addendum_v3_ActionParamAuthoring.md) — action-parameter authoring (whole-DTO binding; per-field on action nodes is rejected) + **node-owned / auto-managed variables** (the "+ Promote to new variable" → hidden, auto-deleted variable model). Refines §11 + §4.
@@ -15,7 +15,7 @@ This DD predates the **Persistence Unification** thread, which makes **JSON the 
 
 **What changes (editor-owned, "Category 2"):**
 - Editor-owned blackboard variables are **serialized into the asset's `.btree.json` / `.hsm.json`** as a `Blackboard` block (mirroring Blueprint `VariableDecl`), **not** emitted to a `{AssetName}.Blackboard.cs` companion file. There is no editor-owned `.cs` for the blackboard.
-- The param-DTO struct (and the optional heavy struct + offset-projection thunks) is **generated from the JSON at build** by the Persistence-Unification Roslyn generator, emitted to `obj/GeneratedFiles` — **not committed**.
+- The params struct (and any working-state structs + offset-projection thunks) is **generated from the JSON at build** by the Persistence-Unification Roslyn generator, emitted to `obj/GeneratedFiles` — **not committed**.
 - **Superseded / obsolete** (these existed only to round-trip a hand-touchable editor-owned `.cs`):
   - §1.3 "C# is the source of truth" → **JSON is the source of truth** for Category 2.
   - §2.1–§2.3 "Category 2 = a marker'd `.cs`" → Category 2 = the `Blackboard` block in the asset JSON. The `HROT_EDITOR_GENERATED` marker still governs *hand-written* `.cs` (Category 1) and generated artifacts, but editor-owned blackboard schema is no longer a marker'd `.cs`.
@@ -33,11 +33,11 @@ This DD predates the **Persistence Unification** thread, which makes **JSON the 
 
 **Verified specifics (all confirmed against the v250+Thread-2 sources):**
 - **Strings:** use `Fdp.Core.FixedString32` / `FixedString64` (blittable, UTF-8 inline). **Never `System.String`** (managed → breaks zero-alloc, AAR replay, replication). Mind the `Fdp.Core.FixedString32` vs `GizmoMap.Contracts.FixedString32` name collision — use `Fdp.Core`; GizmoMap.Contracts stays 0.2.2.
-- **Blittable + fixed-size invariant:** editor-owned blackboards (and any embedded Category-1 struct) contain only blittable value types + fixed-length inline arrays — so the whole `BrainBlackboard`(+`Blackboard1024`) region is byte-copyable for AAR replay and network replication.
+- **Blittable + fixed-size invariant:** editor-owned blackboards (and any embedded Category-1 struct) contain only blittable value types + fixed-length inline arrays — so every occurrence slot is byte-copyable for AAR replay and network replication.
 - **Arrays (Exotic fields, editor-authorable):** `fixed {prim}[N]` for primitives, `[InlineArray(N)]` for blittable structs. Generator must replicate `Sequential` alignment (natural align, capped at 8; pad to 8 before a `fixed long[]`) or editor offsets diverge from the compiler → flight-recorder corruption. **`[InlineArray]` mutation trap:** generated accessors must mutate via `Span<T>` / `MemoryMarshal.CreateSpan` / `Unsafe.As` (never direct index → `ldobj` defensive copy silently lost). Genuinely-exotic layouts (`[FieldOffset]`, unions, interop) stay **Category-1**.
-- **Defaults (editor-authored):** applied in the generated `ParseParamsDelegate` — instantiate DTO → apply defaults → overlay JSON params → `Unsafe.Write`. **Inline tier** only is covered by `BehaviorIngressSystem`; **heavy-tier** defaults need an inline init-check in the execution thunks (verify the 8-byte `StructureHash`; apply if uninitialized), mirroring Blueprint `InitDefaultWorkingState`.
-- **Inline ceiling:** `BehaviorConstants.MaxBehaviorParamByteSize = 100` (`BrainBlackboard` component = 128; tail registers `ExpectedThreatLevel`@120, `Interrupt_MobilityLost`@126, `Interrupt_Reserved`@127). The bin-packer uses **100**.
-- **Registration:** the generator emits a per-asset isolated class tagged **`[BlueprintRegistrar]`** (NOT `[FbtRegistrar]`/`[HsmActionRegistrar]`) with a `Register(BehaviorRegistry, BlueprintRegistryStaging)` signature; it compiles+registers the definition and the blackboard struct's offset thunks — BTree via `BehaviorRegistry.RegisterAction/RegisterCondition(…BlueprintBTree{Action,Condition}Delegate)`, HSM via static `HsmActionDispatcher.RegisterAction/RegisterGuard`. Discovered by `AiHotReloadCoordinator` on both full rebuild and in-process quick reload — **no HR-001 change**. (Kernel hooks `BlackboardManaged`, `HeavyDtoType`, `[BlackboardDtoStruct]`, `[BlackboardReadOnly/ReadWrite]` already exist.)
+- **Defaults (editor-authored):** applied in the generated `ParseParamsDelegate` — instantiate DTO → apply defaults → overlay JSON params → `Unsafe.Write`. The **params region** is covered by `BehaviorIngressSystem` at assignment; **working-state slot** defaults need an init-check in the execution thunk (verify the slot's 8-byte `StructureHash`; apply if uninitialized), mirroring Blueprint `InitDefaultWorkingState`.
+- **Ceiling:** none below the tier payload — **176 / 800 / 3 808 / 16 096 B** for `BlueprintBlackboard256 / 1024 / 4096 / 16384`. The bin-packer sizes each slot from its own declaration and lets the allocator promote the entity when a tier fills.
+- **Registration:** the generator emits a per-asset isolated class tagged **`[BlueprintRegistrar]`** (NOT `[FbtRegistrar]`/`[HsmActionRegistrar]`) with a `Register(BehaviorRegistry, BlueprintRegistryStaging)` signature; it compiles+registers the definition and the blackboard struct's offset thunks — BTree via `BehaviorRegistry.RegisterAction/RegisterCondition(…BlueprintBTree{Action,Condition}Delegate)`, HSM via static `HsmActionDispatcher.RegisterAction/RegisterGuard`. Discovered by `AiHotReloadCoordinator` on both full rebuild and in-process quick reload — **no HR-001 change**. (Kernel hooks `BlackboardManaged`, `[BlackboardDtoStruct]`, `[BlackboardReadOnly/ReadWrite]` already exist.)
 
 **Sequencing:** the Persistence-Unification thread lands the JSON substrate first; this feature (the Slice 1.5 tasks below) is implemented/activated **on top of it**. The slice-plan §15 task list stays valid except the persistence-coupled tasks (the `.Blackboard.cs` emitter, source-text parser/classification, State-B/C handling, layout-method order/sync entries), which are **superseded** by the JSON substrate.
 
@@ -45,13 +45,13 @@ This DD predates the **Persistence Unification** thread, which makes **JSON the 
 - **Orchestrator emission is generator-side, not editor-side** (supersedes §14.2/§14.3 wording). The editor only serializes `SubtreeSyncBinding` / alias data into the asset JSON; the Roslyn generator (and the in-process Quick Reload emit core) produces the `{AssetName}.Orchestrators.g.cs` thunks at build into `obj/`. The editor never writes orchestrator `.cs`.
 - **Approach-B sync of fixed-array fields** (§8.3): when a Sync In/Out binding targets a `fixed`/`[InlineArray(N)]` field, the generated orchestrator MUST copy via `Span<T>` / `MemoryMarshal.CreateSpan` / `Unsafe.CopyBlock` — never plain assignment or element indexing (the `ldobj` defensive-copy trap silently drops the write).
 - **Suppressions persist to JSON, not the layout method** (supersedes §9.3 `.SuppressBlackboardConflict()` and §12.5 unused-suppression persistence). They are first-class fields in the asset JSON (Persistence-Unification schema §5).
-- **Heavy-tier default init:** lazy `StructureHash` init-in-thunk is **safe under the current kernel** — `Fhsm.Kernel` ticks regions and instances **single-threaded** (`HsmKernelCore` `for` loops; no `Parallel`/jobs/threads), so two regions can't init the same `Blackboard1024` slot simultaneously. **Assumption recorded:** if a parallel HSM scheduler is ever added, revisit. **Preferred (more robust) alternative:** initialize heavy defaults at **component provisioning** time (when `BehaviorIngressSystem` attaches `Blackboard1024`), removing the order/threading dependence entirely — confirm with the architect whether provisioning can zero+default-init the heavy payload. If lazy-init is retained, the Approach-B orchestrator (which *is* the execution thunk for a heavy synced sub-DTO) must perform the init-check before any Sync In/Out (R1-4).
-- **`HeavyDtoType` is not a reference loop:** the param/heavy struct AND the `[BTreeDefinition(HeavyDtoType=typeof(...))]`/`[HsmDefinition(...)]` thunk are emitted by the **same** generator into the **same** compilation, so `typeof` resolves (no ordering problem). The generator must co-emit them in one unit.
+- **Working-state default init:** lazy `StructureHash` init-in-thunk is **safe under the current kernel** — `Fhsm.Kernel` ticks regions and instances **single-threaded** (`HsmKernelCore` `for` loops; no `Parallel`/jobs/threads), so two regions can't init the same slot simultaneously. **Assumption recorded:** if a parallel HSM scheduler is ever added, revisit. If lazy-init is retained, the Approach-B orchestrator (which *is* the execution thunk for a synced sub-DTO) must perform the init-check before any Sync In/Out (R1-4).
+- **The state-struct reference is not a loop:** the params/state structs AND the `[BTreeDefinition]`/`[HsmDefinition]` thunk that names them are emitted by the **same** generator into the **same** compilation, so `typeof` resolves (no ordering problem). The generator must co-emit them in one unit.
 - **Offsets are extracted, not predicted (AAR integrity):** the editor bin-packer's `Sequential`-alignment math is **advisory** (for the live memory-budget UI). The **authoritative** layout — and the AAR flight-recorder schema — must be derived from the *actual compiled struct layout* (reflected `Marshal.OffsetOf` / `Marshal.SizeOf` after build/quick-reload), never from the editor's predicted offsets, to prevent silent offset drift.
 - **Aggregation discovery latency (known characteristic):** because `ActionSchemaExporter` reflects the loaded assembly, newly-authored Blueprint param structs become visible to the BTree/HSM aggregation walker only after a reload bakes them (§10.7 rebuild on `IAssetCatalog.Changed`). Acceptable; a future enhancement could read schemas from JSON to avoid the reload.
 
 ### v2.2 — architect re-review confirmations (closes PU-1001 re-review)
-- **Tier/offset are recomputed, not persisted (Q1).** The generator re-runs bin-packing from the **JSON declaration (array) order** using `Sequential` alignment math + the 100-byte `MaxBehaviorParamByteSize` ceiling; spill to `Blackboard1024` is deterministic. No tier hint is stored in JSON. **Reconciliation with the "extract, don't predict" rule:** the math *drives* generation and the editor's memory-budget UI, but the **authoritative** layout for AAR/runtime projection is the **reflected compiled-struct layout** (`Marshal.OffsetOf`/`SizeOf` post-build). Build-time should **validate** predicted == reflected and emit a diagnostic on any mismatch (guards against a subtle math drift silently corrupting AAR).
+- **Slot/offset are recomputed, not persisted (Q1).** The generator re-runs bin-packing from the **JSON declaration (array) order** using `Sequential` alignment math; which slot a variable lands in follows deterministically from its role. No slot hint is stored in JSON. **Reconciliation with the "extract, don't predict" rule:** the math *drives* generation and the editor's memory-budget UI, but the **authoritative** layout for AAR/runtime projection is the **reflected compiled-struct layout** (`Marshal.OffsetOf`/`SizeOf` post-build). Build-time should **validate** predicted == reflected and emit a diagnostic on any mismatch (guards against a subtle math drift silently corrupting AAR).
 - **Alias + sync bindings are first-class JSON (Q2).** `SubtreeSyncBinding` and `BlackboardAliasBinding` collections serialize directly into the asset JSON (no dedicated schema beyond Thread-1's reserved fields); the generator parses them to emit orchestrators. Confirms the §8/§14.6 supersession.
 - **Category-2 panel renders from the JSON in-memory model only (Q3).** The Variables panel binds to `IBlackboardManagedAsset.BlackboardVariables` loaded from JSON; **no reflection of the generated struct** for Category-2 (that would reintroduce the compilation-lockout). Reflection (`BlackboardSchemaBuilder` / `[BlackboardDtoStruct]` discovery) is **Category-1 only**, surfaced read-only.
 
@@ -98,7 +98,7 @@ This DD lands four things:
 ### 1.2 What this DD does NOT change
 
 - The kernel's DTO projection model is unchanged. Generic actions still receive `ref TValue` slices via `Unsafe.AddByteOffset` pointer math.
-- The BrainBlackboard / Blackboard1024 component layout is unchanged.
+- The occurrence-store component layout is unchanged.
 - `BehaviorIngressSystem`'s JSON parameter parsing is unchanged.
 - The `[BTreeAction]` / `[HsmAction]` / `[SharedAiAction]` attribute model is unchanged. Actions still declare their DTO via the first `ref` parameter of their method signature.
 - Existing hand-written blackboards continue to work without migration. The editor recognizes them (Category 1, see §2), lets designers wire action nodes to them via the picker, but never writes them.
@@ -326,7 +326,7 @@ A new docked window registered as `ai_blackboard_variables`, available in both B
 ┌──────────────────────────────────────────────────────────┐
 │ ≡ BLACKBOARD VARIABLES — OrcGuard_BT                      │
 ├──────────────────────────────────────────────────────────┤
-│  Layout: Sequential                    Memory: 78 / 100 B │
+│  Layout: Sequential                  Memory: 78 / 16096 B │
 ├──────────────────────────────────────────────────────────┤
 │ ▼ DEFINED VARIABLES                                       │
 │                                                           │
@@ -358,12 +358,12 @@ A new docked window registered as `ai_blackboard_variables`, available in both B
 │       Required by: [Reload_BT (Subtree)]                  │
 │                                                           │
 ├──────────────────────────────────────────────────────────┤
-│ Master DTO: BrainBlackboard.BehaviorParameters (inline)   │
-│ Heavy DTO:  Blackboard1024 (not allocated)                │
+│ Params:  root params slot        (48 / 16096 B)          │
+│ State:   working-state slots       (none declared)       │
 └──────────────────────────────────────────────────────────┘
 ```
 
-The header shows the asset name, the struct's layout kind, and a live memory budget indicator. The body has two sections: **Defined Variables** (what the asset's blackboard currently declares) and **Unbound Sub-Tree Requirements** (what nested sub-behaviors need but the master hasn't yet bound). The footer shows the current ECS placement decided by the bin-packer (§6).
+The header shows the asset name, the struct's layout kind, and a live memory budget indicator. The body has two sections: **Defined Variables** (what the asset's blackboard currently declares) and **Unbound Sub-Tree Requirements** (what nested sub-behaviors need but the master hasn't yet bound). The footer shows the occurrence slots the bin-packer assigned (§6).
 
 ### 4.2 Variable glyph semantics
 
@@ -427,13 +427,19 @@ If a hand-introduced read-only field carries a `[FieldOffset]` attribute, the fi
 
 ### 4.7 Memory budget indicator
 
-The header shows `Memory: X / Y B` where X is the current total used and Y is the budget for the current tier:
+The header shows `Memory: X / Y B` for the asset's **params region**. Y is the budget the bin-packer
+enforces — `BlackboardBinPacker.MaxInlineBytes`, **16 096 bytes**: the largest occurrence tier's
+payload. The bar fills as variables are added, turns amber at 80%, and red when the packer would
+refuse.
 
-- If the asset has only the master DTO (no aggregation), Y = `MaxBehaviorParamByteSize` (100 bytes, the BrainBlackboard parameter ceiling).
-- If aggregation adds sub-tree DTOs that bin-pack to inline, Y = 100 bytes total.
-- If aggregation overflows to heavy, two indicators appear: `Inline: a / 100 B` and `Heavy: b / 928 B`.
+⭐ **That budget IS the storage bound.** `CE-307` (`2026-09-22`) set `MaxInlineBytes` to the largest
+tier's payload, so the bar refuses exactly what no tier could seat. At runtime the params region is an
+occurrence slot sized to `RootParamsBytes(def)`, placed by the partition allocator in whichever tier
+fits — **176 / 800 / 3 808 / 16 096 B** of payload for `BlueprintBlackboard256 / 1024 / 4096 / 16384`,
+promoted up the ladder rather than refused.
 
-The bar visually fills as variables are added. At 80% full, the bar turns amber; at 100%, red. Over 100% inline, the bin-packer (§6) auto-promotes to heavy and the heavy indicator appears.
+⭐ `CE-314` removed the packer's inline/heavy split in the same pass: `MaxHeavyBytes` and the
+`HeavyMemoryExceeded` warning are gone, and `PackResult` no longer carries a heavy arm.
 
 ---
 
@@ -602,16 +608,14 @@ The designer can drag both onto the same defined variable to alias (Approach A),
 
 ## 6. Memory-tier bin-packing
 
-### 6.1 The two tiers
+### 6.1 The two slot kinds
 
-The framework provides two memory tiers for blackboard data:
+All blackboard data lives in the entity's one occurrence-store component — `BlueprintBlackboard256`, `1024`, `4096` or `16384`, whichever is smallest and still fits — partitioned into slots by `BlueprintBlackboardPartitions`. The bin-packer decides which **slot** a variable belongs to, not which component:
 
-- **Inline tier:** `BrainBlackboard.BehaviorParameters` — 100 bytes (`MaxBehaviorParamByteSize`) of fast inline memory in the entity's `BrainBlackboard` ECS component. Always present on an AI entity.
-- **Heavy tier:** `Blackboard1024.Memory` — 1024 bytes (928 usable after header) in a separate generic component that's only attached when needed. Allocated on-demand by `BehaviorIngressSystem`.
+- **The root params slot:** the parameters of the behaviour assigned to the entity. Written once per assignment by `BehaviorIngressSystem`; located at runtime by `RootParamsAccess`.
+- **Working-state slots:** one per stateful node, keyed `{fqn}@{offset}@{slotKey}`. Attached on first dispatch and persisted across ticks.
 
-The convention from earlier design rounds: **top-level master parameters always go to the inline tier**; sub-tree aggregated parameters can spill to the heavy tier. The bin-packer implements this convention.
-
-**Role matters, not just size.** The inline-vs-heavy choice above is for **params** (role = *input*): small stays inline, large spills heavy. **Mutable *state* variables** (role = *state*: local / shared working state — `BTree_AiActionParameterBinding_Detailed_Design.md §4.4`) are **always heavy regardless of size**, because they must persist across ticks and be slot-keyed by scope (`Node`/`Behavior`/`Entity`), which the transient inline region cannot host. So a variable's tier is decided by `(role, size)`: `input` → size-driven; `state` → always heavy.
+**Role decides the slot; size decides only the tier.** Variables with role = *input* pack into the params slot of the occurrence that declares them. Variables with role = *state* (local / shared working state — `BTree_AiActionParameterBinding_Detailed_Design.md §4.4`) get their own working-state slot regardless of size, because they must persist across ticks and be slot-keyed by scope (`Node`/`Behavior`/`Entity`). Size never changes which slot a variable lands in — it only decides which tier the entity is promoted to.
 
 ### 6.2 The bin-packing algorithm
 
@@ -626,13 +630,12 @@ public sealed class BlackboardBinPacker
 }
 
 public sealed record PackResult(
-    IReadOnlyList<PackedVariable> InlineFields,    // go to BehaviorParameters
-    IReadOnlyList<PackedVariable> HeavyFields,     // go to Blackboard1024
-    int InlineBytesUsed,
-    int InlineBytesAvailable,    // 100
-    int HeavyBytesUsed,
-    int HeavyBytesAvailable,     // 928
-    bool RequiresHeavyComponent,
+    IReadOnlyList<PackedVariable> ParamsFields,    // go to the occurrence's params slot
+    IReadOnlyList<PackedVariable> StateFields,     // go to working-state slots
+    int ParamsBytesUsed,
+    int StateBytesUsed,
+    int ParamsBudget,            // BlackboardBinPacker.MaxInlineBytes
+    bool DeclaresWorkingState,
     IReadOnlyList<PackWarning> Warnings);
 
 public sealed record PackedVariable(
@@ -644,50 +647,47 @@ public sealed record PackedVariable(
 The algorithm:
 
 1. **Sort variables by category.** Master variables (declared on the asset itself) come first, then aggregated sub-tree variables.
-2. **Master variables always go inline.** This is the convention; the bin-packer enforces it. If the masters alone exceed 100 bytes, that's a hard error: "Master DTO exceeds 100-byte inline budget. Reduce or restructure." The packer surfaces this as a `PackWarning.Error`.
-3. **For aggregated variables, try inline first.** Iterate aggregated vars in declared order. For each, if it fits in the remaining inline budget (≤ 100 bytes total), place it inline. Otherwise, place it in heavy.
-4. **Compute byte offsets.** For `LayoutKind.Sequential` (default), offsets are sequential within each tier, accounting for C# struct alignment rules (8-byte fields aligned to 8, 4-byte to 4, etc.). The packer uses the same alignment math `Marshal.SizeOf` uses, ensuring runtime layout matches.
-5. **Emit the result.** The editor's Generated.cs file emit (§3.3) uses the `InlineFields` list for the master struct; the `HeavyFields` list goes to a separate `{AssetName}.HeavyBlackboard.cs` companion file if `RequiresHeavyComponent` is true.
+2. **Master variables go in the params region.** The bin-packer enforces `BlackboardBinPacker.MaxInlineBytes` (16 096 B, §4.7). If the masters alone exceed it, that's a hard error: "Master DTO exceeds the largest tier's payload. Reduce or restructure." The packer surfaces this as a `PackWarning.Error`.
+3. **Aggregated `Role=Input` variables join the params region** in declared order while they fit the same budget. A `Role=State` variable never joins it — it gets its own working-state slot regardless of size, because it must survive across ticks and be keyed by scope.
+4. **Compute byte offsets.** For `LayoutKind.Sequential` (default), offsets are sequential within each slot, accounting for C# struct alignment rules (8-byte fields aligned to 8, 4-byte to 4, etc.). The packer uses the same alignment math `Marshal.SizeOf` uses, ensuring runtime layout matches.
+5. **Emit the result.** The editor's Generated.cs emit (§3.3) builds the params struct from `ParamsFields`; each `StateFields` group becomes a working-state struct the owning thunk attaches its slot for on first dispatch.
 
-### 6.3 Heavy-tier promotion
+### 6.3 Declaring working state
 
-The bin-packer promotes to heavy as a last resort, but the promotion is transparent. The designer sees the Variables panel showing the breakdown:
+A `Role=State` variable gets its own working-state slot rather than joining the params region. That is transparent to the designer, who sees the Variables panel breakdown:
 
 ```
-Inline: 78 / 100 B
-Heavy:  240 / 928 B
+Params: 78 B
+State:  240 B
+Tier:   318 / 800 B (BlueprintBlackboard1024)
 ```
 
-…and the editor handles the rest: emitting a second .cs file for the heavy struct, registering the heavy type with the source generator so `BehaviorIngressSystem` knows to provision a `Blackboard1024` component when this behavior is assigned.
-
-The asset's `[BTreeDefinition(...)]` attribute gains a `HeavyDtoType = typeof(OrcGuard_BT_HeavyBlackboard)` argument when the heavy struct is in use. This is what the source generator and runtime pick up.
+…and the editor handles the rest: emitting the state struct and registering it with the source generator so the thunk that owns it attaches its slot on first dispatch.
 
 ### 6.4 What happens when variables move tiers
 
-A design hazard: if the inline tier is at 95 bytes and the designer adds a 20-byte variable, that variable spills to heavy. Subsequent aggregated variables might or might not also spill, depending on the packing order. This means **the tier a variable lives in can change as the designer edits**.
+A design hazard: adding a variable can push the asset's total past what the entity's current tier can hold, and the allocator promotes the entity to the next tier. This means **the tier an entity runs in can change as the designer edits**, and a promotion costs payload every occurrence on that entity shares.
 
-This isn't a problem for the kernel (the pointer projection respects whatever tier the source generator emits), but it's worth being explicit to the designer. The panel surfaces tier in each row's metadata:
+This isn't a problem for the kernel (every projection is relative to the slot's own base, which the slot table supplies), but it's worth being explicit to the designer. The panel surfaces slot and offset in each row's metadata:
 
 ```
-◆ FlankTactics  MoveToLoc… (16 B, inline @ 32)
-◆ ExtraData     ExtraParams (64 B, heavy @ 0)    ← spilled to heavy
+◆ FlankTactics  MoveToLoc… (16 B, params @ 32)
+◆ ScanProgress  ScanState   (64 B, state slot @ 0)
 ```
 
-Each variable shows both its size and its tier+offset.
+Each variable shows both its size and its slot+offset.
 
 ### 6.5 Reordering for tighter packing
 
-The designer can manually reorder variables to keep semantically-related ones together or to pack more efficiently. The panel allows drag-reorder within each tier.
+The designer can manually reorder variables to keep semantically-related ones together or to pack more efficiently. The panel allows drag-reorder within each slot.
 
-A "Re-pack" toolbar action runs the bin-packer with an optimization pass: it sorts variables to minimize alignment padding within the inline tier, then re-emits. This is offered as a one-shot user action; the editor doesn't auto-repack on every save because byte offsets are part of the source-code-visible state and unexplained reorderings would be annoying in code review.
+A "Re-pack" toolbar action runs the bin-packer with an optimization pass: it sorts variables to minimize alignment padding within each slot, then re-emits. This is offered as a one-shot user action; the editor doesn't auto-repack on every save because byte offsets are part of the source-code-visible state and unexplained reorderings would be annoying in code review.
 
 ### 6.6 What about the `BehaviorIngressSystem` parsing path?
 
-`BehaviorIngressSystem` parses incoming JSON parameters into a stack-allocated shadow `BrainBlackboard`, then commits on success. The shadow copy is fixed at 128 bytes (matching `BrainBlackboard`'s component size). The bin-packer's inline tier is bounded at 100 bytes specifically because of this — `BehaviorIngressSystem`'s commit logic preserves the system-level fields at the tail of `BrainBlackboard` (`ExpectedThreatLevel`, `Interrupt_MobilityLost`, etc.).
+`BehaviorIngressSystem` parses incoming JSON parameters into a `stackalloc` shadow buffer, then commits into the entity's root params slot on success, so a malformed payload leaves the running behaviour untouched. The shadow is sized from the behaviour's own `RootParamsBytes(def)` — there is no fixed shadow size and no system-level tail to preserve: `ExpectedThreatLevel` and the interrupt registers are their own component, `BrainInterrupts`.
 
-The bin-packer treats those tail-bytes as off-limits. The editor's panel never offers them as authorable variables. They remain part of the runtime convention, not part of the editor-managed DTO.
-
-The heavy tier has no equivalent shadow-copy mechanism because heavy components are pre-allocated and JSON-parameter-parsing populates them in-place. The 928-byte usable budget accounts for the `Blackboard1024`'s internal header reserved for runtime use.
+Working-state slots have no equivalent shadow mechanism: they are attached and zeroed on first dispatch and mutated in place. The tier's usable payload figure already excludes the store's 32-byte header and its slot table.
 
 ---
 
@@ -982,7 +982,7 @@ public sealed record ActionSchemaEntry(
     Type DtoType,                        // typeof(FireAtTargetParams) — the first ref parameter
     ActionHosting Hostings,              // BTreeAction | HsmAction | SharedAi | Heavy
     BlackboardAccess ParamAccess,        // ReadOnly | ReadWrite | Unknown
-    Type? HeavyDtoType);                 // for [SharedAiHeavyAction]; null otherwise
+    Type? ExtraComponentDtoType);        // for [SharedAiHeavyAction]; null otherwise
 
 [Flags]
 public enum ActionHosting
@@ -1007,7 +1007,7 @@ The exporter reflects the loaded assembly on editor startup and after every hot 
    - Verify the expected shape (first parameter is `ref TValue` for a recognized TValue; subsequent parameters match the `NodeLogicDelegate` or HSM dispatch convention).
    - Extract `TValue` as the `DtoType`.
    - Read the `[BlackboardReadOnly]` / `[BlackboardReadWrite]` annotation on the parameter, if any, for `ParamAccess`. Otherwise `Unknown`.
-   - For `[SharedAiHeavyAction]`, the method also has a heavy parameter; extract that as `HeavyDtoType`.
+   - For `[SharedAiHeavyAction]`, the method also has an extra-component parameter; extract that as `ExtraComponentDtoType`.
    - Combine the attribute set into the `Hostings` flag value.
 3. Build the FQN as `{DeclaringType.FullName}.{Method.Name}`.
 4. Index by FQN and by short name. The picker UIs typically search by short name with fuzzy match; the aggregator looks up by FQN (canonical identity).
@@ -1127,7 +1127,7 @@ For Subtree nodes, the inspector's binding section is the Approach B Parameter S
 
 The variables panel maintains the master's blackboard memory. Designers add variables; they may stop using them later (delete the node that referenced them) without remembering to remove the variable. Over time, the blackboard accumulates dead variables — bytes consumed but never read.
 
-This isn't a runtime correctness issue (dead variables are just unused memory) but it's a cleanliness issue. With the bin-packer (§6) and the 100-byte inline budget, dead variables can push live variables into the heavy tier prematurely.
+This isn't a runtime correctness issue (dead variables are just unused memory) but it's a cleanliness issue. With the bin-packer (§6), dead variables can push live variables past the inline budget prematurely, triggering an avoidable heavy-tier promotion.
 
 ### 12.2 Detecting unused variables
 
@@ -1147,7 +1147,7 @@ public enum BlackboardDiagnosticCode
     UnboundActionNode,           // Action node with null ExpressionTargetField
     UnboundSubTreeRequirement,   // Subtree has unresolved DTO requirement
     CrossRegionBlackboardConflict, // §9
-    InlineMemoryExceeded,        // Master vars exceed 100B
+    InlineMemoryExceeded,        // Master vars exceed the largest tier's payload
     DuplicateAliasAcrossRegions, // §7.7
 }
 ```
@@ -1294,7 +1294,7 @@ In `Hrot.BTree.Editor.Blackboard` and `Hrot.Hsm.Editor.Blackboard`:
 Three small additive changes to FastBTree / FastHSM (analogous to the kernel additions in earlier phases):
 
 - **`[BlackboardReadOnly]` and `[BlackboardReadWrite]` attributes** — optional annotations on action method parameters indicating access patterns. Live in a shared `Fbt.Annotations` / `Fhsm.Annotations` namespace. Both kernels ignore them at runtime; only the editor's schema exporter reads them. Default behavior (no attribute) is `ReadWrite` for validator conservatism.
-- **Heavy DTO type registration via `[BTreeDefinition]` and `[HsmDefinition]`** — add optional `HeavyDtoType = typeof(X)` argument. Source generator wires this into the runtime so `BehaviorIngressSystem` provisions a `Blackboard1024` when required.
+- **State struct registration via `[BTreeDefinition]` and `[HsmDefinition]`** — the source generator wires the declared working-state type into the runtime so the owning thunk attaches its slot on first dispatch.
 - **`[BlackboardDtoStruct]` marker attribute** — optional, on user-defined DTO structs that should appear in the action-type-picker dropdown. The editor's schema exporter uses this to filter "blackboard-usable structs" from all types in the assembly. Without it, the exporter falls back to heuristic (used as the first ref parameter of any registered action method).
 
 ### 14.6 No required asset-format changes
@@ -1333,21 +1333,21 @@ Acceptance: opening an asset shows its reflected blackboard fields in the panel;
 - **TASK-BB-1b-01** — `BlackboardDtoEmitter` producing the new `HROT_EDITOR_GENERATED` file. (§3.3)
 - **TASK-BB-1b-02** — Add Variable workflow + Remove Variable. (§4.3, §4.4)
 - **TASK-BB-1b-03** — Variable rename via refactor service integration. (§11.4)
-- **TASK-BB-1b-04** — `BlackboardBinPacker` with inline-only mode (no heavy promotion yet). (§6 partial)
+- **TASK-BB-1b-04** — `BlackboardBinPacker` with params-region-only mode (no working-state slots yet). (§6 partial)
 - **TASK-BB-1b-05** — Asset-level `BlackboardManaged = true` flag wiring. (§3.1)
 - **TASK-BB-1b-06** — Round-trip determinism property tests (RT-1, RT-2). (§3.5)
 
 Acceptance: a designer can create an asset with `BlackboardManaged = true`, visually add variables of all primitive and known DTO types, rename them, remove them, save and reload with byte-identical round-trip on no-op saves.
 
-### Slice 1.5c — Recursive aggregation + heavy tier
+### Slice 1.5c — Recursive aggregation + working-state slots
 
 - **TASK-BB-1c-01** — `IBlackboardAggregator` for BTree (Subtree recursion). (§5.2)
 - **TASK-BB-1c-02** — `IBlackboardAggregator` for HSM (state-action enumeration + sub-BTree recursion). (§5.2)
 - **TASK-BB-1c-03** — Unbound Sub-Tree Requirements panel section. (§4.5)
-- **TASK-BB-1c-04** — Heavy-tier bin-packing + `Blackboard1024` companion file emit. (§6.3)
+- **TASK-BB-1c-04** — working-state bin-packing + state-struct companion file emit. (§6.3)
 - **TASK-BB-1c-05** — Memory budget indicator with tier breakdown. (§4.7)
 
-Acceptance: a master asset with nested subtrees surfaces aggregated requirements in the panel; promoting unbound to a new variable works; aggregations exceeding 100 inline bytes auto-promote to heavy with correct companion-file emit.
+Acceptance: a master asset with nested subtrees surfaces aggregated requirements in the panel; promoting unbound to a new variable works; a `Role=State` aggregation gets its own working-state slot with correct companion-struct emit.
 
 ### Slice 1.5d — Approach A whole-DTO aliasing
 
@@ -1408,7 +1408,7 @@ The following are explicit non-goals for Slice 1.5, deferred to later polish or 
 - Automatic DTO-type inference from same-named fields across unrelated DTOs.
 - Multi-asset shared blackboard variables (across-asset aliasing — would require a new top-level shared blackboard concept).
 - Visual data-pin wiring of DTO fields on the canvas (the Option-2 NodeEditor graph variant from the design-talk; the Inspector-based approach is sufficient for v1).
-- Generation of separate per-region heavy blackboards (today, all heavy fields share one `Blackboard1024`).
+- Generation of separate per-region working-state structs (today, an asset's state fields share one slot).
 - **Tier B Blueprint adoption** — migrating Blueprint to the C# Category 1/2 ownership model is deferred indefinitely per the trigger conditions in Slice 1.5g and §17.
 
 ---
@@ -1421,7 +1421,7 @@ In `Hrot.Editor.AiShared.Blackboard.Tests`:
 
 - **`ActionSchemaExporterTests`** — given a fixture assembly with `[BTreeAction]` / `[HsmAction]` / `[SharedAiAction]` methods, verify FQN keys, DTO type extraction, hosting flag composition, `[BlackboardReadOnly]` annotation reading.
 - **`BlackboardAggregatorTests`** — fixtures with nested Subtree references, mixed BTree/HSM, cycle detection, unresolved subtree handling.
-- **`BlackboardBinPackerTests`** — alignment correctness, master-vars-always-inline rule, heavy tier promotion threshold, mixed master+aggregated packing.
+- **`BlackboardBinPackerTests`** — alignment correctness, the masters-first rule, the params budget threshold, mixed master+aggregated packing.
 - **`BlackboardDtoEmitterTests`** — round-trip determinism property tests (RT-1 through RT-4 from §3.5).
 - **`BlackboardSourceTextParserTests`** — classification of fixture .cs files into editor-managed / read-only-passthrough categories.
 - **`CrossRegionConflictDetectorTests`** — fixtures with parallel HSM states writing to same variable, sync-out collisions, parallel-but-non-aliased cases (no conflict).
@@ -1463,7 +1463,7 @@ Manual checklist:
 
 A handful of items remain open or are worth flagging for future review. Earlier drafts of this DD had a longer list; most were resolved in design review with the project owner and the architect.
 
-1. **Bin-packing overflow handling.** Currently the panel surfaces `InlineMemoryExceeded` as a persistent Warning when master vars exceed 100 bytes, but doesn't refuse the variable addition. The designer can break the layout temporarily while restructuring. Confirm this is the right friction level; the alternative is to refuse adds that would overflow.
+1. **Bin-packing overflow handling.** Currently the panel surfaces `InlineMemoryExceeded` as a persistent Warning when master vars exceed what any tier could seat, but doesn't refuse the variable addition. The designer can break the layout temporarily while restructuring. Confirm this is the right friction level; the alternative is to refuse adds that would overflow.
 
 2. **`[BlackboardDtoStruct]` attribute discoverability.** §10 lists this as an optional attribute on user-defined DTO structs. The schema exporter auto-detects DTO types via action signatures; the attribute is for pre-declared types not yet referenced. Default behavior — auto-detect plus optional attribute — was confirmed in design review. The attribute is documented but not required.
 

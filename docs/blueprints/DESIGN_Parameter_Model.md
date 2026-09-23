@@ -1,15 +1,18 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
+updated: 2026-09-22
 current-answer: the whole document; it is authoritative for parameters and storage.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
   READ 4.7 FIRST for hosted occurrences: as of 2026-09-21 (E3a) a HOSTED occurrence's params
-  live in ITS OWN OCCURRENCE SLOT, not in the shared BrainBlackboard region.
-known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21).
-  It remains true for a ROOT behaviour, whose params still live in BrainBlackboard - and that
-  too is scheduled to move (DESIGN_Hsm_Storage_Model's supersession banner). Do not quote 4.1's
-  params column as the whole live state; quote 4.7 for anything hosted.
+  live in ITS OWN OCCURRENCE SLOT. As of 2026-09-22 (P4) a ROOT behaviour's params do too -
+  the root params occurrence slot, keyed OccurrenceSlotKey.ComputeRootParamsKey and computed
+  rather than stored - so there is no shared blackboard params region left at all.
+known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a, 2026-09-21)
+  and for ROOT occurrences by P4 (2026-09-22, DESIGN_Occurrence_Scoped_Storage.md §30.14): a
+  root behaviour's params now live in the root params occurrence slot, same as a hosted
+  occurrence's. Do not quote 4.1's params column as the whole live state; quote 4.7 for
+  anything hosted, and §30.14 there for the root slot.
   4.5/4.5a describe CE-298 as FILED-NOT-BUILT: that is HISTORY as of 2026-09-21, see 4.7.
   (none-otherwise) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
@@ -51,12 +54,12 @@ related-designs:
 
 | the wrong conclusion | the truth | evidence |
 |---|---|---|
-| *"the 100-byte region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.BlackboardLayoutType` *(named `ParamsDtoType` until `CE-235`)* is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
-| *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in the same 100 bytes | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
-| *"the heavy tier moves params"* | ⛔ **heavy extends STATE, never INPUT** | `EmitHeavySharedAiAdapter` emits **both**: params from `bb.BehaviorParameters`, heavy from the component |
+| *"the params region is carved up per action"* | ⭐ **ONE params struct per BEHAVIOUR.** An action **binds a FIELD** of it | `BehaviorDefinition.BlackboardLayoutType` *(named `ParamsDtoType` until `CE-235`)* is singular; `[SharedAiAction(typeof(Dto),"Field")]` |
+| *"blueprints keep inputs in allocated space"* | ⛔ **A blueprint has params only when `Dispatch == AiPrimitive`**, and they land in that root behaviour's own root params slot, same as any other | `asset.Parameters` has ONE emitter: `AiPrimitiveEmitter.EmitParamsStruct`. `InstanceEmitter` never emits them |
+| *"a larger tier moves params"* | ⛔ **there is no heavy tier — an occurrence's params and its working state are both ordinary occurrence slots, differing only in key** | `EmitHeavySharedAiAdapter` emits **both**: params from the root params slot, "heavy" from an ordinary extra ECS component |
 | *"`BP1031` means nothing supplies params"* | ⛔⛔ **RETIRED — the rail is GONE.** *(Batch 70, `Stage2_Validate.cs:168`; tracker `BP-278`)*. ⚠ It was true of `Instance` dispatch only, and that is why it went | `Stage2_Validate.cs:168` · `BP-278` |
 | *"`Q-k` means blueprint variables differ"* | ⛔ **It describes a MISSING MOVE IMPLEMENTATION**, not a semantic difference | §5.2 |
-| *"copy the whole `BrainBlackboard` per occurrence"* | ⛔ **params area only** — interrupts/soft-advice are entity facts | §4.3 |
+| *"copy the whole occurrence-scoped region per occurrence"* | ⛔ **params area only** — interrupts/soft-advice are entity facts, in `BrainInterrupts` | §4.3 |
 | *"`RegisterWorldSingleton` is a service locator"* | ⛔ **it registers a BLUEPRINT to tick as a singleton** | `BlueprintRegistry.RegisterWorldSingleton(blueprintId, tier)` |
 | *"`paramIndex` is a per-node slot"* | ⛔ **the ordinal among distinct METHOD NAMES in the tree** | `TreeCompiler:155` — `GetOrAddMethodName(...)` |
 | *"unreferenced ⇒ delete"* | ⛔ **search `.dev/` first** — `.claude/CLAUDE.md` | got wrong **3×** in this programme |
@@ -85,11 +88,11 @@ section. ⛔ **No new variable owner is needed.**
 
 | region | holds | size |
 |---|---|---|
-| **`BrainBlackboard.BehaviorParameters`** @0 | ⭐ **one params struct, for one occurrence** | **100 B** (`MaxBehaviorParamByteSize`), cap enforced 3× — last is a runtime `throw` |
-| `BrainBlackboard` tail @120/126/127 | ⭐ **entity facts** — `ExpectedThreatLevel`, 2 interrupts | ⛔ **unrelated to params** |
-| `Blackboard1024.Memory` | AiPrimitive / shared-AI **state** — hash @0, state @8 | 1024 B |
-| `BlueprintBlackboard{1024,4096,16384}` | ⭐ **Instance state — the allocator**: header 32 + slot table 4×16 + payload | **928 / 3936 / 16368 B** |
-| a managed heavy component | `[SharedAiHeavyAction]` managed state | unbounded |
+| **the root params occurrence slot** | ⭐ **one params struct, for one occurrence** — keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`, computed, never stored | up to **16 096 B** (the largest tier's payload), enforced structurally by the partition allocator |
+| `BrainInterrupts` component | ⭐ **entity facts** — `ExpectedThreatLevel`, 2 interrupts | ⛔ **unrelated to params** |
+| node working-state occurrence slots (`BlueprintBlackboard{256,1024,4096,16384}` tier ladder) | AiPrimitive / shared-AI **state**, keyed `{fqn}@{offset}@{slotKey}` | shares the tier's payload (row below) |
+| `BlueprintBlackboard{256,1024,4096,16384}` | ⭐ **Instance state — the allocator**: header 32 + slot table (3/12/16/16)×16 + payload | **176 / 800 / 3808 / 16096 B** |
+| a managed extra component | `[SharedAiHeavyAction]` managed state | unbounded |
 
 ⭐ **All are `[DataPolicy(NoScenario)]`** ⇒ nothing here is serialised; **inputs are re-supplied at every
 activation.** ⇒ **the tier question is about ADDRESSING, never persistence.**
@@ -130,7 +133,7 @@ published row 2 *(usable params — **not authored**)* as if it were row 1.
 | member | is | read by |
 |---|---|---|
 | ⭐⭐ **`JsonParamsDtoType`** *(renamed from `ParamsDtoType`)* | **row 1 — the authored DTO** | `DtoJsonSchemaExtractor` → `GET /behaviors`; the mission panel; MCP |
-| 🔒 **`BlackboardLayoutType`** *(new; takes the old meaning)* | **row 2 — the blittable layout** | `BrainBlackboardTranslator` · `BrainBlackboardRenderer` · `BlackboardReflection`/`BrainBlackboardViewProvider` *(StructEdit)* · the ReplayBrowser predicate compiler + its two field drawers · the 60-byte size guard |
+| 🔒 **`BlackboardLayoutType`** *(new; takes the old meaning)* | **row 2 — the blittable layout** | `BrainDiagnosticsTranslator` · `RootParamsProjection` (tier renderers) · `BlackboardReflection`/`RootParamsViewProvider` *(StructEdit)* · the ReplayBrowser predicate compiler + its two field drawers · the 60-byte size guard |
 
 ⭐⭐ **BOTH were renamed on purpose** *(user: "forcing the compiler to expose all places where it is used
 so we never forget to revise its correct usage")* — the migration is a **compile error at every one of the
@@ -217,7 +220,7 @@ public unsafe delegate void ParseParamsDelegate(string json, byte* memory, Entit
 
 | caller | passes as `memory` |
 |---|---|
-| `BehaviorIngressSystem` | `&bb.BehaviorParameters[0]` |
+| `BehaviorIngressSystem` | byte 0 of the **root params slot** (`RootParamsAccess.RootRef`/`ResolveOrAttachRoot`) |
 | ⭐ **an Instance attach** | **`slotPayload + paramsOffset`** — its own slot |
 
 ⇒ **the pipeline is reused UNCHANGED; only the pointer differs.**
@@ -295,7 +298,7 @@ breaking change bought deliberately, rather than churning the delegate a third t
 > param area! interrupts and soft advices have no relation to the params."*
 
 ⭐ **Measured: no generated thunk touches the tail.** Every production reader/writer is a **system** —
-`CognitiveInterruptSystem` sets · `CognitiveCleanupSystem` clears · `HsmTickSystem:168` reads ·
+`CognitiveInterruptSystem` sets · `CognitiveCleanupSystem` clears · the brain tick's HSM arm reads ·
 `RouteContextSystem:190` writes `ExpectedThreatLevel`.
 
 | occurrence | ticked with |
@@ -367,7 +370,7 @@ because *"BTree is solved"* is true of the mechanism and **not** of every BTree 
 
 | host | params — BEFORE `E3a` | params — NOW |
 |---|---|---|
-| **root behaviour** | `BrainBlackboard.BehaviorParameters`, per packed variable | ⚠ **unchanged** — and still scheduled to move |
+| **root behaviour** | `BrainBlackboard.BehaviorParameters`, per packed variable | ✅ **its own occurrence slot** — `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`, computed, never stored (`P4`, 2026-09-22) |
 | **BTree bridge, per node** | `BehaviorParameters[0] + <per-variable offset>` | ⚠ **unchanged** — it was already per-site (§4.1's *"the template"*) |
 | 🔴 **HSM-hosted blueprint** | `BehaviorParameters[0] + 0` — **a literal `0`, shared by every occurrence** | ✅ **its own occurrence slot**, keyed by the `(region, state)` the kernel stamps |
 | 🔴 **standalone BTree `@0` thunk** | the same literal `0` | ✅ **its own occurrence slot**, asset-keyed |
@@ -401,7 +404,7 @@ VALUES are `E3b`** — `Q41-C1′`'s resolve hook, then `C2′` — both approve
 `IHostVariableAccess` is still **zero-implementer**, and this section does not change that.
 
 ⭐ **The seed and its re-supply** are §28.4 there: the slot is seeded from
-`BehaviorParameters[0] + 0` on first attach — *the exact bytes the thunk read before* — and
+the root params slot on first attach — *the exact bytes the thunk read before* — and
 `BehaviorIngressSystem.DetachHostedOccurrenceSlots` drops it on re-assign so new JSON still lands.
 ⛔ **Without that detach the move would be a REGRESSION**, because the thunk used to read the
 blackboard live.
@@ -412,7 +415,7 @@ blackboard live.
 
 | | |
 |---|---|
-| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch the blackboard's members ⇒ `ref bb.BehaviorParameters` → `ref bb` at 3 generator emit sites, the interpreter type argument, one line in `BTreeTickSystem` |
+| **BTree** | ⭐⭐ **no `ExtDeps` change** — delegate and interpreter are generic and never touch a blackboard component's members ⇒ swap the root-slot base expression at 3 generator emit sites, the interpreter type argument, one line in the brain tick |
 | **Blueprint** | ⚠ moderate — `BlueprintSlotEntry`, `TryAttach`, `TryGetSlotOffset`, attach/detach events, `FieldLayout`. **No kernel change.** ⚠ `InstanceVersion` is **NOT free** — it is the latent-cursor staleness token |
 | **HSM** | ⚠ larger, ✅ **user accepted** — ⭐ **`r` (region) and `current` (state) are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening + thunk regeneration, **not** a data-flow redesign. ⚠ a `FastHSM` `ExtDeps` change. ⭐ **The params-base change folds into the same seam** |
 

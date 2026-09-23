@@ -57,9 +57,7 @@ The current `DataPolicy.NoScenario` XML comment incorrectly reads
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `LocomotionChannel` | Transient execution buffer (`fixed byte Params/State`) |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `WeaponChannel` | Same; also has `Entity` refs inside Params buffer |
 | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/ChannelComponents.cs` | `InteractionChannel` | Same |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainBTreeState` | Execution pointer (BTree node index stack) |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainHsm64` | HSM execution stack |
-| `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/BrainComponents.cs` | `BrainHsm128` | HSM execution stack |
+| `FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/BlueprintBlackboard{256,1024,4096,16384}.cs` | the four occurrence-store tiers | The whole of an entity's brain execution state — the BTree node-index cursor, the HSM instance and the behaviour's params — are keyed slots inside whichever tier the entity carries. All four are marked (`BlueprintBlackboard256.cs:21` and the same line in each sibling) |
 | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | `SensorContactList` | Transient; raw `fixed long EntityIds`; re-acquired organically |
 | `FDP/Toolkits/Fdp.Toolkits/Perception/Components/PerceptionComponents.cs` | `ActiveSensorTracks` | Same; Brain-side cognitive buffer |
 
@@ -123,9 +121,9 @@ it must be passed to the translator constructor.
 
 ### Preview-to-Scenario Extraction and "Behavior Amnesia"
 
-When saving a new scenario from a paused preview, execution buffers (`WeaponChannel`,
-`BrainBTreeState`, etc.) are intentionally excluded.  This "amnesia" is architecturally sound
-because:
+When saving a new scenario from a paused preview, execution buffers (`WeaponChannel`, the
+occurrence store holding the BTree cursor and the HSM instance, etc.) are intentionally excluded.
+This "amnesia" is architecturally sound because:
 
 - **B-Trees** are environmentally reactive: they tick from the root on load, evaluate the
   preserved `TargetMemory` (serialized via `TargetMemoryTranslator`), and branch back into the
@@ -144,8 +142,8 @@ and will be correctly serialized.
 ## Phase 3: FdpAutoSerializer Upgrade for Unmanaged Memory Layouts
 
 **Goal:** Teach `FdpAutoSerializer` to correctly iterate `fixed` buffers and `[InlineArray]`
-types for **pure scalar** payloads, so components like `BrainBlackboard` are serialized
-without truncation.
+types for **pure scalar** payloads, so components like the occurrence-store tiers
+(`BlueprintBlackboard{256,1024,4096,16384}`) are serialized without truncation.
 
 ### Root Cause
 
@@ -176,15 +174,17 @@ unmanaged buffer contains entity references must be intercepted by a custom
 **Scope:** Only public fields of value-type components registered as `SaveableTypeIds` are
 affected.  Managed classes (like `ActiveMissionPlan`) remain outside the auto-serializer scope.
 
-### Impact on BrainBlackboard
+### Impact on the occurrence-store tier components
 
-`BrainBlackboard` has `fixed byte Memory[...]`.  After this upgrade, the auto-serializer will
-emit the full byte array as a JSON array.  Behaviors that cache entity handles as packed `long`
-values inside this buffer MUST NOT do so — `Build()` will throw `InvalidOperationException` if
-it detects an `Entity`-typed fixed buffer; and any raw-`long` entity handles packed inside a
-`byte` buffer are invisible to the constraint check and will silently become stale after a
-scenario round-trip.  Cross-entity AI state must be stored in dedicated components
-(e.g., `TargetMemory`) with a custom Intent-pattern translator, not packed inside `BrainBlackboard`.
+`BlueprintBlackboard{256,1024,4096,16384}` each have a `fixed byte` payload holding the entity's
+occurrence slots (root behaviour params and node working state).  After this upgrade, the
+auto-serializer will emit the full byte array as a JSON array.  Behaviors that cache entity
+handles as packed `long` values inside an occurrence slot's bytes MUST NOT do so —
+`Build()` will throw `InvalidOperationException` if it detects an `Entity`-typed fixed buffer;
+and any raw-`long` entity handles packed inside a `byte` buffer are invisible to the constraint
+check and will silently become stale after a scenario round-trip.  Cross-entity AI state must be
+stored in dedicated components (e.g., `TargetMemory`) with a custom Intent-pattern translator,
+not packed inside an occurrence slot.
 
 ---
 

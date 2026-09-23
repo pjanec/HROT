@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-17
+updated: 2026-09-22
 current-answer: section 4 "How to do it safely - RE-ORDERED by the review"
 stale-below: the A/B/C/D table under section 4's SUPERSEDED banner is HISTORY. Do not quote it.
 note: the live stage order is 0 -> C -> A -> B -> B' -> D1 -> D2 -> D3 -> D4
@@ -10,17 +10,15 @@ known-rot: NONE as of 2026-08-17. B' was marked BLOCKED on BP-228 until then; BP
 -->
 # Variable model unification — the vision, and how it maps to today
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## Storage model — per-occurrence slots in the tier ladder
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** is the authority for
+> where behaviour params and AiPrimitive working state live: **per-occurrence slots**, allocated by the
+> partition allocator inside the tier components this document specifies. There is no per-entity
+> brain-state component — every occurrence (a Blueprint Instance, a BTree stateful node, an HSM region)
+> gets its own slot. It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
->
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
 >
 > ⚠ **`R-24`'s structure-hash hard reset is UNAFFECTED** — it already guards per-slot state, and that
 > is precisely the mechanism the occurrence model relies on.
@@ -75,8 +73,8 @@ offset.*
 
 | today | Role | Scope | emits to | dispatch |
 |---|---|---|---|---|
-| `BlueprintAsset.Parameters` | `Input` | `Asset` | `struct Params` ← `bb.BehaviorParameters[paramIndex]` | AiPrimitive |
-| `BlueprintAsset.WorkingState` | `State` | `Asset` | `struct WorkingState` @ `Blackboard1024`+8 · `__phase` | AiPrimitive |
+| `BlueprintAsset.Parameters` | `Input` | `Asset` | `struct Params` ← the root-params occurrence slot at `[paramIndex]` | AiPrimitive |
+| `BlueprintAsset.WorkingState` | `State` | `Asset` | `struct WorkingState` @ its node working-state occurrence slot +8 · `__phase` | AiPrimitive |
 | `BlueprintAsset.Variables` | `State` | `Asset` | `struct State` · `BlueprintLatentCursor Cursor` | Instance |
 | `Graph.LocalVariables` | `State` | `Graph` | C# local · blackboard slot when it can suspend | any (⛔ not `Macro`) |
 | *(`Graph.Inputs`)* | *`Input`* | *`Graph`* | *method parameters* | *any — optional, §6* |
@@ -137,7 +135,7 @@ Variables    = LayoutFields(asset.Variables,    startOffset: 16),
 | | |
 |---|---|
 | `TickCore(ref Params p, ref WorkingState ws, Entity self, …)` | ✅ **byte-for-byte the same signature** |
-| `struct WorkingState` @ `Blackboard1024` + 8 · `__phase` · `__waitUntilTime` | ✅ **unchanged** |
+| `struct WorkingState` @ its occurrence slot + 8 · `__phase` · `__waitUntilTime` | ✅ **unchanged** |
 | `struct State` with `BlueprintLatentCursor Cursor` in its first 16 bytes | ✅ **unchanged** |
 | `InitDefaultWorkingState` · `BTreeTick`'s `fixed`/`AsRef` projection | ✅ **unchanged** |
 | **Blackboard allocation and field offsets** | ✅ **unchanged** |

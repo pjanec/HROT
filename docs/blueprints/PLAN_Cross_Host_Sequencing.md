@@ -78,7 +78,7 @@ stays undetectable after both ship.** ⇒ **`W1` and `W3` are NOT independent: `
 | **`W4`** — separate alignment-reliability from `SizeReliable` | ⭐ **Batch 57 extends the SAME predicate** (`CSharpEmitter:412` `layoutFromRuntime`) to the working-state path | ⛔ **`W4` runs AFTER 57.** Its handoff must be written against 57's merged text, not today's |
 | **`W2`** — runtime `Marshal.OffsetOf<T>(name) == f.Offset`, every asset × every field | ⭐⭐ **the DESIGN doc already names `W2` as the rail for user structs** *(`S2`; golden Tier 1 records the COMPUTED offset and cannot see a disagreement)* | ⭐ **One rail, not two.** `S2` does not get its own — it consumes `W2`'s |
 | **`W2`** vs **Batch 57's own gate** | 57's gate is **one runtime read-back on one asset**; `W2` is the corpus-wide form of the same assertion | ⚖️ **see §5 — this is the one real ordering choice** |
-| **`W13`** — retire the standalone stride path | `LiveBlackboardValueProvider` reads `BrainBlackboard` at `BehaviorParameters + byteOffset` — one of the **four** variable surfaces | compiler-side; ⭐ **no conflict, but land it before the panel reads that formula** |
+| **`W13`** — retire the standalone stride path | `LiveBlackboardValueProvider` reads the tier component from `IDebugSession`, walks to the slot's key, and projects at its offset — one of the **four** variable surfaces | compiler-side; ⭐ **no conflict, but land it before the panel reads that formula** |
 | **`W10`** — initializer picker | the Details-panel provider work (`U-6`) | ⭐ **different surfaces**, both in the editor. No conflict |
 
 ---

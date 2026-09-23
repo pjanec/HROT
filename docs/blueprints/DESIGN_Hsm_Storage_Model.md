@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
+updated: 2026-09-22
 current-answer: the whole file, WITH the storage banner below - and note that section 4's E7a row
-  and the BP-281 destination table are now split: a ROOT behaviour's params are still in
-  BrainBlackboard, a HOSTED occurrence's params moved into its own slot on 2026-09-21 (E3a).
+  and the BP-281 destination table now agree: a ROOT behaviour's params live in the root-params
+  occurrence slot, keyed by ComputeRootParamsKey; a HOSTED occurrence's params live in its own
+  nested slot (E3a). Both are occurrence slots — there is no separate component for either any more.
 note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
   scheduling anything that assumes it is.
 -->
@@ -11,10 +12,12 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 
 > ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** retires the root
+> behaviour params component and the AiPrimitive working-state component entirely — there is no
+> per-entity blackboard component of any kind any more — moving both **the root params** (keyed by
+> `OccurrenceSlotKey.ComputeRootParamsKey`) and every node's working state into **per-occurrence slots**
+> of the partition allocator. The tier components keep their names, `BlueprintBlackboard{256,1024,4096,16384}`.
+> It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on
 > `2026-08-17` and reopened on `2026-09-19`.
 >
@@ -42,9 +45,9 @@ note: section 2 CORRECTS the coordinator - BP-281 is NOT blocked. Read it before
 
 | # | class | BTree | HSM |
 |---|---|---|---|
-| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into `BrainBlackboard.BehaviorParameters[100]`, written by the generated `ParseParams`. ⚠ **`2026-09-21`: still true for a ROOT behaviour; a HOSTED occurrence's params are in its own slot (`E3a`)** | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
+| ① | **`Role=Input`** — the params | ✅ packed by `BTreeBlackboardPackHelper` into the **root-params occurrence slot** (a ROOT behaviour's own slot, keyed by `ComputeRootParamsKey`; a HOSTED occurrence's params are in its own nested slot, `E3a`), written by the generated `ParseParams` | ⛔⛔ **NOTHING.** No pack step, no `ParseParams` ⇒ **`BP-281`** |
 | ② | **`Role=State` @ `Behavior`/`Entity`** | ✅ partition slot, `FNV(assetId ++ variableName)` | ✅ **SHIPPED `E1`/`E2`** — `HsmBridgeEmitCore.EmitStatefulWorkingSlotsArray`, **the same allocator and the same key function** |
-| ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ⛔⛔ the action DTO sits at a **baked offset into the single 100-byte blackboard** ⇒ **`E3`** |
+| ③ | **per-OCCURRENCE bytes** | ✅ `Scope.Node`, `FNV(assetId ++ nodeVisualId)` ⇒ two nodes, two regions | ✅ **CLOSED by `E3a`** — the action DTO used to sit at a **baked offset into the entity's one params region**; a hosted occurrence now owns its own slot |
 
 ⭐⭐ **The one class HSM has, it got by adopting BTree's algorithm verbatim.** ⇒ **the other two are the
 same move, twice more.** ⛔ **Nothing here needs a new mechanism.**
@@ -64,7 +67,7 @@ variables**, which is why ① and ② do not overlap.
 
 | | |
 |---|---|
-| ⭐ **destination** | `BrainBlackboard.BehaviorParameters` at packed offsets — **the same place BTree's inputs live** |
+| ⭐ **destination** | the **root-params occurrence slot**, at packed offsets — **the same place BTree's inputs live** |
 | ⭐ **mechanism** | pack non-`State` variables, emit `ParseParams` **as the BTree bridge does after `DEBT-AIB-021`**: baked defaults first, then the incoming JSON overlays per variable by name, unknown keys ignored |
 | ⚠ **the two guards** | ⛔ **emit whenever there is ≥1 packed variable, NOT ≥1 default** *(defect (b))*, and the `JsonSerializerOptions` field carries the same guard *(defect (c))*. ⭐ **Copying the pre-`-021` BTree shape reproduces both** |
 | ✅ **what WAS blocked — RESOLVED `2026-09-21`** | ⭐ only the **hosted / multi-occurrence** case — *"which occurrence's params?"* — and that was `E3`, not `BP-281`. ✅ **`E3a` answered it: a hosted occurrence's params live in ITS OWN SLOT** *(payload `[WorkingState][Params]`)* — 📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28, [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) §4.7. ⚠ **The ROOT behaviour still has one params area** — the row above is about the root and stays true |
@@ -79,7 +82,7 @@ user's instinct *"are we building authoring for a not-ready runtime?"* was corre
 
 | | |
 |---|---|
-| ⛔ **today** | the generated thunk resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>` ⇒ ⭐⭐ **two concurrently-active regions running one action have ONE HOME BY CONSTRUCTION** |
+| ⛔ **the problem** | the generated thunk resolved its DTO at a baked offset into the **one** params region the entity had ⇒ ⭐⭐ **two concurrently-active regions running one action had ONE HOME BY CONSTRUCTION**. ✅ **Closed by `E3a`** — a hosted occurrence's params are its own occurrence slot |
 | ⭐ **the move** | per-occurrence bytes from `BlueprintBlackboardPartitions` under `ComputeStatefulSlotKey(assetId, Scope.Node, occurrence, variableId)` — ⭐⭐ **class ③'s existing algorithm, with HSM's `Guid.Empty` replaced by a real occurrence** |
 | ⭐ **ONE path, not two** | ⛔ **do NOT keep the baked-offset path "for the simple case"** — 📄 ruling 9, and ⚠ **the divergence is exactly what made this invisible** |
 | ⚠ **delivery is open** | 📄 **`Q35`** — the lean is that the delegate does **not** widen: `HsmCommandWriter` is a kernel struct already passed to every action and can carry `(regionSlotIndex, stateId)` |
@@ -116,4 +119,4 @@ user's instinct *"are we building authoring for a not-ready runtime?"* was corre
 | ✅ **class ② stays shared** | `State@Behavior`/`@Entity` are **meant** to be one region per behaviour/entity. ⛔ **Adding an occurrence to their key would be a bug, not an improvement** |
 | ✅ **hand-written DTOs are untouched** | 📄 `DESIGN_Parameter_Model.md` §4.2 — a DTO's offsets are **relative to the struct base** ⇒ **same offsets, different instance** |
 | ✅ **`StructureHash` / `persistence-shape`** | ⛔ **must not move** — this is runtime storage and thunk text. ⭐ **Batch 73's generated-code tier is what watches it** |
-| ⛔ **the 100-byte tail** | interrupts and soft advices have **no relation to params** — 📄 §4.3, user correction. **Carry the params area only** |
+| ⛔ **the interrupt tail** *(now its own `BrainInterrupts` component)* | interrupts and soft advices have **no relation to params** — 📄 §4.3, user correction. **Carry the params area only** |

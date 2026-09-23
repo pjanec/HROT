@@ -73,28 +73,28 @@ hull-down rotation are the *same engine* with different parameters.
 
 ## 3. Substrate — built on what exists
 
-No new hierarchy or blackboard component. The squad layer reuses, unchanged:
+No new hierarchy. The squad layer reuses, unchanged:
 
 - **Hierarchy:** `UnitRoster` (commander, capacity 16) + `UnitSubordinate.Commander` (back-pointer),
   maintained by `UnitHierarchySystem`.
-- **Shared memory:** the commander's `Blackboard1024`, projected via `Unsafe.As` into squad state
-  structs (the established `HillAttackMutableState` pattern; `[SharedAiHeavyAction]` auto-emits the
-  projection). `[DataPolicy.NoScenario]` — transient cognitive state, stripped from scenario JSON.
+- **Shared memory:** the commander's own `SquadCognitiveState` component — its own `[ComponentId]`,
+  provisioned by `SquadStateProvisioning` — holds the squad state structs directly; there is no
+  projection onto a shared per-entity blackboard. `[DataPolicy.NoScenario]` — transient cognitive
+  state, stripped from scenario JSON.
 - **Authority rail:** `AssignTacticalIntentEvent` → `TacticalIntentResolutionSystem` →
   `ITacticalOrderMapper` → `BehaviorIngressSystem`. The commander publishes intents; subordinates
   resolve them into their own behaviors. This is exactly how `PlatoonHillAttack` commands its tanks;
   the squad layer adds new intent types and mappers, not a new pipeline.
 
-### 3.1 Squad state on the blackboard
+### 3.1 Squad state — its own component
 
-All squad working state projects onto the commander's `Blackboard1024` as a **single
-`SquadCognitiveState` struct with sub-regions** (S-1) — maneuver state and the contact pool share one
-projection, so there is exactly one offset claim and one collision-check rather than two competing
-ones:
+All squad working state lives in a **single `SquadCognitiveState` component with sub-regions** (S-1)
+— maneuver state and the contact pool share one component, so there is exactly one home and one
+collision-check rather than two competing ones:
 
 ```csharp
 [StructLayout(LayoutKind.Sequential)]
-public struct SquadCognitiveState   // the single projection onto Blackboard1024 (≤1024 B)
+public struct SquadCognitiveState   // its own ECS component, owned by the commander entity
 {
     // --- maneuver sub-region ---
     public ushort ManeuverKind;        // which catalog entry (§8)
@@ -113,10 +113,10 @@ public struct SquadCognitiveState   // the single projection onto Blackboard1024
 ```
 
 Sizing follows the hill-attack precedent (`HillAttackMutableState` is 120 B); the contact pool is the
-variable cost, but at the hard 16-member `UnitRoster` cap the whole `SquadCognitiveState` fits the
-1024 B block comfortably. **Offset-collision check** (carried from Utility §10.1): confirm no other
-projected state claims the same `Blackboard1024` range on commander entities — now a single contiguous
-claim to verify.
+variable cost, but at the hard 16-member `UnitRoster` cap the whole `SquadCognitiveState` fits
+comfortably in its own component. **Offset-collision check** (carried from Utility §10.1): moot now —
+`SquadCognitiveState` is the commander's own component, so there is no shared region for another
+projection to collide with.
 
 ---
 

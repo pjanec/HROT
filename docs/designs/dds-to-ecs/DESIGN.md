@@ -1,8 +1,25 @@
 # Design: DDS-to-ECS Architectural Cleanup
 
+<!--STATUS
+state: LIVE
+updated: 2026-09-23
+current-answer: §1-§9 (the translator/ECS layering rules) are the live architecture and are unchanged
+stale-below: every "currently runs" / "currently ABSENT" enumeration and every DDS2ECS-S## task row is
+  a snapshot of 2026-02-27. The cognitive half of those enumerations has since been rebuilt; the
+  paragraph below states what it is now, and the enumerations have been corrected to match.
+-->
+
 **Source:** [`design-talk.md`](./design-talk.md)  
 **Status:** Ready for implementation  
 **Date:** 2026-02-27
+
+> ⭐⭐ **The cognitive pipeline named throughout this document has one system where it used to have
+> several.** `BrainTickSystem` (`FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs:50`)
+> steps both paradigms — `BehaviorState.BrainTier` picks a BTree arm or an HSM arm (`:155-158`) — and
+> `CognitiveInterruptSystem` carries the capability→interrupt signalling that `HsmDamageBridgeSystem`
+> used to. Neither brain root is an ECS component: the BTree cursor and the HSM instance live in
+> keyed occurrence slots inside the entity's `BlueprintBlackboard{256,1024,4096,16384}` tier
+> component, so a host registers the **tier ladder**, not a brain component.
 
 ---
 
@@ -501,7 +518,8 @@ draw the menu. The ECS state is populated but never shown.
 - **IOS `MissionEditorService`**: Sends `MissionControlRequest` messages (`CMD_REPLACE_MISSION`,
   `CMD_JUMP_TO_TASK`, `CMD_ABORT_ALL`) and awaits `MissionControlAck`.
 - **SimHost `MissionAdapterSystem`**: Executes missions from `EntityMissionHolder` by mapping
-  task `BehaviorId` → `BehaviorHash` and pushing `BehaviorParams` JSON to `BrainBlackboard`.
+  task `BehaviorId` → `BehaviorHash` and pushing `BehaviorParams` JSON into the entity's root
+  params occurrence slot.
 - **🚨 Critical gap:** SimHost has **no translator or system that reads `MissionControlRequest`
   or writes `MissionControlAck`**. IOS commands go into the DDS void — SimHost never applies them.
   A `MissionControlRequestSystem` must be implemented in SimHost.
@@ -636,8 +654,8 @@ update that reference to `MissionPlanQueue` as part of S16T1.
 | DDS2ECS-S16T1 | Delete `EntityMissionHolder.cs`; replace `RegisterManagedComponent<EntityMissionHolder>()` with `RegisterComponent<MissionPlanQueue>()` in `SimHostApp.cs` |
 | DDS2ECS-S16T2 | Rewrite `EntityMissionTranslator` to write `MissionPlanQueue` (resolve `BehaviorId` → `behaviorId` via `BehaviorRegistry.TryGetId`; map trigger strings → `MissionTrigger` enum); update `EntityMissionTranslatorTests.cs` |
 | DDS2ECS-S16T3 | Delete `MissionAdapterSystem.cs`; in `SimulationLogicModule.RegisterSystems()` replace `new MissionAdapterSystem(...)` with `new MissionDirectorSystem()` |
-| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<BrainBlackboard,BTreeContext>` in each `BehaviorDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
-| DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so `BrainBlackboard.Memory` is hydrated with target coordinates on phase activation |
+| DDS2ECS-S16T4 | Compile BTree JSON blobs for `MoveTo_BT`, `FollowRoute_BT`, `JoinFormation_BT` and register real `Interpreter<byte,BTreeContext>` in each `BehaviorDefinition` in `SimHostApp.cs`; create `Hrot.SimHost/Brains/SimHostNodes.cs` |
+| DDS2ECS-S16T5 | Wire `ParseParams` delegates for `MoveTo_BT` and `FollowRoute_BT` so the entity's root params occurrence slot is hydrated with target coordinates on phase activation |
 
 ---
 
@@ -660,7 +678,7 @@ perception, combat, and damage — matching the `UrbanCombat` golden standard.
 | DDS2ECS-S17T1 | Add `FDP.Toolkit.Perception` and `FDP.Toolkit.Combat` / `FDP.Toolkit.Combat.Contracts` `<ProjectReference>` entries to `Hrot.SimHost/Hrot.SimHost.csproj` |
 | DDS2ECS-S17T2 | Add Perception, Combat, Physics, and HSM component registrations to `SimHostApp.RegisterSimComponents()` (mirror `HeadlessDemoApp.RegisterComponents()`) |
 | DDS2ECS-S17T3 | Initialize `PhysicsToolkitModule` in `SimHostApp.OnLoad()` before `_kernel.Initialize()` to allocate `RaycastBatchData` singleton |
-| DDS2ECS-S17T4 | Expand `SimulationLogicModule.RegisterSystems()` with Input-phase systems (`FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`), Sim-phase systems (`WeaponDispatcherSystem` + `AimAndFireExecutor`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `ThreatEvaluationSystem`, `DamageSystem`, `HsmDamageBridgeSystem`, `HsmTickSystem<BrainHsm128>`), and PostSim-phase system (`BallisticsSystem`) |
+| DDS2ECS-S17T4 | Expand `SimulationLogicModule.RegisterSystems()` with Input-phase systems (`FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`), Sim-phase systems (`WeaponDispatcherSystem` + `AimAndFireExecutor`, `VisionBroadphaseSystem`, `LosRequestBatchingSystem`, `ThreatEvaluationSystem`, `DamageSystem`, `CognitiveInterruptSystem`, `BrainTickSystem`), and PostSim-phase system (`BallisticsSystem`) |
 | DDS2ECS-S17T5 | Rewrite `BdcTkbBuilder.WithCombat()` to call `template.AddComponent()` for real FDP ECS components (`WeaponState`, `PerceptionReceptor`, `TargetMemory`, `PhysicsCollider`, `Health`, `Faction`) translated from `SimCombatDef` fields; retain `SimCombatDef` managed component for IG UI use |
 
 ---
@@ -689,23 +707,23 @@ logic through the GC every frame — the exact same anti-pattern as `WorldPos` (
 ### 10.2 Brain Deviation — Null `BTreeInterpreter`
 
 **Golden standard (`UrbanCombat`):** Every BTree behavior is compiled from JSON and registered
-with a real `Interpreter<BrainBlackboard,BTreeContext>`:
+with a real `Interpreter<byte,BTreeContext>` (the tree ticks against the root params slot's bytes):
 
 ```csharp
 var blob = TreeCompiler.CompileFromJson(InfantryCombatJson);
-var reg  = new ActionRegistry<BrainBlackboard, BTreeContext>();
+var reg  = new ActionRegistry<byte, BTreeContext>();
 reg.Register("HoldPosition", InsurgentNodes.Action_HoldPosition);
 _behaviorRegistry.Register(BehaviorIds.InfantryCombat, "InfantryCombat",
     new BehaviorDefinition {
         Name             = "InfantryCombat",
         BrainTier        = BehaviorConstants.BrainTierBTree,
-        BTreeInterpreter = new Interpreter<BrainBlackboard, BTreeContext>(blob, reg),
+        BTreeInterpreter = new Interpreter<byte, BTreeContext>(blob, reg),
     });
 ```
 
 **SimHost deviation (`SimHostApp.cs` lines 135–142):** All BTree behaviors are registered with
-only `Name` and `BrainTier`; `BTreeInterpreter` is implicitly `null`. `BTreeTickSystem` silently
-skips any entity whose behavior has a null interpreter. `LocomotionChannel` is never written.
+only `Name` and `BrainTier`; `BTreeInterpreter` is implicitly `null`. The BTree arm of the brain
+tick silently skips any entity whose behavior has a null interpreter. `LocomotionChannel` is never written.
 The vehicle never moves.
 
 **Fix:** S16T4 + S16T5 — compile blobs, build `ActionRegistry` instances with action delegates,
@@ -771,8 +789,9 @@ world.RegisterComponent<PhysicsCollider>();
 world.RegisterComponent<WeaponState>();
 world.RegisterComponent<Health>();
 world.RegisterComponent<BallisticProjectile>();
-world.RegisterComponent<BrainHsm64>();
-world.RegisterComponent<BrainHsm128>();
+// The brain's own state needs no component here: the root BTree cursor and the root HSM instance
+// are occurrence slots inside the BlueprintBlackboard{256,1024,4096,16384} tier ladder, which
+// BlueprintComponentRegistry registers.
 ```
 
 Any entity that has these components in its TKB template will panic the ECS kernel with
@@ -834,7 +853,7 @@ retained on the template so IG can still query it for ORBAT/inspector display.
 
 `SimulationLogicModule` currently runs:
 1. `MissionAdapterSystem` / `MissionDirectorSystem` (Post Phase 16)
-2. `ChannelArbitrationSystem` → `BTreeTickSystem` → `LocomotionDispatcherSystem`
+2. `ChannelArbitrationSystem` → `CognitiveInterruptSystem` → `BrainTickSystem` → `CognitiveCleanupSystem` → `LocomotionDispatcherSystem`
 3. `SpatialHashSystem` → `FormationTargetSystem` → `VehicleCommandSystem`
 4. `CarKinematicsSystem` → `LinearKinematicsSystem`
 
@@ -850,8 +869,8 @@ retained on the template so IG can still query it for ORBAT/inspector display.
 | `LosRequestBatchingSystem` | Sim | Batches LOS checks into `RaycastBatchData` |
 | `ThreatEvaluationSystem` | Sim | Updates `TargetMemory` scores from events |
 | `DamageSystem` | Sim | Subtracts from `Health` on `HitEvent` |
-| `HsmDamageBridgeSystem` | Sim | Propagates health changes to HSM capability state |
-| `HsmTickSystem<BrainHsm128>` | Sim | Ticks HSM brains (needed for APC-type behaviors) |
+| `CognitiveInterruptSystem` | Sim | Edge-detects capability loss and writes the `BrainInterrupts` registers, for BTree and HSM brains alike |
+| `BrainTickSystem` | Sim | Ticks every brain — its HSM arm is what APC-type behaviors need |
 | `BallisticsSystem` | PostSim | Moves `BallisticProjectile` entities each frame |
 
 Without these, combat BTree actions (`Action_AimAndFire`) do nothing observable in the simulation.
@@ -867,7 +886,7 @@ DDS EntityMission  ──►  EntityMissionTranslator  ──►  MissionPlanQue
                                                               │
                                                    BehaviorState.ActiveBehaviorHash
                                                               │
-                                       ChannelArbitrationSystem ──► BTreeTickSystem
+                                       ChannelArbitrationSystem ──► BrainTickSystem
                                                               │
                                                    LocomotionChannel.ActiveAction
                                                               │

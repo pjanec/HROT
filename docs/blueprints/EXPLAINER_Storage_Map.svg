@@ -20,25 +20,25 @@
   <!-- ROW 1 : INPUT -->
   <rect x="16" y="58" width="470" height="176" class="in"/>
   <rect x="16" y="58" width="470" height="18" fill="#2f6fbf" rx="4"/>
-  <text x="24" y="71" class="h2">BrainBlackboard — 128 B — THE ONLY HOME FOR INPUTS</text>
+  <text x="24" y="71" class="h2">ROOT PARAMS SLOT — THE HOME FOR A BEHAVIOUR'S INPUTS</text>
 
   <rect x="28" y="86" width="330" height="34" class="box"/>
-  <text x="36" y="100" class="tb">BehaviorParameters[100] @ 0</text>
-  <text x="36" y="114" class="s">every behavior's params DTO projects here — light AND heavy tier alike</text>
+  <text x="36" y="100" class="tb">Params DTO @ 0, sized RootParamsBytes(def)</text>
+  <text x="36" y="114" class="s">every behavior's params DTO projects here, whatever tier the entity sits in</text>
 
   <rect x="366" y="86" width="108" height="34" class="no"/>
   <text x="374" y="100" class="tb">tail 28 B</text>
   <text x="374" y="114" class="s">threat + interrupts</text>
 
-  <text x="28" y="140" class="tb">Cap 100 B, enforced 3×</text>
-  <text x="176" y="140" class="s">BehaviorParameterSizeAnalyzer · BTreeBuilder · BehaviorRegistry.Register (throws)</text>
+  <text x="28" y="140" class="tb">No cap; allocator promotes tier</text>
+  <text x="176" y="140" class="s">FDP_001 refuses only a region no tier could hold; TryAttach is the structural check</text>
   <text x="28" y="160" class="tb">ONE struct per behavior</text>
   <text x="176" y="160" class="s">ParamsDtoType is singular; an action BINDS A FIELD of it, it owns no allocation</text>
   <text x="28" y="180" class="tb">Written once</text>
   <text x="176" y="180" class="s">at activation, by BehaviorIngressSystem — see the supply diagram</text>
 
   <rect x="28" y="192" width="446" height="32" class="box"/>
-  <text x="36" y="205" class="m">ref Unsafe.AddByteOffset(ref bb.BehaviorParameters[0], (nint)offset)</text>
+  <text x="36" y="205" class="m">ref Unsafe.AddByteOffset(ref bb, (nint)offset)   // bb = slot byte 0</text>
   <text x="36" y="218" class="s">the offset is baked at compile time — and for hand-written actions it is also IN the registry key</text>
 
   <!-- ROW 1 right : who lays it out -->
@@ -71,7 +71,7 @@
 
   <rect x="16" y="276" width="310" height="192" class="st"/>
   <rect x="16" y="276" width="310" height="18" fill="#4a8a3c" rx="4"/>
-  <text x="24" y="289" class="h2">Blackboard1024 — 1024 B</text>
+  <text x="24" y="289" class="h2">WORKING-STATE SLOTS — one per stateful node</text>
   <text x="26" y="312" class="tb">AiPrimitives + shared AI actions</text>
   <rect x="26" y="320" width="290" height="26" class="hd"/>
   <text x="34" y="337" class="m">@0  StructureHash (8 B)</text>
@@ -79,9 +79,9 @@
   <text x="34" y="367" class="m">@8  WorkingState struct</text>
   <text x="26" y="392" class="s">⭐ ONE struct since Batch 56 — Variables and</text>
   <text x="26" y="406" class="s">WorkingState are one layout run, one base.</text>
-  <text x="26" y="426" class="tb">Hash mismatch ⇒ zero all 1024 B</text>
-  <text x="26" y="440" class="s">then re-init defaults. That is the reset trigger</text>
-  <text x="26" y="454" class="s">inputs would inherit if they moved here.</text>
+  <text x="26" y="426" class="tb">Hash mismatch ⇒ zero THIS SLOT only</text>
+  <text x="26" y="440" class="s">then re-init defaults. The slot table bounds</text>
+  <text x="26" y="454" class="s">the reset, so neighbours are untouched.</text>
 
   <rect x="340" y="276" width="330" height="192" class="st"/>
   <rect x="340" y="276" width="330" height="18" fill="#4a8a3c" rx="4"/>
@@ -90,7 +90,7 @@
   <rect x="350" y="320" width="310" height="26" class="hd"/>
   <text x="358" y="337" class="m">header 32 B + slot table 4×16 B = 96</text>
   <rect x="350" y="350" width="310" height="26" class="box"/>
-  <text x="358" y="367" class="m">payload 928 / 3936 / 16368 B</text>
+  <text x="358" y="367" class="m">payload 176 / 800 / 3808 / 16096 B</text>
   <text x="350" y="392" class="s">ChooseTier(def.StateSize) picks the smallest fit.</text>
   <text x="350" y="410" class="tb">A real allocator:</text>
   <text x="440" y="410" class="s">TryAttach reserves a slot keyed</text>
@@ -108,7 +108,7 @@
   <text x="694" y="378" class="s">allocated, no byte layout to agree on.</text>
   <text x="694" y="400" class="tb">Still state-only.</text>
   <text x="694" y="418" class="s">The heavy adapter emits BOTH: params from</text>
-  <text x="694" y="432" class="s">bb.BehaviorParameters, heavy state from the</text>
+  <text x="694" y="432" class="s">the params slot, extra state from the</text>
   <text x="694" y="446" class="s">component. Going heavy never moves inputs.</text>
 
   <!-- FOOTER -->

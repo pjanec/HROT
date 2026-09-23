@@ -55,8 +55,9 @@ conditions** are; that a node has **Parameters** (set once) and **Working State*
 the orientation a newcomer needs *before* the D4 tree.
 
 ### DOC-3 — Memory-layout schematic (D2)
-To-scale SVG: where data physically lives — `BehaviorParameters` (Params) vs `BlueprintBlackboard`
-partition slots (Working State), keyed by scope. The engineer's "aha."
+To-scale SVG: where data physically lives — the root params occurrence slot (Params) vs
+`BlueprintBlackboard` partition slots (Working State); both are occurrence-keyed slots in the same
+tier ladder, keyed by scope. The engineer's "aha."
 
 ### DOC-4 — Lifetime timeline (D3)
 SVG: assign-behavior → tick → tick → switch-behavior — *when* Params sync in, how long each scope's

@@ -9,7 +9,7 @@
 
 ## 1. Motivation
 
-The framework currently provides rich diagnostic facilities for FastHSM (a 64KB managed `HsmTraceBuffer` driven by a process-static pointer in [HsmKernelCore.cs:13](FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernelCore.cs#L13) and `HsmKernelCore.SetTraceBuffer`) but **no equivalent for FastBTree** — BTree diagnosis today relies on the live `BTreeVisualizerRenderer`, manual `BehaviorLog` calls inside condition/action nodes, and post-hoc inspection of `BrainBlackboard` values. A fleeting condition flip cannot be reconstructed during replay.
+The framework currently provides rich diagnostic facilities for FastHSM (a 64KB managed `HsmTraceBuffer` driven by a process-static pointer in [HsmKernelCore.cs:13](FDP/ExtDeps/FastHSM/src/Fhsm.Kernel/HsmKernelCore.cs#L13) and `HsmKernelCore.SetTraceBuffer`) but **no equivalent for FastBTree** — BTree diagnosis today relies on the live `BTreeVisualizerRenderer`, manual `BehaviorLog` calls inside condition/action nodes, and post-hoc inspection of the root params occurrence slot's values. A fleeting condition flip cannot be reconstructed during replay.
 
 Even the HSM trace path is unsuitable for replay scrubbing: it routes through a single global managed buffer that cannot record into the `.fdp` flight recorder and forbids concurrent per-entity tracing.
 
@@ -44,7 +44,7 @@ Both ring buffers are pure unmanaged structs that fit the 1024-byte `MaxComponen
                     DebugState.Behavior bits
                               |
                               v
-   BTreeTickSystem / HsmTickSystem
+   BrainTickSystem  --  BTree arm | HSM arm   (BrainTickSystem.cs:208 / :316)
         |              |
         | resolves     | resolves
         v              v
@@ -73,7 +73,7 @@ The FastBTree and FastHSM kernel projects (`Fbt.Kernel`, `Fhsm.Kernel`) **must n
 - `Fbt.ITreeTracer` — an interface containing `TraceNodeEvaluated`, `TraceScopePushed/Popped`, `TraceWaitStarted/Completed`. The generic `TContext` of `Interpreter<TB,TC>` is constrained `where TContext : struct, IAIContext, ITreeTracer`. JIT devirtualizes the interface calls on a constrained generic struct, so the indirection is free.
 - `Fhsm.Kernel.Data.HsmTraceContext` — an unmanaged struct holding pointers into a caller-owned byte buffer plus header fields (`WritePos`, `RecordCount`, `CapacityBytes`, `MaxRecords`, `FilterLevel`, `CurrentTick`). All ring-buffer math lives in this struct.
 
-The concrete `BTreeContext` (in `Fdp.Toolkit.Behavior`) implements `ITreeTracer`, holds an `unsafe BTreeTraceWorkingMemory1024* TraceBuffer`, and forwards calls. The `HsmTickSystem` constructs an `HsmTraceContext` over the entity's `HsmTraceWorkingMemory1024` and passes its pointer down to `HsmKernel.Update`. Neither kernel sees a concrete component type.
+The concrete `BTreeContext` (in `Fdp.Toolkit.Behavior`) implements `ITreeTracer`, holds an `unsafe BTreeTraceWorkingMemory1024* TraceBuffer`, and forwards calls. `BrainTickSystem`'s HSM arm constructs an `HsmTraceContext` over the entity's `HsmTraceWorkingMemory1024` and passes its pointer down to `HsmKernel.Update` ([BrainTickSystem.cs:349-383, :401](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs#L349)). Neither kernel sees a concrete component type.
 
 ### 2.4 Replay Strategy
 
@@ -380,7 +380,7 @@ Each call site checks `traceCtx != null && (header->Flags & InstanceFlags.DebugT
 
 ### 5.4 `HsmKernelBridge` Extension
 
-In [HsmTickSystem.cs:23](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmTickSystem.cs#L23):
+`HsmKernelBridge` has its own file, [HsmKernelBridge.cs:24](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmKernelBridge.cs#L24) — it is a **generated-code contract**, emitted as `HsmKernelBridge*` by `HsmActionGenerator` into every `HsmActionRegistrar.g.cs` and by `AiPrimitiveEmitter` into every blueprint thunk, so its namespace and name are ABI rather than a detail of whichever system hosts it:
 
 ```csharp
 public unsafe struct HsmKernelBridge
@@ -461,7 +461,7 @@ public sealed class DebugStatePatchSystem : IEcsModuleSystem
 
 Drains `repo.Bus.ReadManaged<PatchDebugStateCommand>()`, ensures `DebugState` exists (`AddComponent` if missing — never replaces an existing one), then `DebugStatePatchCompiler.ApplyPatch(ref state, cmd.PatchJson)` on the `ref` from `GetComponentRW<DebugState>`.
 
-> **Note on system ordering:** `UpdateBefore`/`UpdateAfter` attribute classes do not exist in this codebase (only `UpdateInPhase`). Order within a phase is dictated by registration order in module/composition-root code, per the comment at [HsmTickSystem.cs:50](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmTickSystem.cs#L50). `DebugStatePatchSystem` is registered in `SystemPhase.Input` before any system that reads `DebugState` in `Simulation`.
+> **Note on system ordering:** `UpdateBefore`/`UpdateAfter` attribute classes do not exist in this codebase (only `UpdateInPhase`). Order within a phase is dictated by registration order in module/composition-root code, per the comment at [BrainTickSystem.cs:49](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs#L49) and the array in [CognitiveRuntimeModule.cs:58-76](FDP/Toolkits/Fdp.Toolkits/Behavior/Modules/CognitiveRuntimeModule.cs#L58). `DebugStatePatchSystem` is registered in `SystemPhase.Input` before any system that reads `DebugState` in `Simulation`.
 
 ---
 
@@ -482,17 +482,21 @@ For every entity with `DebugState`, it inspects `BehaviorState.BrainTier` and en
 
 ## 8. Tick System Integration
 
-### 8.1 `BTreeTickSystem`
+Both arms live in **one** system, [BrainTickSystem.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs) — `BehaviorState.BrainTier` selects between them (`:155-158`). Each arm resolves its **own** buffer type, so there are still two resolutions; what changed is that they are two methods of one class instead of two systems, and the decoders (`EmitBTreeRecordsToLog` `:452`, `EmitHsmRecordsToLog` `:501`) are static members of it.
 
-In [BTreeTickSystem.cs](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BTreeTickSystem.cs), inside the per-entity loop:
+### 8.1 `BrainTickSystem` — BTree arm
+
+In [BrainTickSystem.TickBTree](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs#L252), before the context is built:
 
 ```csharp
-unsafe BTreeTraceWorkingMemory1024* tracePtr = null;
+BTreeTraceWorkingMemory1024* tracePtr = null;
+bool emitToLog = false;
 if (repo.HasComponent<DebugState>(entity))
 {
     ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
-    if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0 &&
-        repo.HasComponent<BTreeTraceWorkingMemory1024>(entity))
+    emitToLog = (dbg.Behavior & BehaviorDebugFlags.EmitToLog) != 0;
+    if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0
+        && repo.HasComponent<BTreeTraceWorkingMemory1024>(entity))
     {
         ref var traceMem = ref repo.GetComponentRW<BTreeTraceWorkingMemory1024>(entity);
         traceMem.LastInstanceId = behavior.InstanceId;
@@ -500,43 +504,51 @@ if (repo.HasComponent<DebugState>(entity))
     }
 }
 
-var ctx = new BTreeContext
+var context = new BTreeContext
 {
-    Self        = entity,
-    World       = repo,
-    _deltaTime  = deltaTime,
-    _frameCount = (int)repo.GlobalVersion,
-    _floatParams= def.BTreeInterpreter.Blob.FloatParams,
-    _intParams  = def.BTreeInterpreter.Blob.IntParams,
-    _instanceId = behavior.InstanceId,
-    TraceBuffer = tracePtr,
+    Self         = entity,
+    World        = repo,
+    _deltaTime   = deltaTime,
+    _frameCount  = (int)repo.SimulationTick,
+    _floatParams = Array.Empty<float>(),
+    _intParams   = Array.Empty<int>(),
+    _instanceId  = behavior.InstanceId,
+    TraceBuffer  = tracePtr,
 };
 ```
 
 When `tracePtr == null` we never call `GetComponentRW<BTreeTraceWorkingMemory1024>`, so the chunk version is not bumped and the Flight Recorder delta-compression remains undisturbed.
 
-### 8.2 `HsmTickSystem<T>`
+### 8.2 `BrainTickSystem` — HSM arm
 
-Identical pattern, but instead of injecting a pointer into the context, the system builds a stack-local `HsmTraceContext` over the component memory and updates the `InstanceFlags.DebugTrace` bit on the `InstanceHeader` to match `EnableTraceBuffer`:
+Identical pattern, but instead of injecting a pointer into the context, the arm builds a stack-local `HsmTraceContext` over the trace component's memory and updates the `InstanceFlags.DebugTrace` bit on the `InstanceHeader` to match `EnableTraceBuffer`. The `InstanceHeader` is read off the **root HSM occurrence slot**, whose pointer and length come from `RootHsmAccess.TryGetInstance` ([BrainTickSystem.cs:336-339](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs#L336)) — there is no HSM component to take a `ref` to:
 
 ```csharp
-HsmTraceContext traceCtx = default;
+if (!RootHsmAccess.TryGetInstance(repo, entity, out byte* instance, out int instanceSize))
+    return;
+var header = (InstanceHeader*)instance;
+
+HsmTraceContext  traceCtx    = default;
 HsmTraceContext* traceCtxPtr = null;
 if (tracingEnabled && repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
 {
-    ref var mem = ref repo.GetComponentRW<HsmTraceWorkingMemory1024>(entity);
-    traceCtx.Buffer        = (byte*)Unsafe.AsPointer(ref mem.Buffer[0]);
-    traceCtx.WritePos      = (ushort*)Unsafe.AsPointer(ref mem.WritePos);
-    traceCtx.RecordCount   = (ushort*)Unsafe.AsPointer(ref mem.RecordCount);
-    traceCtx.CapacityBytes = HsmTraceWorkingMemory1024.UsablePayload;
+    ref var traceMem = ref repo.GetComponentRW<HsmTraceWorkingMemory1024>(entity);
+    traceMem.LastInstanceId = behavior.InstanceId;
+    traceCtx.Buffer        = (byte*)Unsafe.AsPointer(ref traceMem.Buffer[0]);
+    traceCtx.WritePos      = (ushort*)Unsafe.AsPointer(ref traceMem.WritePos);
+    traceCtx.RecordCount   = (ushort*)Unsafe.AsPointer(ref traceMem.RecordCount);
+    traceCtx.CapacityBytes = HsmTraceWorkingMemory1024.PayloadBytes;
     traceCtx.MaxRecords    = HsmTraceWorkingMemory1024.CapacityRecords;
     traceCtx.FilterLevel   = ResolveTraceLevel(dbg.Behavior);
-    traceCtx.CurrentTick   = (ushort)repo.GlobalVersion;
-    traceCtx.InstanceId    = component.Header.MachineId; // or InstanceHeader.MachineId
+    traceCtx.CurrentTick   = (ushort)repo.SimulationTick;
+    traceCtx.InstanceId    = behavior.InstanceId;
     traceCtxPtr = &traceCtx;
+    header->Flags |= InstanceFlags.DebugTrace;   // honour the per-instance gate in the kernel
 }
 var bridge = new HsmKernelBridge { Self = entity, WorldHandle = repo.UnmanagedHandle, TraceContext = traceCtxPtr };
-HsmKernel.Update(def.HsmDefinition, ref component, bridge, deltaTime, ref cmdPage, traceCtxPtr);
+// The SIZE comes from the slot, never from a type -- a generic overload sized by sizeof(TInstance)
+// would read into the NEXT occurrence's bytes.
+HsmKernel.Update(def.HsmDefinition, instance, instanceSize, &bridge, deltaTime, &dummyPage, traceCtxPtr);
 ```
 
 `ResolveTraceLevel(BehaviorDebugFlags)` maps the `HsmTraceTier1/2/3` bits to `TraceLevel.Tier1/2/3`.
@@ -549,7 +561,7 @@ The `InstanceFlags.DebugTrace` bit is set when `EnableTraceBuffer` is on so exis
 
 ### 9.1 `BTreeTraceWorkingMemoryRenderer` (`Hrot.Presentation`)
 
-Implements `IEntityAwareImGuiRenderer`, decorated with `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Pattern mirrors [BrainBlackboardRenderer.cs](Hrot/Engine/Hrot.Presentation/Renderers/BrainBlackboardRenderer.cs):
+Implements `IEntityAwareImGuiRenderer`, decorated with `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Pattern mirrors the tier renderers' `RootParamsProjection` section, e.g. [BlueprintBlackboard1024Renderer.cs](Hrot/Engine/Hrot.Presentation/Renderers/BlueprintBlackboard1024Renderer.cs):
 
 - Static `BehaviorRegistry? BehaviorRegistryAccessor` set at composition root.
 - Resolves the entity's `BehaviorState.ActiveBehaviorHash` via `IInspectableSession.GetComponent(entity, typeof(BehaviorState))`.
@@ -753,24 +765,26 @@ Register in [SimHostNodeBootstrapper.cs:133](Hrot/Subsystems/Hrot.SimHost/SimHos
 
 The `BehaviorLog` infrastructure is already implemented in [BehaviorLog.cs](Hrot/Subsystems/Hrot.AI.Behaviors/Logging/BehaviorLog.cs). What we add is automatic emission from the new trace records when `DebugState.Behavior & EmitToLog` is set.
 
-### 14.1 Delta Extraction in `BTreeTickSystem`
+### 14.1 Delta Extraction in `BrainTickSystem`'s BTree arm
 
 ```csharp
 ushort startWritePos = tracePtr != null ? tracePtr->WritePos : (ushort)0;
 
 // ---- execute the tree ----
-var rootResult = def.BTreeInterpreter.Tick(ref blackboard, ref btState.State, ref ctx);
+// `blackboard` is a ref to byte 0 of the ROOT PARAMS SLOT; `btState` is a ref to the
+// BehaviorTreeState living in the ROOT TREE-STATE SLOT (RootStateAccess.RequireStateRef).
+var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState, ref context);
 
-if (tracePtr != null
-    && (dbg.Behavior & BehaviorDebugFlags.EmitToLog) != 0
-    && BehaviorLog.IsTraceEnabled)
+if (tracePtr != null && emitToLog
+    && BehaviorTraceLog.Instance is { IsTraceEnabled: true } emitter)
 {
     int bytesWritten = tracePtr->WritePos - startWritePos;
     if (bytesWritten < 0)
         bytesWritten += BTreeTraceWorkingMemory1024.PayloadBytes; // wrap-around path
-    int recordsWritten = bytesWritten / 16;
+    int recordsWritten = bytesWritten / BTreeTraceWorkingMemory1024.RecordStride;
     if (recordsWritten > 0)
-        EmitBTreeRecordsToLog(entity, repo, tracePtr, startWritePos, recordsWritten, def.BTreeInterpreter.Blob);
+        EmitBTreeRecordsToLog(entity, repo, tracePtr, startWritePos, recordsWritten,
+            def.BTreeInterpreter.Blob, emitter);
 }
 ```
 
@@ -780,7 +794,7 @@ if (tracePtr != null
 
 ### 14.2 Same for HSM
 
-`HsmTickSystem` performs the equivalent delta extraction over `HsmTraceWorkingMemory1024.Buffer`. Identical wrap-handling: capture `startWritePos` before `HsmKernel.Update`, compute `bytesWritten = endWritePos - startWritePos; if (bytesWritten < 0) bytesWritten += PayloadBytes;` after the call, divide by 16 (strict stride from §5.2), then format each record using `def.HsmMetadata` for state/event/action names, and dispatch to `BehaviorLog.Trace`.
+The HSM arm of the same system performs the equivalent delta extraction over `HsmTraceWorkingMemory1024.Buffer` ([BrainTickSystem.cs:403-413](FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs#L403)). Identical wrap-handling: capture `startWritePos` before `HsmKernel.Update`, compute `bytesWritten = endWritePos - startWritePos; if (bytesWritten < 0) bytesWritten += PayloadBytes;` after the call, divide by 16 (strict stride from §5.2), then format each record using `def.HsmMetadata` for state/event/action names, and dispatch to `BehaviorLog.Trace`.
 
 ---
 
@@ -795,7 +809,7 @@ if (tracePtr != null
 | `BTreeTraceWorkingMemory1024`, `HsmTraceWorkingMemory1024`, `BTreeTraceRecord`, write APIs | `Fdp.Toolkits` (Behavior/Diagnostics) | New |
 | `BTreeContext` adds `ITreeTracer` impl + trace ptr | `Fdp.Toolkits` (Behavior) | Modified |
 | `HsmKernelBridge` extends with `TraceContext*` | `Fdp.Toolkits` (Behavior/Systems) | Modified |
-| `BTreeTickSystem`, `HsmTickSystem<T>` | `Fdp.Toolkits` | Modified |
+| `BrainTickSystem` (both arms — the one brain tick) | `Fdp.Toolkits` | Modified |
 | `BehaviorDefinition.HsmMetadata` field | `Fdp.Toolkits` (Behavior) | Modified |
 | `AiBehaviorFactory` populates `HsmMetadata` | `Hrot.AI.Behaviors` | Modified |
 | `TraceBufferLifecycleSystem` | `Fdp.Toolkits` (Behavior/Diagnostics) | New |
@@ -870,8 +884,8 @@ Rewire the kernels to consume the new contracts.
 ### Phase 4 — Runtime Wiring
 
 - T4.1 — `TraceBufferLifecycleSystem` (adds/removes 1KB buffers based on `EnableTraceBuffer`)
-- T4.2 — `BTreeTickSystem` reads `DebugState`, stamps `LastInstanceId`, injects `TraceBuffer` pointer into context
-- T4.3 — `HsmTickSystem<T>` builds `HsmTraceContext` over `HsmTraceWorkingMemory1024`, updates `InstanceFlags.DebugTrace`, passes pointer down
+- T4.2 — the BTree arm reads `DebugState`, stamps `LastInstanceId`, injects `TraceBuffer` pointer into context
+- T4.3 — the HSM arm builds `HsmTraceContext` over `HsmTraceWorkingMemory1024`, updates `InstanceFlags.DebugTrace`, passes pointer down
 - T4.4 — Extend `BehaviorDefinition` with `HsmMetadata`; update `AiBehaviorFactory` to populate it via `HsmEmitter.Emit(..., out MachineMetadata metadata)`
 
 ### Phase 5 — UI, Translators, Auto-Enable
@@ -880,7 +894,7 @@ Rewire the kernels to consume the new contracts.
 - T5.2 — `BTreeTraceWorkingMemoryTranslator` and `HsmTraceWorkingMemoryTranslator`; register in `HrotScenarioSerializerFactory`
 - T5.3 — `GlobalActionIds.ToggleAiTrace` and `ToggleAiTraceLog`; register action handlers; add context menu items
 - T5.4 — `AiDiagnosticsTkbTranslator` and register in `SimHostNodeBootstrapper`
-- T5.5 — BehaviorLog emission: delta extraction + decoding in `BTreeTickSystem` and `HsmTickSystem`
+- T5.5 — BehaviorLog emission: delta extraction + decoding in both arms
 
 ### Phase 6 — Examples & Out-of-Solution Tests
 
@@ -901,7 +915,7 @@ The refactor is complete when all of the following are demonstrably true:
 
 2. **Static state eradicated.** `HsmKernelCore._traceBuffer`, `HsmKernelCore.SetTraceBuffer`, and the managed `HsmTraceBuffer` class no longer exist anywhere in `Fhsm.Kernel`. A compile-time grep proves it.
 
-3. **Zero-allocation hot path.** With `DebugState.Behavior & EnableTraceBuffer` set, the `BTreeTickSystem` / `HsmTickSystem` produce zero managed allocations per tick (excluding allocations already present before this change, and excluding the `EmitToLog` opt-in which is explicitly gated behind `BehaviorLog.IsTraceEnabled`).
+3. **Zero-allocation hot path.** With `DebugState.Behavior & EnableTraceBuffer` set, `BrainTickSystem` produces zero managed allocations per tick (excluding allocations already present before this change, and excluding the `EmitToLog` opt-in which is explicitly gated behind `BehaviorLog.IsTraceEnabled`).
 
 4. **Component size compliance.** `BTreeTraceWorkingMemory1024` and `HsmTraceWorkingMemory1024` both have `sizeof(...) == 1024` and register successfully through `ComponentTypeRegistry` without exceeding `EntityCommandBuffer.MaxComponentSize`.
 
@@ -909,9 +923,9 @@ The refactor is complete when all of the following are demonstrably true:
 
 6. **Concurrent HSM tracing.** Two entities running different HSMs with `EnableTraceBuffer` set produce disjoint, non-interleaved trace buffers — provable by running the unit test suite with two parallel entities and comparing per-entity record sequences.
 
-7. **Chunk version stability.** When `EnableTraceBuffer` is cleared, the tick systems do **not** call `GetComponentRW` on the trace buffer; the chunk's `LastChangeTick` does not advance from this component each frame.
+7. **Chunk version stability.** When `EnableTraceBuffer` is cleared, neither arm calls `GetComponentRW` on the trace buffer; the chunk's `LastChangeTick` does not advance from this component each frame.
 
-8. **String-allocation segregation.** A profiler trace during simulation shows zero string allocations stemming from `BTreeTickSystem` or `HsmTickSystem` while tracing is enabled and `EmitToLog` is **disabled**. String formatting is only triggered when `EmitToLog` is on and `BehaviorLog.IsTraceEnabled` returns true, or inside ImGui renderers / JSON translators (UI thread only).
+8. **String-allocation segregation.** A profiler trace during simulation shows zero string allocations stemming from `BrainTickSystem` while tracing is enabled and `EmitToLog` is **disabled**. String formatting is only triggered when `EmitToLog` is on and `BehaviorLog.IsTraceEnabled` returns true, or inside ImGui renderers / JSON translators (UI thread only).
 
 9. **UI round-trip.** Right-clicking an entity with a `BehaviorState` shows the "Toggle AI Trace Buffer" and "Toggle AI Trace Log" menu items. Clicking each toggles the corresponding `BehaviorDebugFlags` bit on `DebugState` via the JSON-patch pipeline; the inspector reflects the change next frame.
 

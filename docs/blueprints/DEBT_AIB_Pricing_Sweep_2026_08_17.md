@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: the per-row verdict table
 note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows marked
   ALREADY FIXED or SUPERSEDED are closed and kept as the record of why.
@@ -22,7 +22,7 @@ note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows m
 |---|---|---|
 | **001** | ⭐⭐ **ALREADY FIXED — `BATCH-01`** | `BlackboardDtoEmitter.cs:317` emits `[MarshalAs(UnmanagedType.I1)]`, and `TASK-TRACKER.md:14` records `S1-0` *done BATCH-01*. ⛔ **The row was never ticked** — this is the stale-debt cost the sweep exists to remove |
 | **002** | ⭐ **STILL REAL, and narrower than filed** | The cross-check exists *(`BTreeJsonGeneratorTests.cs:947-989`, build-time packer vs runtime `BlackboardBinPacker`)*, but ⛔ **still only over scalar shapes** — the `fixed` / `[InlineArray]` padding case the row asks for is **not** among them |
-| **003** | ⭐ **STILL REAL** | No generator emits a heavy (>100 B) DTO from authored variables. `HeavyDtoType` is a **hand-written** binding — `BehaviorTreeAssetDto.cs:61` carries the type NAME, and `ActionSchemaExporter.cs:151-157` reads it off `[SharedAiHeavyAction]`. ⭐ **Unchanged since filing** |
+| **003** | ⛔ **SUPERSEDED — the gap it names no longer needs filling** | Filed as: no generator emits a heavy (>100 B) DTO from authored variables; `HeavyDtoType` stays a **hand-written** binding — `BehaviorTreeAssetDto.cs:61` carries the type NAME, and `ActionSchemaExporter.cs:151-157` reads it off `[SharedAiHeavyAction]`. ⚠ **Per `DESIGN_Occurrence_Scoped_Storage.md` §30.15/§30.16 ⑥ (`2026-09-22`), the heavy-DTO concept itself is retired** — `HeavyDtoType` is dead as storage (rail-pinned null on every shipped asset), and an authored variable needing more room now simply lands on a larger occurrence-slot tier, generated the same way as any other. There is no longer a "heavy" case for a generator to cover |
 | **004** | ⭐⭐ **SUPERSEDED — by the `S3` scope model** | The row's *"separate design pass"* happened: `WorkingStateScope` ships with **`Node` / `Behavior`** and `S3_SharedSlotProvisioningTests` covers per-scope slot keys. ⚠ **The row's SQUAD half is NOT built** *(virtual squad-leader blackboard)* ⇒ ⭐ **re-file that half narrowly rather than keeping a row whose first iteration shipped** |
 | **005** | ⭐⭐ **ALREADY FIXED — by `I4`** | A blueprint-authored AiPrimitive is now emitted **and discoverable**: `AiPrimitiveEmitter.cs:184` stamps `[GeneratedAiPrimitiveAction]`, `BehaviorActionCatalog.cs:171` consumes it, and the corpus carries `T31_ComposedAiPrimitive` / `T32_ComposedGeneratedBlueprint` / `T33_ComposedParamBlueprint`. 📄 `BTree_AiActionParameterBinding_Detailed_Design_Status.md` §I4 says so explicitly |
 | **008** | ⭐ **STILL REAL** | `Emit_BoolField_CarriesMarshalAsI1` still uses `{int, bool, int}` — ⛔ **the discriminating `{bool, byte}` layout the row asks for was never added**. ⚠ **The source-level `[MarshalAs]` assertions in the same test DO guard the regression**, exactly as the row says, so the risk stays low |
@@ -41,15 +41,16 @@ note: a sweep record, not a design. Rows marked STILL REAL are open debt; rows m
 | verdict | rows |
 |---|---:|
 | ⭐⭐ **ALREADY FIXED** | **2** — `001` *(BATCH-01)*, `005` *(I4)* |
-| ⭐⭐ **SUPERSEDED** | **3** — `004` *(S3 scopes)*, `010` *(into `030`)*, `025` *(I4)* |
+| ⭐⭐ **SUPERSEDED** | **4** — `003` *(heavy-DTO concept retired)*, `004` *(S3 scopes)*, `010` *(into `030`)*, `025` *(I4)* |
 | ⭐⭐ **FOLD** | **1** — `024` into `023` |
-| ⭐ **STILL REAL** | **6** — `002`, `003`, `008`, `011`, `023`, `031` |
+| ⭐ **STILL REAL** | **5** — `002`, `008`, `011`, `023`, `031` |
 | ⛔ **USER-DEFERRED** | **1** — `022` |
 | **CANNOT REPRODUCE** | **0** |
 
-⇒ ⭐⭐ **Six of thirteen are no longer live as filed.** ⭐ The handoff predicted *"ALREADY FIXED is the
-likely majority"* — ⚠ **it is not the majority, but it is close to half**, and the six that survive are
-smaller than their text suggests.
+⇒ ⭐⭐ **Seven of thirteen are no longer live as filed** *(`003` joined them on `2026-09-22`, when the
+heavy-DTO concept it wanted a generator for was retired)*. ⭐ The handoff predicted *"ALREADY FIXED is
+the likely majority"* — ⚠ **it is not, but the closed rows are now the majority**, and the five that
+survive are smaller than their text suggests.
 
 ---
 

@@ -473,7 +473,7 @@ stops the kernel writing the singleton.
 | layer | guards on `dt`? | 📐 |
 |---|---|---|
 | **module DISPATCH** | ⛔ **NO** — a ≥60 Hz module is dispatched **every frame**, with `moduleDelta == 0` | `ShouldRunThisFrame` never reads `deltaTime` |
-| ⭐⭐⭐ **the BEHAVIOUR tick systems inside it** | ✅ **YES** — `if (deltaTime <= 0f) return;` | `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` |
+| ⭐⭐⭐ **the BEHAVIOUR tick systems inside it** | ✅ **YES** — `if (deltaTime <= 0f) return;` | `BlueprintTickSystem:51` · `BrainTickSystem:111`. ⭐ The brain tick is ONE system carrying both the BTree and HSM arms, so the gate is one line for both paradigms |
 
 ⇒ ⭐⭐⭐ **A blackboard variable written by a behaviour is NOT recomputed while paused.**
 📌 **And this was already in the corpus** — `Q46` rule `2b`, the user's own `2026-08-19` specification:

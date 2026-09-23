@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: NONE - this is the DECISION TRAIL only. The buildable design is
   DESIGN_Variable_Watch_Pinning.md. Do not implement from this file.
 stale-below: in section 3, read Q40-B/C/F through section 0's amendments; section 5's
@@ -293,7 +293,7 @@ variables table is already there.
 | ⭐⭐ **the window itself** | **`AiWatchWindow` lives in `Hrot.Editor.AiShared`** and is built by the **shared** `PerspectiveWorkspaceRegistrar:337` ⇒ **all three perspectives** |
 | ⭐⭐ **its CONTENT across perspectives** | fed by **`_bpManager`, passed to all three registrars** *(`:2128` `:2152` `:2164`)* ⇒ 📌 **the user's *"shared no matter what perspective"* is ALREADY TRUE** |
 | ⭐ **breakpoints** | `AiBreakpointsWindow`, same registrar, same shared manager |
-| ⭐⭐ **the READ is not session-bound** | `BlueprintDebugSession:1301-1320` needs an **`ISimulationView`**, the **shared `Blackboard1024`**, a `StructureHash` guard and a field layout — ⛔ **nothing blueprint-specific except the BASE OFFSET and where the layout comes from.** ⭐ **Both are DATA, not machinery** |
+| ⭐⭐ **the READ is not session-bound** | `BlueprintDebugSession:1301-1320` needs an **`ISimulationView`**, the **shared occurrence store** (`BlueprintBlackboard{256,1024,4096,16384}`), a slot-key lookup and a field layout — ⛔ **nothing blueprint-specific except WHICH SLOT KEY names this occurrence and where the layout comes from.** ⭐ **Both are DATA, not machinery** |
 
 ⇒ ⭐⭐ **What is actually missing is small:** **(a)** the gesture that calls `Pinned.Add(...)`, **(b)** the
 per-tick poll that gives those rows a value, **(c)** the per-host base offset.
@@ -341,9 +341,10 @@ watch on BTree/HSM has nothing to observe until those sessions are wired.**
 | ⭐ **2** | **each host supplies its tick source + base offset** *(data, not machinery)* | ⭐⭐ **this is the *"more or less for free"* the user expects — and if it is NOT nearly free, slice 1 leaked host knowledge** |
 | ⚠ **3** *(separate)* | **wire `HsmDebugSession` / `BTreeDebugSession`** | ⛔ **needed for BREAKPOINTS / pause / step on BTree/HSM, and for `Q40-H`'s entity discovery** — ⭐ **not for the watch poll itself** |
 
-⚠⚠ **The per-host BASE OFFSET is the subtle half.** 📌 `R-65`: `Blackboard1024` is **ONE component
-shared by BTree, HSM and Blueprint at DISJOINT offsets**, and the blueprint read path hard-codes
-`8 + field.OffsetBytes`. ⇒ ⭐⭐ **the base belongs to the HOST, and must be owned in exactly one place**
+⚠⚠ **The per-host SLOT KEY is the subtle half.** 📌 There is no shared fixed offset any more: BTree/HSM
+resolve the **root params occurrence slot** via `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`,
+and Blueprint resolves its own `{fqn}@{offset}@{slotKey}` (or instance) key, each into the same tier-ladder
+component. ⇒ ⭐⭐ **the key resolution belongs to the HOST, and must be owned in exactly one place**
 — 📌 **the same *"whoever computes the offset must own that `+8` in ONE place, not two"* that Batch 84
 item 2 is already being held to.** ⭐ **Solve it once, for both.**
 

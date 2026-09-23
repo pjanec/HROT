@@ -38,7 +38,7 @@ Brain layer                        Nervous system              Muscle layer
 ──────────────────────────────   ─────────────────────────   ────────────────────
 MissionDirectorSystem              LocomotionDispatcher         CarKinematicsSystem
 BehaviorIngressSystem     ────►   MoveToExecutor        ────►  SpatialHashSystem
-BTreeTickSystem                                                 LinearKinemat...
+BrainTickSystem                                                 LinearKinemat...
                   ▲ observes                       ▼ writes
               SimTransform                        NavState
 ```
@@ -230,13 +230,17 @@ These are in `FDP\Toolkits\Fdp.Toolkit.Geographic\Systems\`.
 #### 3.2.3  `CognitiveRuntimeModule` (The Core Brain)
 
 **Responsibility:** Per-frame AI evaluation; behavior tree and HSM stepping.  
-**Systems registered (in order):**
-1. `ChannelArbitrationSystem()` — clears stale channels when behavior changes
-2. `BTreeTickSystem(_behaviorRegistry)`
-3. `HsmTickSystem<BrainHsm128>(_behaviorRegistry)`
-4. `HsmTickSystem<BrainHsm64>(_behaviorRegistry)`
+**Systems registered (in order)** — `CognitiveRuntimeModule.cs:58-76`:
+1. `ChannelArbitrationSystem(gateOnAuthority)` — clears stale channels when behavior changes
+2. `CognitiveInterruptSystem(gateOnAuthority)` — edge-triggered interrupt registers, before the tick
+3. `BrainTickSystem(_behaviorRegistry, gateOnAuthority)` — **the one brain tick**: a BTree arm and an
+   HSM arm over a single walk of the occurrence-store tiers, selected per entity by
+   `BehaviorState.BrainTier`
+4. `CognitiveCleanupSystem(gateOnAuthority)` — zeroes the interrupt registers after all brain ticks
+5. `BehaviorFrameSystem()` — advances the behaviour-frame pulse, last, so it means "a tick has run"
 
-The `BehaviorRegistry` is injected via constructor.
+The `BehaviorRegistry` is injected via constructor. `gateOnAuthority` is passed to every system in the
+list together, because they are one pipeline over one set of entities.
 
 #### 3.2.4  `ActionDispatchModule` (The Nervous System)
 
@@ -302,7 +306,7 @@ Complement the existing `HrotSharedComponentRegistry` with domain-scoped registr
 
 ```
 HrotSharedComponentRegistry   — SimTransform, SimVelocity, network identity, lifecycle
-CognitiveComponentRegistry       — BehaviorState, BrainBlackboard, BrainBTreeState, BrainHsm128/64, LocomotionChannel, WeaponChannel, MissionPlanQueue, NavigationIntent
+CognitiveComponentRegistry       — BehaviorState, SimTier, LocomotionChannel, WeaponChannel, InteractionChannel, PreviousCapabilities, BrainInterrupts, NavigationIntent, the two trace ring buffers
 KinematicComponentRegistry       — VehicleState, VehicleParams, NavState, FormationMember, FormationRoster, FormationTarget, NavigationStatus
 CombatComponentRegistry          — Faction, PerceptionReceptor, TargetMemory, WeaponState, Health, HealthData, BallisticProjectile, PhysicsCollider
 ```
@@ -1652,6 +1656,6 @@ else
 
 - **AirKinematicsModule / HumanKinematicsModule** — the design defines the pattern; only `GroundKinematicsModule` is implemented in MOD1.
 - **Full NavState removal** — `CarKinem.Core.NavState` remains the Muscle's internal movement target; the new `NavigationIntent` component is the clean public API surface. Internal refactoring of NavState usage inside CarKinematicsSystem is outside MOD1 scope.
-- **BrainHsm registration** — `BrainHsm64` and `BrainHsm128` are already registered; their system wiring is maintained.
+- **The brain's own storage** — MOD1 changes none of it. What a host must register for a brain is the `BlueprintBlackboard{256,1024,4096,16384}` occurrence tier ladder (owned by `BlueprintComponentRegistry`), since both brain roots live in slots inside it.
 - **Radar / Thermal / Acoustic solver implementations** — Phase 6 defines the multi-modal pattern and creates the Visual pipeline end-to-end. Other modalities (Radar, Thermal, Acoustic) follow the same blueprint and are deferred to a subsequent workstream.
 - **AllInOne no-network short-circuit optimisation** — in Phase 6 the translator packs are always wired; a future optimisation can bypass DDS serialisation within-process.

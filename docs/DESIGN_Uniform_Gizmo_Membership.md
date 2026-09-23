@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: BUILT
-updated: 2026-08-23
+updated: 2026-09-22
 current-answer: §9 is the AS-BUILT and it CLOSES §7.3/§7.4; §8 is the mechanism, §7.2 still corrects §1's inventory. The rest of the file — UXI-23 §3.2's GIZMO HALF, made concrete. §1's matrix is the measurement
   that matters: the editor declares all six projector families and every other host declares a subset.
   §3 the design, §4 the UML, §5 the rails, §6 the risks.
@@ -28,7 +28,7 @@ known-conflict: none. ⭐ This IMPLEMENTS UXI-23's gizmo half; ⛔ it does not b
 | query run | total | result |
 |---|---|---|
 | every namespace holding a `[GizmoProjector]` *(non-test, non-`obj`)* | ⭐ **6 families / 18 projectors** | `Hrot.Common.Diagnostics.Gizmos` **7** · `Hrot.ScenarioEditor.Gizmos` **5** · `Hrot.IG.Gizmos` **3** · `Hrot.SimHost.Gizmos` **1** · `Hrot.CGF.Gizmos` **1** · `Hrot.AI.Behaviors.Gizmos` **1** |
-| the UNION of `typeof(...)` across those 18 | ⭐⭐ **15 components** | `BallisticProjectile` `BehaviorState` `BrainBlackboard` `CullingState` `EqsSensor` `IgHealthState` `MapOverlayStyle` `NavigationIntent` `NetworkIdentity` `PerceptionReceptor` `SelectionState` `SimTransform` `TargetMemory` `TkbIdentity` `VisualEffectState` |
+| the UNION of `typeof(...)` across those 18 | ⭐⭐ **14 components** *(`HillAttackGizmo`'s gate now names `BehaviorState`+`SimTransform`, both already in this union — `DESIGN_Occurrence_Scoped_Storage.md` §30.20/§30.22)* | `BallisticProjectile` `BehaviorState` `CullingState` `EqsSensor` `IgHealthState` `MapOverlayStyle` `NavigationIntent` `NetworkIdentity` `PerceptionReceptor` `SelectionState` `SimTransform` `TargetMemory` `TkbIdentity` `VisualEffectState` |
 | `MapSchemaPack.RegisterAll` today | 🔴 **5 of 15** | it closed **IG's** gap only *(`ST-022`)* |
 | every `GizmoRegistrar.Register*` call site per host | ⭐⭐⭐ **the matrix below** | 5 hand-rolled lists, **all different** |
 

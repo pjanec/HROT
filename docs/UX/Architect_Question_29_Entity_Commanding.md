@@ -27,7 +27,7 @@
 | 2 | `MissionControlExecutionSystem` applies it. ⚠ Requires a **live** `EntityRepository`; waits **10 frames** for the entity then NAKs `EntityNotFound` | `Hrot.Common/Systems/MissionControlExecutionSystem.cs:42-46,87-90` |
 | 3 | `MissionPlanQueue` — **≤ 8 phases**, `DataPolicy.NoScenario` | `Fdp.Toolkits/Behavior/Components/MissionComponents.cs:140-163` |
 | 4 | `MissionDirectorSystem` evaluates the phase trigger and publishes the transition | `Fdp.Toolkits/Behavior/Systems/MissionDirectorSystem.cs:27-41` |
-| 5 | `MissionAdapterSystem` detects the phase change and publishes an **`AssignTacticalIntentEvent`**. 🔒 It *"intentionally does **not** mutate `BehaviorState` or `BrainBlackboard` directly"* | `Hrot.CGF/Systems/MissionAdapterSystem.cs` |
+| 5 | `MissionAdapterSystem` detects the phase change and publishes an **`AssignTacticalIntentEvent`**. 🔒 It intentionally does **not** mutate `BehaviorState` or the root params occurrence slot directly — it acts purely as a change-detector and dispatcher | `Hrot.CGF/Systems/MissionAdapterSystem.cs` |
 | 6 | ⭐ **`AssignTacticalIntentEvent { Entity, string IntentId, string JsonParams }`** — the choke point | `Fdp.Toolkits/Behavior/Events/AssignTacticalIntentEvent.cs:23-43` |
 | 7 | **Complementary authority gates** — `TacticalIntentResolutionSystem` runs `if (!HasAuthority<BehaviorState>) continue`; `TacticalIntentEgressTranslator` runs `if (HasAuthority<BehaviorState>) continue` and writes `TacticalIntentRequest` | `TacticalIntentResolutionSystem.cs:93-95` · `TacticalIntentEgressTranslator.cs:72` |
 | 8 | `ITacticalOrderMapper.TryMap(self, repo, jsonParams, out AssignBehaviorEvent)` — or **pass-through**, treating `IntentId` as a behavior name | `ITacticalOrderMapper.cs:23-55` |
@@ -155,7 +155,7 @@ not competing encodings.
 | ✅ **`AssignTacticalIntentEvent` is published directly** — no plan round-trip, no `BaseVersion` conflict, no 8-phase cap |
 | ✅ **§G's partial-failure problem disappears** — a fan-out is N intent publishes, not N versioned plan commits, so [UXI-24 §3.5](UX_Feature_Multi_Select.md)'s one-ECB atomicity **does** hold |
 | ✅ **`CMD_APPEND_TASK` being dead stops mattering** — nothing needs it |
-| 🔒 **The order replaces any previously active behavior** — which is already what `BehaviorIngressSystem` does on `AssignBehaviorEvent` (it resets `BrainBTreeState` and HSM instance state) |
+| 🔒 **The order replaces any previously active behavior** — which is already what `BehaviorIngressSystem` does on `AssignBehaviorEvent` (it resets the root tree-state slot and the root HSM instance slot) |
 | ⚠ **The mission will overwrite the operator's order** at the next phase transition | inherent to B1, and correct: the plan resumes control. ⚠ **Worth surfacing in the UI** — an operator who orders *Stop* and sees the unit move again 20 s later will call it a bug |
 
 ### The original options, kept for the record

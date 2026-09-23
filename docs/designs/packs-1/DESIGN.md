@@ -19,7 +19,7 @@ new C# project assemblies.
 
 | Tier     | Node Role      | Owns                                                       | Emits                          |
 |----------|----------------|------------------------------------------------------------|--------------------------------|
-| Brain    | CGF / ExCon    | `BrainBlackboard`, `BrainHsm*`, `BehaviorState`, `NavigationIntent` | Intents (commands)  |
+| Brain    | CGF / ExCon    | `BrainInterrupts`, `BehaviorState`, the `BlueprintBlackboard*` occurrence store holding the root params / tree-cursor / HSM-instance slots, `NavigationIntent` | Intents (commands)  |
 | Muscle   | SimHost        | `NavState`, `SimTransform`, `VehicleState`, `Health`       | Status/State events            |
 | Network  | Translator Pack | `DdsReader<T>` / `DdsWriter<T>`, `NetworkEntityMap`       | External DDS messages          |
 
@@ -47,10 +47,10 @@ on Brain-only nodes in a distributed cluster.
 `RouteContextSystem` (`Hrot.SimHost/Systems/Routing/RouteContextSystem.cs`) queries:
 
 ```
-_vehicleQuery: .With<NavState>().With<BrainBlackboard>()
+_vehicleQuery: .With<NavState>().With<BrainInterrupts>()
 ```
 
-`NavState` is owned by the Muscle tier; `BrainBlackboard` is owned by the Brain tier. In a
+`NavState` is owned by the Muscle tier; `BrainInterrupts` is owned by the Brain tier. In a
 distributed cluster, no single node holds both, so this system silently produces no output. It
 reads `nav.Mode`, `nav.TrajectoryId`, and `nav.ProgressS` directly from `NavState`.
 
@@ -85,7 +85,7 @@ feedback channel `NavigationStatus`, which already crosses the network via trans
 - Read `mode` and `trajectoryId` from `NavigationIntent` (instead of `NavState`).
 - Read route progress from `NavigationStatus.ProgressS` (instead of `NavState.ProgressS`).
 - Pass `status.ProgressS` into the existing `ResolveSegmentIndex` logic to look up
-  `ExtensionJson` from the `RoutePlan`, then write to `BrainBlackboard`.
+  `ExtensionJson` from the `RoutePlan`, then write to `BrainInterrupts.ExpectedThreatLevel`.
 
 ---
 
@@ -93,12 +93,19 @@ feedback channel `NavigationStatus`, which already crosses the network via trans
 
 **Goal:** Ensure every system executes on the node tier where its required components reside.
 
-### 2.A — Relocate HsmDamageBridgeSystem (Brain tier)
+### 2.A — Put the damage→brain bridge on the Brain tier
 
-`HsmDamageBridgeSystem` (`FDP.Toolkit.Behavior`) queries `BrainHsm128` and `BrainHsm64` — Brain
-components. It is currently registered in `CombatModule` (`Hrot.SimHost`), which is deployed
-to Muscle/AllInOne nodes and *excluded from Brain nodes*. In a distributed setup the system is
-orphaned.
+The capability→interrupt bridge belongs on the Brain tier, because everything downstream of it is
+brain state. It was registered in `CombatModule` (`Hrot.SimHost`), which is deployed to
+Muscle/AllInOne nodes and *excluded from Brain nodes*, so in a distributed setup it was orphaned.
+
+Today that bridge is `CognitiveInterruptSystem`
+(`FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs`), registered in
+`CognitiveRuntimeModule` immediately before the brain tick (`CognitiveRuntimeModule.cs:61`). It
+queries no brain component at all — it reads `ActorCapabilityState` against its
+`PreviousCapabilities` shadow and writes the paradigm-agnostic `BrainInterrupts` registers, which
+the HSM arm of `BrainTickSystem` turns into an `HsmEvent` (`BrainTickSystem.cs:342-347`) and BTree
+Observer nodes read directly.
 
 The data flow that enables the Brain to know about damage is already CQRS-correct:
 
@@ -106,18 +113,19 @@ The data flow that enables the Brain to know about damage is already CQRS-correc
 Muscle: DamageCalculationSystem → EntityHitDamage (DDS) 
   → Brain: EntityHitDamageIngressTranslator → DamageAssessedEvent (bus) 
     → HealthApplicationSystem strips ActorCapabilities.CanMove on Brain node
-      → HsmDamageBridgeSystem enqueues MobilityLost to Brain HSM
+      → CognitiveInterruptSystem writes BrainInterrupts.Interrupt_MobilityLost
+        → BrainTickSystem (HSM arm) enqueues MobilityLost into the machine's event queue
 ```
 
-Fix: remove `HsmDamageBridgeSystem` from `CombatModule.RegisterSystems()`, add it to
-`CognitiveRuntimeModule.RegisterSystems()` *before* the HSM tick systems so the event is
-processed the same frame it is injected.
+Fix: the bridge is not registered by `CombatModule`; it sits in `CognitiveRuntimeModule` *before*
+the brain tick, so the interrupt is consumed the same frame it is written, and
+`CognitiveCleanupSystem` zeroes it at the end of that frame.
 
 ### 2.B — Delete ApcMobilityTriggerSystem; Absorb into HealthApplicationSystem
 
 `ApcMobilityTriggerSystem` is a private inner class inside `UrbanCombatNewScenario`
 (`FDP/Examples/Fdp.Examples.Scenarios/Integrated/UrbanCombatNewScenario.cs`). It queries both
-`Health` (Muscle data) and `BrainHsm128` (Brain data) on the same entity. In a distributed
+`Health` (Muscle data) and the entity's HSM brain state (Brain data) on the same entity. In a distributed
 cluster no single node holds both, so the system silently produces no output (zero matching
 entities). `ApcMobilitySystem` (`FDP/Examples/Fdp.Examples.UrbanCombat/Systems/ApcMobilitySystem.cs`)
 has the same cross-domain query flaw.
@@ -125,15 +133,15 @@ has the same cross-domain query flaw.
 **The correct fix is to delete both systems** and absorb their responsibility into
 `HealthApplicationSystem` (`FDP.Toolkit.Combat`), which already consumes `DamageAssessedEvent`
 on the Brain node and reduces HP. The missing behaviour is: strip `ActorCapabilities.CanMove`
-whenever HP drops below maximum (non-lethal hit = mobility kill). Once `CanMove` is stripped,
-the already-correct `HsmDamageBridgeSystem` chain handles the HSM transition automatically:
+whenever HP drops below maximum (non-lethal hit = mobility kill). Once `CanMove` is stripped, the
+already-correct interrupt chain handles the HSM transition automatically:
 
 ```
 Muscle: DamageCalculationSystem → EntityHitDamage (DDS)
   → Brain: EntityHitDamageIngressTranslator → DamageAssessedEvent (bus)
     → HealthApplicationSystem: reduce HP; if HP < Max → strip CanMove   ← NEW
-      → HsmDamageBridgeSystem: detects CanMove cleared → enqueues MobilityLost
-        → HsmTickSystem: Cruising → Disabled
+      → CognitiveInterruptSystem: detects CanMove cleared → sets Interrupt_MobilityLost
+        → BrainTickSystem, HSM arm: enqueues MobilityLost → Cruising → Disabled
 ```
 
 Steps:

@@ -44,8 +44,9 @@ MissionAdapterSystem          --[AssignTacticalIntentEvent]-->
                                FdpEventBus.SwapBuffers()
                                       |
                                BehaviorIngressSystem
-                                |- write BrainBTreeState / BrainHsm128
-                                |- parse JSON into BrainBlackboard.Memory
+                                |- attach + reset the root tree-state slot (RootStateAccess)
+                                |   or the root HSM instance slot  (RootHsmAccess)
+                                |- parse JSON into the root params occurrence slot
 ```
 
 Two-frame end-to-end latency is accepted and is physically realistic for tactical
@@ -325,4 +326,4 @@ public static NodeStatus Act_IssueTacticalIntent(ref Params dto, Entity self, En
 | Formation coordination excluded | Continuous spatial group movement remains with `FormationTargetSystem` (pull pattern). The intent pipeline is for high-level behavioral phase shifts only. |
 | `MissionAdapterSystem` emits `AssignTacticalIntentEvent` | Unifies the command path so both AI and human-authored orders go through the same resolution. Removes `_behaviorRegistry` dependency from the adapter. |
 | No `IsRemote` flag on `AssignTacticalIntentEvent` | Authority is granular per component, not per entity. The `HasAuthority<BehaviorState>` gate in egress prevents forwarding local events to DDS; the same gate in the resolution system prevents acting on remote events. The two gates together make an `IsRemote` flag redundant. |
-| Authority checked via `HasAuthority<BehaviorState>` | FDP ownership is component-level. A Brain node owns the cognitive state (`BehaviorState`, `BrainBlackboard`) independently from kinematic state. Checking `BehaviorState` authority ensures the intent is resolved on the exact node that will later write `BrainBTreeState` via `BehaviorIngressSystem`. |
+| Authority checked via `HasAuthority<BehaviorState>` | FDP ownership is component-level. A Brain node owns the cognitive state (`BehaviorState`, the root params occurrence slot) independently from kinematic state. Checking `BehaviorState` authority ensures the intent is resolved on the exact node that will later write the behaviour's root slots via `BehaviorIngressSystem`. |

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-15
+updated: 2026-09-22
 current-answer: section 0 is the ruling spec; section 4 is the MASTER SEQUENCING TABLE (56-61)
 note: carries the standing NO VISUAL CHECKS suspension until the Details panel and access infrastructure are unified
 -->
@@ -213,22 +213,25 @@ per-host section sets are a change of DATA, not of structure.**
 ### ⭐⭐⭐ Answer: **the registry already exists, it is hash-guarded, and it already does the GET half**
 
 ```csharp
-// BlueprintDebugSession.CaptureAiPrimitiveState — the shipped READ path
-ref readonly var bb = ref effectiveView.GetComponentRO<Blackboard1024>(self);
-var bytes = MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(in bb, 1));
+// BlueprintDebugSession.CaptureAiPrimitiveOccurrences — the shipped READ path
+foreach (var tier in BlueprintTierTable.Ascending)
+{
+    if (!tier.HasInView(effectiveView, self)) continue;
+    var bytes = tier.BytesInView(effectiveView, self);      // the tier component's payload
 
-ulong storedHash = MemoryMarshal.Read<ulong>(bytes);
-if (storedHash != def.StructureHash) return;          // ⭐⭐ THE GUARD
-
-var layoutFields = mapIndex?.StateLayout.Fields;       // OffsetBytes · SizeBytes · Type
-…  bytes.Slice(8 + field.OffsetBytes, field.SizeBytes)
-// fallback: def.StateFields → descriptor.OffsetBytes · SizeBytes · ClrType
+    foreach (var slot in slotTable)                         // walked from the tier's slot table
+    {
+        var layoutFields = slot.StateLayout.Fields;         // OffsetBytes · SizeBytes · Type
+        …  bytes.Slice(slot.PayloadOffset + field.OffsetBytes, field.SizeBytes)
+        // fallback: def.StateFields → descriptor.OffsetBytes · SizeBytes · ClrType
+    }
+}
 ```
 
 | | |
 |---|---|
 | ⭐ **The UI does NOT infer anything** | it **looks the layout up** in `DebugMapIndex.StateLayout.Fields` (or `BlueprintDefinition.StateFields`) — ⭐ **generated/registered data carrying offset, size and CLR type per variable** |
-| ⭐⭐ **And it VALIDATES before trusting it** | ⛔ **the first 8 bytes of the blackboard ARE the `StructureHash`**, and the reader **refuses to decode** when it disagrees with the definition. ⇒ **a stale layout cannot silently misread — the `+8` is the guard, not padding** |
+| ⭐⭐ **And it VALIDATES before trusting it** | ⛔ **there is no shared hash gate** — each occurrence slot is independently keyed `{fqn}@{offset}@{slotKey}` in the tier's own slot table. ⇒ **a stale layout simply fails to resolve a slot rather than misdecoding — the slot key is the guard, not a shared `StructureHash`** |
 | ⇒ ⭐⭐⭐ **Your instinct is right in substance — and half of it is already built** | **the registry exists and the GETTER half ships.** ⛔ **What is missing is only the SETTER half** |
 
 ### ⚖️ **Generated per-variable setters, or one generic writer? — Coordinator recommends the generic writer**
@@ -243,23 +246,25 @@ carrying the `StructureHash` guard — used by Details, Watch and anything later
 the *"not spread over many places"* the user asks for, and it is a smaller change than generating
 setters.** ⛔ **The thing to avoid is not "offsets in code" — it is offsets in MORE THAN ONE place.**
 
-### 🔴🔴 `Blackboard1024` — the real reason a whole-component write is wrong
+### 🔴🔴 `BlueprintBlackboard1024` — the real reason a whole-component write is wrong
 
 ⛔ **The coordinator's earlier claim that a whole-component write *"exceeds `MaxComponentSize` and
 cannot work"* was WRONG. Corrected:** `EntityCommandBuffer:83` is `if (componentSize > MaxComponentSize)
-throw`, and `Blackboard1024.ByteSize == 1024` ⇒ **1024 > 1024 is false. It fits, exactly.**
+throw`, and `BlueprintBlackboard1024.ByteSize == 1024` ⇒ **1024 > 1024 is false. It fits, exactly.**
 
 ⭐⭐ **But the true argument is stronger than the size one ever was:**
 
 ```csharp
-[ComponentId(GlobalComponentIds.Blackboard1024)]
-public unsafe struct Blackboard1024 { public const int ByteSize = 1024; public fixed byte Memory[1024]; }
-///  "Convention: each subsystem projects at a DISJOINT BYTE OFFSET."
+[ComponentId(GlobalComponentIds.BlueprintBlackboard1024)]
+public unsafe struct BlueprintBlackboard1024 { public const int ByteSize = 1024; public fixed byte Memory[1024]; }
+///  "Convention: each occurrence slot is projected at its own DISJOINT BYTE OFFSET,
+///  allocated by BlueprintBlackboardPartitions."
 ```
 
-⇒ ⛔⛔ **The blackboard is ONE component SHARED by BTree, HSM and Blueprint, each projecting its own
-disjoint region.** ⇒ **a whole-component write does not merely clobber other fields — it clobbers
-OTHER SUBSYSTEMS' STATE.** ⭐ **Ruling 14 stands, on much firmer ground.**
+⇒ ⛔⛔ **The tier component is ONE component SHARED by every occurrence slot the partition allocator
+has placed on it** — root params and every AiPrimitive's working state alike, each projecting its own
+disjoint region. ⇒ **a whole-component write does not merely clobber other fields — it clobbers OTHER
+OCCURRENCE SLOTS.** ⭐ **Ruling 14 stands, on much firmer ground.**
 
 ### ⭐⭐ Ruling 15 — **runtime writes ONLY while paused or deterministic-stepping** *(user)*
 

@@ -519,7 +519,7 @@ seam)* and **fold the SPECIFIC one** *(`BlueprintDetailsWindow`, `sealed`, bluep
 | feature | `LiveBlackboardPanel` | the variable table |
 |---|---|---|
 | **three columns, Field/Type/Value** | ✅ | ✅ *(`Type` is the one toggle — Details on, Watch off)* |
-| **live read from `BrainBlackboard`** | ✅ direct pointer at `FieldOffset` | ✅ via `ILiveBlackboardValueProvider` |
+| **live read of the root params slot** | ✅ direct pointer at `FieldOffset` | ✅ via `ILiveBlackboardValueProvider` |
 | **14 primitives + `Vector2/3/4`** | ✅ **a hand-rolled `typeof` switch** | ✅ **GENERIC `Marshal.PtrToStructure`** — ⭐ strictly wider |
 | 🔴 **enums** | ⛔⛔ **falls through to `"?"`** | ✅ decoded **and printed by NAME** *(`RawValueDecoder:58`)* |
 | 🔴 **any other blittable struct** | ⛔ `"?"` | ✅ generic |

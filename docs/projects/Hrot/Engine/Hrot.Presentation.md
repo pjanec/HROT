@@ -251,12 +251,13 @@ All source files are under `Hrot/Engine/Hrot.Presentation/`.
 |---|---|---|---|
 | `ActivePerspectiveRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(ActivePerspective))]`. Summary shows perspective name; `RenderValue` returns `false` to let `ImGuiPropertyTree` render `Name` as an editable leaf. |
 | `BehaviorStateRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BehaviorState))]`. Summary: behavior name + brain tier. Renders `ActiveBehaviorHash`, `InstanceId`, `BrainTier`. Uses static `BehaviorRegistryAccessor`. |
-| `Blackboard1024Renderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(Blackboard1024))]`. Entity-aware. Deserializes 1024-byte heavy blackboard as `HeavyDtoType` when registered; falls back to raw-bytes label. |
-| `Blackboard1024ViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. Projects `$.Memory` of `Blackboard1024` as the active behavior's `HeavyDtoType`. Zero-allocation writes via `NativeFieldBinding`. |
-| `BrainBlackboardRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BrainBlackboard))]`. Entity-aware. Interprets `BehaviorParameters` fixed buffer as `ParamsDtoType`; renders typed or raw-hex fallback. Also shows `ExpectedThreatLevel` and interrupt flags. |
-| `BrainBlackboardViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. Projects `$.BehaviorParameters` of `BrainBlackboard` as the active behavior's `ParamsDtoType`. |
+| `BlueprintBlackboardRendererBase.cs` | `Hrot.Presentation.Renderers` | `abstract class` | Shared base for `BlueprintBlackboard{256,1024,4096,16384}Renderer.cs`. Entity-aware. Summarizes the tier's attached occurrence-slot count via `BlueprintBlackboardPartitions`, then renders four sections in order: root params via `RootParamsProjection`, AiPrimitive working state via `StatefulWorkingStateProjection.RenderWorkingState` (typed by the slot's `StatefulSlotInfo.WorkingStateType`), the BTree execution path via `RootTreeStateProjection.RenderRootTree`, and the `BrainInterrupts` tail — falling back to raw bytes when the type is unknown. Each tier subclass supplies only its own component type via `[ImGuiRenderer(typeof(BlueprintBlackboard{Tier}))]`. |
+| `BlueprintBlackboard1024Renderer.cs` (and its `256`/`4096`/`16384` siblings) | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BlueprintBlackboard1024))]`. Thin per-tier subclass of `BlueprintBlackboardRendererBase`; supplies the tier's component type, the base class does the rendering. |
+| `RootParamsViewProvider.cs` | `Hrot.Presentation.Renderers` | `sealed class` | StructEdit `IBufferViewProvider`. One occurrence-slot-offset-based provider for both slot kinds: the caller resolves the slot first — root params via `RootParamsAccess.TryGetRootBytesInView` keyed by `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)`, or working state via `BlueprintTierTable.Ascending` → `BytesInView` → the slot's `PayloadOffset` — then hands this provider the resolved base offset, which projects it as the slot's DTO type (`ParamsDtoType` or `WorkingStateType`). Zero-allocation writes via `NativeFieldBinding`. |
+| `RootParamsProjection.cs` | `Hrot.Presentation.Renderers` | `static class` | Typed projection helper for the **root params occurrence slot** — the root-params counterpart to `StatefulWorkingStateProjection`; used by `BlueprintBlackboardRendererBase` to decode and render a behavior's `ParamsDtoType` at its resolved offset. |
+| `RootTreeStateProjection.cs` | `Hrot.Presentation.Renderers` | `static class` | The entry point for the **BTree execution-path section**. Resolves the root tree-state slot through `RootStateAccess` and hands the cursor to `BTreeVisualizerRenderer`; called by `BlueprintBlackboardRendererBase` after root params and working state. |
 | `BTreeTraceWorkingMemoryRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BTreeTraceWorkingMemory1024))]`. Entity-aware ring-buffer renderer. Decodes 16-byte trace records into a 4-column ImGui table. Node-index symbolication via `BehaviorTreeBlob.DebugMetadata`. |
-| `BTreeVisualizerRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(BrainBTreeState))]`. Entity-aware. Renders the full behavior-tree hierarchy with color-coded active-path highlighting (green = running, yellow = ancestral, gray = inactive). Source-location tooltips from `NodeDebugMetadata`. |
+| `BTreeVisualizerRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | **Not attribute-keyed on a component.** It is a *section* of `BlueprintBlackboardRendererBase`, entered through `RootTreeStateProjection.RenderRootTree` and reading the cursor through `RootStateAccess`. Renders the full behavior-tree hierarchy with color-coded active-path highlighting (green = running, yellow = ancestral, gray = inactive). Source-location tooltips from `NodeDebugMetadata`. |
 | `HrotSingletonRenderers.cs` | `Hrot.Presentation.Renderers` | Contains `ActivePerspectiveRenderer` | (see above) |
 | `HsmTraceWorkingMemoryRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(HsmTraceWorkingMemory1024))]`. Entity-aware ring-buffer renderer for HSM execution traces. Decodes records using `MachineMetadata` to symbolicate state/event/action IDs. |
 | `MissionPlanQueueRenderer.cs` | `Hrot.Presentation.Renderers` | `sealed class` | `[ImGuiRenderer(typeof(MissionPlanQueue))]`. Renders `CurrentPhase`, `PhaseCount`, `PhaseElapsedSeconds`, and per-phase `BehaviorId` / `Trigger` / `TriggerParam` in a two-column ImGui table. |
@@ -931,9 +932,9 @@ public static class SelectionRenderConstants
 
 | Assembly | Role |
 |---|---|
-| `Hrot.Core` | HROT domain types: `GeoPoint`, `MissionPlan`, `MissionTask`, `eMissionCommandType`, `eTaskState`, `BrainBlackboard`, `ActiveMissionPlan`, `IgHealthState`, etc. |
+| `Hrot.Core` | HROT domain types: `GeoPoint`, `MissionPlan`, `MissionTask`, `eMissionCommandType`, `eTaskState`, `ActiveMissionPlan`, `IgHealthState`, etc. |
 | `Fdp.Core` | ECS engine: `EntityRepository`, `Entity`, `EntityQuery`, `FdpEventBus`, `GlobalTime`, `FixedString32`. |
-| `Fdp.Toolkits` | Cross-cutting toolkits: behavior (`BehaviorRegistry`, `BehaviorState`, `BehaviorDefinition`, `MissionPlanQueue`, `BrainBTreeState`, `HsmTraceWorkingMemory1024`, `BTreeTraceWorkingMemory1024`, `Blackboard1024`), time (`MasterSyncController`, `SwitchTimeModeEvent`, `ClusterStateUpdateEvent`), replication (`NetworkIdentity`), spawning (`SpawnEntityCommand`, `CreateEntityRequestSystem`), scenario (`ScenarioSerializer`), vis2D (`MapCanvas`), orchestration (`FdpEventBus`, `ClusterState`). |
+| `Fdp.Toolkits` | Cross-cutting toolkits: behavior (`BehaviorRegistry`, `BehaviorState`, `BehaviorDefinition`, `MissionPlanQueue`, `RootStateAccess` / `RootParamsAccess`, `HsmTraceWorkingMemory1024`, `BTreeTraceWorkingMemory1024`, `BlueprintBlackboardPartitions`), time (`MasterSyncController`, `SwitchTimeModeEvent`, `ClusterStateUpdateEvent`), replication (`NetworkIdentity`), spawning (`SpawnEntityCommand`, `CreateEntityRequestSystem`), scenario (`ScenarioSerializer`), vis2D (`MapCanvas`), orchestration (`FdpEventBus`, `ClusterState`). |
 | `Fdp.Presentation` | ImGui/Raylib window manager: `ManagedWindow`, `WindowManager`, `WindowScope`, `EntityInspectorPanel`, `EntityWatchPanel`, `ArchitectureDiagnosticsPanel`, `EventBrowserPanel`, `StatusBarManager`, `IContextMenuBuilder`, `IImGuiRenderer`, `IEntityAwareImGuiRenderer`, `ImGuiRenderer` attribute, `ImGuiPropertyTree`, `RepositoryAdapter`, `IInspectableSession`. |
 | `Fdp.Toolkits.Analyzers` (Analyzer) | Source generator for `[GizmoProjector]` attribute. Generates `IStatelessGizmo` registration code. Output assembly not referenced at runtime. |
 
@@ -1178,9 +1179,9 @@ them in this callback to avoid dangling entity references after the repository i
 
 ### Renderer Static Accessors
 
-`BehaviorStateRenderer.BehaviorRegistryAccessor`, `BrainBlackboardRenderer.BehaviorRegistryAccessor`,
+`BehaviorStateRenderer.BehaviorRegistryAccessor`,
 `BTreeVisualizerRenderer.BehaviorRegistryAccessor`, `HsmTraceWorkingMemoryRenderer.BehaviorRegistryAccessor`,
-and `Blackboard1024Renderer.BehaviorRegistryAccessor` are static properties that must be set
+and `StatefulWorkingStateProjection.BehaviorRegistryAccessor` are static properties that must be set
 once at the composition root before any ImGui rendering occurs. Set them to the same
 `BehaviorRegistry` instance used by the ECS behavior system.
 
@@ -1190,7 +1191,7 @@ once at the composition root before any ImGui rendering occurs. Set them to the 
 
 | Project | Relationship |
 |---|---|
-| `Hrot.Core` | Provides domain types (`MissionPlan`, `GeoPoint`, `BrainBlackboard`, etc.) consumed throughout this assembly. |
+| `Hrot.Core` | Provides domain types (`MissionPlan`, `GeoPoint`, etc.) consumed throughout this assembly. |
 | `Hrot.UI.Common` | **Note:** `Hrot.UI.Common.*` namespaces are compiled inside this assembly (`Hrot.Presentation.csproj`), not a separate project. There is no standalone `Hrot.UI.Common.csproj` at this layer. |
 | `Hrot.IG` | Image Generator subsystem. Uses `IgEntityPresentationGizmo`, `CullingState`, `IgHealthState`, `SelectionState`, and entity presentation infrastructure from this assembly. |
 | `Hrot.ExCon` | Exercise Control subsystem. Depends on panels, facades, and behavior UI infrastructure. Granted `InternalsVisibleTo`. |

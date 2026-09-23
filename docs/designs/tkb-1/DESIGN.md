@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-13
+updated: 2026-09-22
 current-answer: the whole document is the TKB design and is BUILT. §6.5b is the section added on
   2026-08-30 and is the one to read before composing a node's translator list — it states the
   consequence of §6.1's registration guard, which the rest of the document leaves implicit.
@@ -817,7 +817,7 @@ WITHDRAWN.**
 | sketch | why it fails |
 |---|---|
 | `mandatory = produced(translators)` | ⛔ backwards — a translator that PRODUCES a component is the reason you might not need to WAIT for it |
-| `mandatory = produced ∧ "stamps a default" (the !HasComponent guard)` | 🔴 **the guard does not discriminate.** 📐 Measured over all 8 production translators: **~25 of ~30** produced components carry `!repo.HasComponent<T>(entity)` — it is an IDEMPOTENCY guard, present on `TargetMemory`, `BrainBlackboard`, `NavState`, `WeaponState` and everything else. ⇒ it selects nearly everything, and only **2** components are actually mandatory |
+| `mandatory = produced ∧ "stamps a default" (the !HasComponent guard)` | 🔴 **the guard does not discriminate.** 📐 Measured over all 8 production translators: **~25 of ~30** produced components carry `!repo.HasComponent<T>(entity)` — it is an IDEMPOTENCY guard, present on `TargetMemory`, `NavState`, `WeaponState` and everything else. ⇒ it selects nearly everything, and only **2** components are actually mandatory |
 
 ##### 📐 WHAT ACTUALLY SEPARATES THE TWO MANDATORY COMPONENTS FROM THE ~25 THAT ARE NOT
 
@@ -826,7 +826,7 @@ WITHDRAWN.**
 | ⭐ `SimTransform` | `new SimTransform()` — **zeroed and meaningless** | ✅ the real value comes from `SpawnEntityCommand.InitialTransform` or the wire |
 | ⭐ `EntityInfo` | `new EntityInfo { ForceId = dto.Faction }` — a template default | ✅ **but faction is authored PER SPAWN**, so the template default must not beat it |
 | ⛔ `VehicleParams` · `Health` · `PerceptionReceptor` · `WeaponState` | derived from the descriptor | ⛔ identical on every instance of the template |
-| ⛔ `VehicleState` · `NavState` · `TargetMemory` · `BrainBlackboard` · the channels | empty runtime state | ⛔ legitimately starts empty |
+| ⛔ `VehicleState` · `NavState` · `TargetMemory` · the channels | empty runtime state | ⛔ legitimately starts empty |
 
 ⇒ 🔒 **THE DISCRIMINATOR: a component is mandatory exactly when its AUTHORITATIVE value is PER-INSTANCE —
 authored at spawn or replicated in — so the template's default would silently win.** ⛔ That is a property

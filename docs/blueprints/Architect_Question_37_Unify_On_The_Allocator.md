@@ -1,17 +1,18 @@
 # Architect Question #37 — **should ALL parameter storage move to the allocator?**
 
-> ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
+> ## ⭐ RESOLVED — folded into `DESIGN_Occurrence_Scoped_Storage.md`
 >
-> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves **`BrainBlackboard.BehaviorParameters`**,
-> **`Blackboard1024`** and the per-entity brain-state components (`BrainBTreeState`, `BrainHsm64/128`)
-> into **per-occurrence slots** of the partition allocator, and renames the tier components
-> `BlueprintBlackboard*` → **`OccurrenceStore*`**. It is the build-out of
-> **this question**, which the user parked on `2026-08-17` and reopened on `2026-09-19`.
+> 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** §30 is the build-out
+> of this question. The root behaviour's params and per-node AiPrimitive working state now live in
+> **per-occurrence slots** of the partition allocator, inside the same four tier components
+> (`BlueprintBlackboard256`/`1024`/`4096`/`16384` — **no rename**). It is the answer to **this question**,
+> which the user parked on `2026-08-17` and reopened on `2026-09-19`.
 >
-> ⛔ **Whatever THIS document says about WHERE those bytes live is the BEFORE picture.**
-> ⭐ Everything else in it stands.
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included. The root tree
+> cursor is one (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`, sized per
+> machine at attach by `HsmInstanceManager.SelectTier`). No brain component remains.
 >
-> ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT REOPENS.** ⛔ The PARKED banner below is HISTORY: the
+> ⭐⭐⭐ **THIS IS THE QUESTION THAT DOCUMENT RESOLVES.** ⛔ The PARKED banner below is HISTORY: the
 > user reopened it on `2026-09-19` and chose **option `B`** *(unify AND add a smaller tier)*. ⭐ The
 > measurements in §2 remain **banked and authoritative — do not re-measure them.**
 
@@ -37,6 +38,12 @@
 
 ## 2. 📐 What was measured — `2026-08-17`
 
+⚠ **This table is the BEFORE-picture that produced the question, and every ⛔/⚠ row in it is now
+closed.** ① and ② by `P3-C`/`E3a` *(each occurrence owns a keyed slot, so nothing packs from a shared
+`0`)* · ③ by `CE-307` *(the parse shadow is sized `RootParamsBytes(def)` per behaviour)* · ④ by the same
+change *(the bound is a per-behaviour capacity, not a shared budget)* · ⑤ by `O7c`-② *(`RootStateAccess`
+— a keyed slot, so a hosted subtree owns its own cursor)*. ⛔ **Do not quote a row here as current.**
+
 | # | measured | verdict |
 |---|---|---|
 | ① | `BTreeBlackboardPackHelper.Pack:131` — **`int offset = 0` PER ASSET.** Every asset lays its variables out from `0` | ⛔ host and child **overlap by construction** |
@@ -50,20 +57,21 @@
 | | measured |
 |---|---|
 | ✅ **hardcoded behaviours would NOT be harmed** | 📐 **every direct `bb.BehaviorParameters[0]` reference in the repo is inside an EMITTER.** Hand-written node methods take `ref dto`; hand-written resolvers take a destination `byte*`. ⭐ **Both are already base-agnostic** — 📄 `DESIGN_Parameter_Model.md` §4.2 says so and the code matches ⇒ **the change is "emitters emit a different base expression"** |
-| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all three `BlueprintBlackboard{1024,4096,16384}` are `[DataPolicy(NoScenario)]` — **snapshotted AND recorded alike** |
+| ✅ **replay / snapshot is unaffected** | `BrainBlackboard` **and** all four `BlueprintBlackboard{256,1024,4096,16384}` are `[DataPolicy(NoScenario)]` — **snapshotted AND recorded alike** |
 
 ### ⚠ The two costs that are real
 
 | | |
 |---|---|
-| 🔴 **a 1 KB floor per AI entity** | the smallest tier is **1024 B** *(96 of it header + slot table)* against today's **128 B** `BrainBlackboard` ⇒ ⭐ **~8× for the simple case**, and an **archetype change for every AI entity** *(today `EnsureTierComponent` adds a tier on demand)*. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured** |
+| ⚠ **a floor per AI entity** | ⭐ **This objection was answered by ADDING A TIER.** The user chose option `B` — unify *and* add a smaller tier — so the floor is **256 B** *(32 header + 48 slot table, 176 B payload)*, not the 1024 B this row feared, against the 128 B component of the day ⇒ **~2×, not ~8×**, and an **archetype change for every AI entity** *(today `EnsureTierComponent` adds a tier on demand)*. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured** |
 | ⚠ **indirection moves from SOME to ALL** | today: one field access on a component already in hand. Under the allocator: tier probe → `GetComponentRW` → `fixed` → `TryGetSlotOffset` *(linear scan)*. ⭐ **Generated STATEFUL thunks already do exactly this**, so it is proven — ⛔ **but it goes from "the stateful ones pay it" to "every action, every tick"** |
 
-⭐ **And `BrainBlackboard` does not disappear** — the tail stays *(`ExpectedThreatLevel` at offset 120,
-the interrupt registers written by `CognitiveInterruptSystem`/`CognitiveCleanupSystem`)*. ⭐⭐ **The
-component becomes *cognitive tail only*, which is clearer than today's "params plus an unrelated tail at
-fixed offsets"** — and it is exactly the separation 📄 `DESIGN_Parameter_Model.md` §4.3 already asserts
-*("carry the params AREA only, never the component")*.
+⭐ **`BrainBlackboard` ends up disappearing entirely, not shrinking to a tail** — the interrupt tail
+(`ExpectedThreatLevel`, the registers written by `CognitiveInterruptSystem`/`CognitiveCleanupSystem`)
+got its own `BrainInterrupts` component, and the params moved into the root params occurrence slot.
+⭐⭐ **That is a cleaner split than "component shrinks to cognitive tail only"** — and it is exactly the
+separation 📄 `DESIGN_Parameter_Model.md` §4.3 already asserts *("carry the params AREA only, never the
+component")*, just resolved by removing the component rather than narrowing it.
 
 ---
 
@@ -83,7 +91,7 @@ fixed offsets"** — and it is exactly the separation 📄 `DESIGN_Parameter_Mod
 |---|---|
 | ⭐ **`Q36-C`** *(never written)* | *"where does a hosted child's params base come from"* — ⛔ **stops being a separate question**: if params always come from the allocator, there is one answer |
 | ⭐⭐ **`E3`'s scope** | `E3` is *"resolve the base instead of baking it"*. ⭐ **Under `A`/`B` that IS the change**, with no root/child branch ⇒ ⚠ **`E3` built before this decision would be partly rework** |
-| ⚠ **the 100-byte cap** | dissolves for children — their region comes from a 928 / 3936 / 16368-byte tier |
+| ⚠ **the fixed cap** | ⭐ **the STORAGE reason for it is gone** — every occurrence's region comes from its tier's payload (176 / 800 / 3 808 / 16 096 B, `DESIGN_Occurrence_Scoped_Storage.md` §30.15). ⚠ **The compile-time check itself is not yet retired** — `MaxBehaviorParamByteSize = 100` still gates the build until `CE-307` lands |
 
 ---
 

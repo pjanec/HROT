@@ -187,8 +187,8 @@ contract to carry a status?"*
 | path | storage | keyed by | cursor | params |
 |---|---|---|---|---|
 | **Instance** | `BlueprintBlackboard` partition slot | `blueprintId` | ✅ **16 B** | ⛔ *(ruled: add)* |
-| ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | `bb.BehaviorParameters` |
-| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | `Blackboard1024 + 8` | ⛔ **unkeyed — one per entity** | ⛔ | `bb.BehaviorParameters[0]` |
+| ⭐⭐ **AiPrimitive — COMPOSITION** *(bridge, per node)* | ⭐⭐⭐ **the SAME partition allocator** | `FNV-1a(assetId, scope, nodeVisualId, variableId)` | ⛔ | root params slot (`RootParamsAccess`, per-field offset) |
+| **AiPrimitive — STANDALONE hosting** *(`BTreeTick` thunk)* | occurrence slot in the tier ladder (`BlueprintBlackboard{256,1024,4096,16384}`) | ✅ **`{fqn}@{offset}@{slotKey}`** | ⛔ | root params occurrence slot (`RootParamsAccess`, index 0) |
 
 ```csharp
 // StatefulBTreeActionBinder — the composition path
@@ -362,7 +362,8 @@ binding** — like a call's arguments — not a runtime message.
 
 #### ③ ⚠ Sizing consequence — **one slot per hosting state**
 
-`MaxSlots` is **4 / 8 / 16** for the 1024 / 4096 / 16384 tiers. ⇒ **an HSM with many hosting states
+`MaxSlots` is **3 / 12 / 16 / 16** for the 256 / 1024 / 4096 / 16384 tiers *(re-picked by `B3②`; the
+payloads are 176 / 800 / 3 808 / 16 096 B)*. ⇒ **an HSM with many hosting states
 drives the tier choice**, and `ChooseTier` must size against the **sum**, exactly as
 `BlueprintMaterializationSystem` already pre-provisions *"from the aggregate slot + byte requirements"*.
 

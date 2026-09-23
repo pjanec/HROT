@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-10
+updated: 2026-09-22
 build-state: BUILDING
 current-answer: §5 is the plan. Steps 1, 2 and 4 are BUILT. Step 1 + 2 (2026-08-30): TkbTranslatorSet is
   the one base list and all five spawning sites use it. Step 4 (2026-08-31): the UrbanCombat templates
@@ -240,7 +240,7 @@ per `IgNodeBootstrapper:150-152`)*:
 | 🔴 `VehicleParams` · `PhysicsCollider` | `VehicleKinematicsTkbTranslator` | ⛔ **no** |
 | 🔴 `Health` · `WeaponState` | `CombatTkbTranslator` | ⛔ **no** |
 | 🔴 `PerceptionReceptor` · `TargetMemory` | `PerceptionTkbTranslator` | ⛔ **no** |
-| *(not registered: `VehicleState`, `NavState`, `NavigationIntent`, `BehaviorState`, `BrainBlackboard`, `SimTier`, `EntityInfo`)* | — | — |
+| *(not registered: `VehicleState`, `NavState`, `NavigationIntent`, `BehaviorState`, `BrainInterrupts`, `SimTier`, `EntityInfo`)* | — | — |
 
 ⇒ ⚠⚠ **IG registers six components that `Base()` would fill and its short list leaves untouched on every
 ghost.** ⛔ **But do NOT widen it on that basis alone** — those six are plausibly populated by **DDS
@@ -423,7 +423,7 @@ NetworkIdentity · NetworkTransform · NetworkVelocity · PerceptionReceptor · 
 SimVelocity · TargetMemory · TkbIdentity · VehicleParams · VisualData · WeaponState`.
 
 ⭐⭐⭐ **And the NARROWING LEVER is measured, not asserted.** The 18 components on CGF+SimHost and not IG
-*(`BehaviorState`, `BrainBTreeState`, `BrainBlackboard`, `MissionPlanQueue`, `NavState`, `SimTier`,
+*(`BehaviorState`, `BrainInterrupts`, the `BlueprintBlackboard*` tiers, `MissionPlanQueue`, `NavState`, `SimTier`,
 `VehicleState`, …)* are **exactly** the contents of `CognitiveComponentRegistry` ∪ `KinematicComponentRegistry`
 — the two tiers **SimHost registers and IG does not**. ⇒ ⭐ every node runs the **same
 `TkbTranslatorSet.Base()`**, and each `ITkbEntityTranslator` guards its write with
@@ -1868,7 +1868,7 @@ materialised."* ⚠ Three known constraints already recorded in that design, ⛔
 |---|---|
 | **two categories, not one** | **birth-critical** *(spatial — must be valid at birth ⇒ creator birthright, then the existing `DeferredTakeOwnership` handoff)* vs **cognitive** *(defaultable ⇒ role affinity)*. 🔒 architect: *"the position can not start empty."* ⛔ One symmetric rule was the first draft and it was WRONG — it left `SimTransform` unowned so the spawn position could never be published |
 | **network-agnostic** | 🔒 user: *"we can have multiple different network implementations — ownership can not be tied to one of them."* ⇒ ⛔ **nothing may key on a descriptor**; the role carries a `BitMask512` of COMPONENT ids |
-| 🔴 **authority does not stop execution** | 📐 `BTreeTickSystem.cs:62-65` has **no** authority filter and **no** production system uses `QueryBuilder:97`'s `.WithAuthority<T>()` ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic |
+| ⚠ **authority does not stop execution** | 📐 When this was written the brain tick had **no** authority filter ⇒ P3 needs **both** a narrowed Muscle-only registration **and** the query filter, or the whole design is cosmetic. ✅ The filter now exists — `BrainTickSystem` builds every per-tier query with `WithOwnedWhen<BehaviorState>(gateOnAuthority)` — but it is CONDITIONAL and off until a host is handed a role policy |
 
 ⚠ **`DESIGN_Role_Affinity_Ownership.md` §5 still holds THREE OPEN DECISIONS**, each with a lean. ⛔ They
 are decisions for the user, not for the implementing session — settle them before P3 starts.

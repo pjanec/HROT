@@ -825,7 +825,7 @@ propagated four times** *(`DEBT-AIB-012`, below)*.
 
 | decision | ruling |
 |---|---|
-| ① **the write path** | ✅ **OPTIMISTIC DISPLAY.** Paint the new value immediately, then **stage** through the existing path. ⛔ **Do NOT write `_liveRepo` while paused** — `Blackboard1024` is `[DataPolicy(NoScenario)]`, i.e. **snapshotted AND recorded**, so a non-simulation write breaks Flight Recorder linearity |
+| ① **the write path** | ✅ **OPTIMISTIC DISPLAY.** Paint the new value immediately, then **stage** through the existing path. ⛔ **Do NOT write `_liveRepo` while paused** — the Blueprint tier components (`BlueprintBlackboard{256,1024,4096,16384}`, holding every occurrence slot) are `[DataPolicy(NoScenario)]`, i.e. **snapshotted AND recorded**, so a non-simulation write breaks Flight Recorder linearity |
 | ② **the gesture** | ✅ **two menu items = the two `EditScope`s.** *"Edit value…"* (`ForField`, double-click the **value** cell) · *"Properties…"* (`WholeComponent`, double-click the **name** cell). ⭐ **Run state decides WRITABILITY, not which dialog** |
 | ③ **table or form** | ✅ **TABLE**, filtered by section — ⛔ **never a single-variable form.** `D7`'s field list becomes **the dialog's** contents |
 
@@ -980,10 +980,11 @@ HSM emitter slice already queued as its first step.
 
 ### ⭐⭐ Hand-written DTOs survive all of this **unchanged** — 📄 explainer §5e
 
-⭐ **The 100-byte region is a TYPE, not a per-entity singleton.** `NodeLogicDelegate<TBlackboard,…>` is
+⭐ **The params region is a TYPE, not a per-entity singleton.** `NodeLogicDelegate<TBlackboard,…>` is
 generic and the instance arrives **by ref from the caller** (`Interpreter.Tick(ref blackboard, …)`);
-`BrainBlackboard` is just a 128-byte struct; and a hand-written DTO's offsets are **relative to the
-struct base**, with `Method@byteOffset` baking only the *field* offset.
+the interpreter's blackboard parameter is bound to plain `byte`, pointing at the behaviour's own
+root-params occurrence slot; and a hand-written DTO's offsets are **relative to the slot's own base**,
+with `Method@byteOffset` baking only the *field* offset.
 
 ⇒ ⭐⭐⭐ **A hosted occurrence gets its own PARAMS REGION in its slot and is ticked against that** —
 every `[SharedAiAction]` thunk keeps working, **same offsets, different instance.**
@@ -991,23 +992,24 @@ every `[SharedAiAction]` thunk keeps working, **same offsets, different instance
 
 ⛔ **Carry the PARAMS AREA only, never the component** *(user correction, `2026-08-16`)*. ⭐ **Measured:
 no generated thunk touches the tail** — `CognitiveInterruptSystem` / `CognitiveCleanupSystem` /
-`HsmTickSystem:168` / `RouteContextSystem:190` are all **systems** — and **actions never see the
+the brain tick / `RouteContextSystem:190` are all **systems** — and **actions never see the
 blackboard at all** (`Method(ref field, ctx.Self, ctx.World)`). ⇒ the blackboard ref exists **only** to
 locate the params. Interrupts and soft advice stay on the component.
 
 ⭐⭐ **Cheaper than the whole-struct version I first leaned to:** ⭐ **BTree needs NO `ExtDeps` change** —
-`NodeLogicDelegate`/`Interpreter` are generic and never touch the blackboard's members, so the edit is
-`ref bb.BehaviorParameters` → `ref bb` at three generator emit sites, the interpreter's type argument,
-and one line in `BTreeTickSystem`. ⭐ **HSM folds into the `ExecuteAction` signature widening
+`NodeLogicDelegate`/`Interpreter` are generic and never touch a blackboard component's members, so the
+edit is swapping the root-slot base expression at three generator emit sites, the interpreter's type
+argument, and one line in the brain tick. ⭐ **HSM folds into the `ExecuteAction` signature widening
 occurrence-keying already needs** — one seam, two problems.
 
 📌 **Multiple BTrees/HSMs per entity: ⛔ not as PEERS** *(root exclusivity is what preemption is defined
 against)*, ✅ **yes as NESTED sub-behaviours** — the composition ruling.
 
 🔴 **The collision they guard is real:** the HSM action slot key is `hash(methodName @ compileTimeOffset)`
-through one shared `ActionTable`, projected at a static offset in the **one** `BrainBlackboard` — **no
-region index anywhere in the path** ⇒ two concurrently-active orthogonal regions running the same
-action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots via `ResolveStatefulSlotKey`.
+through one shared `ActionTable`, projected at a static offset in the entity's **one** root-params
+occurrence slot — **no region index anywhere in the path** ⇒ two concurrently-active orthogonal regions
+running the same action write the same bytes. ⭐ BTree is immune: it provisions per-scope slots via
+`ResolveStatefulSlotKey`.
 
 ---
 
@@ -1347,7 +1349,7 @@ Gates re-run by me. ⭐ **Blueprint golden set untouched.** Tracker **61 / 161**
 |---|---|
 | ⭐⭐⭐ **`Q34`'s ANSWERS STAND** | `A` widen to 20 B · `A` caller-supplied `InstanceKey` · `A` 3-arg lookup = key `0`. ⛔ **A future session re-opens the BUILD, never the DECISION** |
 | ⭐⭐ **and the deferral is COHERENT with what `Q34` §7 established** | this case is **REFUSED today (`AlreadyAttached`), not corrupted** ⇒ ⭐ **it buys a capability, not a correctness fix.** ⛔ **The dangerous occurrence case is `E3`'s, and it is unaffected by this deferral** |
-| ⭐ **the edit surface is MEASURED, so re-dispatch costs nothing** | **187 `TryGetSlotOffset` call sites all stay correct** *(⭐ `Q34-C` doing its job)*; the real surface is ~10 files — `BlueprintSlotEntry` + `SlotEntrySize` · three tier `const`s + doc comments · `Initialize`/`Migrate`/`TryAttach` · the events · **`TryFindExistingTier` and `DetachFromEntity` PER KEY** · every payload-size assertion *(928/3936/16368 → 912/3904/16032)* |
+| ⭐ **the edit surface is MEASURED, so re-dispatch costs nothing** | **187 `TryGetSlotOffset` call sites all stay correct** *(⭐ `Q34-C` doing its job)*; the real surface is ~10 files — `BlueprintSlotEntry` + `SlotEntrySize` · three tier `const`s + doc comments · `Initialize`/`Migrate`/`TryAttach` · the events · **`TryFindExistingTier` and `DetachFromEntity` PER KEY** · every payload-size assertion. ⚠ **The deltas this row used to spell out were computed against the PRE-`B3②` ladder and are stale** — the ladder is now `MaxSlots` 3/12/16/16 over 256/1024/4096/16384, payloads **176 / 800 / 3 808 / 16 096**; widening `SlotEntrySize` moves all four and the new figures must be recomputed from `BlueprintTierLadder`, not carried from here |
 | ⭐ **carry forward as the headline** | ⛔ **`AlreadyAttached`-per-key is not a detail** — leave it and the whole capability passes vacuously |
 
 ### 🔴🔴 `E3` ESCALATED — **my "signature widening" was wrong, twice over**
@@ -1362,7 +1364,7 @@ Gates re-run by me. ⭐ **Blueprint golden set untouched.** Tracker **61 / 161**
    pointer chosen at build time**. ⛔ **Regions are a runtime notion.**
 2. 🔴🔴 **And there is nowhere for a second occurrence's bytes to live** — the generated thunk resolves
    its DTO at **`bb.BehaviorParameters[0] + <baked offset>`**, a fixed offset into the entity's
-   **single 100-byte `BrainBlackboard`**. ⇒ ⭐⭐ **two occurrences have ONE HOME BY CONSTRUCTION.**
+   **single root-params occurrence slot**. ⇒ ⭐⭐ **two occurrences have ONE HOME BY CONSTRUCTION.**
 
 ⇒ ⭐⭐⭐ **`E3` = a STORAGE MOVE + the delegate widening.** Per-occurrence bytes must come from the
 partition allocator under `ComputeStatefulSlotKey(assetId, Scope.Node, occurrence, variableId)` —
@@ -1676,7 +1678,7 @@ tracker **65 / 178**. Rows `BP-305`–`BP-308` · **`Q36`**.
 
 | | measured |
 |---|---|
-| ⛔⛔ ① **ONE BRAIN PER ENTITY** | `BehaviorState { int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier, and `BTreeTickSystem:83` / `HsmTickSystem:158` both key off it ⇒ ⭐⭐ **a hosting state has nowhere to RUN the child.** `Q34` §7 answers **storage**, ⛔ **not which brain ticks it** |
+| ⛔⛔ ① **ONE BRAIN PER ENTITY** | `BehaviorState { int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier, and `BrainTickSystem`'s two arms both key off it ⇒ ⭐⭐ **a hosting state has nowhere to RUN the child.** `Q34` §7 answers **storage**, ⛔ **not which brain ticks it** |
 | ⛔ ② **resolve has no input for a BTree child** | HSM registers under `DeterministicIdFromGuid(assetId)`, BTree under `BehaviorHash.FromName(name)`, and `BehaviorRegistry` has **no asset-id index at all** ⇒ ⭐ **an HSM child resolves from a Guid by accident; a BTree child cannot resolve** — **and HSM + BTree on one entity is the case `E5` exists for** |
 | ⭐⭐⭐ ⑤ **the shipped route is by NAME** | `BehaviorTreeBlob.SubtreeAssetIds` is a **`string[]` of NAMES** *(the field name misleads)*; `BTreeEmitCore:836` emits `p.SubtreeName` |
 | ⚠ ⑥ **and Batch 75 persisted only half that pair** | `BTreeSubtreePayload` carries **Guid + Name + IsResolved**; `StateNode` carries **the Guid alone.** ⭐ **Mine** — at the time nothing read it, so nothing said which half resolves |
@@ -1848,7 +1850,7 @@ throughout — adopt, do not invent.**
 |---|---|---|---|
 | ~~`E1`~~ | ✅ **DONE (Batch 67)** — emitter consumes `Role`/`Scope` | `HsmEmitCore` + `HsmBridgeEmitCore`: **0** refs; `BTreeBridgeEmitCore`: **45**. `HsmBlackboardVariableDto` persists both faithfully ⇒ **HSM has NO authored variables at runtime at all** | — ⭐ **the entry point; everything else assumes it** |
 | ~~`E2`~~ | ✅ **DONE (Batch 67)** — slot provisioning, BTree-style | adopt `ComputeStatefulSlotKey` + `BlueprintBlackboardPartitions` — ⭐ **the same allocator Instances and the BTree bridge already share** | `E1` |
-| **`E3`** | ⭐⭐ **occurrence in the action key** — 🔴🔴 **RE-MEASURED Batch 72: this is a STORAGE MOVE, not a signature widening.** The thunk dispatches through a `delegate*` whose id is a **static function pointer chosen at build time**, and it resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>` in the entity's **single 100-byte `BrainBlackboard`** ⇒ ⛔ **two occurrences have one home by construction.** ⭐ Per-occurrence bytes must come from the partition allocator under `ComputeStatefulSlotKey(…, Scope.Node, …)` — ⭐⭐ **the same route `Q34` §7 rules for `E5`.** *(original entry:)* | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
+| **`E3`** | ⭐⭐ **occurrence in the action key** — 🔴🔴 **RE-MEASURED Batch 72: this is a STORAGE MOVE, not a signature widening.** The thunk dispatches through a `delegate*` whose id is a **static function pointer chosen at build time**, and it resolves its DTO at `bb.BehaviorParameters[0] + <baked offset>` in the entity's **single root-params occurrence slot** ⇒ ⛔ **two occurrences have one home by construction.** ⭐ Per-occurrence bytes must come from the partition allocator under `ComputeStatefulSlotKey(…, Scope.Node, …)` — ⭐⭐ **the same route `Q34` §7 rules for `E5`.** *(original entry:)* | `hash(method @ fieldOffset)` has **no region/state in it** ⇒ concurrent regions running one action **write the same bytes**. ⭐ **`r` and `current` are ALREADY IN SCOPE at the `ExecuteAction` call site** ⇒ a signature widening, not a redesign. ⭐ **the params-base change (§4h) folds into this same seam** | `E2` ⚠ **`FastHSM` `ExtDeps` change** |
 | ~~`E4`~~ | ✅ **DONE — (b)+(c) Batch 68, `sharedScopeKeys` Batch 69.** ⚠ **Rules 8/8b still will not fire on assets LOADED FROM DISK** until `-028`(a) persists `StateNode.SubtreeAssetId` — ⭐ **expected, and it is `E5`'s prerequisite, not an `E4` gap.** *(original entry:)* ⚠ **wire `HsmValidator` rules 8 / 8b** — ⭐⭐⭐ **FILED as `DEBT-AIB-028`, WITH AN ACTIVATION RECIPE** *(found Batch 67)*: *"(b) `_isStatefulSubtree` defaults to `_ => false` and production never supplies a real resolver; (c) the production `HsmAssetValidator` entry point isn't threaded… wire `id => catalog.TryFind(id,out a) && a.HasAnyStatefulNode()` through the production validator ctor."* ⇒ ⛔ **do not re-derive it** | correct errors, but injected resolvers default to `_ => false` / `_ => Empty` and **both production call sites use the default ctor** ⇒ never fire. XML doc says *"Production should wire this"* | ⭐ **do BEFORE `E5`** — the guard should be honest before the runtime makes the hazard real |
 | **`E5`** | ⭐⭐ **subtree hosting runtime** — 🔴 **NEW PREREQUISITE (Batch 67): `StateNode.SubtreeAssetId` is NOT PERSISTED.** `DEBT-AIB-028`(a): *"a NEW field, not persisted to JSON, and no real HSM asset sets it."* ⇒ **persist it FIRST.** 📌 `DEBT-AIB-029`: the check walks **DIRECT children only** — deeper nesting undetected | `SubtreeAssetId` is read **only** by `HsmValidator`; FastHSM kernel **0**, HSM emitters **0**, shipped assets **0**. ⇒ ⭐⭐⭐ **serves TWO rulings at once** — HSM-over-BTree composition **and** the latent sub-behaviour decision *(`#33` §1.5.4: `C`, subtree not action)* | `E3`, `E4` |
 | **`E6`** | **`W9`** — simple-name hash | `HsmActionGenerator:517/630` — `ComputeHash(action.Name)`; `MethodInfo` carries `FullName` too. ⚠ **TWO re-bake sites**, reconciled *"in lockstep via shared `ResolveStatefulSlotKey`"* | independent |
@@ -1936,7 +1938,7 @@ missing, not the analysis.** 📌 **Filed, not numbered** (rule 3).
 | | verdict |
 |---|---|
 | ✅ **the paused snapshot-vs-live pass** | ⛔ **STRIKE — my concern was wrong.** `universal-breakpoints-DESIGN.md` §8.4 designs against it and it **shipped**: an edit while paused is **staged, not written**; on Step/Continue the manager **restores `_liveRepo` from `_postTickSnapshot` FIRST, then drains** — coordinator-verified at `DataBreakpointManager:495-498` and `:514-517`. **The rewind cannot discard the edit.** Cost: a named **1-tick latency compromise** |
-| 🔴🔴 **the surgical ECB field write** | ⭐ **Ruling 14 already rules it in and names the signature** — `SetComponentFieldRaw(Entity, int typeId, int byteOffset, void* src, int size)` in `Fdp.Core`. ⭐⭐ **And it is now a FIX, not an improvement:** `StageMutation:530` takes a **whole component**, `DrainPendingMutations:548-575` writes it with `SetComponentRaw` **(no offset)** *after* the restore ⇒ **every other field of that component is reverted post-tick → pre-tick.** On the shared `Blackboard1024`, **editing one blueprint variable reverts a tick of BTree and HSM state.** ⚠ **The payload's exact origin is unverified — that is the red-first test** |
+| 🔴🔴 **the surgical ECB field write** | ⭐ **Ruling 14 already rules it in and names the signature** — `SetComponentFieldRaw(Entity, int typeId, int byteOffset, void* src, int size)` in `Fdp.Core`. ⭐⭐ **And it is now a FIX, not an improvement:** `StageMutation:530` takes a **whole component**, `DrainPendingMutations:548-575` writes it with `SetComponentRaw` **(no offset)** *after* the restore ⇒ **every other field of that component is reverted post-tick → pre-tick.** On the shared `BlueprintBlackboard1024`, **editing one blueprint variable reverts a tick of BTree and HSM state.** ⚠ **The payload's exact origin is unverified — that is the red-first test** |
 | ⛔ **correction to v1** | my `MaxComponentSize` argument was **already retracted** in the ANSWERS doc — the check is `>` and the blackboard is exactly 1024, so **it fits**. **The reason is sharing, not size** |
 
 ---

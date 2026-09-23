@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-08-18
+updated: 2026-09-22
 current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D as
   written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
   in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
@@ -65,14 +65,14 @@ related-designs:
 
 | memory | who writes | who reads |
 |---|---|---|
-| **`BrainBlackboard`** *(BTree/HSM params + variables, bin-packed, baked offsets)* | `ParseParams` at assignment · any node holding a `ref` · a `FourParamFull` action | every BTree action, by **baked offset** |
+| **root-params / node working-state occurrence slots** *(BTree/HSM params + variables, in the tier ladder, baked offsets within the slot)* | `ParseParams` at assignment · any node holding a `ref` · a `FourParamFull` action | every BTree action, by **baked offset** |
 | **`BlueprintBlackboard{16384,4096,1024}`** *(blueprint WorkingState + shared state, partition slots by key)* | a blueprint's `TickCore` · `BlueprintSharedState.TrySetShared*` | anything with `world` + `self` + **the name** |
 
 📐 **Measured — the composed thunk** *(`BTreeBridgeEmitCore.AppendReusableStatefulThunk`)*:
 
 ```csharp
 TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime)
-//       ↑ ref into BrainBlackboard at ITS OWN baked offset
+//       ↑ ref into its own root-params/working-state occurrence slot, at ITS OWN baked offset
 //              ↑ ref into a BlueprintBlackboard partition slot
 ```
 
@@ -84,7 +84,7 @@ variable is *reachable* (the component is on the same entity) but **not addressa
 ### ⭐ What ALREADY bridges the two — **and it is not nothing**
 
 ⭐⭐ **A `FourParamFull` action** receives `(ref TBB, ref BehaviorTreeState, ref TCtx, int)` — the
-**whole `BrainBlackboard`** *and* `ctx.World`/`ctx.Self`. ⇒ it can call
+**whole root-params occurrence slot's bytes** *and* `ctx.World`/`ctx.Self`. ⇒ it can call
 `BlueprintSharedState.TryGetShared(world, self, "name", out v)` and write the result into any host
 variable. ⛔ **It is hand-written C#, per case.**
 

@@ -104,16 +104,19 @@ before AN8 + the channel-blocking task.
   `NodeStatus.Running`, the compiler lowers an **inline latent suspension** (Instance → a `BlueprintLatentCursor`
   switch that halts the frame and **resumes at the SAME node** next tick, re-invoking until Success/Failure).
   Reuses the existing latent path (same machinery as `WaitForChannel`, dispatch-aware). Success/Failure route exec.
-- **Working state:** params in `BrainBlackboard.BehaviorParameters` (100 B); AiPrimitive working state projected
-  inline over `Blackboard1024` — 8-byte `StructureHash` header @0, working-state struct @8 (mirrors the existing
-  AiPrimitive emit).
-- **⚠ Slice-1 constraint (must enforce/document):** because AiPrimitive working state sits at a FIXED offset in
-  `Blackboard1024`, **only ONE stateful AiPrimitive may run per entity at a time**. A second stateful AiPrimitive
-  overwrites the first's `StructureHash` → hard reset (zeroes the block). Concurrent stateful non-channel actions
-  are FORBIDDEN in Slice 1.
-- **Future parallelism (Slice 2, not now):** a **partition allocator** for AiPrimitive working state (a
-  Blueprint-owned `BlueprintAiWorking1024` component handing out isolated fixed-size slots) — NOT a managed
-  handle→state registry. The slot is the parallelism substrate; preserves zero-alloc/blittable invariants.
+- **Working state:** params live in the **root params occurrence slot**, located via `RootParamsAccess`
+  and keyed by `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` (computed, never
+  stored; structurally up to 16 096 B). AiPrimitive working state is its own **occurrence slot in the
+  tier ladder** (`BlueprintBlackboard{256,1024,4096,16384}`), keyed `{fqn}@{offset}@{slotKey}` (mirrors the
+  existing AiPrimitive emit).
+- **⚠ Slice-1 constraint — LIFTED by the partition allocator:** the old FIXED-offset projection capped a
+  entity to **ONE stateful AiPrimitive at a time** (a second one overwrote the first's `StructureHash` →
+  hard reset). Each stateful AiPrimitive now gets its **own** occurrence slot in the tier ladder, so
+  concurrent stateful non-channel actions are no longer forbidden by storage.
+- **Delivered (was "Slice 2, not now"):** the **partition allocator** for AiPrimitive working state is the
+  Blueprint-owned occurrence-slot tier ladder (`BlueprintBlackboard{256,1024,4096,16384}` under
+  `BlueprintBlackboardPartitions`), handing out isolated slots — not a managed handle→state registry. The
+  slot is the parallelism substrate; preserves zero-alloc/blittable invariants.
 - **Net for the design:** if you want background/parallel async behavior, it MUST be a **channel command** (a
   dispatcher drives it). Non-channel actions are inline-latent and (Slice 1) one-stateful-at-a-time per entity.
   **AN8 is now unblocked** with this model.

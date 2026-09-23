@@ -918,7 +918,7 @@ Self/Any-filter entries), `MakeBreakStructPaletteEntries` (Make/Break/SetMembers
 
 `EntityBlueprintsEditModel` is the headless view-model behind the "Entity Blueprints" runtime
 authoring panel: `RefreshReality()` scans all three blackboard-tier components
-(`BlueprintBlackboard1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
+(`BlueprintBlackboard256`/`1024`/`4096`/`16384`) on a live entity via `EntityRepository`;
 `StageAdd`/`StageRemove`/`RevertAll` manage a pending edit set; `ComputeProjection()` returns a
 `Projection(Slots, Bytes, Tier, Status)` predicting the post-commit blackboard tier and whether
 it needs an upgrade or exceeds the ceiling; `BuildCommitPlan(CommitTiming)` emits either a

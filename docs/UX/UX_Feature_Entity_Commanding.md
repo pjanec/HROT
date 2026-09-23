@@ -197,7 +197,7 @@ not touch these:**
 |---|---|
 | `BehaviorState.ActiveBehaviorHash` ← new · `InstanceId++` (preemption token) · `BrainTier` ← new |
 | **Stateful working slots** — previous behavior's **detached**, new behavior's **provisioned** |
-| `BrainBTreeState.State = default` — the tree restarts from its root |
+| the **root tree-state slot** is reset to `default` — the tree restarts from its root |
 | **HSM instance reset**, rebound to the new topology's `StructureHash` |
 | ⭐ **And it is transactional**: params are parsed into a *shadow* first, so a parse failure leaves the entity **100% on the old behavior** (`:70-73`) |
 
@@ -207,20 +207,19 @@ not touch these:**
 |--:|---|---|
 | **①** | **`MissionPlanQueue` + `ActiveMissionPlan`** | nothing in the behavior path touches them ⇒ the plan resumes at its next phase transition ([ruling 50](UX_RESUME_INTERACTION.md)) |
 
-> ⚠ **A second item — zeroing `BrainBlackboard` — was proposed here and is WITHDRAWN**
+> ⚠ **A second item — zeroing the behavior's params region — was proposed here and is WITHDRAWN**
 > ([Correction 40](UX_Tasks_Detail.md#corrections)). It is unnecessary **and would have been a bug.**
 >
-> `BrainBlackboard` is `[StructLayout(LayoutKind.Explicit, Size = 128)]` and is **co-owned**:
+> The params region and the entity facts are separate storage entirely — never one shared struct:
 >
-> | Bytes | Owner |
+> | Owner | What it holds |
 > |---|---|
-> | **0-99** | `BehaviorParameters` — a **polymorphic per-behavior region**, projected via `Unsafe.As` (`MaxBehaviorParamByteSize = 100`, analyzer-enforced) |
-> | **120** | `ExpectedThreatLevel` — 🔴 written by **`RouteContextSystem`** (`:190`), on its own cadence |
-> | **126 / 127** | `Interrupt_MobilityLost` / reserved — 🔴 `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears |
+> | the **root-params occurrence slot** | the active behavior's params DTO — a **polymorphic per-behavior region**, projected via `Unsafe.As`, sized per-behaviour by `RootParamsBytes(def)` |
+> | `BrainInterrupts` *(a small, dedicated per-entity component — entity facts, never per-occurrence)* | `ExpectedThreatLevel` — 🔴 written by **`RouteContextSystem`** (`:190`), on its own cadence — and `Interrupt_MobilityLost` / reserved — 🔴 `CognitiveInterruptSystem` sets, `CognitiveCleanupSystem` clears |
 >
 > ⇒ **The new behavior redefines the params region completely**; anything past its DTO is outside its
 > layout and **unreachable**. And zeroing would have **wiped route-danger context and a live interrupt** —
-> cross-system state unrelated to the transition.
+> cross-system state unrelated to the transition, and now physically a different component entirely.
 >
 > ⭐ **Cross-behavior data passing therefore has exactly one route: ECS components** — *"just another big
 > blackboard"* — and the scope guard below deliberately leaves those alone.
@@ -286,8 +285,8 @@ if (evt.ClearsPriorIntent)
 ⚠ **Candidates for later providers — evidence, not a commitment.** Each is a per-entity store some system
 owns, and **whether it should be cleared by an operator order is a question for its owner, not for this
 design**: `MissionAdapterState` (CGF's phase-change shadow) · `IPathRegistry` / `BrainPathRegistry`
-(navigation paths) · `BTreeTickSystem` and `HsmTickSystem` terminal-tracking dictionaries · in-flight EQS
-results. 🔒 **The registry is what makes adding any of them a local change** — which is the whole point of
+(navigation paths) · `BrainTickSystem`'s terminal-tracking dictionary *(one now, shared by both arms)* ·
+in-flight EQS results. 🔒 **The registry is what makes adding any of them a local change** — which is the whole point of
 the ruling.
 
 `TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
@@ -331,7 +330,7 @@ both in one place when the flag is set:
 | 32.8b | 🔒 **No `ClearBehaviorEvent` is published** by that path — the `:53`/`:172` ordering guard | H |
 | 32.8c | 🔒 After the order, `MissionAdapterSystem` publishes **nothing** — the plan cannot resume | H |
 | 32.8d | The cancel + assign are **atomic from the operator's view**: the entity is never left brain-dead | H |
-| 32.8e | 🔒 `ClearsPriorIntent` **does NOT touch `BrainBlackboard`** — `ExpectedThreatLevel` and the interrupt bytes survive an order ([Correction 40](UX_Tasks_Detail.md#corrections)) | H |
+| 32.8e | 🔒 `ClearsPriorIntent` **does NOT touch `BrainInterrupts`** — `ExpectedThreatLevel` and the interrupt bytes survive an order ([Correction 40](UX_Tasks_Detail.md#corrections)) | H |
 | 32.8e2 | 🔒 The clear runs through **`IntentClearRegistry`** — `TacticalIntentResolutionSystem` contains **no reference to `MissionPlanQueue`** | H |
 | 32.8e3 | 🔒 Providers are invoked **synchronously before** the assign; an **empty registry** is a safe no-op | H |
 | 32.8e4 | A provider is **idempotent** — clearing an already-clear entity changes nothing and does not throw | H |
@@ -339,7 +338,7 @@ both in one place when the flag is set:
 | 32.8g | An assign **without** the flag behaves exactly as today — blackboard residue and plan both preserved | H |
 | 32.8h | A `ParseParams` failure still leaves the entity **100% on the old behavior**, flag or not | H |
 | 32.9 | On the **owning** node the intent resolves locally; on a **non-owner** it leaves as `TacticalIntentRequest` — one publish, two routings | H |
-| 32.10 | An order **replaces** the active behavior (`BrainBTreeState`/HSM reset) | H |
+| 32.10 | An order **replaces** the active behavior (the root tree-state and HSM instance slots are reset) | H |
 | 32.11 | `MoveHere → MoveToLocation`, `Engage → FireAtTarget`, `Stop → Idle` reach their **registered** behaviors | H |
 | 32.12 | An `IntentId` with **no mapper** resolves by **pass-through** to the behavior of that name | H |
 | 32.13 | Menu content for an entity comes from its **TKB `AI.CommandSet`** | H |

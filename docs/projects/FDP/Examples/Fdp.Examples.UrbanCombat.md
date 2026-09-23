@@ -68,33 +68,41 @@ The simulation runs for 600 frames (10 seconds at 60 Hz) and demonstrates:
 ### Module and System Pipeline
 
 ```
-+--------------------------------------------------------------+
-|  HeadlessDemoApp.RunSimulation()                             |
-|  Loop (600 frames, dt = 1/60 s):                             |
-|                                                              |
-|  INPUT PHASE:                                                |
-|    PerceptionUpdateSystem      (sense world)                 |
-|    HsmTickSystem<BrainHsm128>  (tick APC state machine)      |
-|    BTreeTickSystem             (tick Insurgent + Civ BTrees) |
-|    FireProcessingSystem        (consume FireRequestEvent)    |
-|    NavigationUpdateSystem      (update route)                |
-|                                                              |
-|  SIM PHASE:                                                  |
-|    SpatialHashSystem           (rebuild spatial grid)        |
-|    CarKinematicsSystem         (move vehicles on road graph) |
-|    BallisticsSystem            (swept-segment CCD raycasts)  |
-|    LinearKinematicsSystem      (advance bullets)             |
-|    DamageSystem                (apply HitEvents to Health)   |
-|    HsmDamageBridgeSystem       (capability loss -> HSM event)|
-|                                                              |
-|  POSTSIM PHASE:                                              |
-|    RaycastSolverSystem         (resolve CCD hit batch)       |
-|    HitResolutionSystem         (emit HitEvent)               |
-|                                                              |
-|  EXPORT PHASE:                                               |
-|    TelemetryReporterSystem     (stdout telemetry)            |
-|    TrafficBrainSystem          (civilian locomotion)         |
-+--------------------------------------------------------------+
++---------------------------------------------------------------+
+|  HeadlessDemoApp.RunSimulation()                              |
+|  Loop (600 frames, dt = 1/60 s):                              |
+|                                                               |
+|  INPUT PHASE:                                                 |
+|    BehaviorIngressSystem      (apply AssignBehavior events)   |
+|    FireProcessingSystem       (consume WeaponFireIntent)      |
+|    RaycastSolverSystem        (resolve CCD hit batch)         |
+|    HitResolutionSystem        (emit HitEvent)                 |
+|                                                               |
+|  SIM PHASE:                                                   |
+|    MissionDirectorSystem      (mission plan -> behavior)      |
+|    TrafficBrainSystem         (civilian locomotion)           |
+|    CognitiveRuntimeModule, in order:                          |
+|      ChannelArbitrationSystem (clear stale channels)          |
+|      CognitiveInterruptSystem (capability loss -> interrupt)  |
+|      BrainTickSystem          (one tick: APC HSM arm +        |
+|                                Insurgent/Civ BTree arm)       |
+|      CognitiveCleanupSystem   (clear interrupt bytes)         |
+|      BehaviorFrameSystem      (behaviour-frame pulse)         |
+|    DamageSystem               (apply HitEvents to Health)     |
+|    AudioPerceptionSystem      (AudioStimulusEvent -> memory)  |
+|    WeaponDispatcherSystem     (AimAndFire executor)           |
+|    InteractionDispatcherSystem(EjectPassengers / OpenDoor)    |
+|    LocomotionDispatcherSystem (drive locomotion channel)      |
+|    SpatialHashSystem          (rebuild spatial grid)          |
+|    CarKinematicsSystem        (move vehicles on road graph)   |
+|                                                               |
+|  POSTSIM PHASE:                                               |
+|    LinearKinematicsSystem     (advance bullets)               |
+|    BallisticsSystem           (swept-segment CCD raycasts)    |
+|                                                               |
+|  EXPORT PHASE:                                                |
+|    TelemetryReporterSystem    (stdout telemetry)              |
++---------------------------------------------------------------+
 ```
 
 ### Entity Spawn Diagram
@@ -383,8 +391,13 @@ via `GCHandle.FromIntPtr(bridge->WorldHandle).Target`.
 
 ### `ApcHsmSetup.CruisingStateIndex` / `DisabledStateIndex`
 
-BFS-order flat state indices after normalization. Used by test code and `ScenarioDirector`
-to pre-initialize `BrainHsm128.CurrentState`.
+BFS-order flat state indices after normalization. Used by test code and `ScenarioDirector` to
+pre-initialize the APC's active leaf. `ScenarioDirector` provisions the root HSM slot with
+`RootHsmAccess.EnsureRootInstance` -- sized by `HsmInstanceManager.SelectTier` from the definition
+blob -- then writes `CruisingStateIndex` through `HsmKernel.GetActiveLeafIds(instance, size, ...)`.
+Offset and length are both functions of the instance size, so they are read through the kernel's
+accessor rather than off a struct field
+(`FDP/Examples/Fdp.Examples.UrbanCombat/ScenarioDirector.cs:260-270`).
 
 ### `DemoEnvironmentSetup`
 
@@ -551,13 +564,15 @@ Console.WriteLine($"Spawned {entityCount} entities with behavior");
 
 ```csharp
 // The APC transitions from Cruising to Disabled when MobilityLost fires.
-// HsmDamageBridgeSystem monitors HealthData.Current for the APC and
-// raises the MobilityLost event when health drops to zero:
+// CognitiveInterruptSystem watches ActorCapabilityState against the
+// PreviousCapabilities shadow and edge-triggers on losing CanMove:
 
 // Before hit: APC state == ApcHsmSetup.CruisingStateIndex (1)
 // After RPG hits APC and health <= 0:
-//   HsmDamageBridgeSystem -> HSM event BehaviorConstants.EventId_MobilityLost
-//   HsmTickSystem -> OnEnter_Disabled fires:
+//   CognitiveInterruptSystem -> BrainInterrupts.Interrupt_MobilityLost = 1
+//   BrainTickSystem (HSM arm) enqueues BehaviorConstants.EventId_MobilityLost
+//     onto the root HSM slot's event queue, then steps the kernel;
+//     OnEnter_Disabled fires:
 //     loco.ActiveAction = 0          // APC stops moving
 //     interact.ActiveAction =
 //       BehaviorConstants.ActionIdEjectPassengers  // soldiers disembark

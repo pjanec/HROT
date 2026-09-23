@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-16
+updated: 2026-09-22
 current-answer: the whole file — it is a procedure, not a design; every section is current.
   §5a (added 2026-09-16) is the DDS wire-capture recipe (ddsmonitor sniff-to-JSON).
 stale-below: nothing
@@ -364,7 +364,7 @@ see. ⛔ Do not explain a halt away as "out of range".
 > exceptions, which is exactly right. ⭐ **Assert `Health.Current == 0`, never the count.**
 
 ⛔⛔ **DO NOT measure "on the baseline" as distance to ONE POINT.** 📌 That mistake was made on
-`2026-09-13` and read as a half-failure: `BrainBlackboard.BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
+`2026-09-13` and read as a half-failure: the root params occurrence slot's `BaselineX/Y` *(`527.5, 474.5`)* is the **centre of
 a line**, and four tanks park abreast along it ~50 m apart, so the outer two are legitimately **~75 m** from
 that point. ⭐ **Compare each tank to its OWN `NavigationIntent.FinalDestination` instead** — it matches its
 position within a metre when the tank is home.
@@ -451,16 +451,16 @@ curl -s --noproxy '*' http://localhost:8131/entities/1000   # editor
 | ⛔⛔ **`/entities/{id}/state` is a SUMMARY** — position, speed, and a three-field `behavior` block | ⭐ the **components** live at **`/entities/{id}`**, under a `Components` key. Reading the wrong one looks like *"the field is missing"* |
 | ⛔⛔ **the editor ignores `/sim/step` until it has been PLAYED once** | ⭐ `POST /sim/play` → `POST /sim/pause` → then step. The cluster steps from a cold load |
 | ⛔ **a `/scenario/load/live` that answers `sawWorldChange: false` did NOT reset the clock** | ⚠ you are stepping a world that already ran; restart the process if you need `t=0` |
-| ⭐⭐ **the sharpest single field is `BrainBTreeState.State.RunningNodeIndex`** | 📌 it is what split `CE-172`: cluster `3 → 7 → dead`, editor `3 → 9 → held`. Map the index with a pre-order walk of the asset's `Nodes` in `*.btree.json` |
+| ⛔⛔ **the sharpest single field — `RunningNodeIndex` — is NO LONGER IN THE HTTP DUMP** | 📌 it is what split `CE-172`: cluster `3 → 7 → dead`, editor `3 → 9 → held`, mapped with a pre-order walk of the asset's `Nodes` in `*.btree.json`. ⭐ The field still exists — `BehaviorTreeState.RunningNodeIndex`, `FastBTree/src/Fbt.Kernel/BehaviorTreeState.cs:19` — but it moved out of a component and into the entity's **root tree-state slot**, and no scenario translator projects that slot. ⇒ 📐 measured: the only production reader is `BTreeDebugSession.cs:116` via `RootStateAccess.TryGetState`, which is the **editor's** debug session, not an HTTP route. ⛔ **Do not go looking for it under `Components`** — plan the run around the editor session, or around `BrainDiagnostics` below, which carries params and interrupts but not the cursor |
 
 ### 9.2 ⛔⛔⛔ READ A BLACKBOARD **BEFORE** THE BEHAVIOUR IS CLEARED — **or the instrument lies**
 
-📌 **`CE-172` cost a wrong lean to this.** `BrainBlackboard.BehaviorParameters` came back `{}` on the
+📌 **`CE-172` cost a wrong lean to this.** The root params occurrence slot came back `{}` on the
 cluster and fully populated on the editor, which reads exactly like *"the params never resolved."*
 ⛔ **False.** The dump decodes that blob against the **active behaviour's** params DTO; once
 `ActiveBehaviorHash` is `0` there is no DTO, so it renders empty **whatever the bytes hold.** Stepping the
 same node from `t=0` showed the cluster's params byte-identical to the editor's from the first frame.
-⇒ ⭐⭐ **an empty `BehaviorParameters` next to `ActiveBehaviorHash: 0` is a rendering artefact, not a
+⇒ ⭐⭐ **an empty root params slot next to `ActiveBehaviorHash: 0` is a rendering artefact, not a
 measurement.**
 
 ### 9.3 ⭐⭐ THE TRANSLATOR COUNTERS ANSWER *"DID IT EVEN LEAVE?"* IN ONE CALL

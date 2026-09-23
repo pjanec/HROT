@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: DONE
-verified: 2026-08-28 (coordinator source scan)
+verified: 2026-09-22 (coordinator source scan)
 current-answer: DONE. Delivered under the cgf==editor programme (DQ30 + CE-052/059/071): pause/step (CgfClusterDebugTimeController), breakpoints, Watch/Breakpoints windows, AI authoring + hot reload all wired on CGF.
 -->
 # Feature design — CGF brain diagnostics **and authoring**
@@ -21,7 +21,7 @@ current-answer: DONE. Delivered under the cgf==editor programme (DQ30 + CE-052/0
 |:--:|---|---|
 | ✅ | `DataBreakpointManager` + `DataBreakpointSystem` + **`DebugSnapshotProvider`** (pre-tick snapshots), predicate + event-scanner compilers wired to the blueprint registry | ⭐ **already constructed and registered** (`CgfSubsystem.cs:555-568`) |
 | ✅ | `IDataBreakpointManager` accessor | ⭐ **already exposed** (`:153`) |
-| ✅ | `BehaviorDiagnosticsModule` · `BehaviorTraceLog` · blackboard renderers (`BrainBlackboard`, `Blackboard1024`, `BlueprintBlackboard{1024,4096,16384}`) | ⭐ **already registered** (`:277-326`) |
+| ✅ | `BehaviorDiagnosticsModule` · `BehaviorTraceLog` · blackboard renderers (root-params arm on `BlueprintBlackboard{256,1024,4096,16384}`) | ⭐ **already registered** (`:277-326`) |
 | ✅ | `Hrot.Diagnostics.Breakpoints` — **neutral** assembly, incl. `WatchPersistence` | ⭐ **already referenced** by CGF |
 | ✅ | `AiWatchWindow`, `AiBreakpointsWindow`, `AiGraphCanvasWindow`, `InspectorWindow`, `DiagnosticsWindow` | ⭐ **`Hrot.Editor.AiShared` is ALREADY on CGF's build graph** — `Hrot.CGF.csproj:43` → `Hrot.Blueprints.Editor.csproj:33` → `Hrot.Editor.AiShared` ([Correction 49](UX_Tasks_Detail.md#corrections)). Nothing constructs them yet |
 | ✅ | `IEngineDebugTimeController` — **neutral** (`Hrot.Blueprints.Core`); Editor drives it via `MasterSyncTimeControllerAdapter` → `MasterSyncController` | 🔴 **`CgfNoOpTimeController` — all three request methods EMPTY** (`:825-834`) |

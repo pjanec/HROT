@@ -135,8 +135,8 @@ public struct RouteWaypoint
     /// <summary>
     /// Optional JSON object with "soft advice" hints for the vehicle's behavior tree.
     /// Example: {"dangerLevel": 2, "tacticalStance": "cautious"}
-    /// Written to the vehicle's BrainBlackboard by RouteContextSystem as the vehicle
-    /// enters the segment; does NOT interact with MissionPlanQueue.
+    /// Written to the vehicle's root-params occurrence slot by RouteContextSystem as the
+    /// vehicle enters the segment; does NOT interact with MissionPlanQueue.
     /// </summary>
     public string ExtensionJson;
 }
@@ -454,11 +454,11 @@ A low-frequency simulation phase system that periodically evaluates the vehicle'
 2. Determines the current route entity from `NavState.TrajectoryId` ↔ `RouteTrajectoryCache`.
 3. Using `NavState.ProgressS` and the precomputed cumulative arc-lengths, identifies which segment the vehicle is currently on (via the `RouteTrajectoryCache` or by checking the `RoutePlan` waypoints in order).
 4. Reads `ExtensionJson` from the current `RouteWaypoint`.
-5. Parses the JSON and writes values directly to the vehicle's `BrainBlackboard` at designated byte-offset slots (e.g., `blackboard.Memory[BlackboardOffsets.ExpectedThreatLevel] = jsonValue`).
+5. Parses the JSON and writes values directly into the vehicle's root-params occurrence slot at designated byte offsets (e.g., via `RootParamsAccess.TryGetRootBytes(repo, entity, …)` at `BlackboardOffsets.ExpectedThreatLevel`).
 
 ### 13.2 BTree Reaction
 
-The vehicle's active behavior tree reads the blackboard values during its normal `BTreeTickSystem` evaluation. Condition nodes such as `Condition_CheckDangerLevel` branch to sub-trees that adjust `TargetSpeed` (via `LocomotionChannel`), expand `VisionRange` (via `PerceptionReceptor` mutation), or alter Rules of Engagement flags — all without touching the `MissionPlanQueue`. This keeps the route's "soft advice" strictly advisory; the behavior tree remains in full control.
+The vehicle's active behavior tree reads those slot values during its normal `BrainTickSystem` evaluation (the BTree arm). Condition nodes such as `Condition_CheckDangerLevel` branch to sub-trees that adjust `TargetSpeed` (via `LocomotionChannel`), expand `VisionRange` (via `PerceptionReceptor` mutation), or alter Rules of Engagement flags — all without touching the `MissionPlanQueue`. This keeps the route's "soft advice" strictly advisory; the behavior tree remains in full control.
 
 ---
 
@@ -541,7 +541,7 @@ The implementation is split into nine phases, each decomposed into independently
 
 ### Phase 8 — AI Soft Advice
 
-> **Goal:** Per-waypoint `ExtensionJson` influences vehicle behavior trees via BrainBlackboard.
+> **Goal:** Per-waypoint `ExtensionJson` influences vehicle behavior trees via the root-params occurrence slot.
 
 - **ROUTES1-T014** — `RouteContextSystem`
 

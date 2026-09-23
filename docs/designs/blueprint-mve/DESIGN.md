@@ -4,7 +4,7 @@
 
 ## Verified run pipeline (Instance Blueprints)
 (Confirmed against code; the editor architect's summary holds.)
-- **State tiers:** `BlueprintBlackboard1024/4096/16384` (header 32B + 16B slot entries + free-list payload). Multiple blueprints per entity via slots. (`FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/*`.)
+- **State tiers:** `BlueprintBlackboard256/1024/4096/16384` (header 32B + 16B slot entries + free-list payload). Multiple blueprints per entity via slots. (`FDP/Toolkits/Fdp.Toolkits/Blueprints/Components/*`.)
 - **Attach:** `BlueprintBlackboardPartitions.TryAttach(byte* mem, int blueprintId, int stateSize, ulong structureHash, out int payloadOffset)` (`…/Partitioning/BlueprintBlackboardPartitions.cs:83`). Overflow → ECB-add next tier; `BlueprintMaintenanceSystem` (BeforeSync) byte-copies up + removes old (`…/Systems/BlueprintMaintenanceSystem.cs`).
 - **Tick:** `BlueprintTickSystem` (SystemPhase.Simulation) queries tier components, per slot resolves `BlueprintDefinition` from `BlueprintRegistry.TryGetById`, invokes the generated `Tick(span, view, ecb, entity, time, dt, instanceVersion)`; reload-reconciles on `StructureHash` mismatch (`…/Systems/BlueprintTickSystem.cs:46`).
 - **World singletons:** `IsWorldSingleton` blueprints live in `EntityRepository.GetSingleton<TBB>()`, lazy-init/attached/ticked on first frame post-commit (`BlueprintTickSystem.TickWorldSingletons`).
