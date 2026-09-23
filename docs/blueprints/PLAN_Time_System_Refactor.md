@@ -95,7 +95,7 @@ still untested.
 | 📐 | |
 |---|---|
 | **`P4`** | ⛔ **no threading race** — the runner is one loop; `Direct` strategy is `Synchronous`-only and enforced |
-| **`P6′`** | ⛔⛔ **behaviours do NOT tick at `dt == 0`** — `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` |
+| **`P6′`** | ⛔⛔ **behaviours do NOT tick at `dt == 0`** — `BlueprintTickSystem:51` · `BrainTickSystem:111` *(one system, both brain arms)* |
 
 ⇒ ⭐⭐⭐ **In a plain TIME pause with no breakpoint rewind, a DIRECT write sticks and is visible
 immediately.** ⇒ **`MIN` = `W3` + a direct-write arm guarded by `clock halted && !dbm.IsPaused`.**

@@ -44,7 +44,7 @@ will inherit.
 
 | # | measured | file |
 |---|---|---|
-| ① | ⛔⛔ **ONE brain per entity.** `BehaviorState` is `{ int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier. `BTreeTickSystem:83` and `HsmTickSystem:158` both key off that single `ActiveBehaviorHash` | `Behavior/Components/BehaviorComponents.cs:44` |
+| ① | ⛔⛔ **ONE brain per entity.** `BehaviorState` is `{ int ActiveBehaviorHash; uint InstanceId; byte BrainTier; }` — **one** hash, **one** tier. `BrainTickSystem`'s two arms both key off that single `ActiveBehaviorHash`, and `BrainTier` is what selects between them | `Behavior/Components/BehaviorComponents.cs:44` |
 | ② | ⛔ **an HSM child is resolvable by asset id; a BTree child is NOT** | — |
 | ②a | HSM registers under `DeterministicIdFromGuid(dto.AssetId)` | `HsmBridgeEmitCore.cs:131,152` |
 | ②b | BTree registers under `BehaviorHash.FromName(name)` | `BTreeBridgeEmitCore.cs:446` |

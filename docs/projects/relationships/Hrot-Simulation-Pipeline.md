@@ -166,8 +166,10 @@ This is the same Anti-Corruption Layer (ACL) pattern described in
   targeted at itself (`OwnerAppInstanceId == localNodeId`) unconditionally, and network IDs
   come from the distributed `DdsIdAllocatorServer`, not from CGF. See
   [`RULINGS.md` `R-138`](../../blueprints/RULINGS.md).
-- **Cognitive ECS components** -- `BehaviorState`, `BrainBTreeState`,
-  `BrainInterrupts`, `BlueprintBlackboard{256,1024,4096,16384}` (occurrence-slot tiers), `MissionPlan`
+- **Cognitive ECS components** -- `BehaviorState`,
+  `BrainInterrupts`, `BlueprintBlackboard{256,1024,4096,16384}` (occurrence-slot tiers; the root
+  behaviour's params, BTree cursor and HSM instance are slots inside these, not components of their
+  own), `MissionPlan`
 
 ### What the Muscle (SimHost) owns
 

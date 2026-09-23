@@ -43,7 +43,7 @@ A secondary class of bugs deals with entities that are not properly registered i
 | Behavior ingress (new event) | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BehaviorIngressSystem.cs` |
 | Behavior clear event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/ClearBehaviorEvent.cs` |
 | Behavior finished event (new) | `FDP/Toolkits/FDP.Toolkit.Behavior/Events/BehaviorFinishedEvent.cs` |
-| BTree behavior runner | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/BTreeTickSystem.cs` |
+| Brain runner (BTree + HSM arms) | `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs` |
 | Mission director | `FDP/Toolkits/FDP.Toolkit.Behavior/Systems/MissionDirectorSystem.cs` |
 | Mission adapter (existing) | `Hrot.SimHost/Systems/MissionAdapterSystem.cs` |
 | Mission abort | `Hrot.SimHost/Systems/MissionControlRequestSystem.cs` |
@@ -68,7 +68,7 @@ The design introduces **two events** that must not be confused:
 
 | Event | Direction | Meaning | Producer | Consumer |
 |---|---|---|---|---|
-| `BehaviorFinishedEvent` | **Bottom-up** (notification) | "The behavior has completed naturally" | `BTreeTickSystem` (when BTree root evaluates to Success/Failure) | `MissionDirectorSystem` |
+| `BehaviorFinishedEvent` | **Bottom-up** (notification) | "The behavior has completed naturally" | `BrainTickSystem` — the BTree arm when the root evaluates to Success/Failure (`BrainTickSystem.cs:299-311`), the HSM arm when `InstanceFlags.Terminated` is set (`:418-430`) | `MissionDirectorSystem` |
 | `ClearBehaviorEvent` | **Top-down** (imperative) | "Stop/reset the behavior immediately" | `MissionDirectorSystem` (end of plan), `MissionControlRequestSystem` (CMD_ABORT_ALL) | `BehaviorIngressSystem` |
 
 `BehaviorFinishedEvent` flows **out** of the cognitive/behavior tier upward to the mission tier — it is a report of what has happened. `ClearBehaviorEvent` flows **into** the cognitive tier from above — it is a command to change state.
@@ -110,16 +110,16 @@ foreach (var entity in query)
 
 ### 1.0a BehaviorFinishedEvent (notification, bottom-up)
 
-**Problem:** After `MoveToExecutor.Execute` sets `channel.Status = NodeStatus.Success`, the BTree root evaluates to `Success` in the same or a subsequent tick of `BTreeTickSystem`. However, `BTreeTickSystem` currently discards this terminal result silently — it calls `Interpreter.Tick()` but does not report the behavior's completion upward. The Mission tier compensates by polling `NavState.HasArrived` directly in `MissionDirectorSystem`, coupling the Mission tier to the physics layer.
+**Problem (as measured before this phase):** after `MoveToExecutor.Execute` sets `channel.Status = NodeStatus.Success`, the BTree root evaluates to `Success` in the same or a subsequent tick — but the tick discarded this terminal result silently: it called `Interpreter.Tick()` and did not report the behavior's completion upward. The Mission tier compensated by polling `NavState.HasArrived` directly in `MissionDirectorSystem`, coupling the Mission tier to the physics layer.
 
 **Tier ownership clarification:**
 - **`NavigationExecutionSystem` (Muscle)**: writes `NavigationStatus.Result = NavResult.Arrived` — purely physical.
 - **`MoveToExecutor` (Action executor)**: reads `NavigationStatus`, sets `channel.Status = NodeStatus.Success` — the Cognitive/Action layer bridge.
-- **`BTreeTickSystem` (Behavior machinery)**: calls `Interpreter.Tick()` on the entity’s behavior BTree. When the BTree **root** returns `NodeStatus.Success` or `NodeStatus.Failure`, the *entire behavior* has concluded. This is the only correct place to publish `BehaviorFinishedEvent`.
+- **`BrainTickSystem`, BTree arm (Behavior machinery)**: calls `Interpreter.Tick()` on the entity’s behavior BTree. When the BTree **root** returns `NodeStatus.Success` or `NodeStatus.Failure`, the *entire behavior* has concluded. This is the only correct place to publish `BehaviorFinishedEvent`.
 
 The `LocomotionDispatcherSystem` must **not** publish this event. It operates at the *action* level (individual BTree leaf nodes), not at the *behavior* level (BTree root). A behavior may contain many sequential or conditional locomotion actions; only the BTree root result represents behavior completion.
 
-**Fix:** In `BTreeTickSystem.OnUpdate`, capture the BTree root result returned (or implied) by `Interpreter.Tick`. When the root transitions to `Success` or `Failure`, publish `BehaviorFinishedEvent`:
+**Fix:** in the BTree arm, capture the root result returned by `Interpreter.Tick`. When the root transitions to `Success` or `Failure`, publish `BehaviorFinishedEvent`:
 
 ```csharp
 // BehaviorFinishedEvent.cs
@@ -130,18 +130,19 @@ public sealed class BehaviorFinishedEvent
 }
 ```
 
-In `BTreeTickSystem.OnUpdate`, after `Tick`:
+After `Tick` (`BrainTickSystem.cs:283-311`) — `blackboard` is a `ref byte` into the root params slot and `btState` a `ref BehaviorTreeState` into the root tree-state slot, and the publish is deduplicated per behaviour instance:
 
 ```csharp
-var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState.State, ref context);
+var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState, ref context);
 
 if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 {
-    World.Bus.PublishManaged(new BehaviorFinishedEvent
+    if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
+        || prevInstanceId != behavior.InstanceId)
     {
-        Entity = entity,
-        Result = rootResult
-    });
+        repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = rootResult });
+        _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
+    }
 }
 ```
 
@@ -153,7 +154,7 @@ if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
 
 The Behavior toolkit already has an event-driven path for assigning behaviors: `AssignBehaviorEvent` consumed by `BehaviorIngressSystem`. The clear operation should mirror this exact pattern, but as an imperative command flowing **downward**.
 
-**Fix:** Create a `ClearBehaviorEvent` in `FDP/Toolkits/FDP.Toolkit.Behavior/Events/` and add a handler for it in `BehaviorIngressSystem.OnUpdate`. Any system that needs to **forcibly** put an entity into brain-death state publishes this event; `BehaviorIngressSystem` translates it into `BehaviorState` and `BrainBTreeState` resets.
+**Fix:** Create a `ClearBehaviorEvent` in `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/` and add a handler for it in `BehaviorIngressSystem`. Any system that needs to **forcibly** put an entity into brain-death state publishes this event; `BehaviorIngressSystem` translates it into a `BehaviorState` reset plus the reclamation of the behaviour's root slots.
 
 ```csharp
 // ClearBehaviorEvent.cs
@@ -165,17 +166,30 @@ public sealed class ClearBehaviorEvent
 
 In `BehaviorIngressSystem.OnUpdate`:
 
+As built (`BehaviorIngressSystem.cs:329-385`):
+
 ```csharp
-var clearEvents = World.Bus.ConsumeManaged<ClearBehaviorEvent>();
-foreach (var evt in clearEvents)
+foreach (var evt in repo.Bus.Read<ClearBehaviorEvent>())
 {
-    if (evt == null || !World.HasComponent<BehaviorState>(evt.Entity)) continue;
-    ref var behavior = ref World.GetComponentRW<BehaviorState>(evt.Entity);
+    if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
+
+    int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
+    // ... reclaim the manifest slots and the hosted occurrence slots (the latter also frees
+    //     the root HSM slot, which declares OccurrenceKind.Hsm) ...
+
+    // 🔴 ORDER IS LOAD-BEARING: every root-slot key is COMPUTED from ActiveBehaviorHash, so once
+    //    it is None the key is 0 and both DetachRoot and ResetState become silent no-ops.
+    if (previousBehaviorId != BehaviorIds.None)
+    {
+        RootStateAccess.ResetState(repo, evt.Entity);
+        RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+        RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+    }
+
+    ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
     behavior.ActiveBehaviorHash = BehaviorIds.None;
     unchecked { behavior.InstanceId++; }
     behavior.BrainTier = 0;
-    if (World.HasComponent<BrainBTreeState>(evt.Entity))
-        World.GetComponentRW<BrainBTreeState>(evt.Entity).State = default;
 }
 ```
 
@@ -317,13 +331,13 @@ The complete lifecycle for a right-click-navigated entity after all fixes:
 2. `MissionDirectorSystem` advances phase 0. `MissionAdapterSystem` detects the phase change and publishes `AssignBehaviorEvent`.
 3. `BehaviorIngressSystem` consumes `AssignBehaviorEvent` → sets `ActiveBehaviorHash = MoveToLocation_BT`, bumps `InstanceId`, resets BTree state.
 4. `ChannelArbitrationSystem` detects `InstanceId` bump → no preemption (channel not yet active for the new behavior).
-5. `BTreeTickSystem` ticks the `MoveToLocation` BTree → leaf dispatches `MoveToExecutor.OnEnter` via `LocomotionDispatcherSystem` → writes `NavigationIntent`.
+5. `BrainTickSystem`'s BTree arm ticks the `MoveToLocation` BTree → leaf dispatches `MoveToExecutor.OnEnter` via `LocomotionDispatcherSystem` → writes `NavigationIntent`.
 6. `NavigationIntentBridgeSystem` copies intent to `NavState`.
 7. Vehicle moves. `NavigationExecutionSystem` (Muscle) writes `NavigationStatus.Result = Arrived`.
 8. `MoveToExecutor.Execute` reads `NavigationStatus`, sets `channel.Status = NodeStatus.Success`.
-9. `BTreeTickSystem` calls `Interpreter.Tick()` → BTree **root** evaluates to `NodeStatus.Success` → publishes `BehaviorFinishedEvent { Entity, Result = Success }` **(bottom-up notification from the cognitive machinery)**.
+9. `BrainTickSystem`'s BTree arm calls `Interpreter.Tick()` → BTree **root** evaluates to `NodeStatus.Success` → publishes `BehaviorFinishedEvent { Entity, Result = Success }` **(bottom-up notification from the cognitive machinery)**.
 10. `MissionDirectorSystem` consumes `BehaviorFinishedEvent` (new `BehaviorFinished` trigger) → `CurrentPhase++` → `CurrentPhase >= PhaseCount` → publishes `ClearBehaviorEvent` **(top-down imperative)**.
-11. `BehaviorIngressSystem` consumes `ClearBehaviorEvent` → sets `ActiveBehaviorHash = BehaviorIds.None`, bumps `InstanceId`, resets `BrainBTreeState`.
+11. `BehaviorIngressSystem` consumes `ClearBehaviorEvent` → zeroes and detaches the behaviour's root tree-state and root params slots, then sets `ActiveBehaviorHash = BehaviorIds.None`, bumps `InstanceId` and clears `BrainTier`.
 12. `ChannelArbitrationSystem` sees `InstanceId` mismatch → zeroes `ActiveAction`, increments `ActionInstanceId`.
 13. `LocomotionDispatcherSystem` sees `ActionInstanceId != DispatchedInstanceId` → calls `MoveToExecutor.OnExit` → sets `NavigationIntent.Mode = NavigationMode.None`.
 14. `NavigationIntentBridgeSystem` skips entity (mode = None).

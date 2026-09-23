@@ -10,9 +10,12 @@
 > **no rename**). The user parked the
 > question on `2026-08-17` and reopened it on `2026-09-19`.
 >
-> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
-> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
-> Those two slices are the remaining build.
+> ⭐ **Every occurrence's storage is a slot — the root behaviour's state included.** The root
+> behaviour's params, its BTree cursor and its HSM instance are all keyed occurrence slots, located by
+> `RootParamsAccess`, `RootStateAccess` and `RootHsmAccess`
+> (`FDP/Toolkits/Fdp.Toolkits/Behavior/`). There is **no root brain component left**:
+> `BrainComponents.cs` declares nothing, and the ids 23, 29, 35, 36 and 74 stay `_RESERVED` in
+> `GlobalComponentIds.cs` so a stale recording cannot bind them to a different component.
 
 
 **Project file**: `FDP/Toolkits/Fdp.Toolkits/Fdp.Toolkits.csproj`
@@ -140,9 +143,9 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
          |                         |                        |
          v                         v                        v
 +------------------+     +------------------+     +------------------+
-|  GhostCreation   |     |  BTreeTickSystem |     | CarKinematics    |
-|  OwnershipIngress|     |  HsmTickSystem   |     | SpatialHash      |
-|  NetworkGateway  |     |  ChannelArb.     |     | FormationTarget  |
+|  GhostCreation   |     |  ChannelArb.     |     | CarKinematics    |
+|  OwnershipIngress|     |  CognitiveIntrpt |     | SpatialHash      |
+|  NetworkGateway  |     |  BrainTickSystem |     | FormationTarget  |
 +------------------+     +------------------+     +------------------+
 ```
 
@@ -200,11 +203,16 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `BrainInterrupts` -- interrupt/threat registers (`ExpectedThreatLevel`, `Interrupt_MobilityLost`,
   `Interrupt_Reserved`), set by `CognitiveInterruptSystem` and cleared by `CognitiveCleanupSystem` (behavior
   parameters themselves live in the root params occurrence slot, not a component here)
-- `BrainBTreeState` -- FastBTree working state struct (per-entity BTree execution cursor)
-- `BrainHsmState` -- FastHSM working state struct
+- `SimTier` -- simulation tier level for entity brain prioritization
 - `ChannelComponents` -- locomotion, weapon, interaction channel structs
 - `MissionComponents` -- mission plan components
 - `DomainMissionPlan` -- serialised mission plan attached to an entity
+
+⭐ **The root brain's own state is not a component.** `BrainComponents.cs` declares nothing: the root
+behaviour's params, BTree cursor and HSM instance are keyed occurrence slots, located by
+`RootParamsAccess`, `RootStateAccess` and `RootHsmAccess` (`Behavior/`). The tree-state region is a
+constant 64 B (`sizeof(BehaviorTreeState)`); the HSM region's width is a runtime value -- 64, 128 or
+256 -- chosen by `HsmInstanceManager.SelectTier` at attach and stored in the slot's guard field.
 
 #### Events (`Behavior/Events/`)
 - `AssignBehaviorEvent` / `AssignBehaviorHashEvent` -- assign a behavior by name or hash
@@ -227,18 +235,27 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `EmbarkExecutor` / `EjectPassengersExecutor` / `OpenDoorExecutor`
 
 #### Systems (`Behavior/Systems/`)
-- `BTreeTickSystem` -- steps FastBTree for all BTree-tier entities; zero alloc per tick
-- `HsmTickSystem` -- steps FastHSM for all HSM-tier entities
+- `BrainTickSystem` -- **the one system that steps an entity's root brain**: one body, two arms
+  (BTree and HSM), selected by `BehaviorState.BrainTier`. Zero alloc per tick. Discovery is a walk of
+  the occurrence-store tier components -- one cached `EntityQuery` per tier, index-aligned with
+  `BlueprintTierTable.Ascending` -- because there is no brain component left to query on
+- `HsmKernelBridge` -- the unmanaged context struct passed to `HsmKernel.Update`. An **ABI contract
+  for generated code**: `HsmActionGenerator` and `AiPrimitiveEmitter` emit `HsmKernelBridge*` into
+  every registrar and blueprint thunk, so its name and namespace are not a private detail
 - `BehaviorIngressSystem` -- processes `AssignBehaviorEvent` and `AssignBehaviorHashEvent`
 - `ChannelArbitrationSystem` -- resolves competing locomotion/weapon channel requests
 - `CognitiveInterruptSystem` -- handles priority interrupts; replaces active behavior
 - `CognitiveCleanupSystem` -- resets brain state on behavior termination
+- `BehaviorFrameSystem` -- advances the global behaviour-frame pulse, last in the chain
 - `DispatcherSystemBase` -- base class for action-dispatch systems
 - `LocomotionDispatcherSystem` / `WeaponDispatcherSystem` / `InteractionDispatcherSystem`
 - `MissionDirectorSystem` -- converts mission plans to behavior assignments
 
 #### Modules (`Behavior/Modules/`)
-- `CognitiveRuntimeModule` -- registers all tick, arbitration, and interrupt systems
+- `CognitiveRuntimeModule` -- registers the five Simulation-phase brain systems, in order:
+  `ChannelArbitrationSystem` -> `CognitiveInterruptSystem` -> `BrainTickSystem` ->
+  `CognitiveCleanupSystem` -> `BehaviorFrameSystem`. All five take the same `gateOnAuthority` flag,
+  deliberately: they are one pipeline over one set of entities
 - `ActionDispatchModule` -- registers all dispatcher systems
 - `BehaviorDiagnosticsModule` -- registers trace-buffer lifecycle systems
 - `MissionControlModule` -- registers `MissionDirectorSystem`
@@ -276,18 +293,25 @@ Systems are ordered within each module and annotated with `[UpdateInPhase]`:
 - `BlackboardTier` -- enum selecting which fixed-size blackboard component to use
 
 **File**: `Blueprints/CompilerMode.cs`
-- `CompilerMode` -- enum: `Strict`, `Permissive` for blueprint compilation
+- `CompilerMode` -- enum passed to `CompileAndLoad`: `Release = 0`, `Debug = 1`, `Trace = 2`
 
 #### Partitioning (`Blueprints/Partitioning/`)
-- `BlueprintBlackboardHeader` -- first 16 bytes of a blackboard component: blueprint ID, tick counter
+- `BlueprintBlackboardHeader` -- the 32-byte header at offset 0 of every blackboard component:
+  magic/version, slot count and capacity, free-list head, payload extent and high-water mark
 - `BlueprintBlackboardPartitions` -- layout of variable vs. fixed partitions within the blackboard
 - `BlueprintFreeBlockHeader` -- free-list node for partial-blackboard compaction
 - `BlueprintSlotEntry` -- slot descriptor inside a partitioned blackboard
 
 #### Components (`Blueprints/Components/`)
-- `BlueprintBlackboard1024` -- fixed-size 1024-byte blackboard component
-- `BlueprintBlackboard4096` -- fixed-size 4096-byte blackboard component
-- `BlueprintBlackboard16384` -- fixed-size 16384-byte blackboard component
+There are **four** tier components; the ladder lives in `Blueprints/Shared/BlueprintTierLadder.cs`
+(payload = total - 32-byte header - `MaxSlots` x 16):
+
+| component | `MaxSlots` | payload |
+|---|---|---|
+| `BlueprintBlackboard256` | 3 | 176 B |
+| `BlueprintBlackboard1024` | 12 | 800 B |
+| `BlueprintBlackboard4096` | 16 | 3 808 B |
+| `BlueprintBlackboard16384` | 16 | 16 096 B |
 
 #### Catalogs (`Blueprints/Catalogs/`)
 - `ChannelCommandCatalog` -- registry of channel-command type IDs exposed to blueprints
@@ -1276,7 +1300,7 @@ repo.Bus.Publish(new AssignBehaviorEvent
 // The BehaviorIngressSystem (next frame) picks up the event,
 // looks up "Patrol" in BehaviorRegistry, writes ParseParams into
 // the root params occurrence slot, and sets BehaviorState.BrainTier = BrainTierBTree.
-// The BTreeTickSystem then steps the interpreter every frame.
+// The BrainTickSystem then steps the interpreter every frame, on its BTree arm.
 ```
 
 ### Example 4 -- Saving and loading a scenario snapshot

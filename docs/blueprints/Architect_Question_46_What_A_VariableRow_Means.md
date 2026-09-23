@@ -145,7 +145,7 @@ advances, render from cache otherwise.
 
 | | |
 |---|---|
-| `BlueprintTickSystem:51` · `BTreeTickSystem:55` · `HsmTickSystem:103` | ⭐ **`if (deltaTime <= 0f) return;`** |
+| `BlueprintTickSystem:51` · `BrainTickSystem:111` | ⭐ **`if (deltaTime <= 0f) return;`** |
 
 ⇒ ⭐⭐ **"a non-frozen CGF behaviour frame" is ONE event, not three.** ⛔ The per-`(asset, entity)`
 counter is finer than anything the monitor can use: an entity the tick loop skips *(BTree line 80/90/98

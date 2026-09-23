@@ -9,9 +9,10 @@
 > slots** of the partition allocator. The tier components keep their names,
 > `BlueprintBlackboard{256,1024,4096,16384}`.
 >
-> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included: `O4` gives it
-> its own slot and `O7c` moves the HSM instance into one and **deletes `BrainHsm64`/`BrainHsm128`**.
-> Those two slices are the remaining build.
+> ⭐ **Every occurrence's storage is a slot** — the root behaviour's state included. The root tree
+> cursor is one (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`), which is why a
+> HOSTED subtree can own its own cursor at all: a component is addressed by TYPE, so an entity could
+> only ever have one.
 >
 > It is the build-out of
 > [`Architect_Question_37`](Architect_Question_37_Unify_On_The_Allocator.md), which the user parked on

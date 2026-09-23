@@ -57,7 +57,7 @@ Specifically, the runtime owns:
 
 ### 1.2 What this layer does NOT own
 
-- **AiPrimitive ticking.** AiPrimitives are invoked exclusively by `BTreeTickSystem` and `HsmTickSystem<T>` through registered thunks, never by `BlueprintTickSystem`. The runtime layer registers AiPrimitives into `BehaviorRegistry` and `HsmActionDispatcher` via `[BlueprintRegistrar].Register`, but does not tick them.
+- **AiPrimitive ticking.** AiPrimitives are invoked exclusively by `BrainTickSystem` — either arm — through registered thunks, never by `BlueprintTickSystem`. The runtime layer registers AiPrimitives into `BehaviorRegistry` and `HsmActionDispatcher` via `[BlueprintRegistrar].Register`, but does not tick them.
 - **AiPrimitive working state allocation.** Generated thunks project directly over the AiPrimitive's own node working-state occurrence slot, inline (per Compiler DD §10.4); the runtime does not provide a helper class for this.
 - **Hot reload coordination.** The hot-reload coordinator is a separate (engine-modified) component; the runtime exposes `BlueprintRegistry.BeginStaging/CommitStaging` for it to call.
 - **Compilation.** The runtime knows nothing about `.bp.json` or the compiler pipeline; it consumes the artifacts (registrars in the loaded DLL).

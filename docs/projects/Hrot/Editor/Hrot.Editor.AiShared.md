@@ -897,15 +897,18 @@ Diagnostic codes emitted by BTree/HSM validators for blackboard-related issues:
 ```csharp
 public enum BlackboardDiagnosticCode
 {
-    UnusedVariable,               // Info: variable declared but not referenced
-    VariableTypeNotFound,         // Warning: DTO type dropped from assembly after reload
-    UnboundActionNode,            // Error: action/condition node with null ExpressionTargetField
-    UnboundSubTreeRequirement,    // Warning: sub-tree DTO requirement not aliased or promoted
-    CrossRegionBlackboardConflict, // Warning: concurrent writes to same variable across parallel regions
-    InlineMemoryExceeded,         // Error: master variables exceed the largest tier's payload
-    DuplicateAliasAcrossRegions,  // Error: same variable aliased by sub-trees in concurrent regions
+    UnusedVariable,        // Info: variable declared but not referenced by any node
+    VariableTypeNotFound,  // Warning: FieldType unresolvable after a schema rebuild;
+                           //          the variable is preserved verbatim, authoring suspended
+    CrossRegionConflict,   // Error: two sub-trees in different parallel regions write
+                           //        the same variable
 }
 ```
+
+Over-capacity is reported separately, by `BlackboardBinPacker`'s `PackWarning` enum
+(`None` | `InlineMemoryExceeded`), when the packed total exceeds `MaxInlineBytes` (16 096 --
+the largest occurrence tier's payload). ⚠ `InlineMemoryExceeded` keeps its name although there is
+no second region to contrast with: "inline" now simply means *the params region*.
 
 ---
 

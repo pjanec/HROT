@@ -630,8 +630,16 @@ byte[]?                       PortablePe
 
 #### `BlackboardTier` (enum)
 
-`Blackboard1024`, `Blackboard4096`, `Blackboard16384`.  Selects the ECS component size for
-the entity-attached blackboard used by Instance Blueprints.
+`Blackboard1024 = 0`, `Blackboard4096 = 1`, `Blackboard16384 = 2` (a `byte` enum, declared in
+`Hrot.Blueprints.Compiler/Compiler/Compatibility/BlueprintCompilerContracts.cs:10`).
+
+⚠ **This is a compiler-contract type, not the tier selector.** Its only reference is
+`IrAsset.SelectedTier` (`Compiler/Ir/IrAsset.cs:111`), which nothing writes or reads. Runtime tier
+selection uses the **four**-valued `Fdp.Toolkit.Blueprints.BlackboardTier`
+(`B1024 = 0`, `B4096 = 1`, `B16384 = 2`, `B256 = 3`), whose ordinals are ABI -- `B256` is *appended*
+at 3 although it is the smallest tier, so the numeric order is deliberately not the size order and
+`BlueprintTierTable.Ascending` is what gives size order. The payload figures live in
+`BlueprintTierLadder`: 176 / 800 / 3 808 / 16 096 B.
 
 #### `BlueprintSignature` (record)
 

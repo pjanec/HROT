@@ -6,8 +6,9 @@
 > authoritative for WHERE bytes live: **every occurrence's storage is a per-occurrence slot** of the
 > partition allocator, over the `BlueprintBlackboard{256,1024,4096,16384}` tier components — the
 > behaviour's params, its nodes' working state, and the kernel's own tree/HSM instance state alike.
-> ⭐ `O4` gives the root behaviour's state its own slot and `O7c` moves the HSM instance into one,
-> **deleting `BrainHsm64`/`BrainHsm128`**; those two slices are the remaining build.
+> ⭐ **That is now true all the way down, with no brain component left anywhere:** the root tree
+> cursor is a slot (`RootStateAccess`) and so is the root HSM instance (`RootHsmAccess`, sized
+> 64/128/256 per machine by `HsmInstanceManager.SelectTier`).
 > This is the build-out of
 > [`Architect_Question_37`](blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 >

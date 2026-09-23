@@ -1,5 +1,17 @@
 # BTree + HSM Unification Design
 
+<!--STATUS
+state: LIVE
+updated: 2026-09-23
+current-answer: the banner below — it carries the runtime model as it now stands
+stale-below: "Current State", every "Problem" block and every "Design"/task block is this
+  programme's DESIGN-TIME RECORD of what it set out to build. Read them as that record, never as a
+  description of today's runtime; the banner is the current model.
+related-designs:
+  - ../../blueprints/DESIGN_Occurrence_Scoped_Storage.md — owns where brain state LIVES (slots, tiers,
+    the one tick system); this document owns the BTree/HSM PARADIGM parity work
+-->
+
 > ⭐ **Storage model:** a behaviour's parameters live in the entity's **root params slot** and a
 > stateful node's scratch in its own **working-state slot**, both inside the entity's
 > `BlueprintBlackboard{256,1024,4096,16384}` occurrence store. The interrupt registers are their own
@@ -9,10 +21,27 @@
 > [`Architect_Question_37`](../../blueprints/Architect_Question_37_Unify_On_The_Allocator.md).
 > ⭐ Everything else in it stands.
 >
-> ⭐⭐ **Two of this document's open questions are CLOSED by that design rather than inherited:**
-> **`Q1`** *(add `BrainHsm256`)* — ⛔ **no**: the tier becomes a payload SIZE, so there is no
-> `BrainHsm*` to add a sibling to; and **`Q6`** *(`HotReloadManager.TryReload` assumes a contiguous
-> span)* — ⭐ with instances in slots, reload is a slot walk.
+> ⭐⭐⭐ **THE BRAIN IS ONE TICK SYSTEM WITH TWO ARMS.** `BrainTickSystem`
+> (`FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs:50`) steps both paradigms:
+> `BehaviorState.BrainTier` picks the arm (`:155-158`), the BTree arm takes its cursor from the
+> **root tree-state slot** via `RootStateAccess.RequireStateRef` (`:233`) and the HSM arm takes its
+> instance **and its size** from the **root HSM slot** via `RootHsmAccess.TryGetInstance` (`:336`).
+> The body they share is the terminal-event dedup dictionary (`:67`), the lifecycle pruning
+> (`:130-133`), the registry lookup (`:152`), trace-buffer resolution, the `BehaviorFinishedEvent`
+> publish and **one** authority gate (`:101,125`).
+> ⭐ **Discovery is a tier walk, not a component query** (`:124-127`): there is no brain component
+> left to query on, so what is enumerated is entities carrying an occurrence-store tier component,
+> one cached `EntityQuery` per tier, index-aligned with `BlueprintTierTable.Ascending`.
+> ⭐ The brain chain is unchanged in order — arbitration → interrupt → **tick** → cleanup → pulse
+> (`.../Behavior/Modules/CognitiveRuntimeModule.cs:58-76`).
+>
+> ⭐⭐ **Three of this document's open questions are CLOSED by that model rather than inherited:**
+> **`Q1`** *(add `BrainHsm256`)* — ⛔ **no**: the tier is a payload SIZE chosen at attach by
+> `HsmInstanceManager.SelectTier`, so there is no `BrainHsm*` to add a sibling to, and 64 / 128 / 256
+> are all reachable; **`Q2`** *(two different dedup keys)* — ⭐ there is now **one** dictionary,
+> keyed by `entity.Index` and valued `BehaviorState.InstanceId` for **both** arms
+> (`BrainTickSystem.cs:67,301-309,422-425`); and **`Q6`** *(`HotReloadManager.TryReload` assumes a
+> contiguous span)* — ⭐ with instances in slots, reload is a slot walk.
 
 
 ## Executive Summary
@@ -39,6 +68,11 @@ reload pipeline, or interrupt system needing to know which one is running.
 ---
 
 ## Current State
+
+> ⚠ **This whole section is the BASELINE this programme measured before it built anything** — it is a
+> record of what was there then, not of what is there now. The banner at the top of the file carries
+> the runtime model as it stands. In particular the two tick systems it names, `BTreeTickSystem` and
+> `HsmTickSystem<T>`, and the `HsmDamageBridgeSystem` they sat beside, no longer exist.
 
 ### FbtAssemblyHotReloader
 
@@ -413,7 +447,7 @@ The design talk identifies this as the "separate bridge → shared blackboard" m
 
 | Field | Signal | Written by | Read by |
 |---|---|---|---|
-| `Interrupt_MobilityLost` | MobilityLost (1=set, 0=clear) | `CognitiveInterruptSystem` | `HsmTickSystem<T>`, BTree Observer nodes |
+| `Interrupt_MobilityLost` | MobilityLost (1=set, 0=clear) | `CognitiveInterruptSystem` | `BrainTickSystem`'s HSM arm (`BrainTickSystem.cs:342-347`), BTree Observer nodes |
 | `Interrupt_Reserved` | (reserved for future interrupts) | — | — |
 
 They live in their own component rather than in a behaviour's slot because they are facts about the
@@ -426,8 +460,8 @@ the event; BTree Observer reads the flag), and then unconditionally zeroed by
 `CognitiveCleanupSystem` at the very end of the frame.
 
 This prevents a permanent soft-lock that would otherwise arise if a BTree-brained
-entity's interrupt byte were set but never consumed: `HsmTickSystem<T>` skips all
-non-HSM entities, so without the cleanup system no other code would ever clear the byte.
+entity's interrupt byte were set but never consumed: only the HSM arm of `BrainTickSystem`
+reads and injects the register, so on a BTree-tier entity nothing else would ever clear the byte.
 
 #### 3.2 — `CognitiveInterruptSystem` (new class)
 
@@ -773,36 +807,28 @@ offending state and the missing cleanup key, making the omission impossible to m
 
 ---
 
-## BehaviorIngressSystem — HSM State Reset on Behavior Transition
+## BehaviorIngressSystem — brain state reset on behavior transition
 
-### Gap
+The hazard this section was written for is real and is the reason the ingress path is shaped the way
+it is: if the mission director transitions an entity to a different HSM behavior (e.g. from
+`Idle_HSM` to `Combat_HSM`), a machine that ticks against the previous run's execution state —
+active leaf IDs, lifecycle phase, event queues, history slots — produces garbage evaluations and can
+reach out of bounds in the new topology.
 
-`BehaviorIngressSystem` correctly resets `BrainBTreeState.State = default` when a BTree
-behavior is assigned. It does **not** touch `BrainHsm64` or `BrainHsm128`.
+`BehaviorIngressSystem` (`FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BehaviorIngressSystem.cs`)
+resets **both** roots on every assign, and neither is a component any more:
 
-If the mission director transitions an entity to a different HSM behavior (e.g., from
-`Idle_HSM` to `Combat_HSM`), the new state machine ticks against the stale execution
-state from the previous run: active leaf IDs, lifecycle phase, event queues, and history
-slots all carry over. The result is garbage evaluations and potential out-of-bounds
-state-slot accesses in the new behavior's topology.
+| root | what ingress does |
+|---|---|
+| BTree cursor | `RootStateAccess.ResolveOrAttachRoot` then `RootStateAccess.ResetState` — `:295-299`, taken whenever `RootStateBytes(def) > 0` |
+| HSM instance | `RootHsmAccess.ResolveOrAttachRoot` sized by `RootHsmAccess.InstanceBytes(def.HsmDefinition)`, then `RootHsmAccess.ResetInstance` — `:317-322`, taken on `BrainTier == BrainTierHsm` |
 
-### Fix
-
-Extend `BehaviorIngressSystem` so that when an HSM behavior is assigned (detected by
-`BrainTier == BrainTierHsm64` or `BrainTierHsm128`), it resets the corresponding
-`BrainHsm64`/`BrainHsm128` component. The reset must:
-
-1. Scrub active-leaf IDs, event queues, and history slots. Use the same reset helpers
-   that `HotReloadManager.HardReset` uses (`ClearInstance64State` /
-   `ClearInstance128State`) rather than duplicating the logic.
-2. Clear `InstanceFlags.Terminated` in `InstanceHeader.Flags` — defense-in-depth against
-   the Terminal State Latch bug described in Phase 2.
-3. Reset `InstanceHeader.Phase` to `InstancePhase.Idle`.
-4. Set `InstanceHeader.MachineId` to the new behavior's machine ID.
-
-The existing BTree reset (`BrainBTreeState.State = default`) must remain unchanged.
-Verify the location of `BehaviorIngressSystem` at task start (likely `Hrot.CGF` or
-`Fdp.Toolkits`).
+Two orderings are load-bearing and point in **opposite** directions, which is why they are commented
+at the call sites: the HSM slot declares `OccurrenceKind.Hsm`, so `DetachHostedOccurrenceSlots` can
+see it and attaching before that sweep would delete the slot on the assign that created it; the
+BTree root slot is invisible to the same sweep. `ResetInstance` also restores
+`InstanceHeader.MachineId` to the new blob's structure hash — without it
+`HsmKernelCore.ValidateInstance` rejects the instance on every later tick, silently, by `continue`.
 
 ---
 
@@ -820,18 +846,28 @@ Hot Reload (Phase 1)
     -> HotReloadManager.TryReload() for each HSM behavior
     -> release old ALC ref
 
-Frame tick (Phase 2 + 3)
+Frame tick  (as it runs today -- CognitiveRuntimeModule.cs:58-76)
+  ChannelArbitrationSystem:
+    -> clear stale channels before a brain writes new actions
   CognitiveInterruptSystem:
     -> read ActorCapabilityState (edge-triggered), write interrupt registers to BrainInterrupts
-  BTreeTickSystem:
-    -> tick BTree, publish BehaviorFinishedEvent on Success/Failure
-    -> BTree Observer nodes poll the BrainInterrupts registers natively
-  HsmTickSystem<T>:
-    -> read blackboard interrupt bytes -> inject HsmEvents (Phase 3)
-    -> HsmKernel.Update()
-    -> check InstanceFlags.Terminated -> publish BehaviorFinishedEvent + clear flag (Phase 2)
+  BrainTickSystem:                                    (BrainTickSystem.cs:109)
+    -> walk the occurrence-store tiers, smallest first (:124-144)
+    -> BehaviorState.BrainTier picks the arm           (:155-158)
+    -- BTree arm  (:208)
+       -> cursor from the root tree-state slot         (RootStateAccess.RequireStateRef, :233)
+       -> blackboard = the root params slot, once per entity per tick (:247-250)
+       -> Interpreter.Tick, publish BehaviorFinishedEvent on Success/Failure (:283, :299-311)
+       -> BTree Observer nodes poll the BrainInterrupts registers natively
+    -- HSM arm    (:316)
+       -> instance AND its size from the root HSM slot (RootHsmAccess.TryGetInstance, :336)
+       -> read BrainInterrupts -> inject HsmEvents     (:342-347)
+       -> HsmKernel.Update(def, instance, instanceSize, ...) (:400)
+       -> InstanceFlags.Terminated -> publish BehaviorFinishedEvent + clear flag (:418-430)
   CognitiveCleanupSystem:
     -> zero all interrupt register bytes (single-frame pulse enforcement)
+  BehaviorFrameSystem:
+    -> advance the global behaviour-frame pulse, last, so it means "a brain tick HAS run"
 
 Shared node authoring (Phase 4)
   [SharedAiCondition(typeof(TParentDto), nameof(TParentDto.Field))]
@@ -863,19 +899,23 @@ Shared node authoring (Phase 4)
 
 ## Open Questions and Risks
 
-### Q1: HsmInstance256 / BrainHsm256
+### Q1: 256-byte HSM instances — ✅ CLOSED, and the question dissolved rather than being answered
 
-`HsmInstance256` exists in `Fhsm.Kernel` but no `BrainHsm256` ECS component exists.
-`HsmTickSystem<T>` is generic, so it could technically support 256-byte instances.
-A future task should add `BrainHsm256` if any behavior's HSM state exceeds 128 bytes.
-This design does not add it; `HsmTickSystem<BrainHsm256>` is out of scope.
+There is no ECS component to add a sibling to. The root HSM instance lives in an occurrence slot
+keyed by the behaviour hash; its width is a **runtime** value picked by
+`HsmInstanceManager.SelectTier(definition)` at attach and stored in the slot's guard field, which
+`RootHsmAccess.TryGetInstance` reads back as `instanceSize`
+(`FDP/Toolkits/Fdp.Toolkits/Behavior/RootHsmAccess.cs:83-99`). `BrainTickSystem` then hands that
+size straight to the kernel (`BrainTickSystem.cs:400-401`), so **64, 128 and 256 are all reachable
+and none of them is a type.**
 
-### Q2: BTreeTickSystem dedup key vs HsmTickSystem dedup key
+### Q2: one dedup key, one dictionary — ✅ CLOSED
 
-`BTreeTickSystem` uses `BehaviorState.InstanceId` as the deduplication value.
-`HsmTickSystem<T>` uses `InstanceHeader.Generation` as the equivalent. These are
-semantically the same concept (per-incarnation unique counter) but have different field
-names. This is acceptable; no unification of field names is needed.
+Both arms now dedup through the **same** dictionary, keyed by `entity.Index` and valued
+`BehaviorState.InstanceId` (`BrainTickSystem.cs:67`, BTree arm `:301-309`, HSM arm `:422-425`).
+That is correct by construction rather than by convention: an entity has one brain, selected by
+`BehaviorState.BrainTier`. The stale-entry sweep that guards against ECS index reuse
+(`BrainTickSystem.cs:180-204`) now covers the BTree arm too — it had existed only on the HSM side.
 
 ### Q3: HsmActionDispatcher thread safety during reload
 

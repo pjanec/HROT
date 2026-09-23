@@ -131,8 +131,8 @@ graph TB
     end
 
     subgraph "Tick"
-        BTREE[BTreeTickSystem<br/>existing]
-        HSMTICK[HsmTickSystem<br/>existing]
+        BTREE[BrainTickSystem<br/>BTree arm]
+        HSMTICK[BrainTickSystem<br/>HSM arm]
         BPTICK[BlueprintTickSystem<br/>NEW]
         BPMAINT[BlueprintMaintenanceSystem<br/>NEW, BeforeSync]
 
@@ -1094,7 +1094,7 @@ public sealed class BlueprintTickSystem : IEcsModuleSystem, IProfiledSystem
 
 Per-slot soft/hard reload reconciliation happens **inside** the tick: when a slot's `StructureHash` differs from `def.StructureHash`, the slot is zeroed and re-init'd before being ticked.
 
-**AiPrimitives are NOT ticked by `BlueprintTickSystem`.** They are invoked by `BTreeTickSystem` and `HsmTickSystem<T>` (existing) through their registered thunks.
+**AiPrimitives are NOT ticked by `BlueprintTickSystem`.** They are invoked by `BrainTickSystem` (existing) — either arm — through their registered thunks.
 
 ### 6.8 Spec — world-singleton Instance support
 

@@ -32,7 +32,8 @@ The split Authority model follows the FDP (Framework for Distributed Processing)
 
 - **Brain (CGF, node 400 by default):** `BehaviorState`, `BrainInterrupts`,
   `BlueprintBlackboard{256,1024,4096,16384}` (the occurrence-slot tiers holding root behaviour params and
-  node working state), `BrainBTreeState`, `MissionPlanQueue`, `ActiveMissionPlan`, `TargetMemory`.
+  node working state -- **and the root BTree cursor and root HSM instance**, which are slots, not
+  components), `MissionPlanQueue`, `ActiveMissionPlan`, `TargetMemory`.
 - **Muscle (SimHost):** `SimTransform`, `NetworkTransform`, `WorldPos`, `NavigationStatus`,
   `NavigationIntent`, `PhysicsState`.
 
@@ -1112,7 +1113,7 @@ CPU rendering primitives that no viewer is consuming.
 | `Hrot.CGF.Tests` | Unit tests for `CgfApplication`, genesis pipeline, `TacticalIntentResolutionSystem`, `MissionAdapterSystem`, etc. |
 | `Hrot.SimHost.Integration.Tests` | Integration tests exercising the full Brain+Muscle distributed pair via `CgfSubsystem` test hooks. |
 | `Fdp.Core` | FDP ECS core: `EntityRepository`, `FdpEventBus`, component infrastructure, `FdpLog<T>`. |
-| `Fdp.Toolkit.Behavior` | Behavior registry, `BehaviorState`, `BrainInterrupts`, `BrainBTreeState`, `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`. |
+| `Fdp.Toolkit.Behavior` | Behavior registry, `BehaviorState`, `BrainInterrupts`, `RootStateAccess` / `RootHsmAccess` / `RootParamsAccess` (the root brain's state lives in occurrence slots), `MissionControlModule`, `CognitiveRuntimeModule`, `ActionDispatchModule`. |
 | `Fdp.Toolkit.Orchestration` | `ClusterSlave`, reference load handlers, `ScenarioEntityCreationRequestSource`. |
 | `Fbt.Compiler` | Fluent BTree compiler used to build BTree definitions registered in `BehaviorRegistry`. |
 | `Hrot.Editor` | Scenario editor that exercises `StagingEntityExtractor` and hot-reloads `Hrot.AI.Behaviors` independently of the CGF node. |

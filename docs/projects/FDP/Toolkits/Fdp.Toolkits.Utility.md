@@ -865,7 +865,7 @@ All phases complete as of 2026-05-30:
 
 | Phase | Status | Content |
 |---|---|---|
-| Phase 0 | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, `Blackboard1024.Project<T>`, `UtilityTestWorld`, gate test |
+| Phase 0 | Complete | Prerequisite bundle: `WeaponState.MaxAmmo`, multi-mount weapons, `MaxTrackedTargets=16`, `UnitRoster.Add/IndexOf`, typed projection of a per-entity storage slot (`OccurrenceStoreAccess`), `UtilityTestWorld`, gate test |
 | Phase 1 | Complete | Scoring core, curve evaluation, aggregator, trace buffer, `UtilityScorer`, 17 standard inputs, `ThreatMatrixAssignmentSystem`, 4 starter-pack decisions, BTree/HSM/Blueprint integration nodes |
 | Phase 2 | Complete | `UtilityInputGenerator`, `UtilityDecisionGenerator`, `UtilityAuthoringAnalyzer`, `UtilityAutoDiscovery` startup handshake |
 | Phase 3 | Complete | `CurveWidget.Draw` host-agnostic curve widget (`Hrot.Utility.Editor`) |

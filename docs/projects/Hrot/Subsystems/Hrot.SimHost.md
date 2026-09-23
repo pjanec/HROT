@@ -221,7 +221,9 @@ Hrot.SimHost.Orchestration.Handlers
 
 Hrot.SimHost.Serializers
   HrotScenarioSerializerFactory  -- builds ScenarioSerializer with all HROT translators
-  BrainBlackboardTranslator      -- serializes the root-params occurrence slot (read-only; no Inject)
+  BrainDiagnosticsTranslator     -- dumps the brain's diagnostics: the BrainInterrupts tail plus
+                                    the root-params occurrence slot projected into the behaviour's
+                                    declared DTO (read-only; no Inject). DOM key "BrainDiagnostics"
   MissionPlanTranslator          -- serializes MissionPlanQueue
   TargetMemoryTranslator         -- serializes TargetMemory
   PassengerBufferTranslator      -- serializes PassengerBuffer
@@ -586,14 +588,31 @@ additionally registers formation/spawn commands and diagnostic events.
 #### `CombatComponentRegistry`
 
 Registers: `PerceptionReceptor`, `TargetMemory`, `SensorContactList`, `WeaponState`,
-`EntityInfo`, `BallisticProjectile`, `PhysicsCollider`, and all combat/perception events.
+`EntityInfo`, `ActorCapabilityState`, `BallisticProjectile`, `PhysicsCollider`, and all
+combat/perception events.
 
 #### `CognitiveComponentRegistry`
 
 Registers: `BehaviorState`, `SimTier`, locomotion/weapon/interaction channels,
-`ActorCapabilityState`, BTree/HSM brain components, `MissionPlanQueue`,
-`PassengerBuffer`, `IsEmbarkedTag`, `NavigationIntent`, AI trace buffers, and
+`PreviousCapabilities`, `BrainInterrupts`, `NavigationIntent`, the
+`BTreeTraceWorkingMemory1024` / `HsmTraceWorkingMemory1024` trace buffers, and the
 cognitive command events.
+
+⭐ **There is no root brain component to register.** The root behaviour's params, BTree cursor and
+HSM instance are occurrence slots inside the `BlueprintBlackboard*` tier ladder, which
+`HrotSharedComponentRegistry` already registers Hrot-wide via
+`BlueprintBlackboardTiers.RegisterAll`. The retired ids -- 23, 29, 35, 36 and 74 -- stay
+`_RESERVED` in `GlobalComponentIds.cs` so a stale recording cannot bind one to a different component.
+
+⚠ `BrainInterrupts` is the interrupt tail and is load-bearing here: `BehaviorTkbTranslator` attaches
+it only when the type is registered, `CognitiveInterruptSystem`'s query requires it, and
+`BrainTickSystem`'s `MobilityLost` enqueue is guarded by `HasComponent<BrainInterrupts>` -- so its
+absence fails silently rather than throwing.
+
+`ActorCapabilityState` is registered by `CombatComponentRegistry`; `MissionPlanQueue` by
+`MissionComponentRegistry`; `PassengerBuffer` / `IsEmbarkedTag` by `EmbarkationComponentRegistry`;
+`DebugState` and `PatchDebugStateCommand` by `BehaviorDiagnosticsComponentRegistry`; the EQS trio and
+raycast events by `PerceptionRoleComponentRegistry`.
 
 #### `KinematicComponentRegistry`
 
@@ -771,7 +790,7 @@ registered (see table below).
 | `PersonalRouteRefTranslator` | `PersonalRouteRef` | |
 | `UnitSubordinateTranslator` | `UnitSubordinate` | |
 | `EditablePolylineTranslator` | `EditablePolyline` | |
-| `BrainBlackboardTranslator` | the root-params occurrence slot | Serialize-only (Inject is no-op) |
+| `BrainDiagnosticsTranslator` | `BrainInterrupts` + the root-params occurrence slot | Serialize-only (Inject is no-op). Its DOM key is `BrainDiagnostics`, deliberately not a component name -- `DebugApiService` builds an entity's `components` list from translator DOM keys, so a key naming a component publishes a phantom one |
 | `BTreeTraceWorkingMemoryTranslator` | `BTreeTraceWorkingMemory1024` | |
 | `HsmTraceWorkingMemoryTranslator` | `HsmTraceWorkingMemory1024` | |
 
@@ -802,7 +821,8 @@ registered (see table below).
 The project transitively pulls in all FDP toolkits consumed at runtime:
 
 - `Fdp.ModuleHost` — `ModuleHostKernel`, module scheduling, `TogglableSimulationGroup`
-- `Fdp.Toolkit.Behavior` — `BehaviorRegistry`, `BrainBTreeState`, `BrainHsm128`
+- `Fdp.Toolkit.Behavior` — `BehaviorRegistry`, `BehaviorState`, `BrainInterrupts`, `RootParamsAccess` /
+  `RootStateAccess` / `RootHsmAccess` (the root brain state is an occurrence slot, not a component)
 - `Fdp.Toolkit.Combat` — `FireProcessingSystem`, `RaycastSolverSystem`, `HitResolutionSystem`, `BallisticsSystem`
 - `Fdp.Toolkit.Navigation` — `NavigationIntent`, `NavigationStatus`, `NavigationIntentBridgeSystem`
 - `Fdp.Toolkit.Physics` — `PhysicsToolkitModule`, `BallisticProjectile`, `PhysicsCollider`
@@ -1030,7 +1050,7 @@ via `IEntityCommandBuffer.PublishEvent`.
 
 ### 6. Scenario serializers are for persistence, not runtime state
 
-`BrainBlackboardTranslator.Inject` is intentionally a no-op because the root-params
+`BrainDiagnosticsTranslator.Inject` is intentionally a no-op because the root-params
 occurrence slot is transient execution state (`DataPolicy.NoScenario`). Do not attempt to
 restore behaviour params from a scenario file. Add `DataPolicy.NoScenario` annotations to any
 new translator that serializes transient runtime state.

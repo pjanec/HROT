@@ -197,7 +197,7 @@ not touch these:**
 |---|---|
 | `BehaviorState.ActiveBehaviorHash` ← new · `InstanceId++` (preemption token) · `BrainTier` ← new |
 | **Stateful working slots** — previous behavior's **detached**, new behavior's **provisioned** |
-| `BrainBTreeState.State = default` — the tree restarts from its root |
+| the **root tree-state slot** is reset to `default` — the tree restarts from its root |
 | **HSM instance reset**, rebound to the new topology's `StructureHash` |
 | ⭐ **And it is transactional**: params are parsed into a *shadow* first, so a parse failure leaves the entity **100% on the old behavior** (`:70-73`) |
 
@@ -285,8 +285,8 @@ if (evt.ClearsPriorIntent)
 ⚠ **Candidates for later providers — evidence, not a commitment.** Each is a per-entity store some system
 owns, and **whether it should be cleared by an operator order is a question for its owner, not for this
 design**: `MissionAdapterState` (CGF's phase-change shadow) · `IPathRegistry` / `BrainPathRegistry`
-(navigation paths) · `BTreeTickSystem` and `HsmTickSystem` terminal-tracking dictionaries · in-flight EQS
-results. 🔒 **The registry is what makes adding any of them a local change** — which is the whole point of
+(navigation paths) · `BrainTickSystem`'s terminal-tracking dictionary *(one now, shared by both arms)* ·
+in-flight EQS results. 🔒 **The registry is what makes adding any of them a local change** — which is the whole point of
 the ruling.
 
 `TacticalIntentResolutionSystem` — already the owner-side choke point, already authority-gated — does
@@ -338,7 +338,7 @@ both in one place when the flag is set:
 | 32.8g | An assign **without** the flag behaves exactly as today — blackboard residue and plan both preserved | H |
 | 32.8h | A `ParseParams` failure still leaves the entity **100% on the old behavior**, flag or not | H |
 | 32.9 | On the **owning** node the intent resolves locally; on a **non-owner** it leaves as `TacticalIntentRequest` — one publish, two routings | H |
-| 32.10 | An order **replaces** the active behavior (`BrainBTreeState`/HSM reset) | H |
+| 32.10 | An order **replaces** the active behavior (the root tree-state and HSM instance slots are reset) | H |
 | 32.11 | `MoveHere → MoveToLocation`, `Engage → FireAtTarget`, `Stop → Idle` reach their **registered** behaviors | H |
 | 32.12 | An `IntentId` with **no mapper** resolves by **pass-through** to the behavior of that name | H |
 | 32.13 | Menu content for an entity comes from its **TKB `AI.CommandSet`** | H |

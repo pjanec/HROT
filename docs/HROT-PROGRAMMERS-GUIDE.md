@@ -478,7 +478,7 @@ noted. All are named constants in code (cite shown).
 - 🔴 **`CognitiveInterruptSystem` is the sole writer of `PreviousCapabilities`**; reactors read
   it and must run `[UpdateBefore]` it. **Interrupt bytes are edge-triggered and cleared
   end-of-frame** — consume them within the same tick. `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/CognitiveInterruptSystem.cs:38-41`
-- 🔴 **Only `BTreeTickSystem` publishes `BehaviorFinishedEvent`** (root-level); dispatchers
+- 🔴 **Only `BrainTickSystem` publishes `BehaviorFinishedEvent`** (root-level, from either arm); dispatchers
   (leaf-level) must not. **`IActionExecutor.OnEnter` must fully initialize state** so the
   same-frame `Execute` is safe. **Behavior-param parse is atomic** — a parse failure leaves
   the entity on its old behavior entirely. `FDP/Toolkits/Fdp.Toolkits/Behavior/Events/BehaviorFinishedEvent.cs:16-20`, `Systems/BehaviorIngressSystem.cs:27-104`

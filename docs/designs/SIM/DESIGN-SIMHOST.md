@@ -38,7 +38,7 @@
 | **Network Spawning** | ❌ NEW (shared) | `FDP.Toolkit.NetworkSpawning.Systems.NetworkSpawningSystem` | Unified entity creation: ID, TKB, network infra, ELM — see [DESIGN-NetworkSpawning.md](./DESIGN-NetworkSpawning.md) |
 | **Descriptor Mapper** | ❌ NEW | `Hrot.SimHost.Util.DescriptorMapper` | Converts DDS `EntityDescriptorUnion` list → `List<object>` for SpawnEntityCommand |
 | **CreateEntity Handler** | ❌ NEW | `Hrot.SimHost.Systems.CreateEntityRequestSystem` | Translates DDS CreateEntityRequest → SpawnEntityCommand (thin, no direct ELM/TKB calls) |
-| **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | BTree behavior pipeline: ChannelArbitrationSystem → BTreeTickSystem → Executors |
+| **Mission Execution** | ✅ EXISTS | `FDP.Toolkit.Behavior` / `FDP.Toolkit.Navigation` | Behavior pipeline: ChannelArbitrationSystem → CognitiveInterruptSystem → BrainTickSystem → CognitiveCleanupSystem → Executors |
 | **WorldPos Bridge** | ✅ EXISTS | `Fdp.Toolkit.Geographic.SimTransformBridgeSystem` | Converts SimTransform/SimVelocity → GeoTransform/GeoVelocity post-physics |
 | **MissionAdapterSystem** | ❌ NEW | `Hrot.SimHost.Systems.MissionAdapterSystem` | Maps active MissionTask.BehaviorId → BehaviorId, writes the behavior's root-params occurrence slot, advances ActiveTaskId on channel success |
 | **EntityMissionTranslator** | ❌ NEW | `Hrot.SimHost.Translators.EntityMissionTranslator` | Syncs DDS EntityMission topic ↔ ECS managed component (ingress + egress) |
@@ -648,9 +648,9 @@ namespace Hrot.SimHost.Modules
             //    BehaviorRegistry must be compiled and set as kernel singleton before Initialize().
             registry.RegisterSystem(new MissionAdapterSystem(_behaviorRegistry, _entityMap));
 
-            // 2. Behavior toolkit pipeline (BTree execution)
+            // 2. Behavior toolkit pipeline (brain execution -- BTree and HSM arms in one system)
             registry.RegisterSystem(new ChannelArbitrationSystem());
-            registry.RegisterSystem(new BTreeTickSystem(_behaviorRegistry));
+            registry.RegisterSystem(new BrainTickSystem(_behaviorRegistry));
             registry.RegisterSystem(new LocomotionDispatcherSystem());
 
             // 3. Action executors
@@ -695,7 +695,7 @@ namespace Hrot.SimHost.Systems
     /// Thin adapter: DDS EntityMission → BehaviorState / the behavior's root-params occurrence slot.
     /// Monitors LocomotionChannel.Status to advance ActiveTaskId.
     /// Does NOT call VehicleAPI directly — all execution is delegated to the
-    /// Behavior toolkit pipeline (BTreeTickSystem + Executors).
+    /// Behavior toolkit pipeline (BrainTickSystem + Executors).
     /// Pattern: Like NetworkDemo's CombatFeedbackSystem (reads results, updates state).
     /// </summary>
     public class MissionAdapterSystem
@@ -1001,7 +1001,7 @@ ModuleHostKernel Update Sequence:
   5. SimulationLogicModule:
        - MissionAdapterSystem            (DDS mission → BehaviorState/root-params occurrence slot)
        - ChannelArbitrationSystem        (preempt stale channels on behavior change)
-       - BTreeTickSystem                 (tick BTree, write LocomotionChannel.Request)
+       - BrainTickSystem                 (tick the brain; the BTree arm writes LocomotionChannel.Request)
        - LocomotionDispatcherSystem      (OnEnter/Execute/OnExit lifecycle)
        - MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
        - VehicleCommandSystem
@@ -1022,7 +1022,7 @@ ECS EntityMission component
 BehaviorState.ActiveBehaviorHash + root-params occurrence slot set
   ↓ ChannelArbitrationSystem
 stale LocomotionChannel cleared on behavior change
-  ↓ BTreeTickSystem
+  ↓ BrainTickSystem (BTree arm)
 LocomotionChannel.Request written
   ↓ LocomotionDispatcherSystem → MoveToExecutor / FollowRouteExecutor / JoinFormationExecutor
 SimVelocity updated
@@ -1049,7 +1049,7 @@ DDS EntityMission → IOS (feedback loop)
 │   ↓                                          │
 │ MissionAdapterSystem (behavior + params)     │
 │   ↓                                          │
-│ BTreeTickSystem → LocomotionChannel.Request  │
+│ BrainTickSystem → LocomotionChannel.Request  │
 │   ↓                                          │
 │ MoveToExecutor / FollowRouteExecutor /       │
 │   JoinFormationExecutor → SimVelocity        │
@@ -1147,7 +1147,7 @@ public void Update(float dt)
    - `FDP.Toolkit.Tkb` (TkbDatabase)
    - `FDP.Toolkit.Time` (MasterTimeController)
    - `Fdp.Toolkit.Geographic` (WGS84Transform)
-   - `FDP.Toolkit.Behavior` (BTreeTickSystem, ChannelArbitrationSystem, LocomotionDispatcherSystem)
+   - `FDP.Toolkit.Behavior` (BrainTickSystem, ChannelArbitrationSystem, LocomotionDispatcherSystem)
    - `FDP.Toolkit.Navigation` (MoveToExecutor, FollowRouteExecutor)
    - `FDP.Toolkit.Physics` (LinearKinematicsSystem)
    - `ModuleHost.Core` (IModule, ModuleHostKernel)
@@ -1219,7 +1219,7 @@ public void Update(float dt)
 **Goal:** Integrate `FDP.Toolkit.Behavior` and `FDP.Toolkit.Navigation` as the mission execution pipeline; replace the custom `MissionExecutionSystem` with a thin `MissionAdapterSystem`.
 
 **Tasks:**
-1. Register `ChannelArbitrationSystem`, `BTreeTickSystem`, `LocomotionDispatcherSystem`, `MoveToExecutor`, `FollowRouteExecutor`, and `LinearKinematicsSystem` in `SimulationLogicModule` (S4.1).
+1. Register `ChannelArbitrationSystem`, `BrainTickSystem`, `LocomotionDispatcherSystem`, `MoveToExecutor`, `FollowRouteExecutor`, and `LinearKinematicsSystem` in `SimulationLogicModule` (S4.1).
 2. Implement `EntityMissionTranslator` (DDS ingress) and `EntityMissionEgressTranslator` (DDS egress) in `Translators/` (S4.2).
 3. Implement `MissionAdapterSystem` — reads active `MissionTask.BehaviorId`, resolves `BehaviorId` via `BehaviorRegistry`, writes `BehaviorState` + the root-params occurrence slot (`RootParamsAccess`), monitors `LocomotionChannel.Status` to advance `ActiveTaskId` (S4.3).
 4. Implement `JoinFormationExecutor` — `IActionExecutor<LocomotionChannel>`, looks up leader via `NetworkEntityMap`, calls `VehicleAPI.CreateFormation()` (S4.4).
