@@ -1,7 +1,13 @@
 <!--STATUS
 state: LIVE
+build-state: ⛔ NOT BUILDABLE FROM THIS DOCUMENT. The RULINGS are approved (2026-09-23), but this
+  is a decision document and carries NO UML. Per NO-IMPLEMENTATION-WITHOUT-UML, the approved
+  shape must be folded into DESIGN_Occurrence_Scoped_Storage.md — which owns §18/§19's hosting
+  call and already carries the diagrams — and marked buildable THERE before any batch.
+  §2a.3 is the item list, not a dispatch.
 updated: 2026-09-23
-current-answer: §3 and §4 hold the two sub-questions and their LEANS, both UNCHANGED.
+current-answer: ✅ APPROVED 2026-09-23 — Q36-A = B, Q36-B = A (§6). §2a.3 is the build list.
+  §3 and §4 hold the two sub-questions and the leans that were approved, both UNCHANGED.
   §2a is the 2026-09-23 correction: two of §2's premises moved after O4/O7c, and the leans got
   CHEAPER rather than different. ⛔ Read §2a before quoting §2 or §5.
 stale-below: §2's measurements are dated 2026-08-17 at tree 9caa61e and two of them have MOVED
@@ -127,10 +133,45 @@ keeps the whole corpus byte-identical (no shipped asset has an alias)"*.
 | ⚠ **what IS emitted is the alias arm, and it carries the pre-`O4` defect** | `:98` emits `GetInterpreter().Tick(ref subBb, ref state, ref ctx)` — the caller's `BehaviorTreeState`, exactly the shape `HostedSubtree.Tick` replaced on the BTree side |
 | ✅ **latent, not biting** | zero shipped `.hsm.json` declares an alias ⇒ the emitter returns `null` for every one of them |
 
-⚠ **And a question this document does not ask, raised `2026-09-23` and NOT settled:** the emitted
-`[HsmAction]` takes `ref BehaviorTreeState state`, and **an HSM has no tree state of its own.** ⭐
-Settling where that comes from decides whether the missing work is *"bake a slot key"* or *"change the
-action signature"*. ⛔ Not measured; do not assume.
+### 2a.2a 🔴🔴 MEASURED `2026-09-23` — **THE EMITTED `[HsmAction]` HAS THE WRONG SIGNATURE ENTIRELY**
+
+🔒 The previous revision of this section left one question open: the emitted `[HsmAction]` takes
+`ref BehaviorTreeState state`, and an HSM has no tree state of its own — *"does the missing work mean
+bake a slot key, or change the action signature?"* ⭐ **Measured, and the answer is neither.**
+
+📐 **The HSM action ABI is a THUNK, and a `[HsmAction]` method must BE that thunk:**
+
+| | |
+|---|---|
+| the dispatcher invokes | `((delegate*<void*, void*, HsmCommandWriter*, void>)actionPtr)(instance, context, writer)` — `HsmActionDispatcher.cs:20` |
+| the generator registers | `{ id, (IntPtr)(delegate*<void*, void*, HsmCommandWriter*, void>)&{FullName} }` — `HsmActionGenerator.cs:405` |
+| ⇒ so a decorated method must itself be | `static unsafe void M(void* instancePtr, void* contextPtr, HsmCommandWriter* writer)` — which is exactly the shape the generator emits for its OWN SharedAi thunks at `:599` |
+
+⛔⛔ **What `HsmOrchestratorEmitCore:91-95` emits is the FastBTree ACTION shape instead:**
+
+```csharp
+[HsmAction(Name = "Orchestrate_X")]
+public static NodeStatus Orchestrate_X_Tick(
+    ref Bb master, ref BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+```
+
+⇒ 🔴 **`&` of that cannot convert to the HSM thunk pointer type. The emitted orchestrator would
+not compile.** ⭐ So `ref BehaviorTreeState` comes from **nowhere** — it is not an unsourced parameter,
+it is *the wrong signature for the attribute it carries*.
+
+⚠⚠ **Why nothing caught it, and the second half is the worse one:** `Emit` returns `null` for every
+shipped asset *(no aliases)*, **and 📐 ZERO tests compile the emitted text** — the two that exercise
+`HsmOrchestratorEmitCore` assert on **strings**. ⇒ the emission has never been compiled by anything.
+🔒 **A text-asserting golden cannot tell you the code it pins is not valid C#.**
+
+⭐⭐ **This makes `Q36-A` = `B` CHEAPER AGAIN, not harder.** A correct HSM thunk receives
+`contextPtr` → `HsmKernelBridge*` → world + self — which is **precisely what
+`HostedSubtree.Tick` needs** to resolve the child's tree-state slot by key. ⇒ ⛔ **no attribute
+change, no ABI change, no new delegate**: the hosting action is written in the shape the generator
+already uses at `:599`, and resolves the child's cursor inside the thunk.
+
+⇒ ⭐ **§2a.3 item 4 is therefore NOT "bake a slot key into the action signature"** — it is *"emit the
+hosting action as a real thunk and let `HostedSubtree.Tick` resolve the slot"*.
 
 ### 2a.3 ⭐ WHAT IS ACTUALLY MISSING, UNDER THE LEANS
 
@@ -139,7 +180,7 @@ action signature"*. ⛔ Not measured; do not assume.
 | **1** | **`StateNodeDto.SubtreeName`** + both mapper directions — this is `Q36-B` = `A`, and it is UNBUILT | `HsmAssetDto.cs:98` and `HsmAsset.cs:870` carry `SubtreeAssetId` **alone**; BTree's proven triple is `BehaviorTreeAsset.cs:93-96` |
 | **2** | **an emitter for the state-hosting arm** | §2a.2 |
 | **3** | **route it through `HostedSubtree.Tick`**, never the pre-`O4` shape | `BTreeOrchestratorEmitCore:151`/`:182` is the model |
-| **4** | **a slot key for the child's tree state** — blocked on the `ref BehaviorTreeState` question in §2a.2 | BTree bakes `slotKeyA`/`slotKeyB` |
+| **4** | **emit the hosting action as a REAL THUNK** `(void*, void*, HsmCommandWriter*)` and resolve the child's slot inside it — ✅ **unblocked by §2a.2a**; the key comes from the bridge, not from the signature | `HsmActionGenerator.cs:599` is the shape; `BTreeOrchestratorEmitCore:151` the call |
 | **5** | **assert the inherited `E3` hazard** — §5 already says NAME it, do not fix it. Zero instances | §5 |
 
 ⚠ **① and ②–③ of §2 are RE-MEASURED AND STILL TRUE** *(`2026-09-23`)*: `BehaviorState` is still
@@ -201,7 +242,17 @@ before deleting)*.
 
 ## 6. Status
 
-⛔ **OPEN — and what it is waiting on is a RULING, not more measurement.** ⭐ **Batch 77 item 1
+✅✅ **APPROVED `2026-09-23` — `Q36-A` = `B`, `Q36-B` = `A`.** 🔒 **User, verbatim: *"Q36
+approved."*** ⇒ §2a.3 is the build list; §2a.2a is the measurement that unblocks its item 4.
+
+⚠ **What approval does and does not settle:** it rules WHICH BRAIN runs the child *(the host, inline)*
+and WHAT RESOLVE READS *(the name, beside the Guid)*. ⛔ It does **not** license the `E3` hazard away —
+§5 still says a hosted subtree's own actions resolve DTOs at baked offsets and that must be asserted
+as a named gap.
+
+### ⛔ HISTORY — the pre-approval status
+
+⛔ **OPEN — and what it was waiting on was a RULING, not more measurement.** ⭐ **Batch 77 item 1
 STOPPED here rather than picking `Q36-A` unilaterally** — ① is a one-brain-per-entity invariant, and
 choosing what breaks it is not an implementation detail.
 
