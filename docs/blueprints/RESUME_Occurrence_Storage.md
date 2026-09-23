@@ -1,666 +1,149 @@
 <!--STATUS
 state: LIVE
-doc-type: LANE RESUMPTION for the `behaviors` lane — programme ②, OCCURRENCE-SCOPED STORAGE.
+doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-SCOPED STORAGE.
+  ⭐ CONSOLIDATED 2026-09-23 into ONE file. Three slice-level resumptions were DELETED, not lost:
+  RESUME_O7c_Retire_Brain_Components.md, RESUME_P4_Retire_Blackboards.md and
+  RESUME_CE304_Params_Regression.md. Their durable content is in DESIGN_Occurrence_Scoped_Storage.md
+  (P4 = §30, O7c = §31, CE-304 = §19a) and in the tracker; git history holds the files themselves.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-22
-build-state: n/a — a resumption snapshot, not a design.
-current-answer: ⭐⭐⭐ O7c IS IN FLIGHT — GO TO RESUME_O7c_Retire_Brain_Components.md.
-  That is the BUILD resumption (what is done, what is next, the traps, the gate baselines);
-  this doc stays the PROGRAMME view. ⛔ Do not run O7c from §0c alone.
-  📐 TWO OF THE THREE BRAIN COMPONENTS ARE RETIRED (verified 2026-09-23 against the tree):
-     BrainBTreeState ✅ deleted (id 29 burned) · BrainHsm64 ✅ deleted (id 35 burned)
-     BrainHsm128 ❌ STILL ALIVE (id 36) ⇐ the remaining work, designed in §31.14
-  ✅ The BTree half is PROVEN ON THE RUNNING PRODUCT — hill-attack-close --mode all, all six
-  invariant links, positions within 0.02 of gold, 0 exceptions / 0 RootStateAccess throws.
-  CE-319 closed. ⚠ The golden CANNOT see the HSM arm — §31.14.8 says what stands in for it.
-  (previous head) ✅✅✅ P4 IS COMPLETE (2026-09-22) — AND WITH IT THE WHOLE P0–P4 PATH.
-  `BrainBlackboard` and `Blackboard1024` ARE DELETED. Root params live in an occurrence slot;
-  `GlobalComponentIds` 23 is burned as `BrainBlackboard_RESERVED` and never reused.
-  ⭐⭐ READ §0c — its table is now a RECORD of a finished path, and the section directly under
-  it names WHAT IS NEXT. ⛔ RESUME_P4_Retire_Blackboards.md is CLOSED: a record, not a to-do.
-  ⭐⭐⭐ THE NEXT OPEN ROW IS `O7c` (E4 in PLAN_Occurrence_Storage_Build.md) — delete
-  `BrainHsm64`/`BrainHsm128`, move the root HSM instance into occurrence slots, and reshape
-  `HsmTickSystem`'s entity discovery (`F9`). Rated 🔴 L: 188 references / 18 production files.
-  Design: DESIGN_Occurrence_Scoped_Storage.md §22 (the O7 slice table) and §9.4.
-  ⚠ O7c has a PRE-CONDITION worth reading before starting: with `BrainHsm*` gone the HSM tick
-  query loses its root component, so discovery takes BlueprintTickSystem's shape — PLAN's D2 row
-  prices this, and it is the part that is L, not the deletion.
-  📐 VERIFIED ON THE RUNNING PRODUCT, not just on gates: `hill-attack-close --mode all` PASSED
-  after the deletion (523.06 525.22 529.22 530.99 vs gold, max drift 0.83; all Success, health 0/0,
-  count 8, zero FastBTree warnings). ⚠ RUN IT ON A QUIET MACHINE — trial 1 drifted and the cause
-  was 6 competing dotnet daemons, NOT the change: the scenario is a WALL-CLOCK sim at timeScale 1.
-  ✅ EVERYTHING P4 SPAWNED IS ALSO CLOSED: CE-307 (the shadow buffer sized on the retired
-  component's width) · CE-314 (the bin packer's dead heavy-spill tier) · CE-315 (a `.With<>()` gate
-  that silently stopped an agent ticking) · CE-316 (the validator keyed on what the ASSET declares
-  instead of what the EMITTER writes) · CE-317 (a live diagnostic wearing a retired component's
-  name) · CE-303 (all six identity-keyed surfaces — closed STRUCTURALLY: the type is gone, so none
-  could have survived a compile). The vendored FastBTree fork under FDP/ExtDeps is REMOVED.
-  ⛔ STILL OPEN elsewhere: CE-300, CE-301 (the root-slot offset cache, with its measurements).
-  ⛔ CE-295 is filed and must NOT be fixed.
-  (previous head) ✅ §0d IS RESOLVED (2026-09-22) — CE-304 is FIXED and RE-VALIDATED on a live
-  cluster (2/2 gold). P4 is UNPARKED. READ §0c for the path.
-  (previous head) READ §0c FIRST (THE PATH P0-P4, 2026-09-21 late) — it supersedes §0b's
-  "next slice" line and names the EXACT next action. THEN §0a for the standing constraints.
-  (previous head) READ §0b FIRST (Q43 slice 1 as-built, 2026-09-21), THEN §0a for the
-  standing constraints and holds. §0a's "THE NEXT TASK is Q43" is now PARTLY DONE - §0b says
-  which half landed and what the next slice is (the BINDING).
-  Everything below §0a is accumulated background: true, dated, and NOT a to-do list.
-  (historic head follows) THE NEXT ACTION WAS E3 (E7a + CE-298) — ✅ BOTH NOW DONE.
-  O7 is SLICED (design §24.3):
-  O7a (the key + the lookup) and O7b (the emitter + the inspector) are DONE — 17 rails, three
-  red-proofs, 2273/0 and Blueprints 3971/0 with goldens byte-identical.
-  ⭐ §24.9's question is RESOLVED: the kernel passes the HSM INSTANCE pointer, so
-  (a) InstanceHeader.MachineId is a free per-dispatch host identity (what O8 will need) and
-  (b) AiPrimitiveEmitter's `*(Params*)instance` cast is a DEFECT, filed as CE-297.
-  ✅ O7b IS LANDED (design §25) — the HSM path is on occurrence storage and the inspector SHOWS ALL
-  occurrences, each labelled "Region N / State M" and decoded into typed values, per the user's
-  ruling 2026-09-21. CE-297 fixed in the same change. 17 rails; red-proof exact (reverting only the
-  emitter's occurrence call gives 0 build errors and 5 red — the 2 emission guards AND the 3
-  inspector rails, which is the point: the inspector is a real consumer now).
-  ⭐ THE LABEL IS DERIVED, NOT STORED: the key is an FNV fold and BlueprintSlotEntry is exactly 16
-  bytes with no padding, so the debugger searches FORWARD over (region, state) — a hit is exact, and
-  an unrecognised key reports UNKNOWN rather than mislabelling.
-  ⚠ TRAP WORTH KEEPING: emitting the AssetId const unconditionally moved 11 golden baselines for
-  assets that cannot use HSM hosting; gating it on Hostings.Contains(HsmAction|HsmGuard) returned all
-  11 to byte-identical. An emitter addition must be gated on the feature that needs it.
-  🔴 CE-298 (user, 2026-09-21): PARAMS ARE STILL PER-ENTITY — O7b closed working state only. The
-  HSM thunks and the standalone BTree @0 thunk project params at BehaviorParameters[0] + 0, which
-  DESIGN_Parameter_Model.md §4.1 calls a "live race" for concurrent regions. Fix is two halves that
-  MUST land together: (1) slot payload becomes [Params N][WorkingState M]; (2) something must WRITE
-  each occurrence's params — nothing does today and IHostVariableAccess has zero implementers (E7a).
-  Storage without supply is a REGRESSION (zeroed params instead of the behaviour's authored ones).
-  ✅ E-cap + O7d ARE LANDED 2026-09-21 (design §27) — SUPPLY FIRST, THEN STORAGE, and the item that
-  had been reverted twice landed on the first try once its supply existed.
-  E-cap: BehaviorIngressSystem.EnsureOccurrenceStore provisions the SMALLEST tier for a brain-tier
-  behaviour whose stateful manifest is empty, so lazy attach has somewhere to land. ⛔⛔ It SKIPS when
-  the tier component is not registered — the first attempt broke 8 tests with "BlueprintBlackboard256
-  is not registered", and the fix was the NARROWER contract, not RegisterAll in eight fixtures
-  (§27.2). Rails O7_R14/O7_R15.
-  O7d: both standalone BTree thunks now route onto OccurrenceSlots.StandaloneStateKeyFor(AssetId) +
-  OccurrenceWorkingState.ResolveOrAttach — ASSET-scoped, because Interpreter.cs:655 hands an action
-  delegate no node identity and per-node is the BRIDGE's job by design. The defect pin FLIPPED to
-  StandaloneBTreeThunks_UseTheOccurrenceStore_O7d. Goldens moved DELIBERATELY: 30 files, +330/−420,
-  net −90; per asset one added AssetId line plus the Blackboard1024/fixed/memory+8 block replaced by
-  the occurrence pair ⇒ ZERO goldens still mention the legacy blackboard, which is what E5 waited on.
-  ⭐ Earlier, measuring corrected two of my claims: the standalone @0 thunk is BOUND BY NOTHING (no
-  shipped asset shares state through it), and it CANNOT be keyed per-node.
-  🔒 THE RULE this earned, measured 3x in 2 days: before moving ANY state into an occurrence slot,
-  name what will PROVISION the slot and WRITE its contents. If either is "nothing", it is a REGRESSION.
-  ✅ O7b-3 PROPER IS ALSO LANDED 2026-09-21 (design §27.7) — the tier is now sized for what the
-  behaviour HOSTS, not just for its own manifest.
-  THE SHAPE: the demand is DERIVED from the machine's own StateDef action ids joined against the
-  blueprint registry (an action id IS the blueprint id truncated to 16 bits, CSharpEmitter.cs:383),
-  computed in BlueprintRegistrarScanner.Scan — measured as the ONLY place in the tree where both
-  registries are populated in one pass — and recorded as an OVERLAY on BehaviorRegistry, the same
-  shape as _resolversByName/_jsonParamsDtoByName and for the same reason. ⇒ HsmBridgeEmitCore never
-  learns about blueprints (the user's ruling).
-  ⛔ It computes a SIZE, never a manifest of keys: the occurrence key needs the region slot the kernel
-  picks at runtime. Slots still attach lazily.
-  ⭐ ADDITIVE in BOTH tier-selection branches — the cheap wrong fix sizes only EnsureOccurrenceStore,
-  which never runs for a behaviour with its own stateful slots (rail O7_R18 reddens on exactly that).
-  📐 THE PROBLEM IS LATENT, NOT LIVE: the smallest tier holds 3 slots / 176 bytes, and exactly ONE
-  asset in the tree declares HSM hosting (MoveAndFireCombo) with an EMPTY working state. Built and
-  railed anyway on the standing ruling that HSM features get rails before usage.
-  ⭐ Rails O7_R16–O7_R22, TWO independent red-proofs: neutering the CONSUMER reddens exactly R16/R17/
-  R18; neutering the PRODUCER reddens exactly R19. Neither touches the other's rails.
-  ⚠ Two honest limits, both in §27.7.3: a global transition's guard keys on activeLeafIds[0] so it is
-  counted ONCE rather than per state; and a scan sees ONE assembly, so a cross-assembly host records
-  no demand — which is the pre-O7b-3 state, not a silent mis-size (absent ≠ zero, enforced by the API).
-  ✅ E3a IS LANDED 2026-09-21 (design §28, DESIGN_Parameter_Model §4.7) — CE-298 CLOSED. The slot
-  payload is [Params N][WorkingState M], so a hosted occurrence's params are its own.
-  🔒 FORCED BY A USER CORRECTION, and the correction is the lesson: I argued the move "buys nothing
-  measurable today" from the measurement that 0 of 27 goldens mutate Params. The measurement was
-  true; the INFERENCE reasoned from today's corpus to a CAPABILITY question and was wrong. User:
-  "forget the fact it is not in use now. it will be." The challenge also surfaced a failure I had
-  missed: even READ-ONLY, two DIFFERENT blueprints at two states type-punned each other's bytes.
-  ⭐ THE SEED is why this is not a regression: on first attach the slot is filled by COPYING from
-  BehaviorParameters[0] + 0 — the exact bytes the thunk read before — so the move is byte-identical
-  at the first dispatch. ⛔ Offset 0 is the seed's SOURCE, never the destination; it dies at E3b.
-  ⛔⛔ THE DETACH IS MANDATORY, not a follow-up: BehaviorIngressSystem.DetachHostedOccurrenceSlots
-  drops lazily-attached hosted slots on assign/clear. Without it the thunk (which used to read the
-  blackboard LIVE) would run forever on the first assign's values — a regression. Rail O7_R27 is the
-  red-proof and it reddens alone when the call is removed.
-  ⭐ A3/D1's Kind nibble is what makes the detach PRECISE — kind Hsm/Blueprint AND not named by the
-  manifest, so provisioned slots survive.
-  ✅ E3b-0 IS LANDED 2026-09-21 (design §28.6 / §28.6a / §28.6b) — HSM states can now bind their own
-  blackboard variable, so two parallel regions seed from DIFFERENT values.
-  🔒 FOUND BY THE USER ASKING "do the decisions still look healthy from today's point of view?" —
-  every Q41/Q43 decision re-measured TRUE, but C1'/C2' resolve PER VARIABLE and a site reaches a
-  variable via ExpressionTargetField, which BTree nodes and HSM TRANSITIONS have and HSM STATES did
-  not. So E3b as designed closed the BTree case and left open the HSM parallel-regions case CE-298
-  was filed for. Not an error in Q41/Q43: Q41 was framed from a BTree question.
-  ⛔ AND IT WAS BIGGER THAN "ADD A DTO FIELD": the BTree bridge emits one adapter PER NODE at a
-  per-site key; HSM registers ONE thunk per ushort action id, so there is nowhere to bake a per-site
-  offset. What made it tractable is that E3a had already moved the params — the binding only has to
-  reach the SEED, which already holds O6's stamp. Three parts: the DTO field; HsmBridgeEmitCore emits
-  a (StableId, offset) table; the seed consults it via HsmOccurrence.SeedParamsOffset.
-  ⭐ The StableId→flat-index join is the blob's OWN MachineMetadata.StateStableIds, so the emitter
-  never needs the flattener's ordering. And the HSM still learns nothing about blueprints.
-  ⭐ ADDITIVE: unbound ⇒ offset 0 (pre-E3b-0 byte-for-byte); no bound state ⇒ emits nothing.
-  ⭐ Rails O7_R28–O7_R31 (R31 drives a REAL kernel tick) + 3 emission guards + 1 standalone guard.
-  Red-proof: neutering the offset reddens exactly R28/R29/R31; R30 (no metadata) correctly stays green.
-  ⛔⛔ COVERAGE GAP FOUND: ZERO goldens declare HSM hosting, so the emitted HSM thunk shape has NO
-  golden coverage — only ThunkEmissionTests. That is why this moved zero goldens, and it is the same
-  blind spot that let BP-297 ship. Worth a golden asset with HSM hosting; filed as an observation.
-  ✅ C1' + E7a ARE LANDED 2026-09-21 (design §28.7) — the RESOLVE stage runs, and IHostVariableAccess
-  has its FIRST implementation since it was declared 2026-08-16 (it had zero implementers for a month).
-  🔒 SETTLED BY THE USER'S QUESTION: "isn't there something like function based param resolution,
-  allowing to take params from wherever the function/graph has access to? this would mean own resolve
-  pass." Measured: ResolveParams<TDto>(ref dto, world, self, host) at BehaviorParams.cs:19 — a
-  resolver reads world/self/host, so its result depends on the OCCURRENCE's context. Running it once
-  per behaviour and copying into every occurrence would be wrong BY CONSTRUCTION, and `host` can only
-  be non-null in a per-occurrence pass. ⇒ own resolve pass, at the seed.
-  SHIPPED: HsmHostVariableAccess (name-keyed, read-only, fails closed on absent name / width
-  disagreement / unknown machine) · HsmParamBindings.RegisterVariables (the host's own name→offset
-  map, from the SAME packedFields as its ParseParams and ManagedBlackboardVariables) ·
-  HostedParamResolvers (per-asset; a miss is free and silent per §3.1, a wrong-typed registration
-  THROWS) · the emitted seed does bake/copy → RESOLVE → init inside `if (freshlyAttached)`, so it is
-  resolve-ONCE at activation, never per dispatch.
-  ⚠ HONEST GAP: the width check is a type check in disguise — the packed map carries no CLR type, so
-  an int read as a float is NOT caught. Stated in §28.7.2 rather than implied.
-  ⭐ Goldens: 30 files, +90/-0, purely additive (3 lines each: the resolve call). The standalone thunk
-  gets the stage too with host:null — it has no host by construction but may still compute from
-  world/self.
-  ⭐ Rails O7_R32–O7_R35 + 2 emission guards. Red-proof: neutering the resolve reddens R34 alone.
-  ⛔ STILL HELD: C2' (the resolver PICKER) is Hrot.Hsm.Editor = UI lane. 🔒 User 2026-09-21: "with UI
-  related parts let's wait, we will need first to integrate the stuff not yet merged from the ui
-  branch." Resolvers are registered in CODE until then.
-  ⛔ STILL OPEN: Q43 (resolver authored AS A BLUEPRINT — the GraphKind.Construction emitter arm +
-  V_ResolverPurity), approved and unbuilt, held until this proves out. And the generated ParseParams
-  hook for the ROOT path (C1' as Q41 words it) — additive, no blocked consumer.
-  ⭐⭐ NEXT ACTION: integrate the ui branch, then C2'; or Q43 if the user prefers depth first.
-  (HISTORY) E3b — per-site authored VALUES. Every occurrence still seeds from the SAME
-  variable, so two regions get their own COPY of one authored value. The design is DONE and
-  APPROVED, not open: Architect_Question_41 (C1' = emit the resolve hook, named there as the
-  enabler) then C2', and Architect_Question_43 (resolver authored as a blueprint) — both marked
-  "APPROVED IN FULL, nothing is built" since 2026-08-18. IHostVariableAccess becomes callable only
-  once C1' exists. ⚠ C1' is an emitter change and WILL move goldens.
-  ⚠ CORRECTION: "the BTree hosting path has been occurrence-keyed since S2" is TRUE of the bridge
-  per-node adapters and FALSE of the standalone @0 thunks.
-  ⭐ RETIRING Blackboard1024 (the LEGACY one, NOT BlueprintBlackboard*): it is already on ZERO
-  production entities — both AddComponent sites are gated on HeavyDtoType, which nothing ever sets
-  (both editor mappers hard-write null). Order: O7d first, then the HeavyDtoType-gated consumers
-  (translator, renderer, view provider, replay drawers), then WorkingStateLayout / the registration /
-  the GlobalComponentIds entry / the BlueprintDebugSession legacy fallback.
-  ⛔ STILL OPEN: E3 (E7a + CE-298, see above) and O7c (delete BrainHsm*, F9's tick-system reshape)
-  — O7c is L, 188 refs across 18 production files.
-  O4, O5 and O6 are all DONE. O6 — the single ExtDeps crossing — landed 2026-09-20: as-built in
-  design §23, 6 rails, red-proof exact, and the FULL 156-project solution build reported exactly TWO
-  compile errors, so §4.2's "single-digit blast radius" held. ⛔ O6 delivers the IDENTITY only —
-  nothing reads the (region, state) pair in production yet; that is precisely O7's job.
-  ⭐ O5 needed no build: measured 2026-09-20, it SHIPPED ON 2026-08-17 (commit a957ed448) with 10
-  rails, verified 13/0, so PLAN's C2 row was stale when written and now says so.
-  ✅ AND TRAP ㉗ IS SOLVED — it was never flakiness: RegistryAuditTests.AuditCompA and production's
-  ScenarioIgnoreTag both declared [ComponentId(200)], and the process-global registry THROWS on a
-  collision, so whichever registered first won. AuditCompA moved to 290; 0 failures in 6 full runs.
-  Read its §5 row for the method lesson — the answer was in every red run's output and got grep'd away.
-  ⭐ UPDATE 2026-09-20 (later): TWO of §21.2's three gaps are now CLOSED and their rows are
-  marked SUPERSEDED — (a) the EXTERNAL reset path is FIXED as F14b, design §22, rails ⑤/⑥/⑦ with an
-  exact red-proof; ⚠ and §21.2 had named the wrong pair of sites — :163 and :235 leak, :204 was
-  already safe; (b) the "end-to-end abandon is unmeasured" row is answered by design §22.5: the
-  abandon is UNREACHABLE in-tree (PushNode/PopNode have zero production callers, so the sweep path is
-  one entry wide), so rail ⑧ pins that premise instead. ⛔ STILL OPEN: the root occurrence still lives
-  in BrainBTreeState (§21.2 row 1). Increment A is COMPLETE; B1, B2, B3 (both halves of O3a) and
-  B4 (O3b, the 256 tier) are DONE and pushed.
-  ⛔ READ §3's B4 note first: "additive" was claimed from the table and was FALSE for the sites that
-  SELECT from the ladder — a production defect (two stores on one entity, design §17.7). Traps ㉑
-  and ㉒ in §5 are the generalisations, and ㉒ is the one that would have prevented it.
-  §2 is the grounded facts: ⛔ do not re-derive them, they cost real measurement. §5 is the trap
-  list, and it is the section most worth two minutes — sixteen of these were MY errors, three of
-  which reached a pushed document before being caught.
-stale-below: ⛔ EVERYTHING BELOW §0c IS HISTORY AS OF 2026-09-22 — true, dated, and NOT a
-  to-do list. Specifically: §3 still reads as a `B4` briefing (B4 is DONE, §1) — its CONSTRAINTS
-  table and its re-measure-after-O4 warning still bind, its "NEXT ACTION" heading does not;
-  §0b's "next slice" line is superseded by §0c; §0a's "THE NEXT TASK is Q43" is superseded twice
-  over. ⭐ The ONE live pointer in this file is §0c's "THE NEXT OPEN ROW — O7c".
-  ⭐ §2 (grounded facts) and §5 (the traps) are the sections still worth reading in full.
+updated: 2026-09-23
+build-state: BUILDING — O7c ①②③④a④b④c DONE and pushed; ④d is the LAST slice and is NOT started.
+current-answer: ⭐⭐⭐ START AT §1 "WHERE IT STANDS", THEN §2 "THE NEXT ACTION — O7c-④d".
+  📐 VERIFIED 2026-09-23 by grepping for the struct declarations, not from memory:
+     BrainBTreeState  ✅ DELETED, id 29 burned _RESERVED
+     BrainHsm64       ✅ DELETED, id 35 burned _RESERVED
+     BrainHsm128      ❌ STILL EXISTS, id 36 live  ⇐ THE ONLY REMAINING WORK
+  ⭐ And: BTreeTickSystem + HsmTickSystem<T> are GONE — ONE BrainTickSystem.cs replaces both.
+  ⛔⛔ DO NOT re-derive any design. §31.14 has the merge with three UML diagrams; §31.15–§31.18 are
+  the as-built for ④a/④b/④c and the HSM inertia bug. ④d's own scope is §2 below, MEASURED.
+stale-below: nothing — this doc was rewritten whole on 2026-09-23.
 known-rot: nothing.
-known-conflict: RESUME_Assets_And_Occurrences.md is the COORDINATOR snapshot (2026-09-19) owning TWO
-  programmes. ⛔ SUPERSEDED IN PART for this one: it says the occurrence design has no PLAN (false —
-  §1), treats §3.2's defect as "shipped" (measured LATENT), and names the AI entity count as the
-  first measurement to take (taken, and it was the wrong one to take first). Neither doc supersedes
-  the other; this is the LANE view and is newer.
+known-conflict: none.
 related-designs:
-  - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. Start at its §16.
-  - PLAN_Occurrence_Storage_Build.md — ⭐ THE TASK BREAKDOWN. 14 tasks, 5 increments.
-  - Blueprint_Issues_Tracker.md — CE-295 (open, ⛔ must NOT be fixed), CE-296 (refuted),
-    CE-300/CE-301 (open), CE-303 + CE-307..CE-317 (ALL DONE 2026-09-22). Area F.
-  - RESUME_P4_Retire_Blackboards.md — the P4 build record. ⛔ CLOSED; do not resume from it.
-  - RESUME_O7c_Retire_Brain_Components.md — ⭐ THE LIVE BUILD RESUMPTION. Start there.
-  - Architect_Question_37_Unify_On_The_Allocator.md — the owning question.
-  - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden test. §2.1 is load-bearing.
+  - DESIGN_Occurrence_Scoped_Storage.md — ⭐ THE OWNING DESIGN. §30 = P4, §31 = O7c end to end.
+  - PLAN_Occurrence_Storage_Build.md — the task ladder; row E4 carries O7c's re-rating.
+  - Blueprint_Issues_Tracker.md — CE-320 (O7c) · CE-321 (example rot) · CE-322 (inertia, DONE)
+    · CE-318 (deferred) · CE-300/301 (open).
+  - RUNBOOK_Cluster_Debugging_Over_Http.md — how to run the golden. §1.1 and §4 are load-bearing.
 -->
 
-# RESUMPTION — **occurrence-scoped storage**, the `behaviors` lane
+# RESUMPTION — **occurrence-scoped storage**, `behaviors` lane
 
 RELEARN
 
-> ⭐⭐⭐ **You are the `behaviors` lane on branch `behaviors`, and you OWN this design.**
-> 🔒 **User, `2026-09-20`: *"you take it from here, you are the one owning the design now."***
-> ⭐ **Nothing is half-finished.** ⛔ **`§3` no longer says what is next — it is a `B4` briefing and
-> `B4` shipped.** ⭐⭐ **Go to §0c**: the `P0`–`P4` path is COMPLETE *(`2026-09-22`)* and the section
-> names the next open row, **`O7c`**.
-
-## 0b. ⭐⭐⭐ LATEST — **`Q43` slice ① LANDED `2026-09-21`** *(read this before §0a)*
-
-### ⭐ What landed
-
-**A parameter resolver authored AS A BLUEPRINT now compiles, registers and runs.**
-📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) **§8 is the
-as-built** — read it before §1's inventory or §6's sequencing, both of which it corrects.
-
-| | |
-|---|---|
-| the **`Construction` emitter arm** | `LibraryEmitter.EmitClass` — the consumer `GraphKind.Construction` was RESERVED for since `Q23`. Same emit as a Function graph, deliberately |
-| **`BlueprintDefinition.Resolvers`** | a separate INDEX, the same `LibraryFunctionDelegate` (ruling 9: one invocation mechanism, two indexes — the KIND is what marks a resolver, never a naming convention) |
-| **`V_ResolverPurity`** | `BP1675` purity · `BP1676` Library-only · `BP1677` the `(DTO in → same DTO out)` signature. ⭐ Ordered EARLY in `Stage2_Validate` on purpose: `Run` returns on the first fatal error, so reported late `BP1675` would be unreachable for the very assets it refuses |
-| **the golden** | `ParamResolverDemo.bp.json`, corpus **43 → 44** — the first corpus asset whose only graph is `Construction` |
-| **the completeness rail** | every concrete `Node` subclass is classified pure or side-effecting; a new node kind reddens it until someone classifies it |
-| **the end-to-end rail** | `BlueprintAuthoredResolver_InvokeTests` drives the REAL corpus asset: compile → Roslyn-load → registrar → invoke → assert the DTO was REFINED (`Speed` scaled, `X`/`Y`/`ArrivalRadius` preserved) |
-
-### 🔴🔴 THREE MEASURED CORRECTIONS — **do not re-derive these**
-
-| | |
-|---|---|
-| ⛔⛔ **`Q43` §1's INVENTORY missed the owning design** | 📄 `Behavior_Parameter_Resolver_Detailed_Design.md` owns this feature as gap **`G2`** and decomposes it into `R1`–`R5`. ⭐⭐ **`R1`+`R2` SHIPPED `2026-07-14`** — `LibraryFunctionDelegate` is documented verbatim as *"the runtime seam through which a blueprint-authored parameter resolver is dispatched"* — and had **ZERO production consumers** for two months. 🔒 The `INVENTORY` rule was obeyed but queried the CODE graph only; the design corpus was never swept for this question's own topic |
-| ⛔ **`§8.3`'s "R3 is Hard (architectural), avoid it" is STALE** | 📐 Measured by EXPERIMENT: a Library graph input typed `global::Ns.Struct` **compiles and marshals today**. The `global::` acceptance path's guessed 4-byte size is never consulted here (Library has no state layout; the adapter uses the real `Unsafe.SizeOf`). ⇒ `Q43-B2` wins; that document now carries the supersession banner |
-| ⭐ **the ONE real blocker was `BP5001`** | a Library whose only graph is `Construction` was refused as *"exposes nothing to call"*. Widened — purely additive, it can only turn a hard error into a compile |
-
-### ⛔ WHAT IS NOT DONE — **the binding**
-
-⚠ `Resolvers` is a **producer whose consumer is the next slice**: nothing yet says *"behaviour X's params
-are refined by resolver Y.Z"*. 🔒 That is named explicitly rather than left implicit, because an
-unconsumed table is exactly the `Functions`-shaped orphan this slice was correcting.
-⛔ `Q41-C2′` (the picker) is the authoring surface and the **UI lane is still held**.
-
-### ⭐ ALSO ANSWERED `2026-09-21` — **when can the legacy blackboards retire?** *(user question)*
-
-📄 The measured answer is folded into [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md)
-rows **`E5`** and **`E5a`**. In one line each:
-
-| | |
-|---|---|
-| ⭐ **legacy `Blackboard1024`** *(`Fdp.Toolkit.Behavior.Components`)* | **SAFE NOW.** Zero production entities, no emitted thunk reads it, `O1` moved `SquadCognitiveState` out. Six production files of cleanup ⇒ frees a component id and ends `R-65`'s shared-offset hazard; buys **no** memory |
-| ⛔⛔ **NOT `BlueprintBlackboard1024`** | different type, same number — it **IS** the occurrence store's tier ladder |
-| ⛔ **`BrainBlackboard`** | **NOT YET.** Still the live root-params home AND the **SEED SOURCE** every hosted occurrence copies from. Gate: **the ROOT occurrence must own its params slot** *(design §21.2 — `O4` landed the hosted half only)* |
+> ⭐⭐ **Branch `behaviors`. HEAD `00c6e61db` at the time of writing, tree clean, everything pushed.**
+> ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
+> that must NEVER be committed.** Leave it stashed.
 
 ---
 
-## 0a. ⭐⭐⭐ NEXT SESSION STARTS HERE — *(written `2026-09-21`, pre-compaction)*
+## 1. ⭐⭐⭐ WHERE IT STANDS
 
-> 🔒 **User, `2026-09-21`:** *"then whatever does not require the UI - maybe the Q43? the
-> function/graph param resolver need proper golden tests."*
-
-### ⭐ STATE — verify with `git log --oneline -8` before trusting it
-
-| | |
+| brain component | state |
 |---|---|
-| **branch** | `behaviors` — ⛔ never push elsewhere |
-| **HEAD at writing** | `ea359db16` *(everything below is landed AND pushed)* |
-| **gates at that sha** | `Fdp.Toolkits.Tests` **2297/0** · `Hrot.Blueprints.Tests` **3975/0** (18 skipped) · `Hrot.AiEditor.Generators.Tests` **283/0** |
-| ⚠ **flaky pair, not regressions** | `TransientSpawnTagRails.ATransientEntity…` and `SquadInputsP3Tests.AllReaders_ZeroAlloc…` — the `DEBT-AIB-030` rotating flake (§5 trap ㉗). ⛔ **Re-run before calling either a break** |
+| **`BrainBlackboard`** / **`Blackboard1024`** | ✅ **RETIRED** by `P4` |
+| **`BrainBTreeState`** | ✅ **RETIRED** — id 29 burned `_RESERVED` |
+| **`BrainHsm64`** | ✅ **RETIRED** — id 35 burned `_RESERVED` |
+| 🔴 **`BrainHsm128`** | ❌ **ALIVE**, id 36 — **the last one** |
 
-### ⭐⭐⭐ THE NEXT TASK — **`Q43`: a parameter resolver authored AS A BLUEPRINT**
+⭐⭐ **Nothing READS `BrainHsm128` for execution any more.** `O7c`-④b moved the reader onto the slot;
+what is left is the component's own declaration and six registration/attach/debug sites (§2).
 
-📄 [`Architect_Question_43`](Architect_Question_43_Blueprint_Authored_Param_Resolver.md) — **APPROVED IN
-FULL by the user `2026-08-18`, nothing built.** ⭐ Chosen because it needs **no UI**.
+### ⭐ What landed, in order *(all pushed)*
 
-| ⭐ the approved answers — ⛔ do NOT re-open them | |
+| commit | what |
 |---|---|
-| **`A2′`** | the resolver **IS a `GraphKind.Construction` graph**. 📐 Re-measured `2026-09-21`: that member still exists, still maps at `Stage5_Schedule:4837`, and **still has no emitter consumer** ⇒ **zero enum changes, no `StructureHash` impact** |
-| **`B2`** | it fills **any struct type it names**, via `IrOp_MakeStruct` / `IrOp_SetMembers` — 📐 both still have live arms at `StatementEmitter.cs:238/258` |
-| **`C1`** | purity via a **validator arm `V_ResolverPurity`** — no variables, no side-effecting op, writes only the output. ⛔ Not documentation, not a whitelist that rots |
-| **`D`** | it **SEES** the baked+overlaid value: takes the current DTO in, returns it modified |
-| **`F`** | a faulting resolver **THROWS, uncaught** — the ingress already turns that into *"the entity stays on its old behaviour"* |
-
-⭐ **The delta `Q43` names is small and specific:** an **emitter arm for `IrGraphKind.Construction`**, plus
-the validator. ⛔ Everything else already exists.
-
-### 🔴🔴 THE CONSTRAINT THE USER ATTACHED — **PROPER GOLDEN TESTS**
-
-⛔⛔ **This is not a nicety, and §28.6b explains why it is urgent:** 📐 **ZERO assets in the golden
-corpus declare HSM hosting** *(`grep -rl "hsmAction: true\|hsmGuard: true"` over `Snapshots/` ⇒ **0
-files**)*. ⇒ ⚠ **the emitted HSM thunk shape has NO golden coverage at all** — only
-`ThunkEmissionTests`. 🔴 **That is the same blind spot that let `BP-297` ship**, and it is why `E3b-0`
-moved zero goldens while changing the HSM emitter.
-
-⇒ ⭐⭐⭐ **`Q43` must land WITH a golden asset that actually exercises the resolver path** — and,
-while there, **a golden asset with HSM hosting**, which the corpus has never had.
-⚠ Regeneration gotcha: `Golden/` and `Demos/` snapshots are written by **different tests**
-*(`AiPrimitiveEmitGoldenTests` vs `MoveToAndFireDemoTests`)*, so a filter of `Golden` alone leaves
-`Demos/` stale. Use `--filter "…Golden|…EmitMatchesGolden|…DemoTests"` with
-`BLUEPRINT_REGENERATE_SNAPSHOTS=1`.
-
-### ⛔ DO NOT TOUCH — **held by the user**
-
-| | |
-|---|---|
-| ⛔⛔ **anything in `Hrot.Hsm.Editor` / any UI surface** | 🔒 *"with UI related parts let's wait, we will need first to integrate the stuff not yet merged from the ui branch."* ⇒ **`Q41-C2′` (the resolver PICKER) is PARKED**; resolvers register in CODE |
-| ⛔ **`CE-295`** | *"`load_scenario_live` works once per process"* — **filed, and the user said DO NOT FIX** |
-| ⚠ **`CE-299`** | the cross-assembly dispatcher-id collision — **filed, not fixed**; the fix is an ExtDeps crossing needing its own justification |
-
-### ⭐ WHAT JUST LANDED *(context for `Q43`, all in design §§26–28)*
-
-`E-cap` + `O7d` *(§27)* · `O7b-3` tier sizing *(§27.7)* · **`E3a`** params into the slot *(§28)* ·
-**`E3b-0`** an HSM state binds its own variable *(§28.6)* · **`C1′`+`E7a`** the resolve stage runs and
-`IHostVariableAccess` has its first implementation *(§28.7)*.
-
-🔒 **The rule that governed all of them, and will govern `Q43`:** *before moving ANY state, name the
-thing that will ① PROVISION it and ② WRITE its contents. If either is "nothing", it is a REGRESSION*
-*(§26.1)*.
+| `449ec04ac` | **①** `BrainHsm64` deleted — free: nothing ever attached it, so its tick ran an always-empty query |
+| `23bd73c1e` | **②a** `BlueprintTierTable.BuildTierQueries` — the shared tier walk |
+| `6f64208d6` | **②** `BrainBTreeState` deleted; the cursor became a keyed slot (`CE-319`) |
+| `fca039532` | **the golden PASSES** on the live cluster (§31.12.7) |
+| `f284552c9` | **③** size-driven `HsmInstanceManager.Initialize`/`Reset` — `ExtDeps` addition #1 |
+| `162410a02` | **④ DESIGNED** — §31.14, three UML diagrams |
+| `d3d0db16a` | **④a** `RootHsmAccess` — the HSM instance is a slot, sized from `SelectTier(blob)` |
+| `c805ce693` | **④b** `BrainTickSystem` replaces BOTH tick systems; `ExtDeps` addition #2 (`GetActiveLeafIds`) |
+| `9d868710e` | **④c** `O7_R48` — the two-region machine through the REAL system, slot-resident |
+| `00c6e61db` | **`CE-322`** — the HSM inertia bug proven and railed (`O7_R49`) |
 
 ---
 
-## 0. ⭐ FIRST MOVES
+## 2. ⭐⭐⭐ THE NEXT ACTION — **`O7c`-④d, and here is its EXACT surface**
 
-```bash
-python3 scripts/session-design-brief.sh          # ledger · digest · probe · 3 random rulings
-# then read docs/blueprints/RULINGS.md IN FULL   (RULE ZERO)
-git fetch origin && git log --oneline -3 origin/behaviors   # snapshot head: 94fc4c9f1
-python3 scripts/rulings-check.py && python3 scripts/design-digest.py --check
-```
+📐 **Measured `2026-09-23`** *(`grep BrainHsm128`, production only — tests are additional)*. ⛔ Do not
+re-discover this list; verify it is still nine and go.
 
-⚠ **Snapshot `2026-09-20`:** `rulings-check` **37/37** · `design-digest --check` OK (69 docs).
-⛔ `tracker-counts --check` says NOTHING about our rows — **it counts only `BP-` rows** (`CE-073`),
-and ours are `CE-`. Do not quote it as evidence for them.
-
----
-
-## 0d. ✅✅✅ RESOLVED — **`P3-C` IS VALIDATED; `CE-304` IS CLOSED** *(`2026-09-22`)*
-
-> ⭐⭐⭐ **The stop sign is LIFTED.** `CE-304` was `BTreeActionGenerator.cs:655` — the 3-param
-> `[BTreeAction]` bridge still projected params out of the `BrainBlackboard` COMPONENT, whose only
-> writer `P3-C` cut, so 23 production thunks read an all-zero region. One-line re-anchor onto
-> `BlackboardParamsExpression.At("ctx.World","ctx.Self", 0)`, railed with a red-proof
-> (`Expected: 523  Actual: 0`), and **re-validated 2/2 gold on `--mode all`**.
-> 📄 `DESIGN_Occurrence_Scoped_Storage.md` §29.12 + §29.12a. ⇒ **`P4` is UNPARKED.**
-> ⛔ The text below is the ORIGINAL stop sign, kept as the record.
-
-## ⛔ HISTORY — the stop sign as filed
-
-⛔⛔ **Read `CE-304` before touching anything in this programme.**
-📄 **[`RESUME_CE304_Params_Regression.md`](RESUME_CE304_Params_Regression.md) — THE DEBUGGING STATE, START THERE** ·
-📄 [`Blueprint_Issues_Tracker.md`](Blueprint_Issues_Tracker.md) ▸ `CE-304` ·
-📄 [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) **§29.10**
-
-| | |
-|---|---|
-| ⭐ **what is true** | `P3-C` is committed and pushed (`3d4547a8d`, `cc4132859`) and **every unit suite is green** — Toolkits 2303/0, Blueprints 4017/0, Editor 420/0, Presentation 299/0 |
-| 🔴 **what is also true** | it **REGRESSES the golden test on a live cluster.** `hill-attack-close`, `--mode all`: baseline `9e20d3f97` **3/3 PASS**, `CE-302` alone **2/2 PASS**, `P3-C` **3/3 FAIL** — deterministic, bisected |
-| ⛔ **therefore** *(SUPERSEDED — `CE-304` closed `2026-09-22`)* | ~~**`P4` is PARKED** and nothing may be built on `P3-C` until `CE-304` closes~~ |
-| ⭐ **the shape of it** | **NOT params delivery** — that is correct end to end, measured on a stranded entity. Three probes each moved WHICH entities recover without fixing it ⇒ **an adjacency / memory-overlap fault.** §29.10 has the design defect (§29.6 specified the ANCHOR and never the EXTENT) and the correct solution |
-| ⛔⛔ **do the RAIL first** | no rail anywhere asserts a projection stays INSIDE its slot. That is the gap that let this ship — §29.10's last section |
-
-⚠ **§0c below is still the right PATH** — it is simply blocked at its last step.
-
-## 0c. ✅✅✅ THE PATH `P0`–`P4` — **COMPLETE `2026-09-22`** *(a RECORD; the NEXT action is below the table)*
-
-> 🔒 **The goal is MET.** `BrainBlackboard` is deleted, `Blackboard1024` with it, and root params
-> live in an occurrence slot. ⛔ **Nothing in this section is a to-do** — it is kept because its
-> SETTLED and TRAPS tables below are still load-bearing for `O7c`, which moves the NEXT thing
-> into slots and will meet the same shapes.
-
-> 🔒 **The goal, in the user's words:** retire `BrainBlackboard` — *"we will retire it unless we find a
-> true need and do not see any. Being part of ABI is no reason, ABI can and must change."*
-> 📄 The ordered path lives in **`PLAN_Occurrence_Storage_Build.md` § "THE PATH"**; the design is
-> **`DESIGN_Occurrence_Scoped_Storage.md` §29** *(read §29.6 and §29.7 — they CORRECT §29.1-29.5)*.
-
-### ⭐ State, verified at `92d242172` on branch `behaviors`
-
-| step | state |
-|---|---|
-| `P0` | ✅ rail `O7_R36` — the seam carries a hand-authored resolver's values to two regions |
-| `P1` | ✅ rail `O7_R37` + golden `HsmTwoRegionParamsDemo` *(corpus 46 → 47)* — a REAL emitted blueprint action, two regions, own params each |
-| `P2` | ✅ **`BP-297` CLOSED** — `HsmTwoRegionCuratedNodes` authored, `EmitSharedAiActionThunk` converted, rail `O7_R38`, baseline moved |
-| `P3` | ✅ **ALL THREE STEPS** — the key + `RootParamsAccess`; every params reader re-anchored; and `P3-C`'s clean cut landed *(the ingress memcpy is gone)*. ⚠ The cut spawned `CE-304`, found by BISECTION against the cluster gold, not by any unit rail |
-| `P4` | ✅ **BUILT AND ACCEPTED `2026-09-22`** — 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§30** *(§30.25–§30.28 are the as-built)*. Five slices; the struct, `Blackboard1024`, the 100-byte cap and the `ActionRegistry<…>` type parameter are all gone. Verified by `hill-attack-close --mode all` on the live cluster, not by gates alone |
-
-### ✅ WHAT THOSE FOUR STEPS TURNED OUT TO BE — **all done; kept for the two corrections they carry**
-
-| # | | |
+| # | site | what it needs |
 |---|---|---|
-| **1** | **`CE-302`** — the tier-demand bump | ✅ DONE `2026-09-21`, and it was **THREE fixes, not one**: the demand bump, a LIVE defect *(the root slot attached with `OccurrenceKind.Hsm` above `DetachHostedOccurrenceSlots`, so it was created and destroyed in the same call on every HSM brain)*, and a BTree-only slot LEAK on re-assign |
-| **2** | **re-anchor the readers** | ✅ DONE. ⛔⛔ **THE SET WAS INCOMPLETE AS WRITTEN** — `BTreeActionGenerator.cs:655` was missed and became **`CE-304`**, which no unit rail caught: it showed up only as cluster-gold drift and was found by BISECTION. 🔒 The lesson is `P4`'s and it generalises: **an enumeration written into a plan is a snapshot, and re-anchoring is exactly the job where one missed site is silent** |
-| **3** | **the clean cut** | ✅ DONE *(`3d4547a8d`)*. Steps 2+3 landed together, as designed |
-| **4** | **`P4`** — delete the struct | ✅ DONE, and it spawned **five** further rows *(`CE-307`, `CE-314`–`CE-317`)*, all closed. ⚠ *"no hand-written body changes semantically"* held, but the row under-priced the **surfaces keyed on the component's IDENTITY** — that is `CE-303`, which went `2 → 3 → 6` |
+| **1** | `Behavior/Components/BrainComponents.cs:37-41` | **delete the struct** + its `[ComponentId]` |
+| **2** | `Fdp.Core/GlobalComponentIds.cs:124-125` | **burn id 36** as `BrainHsm128_RESERVED`. ⚠ **line 124 CONTAINS MOJIBAKE** (`â€”`) — see trap ② |
+| **3** | `Translators/BehaviorTkbTranslator.cs:45` | drop the `yield return typeof(BrainHsm128)` |
+| **4** | `Translators/BehaviorTkbTranslator.cs:137-138` | drop the spawn attach — ⚠ the whole `else if (BrainTierHsm)` arm. ⭐ §31.15.1: it provisions NOTHING usable, so there is nothing to replace it with |
+| **5** | `Hrot.SimHost/CognitiveComponentRegistry.cs:51` | drop `RegisterComponent<BrainHsm128>()` |
+| **6** | `Hrot.Core/HrotRoleComponentSets.cs:137` | drop `brainOnly.SetBit(ComponentType<BrainHsm128>.ID)` |
+| **7** | `FDP/Examples/…/HeadlessDemoApp.cs:255` | drop `RegisterComponent<BrainHsm128>()` |
+| **8** | 🔴 `Hrot.Editor/AiHotReloadCoordinator.cs:313, 382, 588` | **`ReloadHsmChunks<T>` → a SLOT walk.** 📄 `btree-hsm-unif` §Q6 predicted this. ⭐ The component-chunk walk cannot work: slot payloads are not contiguous |
+| **9** | 🔴 `Hrot.Hsm.Editor/Debug/HsmDebugSession.cs:97-99` | **size-driven decode.** ⭐⭐ `RootHsmAccess.TryCopyInstanceInView` was built in ④a **for exactly this and STILL HAS NO CONSUMER** — ④d is where it gets one |
 
-### ⭐⭐⭐ THE NEXT OPEN ROW — **`O7c`** *(`E4` in the plan)*
+⭐⭐ **8 and 9 are the only real work.** 1–7 are deletions whose call sites are already dead.
 
-| | |
-|---|---|
-| **what** | delete `BrainHsm64`/`BrainHsm128`; the HSM instance moves into an occurrence slot; `HsmTickSystem` gains entity discovery across the tier components *(`F9`)*; `HsmDebugSession` becomes a list *(design §11.3)* |
-| **where** | 📄 `PLAN_Occurrence_Storage_Build.md` row **`E4`** · 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§22** *(the `O7` slice table)* and **§9.4** *("the tier stops being a TYPE and becomes a PAYLOAD SIZE" — this is where that lands)* |
-| **size** | 🔴 **L — 188 references across 18 production files** |
-| ⚠ **the part that is actually L** | ⛔ **not the deletion — the DISCOVERY.** With `BrainHsm*` gone the tick query loses its root component and must take `BlueprintTickSystem`'s shape; PLAN's `D2` row prices per-tick discovery across archetypes and says so explicitly |
-| 🔒 **the rule this programme earned, and `O7c` is its next test** | **before moving ANY state into an occurrence slot, name what will PROVISION the slot and what will WRITE its contents. If either answer is "nothing", it is a REGRESSION, not a migration.** *(measured 3× in 2 days)* |
+### ⚠ ACCEPTANCE
 
-### ⭐⭐ SETTLED — **do not re-litigate**
-
-| | |
-|---|---|
-| **`P3-A`** | ⛔ the root key is **NOT stored**. `BehaviorState.ActiveBehaviorHash` already identifies the behaviour; every key here is COMPUTED ⇒ `ComputeRootParamsKey` |
-| **`P3-B`** | ⭐ the **accessor** (`RootParamsAccess`), and the EMITTERS use it too for the ROOT path. ⛔ Per-SITE occurrences stay inlined — their identity comes from the `writer` stamp |
-| **`P3-C`** | ⭐ **CLEAN CUT**, not dual-write |
-| **`P4`(a)** | ⛔⛔ **CORRECTED `2026-09-22`: ~~the 7 UI readers get RE-ANCHORED~~ — WRONG VERB, AND THE SET WAS NEVER ENUMERATED.** ⭐ Re-anchoring swaps `bb.BehaviorParameters[0] + X` for `rootSlotBase + X` and works only where code HOLDS A POINTER. 📐 **Three surfaces are keyed on the component's IDENTITY** and lose their entry point when the type dies: `BrainBlackboardRenderer.cs:19` *(`[ImGuiRenderer(typeof(BrainBlackboard))]`)* · `BrainBlackboardViewProvider.cs:22` *(component + `$.BehaviorParameters` path match)* · `LiveBlackboardValueProvider.cs:81` *(`session.GetComponent(…, typeof(BrainBlackboard))`)*, plus `BlackboardReflection.cs:50`'s `EditContextFactory` arm. ⇒ they are **RE-HOMED**, not re-anchored — 📄 `DESIGN_Occurrence_Scoped_Storage.md` §30.7. 🔒 the lane fence is lifted: *"and do UI stuff yourself"* |
-| **perf** | ⭐ **per-tick resolve**, not a persistent cache. The persistent cache is **`CE-301`**, with its measurements |
-
-### ⛔⛔ TRAPS PAID FOR TODAY — **do not re-pay**
-
-| | |
-|---|---|
-| 🔴 **§29.1-29.5 say "SCATTER each state's slice". THAT IS WRONG** | `SeedParamsOffset` returns an offset **INTO** the packed table, so the table must stay **CONTIGUOUS**. §29.6 is the correction: ONE slot, N re-anchorings |
-| 🔴 **`BehaviorParams.cs` ALREADY EXISTS** — it is `G1`'s supply seam *(`ResolveParams<TDto>`, `JsonOptions`, `FromJson`)* | ⛔ I overwrote it with `Write` and the build caught it. The locator is **`RootParamsAccess.cs`**. ⭐ **Check a filename is free before writing** |
-| ⚠ **`TryDetach` does NOT move other payloads** | free list + slot-**TABLE** compaction only. **Only `CopyToLargerTier` moves a payload**, and it is structural ⇒ never mid-tick |
-| ⚠ **`RW-S` is a VALID tracker category** | legend line 14, ~150 rows. `tracker-counts.py`'s `ORDER` omits it — recorded at tracker line 38, tracked by `CE-259at`. ⛔ Do not "fix" the rows |
-| ⚠ **the `ui` lane is MERGED** *(`ca9a84f2e`)* | zero conflicts. ⛔ Do not merge it again; verify with `git merge-base --is-ancestor origin/ui HEAD` |
-
-### ⚠ OPEN ELSEWHERE — not on this path
-
-⭐ **`E8c`** *(the per-variable resolver ref)* — design at `DESIGN_Per_Variable_Param_Resolver.md`,
-**awaiting approval** on `D1-a`+clause four, `D2`, `D3`; `D4` decided, `D5` is `R-149` enforcement.
-⚠ **`CE-300`/`301`/`302`** are filed and open. ⛔ `CE-295` is filed and **must NOT be fixed**.
-
-## 1. WHERE THE PROGRAMME STANDS
-
-| | |
-|---|---|
-| **design** | ✅ FINALIZED — [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md), start at **§16** |
-| **plan** | ✅ WRITTEN — [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md), 14 tasks / 5 increments |
-| ⭐ **golden test** | ✅ **GREEN**, re-proved `2026-09-20` after `A3`+`A4`, after `B1`, after `B2`, after **`B3①`**, after **`B3②`**, after **`B4`** and after **`O6`** *(port 8191, `simTime 145`: platoon `523.0·525.2·528.6·531.4`, both targets `Health 0`, **0 faults** in a 441-line log)* *(port 8171, `simTime 120`: platoon `523.1·525.1·529.2·531.0`, both targets `Health 0`, **0 faults** in a 439-line log)* *(`simTime 116`: platoon `521.9·525.0·528.4·532.2` on the baseline, both targets `Health 0`, **0 faults**)*. ⚠ Positions vary ~1 m run to run — it is a live multi-node run, ⛔ **not a determinism check**. ⭐ Original record *(design §15.4: targets 0/0, platoon `523·525·529·531`, **0 faults**)*. ⛔ **But it does NOT close `O0`'s acceptance** — the scenario's one store has `SlotCount 0`, so no Instance ticked. ⛔ Green before **and** after every task |
-| **`A1`** *(unify the slot key)* | ✅ **DONE** — `c99a8865d` |
-| **`A2`** *(the resolution seam)* | ✅ **DONE** — `7a87596aa` + `7574f228d`. ⚠ See §4 for what was deliberately NOT collapsed |
-| **`A3`** *(`Kind` + `H1` + `H2`)* | ✅ **DONE** — 4 rails, all red-proved. As-built folded into design **§13**'s `AS-BUILT` block |
-| **`A4`** *(`O0`)* | ✅ **DONE** — `CgfLogicPack` owns the splice; walker filters on declared `Kind`; 3 rails red-proved. Scope: **CGF + editor** (user ruling). As-built in design **§6** |
-| **`B1`** *(`O1`)* | ✅ **DONE** — `SquadCognitiveState` is its own component (id **270**), provisioned by `SquadStateProvisioning` from **both** roster creators. As-built in design **§6** |
-| **`B2`** *(`O2`)* | ✅ **DONE** — `BrainInterrupts` is its own component (id **302**); `BrainBlackboard` is now **100 B of pure params** *(128 → 100: 28 dead bytes per brain entity)*. `R-39` reconciled, `R-41` superseded. As-built in design **§6** |
-| **`A2b`** *(the emitter ladder)* | ✅ **DONE** — ⛔ **three** ladders, not two; golden diff shape **+252/−1234, net −982**, purely the collapse. As-built in design **§13** |
-| **`B3①`** *(`O3a`, THE COLLAPSE)* | ✅ **DONE, golden GREEN** *(`25e158d81`)* — `BlueprintTierSpec` + `BlueprintTierTable`; **net −435 lines of C#**; 3 verbatim `TickTier_*` → 1, the quadratic `UpgradeTier` → 1 body, 3 byte-identical renderers → a generic base. ⛔ Ladder values UNCHANGED on purpose. 7 rails, red-proved. As-built in design **§17** |
-| **`B3②`** *(`O3a`, THE RE-PICK)* | ✅ **DONE, golden GREEN, all suites at baseline** — ladder **12 / 16 / 16**; `BlueprintTierLadder` is the one source, LINKED into the compiler ⇒ `Stage2_Validate`'s literals are gone and ⑪ is CLOSED. 🔴 Forced 4096 → 16 as well: a larger tier with FEWER slots makes promotion a capacity REDUCTION. 3 rails, red-proved. As-built in design **§17** |
-| **`O4`** *(`C1`, the STOP-OR-GO gate)* | ✅ **DONE, GATE IS GO** — zero ExtDeps, golden green, 6 rails + 2 emit guards, red-proof exact. ⚠ §21.2 names what it did NOT do. |
-| ⭐⭐⭐ **next** | **`O5`** *(blueprint Instances take params)* then **`O6`** *(the one ExtDeps crossing)*. ⛔ HISTORY — the old `O4` brief: ✅ **RAIL ① IS WRITTEN AND RED** *(`HostedSubtreeCursorTests`, `BUILD errors=0` / `Expected 1, Actual 2`)* — the plan's mandated precondition is met and §3.1's *"shipped defect"* claim is now MEASURED, not asserted *(design §18)*. ⛔ Rail ② *(re-entry reset)* is not written yet. ⚠ `D3` was **RE-LEANED** after the user asked how hosting relations are known when they are hardcoded in hand-written C# — the key is runtime-computable and supplied by the hosting site, NOT baked *(design §19.6)*. ⭐ **`D5` added** *(what `siteId` IS: the author's stable node `Guid`, ⛔ **not** a node ordinal — an ordinal shifts when a node is inserted and the child's state is LOST)*, and §19.7 ① found that **`O4`'s two halves are NOT independent**: `hostKey == 0` returns the ROOT form verbatim and drops `siteId`, so a hosted child is unaddressable until the ROOT occurrence has its own slot ⇒ **ship both or neither**. ⭐ §19.6 ⑥ also corrects §3.1's reachability: the EMITTER ships the defect, **no asset triggers it** *(0 orchestrators / 30 registrars, 0 `RequiringAssetId` repo-wide)*. ⛔⛔ **The design's own STOP-OR-GO GATE**, and the point at which `B4`'s `MaxSlots 3` must be RE-MEASURED: today's sizing is post-`O4` arithmetic for a root occurrence that does not exist yet *(design §17, "`B4`'s PRE-MEASUREMENT")* |
-| **`B4`** *(`O3b`, the 256 tier)* | ✅ **DONE** — `MaxSlots` **3** *(measured; `W4`'s lean of 2 overturned)*, id **303**, `BlackboardTier.B256 = 3` **appended**. ⛔⛔ **BUT "additive" WAS ONLY TRUE OF THE TABLE.** 🔴 The gate came back **192 red** in `Hrot.Blueprints.Tests` and **10** in `Hrot.SimHost.Tests`, and the second cause was a **PRODUCTION defect**: the two sites that derive a tier from CONTENT *(`BlueprintInstanceService.AttachToEntity`, `BlueprintMaterializationSystem`)* added that component without looking at the tier the entity already carried ⇒ **two stores on one entity**, the largest-first probe returning the empty one, **silently** — both attaches still reported `Attached`. ⛔ Dormant before `O3b` only because 1024 was the ladder's floor. ✅ Fixed by `BlueprintTierTable.EnsureAtLeast` plus one shared `Promote` body *(four callers, previously three copies + a needed fourth)*; 14 test worlds' hand-lists became `RegisterUpTo`. 5 rails *(`B4_R1`–`R5`)*, all red-proved. ✅ **GATE CLEAN**: `Fdp.Toolkits` **2246/0** · `Blueprints` **3971/0** *(was 192 FAILED)* · `SimHost` **3/1004** *(the pre-existing trio)* · `Diagnostics` **165/0** · `Generators` **280/0** goldens unmoved · **golden GREEN**. As-built in design **§17**, **§17.7**, **§17.7a**, **§17.7b** |
-| **defects filed** | `CE-295` open *(scenario live-reload is a one-shot — filed NOT fixed, user's call)* · `CE-296` **refuted** *(my error)* |
-
-### 1.1 What increment `A` actually built
-
-| | |
-|---|---|
-| 🆕 `Fdp.Toolkits/Behavior/Shared/OccurrenceSlotKey.cs` | ONE slot-key spelling, `internal`, netstandard2.0-subset, **LINKED** into `Hrot.AiEditor.Persistence` (the `BP-306` pattern — that assembly carries no project references by design). Replaced 3 copies across 2 enums. Adds `ComputeNested` for `(assetId, hostPath)` |
-| 🆕 `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceStoreAccess.cs` | ONE tier-resolution seam — `TryGetStore`, **`TryGetStoreReadOnly`**, `HasStore`, `GetStoreSize`, `TryResolveOccurrence`. Replaced 11 hand-rolled ladders |
-| 🆕 `Fdp.Toolkits/Blueprints/Partitioning/OccurrenceKind.cs` | `Invalid=0 · Blueprint=1 · BTree=2 · Hsm=3`. **12 of 16 nibble values free** |
-| ⭐ `BlueprintBlackboardPartitions` grew the nibble layer | `GetSlotKind` / `SetSlotKind` / `GetKindOf` / `TryGetSlotIndex` · `MaxKindSlots=16`, `MaxKind=0xF` · a `TryAttach` overload taking the kind *(the 5-arg one delegates with `Invalid`, so every existing call site compiles unchanged)* |
-| 🔴 the two hazards closed | **`H2`** in `TryDetach` *(compact the nibbles in lockstep **and** clear the vacated tail)* · **`H1`** in `CopyToLargerTier` *(`dstHeader.Reserved = srcHeader.Reserved` — ⭐ ONE line covering all three promotion sites, because they all funnel through it)* |
-| ⭐⭐ the five production attach sites DECLARE their kind | `BlueprintTickSystem:324`, `BlueprintInstanceService:161`, `BlueprintMaterializationSystem:140` *(`Blueprint`)*; `BehaviorIngressSystem` ×2, threaded from `def.BrainTier` via `ProvisionStatefulSlots → AttachManifestSlots → AttachSlotsToMemory`. ⇒ **`A4`/`O0`'s precondition is MET, not merely possible** |
-| ⭐⭐ **`A4`** — the blueprint runtime reaches CGF | the splice moved to `Fdp.Toolkits/Blueprints/Systems/BlueprintRuntimeComposition.cs`; **`CgfLogicPack` performs it once** into its own `SimulationSystems`; the BeforeSync maintenance system rides a `SingleSystemModule` from `CgfCapabilities.Brain`; `BlueprintRegistry` is a **required** pack parameter; 🔴 the Editor's ROOT splice was **deleted** (`DistinctByType` runs before it, so keeping both = two tick systems); the walker filters on `GetSlotKind(...) == Blueprint` |
-| rails | `OccurrenceSlotKeyParityTests` (13) · `OccurrenceStoreAccessTests` (11) · ⭐ `PartitionAllocatorTests` **`A3_R1..R4`** *(4, in the allocator's OWN suite per `R-142` ④ — ⛔ not a new class)* · ⭐ `CgfLogicPackTests` **`A4_R1..R3`** *(3, likewise in the pack's own suite)* |
+① `Fdp.Toolkits.Tests` green *(baseline §5)* · ② `O7_R37`/`O7_R38`/`O7_R48`/`O7_R49` still green ·
+③ the four showcase `.hsm.json` assets still run · ④ **the golden still green** — it proves the BTree
+arm survived, and ⛔ **it cannot see the HSM arm at all** *(`hill-attack-close` runs a BTree)*.
 
 ---
 
-## 2. 📐 GROUNDED FACTS — ⛔ **do not re-derive; these cost real measurement**
+## 3. ⛔⛔ THE TRAPS — **every one of these cost a build loop in this programme**
 
-| # | fact | evidence |
+| # | trap | how it bites |
 |---|---|---|
-| ① | **Unmanaged component storage is NATIVE memory, not GC heap** | `NativeChunkTable:44` → `NativeMemoryAllocator.Reserve` → `VirtualAlloc` (`WindowsVirtualMemoryBackend:35`) / `mmap` (`PosixVirtualMemoryBackend:55`); refs come from `GetRefRW:163` |
-| ② | ⇒ **`fixed (byte* m = tier.Memory)` is a LANGUAGE FORMALITY, not pinning** | nothing to pin. A pointer may legitimately outlive the `fixed` block — ⭐ **this is what made the `A2` seam possible at all** |
-| ③ | 🔴 **the real lifetime risk is CHUNK DECOMMIT and TIER SWAP** | `NativeChunkTable:272/:310`; promotion adds-larger-then-removes-smaller. ⇒ use a resolved pointer **within the call**; never store it across a frame |
-| ④ | 🔴🔴 **`GetComponentRW` bumps the chunk version; `GetComponentRO` does not** | `GetRefRW:158-161` writes `_chunkVersions`; `GetRefRO:166-167` says "Does not update version". `EntityRepository.DeltaQuery` READS those versions ⇒ **RW-vs-RO is a behaviour difference, not a style choice** |
-| ⑤ | **bytes per AI entity** | 192 B BTree root · 256 B HSM root · ⛔ **no heavy-DTO credit** ⇒ 256 tier free–1.33×, 1024 tier 4–5.3× ⇒ `O3b` is **load-bearing** |
-| ⑥ | **slots per behaviour** (30 generated assets) | 0 ×17 · 1 ×6 · 2 ×5 · 3 ×1 · 8 ×1 ⇒ **77 % fit a 256 tier**; worst case `PlatoonHillAttack2` needs 9 ⇒ the `MaxSlots` ladder must be re-picked in `O3a`. ⚠ `PlatoonHillAttack2` is **NOT** the golden test's tree — `hill-attack-close` runs `PlatoonHillAttack` (hand-written nodes, 1 slot) |
-| ⑦ | **`Blackboard1024` is attached to ZERO entities** in a live run | ⇒ §3.2's defect is **LATENT**, not shipped; gated on `HeavyDtoType`, which production sets nowhere |
-| ⑧ | **AI entity count** | single-digit in every shipped scenario. ⚠ **No exercise-scale scenario exists in the repo** — say so, do not extrapolate |
-| 🔴 ⑩ | ⛔⛔ **`MaxSlots` HAS A HARD CEILING OF 16, AND NOTHING SAID SO** | `A3`'s `Kind` nibble array is **4 bits × 16** in the header's 8-byte `Reserved` — an exact fit. A tier with more slots has slots whose kind **cannot be recorded**, and `BlueprintTickSystem` filters ON the kind ⇒ they are **silently skipped**, not rejected. ⭐ §5a's *"`MaxSlots` 12 leaves 800 B"* is safely inside it, but reads as if payload were the only constraint. ✅ Now a throw in `BlueprintTierSpec.For<T>` + rail `B3_R2` |
-| 🔴 ⑪ | ⛔⛔ **A FOURTH LADDER LIVES IN THE COMPILER, AS LITERALS** | `Stage2_Validate.cs:503-508` spells the payload budgets **`928 / 3936 / 16096`** as integers, not as references to `BlueprintBlackboard*.PayloadSize`. ⚠ `Hrot.Blueprints.Compiler` targets `netstandard2.0;net8.0` and references `Fdp.Toolkits` **only under net8.0** ⇒ it *cannot* see the constants. 🔴 **Re-picking `MaxSlots` therefore desyncs compile-time validation from runtime capacity.** ⭐ Fix by the `A1`/`BP-306` precedent: a netstandard2.0-safe ladder file, LINKED |
-| ⑫ | ⛔ **THREE `BlackboardTier` ENUMS** | `Fdp.Toolkit.Blueprints.BlackboardTier` · `Hrot.Blueprints.Core.Compiler.BlackboardTier : byte` · `BlackboardTierHint {Auto, Force1024, …}`. All ordinal ⇒ **`O3b`'s 256 tier must be APPENDED, never inserted** |
-| ⑨ | ⭐ **the golden test exercises the HAND-WRITTEN node path, not the blueprint path** | so the `AiPrimitive` machinery this design is built around is **less exercised by it than assumed** — matters before `O4`/`O5` lean on it for proof |
+| **①** | 🔴🔴 **A MISSING TIER REGISTRATION FAILS SILENTLY** | discovery is the tier walk, so an entity with no store is **never enumerated** — no throw, no log, the brain just never ticks. ⭐⭐ **`CE-321` is this trap hitting FOUR example worlds unnoticed for four slices.** 🔒 **The check, one command:** grep `RegisterComponent<…BehaviorState>` and cross-reference `BlueprintTierTable.RegisterAll` |
+| **②** | ⚠ **`GlobalComponentIds.cs` CONTAINS MOJIBAKE** | line 124's em-dash is stored as `â€”`. ⛔ An exact-string `Edit` on that line FAILS. ⭐ Anchor on the code line and `sed` the summary, as `O7c`-① did |
+| **③** | 🔴🔴 **41 of 60 TEST PROJECTS ARE UNRESTORED in a fresh container** | ⛔ **an unrestored project is SKIPPED, not run — its silence reads exactly like a pass.** ⭐ `dotnet restore <proj>` costs ~10 s. ⚠ `ls <proj>/obj/project.assets.json` is the check |
+| **④** | 🔴 **EVERY ROOT KEY DIES WHEN `ActiveBehaviorHash` IS CLEARED OR CHANGED** | keys are COMPUTED from it ⇒ a detach placed AFTER the clear is a silent no-op, and a site that overwrites the hash orphans the slot the translator attached *(`CE-321` ③)*. ⭐ Both handlers are correct now — **do not re-break the ordering** |
+| **⑤** | ⚠ **SPAWN PUBLISHES NO ASSIGN EVENT** | the translator provisions the BTree cursor at spawn; ⛔ it CANNOT provision the HSM instance *(no registry ⇒ no blob ⇒ no `SelectTier`)*, and §31.15.1 explains why it need not |
+| **⑥** | ⚠ **the instance TIER decides EVENT-QUEUE capacity** | 64 B holds ONE event and has **no interrupt slot**. ⭐ A test blob that needs interrupt priority must declare `RegionCount = 2` so `SelectTier` answers 128 |
+| **⑦** | ⚠ **the golden needs a FRESH ClusterRunner dll and the `Scenario` perspective** | `--mode all` answers for ONE node at a time; a stale binary gave a confident wrong reading once |
 
 ---
 
-## 3. ⭐⭐⭐ THE NEXT ACTION — **`B4`** *(`O3b`, the 256-byte tier)*
-
-⭐⭐ **`O3a` is COMPLETE — both halves.** The ladder exists once (`BlueprintTierSpec` +
-`BlueprintTierTable`), its numbers live once (`BlueprintTierLadder`, linked across the netstandard
-wall), and the values are re-picked to **12 / 16 / 16** with the arithmetic recorded.
-⇒ ⭐ **`B4` is now genuinely additive**, which is exactly what `O3a` was for.
-
-| what `B4` is | |
-|---|---|
-| ⭐ **one entry** in `BlueprintTierTable.Ascending` | `BlueprintTierSpec.For<BlueprintBlackboard256>(…)` |
-| ⭐ **one component struct** | reading `BlueprintTierLadder.Tier256*`, like the other three — ⛔ never its own literals |
-| ⭐ **one `GlobalComponentIds` entry** | ⚠ census EVERY `*Ids*.cs` first *(trap ⑭)*; highest allocated is **302** |
-| ⭐ **three ladder consts** | `Tier256TotalSize / MaxSlots / PayloadSize` |
-
-| ⛔⛔ the four constraints, all measured, none of them obvious | |
-|---|---|
-| 🔴 **APPEND to `BlackboardTier`, never insert** | §2 ⑫: **three** ordinal enums spell this ladder and one is `: byte`, reaching compiled artefacts |
-| 🔴 **`MaxSlots` must be NON-DECREASING up the ladder** | ⇒ a 256 tier at the BOTTOM may be **≤ 12**, and that is the binding limit on it. ⭐ Pinned by `B3_R1` |
-| ✅ **`MaxSlots` is `3`, payload 176 B — MEASURED `2026-09-20`, and it OVERTURNS PLAN `W4`** | ⛔ `W4` leaned *"2 earns the tier"* on a **slots-only** count. With bytes: `@1` 56 % · `@2` 73 % · ⭐ **`@3` 83 %** · `@4` 80 % · `@6` 60 %. **3 is a genuine maximum, not a marginal preference** |
-| ✅ **the root occurrence is MEASURED now, not bounded** | 📐 from the baked param projections in the 30 generated registrars: **max 89 B** of the 100 B cap, **16 of 30 assets bake none**. Root = `AlignUp(state + params, 8) + 16`, state = `BehaviorTreeState` 64 or `BrainHsm128` **128** *(✅ verified hard-coded at `BehaviorTkbTranslator.cs:121-122`, not quoted from §9.4)*. ⇒ the *"8 B of margin"* worry is retired |
-| ⚠ **but it is POST-`O4` arithmetic for a root that is not built** | ⛔ the composition *(state + params in ONE slot)* is §5a's own reading. ⭐ **Re-measure after `O4`**, and treat `3` as the value to build toward. ⚠ `HsmVariableShowcase` sits exactly on the line — a one-asset swing moves the 83 % |
-
-⛔⛔ **And before changing any constant, grep the test tree for its VALUE** — trap ⑳. `B3②` moved
-three fixtures that mentioned no constant by name, and two of them failed while BUILDING their
-scenario rather than at their assertion.
-
-### 3.3 The working recipe (all three prior tasks used it, and it caught something every time)
-
-1. ⭐⭐ **T-1 first** — run the feature's own suites and record the number BEFORE editing.
-2. Make the change.
-3. Re-run: the baseline number must be **identical** (or the delta explained).
-4. ⭐⭐⭐ **Inverse-edit red-proof** — break the thing deliberately, confirm the rails redden, revert,
-   re-verify. ⛔ A rail never seen red is not known to work.
-5. Build the **test** project, not just production (§5 ⑦).
-
-📌 **The suites, MEASURED `2026-09-20` at `A3`'s green** — ⭐ use these as the baseline, they are one
-task old, not five:
-
-| suite | baseline | note |
-|---|---|---|
-| `Fdp.Toolkits.Tests` full | **2232 / 0** | ⚠ `DEBT-AIB-030`: ~7 rotate flaky — confirm a red by re-running it ALONE |
-| `Hrot.Blueprints.Tests` full | **~3970 / 0**, ⚠ **skips vary 10–18 — see below** | ⭐ **the allocator's OWN suite lives here** — `PartitionAllocatorTests`, and `A3`'s rails went INTO it |
-| the allocator filter *(`PartitionAllocator`+`BlackboardLayout`+`TierSummary`)* | **40 / 0** *(36 before `A3`)* | ⭐ the ~8 s loop for anything touching partitions |
-| `Hrot.Diagnostics.Breakpoints.Tests` | **165 / 0** | ⚠ needs `dotnet restore` first — trap ⑧ |
-| `Hrot.Presentation.Tests` | **252 / 0** | ⚠ same |
-| ⚠ `Hrot.SimHost.Tests` | **1001 / 3** | 🔴 **all three reds CONFIRMED PRE-EXISTING** at `5d3e632c2` by a stash-and-rerun: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete`, `MapPresentationParityRails.EveryTkbSpawningHost_ObtainsTheSharedTranslatorSet(EditorStrideSubsystem.cs)`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe`. ⚠ **A FOURTH is FLAKY, not a red** — `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule` fired once and passed 3/3 alone + 2/2 in full runs after |
-| `Hrot.AiEditor.Generators.Tests` | **280** | ⛔ this is the one `A2b` moves — goldens |
-
-⛔⛔ **THE SKIP COUNT IN `Hrot.Blueprints.Tests` IS NOT A STABLE BASELINE — do not treat a change in it
-as a finding without checking this first** *(measured `2026-09-20`, chasing an apparent 10 → 18 jump)*:
+## 4. ⭐ DECISIONS ALREADY MADE — **do not re-litigate**
 
 | | |
 |---|---|
-| 📐 **the 18 are fully accounted for** | **8** static `[Fact(Skip = …)]` + **10** from **`[SkippableFact]` / `Skip.If(…)`** — 21 such sites across 7 files *(`AllocationFreeTests`, `WhenNodePerfTests`, and the five `Editor/Frame/*` dialog suites)* |
-| ⭐⭐ **`[SkippableFact]` skips at RUNTIME, on the ENVIRONMENT** | headless ImGui frame availability, GC monitoring. ⇒ **the count moves between machines and runs while the code is identical** |
-| ⛔ **why this cost time** | a `grep "Skip *="` finds only the STATIC half — it returned **9** and looked like it explained everything. ⚠ The gate contract's *"a new skip is a finding"* is still right; ⭐ **it just needs `SkippableFact` in the search** |
-| ✅ **verdict for `B3`** | `git status` on the test project returned **empty** *(B3 touched no test source there)*, and the count was **identical across two independent runs**. ⇒ **not a regression** |
+| **`BlueprintTickSystem` STAYS SEPARATE** | §31.14.2, four measured grounds — two registration roots outside `CognitiveRuntimeModule`, world singletons, all-slots-vs-one-keyed-slot, no authority gate |
+| **the HSM arm SKIPS on a missing slot; the BTree arm THROWS** | §31.16.2 — measured asymmetry, not inconsistency: every BTree behaviour has a cursor the translator provisions, an HSM one may legitimately never have been assigned |
+| **`Phase = Entry`, and HROT has NO opinion about the phase** | `CE-322` / §31.18 — the fix routes through the kernel's `Initialize`; ⛔ there is no `Phase =` assignment in HROT any more. **Approved by the user `2026-09-23`** |
+| **the `_seenThisFrame` sweep SURVIVES, premise restated** | §31.14.6 — keyed by `entity.Index`, which the ECS REUSES ⇒ correctness, not tidiness. `O7_R47` pins it |
+| **`CE-318` is DEFERRED** | §31.13 — it moves tiers for EVERY entity, so it must not ride along and blur a golden regression |
+| **`CE-321`'s remainder is NOT folded into `O7c`** | it is `P3`/`P4`-era breakage in EXAMPLES; absorbing it would hide which slice broke what |
+| **the two example scenarios keep their `Phase = RTC` workarounds** | they start the APC *already cruising* — a stronger statement than "enter normally" |
+| **the 64-byte tier is NOT dead** | only the ECS wrapper died; `SelectTier` still returns 64, and a 64-byte instance is now reachable for the first time |
 
 ---
 
-## 4. ⚠ THE `A2` REMAINDER — **six sites deliberately NOT collapsed**
+## 5. 📐 GATE BASELINES — *(measured `2026-09-23`; re-verify, do not quote)*
 
-⛔ **These are not missed work.** Each is a different shape and each now carries a comment in the
-source saying so. ⭐ Anyone "finishing A2" by collapsing them would introduce a behaviour change.
-
-| site | why it stays |
+| suite | at HEAD `00c6e61db` |
 |---|---|
-| `BlueprintInstanceService` ×3 | tier-**DISCRIMINATING** — returns `BlackboardTier` and searches per tier. Needs a tier-aware overload |
-| `EntityBlueprintsEditModel.GetCurrentTier` | answers `B1024` for an entity with **NO** store; the seam answers `0`. Different question, different answer |
-| `EntityBlueprintsPanel` | the tier **UPGRADE** (add larger → copy → remove smaller). ⭐ One of the three promotion sites `O3a`/`H1` restructure — leave it for them |
-| `BlueprintMaterializationSystem` | `EnsureTierComponent` switch — *"make sure THIS tier exists"*, not a resolution |
-| `BlueprintDebugSession` | resolves through **`ISimulationView`**, not `EntityRepository` ⇒ needs a second seam overload. A deliberate decision, not a mechanical edit |
-| ⛔ ~~`BTreeBridgeEmitCore` ×2~~ **RESOLVED by `A2b`** — and it was ×**3** | **the EMITTER** — the only genuine remaining duplication, and the one that multiplies into every generated assembly. ⛔ Changing it **moves the generated goldens**, so it needs its own increment with the movement reported as a **DIFF SHAPE** (gate row 3), not folded into another task. ⭐ Call it **`A2b`** |
+| `Fdp.Toolkits.Tests` | ✅ **2317 / 2317** |
+| `Hrot.Blueprints.Tests` | ✅ 4017 / 4035 *(18 pre-existing skips)* |
+| ⚠ `Hrot.SimHost.Tests` | **4 failed / 1004** — SAME COUNT at base `d3d0db16a`; three names stable, **one rotating inside the record/replay family** *(`LiveFromReplay` ↔ `EcsRecordReplayController`)* — the `DEBT-AIB-030` signature |
+| ⚠ `Hrot.AiEditor.Generators.Tests` | **4 failed / 282** — **IDENTICAL FOUR at base**; they are `O7c`-②'s un-re-baselined `+1` root-slot counts *(1→2, 1→2, 3→4)*. 📋 `CE-321` |
+| ⚠ `Fdp.Examples.UrbanCombat.Tests` | **1 failed / 29** — `UrbanAmbush…Milestones` on `HSM TRANSITION`, **pre-existing since before `O7c`** |
+| ⚠ `Fdp.Examples.Scenarios.Tests` | **7 failed / 68** — `P3`/`P4`-era breakage. 📋 `CE-321` |
+| build-clean, not run | `Hrot.ClusterRunner.Integration.Tests` · `HrotStrideApp.Game.Tests` |
+| doc gates | `design-digest --check` · `rulings-check` **38/38** · `tracker-counts --check` · mermaid **26/26** |
+
+⛔⛔ **Name what you RAN.** With 41 suites unrestored, a table that implies broad coverage overstates it.
 
 ---
 
-## 5. ⛔⛔ THE TRAPS THIS PROGRAMME HAS PAID FOR
+## 6. ⏳ OPEN ELSEWHERE
 
-⭐ Sixteen of these were **my own errors**; three reached a pushed document before being caught. They are
-here as checkable habits, not confessions. ⚠ **⑯ is not mine** — it is a defect in the tooling that
-enforces the rules, and it is here because believing its banner would have produced a grep-only answer.
-
-| # | trap | ⭐ the habit |
-|---|---|---|
-| **①** | 🔴🔴 **"WHERE THEY STARTED" IS NOT "WHERE THEY BELONG."** I read the platoon's `t=0` **spawn** as the baseline, called a passing golden test broken, filed `CE-296` and **blocked the programme on it** — then refuted it the same session | ⛔ resolve the **AUTHORED** value (`behaviorParams.baselineStart/End`), never a `t=0` reading. ⚠ A thing moving TOWARD your "failure" position is **arriving** |
-| **②** | 🔴 **ONE DATA POINT IS NOT A DISCRIMINATOR.** A Windows run succeeded; I declared the defect "mode-specific" **without running the other mode** | ⭐ run the A/B on one box before naming a discriminator |
-| **③** | 🔴 **A GREP IS NOT A CENSUS.** `\[HsmGuard\]` with a literal `]` missed every `[HsmGuard(Name = …)]` ⇒ I called a correct census "fabricated". 5 lines vs the real 15 | ⛔ anchor on the attribute NAME (`\[HsmGuard`), and **open the lines** before counting |
-| **④** | ⚠ **THE DISCONFIRMING EVIDENCE WAS ALREADY IN THE RUN.** I proposed a test for a hypothesis the *succeeding* phase of the same run had already falsified | 🔒 when a hypothesis predicts a failure, check whether the SAME mechanism visibly **succeeded** elsewhere in that run |
-| **⑤** | 🔴 **REASONING FROM FOLKLORE INSTEAD OF THE ALLOCATOR.** I argued `ref byte` was "safer because a ref is GC-tracked and survives compaction". There is no compaction — the storage is native. The conclusion flipped once I actually read it | ⛔ when the argument is about **memory semantics**, read the allocator. It is two greps |
-| **⑥** | ⚠ **`ok:true` IS NOT A LOAD** | ⭐ read `sawWorldChange`, verify with `GET /entities`. This is `CE-295` |
-| **⑦** | ⚠ **STALE BINARY, TWICE** | ⭐ build the **TEST** project (a test project's build copies production into its bin; the reverse does not happen), and check the dll timestamp when a result looks too clean |
-| **⑧** | ⚠ **unrestored project** ⇒ `NETSDK1004` / *"the argument …dll is invalid"* | ⭐ `dotnet restore <proj>` first; this is not a code error |
-| ⭐ **⑨** | ⚠ **A RAIL THAT CANNOT GO RED IS NOT A RAIL — and the inverse edit is what EXPOSES that.** `A3_R3`'s first draft iterated `Enum.GetValues` and skipped on `kind == Invalid`; the inverse edit it was written for *(a real kind renumbered onto 0)* would have made that `continue` **skip the very case being checked**. ⭐ Found only by trying to redden it, then fixed to iterate **NAMES** | 🔒 **never mark a rail done on a green** — run the inverse edit, and if it will not redden, **the rail is the defect** |
-| 🔴 **⑬** | ⛔⛔ **HOOK THE FACT, NOT A WRITE PATH — and a GREEN GOLDEN TEST WILL HIDE IT.** `B1` first provisioned squad state inside `UnitHierarchySystem`'s assign handler, *"the one system that establishes the commander relationship"*. 📐 It is not: `GenesisMaterializationSystem:180` builds a commander's `UnitRoster` independently for scenario-loaded hierarchies ⇒ the live commander came up with **no** squad state, **while the golden test passed** | ⭐ provision against the **invariant** (*"owns a `UnitRoster`"*), through ONE helper both creators call. ⛔ And when a feature is meant to be ON, **read the entity** — the gate cannot answer *"is it on?"* |
-| ⚠ **⑭** | 🔴 **AN ID CENSUS MUST READ EVERY `*Ids*.cs`, NOT JUST `GlobalComponentIds.cs`.** I took the next free id in the squad block's comment and collided with `NavigationContractsComponentIds.CrowdMotorIntent = 265`. ⚠ **It passed in isolation and failed only in the full suite** — `ComponentTypeRegistry` is process-global *(the `QA-008` shape)*. 📐 The census then found **three PRE-EXISTING collisions** (262/263/264) — filed as `QA-037` | ⭐ `grep -rn 'public const int' --include=*Ids*.cs` across the repo, sort numerically, **then** pick. ⛔ Never trust a block comment — the one here was stale by four ids |
-| ⭐ **⑪** | 🔴 **A DUPLICATION CENSUS MUST COUNT *CALLS*, NOT OCCURRENCES OF THE PATTERN.** `A2` reported *"2 copies emitted by `BTreeBridgeEmitCore` (`:650`, `:726`)"* and the PLAN inherited it. 📐 **There were THREE**: `EmitStatefulDeactivatorTierBlock` is **parameterised per tier** — one helper, three calls — so it emits a full ladder while matching no grep for the ladder's shape | ⭐ after censusing a pattern, grep for the **tier constants** (`BlueprintBlackboard16384`) and for helpers **called once per tier**; a parameterised emitter hides in plain sight |
-| ⭐ **⑫** | ⚠ **I RE-PAID TRAP ⑦ WHILE REGENERATING GOLDENS.** I built `Hrot.AiEditor.Persistence` and then ran `dotnet test <generators.Tests> --no-build` to regenerate — so the goldens were written from the **stale Persistence dll in the TEST project's bin**, and the next real run reddened them | ⛔ **regeneration is a test run: build the TEST project first**, then `--no-build`. ⭐ Check `ls -l <tests>/bin/*/Production.dll` against the edit time when a regenerated golden looks wrong |
-| ⭐ **⑩** | ⚠ **EVERY public enum in `Fdp.Toolkits` is swept into generated IDL**, and `idlc` **refuses duplicate enumerator values** ⇒ some "invariants" are already enforced by the build and your rail may be guarding something free. ⭐ **The CAUSE is a RULE, not a quirk:** `Fdp.Toolkits.csproj:70` references `CycloneDDS.NET`, and the generator's discovery rule is *"`[DdsTopic]`/`[DdsStruct]`/`[DdsUnion]` **OR is an enum**"* (`targets:75-76`) ⇒ **sharing an assembly with wire types is enough.** ⛔ **A generated `.idl` is NOT evidence a type is on the wire** — nothing `#include`s these. 📄 design §13; filed as `QA-035` | ⛔ **when an inverse edit fails to COMPILE rather than redden, do not stop at the observation — find the RULE.** 📌 I first wrote this up from ONE sample and called the sweep "indiscriminate"; the tool states the rule in its own targets file |
-
-| 🔴 **⑮** | ⛔⛔ **SPLITTING A COMPONENT SPLITS ITS AUTHORITY — and only a rail said so.** `B2` moved the interrupt bytes out of `BrainBlackboard` into `BrainInterrupts`; `CognitiveRuntimeModuleTests.WithTheGateOn_AnUnownedBrainIsNeverTouched` reddened because the gate keys on **the component the system reads**, and authority was still granted only for `BrainBlackboard` ⇒ the gate stopped discriminating and an unowned brain WAS touched. ⚠ Not live today *(`gateOnAuthority` is `false` on every host)*, which is precisely why nothing else would have caught it | ⭐ when you split a struct, enumerate **every per-component set the old type was a member of** — authority grants, replication masks, `DataPolicy`, registration paths — and decide for each. ⛔ "It compiles and the suites pass" answers none of them |
-| ⚠ **⑯** | 🔴🔴 **`scripts/find.sh`'s GRAPH HALF WAS SILENTLY DEAD** — it parsed `cli list_projects` as JSON while this CLI build prints a **human-readable TABLE**, so `PROJ` came back empty and it printed *"NO INDEXED PROJECT"* on a **fully indexed repo**, every call. ⚠ The identical defect had already been found and fixed for `search_code` *(2026-09-12, comment still in the file)* — one call earlier in the same script. ⇒ the tool that exists to enforce graph-before-grep was **advertising the graph as unavailable** | ⭐ **fixed `2026-09-20`** — the parser now understands the MCP envelope, bare JSON **and** the table. ⛔ **When a tool reports its own unavailability, verify that against the tool itself** *(`… cli list_projects` takes one second)* before accepting a grep-only answer — an "UNAVAILABLE" banner is a claim, not a measurement |
-
-| 🔴 **⑰** | ⛔⛔ **I QUOTED A TRUNCATED SEARCH PAGE AS A CENSUS.** `search_code("BlueprintBlackboard16384")` printed `files: 37` — and, in the same result, **`results_returned: 100`, `total_results: 129`, `has_more: true`**. 📐 The real figure is **75 files**. ⇒ the `B3` site table was built from one page and **missed three real ladders**; all three surfaced only from a full-solution build. ⚠ `CLAUDE.md` names this exact trap *("`limit` defaults to 10 — a truncated page looks exactly like a small answer")* and it was still paid | ⭐ **read `has_more` / `total_results` BEFORE quoting a count**, and for a whole-repo census prefer `grep -rln`, which cannot paginate. ⛔ A file list is not a census unless the result says it is complete |
-| 🔴 **⑱** | ⛔⛔ **A FOREGROUND BUILD RACING A BACKGROUND ONE MAKES `--no-build` RUN A BINARY THAT SILENTLY OMITS YOUR NEW TESTS.** 📐 Measured: the test `.dll` was stamped **13:31:16**, the `.cs` holding 7 new rails **13:31:12** ⇒ the incremental check saw the dll as newer and **skipped the compile**. `dotnet build` said *"Build succeeded"*, `dotnet test --no-build` said *"Passed! 11"* — and **11 was exactly the old rail count.** ⚠ A green with a suspiciously round number is the only symptom; nothing errors. ⭐ Fixed by `--no-incremental` | ⭐⭐ **after adding tests, check the COUNT went up by what you added.** ⛔ `strings <dll> \| grep <NewTestName>` settles it in a second. ⚠ This is the third face of the stale-binary trap *(⑦ failed build, ⑫ wrong project, ⑱ skipped compile)* — ⇒ 🔒 **do not run a foreground build of a project a background job is also building** |
-| ⚠ **⑲** | 🔴 **`git stash` WHILE A BACKGROUND BUILD OR TEST RUNS CORRUPTS IT.** I stashed to measure a baseline while a suite was running in the background; the stash left untracked NEW files in place, so the "baseline" build failed with 10 errors, produced a broken dll, **and poisoned the concurrent run** — whose result then had to be thrown away | ⛔ **never stash with work in flight.** ⭐ For a baseline, use `git worktree add` — it is isolated by construction — or measure the property from the SOURCE instead: 📌 here the question *"did skips change?"* was answered by `git status <test project>` returning **empty**, proving `B3` touched no test source, in one command and no build |
-
-| 🔴 **⑳** | ⛔⛔ **A CONSTANT-CHANGE TASK MUST GREP THE TEST TREE FOR THE OLD VALUES — reasoning about production content is NOT enough.** `B3②` re-picked the `MaxSlots` ladder and I pre-measured the displaced **production** population *(empty, correctly)*. 📐 **Three tests reddened anyway**, in three files, all the same defect: each had encoded the ladder's NUMBERS rather than the property it protects — a `900`-byte fixture against a 928-byte payload, an assertion on a specific tier COMPONENT, and `112/112/112/496` filling 928 exactly. ⚠⚠ **Two of the three failed while BUILDING their scenario**, before reaching their own assertion — a pre-condition `Assert.True`, which reads like a broken test rather than a moved constant | ⭐⭐ before changing a constant, **`grep` the repo for its VALUE** *(`928`, `3936`, the literal slot sizes)*, not just for its NAME — a fixture that hard-codes `900` mentions neither. ⭐ Then rewrite each hit to DERIVE from the constant, so the next move is free. ⛔ *"I measured the production impact"* is a different claim from *"nothing references the old number"* |
-
-| 🔴 **㉑** | ⛔⛔ **AN INVERSE EDIT THAT DOES NOT COMPILE PRINTS A GREEN — the red-proof then proves NOTHING.** 📐 Measured `2026-09-20` red-proofing `B4_R3`/`R4`: the inverse edit left an unreachable statement, the build emitted **2 errors**, and `dotnet test --no-build` ran the PREVIOUS binary and reported **"Passed! 24"** — the exact number the real fix produces. ⚠ Had the error count not been captured in the same command, that would have been written up as *"the rails did not redden, so they are vacuous"* — the **opposite** of the truth | ⭐⭐ **capture the inverse edit's BUILD ERROR COUNT in the same command as the test run**, and treat any non-zero as *"the red-proof did not happen"*. ⛔ A green from an inverse edit is only evidence if the inverse edit COMPILED. ⚠ This is the fourth face of the stale-binary trap *(⑦ failed build, ⑫ wrong project, ⑱ skipped compile, ㉑ failed INVERSE build)* — ⇒ 🔒 the family is large enough that the habit is now **never read a test result without a build verdict beside it** |
-
-| 🔴 **㉒** | ⛔⛔ **"ADDITIVE" WAS CLAIMED FROM THE TABLE, NOT FROM THE CONSUMERS.** `B4` added the 256 tier and the as-built said *"nothing else changed"* — true of registration, probe order, adjacent pairs, the tick walker and the seam, **all measured**. 🔴 It was FALSE for the two sites that derive a tier from **CONTENT** and then add that component, which left entities carrying **two** stores *(design §17.7)*. ⚠ §17.1's own inventory had already listed `Select`/`SelectByPayload` sites separately from probe sites — **the information was on the page and the question was never asked** | ⭐⭐⭐ **adding a member to an ordered ladder is additive for consumers that READ it and a BEHAVIOUR CHANGE for every consumer that SELECTS from it.** ⇒ before calling such a change additive, enumerate the **selecting** sites and ask *"what happens when the content-derived pick disagrees with the state already on the entity?"* ⛔ And note `B4_R1`, the anti-vacuity rail, could not catch this: it pins that `Select` RETURNS the new tier — which is the very behaviour that broke the invariant. ⭐ **A rail proving a new thing is REACHABLE is not a rail proving it is SAFE to reach** |
-
-| 🔴 **㉓** | ⛔⛔ **AN APPEND-ONLY ENUM CANNOT BE COMPARED WITH `<` / `>`.** 📐 `BlackboardTier`'s ordinal is **ABI**, so `O3b`'s 256 tier had to be **APPENDED** — `B256 = 3`, the LAST member, while being the SMALLEST tier. ⇒ `B256 > B1024` is **true by ordinal and false by size**, and two `tier > currentTier` comparisons in `EntityBlueprintsEditModel` read a **DOWNGRADE** as *"upgrade needed"* and wrote it into the commit plan. ⚠ `BehaviorIngressSystem:319` has the identical-looking line and is **correct** — its operands are `TotalSize` **ints** ⇒ ⛔ **the two read the same and only one is a bug; grep cannot tell them apart** | ⭐⭐ the moment an enum is documented *append-only*, **every relational operator on it is a latent bug** — the first out-of-order member makes them all wrong. ⭐ Fixed by `BlueprintTierTable.IsLargerThan`, pinned by **`B4_R5`**, which asserts the two orders genuinely **disagree** — so it fails both if the helper is inlined back into `>` **and** if someone "tidies" the enum into size order (the ABI break `B4_R2` forbids). ⚠ **Found by a test, not by the inventory or by reasoning** |
-
-| 🔴 **㉔** | ⛔⛔ **TRAP ㉑ COVERS A BUILD THAT FAILED. IT DOES NOT COVER A BUILD STILL RUNNING.** 📌 Measured `2026-09-20` on `O4` rail ①: I launched `dotnet test --no-build` in one background job while `dotnet build` was still in flight in another ⇒ the test ran the PREVIOUS binary and printed **"Passed! 1"** for a rail that is RED. 🔴 I then reported *"two reproductions came out green"* and speculated the defect might be **latent rather than shipped** — a conclusion produced entirely by tooling, which nearly reached a design document | ⭐⭐⭐ **the build verdict and the test result must come from ONE serialized command**, so `BUILD errors=0` prints directly above `Expected/Actual`. ⛔ Two background jobs touching one project is the same disease as trap ⑲ (`git stash` with work in flight) and trap ⑱ (foreground racing background) — ⇒ 🔒 **never let two jobs touch one project's `bin`/`obj`, and never read a result whose build you cannot see in the same output** |
-
-| 🔴 **㉕** | ⛔ **WHEN TWO PARTIES SHARE ONE FIELD, MEASURE THE ONE THAT WRITES FIRST.** 📌 My first `O4` rail asserted the HOST keeps its cursor and passed — reproducing nothing while reading as though it had. 📐 The host's `ExecuteAction` writes `RunningNodeIndex` *after* the hosting action returns, so **the host always wins and the CHILD is the side destroyed** | ⭐ the observable belongs on the **loser**. ⚠ A rail aimed at the winner is green by construction and looks like evidence of correctness |
-
-| 🔴 **㉖** | ⛔⛔ **"THE GENERATOR KNOWS IT" IS ONLY TRUE OF WHAT THE GENERATOR CAN SEE.** 📌 I leaned `O4`'s `D3` on *"hosting is static, so the chain is fully known to the emitter"* — asserted, never measured. 📐 Two things break it: ① a child's own slot keys are baked **root-form** *(`577338280` etc., no host term)*, so a child compiled alone cannot know its host and **one asset can carry more than one occurrence key**; ② 🔴 **a host written in C# is not an `AdditionalText` and is invisible to the generator ENTIRELY** — and hand-written trees are **production** here *(4 under `Brains/`, the path §15 measured the golden actually runs)* | ⭐⭐⭐ **before leaning on build-time analysis, ask what the analyser CANNOT SEE.** ⭐ The way out was already in the codebase: the code-built path computes keys **at runtime** *(`StatefulBTreeActionBinder:190`, author-supplied assetId at `HillAttackCommanderNodes.cs:562`)* ⇒ **one runtime-computable identity supplied by the HOSTING SITE serves both paths**, with the const-bake demoted to an emitter optimisation. ⚠ Both stings were **one grep deep** and the generating question — *"what would have to be true for this to be wrong?"* — would have found them |
-
-| ✅ **㉗** | 🔴🔴🔴 **SOLVED `2026-09-20` — IT WAS NEVER FLAKINESS. A DUPLICATE `[ComponentId(200)]`.** 📌 The captured exception, at last: *"System.InvalidOperationException : Component ID collision: **AuditCompA and ScenarioIgnoreTag both declare [ComponentId(200)]**"*, thrown from `ComponentTypeRegistry.GetOrRegisterManaged` inside `TransientSpawnTagRails.CreateWorld`. ⭐ `RegistryAuditTests.AuditCompA` *(a test fixture)* and `ScenarioComponentIds.ScenarioIgnoreTag` *(production)* both claim **200**; the registry is PROCESS-GLOBAL and **THROWS** on a collision, so **whichever registers first wins and the second dies.** ⇒ the failure moved with xUnit's collection order and **could never reproduce in isolation** — there, only one of the two ever registers. ✅ **Fixed**: `AuditCompA` → **290**. 📐 **Measured after, 26 full runs: 23 green.** The collision pair is GONE *(it had been failing ~40% of runs)*. ⚠ **TWO rare residuals remain and they are DIFFERENT problems** — `ATransientEntity_IsAbsentFromTheSavedScenario` **once** in 26 *(now self-diagnosing: both rails append a `[trap ㉗ diagnosis]` line, and the serializer rail prints the actual entity count and keys)* and `SquadInputsP3Tests.AllReaders_ZeroAlloc_After1MillionCalls` **once** *(a zero-alloc perf assertion, flaky for its own reasons)*. ⭐ A final **15 consecutive runs at 2262/0**, several of them under the load of a live cluster run. ⛔ **Do not read a single red here as a regression — re-run it** | ⛔⛔⛔ **THE LESSON IS ABOUT METHOD, AND IT IS EXPENSIVE: ~6 RED RUNS AND THREE WRONG CHARACTERISATIONS BEFORE ANYONE READ THE EXCEPTION TEXT.** ⭐⭐⭐ **The one line that solved it was always in the output** — every red run printed it, and every one of my invocations `grep`ed it away *(`grep -E "\[FAIL\]|Passed!|Failed!"`)*. ⇒ 🔒 **ON A RED YOU DO NOT UNDERSTAND, CAPTURE THE RUN WHOLE AND READ THE `Error Message` + `Stack Trace` BEFORE FORMING ANY HYPOTHESIS.** ⚠ I instead inferred *(order-sensitivity → "deterministic" → "flaky, suspect refuted")*, and the *"registration order cannot move an id"* refutation was **right about ids and blind to the THROW** — 📐 the collision path is 20 lines below `GetId` in a file I had read. ⭐⭐ **And the reserving COMMENT had rotted**: *"Component IDs 200, 291 reserved for this file"* was true when written; the Scenario toolkit claimed 200 later *(`GlobalComponentIds.cs:382` says so)*. ⇒ **a test id reservation is a claim about the whole PROCESS — grep `GlobalComponentIds.cs` AND every per-toolkit `*ComponentIds` class before taking one** |
-
-| ⚠ **㉘** | ⛔ **`git stash <path>` IS A NO-OP FOR A COMMITTED FILE — and it LOOKS like it worked.** 📌 I stashed a committed test file to measure the suite without it; `stash push` reported success, the build was clean, and the run still showed the full **2252** count *(my tests were never removed)*, then `stash pop` said *"No stash entries found"*. ⇒ **the measurement was meaningless and read as evidence** | ⭐ stash moves WORKING-TREE changes; a committed file has none. ⭐⭐ To measure without a committed file, use `git worktree add` at the parent commit — ⛔ which trap ⑲ already said, for a different reason. ⚠ **Check the TEST COUNT against what you expected to remove**; 2252 both ways was the tell and I nearly missed it |
-
-⭐ **And three operational ones, all re-paid despite being in the runbook:**
-⛔ `127.0.0.1` 404s on **every** route — `HttpListener` binds the hostname; use `localhost` (§2.1) ·
-⛔ `pkill -f '<pattern>'` matches **your own command line** and kills the shell (exit 144) — use a PID
-loop · ⛔ never pipe a long-running script through `tail` (it buffers everything to the end).
-
----
-
-## 6. ⛔ DONE — do not redo
-
-| | commit |
+| id | |
 |---|---|
-| design finalized — `H1`/`H2`/`D3` folded, slots column, corrected C1, §15 live-run record, §16 checklist | `3ca68dbd2` |
-| §3.2 corrected from **shipped** to **LATENT** | `bfb0baf53` |
-| `CE-295` filed *(not fixed)*; `CE-296` filed then **refuted** | `17feaf94a`, `e3b04dc47` |
-| the PLAN | `86ecdac0b` |
-| debug-API log fix — editor line through `FdpLog`, phrase matched to the cluster's | `e865f59c8` |
-| **`A1`** — one slot-key spelling + the nested form | `c99a8865d` |
-| **`A2`** — the seam + 11 adoptions | `7a87596aa`, `7574f228d` |
-| **`A3`** — `OccurrenceKind` nibble array + `H1` + `H2` + 4 red-proved rails + 5 declaring attach sites | `c6048b59c` |
-| **`A4`** — the blueprint runtime reaches CGF; the walker filters on the declared `Kind` | `10d55a787` |
-| **`A2b`** — the emitted tier ladder collapses to the seam, in all **three** emitters | `f2d5849a1` |
-| **`B1`** — `SquadCognitiveState` becomes its own component (id **270**) | `85a5cc2d0` |
-| **`B2`** — `BrainInterrupts` split out (id **302**); `BrainBlackboard` is 100 B of pure params | `94fc4c9f1` |
-| `QA-035` *(IDL enum sweep)* · `QA-036` *(Health divergence)* · `QA-037` *(3 pre-existing component-id collisions)* filed for the **backend** lane | `a03243084`, `8a79de684`, `85a5cc2d0` |
+| **`CE-321`** | the example-scenario rot — ② fixed, ①/③ open *(the `ref byte`-as-component and the generator slot counts)* |
+| **`CE-318`** | the tier demand double-charges each slot's 16-byte entry — deferred, needs its own golden run |
+| **`CE-300` / `CE-301`** | open, unrelated to `O7c` |

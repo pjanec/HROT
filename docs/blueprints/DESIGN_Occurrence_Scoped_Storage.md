@@ -4014,7 +4014,7 @@ attach/sweep ordering and `DetachRoot`, all three of which §29.8 introduced.
 `IntentId 50, Mode DirectPoint` — **issued, with zeros.** `LocomotionChannel.Params` is zero with
 `Status: Running`. ⇒ 🔒 **`thunk → LocomotionChannel.Params → MoveToExecutor → NavigationIntent`, and the
 THUNK WROTE ZEROS** on the later dispatches. ⇒ ⭐⭐ **params ARE implicated**, and the RE-ASSIGN path is the
-prime suspect. 📄 `RESUME_CE304_Params_Regression.md` §2/§4.
+prime suspect. 📄 `RESUME_Occurrence_Storage.md` *(⚠ the CE-304 resumption was consolidated into it on `2026-09-23`; git history holds the original)* §2/§4.
 
 ⚠ **The methodological lesson, worth more than the finding:** ⛔ a targeted read of one downstream field that
 looks correct is NOT proof of a chain. ⭐ `NavState` is STATE; `NavigationIntent` is the COMMAND. A full
@@ -5019,7 +5019,7 @@ exists**, and the thing it protects was deleted.
 
 ### 30.21 ⭐⭐⭐ `P4`-② AS BUILT — **the zero-fallback rail, and why it is NOT the shape that was planned** *(`2026-09-22`)*
 
-⛔ **This section SUPERSEDES the rail sketch carried in `RESUME_P4_Retire_Blackboards.md` §2 ①.** That
+⛔ **This section SUPERSEDES the rail sketch carried in `RESUME_Occurrence_Storage.md` *(⚠ the P4 resumption was consolidated into it on `2026-09-23`)* §2 ①.** That
 sketch said *"enumerate `FbtTreeCatalog.Get*` by reflection and assert every `MethodNames` key resolves
 against `BTreeActionRegistryFactory.BuildFromAssembly`."* 📐 **Measured before building it — and it is
 wrong on both halves.**

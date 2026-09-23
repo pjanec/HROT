@@ -3,8 +3,9 @@ state: LIVE
 updated: 2026-08-18
 current-answer: ⛔⛔ STALE AS OF 2026-09-22 — this file's "state" is the 2026-08-18 UI/variable
   programme (Batches 92-98) and is NOT the current work anywhere. ⭐ ROUTE BY PROGRAMME instead:
-    · occurrence-scoped storage / behaviour params -> RESUME_Occurrence_Storage.md
-    · BUILDING P4 (retire BrainBlackboard + Blackboard1024) -> RESUME_P4_Retire_Blackboards.md
+    · occurrence-scoped storage / behaviour params / the brain components -> RESUME_Occurrence_Storage.md
+      (⭐ CONSOLIDATED 2026-09-23: the P4, O7c and CE-304 slice resumptions were folded into it
+       and deleted. Their durable content is in DESIGN_Occurrence_Scoped_Storage.md.)
     · the UI lane -> RESUME_UI_Lane.md
   ⚠ Pointer added by the behaviors lane; the BODY of this file is untouched and still belongs to
   whoever owns it. (previous head) this top block only (sections 0, 0a-0e). Section 0 is the FIRST
