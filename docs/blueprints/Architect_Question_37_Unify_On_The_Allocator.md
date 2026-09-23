@@ -38,6 +38,12 @@
 
 ## 2. 📐 What was measured — `2026-08-17`
 
+⚠ **This table is the BEFORE-picture that produced the question, and every ⛔/⚠ row in it is now
+closed.** ① and ② by `P3-C`/`E3a` *(each occurrence owns a keyed slot, so nothing packs from a shared
+`0`)* · ③ by `CE-307` *(the parse shadow is sized `RootParamsBytes(def)` per behaviour)* · ④ by the same
+change *(the bound is a per-behaviour capacity, not a shared budget)* · ⑤ by `O7c`-② *(`RootStateAccess`
+— a keyed slot, so a hosted subtree owns its own cursor)*. ⛔ **Do not quote a row here as current.**
+
 | # | measured | verdict |
 |---|---|---|
 | ① | `BTreeBlackboardPackHelper.Pack:131` — **`int offset = 0` PER ASSET.** Every asset lays its variables out from `0` | ⛔ host and child **overlap by construction** |
@@ -57,7 +63,7 @@
 
 | | |
 |---|---|
-| 🔴 **a 1 KB floor per AI entity** | the smallest tier is **1024 B** *(96 of it header + slot table)* against today's **128 B** `BrainBlackboard` ⇒ ⭐ **~8× for the simple case**, and an **archetype change for every AI entity** *(today `EnsureTierComponent` adds a tier on demand)*. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured** |
+| ⚠ **a floor per AI entity** | ⭐ **This objection was answered by ADDING A TIER.** The user chose option `B` — unify *and* add a smaller tier — so the floor is **256 B** *(32 header + 48 slot table, 176 B payload)*, not the 1024 B this row feared, against the 128 B component of the day ⇒ **~2×, not ~8×**, and an **archetype change for every AI entity** *(today `EnsureTierComponent` adds a tier on demand)*. ⚠ **Whether it matters depends on the AI entity count, which was NOT measured** |
 | ⚠ **indirection moves from SOME to ALL** | today: one field access on a component already in hand. Under the allocator: tier probe → `GetComponentRW` → `fixed` → `TryGetSlotOffset` *(linear scan)*. ⭐ **Generated STATEFUL thunks already do exactly this**, so it is proven — ⛔ **but it goes from "the stateful ones pay it" to "every action, every tick"** |
 
 ⭐ **`BrainBlackboard` ends up disappearing entirely, not shrinking to a tail** — the interrupt tail

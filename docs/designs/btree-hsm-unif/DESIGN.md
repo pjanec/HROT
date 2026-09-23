@@ -4,7 +4,7 @@
 state: LIVE
 updated: 2026-09-23
 current-answer: the banner below — it carries the runtime model as it now stands
-stale-below: "Current State", every "Problem" block and every "Design"/task block is this
+stale-below: "The Baseline This Programme Measured", every "Problem" block and every "Design"/task block is this
   programme's DESIGN-TIME RECORD of what it set out to build. Read them as that record, never as a
   description of today's runtime; the banner is the current model.
 related-designs:
@@ -67,10 +67,10 @@ reload pipeline, or interrupt system needing to know which one is running.
 
 ---
 
-## Current State
+## The Baseline This Programme Measured — **before it built anything**
 
-> ⚠ **This whole section is the BASELINE this programme measured before it built anything** — it is a
-> record of what was there then, not of what is there now. The banner at the top of the file carries
+> ⚠ **This heading used to read *"Current State"*, and that title was the problem: the section is a
+> record of what was there THEN, not of what is there now.** The banner at the top of the file carries
 > the runtime model as it stands. In particular the two tick systems it names, `BTreeTickSystem` and
 > `HsmTickSystem<T>`, and the `HsmDamageBridgeSystem` they sat beside, no longer exist.
 
@@ -124,7 +124,7 @@ public static void RegisterAll()
 thread-safe for concurrent mutation. Updates must happen on the main thread at a frame
 boundary.
 
-### HsmTickSystem
+### HsmTickSystem *(deleted — `O7c`-④b merged it into `BrainTickSystem`)*
 
 `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmTickSystem.cs`
 
@@ -151,7 +151,7 @@ Neither flag is checked or set anywhere in `HsmKernelCore.cs`. `StateNode` in
 emit `StateFlags.IsFinal`. The `IsFinal` / `Terminated` pair is a pre-allocated but
 unimplemented stub.
 
-### HsmDamageBridgeSystem
+### HsmDamageBridgeSystem *(deleted — its job is `CognitiveInterruptSystem`'s)*
 
 `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/HsmDamageBridgeSystem.cs`
 
