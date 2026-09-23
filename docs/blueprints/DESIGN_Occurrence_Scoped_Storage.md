@@ -880,9 +880,24 @@ and let the existing output-lane arbiter resolve conflicting effects.
 | **events in flight** | **1** *(single shared slot)* | **2** *(1 interrupt + ring 1)* | **6** *(1 interrupt + ring 5)* |
 | ECS wrapper | `BrainHsm64` | `BrainHsm128` | 🔴 **none** |
 
-⭐ **Interrupts are safe at every tier** — the reserved interrupt slot cannot be crowded out by normal
-traffic (`EnqueueTier2:238-247`), so `MobilityLost`-class interrupts always land. **It is normal and
-timer traffic that is tight.**
+⚠⚠ **CORRECTED `2026-09-23` — THIS PARAGRAPH WAS FALSE AS BUILT, AND IT IS NOW TRUE.** 📄 `CE-324` /
+§31.23.
+
+> ⛔ **It read:** *"Interrupts are safe at every tier — the reserved interrupt slot cannot be crowded
+> out by normal traffic (`EnqueueTier2:238-247`), so `MobilityLost`-class interrupts always land."*
+
+🔴 **The mechanism was right about the KERNEL and wrong about HROT.** The reserved slot genuinely
+cannot be crowded out — but **nothing was putting `MobilityLost` in it.** `EventPriority.Low` is `0`,
+and `BrainTickSystem` built the event as `new HsmEvent { EventId = … }` with no `Priority`, so the one
+interrupt the system injects went into the **shared normal/low ring**. ⛔⛔ On the 128 tier that ring
+holds **exactly one** event (`Tier2_Ring_Capacity = 1`), so a single queued normal event was enough to
+drop it — and the call site **discarded** the `false` that reported the drop.
+
+⭐ **As of `CE-324` the event carries `EventPriority.Interrupt`**, so the sentence above is now true by
+construction rather than by hope, and the drop is reported instead of swallowed. Rails `O7_R58`
+*(it lands with the ring deliberately full)* and `O7_R59` *(the priority itself)*.
+
+⚠ **The rest of the original paragraph stands:** it is normal and timer traffic that is tight.
 
 #### 🔴 Who chooses the tier: **nothing does — it is hard-coded to 128**
 
@@ -5890,7 +5905,18 @@ real root-params extents, cited in `RootParamsAccess`: **52** *(`PlatoonHillAtta
 |---|---|---|---|
 | **BTree root** *(params 52)* | `BrainBTreeState` 64 + tier **256** = **320 B** | demand 72 + 80 = **152 ≤ 176** at **2 ≤ 3** slots ⇒ stays tier **256** | ⭐ **−64 B** |
 | **HSM root** *(params 16, instance 128)* | `BrainHsm128` 128 + tier **256** = **384 B** | demand 40 + 144 = **184 > 176** ⇒ promotes to tier **1024** | 🔴 **+640 B** |
-| **HSM root, with `CE-318` fixed** | — | true need 24 + 128 = **152 ≤ 176** at 2 slots ⇒ stays tier **256** | ⭐ **−128 B** |
+| **HSM root, with `CE-318` fixed** | — | true need 16 + 128 = **144 ≤ 176** at 2 slots ⇒ stays tier **256** | ⭐ **−128 B** |
+
+⚠⚠ **ARITHMETIC CORRECTED `2026-09-23`.** The two rows above previously computed the params side as
+**24** *(and **40** with the old double charge)*, which matches **neither** extent this section itself
+cites — **16** for `MoveToLocation`, **52** for `PlatoonHillAttack` — and `AlignUp(16, 8)` is `16`.
+📐 The `24` had no source; it is corrected to the `MoveToLocation` extent the row names.
+⭐ **The conclusion is unchanged and is in fact stronger without params at all:** the 256-byte store
+tier has a **176-byte payload**, so a **256-byte instance does not fit it for ANY behaviour** — it is
+80 bytes over before a single parameter exists. ⇒ the tier choice is not *"128 vs 256 bytes"*, it is
+*"the smallest store tier remains reachable, or it does not."*
+⚠ And with the 52-byte extent a 128-byte instance does **not** fit either — `56 + 128 = 184 > 176` ⇒
+`PlatoonHillAttack`-class params promote to 1024 regardless of `CE-318`.
 
 ⛔⛔ **The HSM promotion is an ARTIFACT, not capacity — `CE-318`.** `BlueprintTierLadder` carves the
 slot table out once *(`PayloadSize = TotalSize − 32 − MaxSlots × 16`)* and
@@ -7085,3 +7111,45 @@ worlds missing it, production included.
 `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage`, and **nothing in it touches
 occurrence storage.** ⛔ Not folded into this programme: it is combat-pipeline work, and absorbing it
 would repeat exactly the mistake `CE-321` was filed to avoid — hiding which slice broke what.
+
+---
+
+### 31.23 🔴🔴🔴 `CE-324` — **THE ONE INTERRUPT IN THE SYSTEM WAS NOT SENT AS AN INTERRUPT** *(`2026-09-23`)*
+
+📐 **Found by a user question** — *"is 128 bytes a good choice, why not 256?"* — while checking whether
+the tier's event capacity was the real constraint. ⭐ It was, but not for the reason the tier table
+suggested.
+
+| the claim | code |
+|---|---|
+| the 128 tier's normal ring holds **1** event | ✅ `HsmEventQueue.cs:20` — `Tier2_Ring_Capacity = 1` *(44 usable bytes ÷ 24)* |
+| overflow **silently drops** | ✅ `EnqueueTier2:252` — the `else` arm returns `false` |
+| HROT **discarded** that return | ✅ `BrainTickSystem.cs:346` — the ONE production enqueue site |
+| 🔴 `MobilityLost` was built at **`Low`** | ✅ `BrainTickSystem.cs:137` — `new HsmEvent { EventId = … }`, and `EventPriority.Low = 0` |
+
+⇒ ⛔⛔ **the event that tells a damaged vehicle to stop competed for a one-deep ring**, and losing that
+race was invisible twice over: the kernel reports it by return value, and the caller threw it away.
+
+#### 31.23.1 ⭐⭐ WHY AN UNSET FIELD WAS THE WHOLE BUG
+
+🔒 **`EventPriority.Low = 0`.** ⇒ an omitted `Priority` is not "unspecified", it is a *valid, lowest*
+priority. ⚠ Every review of that line saw an object initialiser that looked complete. ⭐ This is the
+**silent-default pattern** `CLAUDE.md` records, in its purest form: the caller had the value available
+and simply did not pass it.
+
+#### 31.23.2 ⛔ THE EXISTING RAIL COULD NOT SEE IT
+
+📐 `HsmInterruptInject_BlackboardByte126Set_EventEnqueued` asserts `GetCount(inst) > 0` on an **empty**
+queue — which passes for *either* priority. ⇒ ⭐ **the ring has to be FULL for the two to behave
+differently**, and that is exactly what `O7_R58` arranges. ⚠ `O7_R59` states the priority directly, so
+a future change cannot satisfy `O7_R58` by widening the ring instead.
+
+✅ **Red-proved:** reverting the priority to `Low` reddens both, and nothing else.
+
+#### 31.23.3 ⚠ LEFT ALONE, AND NAMED — `SelectTier`'s 128 GATE UNDER-USES ITS OWN LAYOUT
+
+📐 `HsmInstanceManager.SelectTier` admits a machine to the 128 tier only when
+`historySlotsNeeded <= 4`, but **`HsmInstance128` carries 8 history slots**. ⇒ a machine needing 5–8
+is pushed to 256 although 128 would hold it. ⛔ **Not changed here:** it is an `ExtDeps` behaviour
+change that moves which tier real machines land on, and it deserves its own measurement and golden
+rather than riding along with a priority fix.

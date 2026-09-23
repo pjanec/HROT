@@ -134,7 +134,21 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             SweepStaleDedupEntries(tiers.Count);
 
-            var mobilityLostEvent = new HsmEvent { EventId = BehaviorConstants.EventId_MobilityLost };
+            // ⭐⭐⭐ CE-324 (2026-09-23) — `Interrupt` PRIORITY, AND ITS ABSENCE WAS A REAL DEFECT.
+            //   🔴 `EventPriority.Low` is 0, so `new HsmEvent { EventId = … }` built a LOW-priority
+            //     event and MobilityLost — the one interrupt this system injects — went into the
+            //     SHARED NORMAL/LOW RING instead of the reserved interrupt slot that exists for it.
+            //   ⛔⛔ On the 128 tier that ring holds exactly ONE event (`Tier2_Ring_Capacity = 1`), so
+            //     a single queued normal event was enough to make the vehicle-disabled interrupt
+            //     fail to enqueue — and `EnqueueTier2` reports that by returning false, which this
+            //     call site discarded.
+            //   ⭐ The reserved slot CANNOT be crowded out by normal traffic, which is the guarantee
+            //     §9.4 claimed the system already had. It does now. 📄 §31.23.
+            var mobilityLostEvent = new HsmEvent
+            {
+                EventId  = BehaviorConstants.EventId_MobilityLost,
+                Priority = EventPriority.Interrupt,
+            };
 
             for (int t = 0; t < tiers.Count; t++)
             {
@@ -342,8 +356,24 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (repo.HasComponent<BrainInterrupts>(entity))
             {
                 ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
-                if (bb.Interrupt_MobilityLost == 1)
-                    HsmEventQueue.TryEnqueue(instance, instanceSize, mobilityLostEvent);
+                if (bb.Interrupt_MobilityLost == 1
+                    && !HsmEventQueue.TryEnqueue(instance, instanceSize, mobilityLostEvent))
+                {
+                    // ⛔⛔ CE-324: THE RETURN VALUE IS NO LONGER DISCARDED. A false here means the
+                    //   reserved interrupt slot still holds an UNCONSUMED interrupt — the kernel
+                    //   drains it inside the Update below, so within one tick this should not
+                    //   happen. ⚠ It is reported rather than fixed up: silently dropping the event
+                    //   that tells a disabled vehicle to stop is exactly the silent-non-execution
+                    //   shape this programme keeps filing (CE-315, CE-321, CE-323).
+                    //   ⚠ DEBUG-only on purpose: this sits in the per-entity, per-tick path, and a
+                    //   production log here would spam once per frame for as long as the condition
+                    //   holds. The rail O7_R58 is what proves the enqueue succeeds.
+#if DEBUG
+                    System.Diagnostics.Debug.WriteLine(
+                        $"[BrainTickSystem] entity {entity.Index}: MobilityLost interrupt DROPPED — " +
+                        $"the reserved interrupt slot was still occupied (instance {instanceSize} B).");
+#endif
+                }
             }
 
             // Resolve the optional per-entity HSM trace context.
