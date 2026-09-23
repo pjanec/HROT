@@ -1,3 +1,25 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-23
+current-answer: §3 and §4 hold the two sub-questions and their LEANS, both UNCHANGED.
+  §2a is the 2026-09-23 correction: two of §2's premises moved after O4/O7c, and the leans got
+  CHEAPER rather than different. ⛔ Read §2a before quoting §2 or §5.
+stale-below: §2's measurements are dated 2026-08-17 at tree 9caa61e and two of them have MOVED
+  — see §2a. §5's blast radius predates HostedSubtree and OVERSTATES the cost of Q36-A = B.
+known-rot: §5 does not know about HostedSubtree.Tick (O4/C1), which supplies most of what
+  "the host ticks the child inline" needs.
+known-conflict: PLAN_Remaining_Work.md is revision 37 (2026-08-19) and predates O4/O7c; do not
+  quote its E5 state.
+related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the hosted child's STORAGE and, since O4 §18/§19,
+    the hosting CALL itself (HostedSubtree.Tick). This question owns only which brain runs the
+    child and how the child is found.
+  - Architect_Question_33_Blueprint_Brain_Tier.md — §1.5.4 rules the SHAPE (hosted via
+    SubtreeAssetId, non-blocking, completion via HsmCommandWriter).
+  - Architect_Question_34_Blueprint_Occurrence_Identity.md — §7 rules provisioning by KEY,
+    never AttachToEntity.
+-->
+
 # Architect Question #36 — **what RUNS a hosted subtree, and how is it RESOLVED?**
 
 > ## Storage model — per-occurrence slots in the tier ladder
@@ -60,6 +82,73 @@ will inherit.
 
 ---
 
+## 2a. ⚠⚠ CORRECTIONS — **two of §2's premises MOVED, and the leans got CHEAPER** *(`2026-09-23`)*
+
+> 🔒 Re-measured while answering *"what is missing for `Q36`?"*. ⭐⭐ **Neither lean changes.**
+> ⛔ But §5's blast radius was costed before `O4`, and one line of §2 was read too generously by a
+> later summary — including by me.
+
+### 2a.1 ⭐⭐⭐ `O4`/`C1` SHIPPED THE HOSTING PRIMITIVE THIS QUESTION PREDATES
+
+📄 `DESIGN_Occurrence_Scoped_Storage.md` §18/§19 · `FDP/Toolkits/Fdp.Toolkits/Behavior/HostedSubtree.cs`.
+
+⚠ **When `Q36-A` = `B` was costed, "the host ticks the child inline" still implied designing the
+hosted-child STATE MODEL from scratch:** where the child's cursor lives — ⛔ it cannot share the
+host's, one 64-byte `BehaviorTreeState` carries one `RunningNodeIndex` — how it is addressed, when it
+resets, and what happens when the host abandons a still-`Running` child.
+
+⭐ **`HostedSubtree` is exactly that, already built and railed**, and its own doc-comment calls it
+*"one body, used by the generated orchestrator AND by hand-written hosts"*:
+
+| it supplies | |
+|---|---|
+| the child's **own** `BehaviorTreeState`, in its own occurrence slot, resolved **by key at runtime** | ⛔ a missing slot is a HARD failure, not a silent one *(§19.6 ⑤)* |
+| **`D4` half one** — reset on completion, DEEPER than the interpreter's own cleanup *(`StackPointer`, `NodeIndexStack`, `LocalRegisters`, `InstanceFlags`)* | |
+| **`D4` half two** — the `F14` case, host abandons a still-`Running` child, via the hosting node's **deactivator** | |
+| ⭐ **zero `ExtDeps` change** — `BehaviorTreeState` untouched, no kernel delegate, no ABI move | |
+
+⇒ 🔒 **`B`'s cost drops from *"design and build the hosted-child state model"* to *"call an existing
+helper with a key."*** ⚠ The BTree host already does exactly this — `BTreeOrchestratorEmitCore:151`
+and `:182` emit `HostedSubtree.Tick(…, ref ctx, slotKey)`. ⭐ What remains for the HSM host is
+**plumbing, not mechanism**: a slot key and an emitter.
+
+### 2a.2 ⛔⛔ THE HSM ORCHESTRATOR IS THE **ALIAS** ARM — **the state-hosting arm has NO EMITTER AT ALL**
+
+🔴 **A summary of this question read "the HSM orchestrator hosts a subtree". It does not, and the
+distinction decides what is missing.**
+
+📐 **Measured:** `HsmOrchestratorEmitCore.Emit` collects from **`dto.Aliases`** — blackboard
+variable aliases — and **returns `null` when there are none**, which its own comment says is *"what
+keeps the whole corpus byte-identical (no shipped asset has an alias)"*.
+
+| ⇒ consequence | |
+|---|---|
+| ⛔ **`StateNodeDto.SubtreeAssetId` is read by NOTHING that emits a tick** | the state-hosting arm — the one this question is about — has no emitter |
+| ⚠ **what IS emitted is the alias arm, and it carries the pre-`O4` defect** | `:98` emits `GetInterpreter().Tick(ref subBb, ref state, ref ctx)` — the caller's `BehaviorTreeState`, exactly the shape `HostedSubtree.Tick` replaced on the BTree side |
+| ✅ **latent, not biting** | zero shipped `.hsm.json` declares an alias ⇒ the emitter returns `null` for every one of them |
+
+⚠ **And a question this document does not ask, raised `2026-09-23` and NOT settled:** the emitted
+`[HsmAction]` takes `ref BehaviorTreeState state`, and **an HSM has no tree state of its own.** ⭐
+Settling where that comes from decides whether the missing work is *"bake a slot key"* or *"change the
+action signature"*. ⛔ Not measured; do not assume.
+
+### 2a.3 ⭐ WHAT IS ACTUALLY MISSING, UNDER THE LEANS
+
+| # | missing | measured at |
+|---|---|---|
+| **1** | **`StateNodeDto.SubtreeName`** + both mapper directions — this is `Q36-B` = `A`, and it is UNBUILT | `HsmAssetDto.cs:98` and `HsmAsset.cs:870` carry `SubtreeAssetId` **alone**; BTree's proven triple is `BehaviorTreeAsset.cs:93-96` |
+| **2** | **an emitter for the state-hosting arm** | §2a.2 |
+| **3** | **route it through `HostedSubtree.Tick`**, never the pre-`O4` shape | `BTreeOrchestratorEmitCore:151`/`:182` is the model |
+| **4** | **a slot key for the child's tree state** — blocked on the `ref BehaviorTreeState` question in §2a.2 | BTree bakes `slotKeyA`/`slotKeyB` |
+| **5** | **assert the inherited `E3` hazard** — §5 already says NAME it, do not fix it. Zero instances | §5 |
+
+⚠ **① and ②–③ of §2 are RE-MEASURED AND STILL TRUE** *(`2026-09-23`)*: `BehaviorState` is still
+`{ ActiveBehaviorHash, InstanceId, BrainTier }` and `BrainTickSystem:169/171` still branches
+exclusively on the tier; `BehaviorRegistry` still has **no asset-id index**. ⭐ `O7c` merged the two
+tick systems into one `BrainTickSystem`, which changes the file but **not** the invariant.
+
+---
+
 ## 3. `Q36-A` — **which brain runs the hosted child?**
 
 ⭐ **This is the load-bearing one.** ⛔ **There is no second brain slot on an entity** (①), so a state
@@ -97,6 +186,9 @@ before deleting)*.
 
 ## 5. Blast radius under the lean (`Q36-A` = `B`, `Q36-B` = `A`)
 
+> ⚠⚠ **COSTED `2026-08-17`, BEFORE `O4`. §2a.1 makes `B` CHEAPER than this table implies** — the
+> hosted-child state model it assumes must be designed is now shipped as `HostedSubtree.Tick`.
+
 | | |
 |---|---|
 | ⭐ **new persisted field** | `StateNodeDto.SubtreeName` — nullable, omitted when empty ⇒ old assets load unchanged, new files a superset *(the `BP-302` shape)* |
@@ -109,7 +201,12 @@ before deleting)*.
 
 ## 6. Status
 
-⛔ **OPEN.** ⭐ **Batch 77 item 1 STOPPED here rather than picking `Q36-A` unilaterally** — ① is a
-one-brain-per-entity invariant, and choosing what breaks it is not an implementation detail.
+⛔ **OPEN — and what it is waiting on is a RULING, not more measurement.** ⭐ **Batch 77 item 1
+STOPPED here rather than picking `Q36-A` unilaterally** — ① is a one-brain-per-entity invariant, and
+choosing what breaks it is not an implementation detail.
+
+⚠ **As of `2026-09-23` both sub-questions carry a lean, the blast radius is costed, and §2a records
+what moved. 🔒 There is no architect to relay to** *(`2026-08-16` user ruling)* — ⭐ so the only
+missing input is the user's approval, after which §2a.3 is the build list.
 
 ⭐ **What Batch 77 delivered instead:** the measurement above, and items 2 and 3 in full.
