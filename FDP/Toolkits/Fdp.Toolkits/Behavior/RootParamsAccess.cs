@@ -283,18 +283,31 @@ public static unsafe class RootParamsAccess
         if (def.BlackboardLayoutType != null)
             return System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
 
-        // 🔴🔴 MEASURED AT THE CUT (2026-09-21) — and the original comment here was WRONG.
-        //   It read "returns 0 when neither exists, which correctly means 'this behaviour has no
-        //   params'". ⛔ That is only true when there is no PARSER. A behaviour that declares a
-        //   ParseParams and NEITHER a manifest NOR a layout type does have params — it simply never
-        //   said how wide they are — and before the cut it did not have to, because the whole
-        //   100-byte BrainBlackboard region was there whether anyone declared it or not.
-        // ⇒ reserve the documented MAXIMUM rather than nothing. ⭐ That reproduces the old
-        //   behaviour exactly; ⛔ returning 0 would silently drop the parse on the floor, which is
-        //   how BehaviorIngress_ParsesFleeBlackboard_FromJson found this.
-        // ⚠ It costs a full-width slot for an under-declared behaviour. Accepted: every behaviour in
-        //   the shipped corpus declares one of the two, so this arm is the escape hatch for
-        //   hand-registered and test behaviours, not a path production takes.
-        return def.ParseParams != null ? BehaviorConstants.MaxBehaviorParamByteSize : 0;
+        // ⭐⭐⭐ CE-328 (2026-09-23) — THE 100-BYTE FALLBACK IS GONE; THIS SHAPE IS NOW REFUSED.
+        //
+        // 🔴 HISTORY, because the reasoning that put it here was sound at the time. The cut
+        //   (2026-09-21) found that returning 0 for a behaviour WITH a ParseParams silently dropped
+        //   the parse — BehaviorIngress_ParsesFleeBlackboard_FromJson caught it — so this arm handed
+        //   back BehaviorConstants.MaxBehaviorParamByteSize (100) to reproduce the pre-P3-C world,
+        //   where the whole BrainBlackboard region existed whether anyone declared it or not.
+        //
+        // ⛔⛔ What changed: `P4` deleted BrainBlackboard, so 100 stopped measuring anything; and
+        //   because ParseParams writes through a `byte*` with NO length, the number had turned from
+        //   the GUARD against overrunning the region into the ALLOCATION that gets overrun. ⇒ the
+        //   fallback was reserving an arbitrary width and hoping the parse respected it.
+        //
+        // ⭐ BehaviorRegistry.Register now REFUSES this shape outright, so a registered behaviour
+        //   always states its width. This throw is the same invariant stated at the other end: it is
+        //   unreachable through the registry, and it catches a hand-built definition that never went
+        //   through it. ⛔ Never restore a numeric fallback here — that is the defect, not the fix.
+        if (def.ParseParams != null)
+            throw new InvalidOperationException(
+                "A behaviour declares a ParseParams but neither a BlackboardLayoutType nor a "
+                + "ManagedBlackboardVariables manifest, so its params width is undeclared and the "
+                + "occurrence slot cannot be sized. BehaviorRegistry.Register refuses this shape; "
+                + "reaching here means the definition bypassed the registry. Declare the params "
+                + "struct or a manifest. (CE-328)");
+
+        return 0;
     }
 }

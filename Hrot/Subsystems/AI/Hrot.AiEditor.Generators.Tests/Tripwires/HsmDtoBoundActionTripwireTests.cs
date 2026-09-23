@@ -181,7 +181,9 @@ namespace Synthetic
         /// </summary>
         private static readonly string[] DtoBindingAttributes =
         {
-            "SharedAiAction", "SharedAiCondition", "SharedAiHeavyAction", "SharedAiHeavyCondition",
+                        // ⛔ CE-327: SharedAiHeavyAction/SharedAiHeavyCondition are deleted (§30.29), so a
+            //   source file naming them is no longer a DTO-binding site — it is a stale reference.
+            "SharedAiAction", "SharedAiCondition",
         };
 
         private static IEnumerable<Entry> ScanDirectory(string dir, string projectName)

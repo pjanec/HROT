@@ -50,6 +50,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name      = behaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
+                // ⭐ CE-328 (2026-09-23): a behaviour that declares a ParseParams MUST state its params
+                //   width, and BehaviorRegistry.Register now refuses it otherwise. This rail used to
+                //   declare neither a layout type nor a manifest and leaned on a 100-byte fallback.
+                //   ⇒ it says FleeBlackboard, which is what it always parsed into.
+                BlackboardLayoutType = typeof(FleeBlackboard),
                 ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                 {
                     *(float*)mem = float.Parse(json,
@@ -72,9 +77,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             sys.Execute(world, 0.016f);
 
             // 🔴 P3-C (2026-09-21): verify the ROOT PARAMS OCCURRENCE SLOT, not BrainBlackboard.
-            //   This rail is what caught the cut's one real gap — this behaviour declares a
+            //   This rail is what caught the cut's one real gap — this behaviour declared a
             //   ParseParams and NEITHER a manifest NOR a BlackboardLayoutType, so RootParamsBytes
-            //   returned 0 and the parse went nowhere. See RootParamsAccess.RootParamsBytes.
+            //   returned 0 and the parse went nowhere.
+            // ⭐ CE-328 (2026-09-23) closed that hole at the other end: the shape is REFUSED at
+            //   Register rather than papered over with a 100-byte guess, and this rail now declares
+            //   its width above. ⇒ what it proves is unchanged — the parse lands in the slot.
             Assert.True(RootParamsAccess.TryGetRoot<FleeBlackboard>(world, e, out var fb));
             Assert.Equal(50.0f, fb->SafeDistance);
 
@@ -227,6 +235,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name      = behaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
                 // ParseParams delegate that always throws.
                 ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                     throw new InvalidOperationException("Simulated parse failure"),
@@ -281,6 +292,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name      = newBehaviorName,
                 BrainTier = BehaviorConstants.BrainTierBTree,
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
                 // ParseParams delegate that always throws.
                 ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) =>
                     throw new InvalidOperationException("Test-induced parse failure"),

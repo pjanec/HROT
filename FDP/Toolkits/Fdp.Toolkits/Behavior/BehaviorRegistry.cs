@@ -226,7 +226,8 @@ namespace Fdp.Toolkit.Behavior
         /// Optional DTO type stored in a generic heavy blackboard component (e.g., <c>Blackboard1024</c>)
         /// for this behavior.  When non-null, enables typed rendering in <c>Blackboard1024Renderer</c>
         /// for unmanaged DTOs projected via <c>Unsafe.As</c> over the component's raw byte array.
-        /// For managed components assigned via <c>[SharedAiHeavyAction]</c>, leave this null
+        /// ⛔ <c>CE-327</c>: <c>[SharedAiHeavyAction]</c> is DELETED (§30.29), so the managed-component
+        /// case it described no longer exists. Leave this null
         /// (the managed class reference is fetched directly and does not need Inspector projection).
         /// </summary>
         public Type? HeavyDtoType { get; init; }
@@ -330,6 +331,49 @@ namespace Fdp.Toolkit.Behavior
                         $"which exceeds {BehaviorConstants.MaxRootParamsByteSize} — the payload of the largest occurrence " +
                         "storage tier. No tier can hold a root params region this wide, so the behaviour could never be " +
                         "assigned. Split the parameters, or add a larger tier to BlueprintTierLadder.");
+            }
+
+            // ⭐⭐⭐ CE-328 (2026-09-23) — AN UNDER-DECLARED BEHAVIOUR IS REFUSED HERE, LOUDLY, RATHER
+            //   THAN SILENTLY RESERVING AN ARBITRARY 100 BYTES.
+            //
+            // 🔒 User: "why such concrete fallback? why fallback at all and not hard error if no
+            //   reasonable fallback exists?" — and the answer is that there is no reasonable fallback.
+            //
+            // 📐 A behaviour that declares a ParseParams but NEITHER a manifest NOR a layout type has
+            //   params and never said how wide they are. RootParamsAccess.RootParamsBytes used to hand
+            //   back BehaviorConstants.MaxBehaviorParamByteSize (100) for exactly this shape, to
+            //   reproduce the pre-P3-C world where the whole 100-byte BrainBlackboard region existed
+            //   whether anyone declared it or not.
+            //
+            // ⛔⛔ TWO THINGS MADE THAT INDEFENSIBLE:
+            //   ① The 100 stopped measuring anything — `P4` deleted BrainBlackboard, so the number
+            //      reproduced the geometry of storage that no longer exists.
+            //   ② THE SAFETY DIRECTION INVERTED. ParseParams is (string, byte* mem, …) — a raw pointer
+            //      with NO LENGTH — so the parse cannot bounds-check. The 100 used to be the GUARD
+            //      against overrunning the region; as a fallback WIDTH it became the thing that gets
+            //      overrun, silently, by any parse that writes more.
+            //
+            // ⭐ Refusing at registration is loud, early, and a one-line fix for the author: declare a
+            //   BlackboardLayoutType or a manifest. ⚠ Blast radius measured: production behaviours come
+            //   from the generators (BTreeBridgeEmitCore, HsmBridgeEmitCore, CSharpEmitter), which
+            //   always emit one of the two ⇒ only hand-registered and TEST behaviours reach this, and
+            //   making them state a width makes them better tests.
+            // ⚠ NOT fixed here, and named in CE-328: ParseParams still takes no capacity, so a parse
+            //   can overrun a width that IS declared. That is a signature change across every generator.
+            if (definition.ParseParams != null
+                && definition.BlackboardLayoutType == null
+                && (definition.ManagedBlackboardVariables == null
+                    || definition.ManagedBlackboardVariables.Count == 0))
+            {
+                throw new InvalidOperationException(
+                    $"Behavior '{name}' declares a ParseParams but neither a BlackboardLayoutType nor a "
+                    + "ManagedBlackboardVariables manifest, so nothing says how wide its params region "
+                    + "is. Its params live in an occurrence slot that must be sized at attach, and "
+                    + "ParseParams writes through a pointer with no length — so an undeclared width "
+                    + "cannot be bounds-checked. Declare BlackboardLayoutType (the params struct) or a "
+                    + "manifest. Before CE-328 this silently reserved "
+                    + $"{BehaviorConstants.MaxBehaviorParamByteSize} bytes, the width of a component "
+                    + "that no longer exists.");
             }
 
             // Duplicate-name hard error (Phase 1e, unblocked by Phase 2c factory retirement).

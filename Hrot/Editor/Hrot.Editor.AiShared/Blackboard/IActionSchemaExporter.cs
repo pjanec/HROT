@@ -47,12 +47,15 @@ public enum BlackboardAccess
 /// <c>[BlackboardReadWrite]</c> on the first parameter; defaults to <c>Unknown</c>.
 /// </param>
 /// <param name="HeavyDtoType">
-/// Non-null for <c>[SharedAiHeavyAction]</c>/<c>[SharedAiHeavyCondition]</c> with an
-/// unmanaged heavy parameter; null otherwise.
+/// ⛔ <b><c>CE-327</c> (<c>2026-09-23</c>) — ALWAYS NULL NOW.</b> It was non-null only for
+/// <c>[SharedAiHeavyAction]</c>/<c>[SharedAiHeavyCondition]</c> with an unmanaged heavy parameter,
+/// and those attributes are DELETED (📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §30.29).
+/// ⚠ The parameter survives because this record is POSITIONAL and 62 construction sites pass it;
+/// removing it is its own mechanical slice. ⛔ Do not gate on it — it is inert metadata.
 /// </param>
 /// <param name="IsCondition">
 /// True when the method was registered via a condition-declaring attribute
-/// (<c>[BTreeCondition]</c>, <c>[SharedAiCondition]</c>, <c>[SharedAiHeavyCondition]</c>);
+/// (<c>[BTreeCondition]</c>, <c>[SharedAiCondition]</c>);
 /// false for actions and guards. Defaults to false for backward compatibility.
 /// </param>
 /// <param name="DtoFields">

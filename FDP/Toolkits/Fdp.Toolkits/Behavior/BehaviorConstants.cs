@@ -44,15 +44,21 @@ namespace Fdp.Toolkit.Behavior
         /// <see cref="MaxRootParamsByteSize"/>. ⛔ And <c>P4</c> deleted <c>BrainBlackboard</c>, so the
         /// <c>fixed byte[100]</c> this used to declare is gone too.</para>
         ///
-        /// <para>⭐ <b>One production reader remains:</b>
-        /// <see cref="RootParamsAccess.RootParamsBytes"/> hands back this width for a behaviour that
-        /// declares a <c>ParseParams</c> and NEITHER a manifest NOR a layout type — the documented
-        /// escape hatch. ⚠ It reproduces the pre-<c>P3-C</c> behaviour exactly, when the full region
-        /// existed whether anyone declared it or not; returning 0 there would silently drop the parse
-        /// on the floor. ⛔ Every behaviour in the shipped corpus declares one of the two, so this is
-        /// the hatch for hand-registered and test behaviours, not a path production takes.</para>
+        /// <para>🔴🔴 <b><c>CE-328</c> (<c>2026-09-23</c>) — IT HAS NO PRODUCTION READER AT ALL NOW.</b>
+        /// ⚠ This paragraph used to say *"one production reader remains"*:
+        /// <see cref="RootParamsAccess.RootParamsBytes"/> handed back this width for a behaviour
+        /// declaring a <c>ParseParams</c> and NEITHER a manifest NOR a layout type. ⛔ That fallback is
+        /// DELETED — <see cref="BehaviorRegistry"/><c>.Register</c> refuses the shape instead.</para>
         ///
-        /// <para>⚠ Tests also use it as a scratch host-blackboard width, where any value would do.</para>
+        /// <para>⛔⛔ <b>Why the fallback could not stand:</b> <c>P4</c> deleted <c>BrainBlackboard</c>,
+        /// so 100 stopped being the width of anything; and <c>ParseParams</c> writes through a
+        /// <c>byte*</c> with <b>no length</b>, so the number had inverted from the GUARD against
+        /// overrunning the region into the ALLOCATION that gets overrun. ⇒ an undeclared width is a
+        /// build-time error, not something to guess.</para>
+        ///
+        /// <para>⚠ <b>What is left is TEST SCRATCH.</b> Tests use it as an arbitrary host-blackboard
+        /// width, where any value would do. ⛔ <b>Do not give it a production reader again</b>, and do
+        /// not read it as a bound — <see cref="MaxRootParamsByteSize"/> is the bound.</para>
         /// </summary>
         public const int MaxBehaviorParamByteSize = 100;
 

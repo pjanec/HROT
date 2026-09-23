@@ -487,19 +487,39 @@ internal sealed class V_VariablesAndState : IValidator
             case BlueprintDispatchKind.AiPrimitive:
                 if (asset.Primitive is null) return;
 
+                // ⭐⭐⭐ CE-326 (2026-09-23) — THESE TWO BOUNDS WERE THE GEOMETRY OF DELETED COMPONENTS.
+                //   📐 They read `> 100` and `> 1024 - 8` as LITERALS. 100 was the width of
+                //      BrainBlackboard.BehaviorParameters (a `fixed byte[100]`) and 1016 the payload of
+                //      Blackboard1024 — ⛔ `P4` deleted BOTH components, so the compiler was refusing
+                //      assets on the capacity of storage that no longer exists.
+                //   ⭐ CE-307 repointed the FOUR other sites that enforced 100 (FDP_001, both packers,
+                //      BehaviorRegistry's throw) at the ladder; this stage is the one it missed, and
+                //      the Instance arm below has read the ladder since O3a. ⇒ one set of numbers now.
+                //   ⚠⚠ THIS IS A CEILING, NOT A BUDGET — the same distinction BehaviorConstants
+                //      .MaxRootParamsByteSize carries. Passing it does NOT mean the asset fits: the
+                //      region shares its tier with the behaviour's other slots, and ingress throws
+                //      (naming CE-302) when the store has no room. What this catches is the case that
+                //      is impossible to satisfy at ANY tier, which is worth refusing at build time.
+                //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.15.
                 int paramsSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Parameter).Select(d => d.Type), ctx);
-                if (paramsSize > 100)
+                if (paramsSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1200,
-                        $"AiPrimitive Parameters total {paramsSize} bytes; max is 100.",
+                        $"AiPrimitive Parameters total {paramsSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold them. Split the parameters, or add a "
+                        + "larger tier to BlueprintTierLadder.",
                         asset.AssetId));
 
                 // ⭐ Batch 86 — the AiPrimitive working-state struct is the one state run (R-01).
                 int workingSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
-                if (workingSize > 1024 - 8)
+                if (workingSize > Ladder.Tier16384PayloadSize)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1201,
-                        $"AiPrimitive WorkingState total {workingSize} bytes; max is {1024 - 8}.",
+                        $"AiPrimitive WorkingState total {workingSize} bytes, which exceeds "
+                        + $"{Ladder.Tier16384PayloadSize} — the payload of the largest occurrence "
+                        + "storage tier. No tier could hold it. Split the state, or add a larger "
+                        + "tier to BlueprintTierLadder.",
                         asset.AssetId));
                 break;
 

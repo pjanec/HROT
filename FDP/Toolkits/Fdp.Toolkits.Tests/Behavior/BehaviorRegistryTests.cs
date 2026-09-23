@@ -260,6 +260,9 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
                 ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             });
             registry.Register(2, "Bravo", new BehaviorDefinition
             {
@@ -296,6 +299,9 @@ namespace Fdp.Toolkit.Behavior.Tests
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
                 ParseParams = static (string json, byte* mem, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
+                //   refuses the shape otherwise. The width is incidental to what this rail proves.
+                BlackboardLayoutType = typeof(int),
             };
             staging.Register(BehaviorHash.FromName("Reloadable"), "Reloadable", updated);
 

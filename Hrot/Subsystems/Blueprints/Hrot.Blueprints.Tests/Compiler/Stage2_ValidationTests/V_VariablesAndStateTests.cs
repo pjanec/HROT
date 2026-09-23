@@ -29,13 +29,18 @@ public sealed class V_VariablesAndStateTests
     [CoversDiagnosticCode("BP1200")]
     public void AiPrimitive_ParamsOverLimit_EmitsBP1200()
     {
-        // 101 bytes of parameters -- just over the 100-byte limit.
-        // Use 26 System.Int32 parameters (26 * 4 = 104 bytes after alignment).
+        // ⭐ CE-326 (2026-09-23) — PREMISE CORRECTION, not a weakened claim. This rail used 26 ints
+        //   (104 B) to clear a 100-byte limit. That 100 was the width of BrainBlackboard
+        //   .BehaviorParameters, a component P4 DELETED; BP1200 now refuses only what no occurrence
+        //   tier could hold (BlueprintTierLadder.Tier16384PayloadSize = 16096).
+        // ⇒ 4025 System.Int32 = 16100 B, four bytes past the ceiling. ⚠ What the rail ASSERTS is
+        //   untouched: params too wide to store emit BP1200. Only the width that counts as "too wide"
+        //   moved, because the storage moved. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.30.1.
         var builder = BlueprintAssetBuilder
             .AiPrimitive("A")
             .WithHostings(AiPrimitiveHosting.BTreeAction);
 
-        for (int i = 0; i < 26; i++)
+        for (int i = 0; i < 4025; i++)
             builder = builder.WithParameter($"p{i}", typeof(int));
 
         var asset = builder.Build();
@@ -48,12 +53,15 @@ public sealed class V_VariablesAndStateTests
     [CoversDiagnosticCode("BP1201")]
     public void AiPrimitive_WorkingStateOverLimit_EmitsBP1201()
     {
-        // Max is 1016 bytes. Use 128 System.Int64 fields (128 * 8 = 1024 bytes).
+        // ⭐ CE-326 (2026-09-23) — PREMISE CORRECTION, as for BP1200 above. The old 1016 was
+        //   `1024 - 8`: the payload of Blackboard1024, which P4 DELETED. BP1201 now refuses only what
+        //   no tier could hold (16096).
+        // ⇒ 2013 System.Int64 = 16104 B, eight bytes past the ceiling.
         var builder = BlueprintAssetBuilder
             .AiPrimitive("A")
             .WithHostings(AiPrimitiveHosting.BTreeAction);
 
-        for (int i = 0; i < 128; i++)
+        for (int i = 0; i < 2013; i++)
             builder = builder.WithWorkingStateField($"w{i}", typeof(long));
 
         var asset = builder.Build();

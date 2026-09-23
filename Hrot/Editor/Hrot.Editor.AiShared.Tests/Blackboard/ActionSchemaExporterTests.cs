@@ -16,8 +16,6 @@ namespace Hrot.Editor.AiShared.Tests.Blackboard;
 public struct TestBTreeDto  { public int Value; }
 public struct TestHsmDto    { public float X; }
 public struct TestSharedDto { public bool Flag; }
-public struct TestHeavyDto  { public double D; }
-public struct TestHeavyContainer { public byte[] Data; }
 
 /// <summary>A DTO with two known public fields, used for S1-1 DtoFields tests.</summary>
 public struct FooDto { public int Health; public float Speed; }
@@ -50,12 +48,6 @@ public static class ActionFixtures
 
     [SharedAiCondition(typeof(TestSharedDto), "Flag")]
     public static void SharedConditionMethod(ref TestSharedDto dto) { }
-
-    [SharedAiHeavyAction(
-        typeof(TestSharedDto), "Flag",
-        typeof(TestHeavyContainer), "Data",
-        typeof(TestHeavyDto))]
-    public static void SharedHeavyActionMethod(ref TestSharedDto dto) { }
 
     // Access annotation fixtures
     [BTreeAction]
@@ -227,26 +219,13 @@ public sealed class ActionSchemaExporterTests
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Shared));
     }
 
-    [Fact]
-    public void Rebuild_HeavyAction_HasHeavyFlag()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.Heavy));
-    }
-
-    [Fact]
-    public void Rebuild_HeavyAction_HeavyDtoTypeNonNull()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedHeavyActionMethod))];
-        Assert.NotNull(entry.HeavyDtoType);
-        Assert.Equal(typeof(TestHeavyDto), entry.HeavyDtoType);
-    }
+    // ⛔ CE-327 (2026-09-23) — `Rebuild_HeavyAction_HasHeavyFlag` and
+    //   `Rebuild_HeavyAction_HeavyDtoTypeNonNull` are DELETED with the feature they pinned:
+    //   [SharedAiHeavyAction]/[SharedAiHeavyCondition] no longer exist.
+    //   📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
+    // ⭐ The rail goes with the feature — it asserted the exporter's heavy branch and nothing else.
+    //   ⚠ `ActionSchemaEntry.HeavyDtoType` and `ActionHosting.Heavy` SURVIVE, permanently unset;
+    //   removing the positional record parameter is its own slice (62 sites, 19 files).
 
     [Fact]
     public void Rebuild_ReadOnlyParam_AccessIsReadOnly()

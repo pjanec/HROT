@@ -7382,10 +7382,92 @@ directly and is what produced the ONE above.
 |---|---|
 | `Fbt.Kernel/SharedAiAttributes.cs` — both attribute classes | ⚠ `ExtDeps`: an API removal, so it lands with its own gate |
 | `BTreeActionGenerator` / `HsmActionGenerator` — `IsSharedAiHeavy*Attr`, `BuildHeavyEntry`, `BuildHeavyConditionEntry` | the emission path — **functional today**, merely unadopted |
-| `ActionSchemaExporter.cs:151-166` + `IActionSchemaExporter.HeavyDtoType` | the **editor authoring surface** that still offers it |
-| `ActionSchemaExporterTests` fixture + `Rebuild_HeavyAction_HeavyDtoTypeNonNull` | ⭐ the rail goes with the feature — ⛔ it pins the exporter's heavy branch, nothing else |
+| `ActionSchemaExporter.cs:151-166` | the **editor authoring surface** that still offers it — ✅ **REMOVED** |
+| ~~`IActionSchemaExporter.HeavyDtoType`~~ | ⚠⚠ **SCOPED OUT ON MEASUREMENT — see §30.29.5** |
+| `ActionSchemaExporterTests` fixture + `Rebuild_HeavyAction_*` | ⭐ the rails go with the feature — ⛔ they pin the exporter's heavy branch, nothing else — ✅ **REMOVED** |
+
+#### 30.29.5 ⚠⚠ AS-BUILT DEVIATION — **`ActionSchemaEntry.HeavyDtoType` and `ActionHosting.Heavy` SURVIVE, inert** *(`CE-327`, `2026-09-23`)*
+
+⛔ **§30.29.4 listed `IActionSchemaExporter.HeavyDtoType` for removal. It was NOT removed, and the
+reason is a measurement taken after that list was written.**
+
+📐 `ActionSchemaEntry` is a **POSITIONAL record**, and `HeavyDtoType` is one of its parameters ⇒
+**62 construction sites across 19 files**, many of them multi-line, every one passing `null`. ⭐ Removing
+the parameter is a mechanical refactor of its own, with its own red-proof — ⛔ **not a rider on an
+attribute deletion**, where a mis-edited multi-line construction would land in the same commit as an
+`ExtDeps` API removal and be indistinguishable from it in review.
+
+| ⭐ why leaving it is SAFE HERE, stated rather than assumed | |
+|---|---|
+| ⭐⭐ **it is editor METADATA, and nothing gates on it** | 📐 measured: the only readers were the exporter's own branches *(deleted)* and their two rails *(deleted)*. `ActionHosting.Heavy` has **no production reader at all** — `BehaviorActionCatalog.cs:194` only documents that it is *"a modifier, not a host"* |
+| ⛔ **contrast with the storage path, where this WOULD be dangerous** | 🔒 a dead field used as a **query predicate** is the `CE-315` shape — *"silent non-execution"* — and that is why `BrainHsm128` and `Blackboard1024` had to go rather than be left inert. ⇒ **the two cases differ in KIND, not in tidiness** |
+
+🔒 **The general rule this instance is an example of:** *"inert" is a verdict about what READS a thing,
+not about whether it is still written down.* ⛔ Do not generalise this into *"leaving vestiges is fine"*.
 
 ⚠ **Deliberately NOT in this scope:** the **persisted** `BehaviorTreeAssetDto.HeavyDtoType` /
 `HsmAssetDto.HeavyDtoType` fields. 🔒 They are in all 30 shipped assets *(always `null`)*, so removing
 them is an **asset-schema change** and gets its own deliberate call — exactly as `CE-308` ruled for
 `BlackboardTarget`. ⭐ Harmless to leave and ignore on read.
+
+### 30.30 ⭐⭐⭐ `CE-326` + `CE-328` AS BUILT — **THE LAST TWO PLACES THAT MEASURED A DELETED COMPONENT** *(`2026-09-23`)*
+
+> 🔒 **User:** *"throw at Register. make blueprint compiler use the 'new' limits."*
+> ⭐ Both are the same disease in two languages: **a number that used to be the width of a struct,
+> still being enforced after the struct was deleted.**
+
+#### 30.30.1 ⭐ `CE-326` — the compiler now reads the ladder, like everything else
+
+| | before | after |
+|---|---|---|
+| `BP1200` — AiPrimitive `Params` | ⛔ `> 100` *(a literal — the width of `BrainBlackboard.BehaviorParameters`)* | ✅ `> Ladder.Tier16384PayloadSize` |
+| `BP1201` — AiPrimitive `WorkingState` | ⛔ `> 1024 - 8` *(the payload of `Blackboard1024`)* | ✅ `> Ladder.Tier16384PayloadSize` |
+
+⭐ `Ladder` was **already imported** and the `Instance` arm below has read it since `O3a` ⇒ this stage
+was the last one holding private copies. 📐 `CE-307` repointed the other four sites that enforced 100
+*(`FDP_001`, both packers, `BehaviorRegistry`'s throw)*; the commit that catalogued them said so in its
+own message — *"Only the Instance arm (`BP1210`/`BP1211`) reads `BlueprintTierLadder`."*
+
+⚠⚠ **IT IS A CEILING, NOT A BUDGET, and the diagnostic now says so.** ⛔ Passing it does **not** mean the
+asset fits: the region shares its tier with the behaviour's other slots, and ingress throws *(naming
+`CE-302`)* when the store has no room. ⭐ What a build-time check can honestly catch is the case no tier
+could **ever** satisfy — the same distinction `BehaviorConstants.MaxRootParamsByteSize` carries.
+
+#### 30.30.2 🔴🔴 `CE-328` — the params fallback is a THROW, because the guard had become the hazard
+
+⭐ **The shape:** a behaviour declaring a `ParseParams` but **neither** a manifest **nor** a
+`BlackboardLayoutType`. `RootParamsAccess.RootParamsBytes` reserved
+`BehaviorConstants.MaxBehaviorParamByteSize` **(100)** for it.
+
+⚠ **The original reasoning was sound FOR ITS OWN TIME** and is worth keeping visible: at the `P3-C` cut,
+returning 0 silently dropped the parse, which `BehaviorIngress_ParsesFleeBlackboard_FromJson` caught.
+⇒ 100 reproduced the pre-cut world, where the whole `BrainBlackboard` region existed whether anyone
+declared it or not.
+
+🔴🔴 **What made it indefensible is a DIRECTION CHANGE, not a size complaint:**
+
+| | |
+|---|---|
+| ① | `P4` deleted `BrainBlackboard` ⇒ **100 stopped being the width of anything.** A number reproducing the geometry of storage that no longer exists |
+| ② | ⭐⭐⭐ **`ParseParams` is `(string, byte* mem, …)` — a raw pointer with NO LENGTH.** The parse cannot bounds-check. ⇒ 100 flipped from being the **GUARD** against overrunning the region to being the **ALLOCATION** that gets overrun, silently, by any parse that writes more |
+
+⇒ ✅ **`BehaviorRegistry.Register` refuses the shape**, and `RootParamsBytes` throws the same invariant at
+the other end *(unreachable through the registry; it catches a definition that bypassed it)*.
+⛔ **Never restore a numeric fallback there.**
+
+⚠ **Blast radius, measured rather than hoped:** production behaviours come from the generators
+*(`BTreeBridgeEmitCore`, `HsmBridgeEmitCore`, `CSharpEmitter`)*, which always emit a manifest or a layout
+type ⇒ **only hand-registered and TEST behaviours reach this.** ⭐ One rail changed —
+`BehaviorIngress_ParsesFleeBlackboard_FromJson` now declares `BlackboardLayoutType = typeof(FleeBlackboard)`,
+which is what it always parsed into. 🔒 **A premise correction, not a weakened claim** — what it proves,
+that the parse lands in the slot, is untouched.
+
+⭐ **Consequence worth recording:** `MaxBehaviorParamByteSize` now has **no production reader at all**.
+It survives as **test scratch**, and its doc-comment says so. ⛔ Do not give it one again.
+
+#### 30.30.3 ⚠ NAMED AND **NOT** FIXED — `ParseParams` still takes no capacity
+
+🔒 `CE-328` stops an **undeclared** width. ⛔ It does **not** stop a parse from overrunning a width that
+IS declared, because the delegate still receives a bare `byte*`. ⇒ **the real fix is a capacity
+parameter on `ParseParamsDelegate`**, which is a signature change across every generator and deserves its
+own measurement. ⚠ Recorded in the `CE-328` row; not attempted here.

@@ -118,7 +118,8 @@ namespace Fdp.Toolkit.Behavior.Components
     //      ② squad / commander state → its own [ComponentId] component, SquadCognitiveState.
     //         `O1` (2026-09-20) deleted `Project(ref Blackboard1024)` because it made "has a
     //         Blackboard1024" an accidental proxy for "is a commander with squad state".
-    //      ③ behaviour param OVERFLOW (`HeavyDtoType` / `[SharedAiHeavyAction]`) → never adopted.
+    //      ③ behaviour param OVERFLOW (`HeavyDtoType` / `[SharedAiHeavyAction]`) → never adopted,
+    //        and the attributes are DELETED as of CE-327 (§30.29).
     //         Null at every production site; non-null only in two ExtDeps attribute unit tests.
     //
     // 📐 Settled with Roslyn before deleting, because a text sweep cannot prove an absence for a

@@ -48,149 +48,25 @@ namespace Fbt.Kernel
         }
     }
 
-    /// <summary>
-    /// Marks a static method as a shared AI action (or condition) that also requires access to a
-    /// second, "heavy" ECS component alongside the standard minimal blackboard projection.
-    /// <para>
-    /// For an <b>unmanaged</b> heavy component (e.g., <see cref="!:Blackboard1024"/>), supply all
-    /// five arguments: the generator emits a <c>GetComponentRW</c> call followed by an
-    /// <c>Unsafe.As</c> cast into <typeparamref name="HeavyDtoType"/> before invoking the method.
-    /// </para>
-    /// <para>
-    /// For a <b>managed</b> heavy component, use the three-argument overload; the generator
-    /// detects that <c>HeavyComponentType</c> is a reference type and emits a plain
-    /// <c>GetComponent&lt;T&gt;</c> call, passing the instance directly — no field-offset
-    /// projection is needed.
-    /// </para>
-    /// Method signature (unmanaged):
-    ///   <c>static NodeStatus M(ref TMinimal minimal, ref THeavyDto heavy, Entity self, EntityRepository repo)</c>
-    /// Method signature (managed):
-    ///   <c>static NodeStatus M(ref TMinimal minimal, THeavyClass heavy, Entity self, EntityRepository repo)</c>
-    /// Apply multiple times on the same method to share it across different parent DTOs.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    public sealed class SharedAiHeavyActionAttribute : Attribute
-    {
-        /// <summary>The parent DTO struct that contains the projected minimal field.</summary>
-        public Type DtoType { get; }
-
-        /// <summary>Name of the field within <see cref="DtoType"/> projected from <c>BrainBlackboard</c>.</summary>
-        public string FieldName { get; }
-
-        /// <summary>
-        /// The heavy ECS component type to fetch from the entity.
-        /// For an unmanaged component (struct) this is the container (e.g., <c>Blackboard1024</c>).
-        /// For a managed component (class) this is the DTO class itself.
-        /// </summary>
-        public Type HeavyComponentType { get; }
-
-        /// <summary>
-        /// Name of the field inside <see cref="HeavyComponentType"/> whose bytes are projected
-        /// as <see cref="HeavyDtoType"/>.  Only required for unmanaged components.
-        /// <c>null</c> when <see cref="HeavyComponentType"/> is a managed class.
-        /// </summary>
-        public string? HeavyFieldName { get; }
-
-        /// <summary>
-        /// The concrete DTO type projected from <see cref="HeavyFieldName"/> via <c>Unsafe.As</c>.
-        /// Only required for unmanaged components.
-        /// <c>null</c> when <see cref="HeavyComponentType"/> is a managed class (the component IS the DTO).
-        /// </summary>
-        public Type? HeavyDtoType { get; }
-
-        /// <summary>Three-argument constructor for managed heavy components.</summary>
-        public SharedAiHeavyActionAttribute(Type dtoType, string fieldName, Type heavyComponentType)
-        {
-            DtoType            = dtoType;
-            FieldName          = fieldName;
-            HeavyComponentType = heavyComponentType;
-            HeavyFieldName     = null;
-            HeavyDtoType       = null;
-        }
-
-        /// <summary>Five-argument constructor for unmanaged heavy components.</summary>
-        public SharedAiHeavyActionAttribute(
-            Type dtoType,
-            string fieldName,
-            Type heavyComponentType,
-            string heavyFieldName,
-            Type heavyDtoType)
-        {
-            DtoType            = dtoType;
-            FieldName          = fieldName;
-            HeavyComponentType = heavyComponentType;
-            HeavyFieldName     = heavyFieldName;
-            HeavyDtoType       = heavyDtoType;
-        }
-    }
-
-    /// <summary>
-    /// Marks a static method as a shared AI condition that also requires access to a second,
-    /// "heavy" ECS component alongside the standard minimal blackboard projection.
-    /// <para>
-    /// For an <b>unmanaged</b> heavy component (e.g., <see cref="!:Blackboard1024"/>), supply
-    /// all five arguments: the generator emits a <c>GetComponentRW</c> call followed by an
-    /// <c>Unsafe.As</c> cast into <typeparamref name="HeavyDtoType"/> before invoking the method.
-    /// </para>
-    /// <para>
-    /// For a <b>managed</b> heavy component, supply only four arguments (omit
-    /// <paramref name="heavyFieldName"/>); the generator detects that
-    /// <paramref name="heavyComponentType"/> is a reference type and emits a plain
-    /// <c>GetComponent&lt;T&gt;</c> call, passing the instance directly.
-    /// </para>
-    /// Method signature (unmanaged heavy):
-    ///   <c>static bool M(ref TMinimal minimal, ref THeavyDto heavy, Entity self, EntityRepository repo)</c>
-    /// Method signature (managed heavy):
-    ///   <c>static bool M(ref TMinimal minimal, THeavyClass heavy, Entity self, EntityRepository repo)</c>
-    /// Apply multiple times on the same method to share it across different parent DTOs.
-    /// </summary>
-    [AttributeUsage(AttributeTargets.Method, AllowMultiple = true)]
-    public sealed class SharedAiHeavyConditionAttribute : Attribute
-    {
-        /// <summary>The parent DTO struct that contains the projected minimal field.</summary>
-        public Type DtoType { get; }
-
-        /// <summary>Name of the field within <see cref="DtoType"/> projected from <c>BrainBlackboard</c>.</summary>
-        public string FieldName { get; }
-
-        /// <summary>
-        /// The heavy ECS component type to fetch from the entity.
-        /// For an unmanaged component (struct) this is the container (e.g., <c>Blackboard1024</c>).
-        /// For a managed component (class) this is the DTO class itself.
-        /// </summary>
-        public Type HeavyComponentType { get; }
-
-        /// <summary>
-        /// The concrete DTO type projected from the heavy component via <c>Unsafe.As</c> (unmanaged),
-        /// or the component type itself (managed).
-        /// </summary>
-        public Type HeavyDtoType { get; }
-
-        /// <summary>
-        /// Name of the field inside <see cref="HeavyComponentType"/> whose bytes are projected
-        /// as <see cref="HeavyDtoType"/>.  Supply this for unmanaged components.
-        /// Omit (or pass <c>null</c>) for managed components — no field-offset projection is needed.
-        /// </summary>
-        public string? HeavyFieldName { get; }
-
-        /// <summary>
-        /// Unified constructor.  Omit <paramref name="heavyFieldName"/> for managed heavy
-        /// components; supply it for unmanaged (struct) heavy components.
-        /// </summary>
-        public SharedAiHeavyConditionAttribute(
-            Type dtoType,
-            string fieldName,
-            Type heavyComponentType,
-            Type heavyDtoType,
-            string? heavyFieldName = null)
-        {
-            DtoType            = dtoType;
-            FieldName          = fieldName;
-            HeavyComponentType = heavyComponentType;
-            HeavyDtoType       = heavyDtoType;
-            HeavyFieldName     = heavyFieldName;
-        }
-    }
+    // ⛔⛔⛔ CE-327 (2026-09-23) — `SharedAiHeavyActionAttribute` and
+    //   `SharedAiHeavyConditionAttribute` ARE DELETED. 📄 DESIGN_Occurrence_Scoped_Storage.md §30.29.
+    //
+    //   They gave an action access to a second, "heavy" ECS component. TWO arms, retired for TWO
+    //   different reasons — and the one-line verdict "heavy storage died" only covered the first:
+    //     ① 5-arg UNMANAGED — emitted GetComponentRW + Unsafe.As over Blackboard1024's bytes.
+    //        Superseded by the occurrence tier ladder, and its container is deleted (P4).
+    //     ② 3-arg MANAGED — emitted a plain GetComponent<TClass>. ⚠ NOT replaced by the ladder: an
+    //        occurrence slot is unmanaged byte storage and cannot hold a managed class.
+    //
+    //   ⭐ What retired ② is the CONTRACT above, not a usage count: SharedAiAction already passes
+    //     `Entity self, EntityRepository repo`, so the managed arm saved exactly one line —
+    //       var heavy = repo.GetComponent<TClass>(self);
+    //     — and granted no reach the plain attribute lacks. ⇒ deleting it takes NO capability.
+    //
+    //   📐 Adoption at deletion, measured with the graph: ONE decorated method in the whole repo,
+    //     and it was the schema exporter's own test fixture. Production adoption: zero.
+    //   ⇒ an action needing more room declares a wider params/working region and lands on a larger
+    //     tier; an action needing a managed component asks `repo` for it, in one line.
 
     /// <summary>
     /// Annotates a BTree action or HSM action method to declare that it writes to an actuator
