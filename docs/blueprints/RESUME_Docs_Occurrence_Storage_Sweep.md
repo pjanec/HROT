@@ -1,37 +1,40 @@
 <!--STATUS
 state: LIVE
-doc-type: RESUMPTION for the DOCS lane that rewrote the corpus off the retired blackboard
-  components and onto the occurrence-slot model. ⚠ A STATE doc, not canon. Every "measured"
-  line is dated; ⛔ VERIFY against git before acting.
+doc-type: RESUMPTION for the DOCS lane that rewrote the corpus onto occurrence-scoped storage.
+  ⚠ A STATE doc, not canon. Every "measured" line is dated; ⛔ VERIFY against git before acting.
 updated: 2026-09-23
 build-state: n/a — a documentation lane. The owning design is
   DESIGN_Occurrence_Scoped_Storage.md (behaviors lane); this lane never edits it.
-current-answer: ⭐ START AT §6 — the sweep is DONE and pushed. What is LEFT is the re-run
-  after O4/O7c land (§5), and two code findings handed to the behaviors lane (§4).
-  §1 is what shipped, §2 the measured facts that cost the most to establish, §3 the traps.
+current-answer: ⭐ START AT §6. Wave 1 (the blackboards) and wave 2 (O7c — the brain-state
+  components and the tick merge) are both DONE and pushed. §1 is what shipped, §2 the measured
+  facts, §3 the traps, §4 the code findings handed to `behaviors`, §5 what is left.
 related-designs:
   - DESIGN_Occurrence_Scoped_Storage.md — owns the storage model this lane wrote the docs
     against. It wins on any disagreement. ⛔ behaviors lane owns the file; do not edit it here.
-  - RESUME_P4_Retire_Blackboards.md — the behaviors lane's own build resumption. Read it for
-    what is left in CODE; this doc covers what is left in DOCS.
-  - Blueprint_Issues_Tracker.md — CE-303/307/308/312/314/316 all closed there, by that lane.
+  - RESUME_Occurrence_Storage.md — the behaviors lane's own build resumption. Read it for what is
+    left in CODE; this doc covers what is left in DOCS.
+  - PLAN_Occurrence_Storage_Build.md — that lane's build plan. Excluded from this lane's sweep on
+    purpose: it names every retired token because that is what it is FOR.
 -->
 
 # RESUME — the docs sweep onto occurrence-scoped storage
 
 > **Branch:** `claude/blueprint-macro-feature-sdmspn` · **pushed, tree clean**
-> **Base:** `8418335cd` · **head:** `bcff032ef` · **127 files, +8248 −2040** (all under `docs/`)
-> **Last synced from `behaviors`:** `57e2c9de2`
+> **Merged from `behaviors` at `3642ce1c8`** *(the merge commit is `65b6c03e2` — ⚠ read §3's note
+> on it before assuming this branch was ever in sync before that)*
 
 > 🔒 **The instruction this lane serves, in the user's words:** *"update them to the new state
 > where these two do not exist at all and are replaced with occurrence slot. The docs should not
 > mention them anymore, the old concept should not be left as superseded, it should be replaced
 > with new state."* — plus two extensions: *"there will be no fixed cap eventually"* and *"there
-> will be no brainhsm64 and similar ecs components eventually either."*
+> will be no brainhsm64 and similar ecs components eventually either."* ⭐⭐ **Both extensions have
+> now HAPPENED**, which is what wave 2 was.
 
 ---
 
 ## 1. ✅ WHAT SHIPPED — **do not redo this**
+
+### Wave 1 — `2026-09-22`, the blackboards
 
 | commit | |
 |---|---|
@@ -44,15 +47,38 @@ related-designs:
 | `d5901afc4` | close wave 2 — a DEBT tally its own flip left behind |
 | `e4b7fb45b` | `CE-307`/`CE-314` landed ⇒ my caveats became the stale part |
 | `69294199f` | the explainer family had gaps the token sweep never reached |
-| `bcff032ef` | ⭐ **the wide sweep** — 51 files, 192 hits triaged |
+| `bcff032ef` | the wide sweep — 51 files, 192 hits triaged |
+| `30a6bc82d` | this doc, and the sweep script promoted out of `/tmp` |
 
-⭐ **The vocabulary, applied throughout** *(use it for any new doc)*:
+### Wave 2 — `2026-09-23`, `O7c`: no brain component left
+
+| commit | |
+|---|---|
+| `65b6c03e2` | ⭐ **the merge** — 217 commits from `behaviors`, 11 conflicted docs *(§3)* |
+| `e897b2669` | `AI_DEV_GUIDE` + `DESIGN_Role_Affinity_Ownership` — the two structural ones |
+| `ed1b7888b` | fifteen docs that named two tick systems, incl. the RUNBOOK's lost field |
+| `496d0f2f1` | `docs/projects/**` — the assembly censuses |
+| `2e9967b52` | `DESIGN_Hsm_Storage_Model`, `Q50`, `Q52`, the translator rename |
+| `01d58f745` | the roadmap's M6 code sample + the binding status doc |
+| `a89eac090` | `R-39` back to green, and a section titled *"Current State"* that was not |
+
+⚠⚠ **The `docs/designs/**` rewrite has NO commit of its own.** It was produced by a subagent while
+I was committing with `git add -A docs/`, so it is spread across `ed1b7888b`, `496d0f2f1` and
+`01d58f745`, whose messages do not mention it. ⛔ **Do not read those messages as the scope of
+those commits.** *(Cause: running `add -A` on a tree a subagent is writing into. Stage explicit
+paths when an agent is live.)*
+
+### ⭐ The vocabulary, applied throughout — **use it for any new doc**
 
 | the retired thing | what to write |
 |---|---|
-| `BrainBlackboard.BehaviorParameters` | **the root params slot**, located by `RootParamsAccess`, keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` |
-| `Blackboard1024` (AiPrimitive state) | **node working-state slots**, keyed `{fqn}@{offset}@{slotKey}` |
-| the 100-byte cap / heavy tier / `HeavyDtoType` | **gone** — one region, bounded by the tier the allocator seats it in |
+| `BrainBlackboard.BehaviorParameters` | **the root params slot**, located by `RootParamsAccess`, keyed `OccurrenceSlotKey.ComputeRootParamsKey(BehaviorState.ActiveBehaviorHash)` — **computed, never stored** |
+| `Blackboard1024` *(AiPrimitive state)* | **node working-state slots**, keyed `{fqn}@{offset}@{slotKey}` |
+| `BrainBTreeState` | the **root tree-state slot**, `RootStateAccess` — a constant 64 B, `sizeof(BehaviorTreeState)` |
+| `BrainHsm64` / `BrainHsm128` | the **root HSM instance slot**, `RootHsmAccess` — width **64/128/256 at RUNTIME**, chosen by `HsmInstanceManager.SelectTier` at attach, stored in the slot's guard field |
+| `BTreeTickSystem` + `HsmTickSystem<T>` | **`BrainTickSystem`** — one system, two arms, `BehaviorState.BrainTier` selects |
+| `BrainBlackboardTranslator` | `BrainDiagnosticsTranslator`, DOM key `BrainDiagnostics` *(`CE-317`)* |
+| the 100-byte cap / heavy tier / spill | **gone** — one region per occurrence, bounded by the tier the allocator seats it in |
 | `Interpreter<BrainBlackboard,…>` | `Interpreter<byte,…>` — `byte` is slot byte 0 |
 | bytes 126/127 | `BrainInterrupts`, as named fields |
 
@@ -60,47 +86,66 @@ related-designs:
 
 ## 2. ⭐⭐ MEASURED FACTS — **the ones that cost the most to establish**
 
-### 2.1 🔴 THE TIER LADDER — **the single most-repeated error in the corpus**
+### 2.1 ✅ EVERY BRAIN COMPONENT IS GONE — and the ids are BURNED
 
-📐 From `BlueprintTierLadder` (total − header 32 − `MaxSlots`×16), re-picked by `B3②` `2026-09-20`:
+📐 `FDP/Engine/Fdp.Core/GlobalComponentIds.cs`. No `struct` declaration survives for any of them.
 
-| tier | MaxSlots | slot table | payload |
-|---|---|---|---|
-| `BlueprintBlackboard256` | 3 | 48 | **176** |
-| `BlueprintBlackboard1024` | **12** | 192 | **800** |
-| `BlueprintBlackboard4096` | **16** | 256 | **3 808** |
-| `BlueprintBlackboard16384` | 16 | 256 | **16 096** |
+| component | id | retired by |
+|---|---|---|
+| `BrainBlackboard` | **23** | `P4` |
+| `BrainBTreeState` | **29** | `O7c`-② |
+| `BrainHsm64` | **35** | `O7c`-① *(zero production attach sites — its query could never match)* |
+| `BrainHsm128` | **36** | `O7c`-④d |
+| `Blackboard1024` | **74** | `P4`-① |
 
-⛔⛔ **Seven documents carried the PRE-`B3②` figures** — `MaxSlots 4/8/16`, payloads `928/3936/16368`.
-⚠ **And so did I**, in five files, because I took them from a design table instead of the ladder.
-⇒ ⭐ **there are FOUR tiers, not three.** Any `{1024,4096,16384}` list is stale.
+⚠⚠ **`_RESERVED`, never reused** — a stale recording or replayed stream must not bind an id to a
+different component. ⭐ Worth stating wherever a doc lists component ids.
 
-### 2.2 THE CAP — **its whole history, because the docs were wrong in BOTH directions**
+### 2.2 🔴 THE TIER LADDER — **still the single most-repeated error in the corpus**
 
-| when | state |
+📐 `BlueprintTierLadder.cs:92-129` *(payload = total − header **32** − `MaxSlots` × 16)*:
+
+| tier | MaxSlots | payload |
+|---|---|---|
+| `BlueprintBlackboard256` | 3 | **176** |
+| `BlueprintBlackboard1024` | **12** | **800** |
+| `BlueprintBlackboard4096` | **16** | **3 808** |
+| `BlueprintBlackboard16384` | 16 | **16 096** |
+
+⛔ `4/8/16` and `928/3936/16368` are the **pre-`B3②`** figures. ⭐ **FOUR** tiers; any
+`{1024,4096,16384}` list is stale. ⚠ The header is **32**, not 16 — `docs/projects` had it wrong.
+
+### 2.3 ⛔⛔ WHAT IS STILL LIVE AND MUST NOT BE SWEPT
+
+📌 **I added these to the sweep pattern, got ~100 extra hits, measured them, and took them back
+out.** Sweeping them would have deleted live API from the docs.
+
+| identifier | where it lives |
 |---|---|
-| before `CE-307` | **100 B**, a *corruption guard* — params sat inline with neighbours after them, so an overrun overwrote unrelated state. Live in **six** places |
-| ✅ after `CE-307` (`37b0f6358`) | **16 096 B**, a *capacity bound* — `BehaviorConstants.MaxRootParamsByteSize` = `Tier16384PayloadSize`; `FDP_001` retitled *"exceeds occurrence storage capacity"* |
-| ✅ `CE-314` (`9e3ec9b1c`) | `BlackboardBinPacker.MaxInlineBytes` 100 → 16 096; **`MaxHeavyBytes` and `HeavyMemoryExceeded` deleted** |
+| `SharedAiHeavyActionAttribute` / `SharedAiHeavyConditionAttribute` | `Fbt.Kernel/SharedAiAttributes.cs:72,148`, read by `HsmActionGenerator.cs:72-73` |
+| `HeavyDtoType` *(a property)* | `SharedAiAttributes.cs:99,167` · `Fhsm.Kernel/Attributes/HsmDefinitionAttribute.cs:26` |
+| `MaxInlineBytes` = **16 096** · `InlineMemoryExceeded` | `BTreeBlackboardPackHelper.cs:32`, `BlackboardBinPacker`. ⚠ *"inline"* now just means *the params region* |
+| `BehaviorConstants.MaxBehaviorParamByteSize = 100` | ⛔ **NOT a cap.** The reservation width for a behaviour declaring a `ParseParams` and neither a manifest nor a layout type — one production reader, `RootParamsAccess.RootParamsBytes` |
+| the **64 / 128 / 256 HSM tiers** | live as PAYLOAD SIZES. Only the ECS wrappers went; a 64-byte machine now occupies 64 bytes and that tier is reachable for the first time |
 
-⛔ **STILL 100 / 1016:** `BP1200` / `BP1201` in the **blueprint compiler** (`Stage2_Validate.cs:492-503`).
-`CE-307` did not reach them. ⇒ §4 ①.
+⇒ ⭐ a doc naming `[SharedAiHeavyAction]` is **not wrong**. ⛔ What is wrong is calling it a
+**storage tier** — *"spill to heavy"*, *"overflow into `Blackboard1024`"*.
 
-### 2.3 WHAT MOVED INTO SLOTS, AND WHAT DID NOT — **measured at the call sites**
+### 2.4 `BrainTickSystem` — the facts any scheduling doc needs
 
-| | |
-|---|---|
-| ✅ behaviour **params** | `BTreeTickSystem.cs:124`'s `P4-②` note — *"the blackboard IS the root params slot, resolved once per entity per tick"* |
-| ✅ **node working state** | `HsmOccurrence.KeyFor(instance, AssetId, writer)` keys on the `(region, state)` pair the kernel stamps |
-| ✅ `BrainBlackboard` | **deleted** (`4b8de3c1d`) |
-| ⛔ **BTree kernel instance state** | `BrainBTreeState` — `BTreeTickSystem.cs:87` `.With<>`, `:116` `GetComponentRW<>`, **eight lines above that same `P4-②` note** |
-| ⛔ **HSM kernel instance state** | `HsmTickSystem<T>` is generic **over the component**; `CognitiveRuntimeModule.cs:64-65` instantiates `<BrainHsm128>` / `<BrainHsm64>` |
+📐 `FDP/Toolkits/Fdp.Toolkits/Behavior/Systems/BrainTickSystem.cs`
 
-⇒ ⭐ **`O4`** gives the root behaviour's state its own slot; **`O7c`** moves the HSM instance in and
-**deletes `BrainHsm64`/`BrainHsm128`**. Both outstanding.
-
-⚠⚠ **A declaration existing proves nothing** — `CE-312` was a component attached every spawn and read
-by nobody. ⇒ **always measure at the call sites**, not with `grep "struct X"`.
+- ⭐⭐⭐ **DISCOVERY IS THE TIER WALK, NOT A COMPONENT QUERY.** One cached `EntityQuery` per tier,
+  index-aligned with `BlueprintTierTable.Ascending`. `BrainTier` discriminates *inside* the loop.
+- **The gate is `qb.WithOwnedWhen<BehaviorState>(_gateOnAuthority)`** on those queries, `:125`.
+  ⚠ `_gateOnAuthority` **defaults to false** and is turned on per host by step 4.
+- Chain: arbitration → interrupt → **tick** → cleanup → pulse. ⭐ The merge removed a **node**, never
+  reordered a step. ⚠ The first **four** take `gateOnAuthority`; `BehaviorFrameSystem()` takes none.
+- ⛔ **`BlueprintTickSystem` is deliberately NOT merged in** — four measured grounds, §31.14.2.
+- ⚠⚠ **Trace-buffer resolution is PER-ARM, not shared body** — BTree at `:253-264`, HSM at
+  `:350-369`, different buffer types. 📌 **I wrote the opposite into my own agent brief**, having
+  taken it from the class docstring's list of shared elements instead of the method bodies. A
+  subagent caught it. ⇒ §3's rule, broken by me, in the very document that states it.
 
 ---
 
@@ -108,69 +153,67 @@ by nobody. ⇒ **always measure at the call sites**, not with `grep "struct X"`.
 
 | | |
 |---|---|
-| 🔴🔴 **A TOKEN SWEEP FINDS FILES THAT *NAME* THE OLD THING, NOT FILES THAT *DESCRIBE* IT** | 📌 `Blackboard_Authoring_Addendum_v3` never matched `BrainBlackboard` once and said *"its 100-byte inline memory"*, *"inline tier, spill to heavy"*. ⭐ **The wide pattern is in §5; re-run it, not a name grep** |
-| 🔴🔴 **A MODEL STATEMENT LEADS WITH THE TARGET; AN INVENTORY STATES WHAT IS THERE** | 📌 I put *"the cap still fires"* and *"the components still exist"* in the LEAD of design banners — accurate, and the wrong headline. ⭐ A banner says the model and names the outstanding slice; `Hrot.CGF.md`'s *"Brain carries …"* census keeps naming what a host registers today. ⛔ **Both corrections from the user were this same error, the second one made right after the first** |
-| ⛔⛔ **"RETIREMENT PLANNED" IS NOT "RETIRED"** | 📌 the cause of **all nine** of my own defects. A design says what should be true; only code says what is. ⇒ **no structural claim without a `file:line` in the CODE** |
-| ⛔ **HALF-CONVERSIONS ARE THE COMMONEST DEFECT** | 📌 `PackResult` converted, its algorithm steps not · a DEBT row flipped, its tally not · §4.7's headline updated, the sentence below it not · three SVG labels fixed, two in the same file missed. ⭐ **After changing a claim, grep for what COUNTS or RESTATES it** |
-| ⚠ **the subagents read carefully; the BRIEF was the weak link** | 📐 defects: **6 from agents, 9 from me**. Wave-2 agent A independently caught two of my errors by reading the authority doc instead of trusting my spec's numbers. ⛔ Do not hand down unmeasured claims |
-| ⚠ **`R-149` fails `rulings-check` and is NOT ours** | its cited file is absent at the base commit too. **37/38 is green for this lane** |
-| ⚠ **`R-39`'s probe was re-pointed** by this lane at `BehaviorParameterSizeAnalyzer.cs` after the sweep deleted the sentence it quoted. ⛔ Its ROW TEXT still describes the old component — **the behaviors lane owns `RULINGS.md`**, so it was left for them |
+| 🔴🔴 **THIS BRANCH HAD NEVER MERGED `behaviors`** | 📌 earlier sessions *read* files from `origin/behaviors` and recorded *"last synced"*, which is not a merge. ⇒ the first real merge brought **217 commits and 11 conflicted docs**. ⭐ **`git merge-base --is-ancestor <their-sha> HEAD` before believing any sync claim** |
+| 🔴🔴 **CONFLICT RESOLUTION IS A JUDGEMENT, NOT A SIDE-PICK** | ⭐ lane-owned docs *(tracker, the storage design, other lanes' resumptions)* → **theirs**. ⭐ docs I had rewritten where they had added a SUPERSESSION BANNER → **mine**, because the banner names concepts the body no longer contains — ⚠ but check the banner for a FACT worth keeping first *(`E3b`'s per-site values survived that way)* |
+| 🔴🔴 **A TOKEN SWEEP FINDS FILES THAT *NAME* THE OLD THING, NOT FILES THAT *DESCRIBE* IT** | 📌 `Blackboard_Authoring_Addendum_v3` never matched `BrainBlackboard` once and said *"its 100-byte inline memory"*. ⭐ **The wide pattern is `scripts/docs-storage-sweep.py`; re-run it, not a name grep** |
+| 🔴🔴 **A MODEL STATEMENT LEADS WITH THE TARGET; AN INVENTORY STATES WHAT IS THERE** | 📌 I put *"the cap still fires"* and *"the components still exist"* in the LEAD of design banners. ⛔ **Both user corrections were this same error, the second right after the first** |
+| ⛔⛔ **"RETIREMENT PLANNED" IS NOT "RETIRED"** | 📌 the cause of all nine of wave 1's own defects. ⇒ **no structural claim without a `file:line` in the CODE** — ⚠ **and a doc COMMENT is not that citation either** *(§2.4: I sourced a false claim from a class docstring)* |
+| ⛔ **HALF-CONVERSIONS ARE THE COMMONEST DEFECT** | 📌 wave 2's: a safe-to-drop set changed from six to three while three separate counts still said *"ten droppable"*; `PackResult` converted but not its algorithm steps. ⭐ **After changing a claim, grep the file for what COUNTS or RESTATES it** |
+| ⛔ **A HEADING IS A CLAIM** | 📌 `btree-hsm-unif` had a STATUS block, a `stale-below` AND a warning paragraph — under a section still headed **"Current State"** documenting two deleted systems. ⭐ A reader navigates by headings; rename the heading |
+| ⚠ **DO NOT `git add -A` WHILE A SUBAGENT IS WRITING** | 📌 §1's missing commit. ⭐ Stage explicit paths |
+| ⚠ **the subagents were GOOD, and each got one thing wrong** | 📐 agent 1 over-claimed *"all five systems take `gateOnAuthority`"* *(four do)*; agent 2 said id 31 is `VehicleState` *(it is `VehicleParams`)* — ⭐ **but agent 2 corrected MY brief on a load-bearing point.** ⇒ spot-verify every surprising claim in both directions |
 
 ---
 
-## 4. ⭐ HANDED TO THE `behaviors` LANE — **code findings, not docs**
+## 4. ⭐ HANDED TO THE `behaviors` LANE — **code findings, all verified, none fixed here**
 
 | # | |
 |---|---|
-| **①** | ⛔ **`BP1200` / `BP1201` still hard-code 100 / 1016** *(`Stage2_Validate.cs:492-503`)* while the FDP behaviour path is now a 16 096 capacity bound. ⭐ The Instance arm (`BP1210`) already reads `BlueprintTierLadder`. ⇒ **a real inconsistency in the code**, and if `CE-307`'s intent was one bound everywhere, these are the leftover |
-| **②** | ⚠ **`R-39`'s ledger ROW** still describes `BrainBlackboard` and `BrainBlackboardByteSize`. The probe now verifies, but the prose is stale |
+| **①** | ⛔ **`BP1200` / `BP1201` still hard-code 100 / 1016** *(`Stage2_Validate.cs:492,500`)* while `FDP_001` is a **16 096** capacity bound. ⭐ The Instance arm beside them already reads `BlueprintTierLadder`. ⇒ a real inconsistency in the compiler. *(Now stated in `Blueprint_Subsystem_Architecture_v1.2.md` §"Params total size".)* |
+| **②** | 🔴 **A TOMBSTONE NAMES A LIVE COMPONENT'S ID AS BURNED.** `BrainComponents.cs:16` says `BrainBTreeState`'s id **31** stays reserved. It is **29**; **31 is `VehicleParams`**, live. The error repeats at `BrainComponents.cs:45` and `GlobalComponentIds.cs:128` *("like 23, 31, 35 and 74")*. ⚠ A reader following it would conclude a live id is burned |
+| **③** | `HealthApplicationSystem.cs:26,112` still name `HsmDamageBridgeSystem` as the downstream consumer. That class does not exist; the consumer is `CognitiveInterruptSystem` |
+| **④** | `BehaviorIngressSystem.cs:109` comment: *"before writing `BehaviorState`/`BrainBTreeState`"* |
+| **⑤** | `StrideNodeBootstrapper.cs:305` — the *"STILL EXCLUDED, AND DELIBERATELY"* comment names `BrainBTreeState`, `BrainBlackboard` and `BTreeTickSystem`. ⚠ It is **quoted verbatim** by `DESIGN_Role_Affinity_Ownership.md`, so the doc will go stale again when it is fixed |
+| **⑥** | `HeadlessDemoApp.cs:348-349` — *"`CognitiveRuntimeModule` groups … BTreeTick, HsmTick …"* |
+| **⑦** | `HsmDefinitionAttribute.cs:24` and `BTreeDefinitionAttribute.cs:27` still say `HeavyDtoType` *"provisions a `Blackboard1024` component"*. ⚠ **These are XML docs — they show in IDE tooltips**, so the stale version is what a developer actually reads |
+
+✅ **`R-39` is NO LONGER on this list** — it was, but its probe went red after the merge *(this lane
+had re-pointed it; `CE-307` then renamed the constant)*. ⛔ Fixing the probe alone would have left
+canon asserting a `fixed byte[100]` inside a deleted component, so the row was rewritten too.
+**38/38 green.**
 
 ---
 
-## 5. ⚠ STILL OPEN — **for the next docs pass**
+## 5. ⚠ STILL OPEN
 
 | | |
 |---|---|
-| ⭐⭐ **RE-RUN THE WIDE SWEEP AFTER `O4`/`O7c`** | they will invalidate a fresh batch of statements exactly as `CE-307`/`CE-314` did. ⛔ A name grep will not find them |
-| ⛔ **`.dev/` (230 files, ~1300 lines) and `docs/blueprints/batches/` are UNTOUCHED, deliberately** | dated as-built records of finished programmes. Rewriting them to claim they built occurrence slots would be false. ⚠ **If the user wants them swept, that is a decision to overwrite history, not to update intent** |
-| ⚠ **45 files / 159 sweep hits survive, all triaged** | dated records behind their own markers · verbatim user quotes · live identifiers (`BrainBlackboardTranslator`, `BlackboardTier.Blackboard1024`, the `SharedAiHeavy*` attributes) · unrelated `128-byte`/`60-byte` figures · SVG path coordinates containing `928` |
-
-### ⭐ THE SWEEP PATTERN — **re-run this, not a name grep**
-
-```python
-re.compile(r"""
-  BrainBlackboard | (?<!Blueprint)Blackboard1024 | BehaviorParameters
-| MaxBehaviorParamByteSize | BrainBlackboardByteSize
-| inline\s+tier | heavy\s+tier | heavy\s+DTO | heavy\s+component | heavy\s+blackboard
-| spill\s+to\s+heavy | promote\s+to\s+heavy | MaxInlineBytes | MaxHeavyBytes
-| InlineMemoryExceeded | HeavyMemoryExceeded | RequiresHeavyComponent
-| 100-byte | 100\s+bytes | 128-byte | 128\s+bytes | 60-byte | 60\s+bytes
-| cognitive\s+bus
-| \b928\b | \b3936\b | \b16368\b | MaxSlots\s*4 | 4\s*/\s*8\s*/\s*16
-""", re.I | re.X)
-```
-Over every `.md` **and `.svg`** under `docs/`, excluding `batches/`, `RULINGS.md`,
-`Blueprint_Issues_Tracker.md`, `DESIGN_Occurrence_Scoped_Storage.md`, `RESUME_P4_Retire_Blackboards.md`
-**and this file** — all six name the retired tokens on purpose, so they are noise in the result.
-⚠ **Add the new stale figures each time the ladder or a bound moves** — that is what made it work.
+| ⭐⭐ **RE-RUN `scripts/docs-storage-sweep.py` after the next storage slice** | it is what caught both waves. ⛔ A name grep will not |
+| ⚠ **36 files / 177 hits survive, all triaged** | ⭐ **35 of them are ONE file** — `btree-hsm-unif/DESIGN.md`'s baseline section, which by construction describes the system its own programme replaced; it is behind a renamed heading, a `stale-below` and a warning. The rest are live identifiers *(§2.3)*, verbatim user quotes, dated records, unrelated byte figures, and SVG path coordinates containing `928` |
+| ⛔ **`.dev/` (230 files) and `docs/blueprints/batches/` are UNTOUCHED, deliberately** | dated as-built records of finished programmes. ⚠ **Rewriting them would be a decision to overwrite history, not to update intent** |
+| ⚠ **`RESUME_START_HERE.md` (12 hits) and `RESUME_UI_Lane.md` (5)** | other lanes' state docs; almost all hits are inside `>` blockquoted historical records. ⭐ Left alone on lane discipline — ⚠ but `RESUME_START_HERE` is the shared entry point, so it is worth **asking** whether this lane should sweep it |
 
 ---
 
 ## 6. ⭐ THE EXACT FIRST ACTION
 
-1. `git fetch origin behaviors && git log --oneline 57e2c9de2..origin/behaviors` — anything new?
-2. **If `O4` or `O7c` landed:** re-measure §2.3 at the call sites, then re-run §5's sweep and fix
-   what it finds. ⛔ The brain-state banners in `Fdp.Toolkits.md`, `Predicate-Infrastructure-
-   Capabilities.md` and `Architect_Question_34`/`_35`/`_37` name those slices — they change first.
-3. **If nothing landed:** this lane has no work. ⭐ The two items in §4 belong to `behaviors`.
-4. ⛔ **Before any edit**, re-read §3. The two corrections the user made were the same error twice.
+1. `git fetch origin behaviors && git merge-base --is-ancestor $(git rev-parse origin/behaviors) HEAD`
+   — ⛔ **ancestry, not a "last synced" line.** If it is not an ancestor, merge and expect conflicts;
+   §3 row 2 is how to resolve them.
+2. **If a new storage slice landed:** re-measure §2.1/§2.2/§2.4 at the call sites, add the newly
+   retired tokens to `scripts/docs-storage-sweep.py`, re-run it, and fix what it finds.
+   ⛔ **Measure the new tokens' code status FIRST** — §2.3 is the list of things that look retired
+   and are not, and adding one to the pattern costs ~100 false hits.
+3. **If nothing landed:** this lane has no work. ⭐ §4's seven items belong to `behaviors`.
+4. ⛔ **Before any edit, re-read §3.**
 
 ### ⭐ GATES for this lane
 
 ```bash
-python3 scripts/rulings-check.py                 # 37/38 — R-149 is pre-existing, not ours
+python3 scripts/rulings-check.py                 # 38/38
 python3 scripts/design-digest.py --check
 MERMAID_PREFIX=/tmp/mm node scripts/mermaid-check.mjs <changed .md files>
 python3 -c "import xml.etree.ElementTree as ET,glob; [ET.parse(f) for f in glob.glob('docs/**/*.svg',recursive=True)]"
+python3 scripts/docs-storage-sweep.py            # the lane's own measure
 ```
 ⛔ **No build or test gate applies** — this lane touches no `.cs`.

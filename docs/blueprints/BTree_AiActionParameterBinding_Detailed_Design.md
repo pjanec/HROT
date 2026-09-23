@@ -82,7 +82,7 @@ Authoring names: a **local variable** = `state` @ `Node` (isolated per node inst
 
 There is **no separate "squad/group" scope.** A group is represented by a virtual/leader entity (the existing command-hierarchy concept — the hill-attack commander), so group-shared state is simply an `Entity`-scoped slot **hosted on the commander entity**, read by members via the Mode-2 accessor below. "Commander" names the *target entity*, not a scope.
 
-**Tier.** State is **always heavy** — it must persist across ticks and be slot-keyed, which the transient 100 B inline region cannot host — so it uses the heavy tier regardless of size. (Contrast: *params* are size-driven inline-vs-heavy, `Blackboard_Authoring_Detailed_Design.md §6`.)
+**Tier.** State is **always a working-state slot** — it must persist across ticks and be slot-keyed. ⭐ There is no size threshold to cross and no second region to spill into: params and working state are both ordinary occurrence slots, differing in their key, and the tier the allocator seats the entity in is chosen from the total it has to hold. 📄 `Blackboard_Authoring_Detailed_Design.md §6`.
 
 #### 4.4.1 Runtime access — two modes
 

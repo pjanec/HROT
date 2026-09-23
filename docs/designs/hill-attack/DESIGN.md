@@ -8,7 +8,7 @@ procedure: deploying to a baseline, executing alternating attack waves that cres
 engaging enemies in a designated target area, and cycling until the area is cleared.
 
 The design adheres strictly to the FDP engine's CQRS boundaries, Data-Oriented Design
-(DOD) constraints, the universal cognitive bus, and the 256 component-type limit.
+(DOD) constraints, occurrence-scoped storage, and the 256 component-type limit.
 
 ---
 

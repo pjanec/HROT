@@ -523,7 +523,7 @@ public static unsafe class BlueprintRegistrar_HasVisibleTarget_C7145A20_Bp
 ```
 
 **Validator constraints (AiPrimitive):**
-- `Params` total size ≤ **100 bytes**, else `BP1200` (`Stage2_Validate.cs:492`). ⚠ A legacy constant: it is the same 100 the `FDP_001` analyzer enforces, inherited from the retired fixed params region, and it is **far** below what a slot can hold. Scheduled for retirement with `CE-307`.
+- `Params` total size ≤ **100 bytes**, else `BP1200` (`Stage2_Validate.cs:492`). ⛔⛔ **A LEFTOVER, and the two paths now disagree.** `CE-307` moved the `FDP_001` analyzer to `BehaviorConstants.MaxRootParamsByteSize` = **16 096** (the largest tier's payload, a capacity bound) and did **not** reach `BP1200`/`BP1201`, which still hard-code 100 and 1016. ⭐ The Instance arm alongside them already reads `BlueprintTierLadder`. ⇒ a real inconsistency in the compiler, not a doc problem.
 - `WorkingState` total size ≤ **1016 bytes**, else `BP1201` (`Stage2_Validate.cs:500`). ⚠ Also legacy — `1024 − 8` is the old fixed component minus its `StructureHash` header, not a property of any slot.
 - ⭐ **Instance state is the one that already reads the ladder**: `BP1210` takes its budget from `BlueprintTierLadder` (176 / 800 / 3 808 / 16 096 B) and only errors when the asset exceeds the **largest** tier; `BP1211` catches a `TierHint` forced too small. That is the shape the two AiPrimitive checks above have not been moved to yet.
 - `intent: Action`: terminal nodes are `Return Success/Failure/Running`.

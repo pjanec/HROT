@@ -446,7 +446,7 @@ the **cheaper** one. ⭐ **Measured, which is what settles it:**
 
 | | |
 |---|---|
-| ⭐⭐ **NO generated thunk touches the tail** | every production reader/writer is a **system**: `CognitiveInterruptSystem` sets it · `CognitiveCleanupSystem` clears it · `HsmTickSystem:168` reads it · `RouteContextSystem:190` writes `ExpectedThreatLevel` |
+| ⭐⭐ **NO generated thunk touches the tail** | every production reader/writer is a **system**: `CognitiveInterruptSystem` sets it · `CognitiveCleanupSystem` clears it · the brain tick's HSM arm reads it · `RouteContextSystem:190` writes `ExpectedThreatLevel` |
 | ⭐⭐⭐ **actions never see the blackboard at all** | the thunk calls `Method(ref field, ctx.Self, ctx.World)` — ⇒ **the blackboard ref exists ONLY so the thunk can locate the params** |
 
 ⇒ ⭐ **Carry a params-region type, not a component.** The root params slot holds one at offset 0;
@@ -461,7 +461,7 @@ interrupts and soft advice stay on the component, reached by systems via the ent
 
 | | |
 |---|---|
-| ⭐⭐ **BTree: no `ExtDeps` change at all** | `NodeLogicDelegate<TBlackboard,…>` and `Interpreter<TBlackboard,…>` are **generic and never touch the blackboard's members** ⇒ **FastBTree needs nothing.** The edit was binding the interpreter's type argument to `byte` and resolving the root slot once per entity in `BTreeTickSystem` |
+| ⭐⭐ **BTree: no `ExtDeps` change at all** | `NodeLogicDelegate<TBlackboard,…>` and `Interpreter<TBlackboard,…>` are **generic and never touch the blackboard's members** ⇒ **FastBTree needs nothing.** The edit was binding the interpreter's type argument to `byte` and resolving the root slot once per entity in `BrainTickSystem` |
 | ⭐ **HSM: folds into a change already accepted** | HSM thunks resolve the params base **themselves**, so they need it passed in — ⇒ **the same `ExecuteAction` signature widening that occurrence-keying already requires (§5d).** ⭐ **One seam, two problems** |
 
 📌 **Multiple BTrees/HSMs on one entity: ⛔ not as PEERS** *(root exclusivity is load-bearing — it is what
