@@ -242,6 +242,15 @@ namespace Fdp.Examples.UrbanCombat
 
             // FDP.Toolkit.Behavior
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(World);
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.SimTier>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BrainHsm128>();
             World.RegisterComponent<Fdp.Toolkit.Behavior.Components.ActorCapabilityState>();

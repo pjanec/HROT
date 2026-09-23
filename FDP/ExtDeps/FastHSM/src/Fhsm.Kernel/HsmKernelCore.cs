@@ -1129,7 +1129,9 @@ namespace Fhsm.Kernel
             }
         }
 
-        private static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
+        // ⭐ O7c-④ (2026-09-23): internal rather than private so HsmKernel can expose the ONE public
+        //   facade over it. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.1. The body is unchanged.
+        internal static ushort* GetActiveLeafIds(byte* instancePtr, int instanceSize, out int count)
         {
             switch (instanceSize)
             {

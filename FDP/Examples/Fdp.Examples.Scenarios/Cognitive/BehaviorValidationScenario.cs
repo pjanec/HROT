@@ -121,6 +121,15 @@ namespace Fdp.Examples.Scenarios.Cognitive
         {
             // ── Component registration ─────────────────────────────────────────
             world.RegisterComponent<BehaviorState>();
+            // ⭐⭐⭐ O7c-② / O7c-④ — THE OCCURRENCE-STORE TIER LADDER IS A HARD DEPENDENCY OF
+            //   BRAIN EXECUTION. Both root brain states — the BTree cursor and the HSM
+            //   instance — live in a BlueprintBlackboard* tier component now, and
+            //   BrainTickSystem DISCOVERS entities by walking those tiers.
+            //   🔴🔴 OMITTING THIS DOES NOT THROW: the walk simply enumerates nothing and every
+            //     brain silently never ticks. 📐 That is exactly what happened to this demo
+            //     between O7c-② and 2026-09-23 — invisible because its test project had no
+            //     obj/project.assets.json, so it was skipped rather than run. 📄 §31.16.8.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
             world.RegisterComponent<ActorCapabilityState>();
@@ -149,8 +158,8 @@ namespace Fdp.Examples.Scenarios.Cognitive
             var systems = new IEcsModuleSystem[]
             {
                 new ChannelArbitrationSystem(),
-                new BTreeTickSystem(registry),
-                new HsmTickSystem<BrainHsm128>(registry),
+                // ⭐ O7c-④b: ONE brain tick with a BTree arm and an HSM arm — these were two systems.
+                new BrainTickSystem(registry),
             };
 
             kernel.RegisterModule(new DirectSystemsModule("CognitiveModule", systems));

@@ -616,7 +616,7 @@ public sealed class AssembledNavIntegrationTests : IDisposable
     /// <b>Why the channel is not cleared:</b>
     /// InfantrySoldier spawns with <c>BehaviorState.InstanceId=1</c> and
     /// <c>ActiveBehaviorHash=0</c> (no default behavior in the TKB template).
-    /// <see cref="BTreeTickSystem"/> skips the entity (hash=0 not in registry).
+    /// <see cref="BrainTickSystem"/> skips the entity (hash=0 not in registry).
     /// No <c>AssignBehaviorEvent</c> fires from a quiescent spawn.
     /// Therefore InstanceId stays at 1.  <c>IssueMoveTo</c> stamps
     /// <c>ch.BehaviorInstanceId=1</c>.  The arb check <c>1!=1</c> is false → NOT cleared.

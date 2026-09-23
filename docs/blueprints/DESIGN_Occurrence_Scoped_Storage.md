@@ -5956,7 +5956,12 @@ under-adopted**. Here X already existed **and was already adopted** — what loo
 was me not having read `BlueprintTierSpec` before drawing a box for it. ⭐ **Two tool calls would have
 saved the box**, which is the `CLAIM TABLE` rule pointing at a design diagram instead of a lean.
 
-### 31.8 ⛔ THE ONE `ExtDeps` ADDITION — **and why it is not avoidable**
+### 31.8 ⛔ THE `ExtDeps` ADDITIONS — **and why they are not avoidable**
+
+> ⚠⚠ **TITLE CORRECTED `2026-09-23`: it said "THE ONE ADDITION" and there are TWO.** ⭐ `O7c`-③ added
+> the size-driven `Initialize`/`Reset` this section predicted. ⛔ `O7c`-④b needed a second —
+> **`HsmKernel.GetActiveLeafIds(byte*, int, out int)`** — which this section did not foresee because it
+> reasoned only about the TICK path. 📄 §31.16.1 has the measurement and the two consumers.
 
 | what exists | what is missing |
 |---|---|
@@ -6535,3 +6540,148 @@ READS — so the difference is unobservable today. ⭐ *"Unobservable today"* is
 
 ⛔ **The component rails above them stay green and UNCHANGED**, which is the point of §31.15.5: ④a must
 not be able to break the path that is still executing.
+
+### 31.16 ⭐⭐⭐ `O7c`-④b AS BUILT — **ONE BRAIN TICK** *(`2026-09-23`)*
+
+⭐ `BTreeTickSystem` and `HsmTickSystem<T>` are **deleted**; `BrainTickSystem` replaces both, exactly
+as §31.14.3 drew it — two arms, one body. ⛔ **Four things the design did not predict**, and one of
+them is a behaviour change large enough to lead with.
+
+#### 31.16.1 ⚠ A **SECOND** `ExtDeps` ADDITION — §31.8's "the ONE addition" was wrong
+
+📐 **Measured while re-homing the callers, not while designing.** `HsmKernelCore.GetActiveLeafIds` is
+`private`, and **both the offset and the region COUNT are functions of the instance size** — 2 regions
+for 64, 4 for 128, 8 for 256. ⇒ any caller outside the kernel that wants to read or seed an active
+leaf must either copy that tier table *(the duplication `Q35-B` ruled against)* or ask the kernel.
+
+⭐ **Added: `HsmKernel.GetActiveLeafIds(byte* instance, int instanceSize, out int count)`** — a public
+facade over the now-`internal` core method, in the same shape as `O6`'s pointer+size `Update`.
+⚠ **Why no caller needed it before:** every reader had a TYPED component and got the array from
+`HsmInstance128.ActiveLeafIds`. ⇒ it is the size-driven form of a read that always existed.
+📌 **Two consumers already:** the two example scenarios that seed a machine into a known state, and —
+next — `O7c`-④d's debug decoders, which read exactly this.
+
+#### 31.16.2 ⭐⭐ THE HSM ARM **SKIPS** ON A MISSING SLOT WHERE THE BTREE ARM **THROWS**
+
+⛔ The asymmetry looks like an inconsistency and is measured rather than chosen:
+
+| | BTree arm | HSM arm |
+|---|---|---|
+| provisioned at SPAWN? | ✅ **yes** — `BehaviorTkbTranslator`, and every BTree behaviour has a cursor | ⛔ **no** — the translator cannot reach the blob (§31.15.1) |
+| ⇒ a missing slot means | 🔴 **ingress failed** — a genuine fault | ⚠ **never assigned** — an ordinary, reachable state |
+| ⇒ the tick | **THROWS** (`RequireStateRef`) | **skips** (`TryGetInstance`) |
+
+⭐ **And the skip is not new behaviour**: a spawned-but-unassigned `BrainHsm128` had `MachineId == 0`,
+which `HsmKernelCore.ValidateInstance` rejects by `continue`. ⇒ the merged arm reproduces that state
+byte for byte; **throwing would turn a long-standing silent no-op into a crash.**
+
+#### 31.16.3 🔴🔴 THE REAL FIND — **AN ASSIGNED HSM BEHAVIOUR USED TO SIT INERT**
+
+📐 **Measured in `HsmKernelCore.ProcessInstancePhase`, and it decides a behaviour change ④b makes:**
+
+| phase | what the kernel does |
+|---|---|
+| **`Idle`** | runs the timer phase, and advances to `Entry` **ONLY IF THE EVENT QUEUE IS NON-EMPTY** |
+| **`Entry`**, leaves `0xFFFF` | calls `InitializeMachine` — **this is what ENTERS the initial state** and runs its entry actions |
+
+⛔⛔ **The deleted `ResetHsmComponents` forced `Phase = Idle` after every behaviour assign, while
+leaving the leaves at `0xFFFF`.** ⇒ a freshly assigned HSM behaviour **never entered its initial
+state** until some external event happened to arrive. ⭐ `RootHsmAccess.ResetInstance` routes to
+`HsmInstanceManager.Initialize`, the kernel's own entry point, which leaves **`Entry`** — so the
+machine enters on the very next tick.
+
+| 📌 the corroboration, and it is what makes this a FIX rather than a guess | |
+|---|---|
+| **two example scenarios hand-set `Phase = RTC` and seeded `ActiveLeafIds[0]` themselves** | `ScenarioDirector.cs` · `UrbanCombatNewScenario.cs` — ⭐ they were working around it |
+| **`BHU-016`'s own rail had to call `HsmKernel.Trigger` manually** to get the machine moving | its comment says *"Trigger transitions Phase from Idle to Entry"* — ⇒ the test encoded the workaround |
+
+⚠ **Stated plainly: this changes runtime behaviour for every HSM brain on assignment.** The showcase
+assets should be re-checked against it *(`O7c`-④'s acceptance ③)*.
+
+#### 31.16.4 ⭐⭐ THE TIER NOW DECIDES **EVENT-QUEUE CAPACITY**, which it never did before
+
+📐 `HsmEventQueue`, measured:
+
+| instance | interrupt slot | ring capacity | total |
+|---|---|---|---|
+| **64** | ⛔ **none** | 1 | **1** |
+| 128 | ✅ 1 | 1 | 2 |
+| 256 | ✅ 1 | 5 | 6 |
+
+⛔ Before ④, **every** instance was 128 because the COMPONENT was — whatever `SelectTier` said. ⇒ a
+small machine now gets a smaller queue, and **loses the interrupt slot entirely**.
+
+⭐ **Measured impact on production: NONE.** `BrainTickSystem` is the **only** enqueue site in the
+repo — one `MobilityLost` per entity per tick, at **default** priority, so the interrupt slot was
+never used and one ring entry is always enough.
+⚠ **Impact on the rails: three blobs had to declare `RegionCount = 2`** so `SelectTier` answers 128,
+because their claims need an interrupt slot and a second queue entry. 🔒 That is the honest fix —
+the blob now says what tier its claim requires, instead of inheriting 128 by accident.
+
+#### 31.16.5 ⛔ A RAIL THAT COULD NO LONGER BE **WRITTEN**
+
+`EveryHsmTickSystem_IsRegisteredForAnAttachableComponent_O7c1` compared `HsmTickSystem<T>`'s generic
+arguments against what the translator attaches. ⇒ **it is inexpressible now**: there is no generic
+tick system, because discovery is the tier walk and a walk cannot name a component nothing attaches.
+⭐ **The claim EXPIRED; it was not dropped** — a silently deleted rail and a silently weakened one look
+identical in a diff. Its successor, `NoBrainTickSystemIsGenericOverAComponent_O7c4b`, asserts the
+structural property the original was a proxy for, and reddens if anyone reintroduces the shape.
+
+#### 31.16.6 📐 THE RAILS
+
+| rail | what it pins |
+|---|---|
+| `O7_R46` | ⭐⭐⭐ **ONE walk drives BOTH paradigms** — the merge's own claim, which neither per-arm suite can make: both would stay green if the other arm were deleted outright. Also pins the two root keys as distinct and each arm touching only its own slot |
+| `O7_R47` | ⭐⭐ **the stale-dedup sweep now protects the BTREE arm** — §31.14.6's ruling, made checkable. ⛔ Deliberately does NOT use `DestructionOrder`/`ClearBehaviorEvent`, which the lifecycle handlers already prune, or the rail would be vacuous |
+| re-homed | `HsmTickSystemTests` · `HsmTickSystemTerminalTests` → `BrainTickSystemHsmArmTests` · `BTreeTickSystemTests` → `BrainTickSystemBTreeArmTests` · `BhuIntegrationTests` · `HsmBehaviorIntegrationTests` · `BlueprintTests` *(UrbanCombat)*. ⭐ **Claims unchanged; only the storage they assert against moved** |
+
+⚠ **One rail's seed got CLOSER to production, not further:** the UrbanCombat APC rails poked
+`HsmInstance128.Reserved1` — the kernel's per-tier `CurrentEventId` scratch, correct only at 128 — and
+now enqueue through the public `HsmEventQueue.TryEnqueue(ptr, size, evt)`, which is the path the
+interrupt injection actually uses. ⛔ The cost is that they need the full `Idle→Entry→RTC` cycle rather
+than one pass, which is what the kernel really does.
+
+#### 31.16.7 🔴 `AssignBehaviorHashEvent` LEAKED THE OUTGOING ROOT SLOTS — **and the HSM instance is what made it bite**
+
+📐 **Found by rail `A3`, which reassigns a behaviour through the hash path.** That handler calls
+**neither** `DetachStatefulSlots` **nor** `DetachHostedOccurrenceSlots`, so — unlike the
+`AssignBehaviorEvent` path — nothing reclaims the previous behaviour's root slots. ⚠ §22's `F14b`
+found the same hole and fixed only the manifest half.
+
+⛔ **Harmless until now, and precisely because every root cost was small and CONSTANT.** The root HSM
+instance breaks that: a 128-byte instance on the 256 tier leaves **48** payload bytes free, so the
+incoming behaviour's 128-byte instance **could not attach at all** — `ResolveOrAttachRoot` returned
+`null` and the machine silently vanished.
+
+⭐ **Fixed here rather than filed**, for the same reason `O7c`-② fixed the clear-handler's params
+leak: adding the exact twin of a leak while leaving the leak in place is worse than doing both or
+neither. ⚠ **The ordering is the same trap** — the detach is keyed by the OLD hash, so it must run
+**before** `ActiveBehaviorHash` is overwritten, or every key is 0 and all three calls are silent
+no-ops.
+
+#### 31.16.8 🔴🔴 THE EXAMPLE WORLDS NEVER REGISTERED THE TIER LADDER — **`O7c`-②'s silent regression, found 4 slices late**
+
+⛔⛔ **This is trap ② and trap ④ compounding, and it is the most instructive miss of the programme.**
+
+📐 **Measured `2026-09-23`:** `HeadlessDemoApp.RegisterComponents()` and three
+`Fdp.Examples.Scenarios` worlds register `BehaviorState` and `BrainHsm128` but **never any
+`BlueprintBlackboard*` tier component**. ⇒ since `O7c`-② moved the BTree cursor into an occurrence
+slot, **every BTree brain in those demos has had no store, so the tier walk enumerated nothing and no
+brain ticked at all.**
+
+| why nothing caught it | |
+|---|---|
+| ⛔ **the failure is SILENT by construction** | no throw, no log — the walk simply matches no entity. 🔒 The `CE-315` shape, for the **fourth** time |
+| 🔴🔴 **the owning test project had no `obj/project.assets.json`** | ⇒ `Fdp.Examples.UrbanCombat.Tests` and `Fdp.Examples.Scenarios.Tests` were **SKIPPED, not run**, by every gate this programme reported. ⭐ *An unrestored project cannot fail, so its silence reads exactly like a pass* |
+
+⭐ **Established as PRE-EXISTING, not caused by ④b:** a worktree at `d3d0db16a` *(the `O7c`-④a
+commit)* fails `UrbanAmbush_SimulationRunsToCompletion_WithExpectedMilestones` with the identical
+`Not found: "GUNFIRE"` — the ambush never fires because the insurgent's BTree never runs.
+
+⇒ ⭐⭐ **THE LESSON, and it is a method lesson rather than a code one:** `O7c`-② correctly identified
+*"a missing tier registration fails silently"* as trap ②, and fixed it in `TestWorldFactory`. ⛔ **It
+never asked WHICH OTHER WORLDS CONSTRUCT A BRAIN** — and the enumeration that would have answered
+that is the one this repo's own `INVENTORY` rule demands. 🔒 **A `grep` for
+`RegisterComponent<…BehaviorState>` cross-referenced against `BlueprintTierTable.RegisterAll` returns
+the whole set in one call.** That is now recorded as the check to run whenever storage moves behind a
+registration.

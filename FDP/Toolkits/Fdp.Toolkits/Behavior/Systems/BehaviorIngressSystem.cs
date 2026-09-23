@@ -319,10 +319,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                         repo, evt.Entity, behaviorId,
                         RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
                     RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
-
-                    // ⏳ O7c-④a ONLY — the COMPONENT is still what HsmTickSystem<BrainHsm128> steps.
-                    //    ⛔ Deleted in ④b together with that system; see ResetHsmComponents' own note.
-                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
 
@@ -395,6 +391,29 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
 
+                // 🔴🔴 O7c-④b — RECLAIM THE OUTGOING BEHAVIOUR'S ROOT SLOTS, BEFORE THE HASH MOVES.
+                //   📄 §31.16.7.
+                //
+                //   ⛔⛔ This handler calls neither DetachStatefulSlots nor DetachHostedOccurrenceSlots,
+                //     so — unlike the AssignBehaviorEvent path — NOTHING reclaims the previous
+                //     behaviour's root slots here. §22's F14b found the same hole and fixed only the
+                //     manifest half.
+                //   📐 Harmless until now because every root cost was small and CONSTANT. It stops
+                //     being harmless the moment the root HSM instance arrives: a 128-byte instance on
+                //     the 256 tier leaves 48 payload bytes free, so a hash-reassign could not attach
+                //     the incoming one and the machine silently vanished. ⚠ Caught by A3, which does
+                //     exactly this reassign.
+                //   ⭐ Keyed by the OLD hash, so it cannot touch the incoming behaviour's slot —
+                //     which is why it must run BEFORE ActiveBehaviorHash is overwritten, the same
+                //     ordering trap the ClearBehaviorEvent handler records.
+                int previousBehaviorId = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;
+                if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != evt.BehaviorHash)
+                {
+                    RootHsmAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
+                }
+
                 ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 behavior.ActiveBehaviorHash = evt.BehaviorHash;
                 unchecked { behavior.InstanceId++; }
@@ -437,9 +456,6 @@ namespace Fdp.Toolkit.Behavior.Systems
                         repo, evt.Entity, evt.BehaviorHash,
                         RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
                     RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
-
-                    // ⏳ O7c-④a ONLY — see the AssignBehaviorEvent handler's note.
-                    ResetHsmComponents(repo, evt.Entity, def.HsmDefinition.Header.StructureHash);
                 }
             }
         }
@@ -1097,49 +1113,14 @@ namespace Fdp.Toolkit.Behavior.Systems
         private static int AlignUp(int size, int alignment)
             => (size + alignment - 1) & ~(alignment - 1);
 
-        // ── HSM reset helper ─────────────────────────────────────────────────────
-
-        /// <summary>
-        /// ⛔⛔⛔ <b>DYING IN <c>O7c</c>-④b, AND DELIBERATELY STILL HERE FOR <c>O7c</c>-④a.</b> 📄 §31.14.
-        ///
-        /// <para>🔴 <b>Why a duplicate is the SAFE step here, when this repo files duplicates as
-        /// defects.</b> <c>O7c</c>-④a moves the instance INTO a slot; <c>O7c</c>-④b moves the READER
-        /// onto it. Between those two, <c>HsmTickSystem&lt;BrainHsm128&gt;</c> still steps the
-        /// COMPONENT — so deleting this now would leave every HSM brain with <c>MachineId == 0</c>,
-        /// which <c>HsmKernelCore.ValidateInstance</c> rejects SILENTLY by <c>continue</c>. ⇒ the
-        /// intermediate commit would be broken in the one way this programme's rails cannot see.
-        /// ⭐ The slot is provisioned and bound alongside it and is asserted by <c>O7c</c>-④a's rails;
-        /// ⛔ ④b deletes this method in the same change that switches the reader.</para>
-        ///
-        /// <para>⚠ <b>Measured difference against its replacement, stated so ④b is not a surprise.</b>
-        /// This branch clears only <c>Terminated</c>; <c>RootHsmAccess.ResetInstance</c> routes to
-        /// <c>HsmInstanceManager.Initialize</c>, which zeroes the WHOLE instance and so also clears
-        /// <c>Paused</c> and resets <c>Generation</c> to 1. 📐 Nothing in production ever SETS
-        /// <c>InstanceFlags.Paused</c> on an HSM instance — <c>HsmKernelCore:79</c> is the only
-        /// reference and it only READS — so the difference is unobservable today. ⭐ Recorded because
-        /// "unobservable today" is a measurement, not a guarantee.</para>
-        /// </summary>
-        private static unsafe void ResetHsmComponents(EntityRepository repo, Entity entity, uint newMachineId)
-        {
-            // ⛔ O7c-① (2026-09-22): the BrainHsm64 arm is GONE with its component — it reset a
-            //   component no production path ever attached. 📄 §31.5 step ①.
-            if (repo.HasComponent<BrainHsm128>(entity))
-            {
-                ref var hsm128 = ref repo.GetComponentRW<BrainHsm128>(entity);
-                InstanceHeader* hdr = (InstanceHeader*)Unsafe.AsPointer(ref hsm128);
-                // CRITICAL FIX: Bind the execution state to the new definition's topology.
-                hdr->MachineId = newMachineId;
-                hdr->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
-                hdr->Phase  = InstancePhase.Idle;
-                hdr->QueueHead   = 0;
-                hdr->ActiveTail  = 0;
-                hdr->DeferredTail = 0;
-                hdr->MicroStep   = 0;
-                HsmInstance128* inst = (HsmInstance128*)hdr;
-                for (int i = 0; i < 4; i++) inst->ActiveLeafIds[i] = 0xFFFF;
-                inst->EventCount      = 0;
-                inst->InterruptSlotUsed = 0;
-            }
-        }
+        // ⛔⛔⛔ O7c-④b (2026-09-23): ResetHsmComponents IS DELETED, with the system that needed it.
+        //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.16.
+        //
+        //   📐 It hand-rolled the kernel's own reset against a TYPE — `(HsmInstance128*)hdr`, four
+        //     ActiveLeafIds, EventCount, InterruptSlotUsed — a third producer of a fact the kernel
+        //     already owns, and correct only for a 128-byte machine.
+        //   ⭐ RootHsmAccess.ResetInstance replaces it and routes to the size-driven
+        //     HsmInstanceManager.Initialize added by O7c-③: the width comes from the SLOT, so a 64-
+        //     or 256-byte machine is bound correctly for the first time.
     }
 }

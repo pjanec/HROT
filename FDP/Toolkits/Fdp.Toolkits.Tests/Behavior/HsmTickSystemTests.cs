@@ -20,15 +20,16 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// </summary>
         private const int EventXId = 10;
 
-        /// <summary>
-        /// Ties this test to the FastHSM version where HsmInstance128.Reserved1 (offset 58)
-        /// doubles as the CurrentEventId scratch field used by HsmKernelCore.
-        /// Specifically: HsmKernelCore.CurrentEventId_Offset_128 == 58 == FieldOffset of Reserved1.
-        /// If HsmInstance128 layout changes (e.g. Reserved1 is moved or repurposed),
-        /// update this constant and the injection line below.
-        /// Verified against Fhsm.Kernel v(current) — field is ushort at [FieldOffset(58)].
-        /// </summary>
-        private const string HsmCurrentEventFieldName = nameof(HsmInstance128.Reserved1);
+        // ⛔⛔ O7c-④b (2026-09-23): THE `Reserved1` SCRATCH POKE IS GONE, AND ITS REMOVAL IS A FIX.
+        //   📐 The old constant tied this test to `HsmInstance128.Reserved1` at offset 58, which is
+        //     `HsmKernelCore.CurrentEventId_Offset_128`. ⇒ it was only ever correct for a 128-byte
+        //     instance, and the two-state machine below actually selects tier **64**
+        //     (HsmInstanceManager.SelectTier: 2 states, 0 regions) — so once the instance is sized
+        //     from the machine rather than from a component TYPE, that offset points at the wrong
+        //     field entirely.
+        //   ⭐ The event is now injected through `HsmEventQueue.TryEnqueue(instance, size, evt)`, the
+        //     PUBLIC size-driven API the kernel offers for exactly this. It is not a workaround for
+        //     the move: it is what the production interrupt path already used.
 
         // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -80,7 +81,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 HsmDefinition = blob,
             });
 
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState
@@ -89,27 +90,34 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
 
-            // Initialise instance: in StateA (index 0), RTC phase, EventX (id=10) ready.
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.RTC;
-            // ActiveLeafIds[0] = 0 means currently in State 0 (StateA).
-            brain.State.ActiveLeafIds[0] = 0;
-            // Inject EventX into the CurrentEventId scratch field (see HsmCurrentEventFieldName above).
-            // Reserved1 at offset 58 is the scratch slot HsmKernelCore reads as the pending event id.
-#pragma warning disable CS0219 // variable assigned but never read — used as documentation anchor
-            _ = HsmCurrentEventFieldName; // documents which field we are writing below
-#pragma warning restore CS0219
-            brain.State.Reserved1 = EventXId;
+            // ⭐ O7c-④: the instance lives in an occurrence slot, sized by SelectTier(blob).
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, TestHsmId, blob));
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size));
 
-            world.AddComponent(e, brain);
+            // Initialise instance: in StateA (index 0), Idle, with EventX (id=10) QUEUED.
+            // EnsureRootInstance already stamped MachineId from the blob.
+            //
+            // ⚠ O7c-④b: the old fixture set Phase = RTC and poked the CurrentEventId scratch, because
+            //   the RTC arm reads THAT FIELD and never the queue. Going through HsmEventQueue instead
+            //   means going through the kernel's real cycle — Idle sees a non-empty queue and advances
+            //   to Entry, Entry runs ProcessEventPhase, which dequeues into RTC. ⇒ several ticks, and
+            //   that is what production does too.
+            ((InstanceHeader*)inst)->Phase = InstancePhase.Idle;
 
-            // Act.
-            sys.Execute(world, 0.016f);
+            ushort* leaves = HsmKernel.GetActiveLeafIds(inst, size, out int leafCount);
+            Assert.True(leaves != null && leafCount > 0);
+            leaves[0] = 0;   // currently in State 0 (StateA)
+
+            Assert.True(HsmEventQueue.TryEnqueue(inst, size, new HsmEvent { EventId = EventXId }));
+
+            // Act — enough ticks for the full Idle -> Entry -> RTC cycle.
+            for (int t = 0; t < 5; t++)
+                sys.Execute(world, 0.016f);
 
             // Assert — HSM transitioned from State 0 to State 1.
-            var result = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(1, result.State.ActiveLeafIds[0]); // StateB.Id == 1
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* after, out int afterSize));
+            ushort* leavesAfter = HsmKernel.GetActiveLeafIds(after, afterSize, out _);
+            Assert.Equal(1, leavesAfter[0]);   // StateB.Id == 1
 
             world.Dispose();
         }
@@ -127,7 +135,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var world = TestWorldFactory.Create();
 
-            // Act — simulate what HsmTickSystem<T> does each frame:
+            // Act — simulate what BrainTickSystem does each frame:
             var bridge = new HsmKernelBridge
             {
                 Self        = Entity.Null,

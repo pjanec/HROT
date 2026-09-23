@@ -24,7 +24,12 @@ namespace Hrot.ClusterRunner.Integration.Tests
         {
             var world = new EntityRepository();
             world.RegisterComponent<BehaviorState>();
-            world.RegisterComponent<BrainHsm128>();
+            // ⭐⭐ O7c-④b: the brain component is gone; the instance lives in an OCCURRENCE SLOT, so
+            //   the tier ladder is what this world must register instead. ⛔ Omitting it does NOT
+            //   throw — the tier walk simply enumerates nothing and the brain silently never ticks
+            //   (§31's CE-315 shape), which is why it is registered here explicitly rather than
+            //   assumed.
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
             world.RegisterComponent<BrainInterrupts>();
             world.RegisterComponent<ActorCapabilityState>();
             world.RegisterComponent<PreviousCapabilities>();
@@ -50,31 +55,38 @@ namespace Hrot.ClusterRunner.Integration.Tests
             transitions[0] = new TransitionDef { SourceStateIndex = 0, TargetStateIndex = 1, EventId = EventMobilityLost };
             transitions[1] = new TransitionDef { SourceStateIndex = 1, TargetStateIndex = 2, EventId = EventDone };
 
-            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 3, TransitionCount = 2 };
+            // ⭐⭐ O7c-④b: RegionCount 2 is what makes SelectTier answer 128. 🔴 NOT cosmetic — the
+            //   instance width decides the EVENT-QUEUE shape, and E2 injects an INTERRUPT-priority
+            //   event, which only a 128- or 256-byte instance has a slot for. Before the move every
+            //   instance was 128 because the COMPONENT was, so the blob never had to say so.
+            var header = new HsmDefinitionHeader { StructureHash = structureHash, StateCount = 3, TransitionCount = 2, RegionCount = 2 };
             return new HsmDefinitionBlob(header, states, transitions,
-                Array.Empty<RegionDef>(),
+                new RegionDef[2],
                 Array.Empty<GlobalTransitionDef>(),
                 Array.Empty<ushort>(),
                 Array.Empty<ushort>());
         }
 
-        private static BrainHsm128 MakeBrain128(HsmDefinitionBlob blob)
-        {
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0] = 0xFFFF;
-            return brain;
-        }
+        /// <summary>⭐ O7c-④b: provision the slot-resident instance, sized by SelectTier(blob).</summary>
+        private static void SeedBrain(EntityRepository world, Entity e, int docId, HsmDefinitionBlob blob)
+            => Assert.True(Fdp.Toolkit.Behavior.RootHsmAccess.EnsureRootInstance(world, e, docId, blob));
 
         private static void InjectHsmEvent(EntityRepository world, Entity e, HsmEvent evt)
         {
-            ref var comp = ref world.GetComponentRW<BrainHsm128>(e);
-            BrainHsm128* ptr = (BrainHsm128*)Unsafe.AsPointer(ref comp);
-            HsmEventQueue.TryEnqueue(ptr, evt);
+            Assert.True(Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
+            Assert.True(HsmEventQueue.TryEnqueue(ptr, size, evt));
         }
 
-        // IT-BHU-E1: CognitiveRuntimeModule registers exactly 7 systems in the required order.
+        /// <summary>⭐ The first active leaf, read size-driven through the kernel's own accessor.</summary>
+        private static ushort ActiveLeaf0(EntityRepository world, Entity e)
+        {
+            Assert.True(Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(world, e, out byte* ptr, out int size));
+            ushort* leaves = HsmKernel.GetActiveLeafIds(ptr, size, out int count);
+            Assert.True(leaves != null && count > 0);
+            return leaves[0];
+        }
+
+        // IT-BHU-E1: CognitiveRuntimeModule registers exactly 5 systems in the required order.
         // CognitiveInterruptSystem, CognitiveCleanupSystem and BehaviorFrameSystem are internal
         // types; their type names are compared as strings. Public types use Assert.IsType<>.
         //
@@ -91,28 +103,29 @@ namespace Hrot.ClusterRunner.Integration.Tests
         //    it can name the internal types directly instead of comparing type-name strings. ⭐ Filed
         //    rather than removed here: deleting a rail is a separate, reviewable act (see AX-018 notes).
         [Fact]
-        public void E1_CognitiveRuntimeModule_RegistersExactlySevenSystemsInOrder()
+        public void E1_CognitiveRuntimeModule_RegistersExactlyFiveSystemsInOrder()
         {
             var registry = new BehaviorRegistry();
             var module   = new CognitiveRuntimeModule(registry);
 
-            // ⛔ O7c-① (2026-09-22): was SEVEN. HsmTickSystem<BrainHsm64> is gone with its
+            // ⛔ O7c-④b (2026-09-23): was SIX. BTreeTickSystem and HsmTickSystem<BrainHsm128> are
+            //   ONE BrainTickSystem — the generic could not survive retiring its component.
+            // ⛔ O7c-① (2026-09-22): was SEVEN before that. HsmTickSystem<BrainHsm64> went with its
             //   component — nothing in production ever attached it, so it ticked an empty query.
-            Assert.Equal(6, module.SimulationSystems.Count);
+            Assert.Equal(5, module.SimulationSystems.Count);
 
             Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[0]);
 
             // CognitiveInterruptSystem is internal to Fdp.Toolkits -- compare by type name.
             Assert.Equal("CognitiveInterruptSystem", module.SimulationSystems[1].GetType().Name);
 
-            Assert.IsType<BTreeTickSystem>(module.SimulationSystems[2]);
-            Assert.IsType<HsmTickSystem<BrainHsm128>>(module.SimulationSystems[3]);
+            Assert.IsType<BrainTickSystem>(module.SimulationSystems[2]);
 
             // CognitiveCleanupSystem is internal to Fdp.Toolkits -- compare by type name.
-            Assert.Equal("CognitiveCleanupSystem", module.SimulationSystems[4].GetType().Name);
+            Assert.Equal("CognitiveCleanupSystem", module.SimulationSystems[3].GetType().Name);
 
             // ⭐ BehaviorFrameSystem is internal to Fdp.Toolkits -- compare by type name.
-            Assert.Equal("BehaviorFrameSystem", module.SimulationSystems[5].GetType().Name);
+            Assert.Equal("BehaviorFrameSystem", module.SimulationSystems[4].GetType().Name);
 
             // Confirm no HsmDamageBridgeSystem anywhere (BHU-010 requirement).
             foreach (var sys in module.SimulationSystems)
@@ -137,14 +150,14 @@ namespace Hrot.ClusterRunner.Integration.Tests
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState { ActiveBehaviorHash = docId, BrainTier = BehaviorConstants.BrainTierHsm, InstanceId = 1 });
-            world.AddComponent(e, MakeBrain128(blob));
+            SeedBrain(world, e, docId, blob);
             world.AddComponent(e, new BrainInterrupts());
             world.AddComponent(e, new ActorCapabilityState { Capabilities = ActorCapabilities.CanMove });
             world.AddComponent(e, new PreviousCapabilities { Capabilities = ActorCapabilities.CanMove });
 
             // Settle machine into Patrol (state 0) by running a few ticks without events.
             for (int i = 0; i < 4; i++)
-                module.SimulationSystems[3].Execute(world, 0.016f); // HsmTickSystem<BrainHsm128>
+                module.SimulationSystems[2].Execute(world, 0.016f); // BrainTickSystem — HSM arm
 
             // ---- Frame 1: trigger mobility-lost edge ----
 
@@ -158,18 +171,16 @@ namespace Hrot.ClusterRunner.Integration.Tests
             // Idle -> Entry -> RTC -> Activity -> Idle phase cycle (needs ~4 kernel ticks).
             // This mirrors the B1 test pattern where hsmSys.Execute is called 10 times.
             module.SimulationSystems[0].Execute(world, 0.016f); // ChannelArbitration
-            module.SimulationSystems[1].Execute(world, 0.016f); // CognitiveInterrupt: sets bb[126]=1
-            module.SimulationSystems[2].Execute(world, 0.016f); // BTreeTick
+            module.SimulationSystems[1].Execute(world, 0.016f); // CognitiveInterrupt: sets the flag
             for (int t = 0; t < 10; t++)
-                module.SimulationSystems[3].Execute(world, 0.016f); // HsmTick128: completes transition
-            module.SimulationSystems[4].Execute(world, 0.016f); // HsmTick64
-            module.SimulationSystems[5].Execute(world, 0.016f); // CognitiveCleanup: clears bb[126]
+                module.SimulationSystems[2].Execute(world, 0.016f); // BrainTick: completes the transition
+            module.SimulationSystems[3].Execute(world, 0.016f); // CognitiveCleanup: clears the flag
+            module.SimulationSystems[4].Execute(world, 0.016f); // BehaviorFrame pulse
 
             // Assert end of Frame 1: HSM transitioned to Stopped (state index 1).
-            var brainF1 = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(1, brainF1.State.ActiveLeafIds[0]);
+            Assert.Equal(1, ActiveLeaf0(world, e));
 
-            // CognitiveCleanupSystem (index 5) must have cleared the interrupt field.
+            // CognitiveCleanupSystem must have cleared the interrupt field.
             {
                 ref readonly var bb = ref world.GetComponentRO<BrainInterrupts>(e);
                 Assert.Equal(0, bb.Interrupt_MobilityLost);
@@ -183,11 +194,10 @@ namespace Hrot.ClusterRunner.Integration.Tests
             // Run the complete system sequence for Frame 2.
             module.SimulationSystems[0].Execute(world, 0.016f); // ChannelArbitration
             module.SimulationSystems[1].Execute(world, 0.016f); // CognitiveInterrupt: no edge
-            module.SimulationSystems[2].Execute(world, 0.016f); // BTreeTick
             for (int t = 0; t < 10; t++)
-                module.SimulationSystems[3].Execute(world, 0.016f); // HsmTick128: drives to Done
-            module.SimulationSystems[4].Execute(world, 0.016f); // HsmTick64
-            module.SimulationSystems[5].Execute(world, 0.016f); // CognitiveCleanup
+                module.SimulationSystems[2].Execute(world, 0.016f); // BrainTick: drives to Done
+            module.SimulationSystems[3].Execute(world, 0.016f); // CognitiveCleanup
+            module.SimulationSystems[4].Execute(world, 0.016f); // BehaviorFrame pulse
 
             // Make published events visible for reading.
             world.Bus.SwapBuffers();
@@ -199,10 +209,12 @@ namespace Hrot.ClusterRunner.Integration.Tests
             Assert.Equal(1, count);
 
             // Assert: Terminated latch cleared after publish; Phase reset to Idle.
-            var brainF2 = world.GetComponent<BrainHsm128>(e);
-            ref var hdr = ref Unsafe.As<BrainHsm128, InstanceHeader>(ref brainF2);
-            Assert.Equal(0, (int)(hdr.Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr.Phase);
+            // ⭐ This one is UNCHANGED by O7c-④: the tick's own terminal handler still writes
+            //   Phase = Idle after publishing, which is a different code path from ingress's re-bind.
+            Assert.True(Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(world, e, out byte* instF2, out _));
+            InstanceHeader* hdr = (InstanceHeader*)instF2;
+            Assert.Equal(0, (int)(hdr->Flags & InstanceFlags.Terminated));
+            Assert.Equal(InstancePhase.Idle, hdr->Phase);
 
             world.Dispose();
         }

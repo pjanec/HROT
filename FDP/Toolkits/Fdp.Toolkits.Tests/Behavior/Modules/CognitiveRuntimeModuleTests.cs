@@ -21,34 +21,34 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
             var registry = new BehaviorRegistry();
             var module   = new CognitiveRuntimeModule(registry);
 
-            // Assert — 6 systems: arbitration, CognitiveInterrupt, BTree, HsmHsm128,
+            // Assert — 5 systems: arbitration, CognitiveInterrupt, the ONE brain tick,
             //          CognitiveCleanup, and (Batch 94) BehaviorFrame.
-            // Order: ChannelArbitrationSystem -> CognitiveInterruptSystem -> BTreeTickSystem
-            //        -> HsmTickSystem<BrainHsm128> -> CognitiveCleanupSystem -> BehaviorFrameSystem
-            // ⛔ O7c-① (2026-09-22): was SEVEN. HsmTickSystem<BrainHsm64> is gone with its component,
-            //   which nothing in production ever attached ⇒ it ticked an always-empty query.
-            // ⭐ Batch 94 (94b): the pulse is LAST so it means "a brain tick HAS RUN". ⚠ This
-            //   assertion is what the handoff warned would need updating.
-            Assert.Equal(6, module.SimulationSystems.Count);
+            // Order: ChannelArbitrationSystem -> CognitiveInterruptSystem -> BrainTickSystem
+            //        -> CognitiveCleanupSystem -> BehaviorFrameSystem
+            // ⛔ O7c-④b (2026-09-23): was SIX. BTreeTickSystem and HsmTickSystem<BrainHsm128> are ONE
+            //   system now — the generic one could not survive retiring its component, and two
+            //   near-identical non-generic systems is the duplication B3 already paid to remove.
+            // ⛔ O7c-① (2026-09-22): was SEVEN before that. HsmTickSystem<BrainHsm64> went with its
+            //   component, which nothing in production ever attached ⇒ an always-empty query.
+            // ⭐ Batch 94 (94b): the pulse is LAST so it means "a brain tick HAS RUN".
+            Assert.Equal(5, module.SimulationSystems.Count);
             Assert.IsType<ChannelArbitrationSystem>(module.SimulationSystems[0]);
             Assert.IsType<CognitiveInterruptSystem>(module.SimulationSystems[1]);
-            Assert.IsType<BTreeTickSystem>(module.SimulationSystems[2]);
-            Assert.IsType<HsmTickSystem<BrainHsm128>>(module.SimulationSystems[3]);
-            Assert.IsType<CognitiveCleanupSystem>(module.SimulationSystems[4]);
-            Assert.IsType<BehaviorFrameSystem>(module.SimulationSystems[5]);
+            Assert.IsType<BrainTickSystem>(module.SimulationSystems[2]);
+            Assert.IsType<CognitiveCleanupSystem>(module.SimulationSystems[3]);
+            Assert.IsType<BehaviorFrameSystem>(module.SimulationSystems[4]);
 
-            // BHU-010: CognitiveInterruptSystem must appear before BTree and HSM ticks.
+            // BHU-010: CognitiveInterruptSystem must appear before the brain tick.
+            // ⭐ ONE index now covers both paradigms — which is the point: the two used to be kept in
+            //   step by hand, and a rail asserting each separately could pass while they disagreed.
             var systemsList = module.SimulationSystems.ToList();
             int interruptIdx = systemsList.FindIndex(s => s is CognitiveInterruptSystem);
-            int btreeIdx     = systemsList.FindIndex(s => s is BTreeTickSystem);
-            int hsmIdx128    = systemsList.FindIndex(s => s is HsmTickSystem<BrainHsm128>);
+            int brainIdx     = systemsList.FindIndex(s => s is BrainTickSystem);
             int cleanupIdx   = systemsList.FindIndex(s => s is CognitiveCleanupSystem);
-            Assert.True(interruptIdx < btreeIdx,
-                "CognitiveInterruptSystem must be registered before BTreeTickSystem.");
-            Assert.True(interruptIdx < hsmIdx128,
-                "CognitiveInterruptSystem must be registered before HsmTickSystem.");
-            Assert.True(cleanupIdx > hsmIdx128,
-                "CognitiveCleanupSystem must be registered after all brain tick systems.");
+            Assert.True(interruptIdx < brainIdx,
+                "CognitiveInterruptSystem must be registered before BrainTickSystem.");
+            Assert.True(cleanupIdx > brainIdx,
+                "CognitiveCleanupSystem must be registered after the brain tick.");
 
             // ⭐⭐ Batch 94: the pulse comes after every brain tick, so "the counter moved" means
             //    "a tick produced values", not "a tick is about to run".
@@ -77,35 +77,40 @@ namespace Fdp.Toolkit.Behavior.Tests.Modules
         /// the AGREEMENT rather than the absence, so it keeps meaning something after the deletion:
         /// adding a tick system without an attach path reddens it.</para>
         ///
-        /// <para>⭐ <b>The translator over-declares deliberately</b> — <c>GetProducedComponents</c> lists
-        /// the branch-selected pair unconditionally (its own doc says why omitting is not free). ⇒ the
-        /// declaration is the honest upper bound on "what this path can attach", which is the right
-        /// side of this comparison.</para>
+        /// <para>⛔⛔⛔ <b>SUPERSEDED BY <c>O7c</c>-④b (<c>2026-09-23</c>) — THE DEFECT CLASS IS NOW
+        /// ELIMINATED BY CONSTRUCTION, WHICH IS WHY THE RAIL CHANGED SHAPE.</b> 📄 §31.16.4.</para>
+        ///
+        /// <para>📐 The original rail compared <c>HsmTickSystem&lt;T&gt;</c>'s generic arguments against
+        /// what <c>BehaviorTkbTranslator</c> can attach. ⇒ <b>it cannot even be written any more</b>:
+        /// there is no generic tick system, because the brain tick discovers by the OCCURRENCE-STORE
+        /// TIER WALK rather than by a component type. A walk cannot name a component nothing
+        /// attaches.</para>
+        ///
+        /// <para>⚠ <b>The claim EXPIRED; it was not dropped.</b> A silently deleted rail and a silently
+        /// weakened one look identical in a diff, so the successor is asserted instead: <b>no system in
+        /// the cognitive pipeline is generic over a brain component at all.</b> ⭐ That is the
+        /// structural property the original was a proxy for — <i>"discovery must not be keyed to a
+        /// component whose attach path may not exist"</i> — and it reddens the moment someone
+        /// reintroduces the shape, which is the only way the defect can come back.</para>
         /// </summary>
         [Fact]
-        public void EveryHsmTickSystem_IsRegisteredForAnAttachableComponent_O7c1()
+        public void NoBrainTickSystemIsGenericOverAComponent_O7c4b()
         {
-            var module     = new CognitiveRuntimeModule(new BehaviorRegistry());
-            var translator = new Fdp.Toolkit.Behavior.Translators.BehaviorTkbTranslator();
+            var module = new CognitiveRuntimeModule(new BehaviorRegistry());
 
-            var attachable = translator.GetProducedComponents().ToHashSet();
-
-            var tickedHsmComponents = module.SimulationSystems
+            var genericSystems = module.SimulationSystems
                 .Select(s => s.GetType())
-                .Where(t => t.IsGenericType && t.GetGenericTypeDefinition() == typeof(HsmTickSystem<>))
-                .Select(t => t.GetGenericArguments()[0])
+                .Where(t => t.IsGenericType)
                 .ToList();
 
-            Assert.NotEmpty(tickedHsmComponents);   // guard: a vacuous pass is not a pass
+            Assert.True(module.SimulationSystems.Count > 0);   // guard: a vacuous pass is not a pass
 
-            var orphans = tickedHsmComponents.Where(t => !attachable.Contains(t)).ToList();
-
-            Assert.True(orphans.Count == 0,
-                "A tick system is registered for an HSM brain component that no production path can " +
-                "attach, so its query can never match and it ticks nothing every frame. Orphans: " +
-                string.Join(", ", orphans.Select(t => t.Name)) +
-                ". Attachable per BehaviorTkbTranslator.GetProducedComponents(): " +
-                string.Join(", ", attachable.Select(t => t.Name).OrderBy(n => n)) + ".");
+            Assert.True(genericSystems.Count == 0,
+                "A cognitive system is generic over a type, which is how O7c-①'s always-empty query " +
+                "arose: HsmTickSystem<BrainHsm64> was registered, scheduled and ticked every frame " +
+                "against a component no production path ever attached. Discovery must come from the " +
+                "occurrence-store tier walk, never from a component type. Generic systems: " +
+                string.Join(", ", genericSystems.Select(t => t.Name)) + ".");
         }
 
         // ═══ P3 step 3b — THE EXECUTION GATE ════════════════════════════════════════════════════════

@@ -80,7 +80,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ---- Tests ----
 
         [Fact]
-        public void BehaviorIngress_HsmReset_ClearsTerminatedFlagAndSetsPhaseIdle()
+        public void BehaviorIngress_HsmReset_ClearsTerminatedFlagAndLeavesTheMachineReadyToEnter()
         {
             var (world, sys, registry) = CreateFixture();
 
@@ -93,21 +93,38 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainHsm128());
+            // ⚠ ActiveBehaviorHash MUST be stamped: every root key is COMPUTED from it, so a
+            //   BehaviorState left at 0 makes TryGetInstance return false however well the slot was
+            //   attached. Same ordering trap RootStateAccess.EnsureRootState's doc records.
+            world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = 9300, BrainTier = BehaviorConstants.BrainTierHsm,
+            });
 
-            // Manually set Terminated flag and a non-Idle phase to simulate
-            // an HSM that ended its previous behavior in a terminal state.
-            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
-            brain.State.Header.Flags |= InstanceFlags.Terminated;
-            brain.State.Header.Phase  = InstancePhase.RTC;
+            // ⭐ O7c-④b: seed a slot-resident instance that ended its previous behaviour terminal.
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, 9300, BuildMinimalBlob(0x9300)));
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* before, out _));
+            ((InstanceHeader*)before)->Flags |= InstanceFlags.Terminated;
+            ((InstanceHeader*)before)->Phase  = InstancePhase.RTC;
 
-            // Assign a new behavior -- ingress system must reset the HSM.
+            // Assign a new behavior -- ingress must re-bind the instance.
             AssignBehavior(world, sys, e, behaviorName);
 
-            var brainAfter = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(0, (int)(brainAfter.State.Header.Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, brainAfter.State.Header.Phase);
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* after, out _));
+            var hdr = (InstanceHeader*)after;
+            Assert.Equal(0, (int)(hdr->Flags & InstanceFlags.Terminated));
+            // 🔴🔴 O7c-④b CHANGED THIS VALUE FROM Idle TO Entry, AND IT IS A REAL FIX. 📄 §31.16.3.
+            //   📐 Measured in HsmKernelCore.ProcessInstancePhase: the `Idle` arm runs the timer phase
+            //     and advances to `Entry` ONLY IF THE EVENT QUEUE IS NON-EMPTY. The `Entry` arm, with
+            //     ActiveLeafIds[0] == 0xFFFF, calls InitializeMachine — which is what ENTERS the
+            //     machine's initial state and runs its entry actions.
+            //   ⇒ the deleted ResetHsmComponents forced Idle, so a freshly assigned HSM behaviour sat
+            //     INERT until some external event happened to arrive. ⛔ That is why two example
+            //     scenarios hand-set Phase = RTC and seeded ActiveLeafIds[0] themselves — they were
+            //     working around it.
+            //   ⭐ HsmInstanceManager.Initialize — the kernel's own entry point, which O7c-③ made
+            //     size-driven — leaves Entry, so the machine enters on the very next tick.
+            Assert.Equal(InstancePhase.Entry, hdr->Phase);
 
             world.Dispose();
         }
@@ -126,20 +143,26 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var e = world.CreateEntity();
-            world.AddComponent(e, new BehaviorState());
-            world.AddComponent(e, new BrainHsm128());
+            world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = 9301, BrainTier = BehaviorConstants.BrainTierHsm,
+            });
 
             // Simulate a machine that was mid-run: set ActiveLeafIds to non-sentinel values.
-            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
-            brain.State.ActiveLeafIds[0] = 2;
-            brain.State.ActiveLeafIds[1] = 5;
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, 9301, BuildMinimalBlob(0x9301)));
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* before, out int beforeSize));
+            ushort* seeded = HsmKernel.GetActiveLeafIds(before, beforeSize, out int leafCount);
+            Assert.True(leafCount >= 2);
+            seeded[0] = 2;
+            seeded[1] = 5;
 
-            // Assign behavior -- ingress system resets leaf IDs to 0xFFFF (uninitialized).
+            // Assign behavior -- ingress resets leaf IDs to 0xFFFF (uninitialized).
             AssignBehavior(world, sys, e, behaviorName);
 
-            var brainAfter = world.GetComponent<BrainHsm128>(e);
-            Assert.Equal(0xFFFF, brainAfter.State.ActiveLeafIds[0]);
-            Assert.Equal(0xFFFF, brainAfter.State.ActiveLeafIds[1]);
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* after, out int afterSize));
+            ushort* leaves = HsmKernel.GetActiveLeafIds(after, afterSize, out _);
+            Assert.Equal(0xFFFF, leaves[0]);
+            Assert.Equal(0xFFFF, leaves[1]);
 
             world.Dispose();
         }
@@ -176,35 +199,36 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
 
             var ingressSystem = new BehaviorIngressSystem(registry);
-            var tickSystem    = new HsmTickSystem<BrainHsm128>(registry);
+            var tickSystem    = new BrainTickSystem(registry);
 
             var entity = world.CreateEntity();
             world.AddComponent(entity, new BehaviorState());
-            world.AddComponent(entity, new BrainHsm128());
+
+            // ⚠ AssignBehaviorHashEvent PROVISIONS NO STORE — a pre-existing gap (§22 F14b), so the
+            //   entity needs one before the hash path can attach into it. EnsureRootInstance is what
+            //   the spawn-time provisioner would have done.
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, entity, DocA, blobA));
 
             // 2. Act: assign Behavior A.
             AssignBehaviorHash(world, ingressSystem, entity, DocA);
 
             // 3. Assert: MachineId must equal blobA.StructureHash.
-            ref var brainA = ref world.GetComponentRW<BrainHsm128>(entity);
-            InstanceHeader* headerA = (InstanceHeader*)Unsafe.AsPointer(ref brainA);
-            Assert.Equal(HashA, headerA->MachineId);
+            Assert.True(RootHsmAccess.TryGetInstance(world, entity, out byte* instA, out _));
+            Assert.Equal(HashA, ((InstanceHeader*)instA)->MachineId);
 
             // 4. Act: reassign to Behavior B.
             AssignBehaviorHash(world, ingressSystem, entity, DocB);
 
             // 5. Assert: MachineId must now reflect blobB.StructureHash (the bug fix).
-            ref var brainB = ref world.GetComponentRW<BrainHsm128>(entity);
-            InstanceHeader* headerB = (InstanceHeader*)Unsafe.AsPointer(ref brainB);
+            Assert.True(RootHsmAccess.TryGetInstance(world, entity, out byte* instB, out int sizeB));
+            InstanceHeader* headerB = (InstanceHeader*)instB;
             Assert.Equal(HashB, headerB->MachineId);
-            Assert.Equal(InstancePhase.Idle, headerB->Phase);
             Assert.Equal(0, (int)(headerB->Flags & InstanceFlags.Terminated));
 
             // 6. Assert: the kernel evaluates the new definition without soft-locking.
-            // Trigger transitions Phase from Idle to Entry; a tick of an empty machine
-            // advances Entry -> Idle (ValidateInstance passes when MachineId == StructureHash).
-            // If MachineId was stale the kernel would skip the entity and Phase would stay Entry.
-            HsmKernel.Trigger(ref brainB);
+            //    Initialize leaves the machine at Entry; a tick of an empty machine advances it
+            //    (ValidateInstance passes only when MachineId == StructureHash). If MachineId were
+            //    stale the kernel would skip the entity and Phase would stay Entry.
             Assert.Equal(InstancePhase.Entry, headerB->Phase);
 
             tickSystem.Execute(world, 0.016f);
@@ -216,10 +240,11 @@ namespace Fdp.Toolkit.Behavior.Tests
 
         // ══ O7c-④a — THE ROOT HSM INSTANCE IS AN OCCURRENCE SLOT ════════════════════════════
         //
-        // 📄 DESIGN_Occurrence_Scoped_Storage.md §31.14.
-        // ⚠ These rails assert the SLOT. The component rails above stay green unchanged for the
-        //   duration of ④a, because HsmTickSystem<BrainHsm128> still steps the component — ④b
-        //   switches the reader and re-homes them.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §31.14 (design) · §31.15–§31.16 (as-built).
+        // ⭐ O7c-④b (2026-09-23): the BHU-016 rails ABOVE are now slot-resident too — the component
+        //   they used to seed is no longer what BrainTickSystem steps. ⚠ Their CLAIMS are unchanged;
+        //   only the storage they assert against moved, which is what obligation ③ calls a re-home
+        //   rather than a rewrite.
 
         /// <summary>
         /// Builds a blob whose <c>SelectTier</c> answer is controlled by its REGION COUNT, which is

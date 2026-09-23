@@ -11,7 +11,7 @@ using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests
 {
-    public class BTreeTickSystemTests
+    public class BrainTickSystemBTreeArmTests
     {
         // ── Helpers ──────────────────────────────────────────────────────────────
 
@@ -38,7 +38,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Arrange — entity with a behavior hash that is NOT in the registry.
             var world    = TestWorldFactory.Create();
             var registry = new BehaviorRegistry();
-            var sys      = new BTreeTickSystem(registry);
+            var sys      = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState
@@ -87,7 +87,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BTreeInterpreter = interpreter,
             });
 
-            var sys = new BTreeTickSystem(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState
@@ -136,7 +136,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BTreeInterpreter = interpreter,
             });
 
-            var sys = new BTreeTickSystem(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState
@@ -162,7 +162,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ── Task-1 Tests: BehaviorFinishedEvent ──────────────────────────────────
 
         // Helper: build a one-node tree that always returns the given status.
-        private static (BehaviorRegistry registry, BTreeTickSystem sys) BuildTerminalSystem(
+        private static (BehaviorRegistry registry, BrainTickSystem sys) BuildTerminalSystem(
             EntityRepository world, int behaviorId, string behaviorName, NodeStatus status)
         {
             var registry  = new BehaviorRegistry();
@@ -177,7 +177,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier        = BehaviorConstants.BrainTierBTree,
                 BTreeInterpreter = interpreter,
             });
-            var sys = new BTreeTickSystem(registry);
+            var sys = new BrainTickSystem(registry);
             return (registry, sys);
         }
 
@@ -299,7 +299,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void BehaviorFinished_NotPublishedByLocomotionDispatcher()
         {
-            // Running LocomotionDispatcherSystem alone (no BTreeTickSystem) must NOT
+            // Running LocomotionDispatcherSystem alone (no BrainTickSystem) must NOT
             // produce a BehaviorFinishedEvent even when the executor sets channel status.
             var world = TestWorldFactory.Create();
 
@@ -394,7 +394,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BTreeInterpreter = interpreter,
             });
 
-            var sys = new BTreeTickSystem(registry);
+            var sys = new BrainTickSystem(registry);
 
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState

@@ -127,7 +127,9 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
             //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
             //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            Assert.Equal(16, pack.SimulationSystems.Count);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
             //    re-baselines without reading why it moved.
@@ -155,7 +157,7 @@ namespace Hrot.SimHost.Tests
 
             // CognitiveRuntimeModule systems
             Assert.Contains(pack.SimulationSystems, s => s is ChannelArbitrationSystem);
-            Assert.Contains(pack.SimulationSystems, s => s is BTreeTickSystem);
+            Assert.Contains(pack.SimulationSystems, s => s is BrainTickSystem);   // O7c-④b: was BTreeTickSystem
 
             // ActionDispatchModule systems
             Assert.Contains(pack.SimulationSystems, s => s is LocomotionDispatcherSystem);
@@ -325,7 +327,9 @@ namespace Hrot.SimHost.Tests
             // ⛔ O7c-① (2026-09-22) — 1 FEWER: HsmTickSystem<BrainHsm64> is gone with its
             //    component. 📐 Nothing in production ever attached BrainHsm64, so that system
             //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
-            Assert.Equal(17, pack.SimulationSystems.Count);
+            // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
+            //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
+            Assert.Equal(16, pack.SimulationSystems.Count);
         }
 
         /// <summary>
@@ -355,7 +359,8 @@ namespace Hrot.SimHost.Tests
             //    only the Editor (CE-161's defect shape, one level up: the tier COMPONENTS moved
             //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
-            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
+            Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

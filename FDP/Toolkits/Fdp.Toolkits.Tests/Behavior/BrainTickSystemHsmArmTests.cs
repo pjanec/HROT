@@ -7,6 +7,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
+using Fdp.Toolkit.Blueprints.Partitioning;
 using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests
@@ -15,7 +16,7 @@ namespace Fdp.Toolkit.Behavior.Tests
     /// BHU-007: terminal-state detection and <see cref="BehaviorFinishedEvent"/> publication.
     /// BHU-009: interrupt-inject path (blackboard byte 126 -> MobilityLost enqueue).
     /// </summary>
-    public unsafe class HsmTickSystemTerminalTests
+    public unsafe class BrainTickSystemHsmArmTests
     {
         // ---- Blob builders ----
 
@@ -97,12 +98,18 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier          = BehaviorConstants.BrainTierHsm,
                 InstanceId         = instanceId,
             });
-            var brain = new BrainHsm128();
-            brain.State.Header.MachineId = blob.Header.StructureHash;
-            brain.State.Header.Phase     = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0] = 0xFFFF;
-            world.AddComponent(e, brain);
+            // ⭐⭐ O7c-④b: the instance lives in an OCCURRENCE SLOT, sized by SelectTier(blob).
+            //   EnsureRootInstance provisions the store, attaches the slot and stamps MachineId +
+            //   Phase=Entry + 0xFFFF leaves — which is exactly the three lines this replaces.
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, behaviorId, blob));
             return e;
+        }
+
+        /// <summary>The instance pointer and its size, asserting the slot is there.</summary>
+        private static byte* InstanceOf(EntityRepository world, Entity e, out int size)
+        {
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* p, out size));
+            return p;
         }
 
         private static int CountEventsForEntity(EntityRepository world, Entity e)
@@ -128,7 +135,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             sys.Execute(world, 0.016f);
@@ -152,7 +159,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: event published, Terminated cleared by system.
@@ -184,7 +191,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: initial behavior terminates -- event fires.
@@ -195,10 +202,10 @@ namespace Fdp.Toolkit.Behavior.Tests
             // Simulate behavior re-assignment: bump InstanceId and re-initialise HSM.
             ref var behavior = ref world.GetComponentRW<BehaviorState>(e);
             unchecked { behavior.InstanceId++; }
-            ref var brain = ref world.GetComponentRW<BrainHsm128>(e);
-            brain.State.Header.MachineId    = blob.Header.StructureHash;
-            brain.State.Header.Phase        = InstancePhase.Entry;
-            brain.State.ActiveLeafIds[0]    = 0xFFFF;
+            // ⭐ O7c-④b: re-bind through the slot. This is what BehaviorIngressSystem does on a
+            //   real re-assign (RootHsmAccess.ResetInstance), spelled out here so the rail keeps
+            //   testing the DEDUP rather than the ingress path.
+            Assert.True(RootHsmAccess.ResetInstance(world, e, blob));
 
             // Frame 2: new InstanceId, machine re-enters final state -- new event.
             sys.Execute(world, 0.016f);
@@ -221,7 +228,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
             // Frame 1: entity terminates -- system starts tracking it.
@@ -230,8 +237,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(1, CountEventsForEntity(world, e));
             Assert.Equal(1, sys.TrackedEntityCount);
 
-            // Remove the component so the entity is no longer in the query.
-            world.RemoveComponent<BrainHsm128>(e);
+            // ⭐⭐⭐ O7c-④b — "NO LONGER IN THE WALK", RESTATED IN SLOT TERMS. 📄 §31.14.6.
+            //   ⛔ This used to remove BrainHsm128. There is no brain component any more, so the
+            //   sweep's premise had to be restated: an entity leaves the walk when its STORE goes.
+            //   ⚠ That is not a weaker claim — it is the SAME one at the level where it can still be
+            //   violated, and the sweep now protects the BTree arm too, which never had it.
+            BlueprintTierTable.Of(world, e)!.Remove(world, e);
 
             // Frame 2: entity not seen -- stale entry pruned.
             sys.Execute(world, 0.016f);
@@ -256,7 +267,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainInterrupts());
 
@@ -268,8 +279,8 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // Event is enqueued before HsmKernel.Update (which only advances one phase from Entry).
             // After Init: Phase=Activity, event still in queue.
-            BrainHsm128 brainCopy = world.GetComponent<BrainHsm128>(e);
-            int queueCount = HsmEventQueue.GetCount(&brainCopy);
+            byte* inst = InstanceOf(world, e, out int instSize);
+            int queueCount = HsmEventQueue.GetCount(inst, instSize);
             Assert.True(queueCount > 0,
                 "MobilityLost event must be enqueued into the HSM when blackboard byte 126 is set.");
 
@@ -289,15 +300,15 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier     = BehaviorConstants.BrainTierHsm,
                 HsmDefinition = blob,
             });
-            var sys = new HsmTickSystem<BrainHsm128>(registry);
+            var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob);
             world.AddComponent(e, new BrainInterrupts());
             // byte 126 is 0 by default.
 
             sys.Execute(world, 0.016f);
 
-            BrainHsm128 brainCopy = world.GetComponent<BrainHsm128>(e);
-            int queueCount = HsmEventQueue.GetCount(&brainCopy);
+            byte* inst = InstanceOf(world, e, out int instSize);
+            int queueCount = HsmEventQueue.GetCount(inst, instSize);
             Assert.Equal(0, queueCount);
 
             world.Dispose();
