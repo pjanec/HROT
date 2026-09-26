@@ -107,6 +107,96 @@ public sealed class HsmDocumentFactoryTests : IDisposable
             new List<EventDefinition>());
     }
 
+    // ── E5 items 6-7: the CANVAS gets the resolvers the Diagnostics window has ──
+    //
+    // 🔒 The silent-default rule's checkable control: "a forwarding rail PER DEPENDENCY, asserted on
+    //    the CONSTRUCTED OBJECT — not on the registrar's source."
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
+
+    /// <summary>A parallel composite running the SAME sub-tree asset in two regions — rule 8's shape.</summary>
+    private static HsmAsset MakeRuleEightViolation(Guid subtreeId)
+    {
+        var root     = new StateNode("__root__");
+        var parallel = new StateNode("Parallel") { IsParallel = true, Parent = root };
+        root.Children.Add(parallel);
+
+        var c0 = new StateNode("C0") { IsInitial = true, RegionIndex = 0, Parent = parallel, SubtreeAssetId = subtreeId };
+        var c1 = new StateNode("C1") { RegionIndex = 1, Parent = parallel, SubtreeAssetId = subtreeId };
+        parallel.Children.Add(c0);
+        parallel.Children.Add(c1);
+
+        var rn0 = new RegionNode("R0") { RegionIndex = 0, InitialChild = c0 };
+        var rn1 = new RegionNode("R1") { RegionIndex = 1, InitialChild = c1 };
+        parallel.RegionNodes.Add(rn0);
+        parallel.RegionNodes.Add(rn1);
+
+        return new HsmAsset(
+            Guid.NewGuid(), "RuleEightHost", "", false, "",
+            new HsmDefinitionBlob(), new MachineMetadata(),
+            root,
+            new List<StateNode> { parallel, c0, c1 },
+            new List<TransitionNode>(),
+            new List<GlobalTransitionNode>(),
+            new List<RegionNode> { rn0, rn1 },
+            new List<EventDefinition>());
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The resolver REACHES THE CANVAS — rule 8 badges a node.</b>
+    ///
+    /// <para>🔴 <b>RED before this change.</b> <c>HsmDocumentFactory</c> built
+    /// <c>new HsmGraphModel(hsmAsset)</c> with NO resolvers, while the composition root handed both
+    /// to <c>HsmAssetValidator</c> ⇒ rules 8/8b fired in the Diagnostics window and were inert on the
+    /// node badges. ⛔ That is precisely the split <c>HsmGraphModel</c>'s own remarks warn about:
+    /// <i>"a resolver on only one of them would make a state light up in one surface and not the
+    /// other."</i></para>
+    ///
+    /// <para>⭐ The two arms differ ONLY by the resolver, so this rail red-proves itself: pass
+    /// <c>null</c> and the badge is gone.</para>
+    /// </summary>
+    [Fact]
+    public void HsmDocumentFactory_ForwardsIsStatefulSubtree_SoRuleEightBadgesTheCanvas()
+    {
+        var subtreeId = new Guid("6700000e-0000-0000-0000-00000000e567");
+        var bundle    = MakeBundle();
+
+        // ⛔ WITHOUT the resolver — the pre-2026-09-26 behaviour, and the control arm.
+        var without = HsmDocumentFactory.Build(MakeRuleEightViolation(subtreeId), bundle);
+        without.View.Model.Nodes.Should().NotContain(n => n.State == NodeEditor.Primitives.NodeState.Error,
+            "with no resolver the validator's rule 8 cannot fire — that WAS the defect");
+
+        // ⭐ WITH it — the same asset, the same factory, one argument different.
+        var with = HsmDocumentFactory.Build(
+            MakeRuleEightViolation(subtreeId), bundle,
+            isStatefulSubtree: id => id == subtreeId);
+
+        with.View.Model.Nodes.Should().Contain(n => n.State == NodeEditor.Primitives.NodeState.Error,
+            "the canvas must badge a rule-8 violation exactly as the Diagnostics window reports it");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>And rule 8b's resolver is forwarded too</b> — ⛔ threading only the first would have
+    /// half-fixed the split, leaving 8b inert on the canvas alone.
+    ///
+    /// <para>⚠ Asserted as <b>reached</b> rather than as a diagnostic: rule 8b needs two DIFFERENT
+    /// sub-trees colliding on one scope key, and the cheap honest check that the delegate arrives is
+    /// that the factory asks it about the asset's hosts.</para>
+    /// </summary>
+    [Fact]
+    public void HsmDocumentFactory_ForwardsSharedScopeKeys()
+    {
+        var subtreeId = new Guid("6800000e-0000-0000-0000-00000000e568");
+        var asked     = new List<Guid>();
+
+        HsmDocumentFactory.Build(
+            MakeRuleEightViolation(subtreeId), MakeBundle(),
+            isStatefulSubtree: _ => false,
+            sharedScopeKeys:   id => { asked.Add(id); return System.Array.Empty<int>(); });
+
+        asked.Should().Contain(subtreeId,
+            "rule 8b's resolver must reach the canvas's validator, not just the Diagnostics window's");
+    }
+
     // ── AIE-022 Tests ──────────────────────────────────────────────────────────
 
     [Fact]

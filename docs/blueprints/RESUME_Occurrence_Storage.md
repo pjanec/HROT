@@ -18,8 +18,14 @@ build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Bran
   `ActivityAction` now runs EVERY TICK (§32.14). It exposed a real unbounded `GetState` walk, and
   found workarounds ④ and ⑤ — **both inside test suites**, one of them the engine's own.
   ✅ `E5` `A1` DONE — `SubtreeName` round-trips through real JSON (§32.10).
-  📋 OPEN: E5 items 6-7 (deferred with a measurement) · BTree-hosts-BTree (not built).
-  ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1` NOT BUILT** — see §0b.
+  ✅ `E5` **ITEM 6 DONE `2026-09-26`** as `CE-338` (§32.15) — **the canvas now gets the resolvers the
+  Diagnostics window already had.** 🔴 §32.11.3's deferral was WRONG: `IAssetCatalog` and BOTH
+  resolvers already existed; what was missing was ONE ARGUMENT to `HsmGraphModel`. New
+  `IStatefulScopeAsset` (`Hrot.Editor.AiShared`) let `CgfSubsystem` wire it too — it had been
+  *structurally* unable to, not negligent. ⚠ **Rules 8/8b still cannot fire on a real asset** — the
+  blocker MOVED from wiring to **AUTHORING** (`HsmFacets.StateFacet` has no subtree fields).
+  📋 OPEN: E5 item 7 (the A-hosts-B-hosts-A cycle, now cheap) · HSM subtree AUTHORING ·
+  BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
 current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
@@ -125,7 +131,10 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
 | **BTree-hosts-BTree** | ⛔ **NOT BUILT, and no longer expressible the old way** — both orchestrator arms are retired (`CE-337`). ⭐ It is `E5`'s shape with the NODE's visual id as the site: a `{SubtreeAssetId, SubtreeName}` pair, `ComputeTreeStateKey`, a `HostedChildren` binding, and a per-frame tick. ⛔ A SLICE, not a patch — and nothing should re-wire an emitter to `OrchestratorAliasCollector` to fake it | ⭐ **ours, when wanted** |
 | ⚠ **`CE-334`'s residual risk** | an activity action that **assumes a component** now runs in states and on entities where it previously lay dormant ⇒ it throws where it used to be silent. 📐 Today's only shipped activity action is `Activity_Cruise` and production APCs carry `LocomotionChannel` — but **this is the failure mode to expect if a new HSM misbehaves** | ⭐ watch, not a task |
-| **`E5` items 6-7** | wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys`, then the `A`-hosts-`B`-hosts-`A` cycle check. ⛔ **Deferred with a measurement, not dropped:** `HsmDocumentFactory:87` builds `HsmGraphModel(hsmAsset)` with no resolver, and `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have | ⚠ **editor-lane shaped** — ask before absorbing |
+| ✅ **`E5` item 6** | ✅ **DONE `2026-09-26` as `CE-338`** (§32.15) — both resolvers now reach `HsmGraphModel` from **both** production call sites; new `IStatefulScopeAsset` unblocked `CgfSubsystem`. 🔴 **The deferral below was WRONG** and is kept only so the correction is legible |
+| ⛔ ~~**`E5` items 6-7**~~ | ~~wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys` … `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have~~ 🔴 **REFUTED `2026-09-26`:** `IAssetCatalog` exists with five contributors, **and both resolvers were already written and already handed to `HsmAssetValidator`** — what was missing was **one argument**. ⚠ The "no catalogue" half was TRUE and **irrelevant**: the fix passes the ANSWER, not the source | — |
+| **`E5` item 7** | the `A`-hosts-`B`-hosts-`A` cycle check. ⭐ **Now genuinely cheap** — it needs the same catalogue `CE-338` proved reachable | ⭐ ours, small |
+| ⛔ **HSM subtree AUTHORING** | 🔴 **the REAL blocker, and `CE-338` is what exposed it:** rules 8/8b are wired and still cannot fire, because **no asset can declare a hosting state** — `HsmFacets.StateFacet` exposes `OnEntryAction`/`OnExitAction`/`ActivityAction`/`TimerAction` and **no subtree fields**, and nothing outside the mapper writes `StateNode.SubtreeAssetId` | ⚠ **editor-lane shaped** — ask before absorbing |
 | **`E5` `A1`** | round-trip `SubtreeName` through real JSON text into a fresh model | ⭐ ours, small |
 | **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |
 | **`CE-335`** | 🔴 **the BTree alias arm does not compile either** — `{Child}.GetInterpreter()` is defined nowhere | ⭐ **ours** — one rail that COMPILES an emitted orchestrator closes it and `CE-333` together, and that rail is `E5`'s `A2` |
@@ -143,6 +152,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | **5** | ⚠ **A fresh worktree is not automatically a valid baseline environment**, and ⛔ **do not tear one down while a run is still using it** — I killed the `Hrot.Blueprints.Tests` leg that way |
 | **6** | ⛔⛔ **A TEXT-ASSERTING golden cannot tell you the code it pins is not valid C#** — that is exactly how `CE-333` survived. 🔒 §32.8 `A2` makes "it COMPILES" an acceptance item |
 | **7** | 🔴🔴 **A DESIGN CAN CONTRADICT ITS OWN DOCUMENT.** §32 assumed a per-frame HSM hook while §31.18.1 — **in the same file, written the same day** — already proved the phase machine's fixed point. ⇒ `R-129`'s *"read the owning design"* bites hardest when the owning design **is the one you are writing**: re-read the sections your new one depends on, not only the ones it cites |
+| **14** | ⛔⛔⛔ **A DEFERRAL IS A CLAIM, AND IT NEEDS THE SAME MEASUREMENT AS A LEAN.** 📐 `2026-09-26`: I deferred `E5` item 6 as *"it needs a service the composition root does not have"* — ⭐ **the service existed, with five contributors; both resolvers were already written; both were already handed to the OTHER consumer.** What was missing was **one argument**. 🔒 The deferral's one measured fact *(`AiEditorAdapterBundle` has no catalogue)* was **true and irrelevant** — it settled *"can this class build the answer?"* when the question was *"does the answer exist anywhere?"* ⇒ ⭐⭐ **"X is not available" is an ABSENCE claim and falls under the enumeration rule** — `search_graph` first, never a glance at one composition root. ⚠ **The user overturned it in one sentence** *("if nothing provides what the HSM code needs, that is a sign we might need to build it")* — ⛔ **a deferral that survives only until someone questions it was never measured.** |
 | **13** | 🔒🔒 **A WORKAROUND INSIDE A RAIL IS WHY NO RAIL SEES THE DEFECT.** 📐 `CE-334`'s one-shot had **five** workarounds; two lived in test suites — the engine's own rail enqueued a **dummy event matching no transition** to *"hit Activity phase again"*, and an HROT rail relied on *"Idle with an empty queue is a no-op tick"*. ⇒ ⭐ when a fixture does something ODD to provoke normal behaviour, the oddity is the bug report. **Read fixtures for what they work around, not just what they assert** |
 | **12** | ⛔⛔ **WATCH FOR A JUSTIFICATION THAT KEEPS MOVING.** 📌 I defended keeping one orphaned type THREE times — *a named future use* · *a contract worth pinning* · *awkward plumbing to re-add* — and each fell to one measurement *(the payload already carries it · `P4` dissolved its question · it is ONE LINE, `rawFiles.Collect()`)*. 🔒 **A conclusion that survives by changing its reason is not surviving.** ⭐ When the argument moves twice, measure the thing instead of arguing for it |
 | **11** | 🔒🔒 **"UNREFERENCED" IS ONLY EVIDENCE WHEN SOMEONE ELSE MADE IT SO.** 📌 I removed a per-compile parse justifying it as *"zero production callers"* — an orphan **my own commit had created minutes earlier**, and in the same pass I deleted its only rail. ⇒ ⭐ when YOUR change orphans something, the test is not *"who calls it"* but ***"what capability is this, and is it still wanted?"*** — and if yes, **keep it AND keep it tested**; a kept-but-unexercised type is a capability nobody dares re-wire |
@@ -158,10 +168,11 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 |---|---|
 | `Fdp.Toolkits.Tests` | **2328 / 2328** |
 | `Hrot.Blueprints.Tests` | **4054**, 18 skipped — ⚠ `DEBT-AIB-030`-style rotating flake seen twice; a single red whose identity CHANGES between runs is not a regression |
-| `Hrot.BTree.Editor.Tests` | **633 / 633** |
-| `Hrot.Hsm.Editor.Tests` | **567 / 567** |
+| `Hrot.BTree.Editor.Tests` | **624 / 624** ⭐ re-measured `2026-09-26`. ⚠ **633 → 624 is ACCOUNTED FOR, not a loss:** `CE-337` removed exactly **9 `[Fact]`s** from `BTreeOrchestratorEmitterTests` *(git-diff measured)* — the rails that asserted the emitted text of both now-retired arms. ⭐ Four rails remain and pin the SUPERSESSION by name |
+| `Hrot.Hsm.Editor.Tests` | **570 / 570** ⭐ re-measured `2026-09-26` *(+3: `E5` `A1`×2 and `CE-338`×2, less one superseded)* |
 | `Fhsm.Tests` | **307 / 307** ⚠ out of the root solution — build it, never `--no-build` |
-| `Hrot.Editor.AiShared.Tests` | 2044 / 2046 — ⛔ 1 red `Aie030`, **baselined pre-existing** |
+| `Hrot.Editor.AiShared.Tests` | 2044 / 2046 — ⛔ 1 red `Aie030`, **baselined pre-existing** *(unchanged `2026-09-26`)* |
+| `Hrot.Editor.Tests` | 422 / 424 — ⛔ 1 red `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, **pre-existing and already filed as `BP-548`** *(a GC/ALC-collection assertion; measured there against base `2500ced2d` as failing on BOTH trees in full runs)*. ⭐ **19/19 green under `--filter` `2026-09-26`**, matching `BP-548`'s documented shape exactly |
 | `Hrot.AiEditor.Generators.Tests` | 282 / 286 — ⛔ 4 red `S3`/`T30` shared-slot demos, **baselined pre-existing at HEAD in a worktree** |
 | `Hrot.IG.Tests` | 427 / 435 — ⛔ 7 red, **`CE-332`**, never ran before this session |
 | doc gates | `tracker-counts` OK · `rulings-check` **38/38** · `design-digest` OK · `mermaid-check` **30/30** |

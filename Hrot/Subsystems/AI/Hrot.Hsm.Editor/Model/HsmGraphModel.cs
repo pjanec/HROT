@@ -17,6 +17,10 @@ public sealed class HsmGraphModel : IGraphModel
     private readonly HsmAsset _asset;
     private readonly Func<Guid, bool>? _isStatefulSubtree;
 
+    /// <summary>⭐ Rule 8b's resolver — see the constructor. ⛔ Nullable for the same reason as
+    /// <see cref="_isStatefulSubtree"/>: a hand-built model in a test has no catalogue.</summary>
+    private readonly Func<Guid, IReadOnlyCollection<int>>? _sharedScopeKeys;
+
     // Cache for link adapters keyed by VisualId.
     private readonly Dictionary<LinkId, HsmTransitionLink> _linkCache = new();
 
@@ -26,10 +30,20 @@ public sealed class HsmGraphModel : IGraphModel
     /// the node badges, that one the Diagnostics window — and a resolver on only one of them would
     /// make a state light up in one surface and not the other.
     /// </summary>
-    public HsmGraphModel(HsmAsset asset, Func<Guid, bool>? isStatefulSubtree = null)
+    /// <param name="sharedScopeKeys">
+    /// ⭐⭐ <b>Rule 8b's resolver, added <c>2026-09-26</c> so the canvas asks the SAME two questions
+    /// the Diagnostics window does.</b> ⛔ Threading only <paramref name="isStatefulSubtree"/> would
+    /// have left rule 8b inert on this surface alone — the very split this class's remarks warn
+    /// about, half-fixed.
+    /// </param>
+    public HsmGraphModel(
+        HsmAsset asset,
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
     {
         _asset = asset;
         _isStatefulSubtree = isStatefulSubtree;
+        _sharedScopeKeys   = sharedScopeKeys;
         // Rebuild caches when asset changes.
         _asset.Changed += OnAssetChanged;
         BuildCaches();
@@ -48,7 +62,9 @@ public sealed class HsmGraphModel : IGraphModel
         _linkCache.Clear();
 
         // Run validation once (include blackboard for region-conflict checks).
-        var diagnostics = new HsmValidator(isStatefulSubtree: _isStatefulSubtree)
+        var diagnostics = new HsmValidator(
+                isStatefulSubtree: _isStatefulSubtree,
+                sharedScopeKeys:   _sharedScopeKeys)
             .Validate(_asset, _asset as IBlackboardManagedAsset);
 
         // Map StableId -> worst (Error-wins) severity + message.

@@ -73,7 +73,9 @@ public static class HsmDocumentFactory
         IDebugSession?          debugSession      = null,
         IHsmDebugSession?       hsmDebugSession   = null,
         IDataBreakpointManager? breakpointManager = null,
-        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null)
+        IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
+        Func<Guid, bool>? isStatefulSubtree = null,
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -84,7 +86,20 @@ public static class HsmDocumentFactory
                 nameof(asset));
 
         // ── 1. Graph model ────────────────────────────────────────────────────
-        var graphModel = new HsmGraphModel(hsmAsset);
+        // ⭐⭐⭐ E5 / items 6-7 (2026-09-26) — THE CANVAS NOW ASKS THE SAME QUESTIONS THE DIAGNOSTICS
+        //    WINDOW DOES. 🔴 This used to be `new HsmGraphModel(hsmAsset)` with NO resolvers, while
+        //    the composition root handed both to HsmAssetValidator (EditorSubsystem:3383) — so
+        //    rules 8 and 8b fired in the Diagnostics window and were INERT on the node badges.
+        //    ⛔ That is exactly the split HsmGraphModel's own remarks warn about: "a resolver on
+        //    only one of them would make a state light up in one surface and not the other."
+        //
+        // ⛔⛔ WHY DELEGATES AND NOT AN IAssetCatalog. The predicate has to switch on BOTH
+        //    BehaviorTreeAsset and HsmAsset, and this assembly (Hrot.Hsm.Editor) cannot see the
+        //    former — so it COULD NOT compute it even if handed the catalogue. 🔒 The resolvers'
+        //    own remarks say they live "at the only layer that sees both asset types", and that a
+        //    second copy would let the two surfaces disagree. ⇒ pass the ANSWER, not the source.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
+        var graphModel = new HsmGraphModel(hsmAsset, isStatefulSubtree, sharedScopeKeys);
 
         // ── 2. Kind-specific host components ─────────────────────────────────
         var nodeCatalog  = new HsmNodeCatalog();

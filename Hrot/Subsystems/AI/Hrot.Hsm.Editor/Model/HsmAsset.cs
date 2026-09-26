@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset, IStatefulScopeAsset
 {
     // Identity
     public Guid AssetId { get; }

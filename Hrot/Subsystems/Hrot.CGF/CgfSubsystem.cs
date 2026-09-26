@@ -225,6 +225,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder? _aiCatalogBuilder;
 
     /// <summary>
+    /// ⭐⭐ <b><c>E5</c> items 6-7 — rule 8's resolver, so the CGF canvas asks what the editor's
+    /// canvas asks.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.15.
+    ///
+    /// <para>⛔ <b>This is a SECOND call site, not a second copy of the logic</b> — the predicate is
+    /// one expression over <see cref="Hrot.Editor.AiShared.IStatefulScopeAsset"/>, which is the seam
+    /// that replaced <c>EditorSubsystem</c>'s two-type switch. ⚠ Before that interface existed, CGF
+    /// was structurally unable to answer this: it cannot see both asset types.</para>
+    /// </summary>
+    private bool IsStatefulSubtreeAsset(Guid assetId)
+        => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
+               is Hrot.Editor.AiShared.IStatefulScopeAsset a && a.HasAnyStatefulNode();
+
+    /// <summary>⭐ Rule 8b's resolver — same shape, same reason as <see cref="IsStatefulSubtreeAsset"/>.</summary>
+    private IReadOnlyCollection<int> SharedScopeKeysOfAsset(Guid assetId)
+        => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
+               is Hrot.Editor.AiShared.IStatefulScopeAsset a
+               ? a.GetSharedScopeKeys()
+               : System.Array.Empty<int>();
+
+    /// <summary>
     /// ⭐⭐⭐ <c>CE-059</c> — the AI-graph debug session and the registry the <c>debug.*</c> toolbar group
     /// reads. ⚠ Both were reachable-but-unbuilt: the registry was a LOCAL in <c>BuildAiShell</c>, and the
     /// session was never constructed although this file already holds all three of its ctor arguments
@@ -2161,7 +2181,15 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         breakpointManager: _bpManager,
                         // ⭐⭐⭐ CE-071 — see the BTree arm above.
                         extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
-                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
+                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId),
+                        // ⭐⭐⭐ E5 items 6-7 (2026-09-26) — CGF gets the SAME resolvers the editor
+                        //    does. 🔴 It could not before: the predicate needed a switch over BOTH
+                        //    BehaviorTreeAsset and HsmAsset, and duplicating EditorSubsystem's copy
+                        //    is what its own remarks forbid. ⭐ IStatefulScopeAsset removed the need
+                        //    for the switch, so this is now one expression over the catalogue CGF
+                        //    already holds. 🔒 A production caller that HAS a dependency must pass it.
+                        isStatefulSubtree: IsStatefulSubtreeAsset,
+                        sharedScopeKeys:   SharedScopeKeysOfAsset);
                     break;
 
                 case Hrot.Editor.AiShared.AssetKind.Blueprint:

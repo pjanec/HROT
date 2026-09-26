@@ -231,7 +231,7 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset
 {
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();

@@ -4587,7 +4587,15 @@ namespace Hrot.Editor
                             breakpointManager: _bpManager,
                             // ⭐⭐⭐ CE-071 — see the BTree arm above.
                             extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
-                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
+                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId),
+                            // ⭐⭐⭐ E5 items 6-7 (2026-09-26) — THE SAME TWO RESOLVERS THIS CLASS
+                            //    ALREADY HANDS HsmAssetValidator AT :3383. 🔴 Until now the canvas
+                            //    got NEITHER, so rules 8/8b lit up the Diagnostics window and left
+                            //    the node badges blank — the split both resolvers' remarks and
+                            //    HsmGraphModel's remarks explicitly warn about.
+                            // 🔒 A production caller that HAS a dependency must PASS it.
+                            isStatefulSubtree: IsStatefulSubtreeAsset,
+                            sharedScopeKeys:   SharedScopeKeysOfAsset);
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Blueprint:
                         // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
@@ -5649,18 +5657,22 @@ namespace Hrot.Editor
         /// </para>
         ///
         /// <para>
-        /// ⚠ <b>Rules 8/8b may still not fire on real assets</b>: <c>StateNode.SubtreeAssetId</c> is not
-        /// persisted (<c>DEBT-AIB-028</c>(a)), so nothing sets the field yet — that is <c>E5</c>'s
-        /// prerequisite. ⭐ This makes the WIRING honest; <c>E5</c> makes the rule reachable.
+        /// ⚠⚠ <b>CORRECTED <c>2026-09-26</c>.</b> This said <i>"rules 8/8b may still not fire on real
+        /// assets: <c>StateNode.SubtreeAssetId</c> is not persisted (<c>DEBT-AIB-028</c>(a))"</i>.
+        /// ⭐ <b>Both halves are now done:</b> the Guid persists (<c>DEBT-AIB-028</c>(a)) and
+        /// <c>E5</c> added <c>SubtreeName</c> beside it, round-tripped by <c>E5_A1</c>.
+        /// ⛔ <b>What still gates the rules is AUTHORING</b> — no inspector surface writes either
+        /// field, so no real asset declares a hosting state yet. 📄
+        /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.15.
         /// </para>
         /// </summary>
+        // ⭐⭐ 2026-09-26: the two-type switch became `is IStatefulScopeAsset`. Both assets already
+        //    had these members with identical signatures; what was missing was the SEAM. ⇒ any
+        //    holder of an IAssetCatalog can now build this — which is what let CgfSubsystem stop
+        //    being structurally unable to. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
         private bool IsStatefulSubtreeAsset(Guid assetId)
-            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId) switch
-            {
-                Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => bt.HasAnyStatefulNode(),
-                Hrot.Hsm.Editor.Model.HsmAsset h             => h.HasAnyStatefulNode(),
-                _                                            => false,
-            };
+            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
+                   is Hrot.Editor.AiShared.IStatefulScopeAsset a && a.HasAnyStatefulNode();
 
         /// <summary>
         /// ⭐⭐ <b><c>E4</c>'s SECOND resolver, supplied in Batch 69.</b> Rule 8b compares the shared
@@ -5674,12 +5686,10 @@ namespace Hrot.Editor
         /// </para>
         /// </summary>
         private IReadOnlyCollection<int> SharedScopeKeysOfAsset(Guid assetId)
-            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId) switch
-            {
-                Hrot.BTree.Editor.Model.BehaviorTreeAsset bt => bt.GetSharedScopeKeys(),
-                Hrot.Hsm.Editor.Model.HsmAsset h             => h.GetSharedScopeKeys(),
-                _                                            => System.Array.Empty<int>(),
-            };
+            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
+                   is Hrot.Editor.AiShared.IStatefulScopeAsset a
+                   ? a.GetSharedScopeKeys()
+                   : System.Array.Empty<int>();
 
         private static string? ResolveExpressionTargetField(object? facet) => facet switch
         {

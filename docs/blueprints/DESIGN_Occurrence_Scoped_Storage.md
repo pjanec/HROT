@@ -8260,6 +8260,68 @@ same argument §31.18.2 made, now with the engine's own rail among the exhibits.
 | `Fdp.Examples.UrbanCombat.Tests` | **29 / 29** — but its fixture needed `LocomotionChannel` **registered and attached**. ⭐ **That omission WAS the one-shot showing through**: the activity never ran, so the component the real APC always carries could be left out. The rail is now closer to production, not further |
 | ⭐⭐ **the honest residual risk** | an activity action that **assumes a component** now runs in states and on entities where it previously lay dormant ⇒ it will throw where it used to be silent. 📐 On today's corpus the only shipped activity action is `Activity_Cruise`, and in production the APC has `LocomotionChannel` — but this is the failure mode to expect if a new HSM misbehaves |
 
+## 32.15 ✅ `E5` ITEM 6 — **THE CANVAS GETS THE RESOLVERS THE DIAGNOSTICS WINDOW ALREADY HAD** *(`2026-09-26`)*
+
+> 🔒 **User:** *"HSMs are underadopted. If nothing provides what the HSM code needs is a sign that we
+> might need to build it."* ⭐⭐ **That reframing is what unblocked this** — §32.11.3 had deferred it
+> as *"needs a service the composition root does not have"*. 📐 **Measured: the service existed.**
+
+### 32.15.1 ⛔⛔ THE DEFERRAL WAS WRONG, AND HERE IS WHAT IT MISSED
+
+| I said | 📐 measured `2026-09-26` |
+|---|---|
+| *"`AiEditorAdapterBundle` carries no asset catalogue"* | ✅ true — ⛔ **and irrelevant.** `IAssetCatalog` exists in shared code with `FindByAssetId`/`FindByName`/`All`/`WhereDependsOn`, supplied by **five** contributors *(Blueprints, HSM ×2, BTree ×2)* |
+| *"it needs an is-this-asset-stateful service"* | 🔴 **IT ALREADY EXISTED.** `EditorSubsystem.IsStatefulSubtreeAsset` (`:5657`) and `SharedScopeKeysOfAsset` — **both written, both already handed to `HsmAssetValidator`** at `:3383` |
+| ⇒ what was actually missing | ⭐ **one argument.** `HsmDocumentFactory` built `new HsmGraphModel(hsmAsset)` with no resolvers |
+
+🔒 **This is the seam law in its purest form** — *"we need a shared X" almost always means X exists and
+is under-adopted* — and the under-adoption was **exactly the split both sides' own remarks warn
+about**: `HsmGraphModel`'s *"a resolver on only one of them would make a state light up in one surface
+and not the other"*, and the resolvers' *"two copies would let the node badges and the Diagnostics
+window disagree."* ⇒ **the Diagnostics window had them; the node badges did not.**
+
+### 32.15.2 ⭐ WHAT WAS BUILT
+
+| | |
+|---|---|
+| `HsmGraphModel` | takes **both** resolvers now. ⛔ Threading only `isStatefulSubtree` would have half-fixed the split, leaving rule **8b** inert on the canvas alone |
+| `HsmDocumentFactory.Build` | two optional parameters, mirroring `BTreeDocumentFactory`, which has taken an `IAssetCatalog?` all along |
+| `EditorSubsystem:4584` · `CgfSubsystem:2158` | **both** production call sites pass them. 🔒 *A production caller that HAS a dependency must PASS it* |
+| ⭐⭐ **`IStatefulScopeAsset`** *(new, `Hrot.Editor.AiShared`)* | `HasAnyStatefulNode()` + `GetSharedScopeKeys()` |
+
+⛔⛔ **WHY DELEGATES AND NOT THE CATALOGUE ITSELF, which is what was asked for.** `HsmDocumentFactory`
+lives in `Hrot.Hsm.Editor`, which **cannot see `BehaviorTreeAsset`** — so handed an `IAssetCatalog` it
+still could not compute the predicate. ⇒ pass the **answer**, not the source.
+
+⭐⭐ **And that constraint is what `IStatefulScopeAsset` dissolves.** 📐 Both assets have carried these
+two members, with identical signatures, since `E4` — **with no common type**, so every caller needed a
+two-type `switch`, which only an assembly referencing both editors can write. 📌 That is exactly two
+subsystems, and **only one of them did it** — which is why `CgfSubsystem` was *structurally* unable to
+wire rules 8/8b, not merely negligent. ⭐ Implementing the interface required **no new code on either
+asset**; the predicate is now one expression over the catalogue, and `EditorSubsystem`'s switch
+collapsed into it.
+
+### 32.15.3 📐 THE RAIL — **asserted on the CONSTRUCTED OBJECT**
+
+`HsmDocumentFactory_ForwardsIsStatefulSubtree_SoRuleEightBadgesTheCanvas` builds the **same rule-8
+asset twice, differing only by the resolver**: without it no node carries `NodeState.Error`; with it
+one does. 🔒 The control arm *is* the red-proof, and it pins the pre-change behaviour so a regression
+cannot pass quietly. ⭐ A second rail proves rule 8b's delegate is asked at all.
+🔒 This is the silent-default rule's prescribed control — *a forwarding rail per dependency, asserted
+on the constructed object, not on the registrar's source.*
+
+### 32.15.4 ⚠ WHAT THIS DOES **NOT** DO — **item 7, and the real blocker**
+
+⛔ **Rules 8/8b still cannot fire on a real asset**, and the reason has moved: it is no longer wiring,
+it is **AUTHORING**. 📐 `HsmFacets.StateFacet` exposes `OnEntryAction`, `OnExitAction`,
+`ActivityAction`, `TimerAction` — **no subtree fields** — and nothing outside the mapper writes
+`StateNode.SubtreeAssetId`. ⇒ no asset declares a hosting state, so the rules have nothing to catch.
+⚠ A stale note on `IsStatefulSubtreeAsset` blamed `DEBT-AIB-028`(a) for this; **that is fixed** and
+`E5` added `SubtreeName` beside it — the note is corrected in place.
+
+⛔ **Item 7** (the `A` hosts `B` hosts `A` cycle) is untouched and now genuinely cheap: it needs the
+same catalogue this change proved is reachable.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of
