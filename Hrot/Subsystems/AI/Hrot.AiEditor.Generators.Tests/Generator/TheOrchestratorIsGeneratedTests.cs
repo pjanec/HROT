@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.Linq;
 using System.Reflection;
 using FluentAssertions;
@@ -406,6 +407,80 @@ public sealed class TheOrchestratorIsGeneratedTests
             "an unresolvable slice type must SKIP the asset, loudly");
         OrchestratorText(result).Should().BeNull(
             "⛔ never a group against a field the compilation cannot type");
+    }
+
+    // ══ THE SIBLING CATALOG — UNWIRED, BUT CONTRACT-PINNED ══════════════════════════════
+    //
+    // 🔒 "Unreferenced is not unintentional." GeneratedBTreeSchemaCatalog lost its only CALLER when
+    //    CE-337 retired the orchestrator arms — ⛔ but the CAPABILITY it provides is the one a
+    //    generator cannot get any other way: what a SIBLING asset declares, read from JSON without
+    //    loading an assembly (Q49 option D). Per-SITE BTree hosting needs exactly it.
+    // ⛔⛔ Keeping a type while deleting its only exercise leaves it PRESENT, UNWIRED and UNTESTED —
+    //    which is how a capability rots into a thing nobody dares re-wire. ⇒ these rails pin its
+    //    CONTRACT directly, so it can be re-wired against a known-good answer.
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.13.
+
+    private static ImmutableArray<(string Path, string Text)> Texts(params (string Path, string Text)[] files)
+        => ImmutableArray.Create(files);
+
+    /// <summary>
+    /// ⭐⭐ The catalog maps <c>AssetId → (Name, BlackboardTypeName)</c>, and it reads the
+    /// <b>ASSET-LEVEL</b> <c>BlackboardTypeName</c>.
+    ///
+    /// <para>⛔⛔ <b>The field choice is load-bearing and the source says so:</b> NOT
+    /// <c>dto.Blackboard.TypeName</c>, which is the BLOCK's name and a different field. The other arm
+    /// reads the asset-level one, and two arms reading different properties would derive different
+    /// identities for the same sub-tree — the silent divergence <c>SubtreeSyncIdentity</c> exists to
+    /// prevent.</para>
+    /// </summary>
+    [Fact]
+    public void TheSiblingCatalogReadsTheAssetLevelBlackboardTypeName()
+    {
+        var dto = SampleScoutDto();
+        dto.Name = "ShootBT";
+        dto.AssetId = Guid.NewGuid();
+        dto.BlackboardTypeName = "Hrot.Game.ShootBlackboard";
+        dto.Blackboard.TypeName = "NotThisOne";
+
+        var catalog = GeneratedBTreeSchemaCatalog.Parse(
+            Texts(("/p/ShootBT.btree.json", BTreeJsonServices.Serialize(dto))));
+
+        catalog.Should().ContainKey(dto.AssetId);
+        catalog[dto.AssetId].Name.Should().Be("ShootBT");
+        catalog[dto.AssetId].BlackboardTypeName.Should().Be("Hrot.Game.ShootBlackboard",
+            "⛔ the ASSET-level field, never the blackboard BLOCK's TypeName");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Best-effort by contract: a malformed or type-less sibling is SKIPPED, never thrown on.</b>
+    ///
+    /// <para>🔒 The reason is in the source and it is a real constraint: a broken asset is already
+    /// reported by its OWN generation pass, and a caller must not fail because a sibling is mid-edit.
+    /// ⛔ A catalog that throws would turn one designer's half-saved file into everyone's build
+    /// break.</para>
+    /// </summary>
+    [Fact]
+    public void TheSiblingCatalogSkipsWhatItCannotUse_AndNeverThrows()
+    {
+        var good = SampleScoutDto();
+        good.Name = "Good";
+        good.AssetId = Guid.NewGuid();
+        good.BlackboardTypeName = "Hrot.Game.GoodBlackboard";
+
+        var noType = SampleScoutDto();
+        noType.Name = "NoType";
+        noType.AssetId = Guid.NewGuid();
+        noType.BlackboardTypeName = "";       // ⛔ skipped: no identity to contribute
+
+        var catalog = GeneratedBTreeSchemaCatalog.Parse(Texts(
+            ("/p/Good.btree.json",    BTreeJsonServices.Serialize(good)),
+            ("/p/NoType.btree.json",  BTreeJsonServices.Serialize(noType)),
+            ("/p/Broken.btree.json",  "{ this is not json"),
+            ("/p/Empty.btree.json",   "")));
+
+        catalog.Should().ContainKey(good.AssetId, "the usable sibling must survive its neighbours");
+        catalog.Should().NotContainKey(noType.AssetId, "a tree with no blackboard type contributes nothing");
+        catalog.Should().HaveCount(1);
     }
 
     // ══ CE-337 — THE RETIRED ARMS' DATA IS LOUD, NOT SILENT ═════════════════════════════

@@ -8097,6 +8097,36 @@ costs 11 structs across 44 files and silently breaks sub-tree matching *(§32.13
 `BlackboardStructName`, a **generator-side** answer the persisted field cannot carry. ⇒ per-SITE
 hosting is not merely the tidier route; the alias route had no correct spelling available to it.
 
+### 32.12b ⚠ **A CHALLENGE THAT LANDED — "orphaned" was CIRCULAR reasoning** *(user, `2026-09-26`)*
+
+> 🔒 **User:** *"this sounds suspicious … isn't this the 'unused is not equal to unneeded'?"*
+
+⭐⭐ **Yes, on the reasoning — and the record should say so.** §32.13 justified removing
+`GeneratedBTreeSchemaCatalog.Parse` as *"zero production callers."* ⛔ **That absence was created by
+the same commit, five minutes earlier.** An orphan you just manufactured carries **no information**
+about whether the thing is needed — which is precisely what the rule guards.
+
+⚠ **And the same pass removed `TwoSiblingTrees_…`, the only rail exercising sibling resolution.**
+⇒ the capability went from **wired + tested** to **present, unwired and untested** in one step. 🔴
+That is the state the rule exists to prevent, whatever the merits of the removal.
+
+| ⭐ what survives the challenge | 📐 |
+|---|---|
+| the removal itself | `Parse` is **pure** — no diagnostics, no cache, no side effects ⇒ removing the call changed nothing observable |
+| the cost, which was WORSE than first stated | `GenerateOneAsset` runs **per asset**, so it deserialized every sibling **N times per pass** — ~**26 × 26** on today's corpus, not 26 |
+| the capability's necessity | ⭐ unchanged and NAMED: per-site BTree hosting needs *"what a sibling declares, without loading an assembly"* (`Q49` option D) |
+
+| ⭐⭐ what the challenge FIXED | |
+|---|---|
+| **the contract is now PINNED** | two rails on `Parse` itself: it reads the **ASSET-LEVEL** `BlackboardTypeName` *(⛔ not the block's — two arms reading different fields is the divergence `SubtreeSyncIdentity` exists to prevent)*, and it **skips malformed / type-less siblings without throwing** *(a half-saved file must not break everyone's build)* |
+| **the dangling input is DOCUMENTED, not bare** | `btreeJsonFiles` is still threaded and now says why at the parameter: the pipeline stage is the awkward half to re-add, one `Parse` call is the easy half |
+
+🔒 **The generalised lesson, and it is worth more than this instance:** *"unreferenced"* is only
+evidence when **someone else** made it so. ⇒ ⭐ **when your own change orphans something, the test is
+not "who calls it" but "what capability does it provide, and is that capability still wanted?"** —
+and if the answer is yes, **keep it AND keep it tested**, because a kept-but-unexercised type is a
+capability nobody dares re-wire.
+
 ### 32.13 ✅ `CE-337`'s THREE SWEEPS — **all three resolved `2026-09-26`, and the answer to each was NOT "delete"**
 
 > 🔒 **User: "Lets finish those."** ⭐ Each was *"decide on evidence"*, and the evidence settled all

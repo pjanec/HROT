@@ -90,6 +90,23 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         });
     }
 
+    /// <param name="btreeJsonFiles">
+    /// ⚠⚠ <b>CURRENTLY UNREAD, AND DELIBERATELY STILL THREADED. <c>2026-09-26</c>, <c>CE-337</c>.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.13.
+    ///
+    /// <para>⭐ Its consumer was <c>GeneratedBTreeSchemaCatalog.Parse</c> → the subtree-sync
+    /// projection, whose READER (the Approach-B orchestrator) was retired. ⛔ The parse is gone
+    /// because it cost real work for an unread value: <see cref="GenerateOneAsset"/> runs
+    /// <b>ONCE PER ASSET</b>, so it deserialized every sibling <c>*.btree.json</c> N times per pass
+    /// — 📐 ~26 × 26 on today's corpus.</para>
+    ///
+    /// <para>🔒 <b>The PLUMBING stays on purpose.</b> Per-SITE BTree hosting needs exactly this input
+    /// — what a sibling asset declares, without loading an assembly — and re-adding an incremental
+    /// pipeline stage is the awkward half; re-adding one <c>Parse</c> call is the easy half.
+    /// ⚠ The catalog's contract is pinned by rails even while unwired
+    /// (<c>TheSiblingCatalogReadsTheAssetLevelBlackboardTypeName</c> and its sibling), so it can be
+    /// re-wired against a known-good answer rather than a guess.</para>
+    /// </param>
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
         Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles,
         ImmutableArray<(string Path, string Text)> btreeJsonFiles)
