@@ -8810,6 +8810,18 @@ failure is *"we need a shared X"* when X exists. 🔴 **This is its inverse: rea
 corpus before characterising what I had measured.** ⭐ `grep` told me the call count truthfully; ⛔ only
 `behav-diag-1` could tell me what the count MEANT.
 
+🔴🔴 **AND THE DESIGN NAMES IT AS UNFINISHED — which removes the last doubt.** 📄
+`docs/projects/Hrot/AI/Hrot.BTree.Editor.md`: *"When a simulation is running, the editor connects a
+`BTreeDebugSession` to the **kernel adapter**"* (`:58`); the type exposes its `Record*` methods
+***"for the FUTURE kernel adapter"***, with ***"step controls … no-ops UNTIL KERNEL WIRING
+(Slice 3+)"*** (`:294`); `LiveBlackboardPanel` shows a *"`--` placeholder until Slice 3 wires actual
+values"* (`:312`). ⇒ ⭐⭐⭐ **`CE-348` is "build the kernel adapter Slice 3+ deferred."**
+
+⭐⭐ **And the payoff is bigger than a poll.** 📐 The consumers are already constructed and registered
+by `BTreeDocumentFactory`: `HeatmapOverlayRenderer` (`:216`), `BTreeRuntimeOverlayRenderer` (`:202`),
+the breakpoint gutter (`BTreeEditorHostServices:90`) and `SubtreeBoundaryRenderer`. ⇒ **four canvas
+overlays are wired and sitting DARK**, waiting on this one adapter.
+
 ⚠ **One real design question blocks the fix, and it is why this stays uncosted:** the debug session is
 per-**ASSET**, the trace buffer is per-**ENTITY**, and an asset is shared by many entities ⇒ *which
 entity does an open graph follow?* ⭐ The inspector sidesteps this by rendering the SELECTED entity;
