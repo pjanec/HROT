@@ -2139,76 +2139,40 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                        Hrot.Editor.AiShared.AssetRoots.AssetsFor(
                                            Hrot.Editor.AiShared.AssetKind.Blueprint));
 
-        _aiDocumentManager.DocumentOpened += doc =>
-        {
-            if (doc.ViewState != null) return;   // already populated (re-open of an existing doc)
-
-            switch (doc.Kind)
+        // ⭐⭐⭐ CE-340 (2026-09-26) — ONE BINDER, SHARED WITH THE EDITOR.
+        //    🔒 User: "you mention editor path is wired and then you go cgf, that seems like editor
+        //    is running different code, not unified, which is undesired."
+        // 🔴 This WAS a copy of EditorSubsystem's DocumentOpened handler — slice-2 §11 ① states
+        //    the deliverable as "the same three factories the editor wires, minus the debug sessions
+        //    CGF has none of". ⚠ That copy was the only LEGAL move then: slice 2's STATUS carries
+        //    "must NOT modify Hrot.Editor.AiShared (freeze owner = variable-model lane)".
+        //    ⭐ The freeze was LIFTED 2026-08-25, so the shared home is now reachable.
+        // ⛔ What the duplication COST: CGF silently missed HSM rules 8/8b until CE-338, and both
+        //    hosts then carried byte-identical resolver copies until CE-341. ⇒ one argument list now.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.18.
+        Hrot.Editor.AiComposition.AiDocumentViewStateBinder.Bind(
+            new Hrot.Editor.AiComposition.AiDocumentHostServices
             {
-                case Hrot.Editor.AiShared.AssetKind.BTree:
-                    // ⚠ `btreeDebugSession: null` — CGF constructs none (slice 1 §9.4). ⛔ Not a silent
-                    //   default: the parameter exists so a host without one can say so.
-                    doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
-                        doc.Asset, adapters, btreeStore,
-                        btreeDebugSession: null,
-                        breakpointManager: _bpManager,
-                        actionSchema:      schemaExporter,
-                        assetCatalog:      catalog,
-                        openBlueprint:     a => _aiDocumentManager?.Open(a),
-                        // ⭐⭐⭐ CE-071 — the comparison annotation renderer, same as the editor.
-                        //    📄 DESIGN_Comparison_Ui_Mounting.md. It joins this kind's built-in set.
-                        extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
-                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
-                    break;
-
-                case Hrot.Editor.AiShared.AssetKind.Hsm:
-                    doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
-                        doc.Asset, adapters,
-                        hsmDebugSession:   null,
-                        breakpointManager: _bpManager,
-                        // ⭐⭐⭐ CE-071 — see the BTree arm above.
-                        extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
-                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId),
-                        // ⭐⭐⭐ ONE ARGUMENT, §32.17 (2026-09-26) — CGF and the editor now hand the
-                        //    validator the SAME single dependency and it derives rules 8/8b and the
-                        //    item-7 cycle walk itself. 🔴 CE-338 wired CGF by COPYING the editor's two
-                        //    private resolvers verbatim; that duplicate is deleted, because two hosts
-                        //    running two copies of one policy is how CGF came to be missing these
-                        //    rules in the first place.
-                        catalog: _aiCatalogBuilder?.Catalog);
-                    break;
-
-                case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                    doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
-                        doc.Asset, adapters, blueprintEditService, blueprintPalette,
-                        channelCommands:  bpChannelCatalog,
-                        peerAssetCatalog: blueprintPeerCatalog,
-                        behaviorActions:  behaviorActions,
-                        debugSession:     null,
-                        // ⭐⭐⭐ CE-071 — see the BTree arm above.
-                        extraRenderers:   Hrot.Editor.AiShared.Comparison.Rendering
-                            .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
-                    break;
-
-                default:
-                    // Scenario / Blackboard / Utility are not document-backed kinds.
-                    break;
-            }
-
-            // ⭐⭐⭐ MA-003 — MARK THE DOCUMENT DIRTY WHEN ITS ASSET CHANGES.
-            // 📄 docs/DESIGN_Mcp_Authoring.md §10.4.
-            //
-            // 🔴🔴 MEASURED `2026-08-25`, and it made CGF's save a SILENT NO-OP after any edit.
-            //    📐 `SaveAllAiDocumentsCommand.Execute` skips a document whose `IsDirty` is false, and
-            //    `AiDocument.MarkDirty` had exactly ONE production caller in the repo — the EDITOR's
-            //    `DocumentOpened` factory (`EditorSubsystem:4016`), which subscribes `Asset.Changed`
-            //    ⛔ and does so only when a regeneration scheduler exists. ⇒ CGF, which has none and
-            //    never subscribed, could edit a graph and then write NOTHING, reporting success.
-            // ⭐ This is the editor's subscription trimmed to what this host has: no scheduler (CGF
-            //   regenerates nothing — the reload pipeline recompiles from the in-memory asset), just
-            //   the dirty mark that makes CE-020's save reach the file.
-            doc.Asset.Changed += () => doc.MarkDirty();
-        };
+                Adapters             = adapters,
+                DocumentManager      = _aiDocumentManager,
+                BTreeSelectionStore  = btreeStore,
+                Catalog              = catalog,
+                ActionSchema         = schemaExporter,
+                BreakpointManager    = _bpManager,
+                ComparisonSessions   = _comparisonSessionRegistry,
+                BlueprintEditService = blueprintEditService,
+                BlueprintPalette     = blueprintPalette,
+                BlueprintPeerCatalog = blueprintPeerCatalog,
+                BehaviorActions      = behaviorActions,
+                ChannelCommands      = bpChannelCatalog,
+                // ⚠ CGF constructs NO debug sessions (slice 1 §9.4). ⛔ Left null deliberately —
+                //   the record's optional members exist so a host can SAY it has none.
+                // ⭐⭐ MA-003 — the host tail: mark the document dirty so CE-020's save reaches the
+                //   file. ⛔ No regeneration scheduler here (CGF regenerates nothing — the reload
+                //   pipeline recompiles from the in-memory asset), which is the ONE place the two
+                //   hosts genuinely differ. 📄 docs/DESIGN_Mcp_Authoring.md §10.4.
+                OnDocumentOpened = doc => doc.Asset.Changed += () => doc.MarkDirty(),
+            });
 
         // ── RETARGET ON ACTIVE-DOCUMENT CHANGE (CE-015b) ───────────────────────
         // ⭐⭐⭐ MEASURED `2026-08-25`, second half of the same finding. With the factories wired the

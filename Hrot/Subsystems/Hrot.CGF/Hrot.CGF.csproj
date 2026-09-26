@@ -51,6 +51,7 @@
     -->
     <ProjectReference Include="..\AI\Hrot.BTree.Editor\Hrot.BTree.Editor.csproj" />
     <ProjectReference Include="..\AI\Hrot.Hsm.Editor\Hrot.Hsm.Editor.csproj" />
+    <ProjectReference Include="..\..\Editor\Hrot.Editor.AiComposition\Hrot.Editor.AiComposition.csproj" />
     <!-- Scenario serialization toolkit for ScenarioLoadClusterStateHandler (CGF1-S0307) -->
     <!-- Orchestration toolkit contracts -->
     <!-- CgfLogicPack: Brain-tier modules, executors, NetworkEntityMap -->

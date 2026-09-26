@@ -318,6 +318,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HrotStrideApp.Game", "Strid
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "HrotStrideApp.Game.Tests", "Stride\HrotStrideApp.Game.Tests\HrotStrideApp.Game.Tests.csproj", "{DAE1F242-9343-4779-8A19-8C543642274B}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Hrot.Editor.AiComposition", "Hrot\Editor\Hrot.Editor.AiComposition\Hrot.Editor.AiComposition.csproj", "{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -1840,6 +1842,18 @@ Global
 		{DAE1F242-9343-4779-8A19-8C543642274B}.Release|x64.Build.0 = Release|Any CPU
 		{DAE1F242-9343-4779-8A19-8C543642274B}.Release|x86.ActiveCfg = Release|Any CPU
 		{DAE1F242-9343-4779-8A19-8C543642274B}.Release|x86.Build.0 = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|x64.Build.0 = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Debug|x86.Build.0 = Debug|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|x64.ActiveCfg = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|x64.Build.0 = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|x86.ActiveCfg = Release|Any CPU
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -1997,6 +2011,7 @@ Global
 		{DFA0D006-F9E9-4B26-808B-69DCA7B5637F} = {E5AD388A-CD76-6F1A-225B-8052CCE5F567}
 		{5AEC0F0A-A75F-4F99-8777-6E50477718C2} = {E5AD388A-CD76-6F1A-225B-8052CCE5F567}
 		{DAE1F242-9343-4779-8A19-8C543642274B} = {E5AD388A-CD76-6F1A-225B-8052CCE5F567}
+		{D8A1405D-B015-4BB8-B4F1-4BF4C95C40F1} = {A3B4C5D6-E7F8-9012-3456-789012ABCDE1}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {69773B79-3483-4B3A-B763-2975F154224F}

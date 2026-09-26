@@ -8516,6 +8516,94 @@ the selection store, the adapter bundle, and the channel-command catalogue.
 🔒 **Stated plainly so the answer is not over-claimed: the editor and CGF now share the VALIDATOR
 policy, and still each carry their own copy of the DOCUMENT-FACTORY wiring.**
 
+## 32.18 ✅ `CE-340` — **ONE BINDER COMPOSES AN AI DOCUMENT; BOTH HOSTS CALL IT** *(`2026-09-26`)*
+
+> 🔒 **User:** *"you mention editor path is wired and then you go cgf, that seems like editor is
+> running different code, not unified, which is undesired."* — §32.17 fixed the **validator** half;
+> this fixes the **composition** half.
+
+### 32.18.1 📐 THE MEASUREMENT `Q60` DEMANDED FIRST
+
+🔒 `Architect_Question_60` option `C′` prescribes this shape *and* quotes the `HN-037` lesson that
+gates it: ***"measure what the methods capture before lifting."*** ⇒ done before a line was moved.
+
+| what the two handlers capture | editor | CGF | verdict |
+|---|---|---|---|
+| adapter bundle · selection store | `adapterBundle` · `_btreeSelectionStore` | `adapters` · `btreeStore` | ⭐ **same policy, per-host instance** |
+| asset catalogue | `_aiCatalogBuilder?.Catalog` | `catalog` — 📐 **measured: `= _aiCatalogBuilder.Catalog` (`:1926`), the SAME object** | ⭐ identical, two spellings |
+| channel commands | `BuiltInChannelCommandCatalog.Instance` | `bpChannelCatalog` — 📐 **measured: `= BuiltInChannelCommandCatalog.Instance` (`:2132`)** | ⭐ identical, two spellings |
+| schema · breakpoints · comparison registry · peer catalogue · behaviour actions · palette · edit service | present | present | ⭐ same |
+| **the three debug sessions** | 🔴 **three real ones** | ⛔ **all `null`** *(CGF constructs none — slice 1 §9.4)* | ⚠ **a REAL difference** |
+| **the tail** | `MarkDirty()` **+ `scheduler.Schedule(asset)`** | `MarkDirty()` **only** *(no scheduler; the reload pipeline recompiles from memory)* | ⚠ **a REAL difference** |
+
+⇒ ⭐⭐ **Exactly TWO genuine differences out of a dozen inputs.** ⛔ Everything else was one policy
+written twice — ⚠ and two of the inputs were literally **the same object reached by a different
+local name**, which is the clearest possible sign the split was accidental.
+
+### 32.18.2 ⛔⛔ WHY A NEW ASSEMBLY, AND NOT `Hrot.Editor.AiShared`
+
+🔴 **The binder must CALL all three per-kind factories, and the dependency runs the other way.**
+📐 Measured: `Hrot.Hsm.Editor.csproj` → references → `Hrot.Editor.AiShared`, not the reverse. ⇒ a
+binder in `AiShared` **cannot see `HsmDocumentFactory`**.
+
+📐 **And no existing production assembly could host it:** a sweep of every `.csproj` for one
+referencing all three editors returned **exactly four** — `Hrot.Editor`, `Hrot.CGF`, and two TEST
+projects. 🔒 **That is the structural reason the wiring had to be duplicated: the only two places that
+could express it were the two hosts themselves.**
+
+⇒ ⭐ **`Hrot.Editor.AiComposition`** — a new assembly ABOVE the three editors and BELOW the two
+subsystems. ⚠ **The first shared home either host has had for per-kind composition**, and the thing
+whose absence made the copy inevitable.
+
+| ⛔ rejected | the one fact that killed it |
+|---|---|
+| **put it in `Hrot.Editor.AiShared`** | it cannot reference the three editors — the dependency is the other way |
+| **per-kind contributor inversion** *(`IAiDocumentViewStateFactory`, mirroring `IAssetValidator`)* | ⭐ idiomatic here, ⛔ **but it does not solve the stated problem**: each host would still write its own per-kind adapter with its own argument list, so a new factory argument could still land on one host only |
+| **CGF references `Hrot.Editor`** | wrong direction; drags the whole editor subsystem into the cluster host |
+| **leave it** | 📐 the duplication has already cost two defects — `CE-338` *(CGF silently missing rules 8/8b)* and `CE-341` *(byte-identical resolver copies)* |
+
+### 32.18.3 ⭐ THE SHAPE
+
+```mermaid
+graph TD
+    subgraph hosts["the two composition roots"]
+        ED["EditorSubsystem<br/>3 debug sessions · scheduler tail"]
+        CG["CgfSubsystem<br/>no debug sessions · dirty-mark tail"]
+    end
+    B["AiDocumentViewStateBinder.Bind<br/>(Hrot.Editor.AiComposition)"]
+    S["AiDocumentHostServices<br/>one argument list"]
+    BT["BTreeDocumentFactory"]
+    HS["HsmDocumentFactory"]
+    BP["BlueprintDocumentFactory"]
+
+    ED -->|"builds"| S
+    CG -->|"builds"| S
+    S --> B
+    B -->|"AssetKind.BTree"| BT
+    B -->|"AssetKind.Hsm"| HS
+    B -->|"AssetKind.Blueprint"| BP
+    B -->|"OnDocumentOpened"| hosts
+```
+
+⭐ **Caption — what the picture shows that prose hid.** ⛔ **The arrows into the factories now leave
+ONE box.** Before, each host had its own three, which is why a capability could reach one set and not
+the other with nothing to say so. ⭐ The `OnDocumentOpened` edge back to the hosts is the honest part:
+**the tail genuinely differs**, so it is a parameter rather than a decision the binder makes.
+
+### 32.18.4 ⚠ WHAT IS STILL DUPLICATED — **say it rather than imply completeness**
+
+⛔ **`CE-340` covers the `DocumentOpened` → factory path ONLY.** Two siblings named by the same
+slice-2 finding are **untouched**:
+
+| still duplicated | recorded where |
+|---|---|
+| `CgfSubsystem.BuildAssetCatalog` — *"mirrors `EditorSubsystem:986-1061`, including the dual-load"* | slice-2 §7 |
+| the `ActiveChanged` handler — *"the editor's handler, trimmed to what this host has"* | slice-2 §11 ② |
+
+⭐ **Both are the same shape and the same lifted-freeze story**, and both are cheaper now that
+`Hrot.Editor.AiComposition` exists to hold them. ⛔ **Not folded in here** — each needs its own
+capture measurement, which is the discipline that made this one safe.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

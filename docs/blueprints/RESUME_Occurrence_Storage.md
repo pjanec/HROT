@@ -35,10 +35,15 @@ build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Bran
   assembly sees both asset types")* had been dissolved by `IStatefulScopeAsset` **in the same commit**,
   and I did not re-check it. ⭐ One `StatefulScopeQueries` in AiShared; `HsmValidator` derives both
   from the catalogue; production passes ONE argument; both copies deleted. §32.17.
-  ⚠ `CE-340` FILED, not fixed — the `DocumentOpened`→factory `switch` is STILL duplicated in both
-  hosts *(plus `BuildAssetCatalog` and the `ActiveChanged` handler)*. 🔒 **The copies exist because a
-  FREEZE on `Hrot.Editor.AiShared` forbade the extraction** *(slice-2's `known-conflict`)* — and that
-  **freeze was LIFTED `2026-08-25`**, so the constraint is gone and nothing has revisited them.
+  ✅ `CE-340` DONE `2026-09-26` (§32.18) — **ONE `AiDocumentViewStateBinder`, called by both hosts.**
+  📐 Capture measurement first (`Q60`/`HN-037`): of a dozen inputs only TWO differ — the debug
+  sessions and the tail — and two "different" ones were **the same object under another local name**.
+  ⛔ Needed a NEW assembly `Hrot.Editor.AiComposition`: the binder must call all three factories and
+  the editors reference AiShared, not the reverse; **only 4 csproj in the repo see all three**, two of
+  them the hosts themselves — which IS why it was duplicated.
+  ⚠ **STILL duplicated:** `CgfSubsystem.BuildAssetCatalog` and the `ActiveChanged` handler — same
+  shape, same lifted-freeze story, cheaper now the shared home exists. Not folded in: each needs its
+  own capture measurement.
   📋 OPEN: HSM subtree AUTHORING (**the real blocker**) · BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
 current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
@@ -189,7 +194,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | `Hrot.BTree.Editor.Tests` | **629 / 629** ⭐ re-measured `2026-09-26` *(+5: `CE-339`'s BTree cycle rails)*. ⚠ **633 → 624 is ACCOUNTED FOR, not a loss:** `CE-337` removed exactly **9 `[Fact]`s** from `BTreeOrchestratorEmitterTests` *(git-diff measured)* — the rails that asserted the emitted text of both now-retired arms. ⭐ Four rails remain and pin the SUPERSESSION by name |
 | `Hrot.Hsm.Editor.Tests` | **579 / 579** ⭐ re-measured `2026-09-26` *(+3 for `A1`/`CE-338`, then +7 for `CE-339`: 6 cycle rails + 1 forwarding rail, then +2 for `CE-341`)* |
 | `Fhsm.Tests` | **307 / 307** ⚠ out of the root solution — build it, never `--no-build` |
-| `Hrot.Editor.AiShared.Tests` | **2057 / 2059** — ⭐ +13 `SubtreeCycleDetectorTests` (`CE-339`); ⛔ the SAME 1 red `Aie030`, **baselined pre-existing** |
+| `Hrot.Editor.AiShared.Tests` | **2062 / 2064** — ⭐ +13 `SubtreeCycleDetectorTests` (`CE-339`) and +5 `AiDocumentViewStateBinderTests` (`CE-340`); ⛔ the SAME 1 red `Aie030`, **baselined pre-existing** |
 | `Hrot.Editor.Tests` | 422 / 424 — ⛔ 1 red `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected`, **pre-existing and already filed as `BP-548`** *(a GC/ALC-collection assertion; measured there against base `2500ced2d` as failing on BOTH trees in full runs)*. ⭐ **19/19 green under `--filter` `2026-09-26`**, matching `BP-548`'s documented shape exactly |
 | `Hrot.AiEditor.Generators.Tests` | 282 / 286 — ⛔ 4 red `S3`/`T30` shared-slot demos, **baselined pre-existing at HEAD in a worktree** |
 | `Hrot.IG.Tests` | 427 / 435 — ⛔ 7 red, **`CE-332`**, never ran before this session |

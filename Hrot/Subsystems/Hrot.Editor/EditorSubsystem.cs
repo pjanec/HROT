@@ -4561,89 +4561,53 @@ namespace Hrot.Editor
 
             // Wire AiDocumentManager.Open so that opening a BTree/HSM/Blueprint asset populates
             // ViewState via the matching document factory.
-            _aiDocumentManager.DocumentOpened += doc =>
-            {
-                if (doc.ViewState != null) return; // already populated (re-open of existing doc)
-                switch (doc.Kind)
+            // ⭐⭐⭐ CE-340 (2026-09-26) — ONE BINDER, SHARED WITH CGF.
+            //    🔒 User: "you mention editor path is wired and then you go cgf, that seems like
+            //    editor is running different code, not unified, which is undesired."
+            // 🔴 This WAS a hand-rolled DocumentOpened handler with a three-case switch, and
+            //    CgfSubsystem carried a structurally identical copy — same guard, same three
+            //    factories, same extraRenderers expression, differing only in the VALUES supplied.
+            //    ⛔ That is how CGF came to be silently missing HSM rules 8/8b (CE-338) and how both
+            //    hosts ended up with byte-identical resolver copies (CE-341).
+            // ⚠ The copies were NOT carelessness: slice-2's design says "must NOT modify
+            //    Hrot.Editor.AiShared (freeze owner = variable-model lane)", so copying was the only
+            //    legal move at the time. ⭐ That freeze was LIFTED 2026-08-25.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.18.
+            Hrot.Editor.AiComposition.AiDocumentViewStateBinder.Bind(
+                new Hrot.Editor.AiComposition.AiDocumentHostServices
                 {
-                    case Hrot.Editor.AiShared.AssetKind.BTree:
-                        // AIE-033: inject BTree debug session + breakpoint manager so runtime
-                        // overlay and breakpoint-gutter renderers bind to the active session.
-                        doc.ViewState = Hrot.BTree.Editor.Host.BTreeDocumentFactory.Build(
-                            doc.Asset, adapterBundle, _btreeSelectionStore,
-                            btreeDebugSession:   _btreeDebugSession,
-                            breakpointManager:   _bpManager,
-                            actionSchema:        sharedSchemaExporter,
-                            // Phase D (AIE-053): "Open Blueprint" context-menu item on composed
-                            // AiPrimitive nodes — resolve via the shared asset catalog, open via
-                            // the shared AiDocumentManager (which also switches perspective).
-                            assetCatalog:        _aiCatalogBuilder?.Catalog,
-                            openBlueprint:       a => _aiDocumentManager?.Open(a),
-                            // ⭐⭐⭐ CE-071 — the comparison annotation renderer joins this kind's
-                            //    built-in renderer set. 📄 DESIGN_Comparison_Ui_Mounting.md.
-                            extraRenderers:      Hrot.Editor.AiShared.Comparison.Rendering
-                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
-                        break;
-                    case Hrot.Editor.AiShared.AssetKind.Hsm:
-                        // AIE-033: inject HSM debug session + breakpoint manager.
-                        doc.ViewState = Hrot.Hsm.Editor.Host.HsmDocumentFactory.Build(
-                            doc.Asset, adapterBundle,
-                            hsmDebugSession:   _hsmDebugSession,
-                            breakpointManager: _bpManager,
-                            // ⭐⭐⭐ CE-071 — see the BTree arm above.
-                            extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
-                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId),
-                            // ⭐⭐⭐ E5 items 6-7 (2026-09-26) — THE SAME TWO RESOLVERS THIS CLASS
-                            //    ALREADY HANDS HsmAssetValidator AT :3383. 🔴 Until now the canvas
-                            //    got NEITHER, so rules 8/8b lit up the Diagnostics window and left
-                            //    the node badges blank — the split both resolvers' remarks and
-                            //    HsmGraphModel's remarks explicitly warn about.
-                            // 🔒 A production caller that HAS a dependency must PASS it.
-                            // ⭐⭐⭐ ONE ARGUMENT, §32.17 — rules 8/8b AND the item-7 cycle rule all
-                            //    derive from this catalogue, so the canvas and the Diagnostics window
-                            //    cannot drift apart and the editor and CGF run the SAME code.
-                            catalog: _aiCatalogBuilder?.Catalog);
-                        break;
-                    case Hrot.Editor.AiShared.AssetKind.Blueprint:
-                        // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
-                        // Injects per-document EditServiceContext into the shared EditService
-                        // so node drawers route property edits through this document's CommandHistory.
-                        // BCP-BATCH-03 Task 1: forward the channel-command catalog so
-                        // ChannelCommandNodes project their parameter data-IN pins (projection-only).
-                        doc.ViewState = Hrot.Blueprints.Editor.Host.BlueprintDocumentFactory.Build(
-                            doc.Asset, adapterBundle, _blueprintEditService,
-                            _blueprintPaletteEntries,
-                            channelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
-                            peerAssetCatalog: blueprintPeerCatalog,
-                            // AN7: forward the behavior-action catalog so non-channel ChannelCommandNodes
-                            // (ActionFqn set) project their parameter data-IN pins from the matching entry.
-                            behaviorActions: _behaviorActionCatalog,
-                            debugSession: _blueprintDebugSession,
-                            // ⭐⭐⭐ CE-071 — see the BTree arm above.
-                            extraRenderers: Hrot.Editor.AiShared.Comparison.Rendering
-                                .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId));
-                        break;
-                    default:
-                        // Other kinds (Scenario, Blackboard, Utility) have no ViewState factory —
-                        // they are not document-backed kinds.
-                        break;
-                }
-
-                // AIE-026: subscribe to this asset's Changed event so dirty edits
-                // get queued into the regeneration scheduler.
-                // PU-BATCH-10: also mark the document dirty so SaveAllAiDocumentsCommand
-                // includes it (it skips docs where doc.IsDirty == false).
-                if (_regenerationScheduler != null)
-                {
-                    var schedulerRef = _regenerationScheduler;
-                    doc.Asset.Changed += () =>
+                    Adapters             = adapterBundle,
+                    DocumentManager      = _aiDocumentManager,
+                    BTreeSelectionStore  = _btreeSelectionStore,
+                    Catalog              = _aiCatalogBuilder?.Catalog,
+                    ActionSchema         = sharedSchemaExporter,
+                    BreakpointManager    = _bpManager,
+                    ComparisonSessions   = _comparisonSessionRegistry,
+                    BlueprintEditService = _blueprintEditService,
+                    BlueprintPalette     = _blueprintPaletteEntries,
+                    BlueprintPeerCatalog = blueprintPeerCatalog,
+                    BehaviorActions      = _behaviorActionCatalog,
+                    ChannelCommands      = Hrot.Blueprints.Core.Compiler.Catalogs
+                                               .BuiltInChannelCommandCatalog.Instance,
+                    // ⭐ The editor HAS all three debug sessions; CGF passes none and says so.
+                    BTreeDebugSession     = _btreeDebugSession,
+                    HsmDebugSession       = _hsmDebugSession,
+                    BlueprintDebugSession = _blueprintDebugSession,
+                    // ⭐⭐ THE ONE GENUINE HOST DIFFERENCE (AIE-026 / PU-BATCH-10): mark the document
+                    //    dirty AND queue the asset into the regeneration scheduler. ⛔ CGF has no
+                    //    scheduler and marks dirty only — a real difference, so it is a parameter.
+                    OnDocumentOpened = doc =>
                     {
-                        doc.MarkDirty();
-                        if (doc.Asset.IsDirty)
-                            schedulerRef.Schedule(doc.Asset);
-                    };
-                }
-            };
+                        if (_regenerationScheduler == null) return;
+                        var schedulerRef = _regenerationScheduler;
+                        doc.Asset.Changed += () =>
+                        {
+                            doc.MarkDirty();
+                            if (doc.Asset.IsDirty)
+                                schedulerRef.Schedule(doc.Asset);
+                        };
+                    },
+                });
 
             // ── AIE-026: Build the BTree/HSM emit service + RegenerationScheduler ───────────────
             var btreeEmitter = new Hrot.BTree.Editor.Emit.BTreeFluentEmitter();
