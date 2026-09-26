@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-26 (§11.1a added — HSM subtree authoring)
+current-answer: the body below; §11.1a is the newest section and owns SUBTREE AUTHORING.
+known-rot: ⚠ this document predates the JSON substrate. `BTree_HSM_Editor_State_And_Forward_Plan.md`
+  says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
+  feature/UX spec. ⛔ Do not quote this doc for persistence shape.
+related-designs:
+  - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a);
+    this doc owns only the HSM-side field, walker and validator rule.
+  - BTree_Editor_NodeEditor_Host_Design.md — the twin; owns BTree's subtree node and its walker.
+  - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes the authored subtree
+    reference (an HSM state hosting a BTree); it does NOT own the authoring surface.
+  - Architect_Question_36_Subtree_Hosting_Runtime.md — the approved ruling (Q36-B = A) that the
+    reference is a name BESIDE a Guid.
+-->
+
 # HSM Editor — NodeEditor Host Detailed Design
 
 > **Status:** Detailed design, derived from `AI_Editor_Shared_Infrastructure.md` + `NodeEditor_Extension_NodeAttachments.md` + `NodeEditor_Extension_ContainerNodes.md` + `NodeEditor_Extension_CustomCanvasRenderer.md` + `BTree_Editor_NodeEditor_Host_Design.md` (for parallel patterns) + `FastHSM.txt` source.
@@ -1019,6 +1036,70 @@ public struct GlobalTransitionFacet
     public string VisualId;
 }
 ```
+
+### 11.1a ⭐⭐⭐ SUBTREE AUTHORING — **the state's hosted BTree, and it is PICKED** *(`2026-09-26`)*
+
+> 🔒 **User:** *"the tree asset must be pickable."*
+> 📄 **The shared half lives in `AI_Editor_Shared_Infrastructure.md` §7.1a** — the
+> `[AiAssetPicker]` attribute, its drawer, and the **heal rule**. ⛔ Not restated here.
+
+🔴 **The gap this closes.** `E5` built the whole runtime for *"an HSM state hosts a BTree"* —
+`StateNode.SubtreeAssetId` + `SubtreeName`, `HsmHostedSubtrees`, `BrainTickSystem.TickHostedChildren`,
+validator rules 8/8b/10 — and **`StateFacet` has no subtree field at all**, so nothing outside the
+mapper can write those values. ⇒ **every rule `E5` added is unreachable on a real asset.** 📄 That is
+why `DESIGN_Occurrence_Scoped_Storage.md` §32 calls authoring *"the real blocker"*.
+
+#### What `StateFacet` gains
+
+```csharp
+[EditDisplayName("Hosted subtree (BTree asset)")]
+[AiAssetPicker(AssetKind.BTree)]        // ⭐ shared drawer, §7.1a
+public string? SubtreeName;
+
+[EditReadOnly] public string SubtreeAssetId;   // the persisted fallback identity
+[EditReadOnly] public bool   IsSubtreeResolved;
+```
+
+⭐⭐ **One editable field, two derived companions** — deliberately the same shape as
+`BTreeSubtreeFacet`, whose Guid and `IsResolved` are already `[EditReadOnly]`. 🔒 **The designer
+authors a NAME by picking; they never type or see a Guid.**
+
+#### The sequence, from pick to persisted
+
+```mermaid
+sequenceDiagram
+    participant D as designer
+    participant P as AiAssetPickerDrawer
+    participant F as HsmFacetMapper
+    participant N as StateNode
+    participant S as save / HsmAssetMapper
+
+    D->>P: open the field
+    P->>P: IAssetCatalog.All where Kind == BTree
+    P-->>D: the BTree asset names
+    D->>P: pick "PatrolTree"
+    P->>F: SubtreeName = "PatrolTree"
+    F->>N: SubtreeName = "PatrolTree"
+    F->>N: SubtreeAssetId = catalog.FindByName(...).AssetId
+    Note over F,N: the Guid is written BY THE PICK, not guessed later
+    S->>S: StateNodeDto carries BOTH (E5 / Q36-B = A)
+```
+
+⚠ **Caption — the ordering prose would fudge:** the Guid is captured **at pick time**, while the
+catalogue entry is in hand. ⛔ If it were derived only on load, a rename between pick and first reload
+would leave nothing to heal from, and the whole reason for storing both would be lost.
+
+#### The three pieces beyond the field
+
+| # | | |
+|---|---|---|
+| **1** | ⭐ **`StateNode.IsSubtreeResolved`** — **derived, NOT persisted** | ⚠ mirrors BTree, where `IsResolved` is recomputed. ⛔ Persisting it would let a stale `true` outlive the asset it describes |
+| **2** | ⭐⭐ **`HsmSubtreeResolver`** — walks `asset.AllStates`, calls the shared `SubtreeReferenceResolver` per hosting state, applies the heal | ⚠ the WALK is HSM's; the DECISION is shared (§7.1a) |
+| **3** | ⭐ **a dangling validator rule** | mirrors BTree's Rule 6 — *"references '{name}' which no longer exists — reselect or remove"* |
+
+⛔⛔ **What this section does NOT do:** it does not make a state host a subtree at RUNTIME — `E5`
+already did. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §32. ⭐ It makes the value **authorable**, which
+is the only thing that was missing.
 
 ### 11.2 Inspector dispatch
 

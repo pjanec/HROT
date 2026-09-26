@@ -1,3 +1,16 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-26 (subtree-reference section added at the end — §S1)
+current-answer: the body below; §S1 (at the end) owns the SUBTREE REFERENCE and supersedes any
+  earlier statement here that the subtree name is free text.
+known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_Plan.md` SUPERSEDES the
+  substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
+  persistence shape.
+related-designs:
+  - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a).
+  - HSM_Editor_NodeEditor_Host_Design.md — the twin; §11.1a owns the HSM state's hosted-subtree field.
+-->
+
 # BTree Editor — NodeEditor Host Detailed Design
 
 > **Status:** Detailed design, derived from `AI_Editor_Shared_Infrastructure.md` + `NodeEditor_Extension_NodeAttachments.md` + `NodeEditor_Extension_ContainerNodes.md` + `NodeEditor_Extension_CustomCanvasRenderer.md` + `FastBTree.txt` source.
@@ -1459,3 +1472,43 @@ Manual checklist:
 6. **Multiple-entity debug-overlay slot.** When two entities run the same BTree and both are inspected (one focused via `SelectedEntity`, one pinned via `ChainToMap=off` on a duplicate inspector window), the canvas should distinguish the two. The runtime overlay renderer currently shows only the `SelectedEntity`'s state. Deferred; document as a v2 enhancement.
 
 ---
+
+---
+
+## §S1 ⭐⭐ THE SUBTREE REFERENCE — **picked, and never erased** *(`2026-09-26`)*
+
+📄 **The shared mechanism is `AI_Editor_Shared_Infrastructure.md` §7.1a** *(the `[AiAssetPicker]`
+attribute, its drawer, and the heal rule)*. ⛔ Not restated here — this section records only what
+changes on the BTree side, and **one of the two is a defect fix, not a feature.**
+
+### ① The field becomes PICKABLE
+
+📐 `BTreeSubtreeFacet.SubtreeName` is labelled **"Referenced asset"** and is a **plain string with no
+picker attribute** — a designer types an asset name by hand and finds out it was wrong from a
+validator. ⇒ it gains `[AiAssetPicker(AssetKind.BTree)]`, the same drawer the HSM state facet uses.
+⭐ `SubtreeAssetId` and `IsResolved` stay `[EditReadOnly]`; that part was always right.
+
+### ② 🔴 `BTreeSubtreeResolver` ERASES THE GUID — **the persisted fallback is destroyed on use**
+
+📐 Measured `2026-09-26`, the `else` branch:
+
+```csharp
+payload.SubtreeAssetId = Guid.Empty;   // 🔴 the persisted identity, gone
+payload.IsResolved     = false;
+```
+
+⛔⛔ **The asset DTO persists `SubtreeAssetId`, `SubtreeName` and `IsResolved`** *(`BTreeSubtreePayloadDto`,
+round-tripped both directions)* — ⇒ the Guid is on disk and available. **A failed name lookup is
+precisely the RENAME case, and this line throws away the one field that could still identify the
+asset.** 🔒 The reference is then dangling forever, even though the information to heal it was
+sitting in the file.
+
+⭐ **The fix is the shared heal rule:** name → else Guid → heal the name and mark dirty → else keep
+**both** fields and report dangling. ⛔ **Never clear.**
+
+⚠⚠ **A correction this section exists to carry:** `Architect_Question_36` finding ⑤ records that
+*"the shipped BTree subtree mechanism resolves by NAME"* and that `BehaviorTreeBlob.SubtreeAssetIds`
+is a `string[]` of names. 🔒 **That is true of the runtime BLOB, which is explicitly
+`"not persisted (runtime-only)"`** — ⛔ it is NOT true of the authored asset, whose DTO carries the
+full triple. ⇒ **the two hosts' persistence shapes already agree**; only the resolver behaviour and
+the missing picker differed.

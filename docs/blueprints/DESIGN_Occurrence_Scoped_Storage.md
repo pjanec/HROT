@@ -98,6 +98,11 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - AI_Editor_Shared_Infrastructure.md — owns the shared asset PICKER and the subtree heal rule
+    (§7.1a). This doc owns the runtime that consumes what they author.
+  - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns HSM subtree AUTHORING (the facet field,
+    walker, validator rule).
+  - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree reference and its resolver.
   - PLAN_Occurrence_Storage_Build.md — ⭐ THE BUILD BREAKDOWN of this design: 14 tasks, 5 increments,
     the under-specified register and the dispatch grouping (2026-09-20). ⛔ Where it and this design
     disagree, THIS design wins.
@@ -9341,6 +9346,30 @@ drift is invisible until a full run, and then **arrives all at once looking like
 ⭐⭐ **The cheap counter-habit: run the full `T3` at the end of a PROGRAMME, not only at the end of a
 session** — and when a refactor updates a rail, ask whether it also owns a GOLDEN, because
 *(`CE-354`'s lesson)* **updating the rail and updating the golden are two acts.**
+
+## 32.28 ➡️ HSM SUBTREE **AUTHORING** — **OWNED ELSEWHERE, AND DELIBERATELY SO** *(`2026-09-26`)*
+
+🔒 **User:** *"i think we already crossed the 'Occurrence scoped storage' and moved to different area,
+'HSM authoring' and 'shared ui pickers'; i believe there are much better owning designs to put the
+diagram into."* ⭐⭐ **Correct, and this section is the pointer rather than the design.**
+
+📐 **This document owns the RUNTIME** that consumes an authored subtree reference — the slot, the
+registry, `BrainTickSystem.TickHostedChildren`, validator rules 8/8b/10 (§32.11, §32.16). ⛔ **It does
+not own the authoring surface**, and the host designs say so themselves: `HSM_Editor_NodeEditor_Host_Design.md`
+declares *"Doesn't cover: … Shared editor infrastructure (owned by `AI_Editor_Shared_Infrastructure.md`)"*.
+
+| the work | its owner |
+|---|---|
+| ⭐ the shared `[AiAssetPicker]` + drawer + **the heal rule** | 📄 **`AI_Editor_Shared_Infrastructure.md` §7.1a** *(it already owns `IPickerRegistry`)* |
+| ⭐ the HSM `StateFacet` field, `HsmSubtreeResolver`, the dangling rule | 📄 **`HSM_Editor_NodeEditor_Host_Design.md` §11.1a** *(it already has §10 pickers / §11 facets)* |
+| ⭐ BTree's picker adoption + **the resolver that erased the Guid** | 📄 **`BTree_Editor_NodeEditor_Host_Design.md` §S1** |
+
+🔒 **The method note, because the pull was real:** §32 had absorbed six harness rows and two
+debug-infrastructure slices already, and writing the authoring design here too would have been the
+cheapest thing to do. ⛔⛔ **A design document that owns everything a programme touched stops being an
+owner** — the next reader searching *"HSM authoring"* or *"asset picker"* would never look in a
+document named for occurrence-scoped STORAGE. ⚠ The `related-designs` links are reciprocal in all four
+files, which is the rule that makes the pointer findable from either end.
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 

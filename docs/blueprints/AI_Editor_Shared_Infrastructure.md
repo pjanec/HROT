@@ -2,6 +2,13 @@
 state: LIVE
 updated: 2026-09-20 (STATUS block added; selection content re-measured with the graph)
 current-answer: the body below.
+related-designs:
+  - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns the HSM state's hosted-subtree field, its
+    walker and its validator rule; this doc owns the picker and the heal RULE they share.
+  - BTree_Editor_NodeEditor_Host_Design.md — §S1 owns BTree's subtree node, including the resolver
+    defect that erased the persisted Guid.
+  - DESIGN_Occurrence_Scoped_Storage.md — §32 owns the RUNTIME that consumes an authored subtree
+    reference; it does not own any authoring surface.
 known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09-20) and is NOT reconciled
   with it. Two measured facts, 2026-09-20:
   ⭐⭐ ①+② ARE RESOLVED IN CODE 2026-09-21 by CE-300/CE-301 — CallbackSelectionBridge and
@@ -854,6 +861,114 @@ Each subsystem editor provides its own concrete `IEditorHostServices` instance. 
 | `IDebugSession` | Subsystem-specific (`BlueprintDebugSession`, `BTreeDebugSession`, `HsmDebugSession`, all deriving from `AiDebugSessionBase`) |
 | `IInputSource` | Shared default (the engine's ImGui input adapter) |
 | `IEditorTheme` | Shared default (one theme, all three editors look like one product) |
+
+### 7.1a ⭐⭐⭐ THE ASSET PICKER — **one field drawer that offers ASSETS, not symbols** *(`2026-09-26`)*
+
+> 🔒 **User:** *"the tree asset must be pickable."*
+
+📐 **INVENTORY, `2026-09-26`** *(`search_graph` + grep — the complete set of picker attributes)*:
+**eleven** exist — `BehaviorHashPicker` · `BlackboardFieldPicker` · `HsmActionPicker` ·
+`HsmBlackboardFieldPicker` · `HsmEventPicker` · `HsmGuardPicker` · `HsmStateSelector` ·
+`HsmSyncGroupPicker` · `AnimMarkerPicker` · `MontagePicker` · `PropertyPathPicker`/`WorkingSlotPicker`
+*(ReplayBrowser)*. ⛔⛔ **Every one picks a SYMBOL — a method, event, guard, state, field or marker.
+NOT ONE picks an ASSET.**
+
+⇒ 🔴 that is why `BTreeSubtreeFacet.SubtreeName` — labelled *"Referenced asset"* — is **plain free
+text** today, and why the HSM state facet has no subtree field at all. ⭐ **The capability is genuinely
+absent, so this is a BUILD, not an adoption** *(the seam law's rarer case — stated because this
+programme's default answer has been "it already exists")*.
+
+#### The shape
+
+```mermaid
+classDiagram
+    class IPickerListSource {
+        <<interface>>
+        EXISTS
+        +GetItems() IReadOnlyList~string~
+    }
+    class IAssetCatalog {
+        <<interface>>
+        EXISTS
+        +All IReadOnlyList~IEditableAsset~
+        +FindByName(string) IEditableAsset
+        +FindByAssetId(Guid) IEditableAsset
+        +Changed event
+    }
+    class AiAssetPickerAttribute {
+        NEW
+        +AssetKind Kind
+    }
+    class AiAssetPickerDrawer {
+        NEW
+        -IAssetCatalog catalog
+        -AssetKind kind
+        +GetItems() IReadOnlyList~string~
+    }
+    class SubtreeReferenceResolver {
+        NEW - shared
+        +Resolve(catalog, name, guid) SubtreeReference
+    }
+    class SubtreeReference {
+        NEW - result
+        +string Name
+        +Guid AssetId
+        +bool IsResolved
+        +bool Healed
+    }
+
+    IPickerListSource <|.. AiAssetPickerDrawer
+    AiAssetPickerDrawer --> IAssetCatalog : All, filtered by Kind
+    AiAssetPickerDrawer ..> AiAssetPickerAttribute : registered for
+    SubtreeReferenceResolver --> IAssetCatalog
+    SubtreeReferenceResolver ..> SubtreeReference : returns
+```
+
+⭐ **Caption — what the picture shows that prose hid:** the drawer needs **nothing new** from the
+catalog. `IAssetCatalog.All` + `Changed` already exist, so the picker is a filter over a live list;
+⛔ no new catalog member, and no per-subsystem picker.
+
+#### ⭐⭐⭐ The heal rule — **why a name AND a Guid, and which one wins**
+
+```mermaid
+sequenceDiagram
+    participant L as asset load / hot reload
+    participant R as SubtreeReferenceResolver
+    participant C as IAssetCatalog
+    participant M as editor model
+
+    L->>R: Resolve(catalog, name, assetId)
+    R->>C: FindByName(name)
+    alt name resolves and Kind matches
+        C-->>R: asset
+        R-->>M: Name kept, AssetId refreshed, IsResolved = true
+    else name fails, Guid resolves
+        R->>C: FindByAssetId(assetId)
+        C-->>R: asset (it was RENAMED)
+        R-->>M: Name HEALED from the asset, IsResolved = true, Healed = true
+        Note over M: caller marks the document dirty -<br/>the heal is a real edit and must be saved
+    else neither resolves
+        R-->>M: Name kept, AssetId kept, IsResolved = false
+        Note over M: DANGLING - validator reports it.<br/>NOTHING is erased: the next load may find it
+    end
+```
+
+⭐⭐ **Caption:** the third branch is the one that was wrong in shipped code. `BTreeSubtreeResolver`
+**sets `SubtreeAssetId = Guid.Empty`** when the name misses — ⛔ **it destroys the persisted Guid at
+exactly the moment the Guid is the only thing that could identify the asset.** The rule here is
+**never erase**; a reference that cannot resolve today is still a reference.
+
+| ⭐ the rule, stated once | |
+|---|---|
+| ⭐⭐⭐ **the NAME is authored; the Guid is a persisted FALLBACK IDENTITY** | ⛔ not a cache — it is written by the picker and survives independently |
+| ⭐⭐ **name wins when both resolve** | ⚠ a name that resolves is what the designer last chose and what the runtime looks up |
+| ⭐⭐ **Guid heals the name when the name misses** | ⇒ **a rename is self-repairing**, which is the whole reason both are stored |
+| ⛔⛔ **neither branch ever CLEARS the other field** | 📌 the shipped BTree defect; a dangling reference keeps everything it has |
+
+⚠ **Who calls it:** each subsystem walks its own model *(different shapes — BTree nodes, HSM states)*
+and calls this resolver per reference. ⛔ The WALK is subsystem-specific and stays there; only the
+DECISION is shared. 📄 `BTree_Editor_NodeEditor_Host_Design.md` and
+`HSM_Editor_NodeEditor_Host_Design.md` own their walkers.
 
 ### 7.2 Per-subsystem graph model
 
