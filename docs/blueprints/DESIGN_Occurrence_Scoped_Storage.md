@@ -8063,6 +8063,40 @@ it now compiles the **bridge registrar**, which ships for every asset and every 
 downgrade: the registrar carries the slot manifest, the params supply and the interpreter
 construction — more surface than the orchestrator ever had, and it had no compile rail either.
 
+### 32.12a 🔴 **CORRECTION — `P4` DID NOT BREAK THE ALIAS ARM. IT MADE A PRE-EXISTING BREAK VISIBLE.** *(`2026-09-26`)*
+
+⚠⚠ **§32.12 ④ says the arms broke because <i>"`P4` deleted `BrainBlackboard`"</i>. That is TRUE and it
+is NOT THE CAUSE.** 📐 Measured `2026-09-26`, answering *"why were they no-ops?"*:
+
+⭐⭐⭐ **There are TWO different notions of "this asset's blackboard type", and the orchestrator read the
+wrong one.**
+
+| | what it is | who sets it |
+|---|---|---|
+| `dto.BlackboardTypeName` | ⭐ a **persisted IDENTITY TOKEN** — it mangles into the params-layout struct name and feeds `SubtreeSyncIdentity.Derive` | the asset file |
+| `BTreeEmitCore.BlackboardStructName(dto)` | ⭐⭐ **the name of the struct actually EMITTED** — `{SanitizeIdentifier(dto.Name)}_{SanitizeIdentifier(dto.Blackboard.TypeName)}` *(`:64-69`)* | the generator |
+
+🔴 **The orchestrator emitted `ref {ShortTypeName(dto.BlackboardTypeName)} master`** — the first —
+**where the field access `master.{VarName}` needed the second.** ⇒ it never named the struct that has
+the fields, **for any asset, managed or not.**
+
+📐 **The corpus makes this unambiguous:** all **15** managed `*.btree.json` carry
+`BlackboardTypeName = "Fdp.Toolkit.Behavior.Components.BrainBlackboard"`, while their generated
+structs are named `{Asset}_{BlockTypeName}`. ⇒ ⛔ **`ref BrainBlackboard master` could never have
+resolved `master.MyVariable`, because the variables were never on that type.**
+
+| ⇒ the corrected history | |
+|---|---|
+| **before `P4`** | `BrainBlackboard` existed, so `ref BrainBlackboard master` COMPILED — and then `master.{VarName}` failed, because the authored variable is on the generated struct. ⛔ Broken, differently |
+| **after `P4`** | the type is gone, so it fails one step earlier, at the parameter. ⭐ **`P4` changed the error, not the verdict** |
+| ⭐⭐ **what `CE-336`'s compile rail actually found** | not *"P4 broke this"* — **"this was never wired to the emitted struct at all"** |
+
+🔒 **Why it matters beyond the archaeology:** it rules out the repair that looks obvious. ⛔ *"Point the
+default at the real struct"* cannot work — the default is a **persisted identity key** whose rename
+costs 11 structs across 44 files and silently breaks sub-tree matching *(§32.13 ③)*. ⭐ The arm needed
+`BlackboardStructName`, a **generator-side** answer the persisted field cannot carry. ⇒ per-SITE
+hosting is not merely the tidier route; the alias route had no correct spelling available to it.
+
 ### 32.13 ✅ `CE-337`'s THREE SWEEPS — **all three resolved `2026-09-26`, and the answer to each was NOT "delete"**
 
 > 🔒 **User: "Lets finish those."** ⭐ Each was *"decide on evidence"*, and the evidence settled all
