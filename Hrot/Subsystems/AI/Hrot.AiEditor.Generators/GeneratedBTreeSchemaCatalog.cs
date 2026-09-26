@@ -33,10 +33,22 @@ namespace Hrot.AiEditor.Generators;
 // ⭐ Its one consumer was Q49 option D's subtree-sync projection in BTreeJsonGenerator, whose READER
 //   (the Approach-B orchestrator) was retired with both arms. The generator no longer parses it.
 //
-// 🔒 KEPT, NOT DELETED — "unreferenced is not unintentional", and this one has a NAMED future use:
-//   per-SITE sub-tree hosting (E5's shape, applied to a BTree node) needs exactly this — what a
-//   SIBLING asset declares, read from JSON without loading an assembly. ⛔ Do not re-wire it to an
-//   orchestrator; that mechanism is gone. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.13.
+// ⚠⚠ CORRECTED 2026-09-26 — an earlier version of this note claimed per-site sub-tree hosting
+//   "needs exactly this". 📐 MEASURED, IT DOES NOT: the child's id and name are editor-resolved into
+//   BTreeSubtreePayload and persisted; the slot key's three inputs are all local to the hosting
+//   asset; and the interpreter comes from HostedChildren → BehaviorRegistry BY NAME. ⇒ this type has
+//   NO identified consumer, present or planned.
+//
+// 🔒 KEPT ANYWAY, on the honest and weaker ground: it is PURE, its contract is pinned by two rails
+//   (TheSiblingCatalogReadsTheAssetLevelBlackboardTypeName and its sibling), and it costs nothing
+//   while unwired. ⛔ Do not re-wire it to an orchestrator; that mechanism is gone.
+//
+// ⭐ WHY IT WENT UNREAD, which is the useful part: it answered ONE question — "what BLACKBOARD TYPE
+//   does the callee declare?" — the single field the payload does not carry. P4-② made every
+//   interpreter Interpreter<byte, BTreeContext>, so that question CEASED TO EXIST rather than
+//   getting a new answer. ⚠ Its blueprint twin GeneratedBlueprintSchemaCatalog is still read twice
+//   per asset, so the PATTERN is alive; only this instance lost its question.
+// 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12c.
 internal static class GeneratedBTreeSchemaCatalog
 {
     /// <summary>⭐ What one sibling tree contributes: its identity and the blackboard type it declares.

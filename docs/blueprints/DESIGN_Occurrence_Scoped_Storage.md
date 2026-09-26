@@ -8127,6 +8127,40 @@ not "who calls it" but "what capability does it provide, and is that capability 
 and if the answer is yes, **keep it AND keep it tested**, because a kept-but-unexercised type is a
 capability nobody dares re-wire.
 
+### 32.12c 📐 **WHY THE BTree CATALOG WENT UNREAD — and a CORRECTION to its tombstone** *(`2026-09-26`)*
+
+> 🔒 **User:** *"how comes the btree catalog was/is unread, what serves in its place?"*
+
+⭐⭐ **It never answered *"which sibling is this?"*. It answered ONE question — *"what BLACKBOARD TYPE
+does the callee declare?"* — and that is the single field the subtree payload does not carry.**
+
+| the question | who answers it NOW | 📐 |
+|---|---|---|
+| *which asset is the child?* | ⭐⭐ **the EDITOR, at author time** — `BTreeSubtreeResolver` writes `SubtreeAssetId` + `IsResolved` into `BTreeSubtreePayload` *("call after projection or after a hot reload")*, and it persists | ⇒ by the time the generator sees the JSON the identity is **already inlined**. The generator never needed a catalogue for this |
+| *what is the child's NAME?* | ⭐ `BTreeSubtreePayload.SubtreeName`, persisted beside the Guid | 🔒 the same `{Guid, Name}` pair `Q36-B` = A chose for `E5`, and for the same reason |
+| *what is the child's BLACKBOARD TYPE?* | ⛔⛔ **NOTHING — and nothing needs to.** `P4`-② made every interpreter `Interpreter<byte, BTreeContext>`: a slot base is bytes | ⇒ ⭐⭐⭐ **the question did not get a new answer; it CEASED TO EXIST.** Approach B was its only asker, to type `ref master.{slice}` |
+
+⭐ **And the PATTERN is not dead** — its twin `GeneratedBlueprintSchemaCatalog` is read **twice per
+asset** *(`BTreeJsonGenerator:188` the method-compat validator, `:218` the params-size resolver)*.
+⇒ cross-asset JSON reading at generation time is alive; only the **BTree** instance of it went unread,
+because its one question was about a type nobody types any more.
+
+#### 32.12c.1 ⚠ **THE CORRECTION — the tombstone's "named future use" is measured FALSE**
+
+⛔ §32.13 and the type's own tombstone say per-site BTree hosting *"needs exactly this."* 📐 **Walked
+through, it does not:**
+
+| what per-site BTree hosting needs | where it comes from |
+|---|---|
+| `SubtreeAssetId`, `SubtreeName` | ⭐ the payload — editor-resolved, persisted |
+| the slot key `(hostAssetId, siteNodeVisualId, childAssetId)` | ⭐ all three are LOCAL to the hosting asset |
+| the child's interpreter | ⭐ `HostedChildren` → `BehaviorRegistry` **by name**, at registration |
+
+⇒ 🔒 **`GeneratedBTreeSchemaCatalog` has NO identified consumer, present or planned.** ⭐ It is kept on
+the weaker and honest ground that it is **pure, contract-pinned by two rails, and costs nothing while
+unwired** — ⛔ **not** because a named slice is about to want it. ⚠ A future reader deciding to delete
+it should read this section rather than the tombstone's original claim.
+
 ### 32.13 ✅ `CE-337`'s THREE SWEEPS — **all three resolved `2026-09-26`, and the answer to each was NOT "delete"**
 
 > 🔒 **User: "Lets finish those."** ⭐ Each was *"decide on evidence"*, and the evidence settled all
