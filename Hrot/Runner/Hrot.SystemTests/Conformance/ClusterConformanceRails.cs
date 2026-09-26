@@ -179,6 +179,23 @@ public sealed class ClusterConformanceRails
     {
         "excon-data-monitor", "excon-der-entity-inspector", "excon-diagnostics", "excon-orbat",
         "ig-debug", "ig-entity-properties", "ig-mini-excon", "ig-waypoint-editor",
+
+        // ⭐⭐⭐ CE-357 (`2026-09-26`) — `ExConObserver` DECLARED, and it is a genuine cluster-only kind.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.27.
+        // 📐 `ExConObserverPanelViewModel.Kind` (`Hrot.ExCon.Observer`), registered by
+        //    `ExConSubsystem.cs:564`. It is ExCon's read/proof surface for the observer console state:
+        //    *"ExCon has no ECS world, so GET /entities proves nothing; this panel publishes the
+        //    observer state so GET /panels/excon_observer shows the restored camera + marker after a
+        //    scenario load"* — added by `CE-277(c3)`, the distributed-scenario save/load work.
+        // ⭐ It belongs in THIS set rather than being ported, because `HrotRunnerConfiguration:181`
+        //   FORBIDS the editor coexisting with ExCon ⇒ the editor can never host an ExCon panel, and
+        //   "register it on the editor" is not an available option, not merely an unchosen one.
+        // ⚠⚠ WHY THIS SAT UNDECLARED: the kind is NEW (it arrived with `CE-277`), and adding a
+        //    cluster-only panel reddens this rail by design — that is the rail working. ⛔ It stayed red
+        //    rather than being declared, which is how the ONE rail that answers *"is editor⇄cluster
+        //    parity intact?"* came to be failing while parity was being reported as intact. 🔒 That
+        //    misreport is recorded in `CE-357`; this entry is the fix it was asking for all along.
+        "ExConObserver",
     };
 
     /// <summary>

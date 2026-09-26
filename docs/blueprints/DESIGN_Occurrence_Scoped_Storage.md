@@ -9263,6 +9263,85 @@ either option, because it still reports green.
 would have been churn, and on `RunStateSource` it would have added a `using` for a type the file
 never uses.
 
+## 32.27 ✅ `CE-355` / `CE-356` / `CE-357` — **CLEARING THE HARNESS TABLE** *(`2026-09-26`)*
+
+🔒 **User:** *"lets try to close CE-355 CE-356 and CE-357 to clean the table before returning to hsm-btree authoring."*
+
+⚠ All three live in `Hrot.SystemTests`, the BACKEND lane's harness; the user's instruction is the
+authorisation. ⭐ **None was a product defect — all three were rails describing a world that had moved.**
+
+### 32.27.1 🔴 `CE-355` — **THE RE-CAPTURE, AND WHY THE ROW'S OWN ARITHMETIC WAS A TRAP**
+
+📐 **The real diff** *(editor `64 → 59`, all `76 → 73`)*:
+
+| set | removed | added |
+|---|---|---|
+| `ui-baseline-editor` | `ai_runtime_inspector_{blueprint,btree,hsm}` · `entity-blueprints` · `entity_blueprints` | — |
+| `ui-baseline-all` | the same three · **`fake_nav_inspector`** | **`excon_observer`** |
+
+🔴🔴 **TWO PREDICTIONS IN THE ROW WERE WRONG.** ① *"`--mode all` drops exactly 3, consistent"* — it
+drops **4 and gains 1**; the net matched by **coincidence**. ② *"`entity-blueprints` (hyphen) has two
+production hits, so it survives"* — **both ids went**, and the earlier sweep had counted **TEST** files
+because it filtered `SystemTests` rather than `Tests`.
+
+🔒🔒 **THE LESSON, and it is exactly why the re-capture was held back for a session:** ⛔ **a matching
+NET count is not an explanation.** Accepting on the arithmetic would have absorbed one unexplained
+**removal** and one unexplained **addition** — in opposite directions, cancelling out.
+⭐⭐⭐ **Diff the SETS, never the counts.**
+
+✅ **Every change is a dated, deliberate act:** the three runtime inspectors → `CE-303`'s dissolution ·
+`entity-blueprints`/`entity_blueprints` → the **same** dissolution, the window became the
+`details.entityblueprints` **Details view** · `fake_nav_inspector` → `CE-255`, 🔒 user `2026-09-09`
+*"remove fake_nav_inspector"* *(⚠ it reported "No navmesh provider registered" while one was loaded —
+**it stated something false**)* · `excon_observer` → `CE-277(c3)`, and it is the very kind `CE-357`
+declares.
+
+### 32.27.2 ⭐ `CE-356` — **RE-POINTED, AND THE EXPECTED LIST DID NOT CHANGE BY ONE CHARACTER**
+
+📐 `Every_production_host_that_registers_the_profiler_is_accounted_for` counted FILES containing
+`new SystemProfilerWindow(`. The five diagnostics windows were consolidated out of four hosts into one
+`DiagnosticsWindowsBundle` *(20 sites → 1)*, so the count went 4 → 1 and the rail reddened.
+
+⭐⭐ **That the expected four host files are UNCHANGED after re-pointing at `new DiagnosticsWindowsBundle(`
+is the proof it was the rail that was stale, not coverage that left.**
+
+⛔⛔ **The trap is named in the file's own header** — *"do not fix it by lowering the expected count to
+four and moving on — that is how coverage leaves quietly."* 🔒 Lowering it to **one** here would have
+been that mistake in its purest form: green, while asserting that a single shared file is *"every host"*.
+
+⭐ **A second assertion was added**, because the re-point would otherwise have dropped half the chain:
+exactly one production file may construct `SystemProfilerWindow`, and it must be the bundle. ⛔ Without
+it, *"four hosts compose a bundle"* stays true even if the bundle stops offering a profiler — host
+coverage **of nothing**.
+
+### 32.27.3 ⭐ `CE-357` — **DECLARED, and "port it" was never an option**
+
+📐 `ExConObserverPanelViewModel.Kind` is ExCon's read/proof surface for the observer console —
+*"ExCon has no ECS world, so `GET /entities` proves nothing"* — added by `CE-277(c3)`.
+⭐⭐ **It is declared in `ClusterOnlyKinds` rather than ported because `HrotRunnerConfiguration:181`
+FORBIDS the editor coexisting with ExCon** ⇒ the editor can never host an ExCon panel. *"Register it on
+the editor"* is **unavailable**, not merely unchosen.
+
+⚠⚠ **Why it sat undeclared:** the kind is new, and a new cluster-only panel reddens this rail **by
+design** — that is the rail working. ⛔ It stayed red instead of being declared, and that is how **the
+one rail that answers *"is editor⇄cluster parity intact?"* came to be failing while I reported parity as
+intact** *(the retraction in §32.25 / `CE-357`)*.
+
+### 32.27.4 🔒 THE PATTERN ACROSS ALL SIX HARNESS ROWS TODAY
+
+📐 `CE-352` · `CE-353` · `CE-354` · `CE-355` · `CE-356` · `CE-357` — **not one was a product defect.**
+⭐ Every one was a rail or golden still describing a world that a *deliberate, dated* change had moved:
+`CE-303` dissolved a window, `CE-307`/`CE-314` changed a budget model, `CE-319` moved the root cursor,
+`CE-255` deleted a lying panel, `CE-277` added a panel, and a diagnostics consolidation merged four
+registration sites into one.
+
+🔒 **The mechanism, stated once:** ⛔ **`T3` is not run per batch** *(correctly — it is the slow lane)*,
+so each of those changes updated its UNIT rails, went green, and left its `T3` artefact behind. ⇒ the
+drift is invisible until a full run, and then **arrives all at once looking like a crisis**.
+⭐⭐ **The cheap counter-habit: run the full `T3` at the end of a PROGRAMME, not only at the end of a
+session** — and when a refactor updates a rail, ask whether it also owns a GOLDEN, because
+*(`CE-354`'s lesson)* **updating the rail and updating the golden are two acts.**
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

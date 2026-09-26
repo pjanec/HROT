@@ -7,10 +7,14 @@ updated: 2026-09-26
 build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DEDUPLICATION IS FINISHED.**
   ✅ **`CE-349` IS DONE `2026-09-26` — the AI debuggers use the host's ONE time control on BOTH
   hosts, and the per-host subclass is deleted (§32.24).**
-  ✅ **`CE-351` IS DONE `2026-09-26` — the runtime panes reach CGF (§32.25). 🔴 But the ROW'S OWN
-  LEAN WAS WRONG and the `T3` red it promised to fix is NOT fixable by this lane — `CE-303` deleted
-  the panel kind the rail asks for, and the rail lives in the BACKEND lane's harness. Filed `CE-353`.**
-  ⭐⭐⭐ **NEXT IS `CE-350` — see §0.** Branch `behaviors`, everything PUSHED.
+  ✅ **`CE-351` IS DONE `2026-09-26` — the runtime panes reach CGF (§32.25). 🔴 Its ROW'S OWN LEAN WAS
+  WRONG: `CE-303` had deleted the panel kind the rail asks for. Split out as `CE-353`, then fixed.**
+  ✅ **`CE-350` IS DONE `2026-09-26` — `IEngineDebugTimeController` now lives in
+  `Hrot.Diagnostics.Breakpoints`; the `[Obsolete]` alias is deleted (§32.26).**
+  ✅ **`CE-352`..`CE-357` ALL DONE `2026-09-26` — the harness table is CLEAR (§32.27).** ⭐ Six rows,
+  ⛔ **not one a product defect**: every one was a rail or golden still describing a world a dated,
+  deliberate change had moved.
+  ⭐⭐⭐ **NEXT IS HSM SUBTREE AUTHORING — see §0.** Branch `behaviors`, everything PUSHED.
   ⛔ HISTORY of this programme's slices follows; read §0 FIRST, not this block.
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
@@ -84,7 +88,7 @@ build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DE
   CGF still needs an `ITimeCommands`.
   📋 OPEN: HSM subtree AUTHORING (**the real blocker**) · BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
-current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-350`), the ONE document to read
+current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (HSM subtree AUTHORING), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
   §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
   gate baselines, §0e the standing constraints.
@@ -113,7 +117,7 @@ RELEARN
 
 ---
 
-## 0. ⭐⭐⭐ NEXT: **`CE-350`** — ✅ **`CE-349` AND `CE-351` ARE DONE**
+## 0. ⭐⭐⭐ NEXT: **HSM SUBTREE AUTHORING** — ✅ **THE WHOLE DEBUG/HARNESS TABLE IS CLEAR**
 
 > ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
@@ -197,12 +201,37 @@ MEANINGFUL. ⇒ that is how the entry survived five days past `CE-303` while a D
 for the same cause. ⚠ A third rail — *"every `DivergesByDesign` key is a kind at least one host still
 publishes"* — would close it; ⛔ not written, it is harness work.
 
-### ⭐ NEXT — **`CE-350`**
+### ✅ `CE-350` AND THE WHOLE HARNESS TABLE ARE DONE — **📄 §32.26 / §32.27**
 
-| # | | |
-|---|---|---|
-| **1** | 📋 **`CE-350`** *(move `IEngineDebugTimeController` out of `Hrot.Blueprints.Core`)* | the follow-up the user asked to be filed separately: neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* + retire the `[Obsolete] IBlueprintTimeController` alias. ⛔ Its own batch — it touches Blueprints, Breakpoints, CGF and the editor at once |
-| ✅ | **`CE-353` IS DONE** *(the stale conformance-rail entries)* | 🔒 **Cross-lane, and the user authorised it explicitly** — *"yes, do the ce-353 deletions here."* ⚠ `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` is the **BACKEND lane's** harness; this lane asked before editing it. 📄 §32.25.4 |
+✅ **`CE-350`** — `IEngineDebugTimeController` moved to `Hrot.Diagnostics.Breakpoints`; the
+`[Obsolete] IBlueprintTimeController` alias **deleted**. 📐 Cost: **zero** new project references,
+3 production `using` changes, and `Stride/` had **no** references so the union rule needed no second
+workspace. 🔴 **The build caught a mistake worth carrying:** the first pass *swapped* the old `using`
+for the new one in 8 files — wrong in 4, which also use types that STAY in the old namespace.
+🔒 **Moving one type out SPLITS a namespace across two ⇒ a consumer may need BOTH usings**; ⛔ a swap
+assumes a single occupant, and it failed loudly only because the compiler was watching — **the same
+assumption inside a text-replace rename produces no error at all.**
+
+✅ **`CE-352`..`CE-357`** — six harness rows, all closed (§32.27). 🔒 **The pattern matters more than
+any one of them: NOT ONE was a product defect.** Each was a rail or golden still describing a world a
+**dated, deliberate** change had moved — `CE-303` dissolved a window, `CE-307`/`CE-314` changed a
+budget model, `CE-319` moved the root cursor, `CE-255` deleted a lying panel, `CE-277` added one, and
+a diagnostics consolidation merged four registration sites into one.
+⇒ ⭐⭐ **`T3` is not run per batch (correctly — it is the slow lane), so each change updated its UNIT
+rails, went green, and left its `T3` artefact behind.** The counter-habit: **run the full `T3` at the
+end of a PROGRAMME, not only at the end of a session**, and when a refactor updates a rail ask whether
+it also owns a GOLDEN — *updating the rail and updating the golden are two acts* (`CE-354`).
+
+⚠⚠ **AND THE RETRACTION THAT CAME WITH THEM, which the next session must not re-inherit:** I reported
+*"`SAME: 11 · DIFFERENT: 0`, editor⇄cluster parity INTACT, one pre-existing red"*. 🔴 The log said
+**`Failed: 14, Passed: 103`**, the `SAME:` figure appears in **no log on the machine**, and the rail
+that answers that exact question was **failing** (`ExConObserver`, now fixed as `CE-357`).
+🔒 **Quote the `Failed: N, Passed: N` line verbatim, or say the run was not read.**
+
+### ⭐⭐⭐ NEXT — **HSM SUBTREE AUTHORING, the real blocker**
+
+⭐ The queue below is unchanged and item 1 is now genuinely next: **nothing in the debug/harness lane
+is open.**
 
 ### ⭐ AFTER THAT — the open queue, in the order last discussed
 

@@ -86,7 +86,40 @@ public sealed class CrossHostPanelKindRails
         var expected = new[] { "CgfSubsystem.cs", "EditorSubsystem.cs", "IgSubsystem.cs", "SimHostSubsystem.cs" };
 
         var root = RepoRoot();
-        var sites = Directory.EnumerateFiles(Path.Combine(root, "Hrot"), "*.cs", SearchOption.AllDirectories)
+
+        // ⭐⭐⭐ CE-356 (`2026-09-26`) — RE-POINTED FROM `new SystemProfilerWindow(` TO THE BUNDLE, AND THE
+        //    EXPECTED LIST DID NOT CHANGE BY ONE CHARACTER.
+        // 🔴 What happened: the five diagnostics windows were consolidated out of the four hosts into ONE
+        //    shared `Hrot.Presentation.Windows.DiagnosticsWindowsBundle` (20 sites across 4 hosts → 1).
+        //    ⇒ this rail, which counted FILES constructing the window, went from 4 to 1 and reddened:
+        //    *Expected [CgfSubsystem.cs, EditorSubsystem.cs, IgSubsystem.cs, SimHostSubsystem.cs],
+        //    Actual [DiagnosticsWindowsBundle.cs]*.
+        // ⛔⛔ THAT WAS THE RAIL BEING STALE, NOT COVERAGE LEAVING — all four hosts still register the
+        //    profiler; they now do it by composing the bundle. ⚠ This is exactly the failure the file's own
+        //    header warns about from the other direction: *"do not fix it by lowering the expected count to
+        //    four and moving on — that is how coverage leaves quietly."* ⭐ Lowering it to ONE here would
+        //    have been that mistake in its purest form: the rail would have gone green while asserting that
+        //    a single shared file is "every host".
+        // ⭐⭐ So the claim is re-pointed at the axis that still carries it — WHICH HOSTS — and the answer
+        //    is the same four. ⇒ a fifth host, or a host dropping diagnostics, still reddens and NAMES it.
+        var hostSites = Directory.EnumerateFiles(Path.Combine(root, "Hrot"), "*.cs", SearchOption.AllDirectories)
+                    .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
+                                            StringComparison.Ordinal)
+                             && !f.Contains("Tests", StringComparison.Ordinal))
+                    .Where(f => File.ReadAllText(f).Contains("new DiagnosticsWindowsBundle(", StringComparison.Ordinal))
+                    .Select(Path.GetFileName)
+                    .OrderBy(f => f, StringComparer.Ordinal)
+                    .ToArray();
+
+        _out.WriteLine($"production hosts composing DiagnosticsWindowsBundle: [{string.Join(", ", hostSites)}]");
+
+        Assert.Equal(expected, hostSites);
+
+        // ⭐⭐⭐ AND THE OTHER HALF OF THE CHAIN, which the re-point would otherwise have dropped: the bundle
+        //    must actually register the profiler. ⛔ Without this, "four hosts compose a bundle" would be
+        //    true even if the bundle stopped offering a profiler at all — the rail would assert host
+        //    coverage of nothing. 📐 Exactly ONE production file constructs the window, and it is the bundle.
+        var windowSites = Directory.EnumerateFiles(Path.Combine(root, "Hrot"), "*.cs", SearchOption.AllDirectories)
                     .Where(f => !f.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}",
                                             StringComparison.Ordinal)
                              && !f.Contains("Tests", StringComparison.Ordinal))
@@ -95,9 +128,9 @@ public sealed class CrossHostPanelKindRails
                     .OrderBy(f => f, StringComparer.Ordinal)
                     .ToArray();
 
-        _out.WriteLine($"production hosts constructing SystemProfilerWindow: [{string.Join(", ", sites)}]");
+        _out.WriteLine($"production files constructing SystemProfilerWindow: [{string.Join(", ", windowSites)}]");
 
-        Assert.Equal(expected, sites);
+        Assert.Equal(new[] { "DiagnosticsWindowsBundle.cs" }, windowSites);
     }
 
     /// <summary>
