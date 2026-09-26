@@ -110,7 +110,8 @@ known centrally."*
 
 ---
 
-### 🔴 F2 — **`BaseFolder` is NOT the folder the contributor scans** → design §7.3a amendment ②, `C2`
+### ✅ F2 — **`BaseFolder` is NOT the folder the contributor scans** → design §7.3a amendment ②, `C2`
+### ✅ **FIXED AND RAILED `2026-09-20`** — see the resolution block at the end of this finding
 
 ⭐⭐ **This is a live defect in shipped code, and the design leans on the broken property.**
 
@@ -147,6 +148,25 @@ ignores it.
 
 ⭐ **Fix belongs upstream of this programme:** `BaseFolder` must return the root the contributor was
 constructed with. ⛔ Do not paper over it inside `C2`.
+
+#### ✅ RESOLUTION `2026-09-20` — **fixed at source, with the rail that would have caught it**
+
+| ⭐ | |
+|---|---|
+| **the fix** | the three file-backed contributors return **the root they actually scan** — `BlueprintAssetContributor` its ctor argument; `BTreeJsonAssetContributor` / `HsmJsonAssetContributor` the `rootDirectory` last given to `Discover` |
+| ⭐ **the fallback is kept, deliberately** | a contributor driven by an explicit `jsonPaths` list has **no single base folder**, so it keeps answering `AssetsFor(Kind)` — ⛔ unchanged behaviour for that arm, and railed so it cannot drift |
+| ⭐⭐⭐ **the rail replaced a VACUOUS one, in place** *(`R-142` ③)* | `Contributor_BaseFolder_MatchesAssetRoot` built a `FakeContributor` with `BaseFolder = AssetsFor(kind)` and asserted it equalled `AssetsFor(kind)` — ⛔ `Assert.Equal(x, x)` on a test double, touching **no production contributor**. Its own comment named the assumption it never tested |
+| ⭐⭐ **RED-PROOF, measured** | fix reverted ⇒ **Failed: 2, Passed: 10**; fix restored ⇒ **12/12**. ⭐ The two that stay green under the inverse edit are the INVARIANTS *(non-null, and the `jsonPaths` fallback)* — they are supposed to hold both ways |
+| **where** | `AssetRelPathTests` — the feature's own suite *(`R-142` ④)*, which already referenced all three editor projects |
+
+⚠⚠ **The fix reaches the CONTRIBUTOR path only** — 📌 that is **F12**, filed below rather than silently
+absorbed.
+
+⚠ **Cross-lane, stated:** the three contributor files are **behaviors-lane** territory and
+`AssetRelPathTests` is shared-editor. 📐 Checked before touching: the newest commit on all three of
+`origin/{behaviors,ui,coordinator}` for those paths is the **same shared-history commit**, so there was no
+live contention. 🔒 Done under the user's direct instruction *(`2026-09-20`: "you own the asset management
+design now. yes, fix F2 with a rail")* — ⛔ not a unilateral cross-lane edit.
 
 ---
 
@@ -366,6 +386,32 @@ nothing**: it does not author them, and it does not compile them.
 records it as passing on the strength of two Blueprint-only call sites. **Either** the Brain rule narrows
 to `Blueprint` **or** the design states what a runtime brain does with behaviour JSON (recompile? and with
 which toolchain?). ⛔ It cannot be left as *"the reader is built."*
+
+---
+
+### ⚠ F12 — **THREE producers of "the base folder for a kind", and two bypass the contributor** *(found while fixing F2, `2026-09-20`)* → UI surface, **not** this design
+
+📐 **Measured — the same question is answered in three places:**
+
+| # | producer | keyed on | reached by F2's fix? |
+|---|---|---|---|
+| ① | `IAssetCatalogContributor.BaseFolder` | the **contributor** | ✅ **yes** |
+| ② | `AssetBrowserPanel.BaseFolderFor(kind)` (`:972`) | the **kind** — calls `AssetsFor(kind)` directly | ⛔ **no** |
+| ③ | a **copy of ②** as a lambda in `EditorSubsystem.RegisterWindows` (`:3948`) | the **kind** | ⛔ **no** |
+
+⭐ ③'s own comment admits the duplication: *"mirrors `AssetBrowserPanel.BaseFolderFor` which is internal —
+lambda wraps the same try/catch over `AssetRoots.AssetsFor`."*
+
+⇒ ⚠⚠ **The asset-browser tree and the Save-As `KnownSubfolders` still answer the bin dir**, and still
+depend on `AssetRelPath`'s `"../"` recovery to look right. 📌 **That recovery branch is therefore still
+load-bearing — ⛔ do NOT delete it as dead code on the strength of F2's fix.**
+
+| ⭐ | |
+|---|---|
+| **what it is** | `R-132` — **two producers for one slot**; and ②/③ are duplicate CODE, which the removal rule says to **ROUTE, not delete** |
+| ⭐ **the shape of the fix** | ② takes the **contributor's** `BaseFolder` for the kind when the catalog has one, falling back to `AssetsFor(kind)`; ③ then calls ② instead of re-implementing it *(making it non-`internal`, or moving it to `AiShared`)* |
+| ⛔ **why it is NOT done here** | it is an **editor-UI surface**, owned by the **UI lane**, and it changes what the asset browser displays ⇒ it wants that lane's rails *(`R-124`'s in-frame measurement)*, not a backend push |
+| ⭐ **why the asset-management design is nonetheless correct** | `C2`'s probe reads path ① — ✅ the one that is now right |
 
 ---
 
