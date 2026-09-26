@@ -8136,7 +8136,7 @@ does the callee declare?"* — and that is the single field the subtree payload 
 
 | the question | who answers it NOW | 📐 |
 |---|---|---|
-| *which asset is the child?* | ⭐⭐ **the EDITOR, at author time** — `BTreeSubtreeResolver` writes `SubtreeAssetId` + `IsResolved` into `BTreeSubtreePayload` *("call after projection or after a hot reload")*, and it persists | ⇒ by the time the generator sees the JSON the identity is **already inlined**. The generator never needed a catalogue for this |
+| *which asset is the child?* | ⚠⚠ **CORRECTED `2026-09-26`: NOBODY, at runtime or author time.** `BTreeSubtreeResolver` is *designed* to write `SubtreeAssetId` + `IsResolved` from the catalogue *("call after projection or after a hot reload")* — 📐 but it has **ZERO production callers** *(graph + grep agree: 1 declaration, 3 test calls)*. ⇒ the identity is only ever whatever was **persisted**; nothing re-resolves it | ⭐ The generator still never needed a catalogue — ⛔ but the reason is weaker than stated: not *"the editor already did it"*, just *"the value is in the JSON"*. ⚠ A renamed or re-ided child is therefore **not** re-resolved by anything |
 | *what is the child's NAME?* | ⭐ `BTreeSubtreePayload.SubtreeName`, persisted beside the Guid | 🔒 the same `{Guid, Name}` pair `Q36-B` = A chose for `E5`, and for the same reason |
 | *what is the child's BLACKBOARD TYPE?* | ⛔⛔ **NOTHING — and nothing needs to.** `P4`-② made every interpreter `Interpreter<byte, BTreeContext>`: a slot base is bytes | ⇒ ⭐⭐⭐ **the question did not get a new answer; it CEASED TO EXIST.** Approach B was its only asker, to type `ref master.{slice}` |
 
