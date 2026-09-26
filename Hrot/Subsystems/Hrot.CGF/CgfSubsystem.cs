@@ -2100,6 +2100,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _aiDocumentManager = new Hrot.Editor.AiShared.Documents.AiDocumentManager(_perspectiveSwitcher);
         _perspectiveSwitcher.SetDocumentManager(_aiDocumentManager);
 
+        // ── CE-351: the runtime panes, which this host never registered ────────
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.25.
+        // 🔴 MEASURED 2026-09-26: `RegisterRuntimePane` had THREE call sites, all in EditorSubsystem,
+        //    and ZERO here ⇒ CGF offered no `details.runtime.<kind>` view at all. The conformance
+        //    baseline's stated reason — *"requires an IBlueprintDebugSession and CGF constructs
+        //    none"* — stopped being true at CE-344; CE-345 and CE-349 added the other two sessions.
+        // ⚠⚠ THIS DOES NOT PUBLISH A `runtime-inspector` PANEL, and the task that asked for it was
+        //    wrong to expect one: CE-303 DISSOLVED `RuntimeInspectorWindow` on 2026-09-21, so that
+        //    panel kind exists on NEITHER host. The panes are Details views now.
+        // ⭐ `Documents` is a PROVIDER: the Blueprint pane's asset id must follow the ACTIVE document
+        //   at draw time, and this manager is reassigned nowhere but read every frame (CE-343).
+        Hrot.Editor.AiComposition.AiRuntimePaneBinder.Bind(new Hrot.Editor.AiComposition.AiRuntimePaneServices
+        {
+            BTreeRegistrar        = _btreeRegistrar,
+            HsmRegistrar          = _hsmRegistrar,
+            BlueprintRegistrar    = _blueprintRegistrar,
+            BTreeDebugSession     = _btreeDebugSession,
+            HsmDebugSession       = _hsmDebugSession,
+            BlueprintDebugSession = _blueprintDebugSession,
+            Documents             = () => _aiDocumentManager,
+        });
+
         // ⭐ The canvas's whole dependency is the document manager; the renderer is stateless, so one
         //   per perspective is what the editor does too (:3740).
         var adapters = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(windowManager.Atlas);

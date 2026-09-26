@@ -4102,38 +4102,24 @@ namespace Hrot.Editor
             };
             // ─────────────────────────────────────────────────────────────────────────────────────
 
-            // ── AIE-031: Register BTree/HSM runtime inspector panes ─────────────────────────────
-            // Each pane holds a reference to its session; the window selects the matching pane
-            // at draw time based on the active asset kind.
-            if (_btreeDebugSession != null)
+            // ── AIE-031: Register BTree/HSM/Blueprint runtime panes ─────────────────────────────
+            // ⭐⭐⭐ CE-351 (2026-09-26) — ONE BINDER, CALLED BY BOTH HOSTS.
+            //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.25.
+            // 🔴 What was here: three guarded blocks that CGF had NO equivalent of — measured, CGF
+            //    made ZERO RegisterRuntimePane calls and therefore offered no details.runtime.<kind>
+            //    view at all. ⛔ Copying them would have been a fifth duplicate in the programme that
+            //    removed four; the binder keeps the guards and the Blueprint asset-id resolver in one
+            //    place. Each pane holds its session; the Details registry selects by asset kind.
+            Hrot.Editor.AiComposition.AiRuntimePaneBinder.Bind(new Hrot.Editor.AiComposition.AiRuntimePaneServices
             {
-                var btreePane = new BTreeRuntimeInspectorPane();
-                btreePane.SetSession(_btreeDebugSession);
-                _btreeRegistrar.RegisterRuntimePane(btreePane);
-            }
-            if (_hsmDebugSession != null)
-            {
-                var hsmPane = new HsmRuntimeInspectorPane();
-                hsmPane.SetSession(_hsmDebugSession);
-                _hsmRegistrar.RegisterRuntimePane(hsmPane);
-            }
-            if (_blueprintDebugSession != null)
-            {
-                var blueprintPane = new Hrot.Blueprints.Editor.Inspector.BlueprintRuntimeInspectorPane();
-                blueprintPane.SetSession(_blueprintDebugSession);
-                // ⭐⭐⭐ CE-303 — the selectedEntityResolver is GONE. It read the AI store — a GLOBAL —
-                //    so a PINNED copy of this view showed whatever was selected NOW. The entity now
-                //    arrives with the DetailsContext: LIVE when docked, FROZEN when pinned.
-                // ⚠ The ASSET id stays a resolver: it follows the active DOCUMENT, not the selection.
-                blueprintPane.SetResolvers(
-                    activeAssetIdResolver:  () =>
-                    {
-                        var ctx = _aiDocumentManager?.Active?.ViewState
-                            as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                        return (ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset)?.AssetId;
-                    });
-                _blueprintRegistrar.RegisterRuntimePane(blueprintPane);
-            }
+                BTreeRegistrar        = _btreeRegistrar,
+                HsmRegistrar          = _hsmRegistrar,
+                BlueprintRegistrar    = _blueprintRegistrar,
+                BTreeDebugSession     = _btreeDebugSession,
+                HsmDebugSession       = _hsmDebugSession,
+                BlueprintDebugSession = _blueprintDebugSession,
+                Documents             = () => _aiDocumentManager,
+            });
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-032: Register BTree/HSM trace lane providers ────────────────────────────────

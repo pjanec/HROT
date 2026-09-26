@@ -9097,6 +9097,53 @@ a TEST fixture fail as a plausible `null` rather than as an error** — ⇒ any 
 `EnsureRootState` on a hand-built `EntityRepository` must register the tiers first, or it will assert
 against a snapshot that was never built.
 
+## 32.25 ⚠ `CE-351` — **THE RUNTIME PANES REACH CGF, AND THE TASK'S OWN PREMISE WAS STALE** *(`2026-09-26`)*
+
+### 32.25.1 🔴 THE CLAIM TABLE — **the recorded lean was wrong, and it would NOT have turned the rail green**
+
+📌 `CE-351` was filed as *"register the runtime-inspector pane on CGF, mirroring the editor's
+`if (debugSession != null)` guard — that turns this rail green."* ⛔ **Measured before building:**
+
+| the row's claim | 📐 how it IS | 📄 how it was MEANT to be |
+|---|---|---|
+| *"the editor publishes a `runtime-inspector` panel and CGF does not"* | 🔴 **FALSE — NEITHER does.** `scripts/find.sh runtime-inspector` returns **zero production `.cs` hits**; the only code hit is the conformance rail itself | ✅ `CE-303` *(`2026-09-21`)* **dissolved** `RuntimeInspectorWindow` — `IRuntimeInspectorPane`'s own header: *"a pane is now reached through `details.runtime.<kind>` and nothing else"* |
+| *"registering a pane on CGF turns the rail green"* | 🔴 **FALSE.** The rail asserts the cluster **publishes the panel KIND**; panes are Details **views** now, so no wiring produces that kind | ⛔ nothing asks for the panel back — `DESIGN_Details_Panel_View_Switching.md` §4 `Q-iii` ruled it dissolves |
+| *"the baseline entry's exit condition is met"* | ⚠ **half true** — `CE-344` did give CGF a `BlueprintDebugSession`, so the stated REASON is dead; but the entry describes a panel that no longer exists at all | — |
+| ⭐⭐ **the gap the row half-saw IS real** | ✅ `RegisterRuntimePane` had **3** call sites, all `EditorSubsystem` (`:4112`/`:4118`/`:4135`), and **0** on CGF ⇒ CGF offered **no** `details.runtime.<kind>` view | ✅ the `details` divergence entry names it: *"`$.offeredViewIds` 3 vs 1 — `details.runtime.Blueprint` requires an `IBlueprintDebugSession` and CGF constructs none (`CE-004`)"* |
+
+🔒 **The method note.** ⛔ The wrong half of that row was read off **the conformance baseline's comment
+at `:242`**, written before `CE-303`. ⭐⭐⭐ **A stale comment is not a measurement** — and this is the
+mirror of the session's other recurring error: there I claimed an absence from a type NAME, here I
+claimed a presence from a COMMENT. ⇒ **both are "the corpus said so" standing in for "I looked."**
+
+### 32.25.2 ⭐ WHAT WAS BUILT
+
+⭐⭐ `AiRuntimePaneBinder` + `AiRuntimePaneServices` in **`Hrot.Editor.AiComposition`**; both hosts
+call `Bind(...)`. ⛔ The editor's three guarded blocks are **gone**, not copied — a fifth duplicate in
+the programme that removed four. ⭐ `Bind` returns **how many panes it registered**, so a rail asserts
+the host wired what it had rather than trusting the call happened.
+
+| ⭐ | |
+|---|---|
+| the per-kind `if (session != null)` guard | **preserved** — ⚠ a pane with no session draws nothing, so registering one would be a view that exists only to be empty |
+| the Blueprint asset-id resolver | **moved into the binder** — it was written longhand in the editor; both hosts now read the same `ActiveBlueprintAssetId` |
+| `Documents` is a **`Func<>` provider** | 🔒 the `CE-343` lesson, now pinned by its own rail: `Bind` must **not** resolve the manager, and the rail asserts the provider is called **zero** times during binding |
+
+### 32.25.3 ⛔ WHAT THIS DOES NOT FIX — **and why this lane did not fix it**
+
+⚠ **The `T3` red stands.** `ClusterConformanceRails.The_ported_kinds_are_really_published_by_the_cluster`
+lists `runtime-inspector` among the ported kinds; 🔴 **that list went stale when `CE-303` dissolved the
+window**, and the rail would fail identically against the **editor**. ⇒ the fix is to **delete the
+entry**, plus the now-dead `DivergesByDesign["runtime-inspector"]` and reason (2) of
+`DivergesByDesign["details"]`.
+
+⛔⛔ **All three live in `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` — the
+system-test harness, which is the BACKEND lane's file.** 🔒 The two-session protocol makes a
+cross-lane edit a **STOP-and-report, not a judgement call**, so this lane reports it instead.
+⭐ **No new red is created by the work above:** `details` still diverges on reason (1) *(`$.mode`
+Paused vs Running — a real host difference the rail deliberately does not equalise)*, so
+`A_declared_divergence_that_stopped_diverging_is_deleted` does not flip.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

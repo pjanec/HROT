@@ -6,8 +6,11 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
 updated: 2026-09-26
 build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DEDUPLICATION IS FINISHED.**
   ✅ **`CE-349` IS DONE `2026-09-26` — the AI debuggers use the host's ONE time control on BOTH
-  hosts, and the per-host subclass is deleted (§32.24).** ⭐⭐⭐ **NEXT IS `CE-351`, then `CE-350` — see §0.**
-  Branch `behaviors`, everything PUSHED.
+  hosts, and the per-host subclass is deleted (§32.24).**
+  ✅ **`CE-351` IS DONE `2026-09-26` — the runtime panes reach CGF (§32.25). 🔴 But the ROW'S OWN
+  LEAN WAS WRONG and the `T3` red it promised to fix is NOT fixable by this lane — `CE-303` deleted
+  the panel kind the rail asks for, and the rail lives in the BACKEND lane's harness. Filed `CE-353`.**
+  ⭐⭐⭐ **NEXT IS `CE-350` — see §0.** Branch `behaviors`, everything PUSHED.
   ⛔ HISTORY of this programme's slices follows; read §0 FIRST, not this block.
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
@@ -81,7 +84,7 @@ build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DE
   CGF still needs an `ITimeCommands`.
   📋 OPEN: HSM subtree AUTHORING (**the real blocker**) · BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
-current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-351`, then `CE-350`), the ONE document to read
+current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-350`), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
   §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
   gate baselines, §0e the standing constraints.
@@ -110,7 +113,7 @@ RELEARN
 
 ---
 
-## 0. ⭐⭐⭐ NEXT: **`CE-351`, THEN `CE-350`** — ✅ **`CE-349` IS DONE**
+## 0. ⭐⭐⭐ NEXT: **`CE-350`** — ✅ **`CE-349` AND `CE-351` ARE DONE**
 
 > ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
@@ -157,12 +160,34 @@ registering `BehaviorState` + `BlueprintTierTable.RegisterAll` — what `RootPar
 demands. 📄 §32.24.5. 🔒 **Carry the lesson:** a correct silent-skip in production provisioning makes
 a test fixture fail as a plausible `null`, not as an error.
 
-### ⭐ NEXT — **`CE-351`, then `CE-350`**
+### ✅ `CE-351` IS BUILT — **and its recorded lean was WRONG; 📄 §32.25 is the as-built**
+
+🔴🔴 **MEASURED BEFORE BUILDING, and it inverted the task.** The row promised *"register the
+runtime-inspector pane on CGF → turns the conformance rail green."* 📐 `scripts/find.sh
+runtime-inspector` returns **ZERO production `.cs` hits** — the only code hit is the rail itself —
+because **`CE-303` (`2026-09-21`) DISSOLVED `RuntimeInspectorWindow`**; `IRuntimeInspectorPane`'s own
+header says *"a pane is now reached through `details.runtime.<kind>` and nothing else."*
+⇒ ⛔ **neither host publishes that panel kind, so no CGF wiring could ever have turned that rail
+green, and the rail would fail identically against the EDITOR.**
+
+🔒 **The method note, because it is the mirror of this session's other error:** the wrong half was
+read off the conformance **baseline COMMENT at `:242`**, written before `CE-303`. ⭐⭐⭐ **A stale
+comment is not a measurement** — one error claimed an absence from a type NAME, this one a presence
+from a COMMENT; both are *"the corpus said so"* standing in for *"I looked."*
+
+⭐⭐ **THE GAP THE ROW HALF-SAW IS REAL, AND IS FIXED.** `RegisterRuntimePane` had **3** call sites,
+all `EditorSubsystem`, and **0** on CGF ⇒ CGF offered **no** `details.runtime.<kind>` view at all.
+New `AiRuntimePaneBinder` in `Hrot.Editor.AiComposition`, called by both hosts; the editor's three
+guarded blocks **deleted, not copied**; the per-kind `if (session != null)` guard preserved; the
+Blueprint asset-id resolver moved in; `Documents` is a **`Func<>` provider**, ⛔ **red-proved** —
+capturing it *(the `CE-343` shape)* reddens exactly one of the four new rails.
+
+### ⭐ NEXT — **`CE-350`, and `CE-353` belongs to another lane**
 
 | # | | |
 |---|---|---|
-| **1** | ⭐⭐ **`CE-351`** *(register the runtime-inspector pane on CGF)* | 🔒 **The `T3` red whose own exit condition is now met** — see §0z. Mirror the editor's `if (debugSession != null)` guard; turns the conformance rail green and removes the last known pane asymmetry |
-| **2** | 📋 **`CE-350`** *(move `IEngineDebugTimeController` out of `Hrot.Blueprints.Core`)* | the follow-up the user asked to be filed separately: neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* + retire the `[Obsolete] IBlueprintTimeController` alias. ⛔ Its own batch — it touches Blueprints, Breakpoints, CGF and the editor at once |
+| **1** | 📋 **`CE-350`** *(move `IEngineDebugTimeController` out of `Hrot.Blueprints.Core`)* | the follow-up the user asked to be filed separately: neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* + retire the `[Obsolete] IBlueprintTimeController` alias. ⛔ Its own batch — it touches Blueprints, Breakpoints, CGF and the editor at once |
+| **2** | ⛔ **`CE-353`** *(the stale conformance-rail entry)* | **NOT OURS.** Delete `"runtime-inspector"` from `ported[]`, delete `DivergesByDesign["runtime-inspector"]`, trim reason (2) of `DivergesByDesign["details"]`. ⚠ All in `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` — the **BACKEND lane's** harness ⇒ STOP-and-report, not a judgement call |
 
 ### ⭐ AFTER THAT — the open queue, in the order last discussed
 
