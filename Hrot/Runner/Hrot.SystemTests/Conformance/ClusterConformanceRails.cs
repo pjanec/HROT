@@ -257,27 +257,25 @@ public sealed class ClusterConformanceRails
         //    IBlueprintDebugSession); the editor registers its pane only when it has one. Deleted
         //    when debug sessions reach CGF."
 
-        // 📐 Measured: `$.mode` Paused vs Running, `$.focus` VariableOutline vs GraphCanvas.
-        // ⭐⭐ `mode` is a REAL difference between the hosts, not a wiring gap: the editor has a
-        //    PLANNING state with a halted clock, CGF is a cluster node whose world ticks from boot, and
-        //    this rail deliberately does not pause or equalise the two (see its own comment).
-        //    ⛔ Making CGF answer "Paused" would be a constant standing in for a clock reading — the
-        //    silent-default shape this codebase keeps paying for.
-        // ⚠⚠ REASON EXTENDED `2026-08-25` (slice 2). The `focus` half is GONE — with an asset open on
-        //    both hosts the Details panel now names the SAME asset and the same focused pane, which
-        //    `The_same_opened_asset_looks_the_same_on_both_hosts` asserts directly. ⭐ TWO measured
-        //    reasons remain, and each names the capability whose absence causes it.
-        // ⭐⭐ REASON (2) DELETED `2026-09-26` (`CE-353`). It read: *"(2) $.offeredViewIds 3 vs 1 —
-        //    details.runtime.Blueprint requires an IBlueprintDebugSession and CGF constructs none
-        //    (CE-004). Reason (2) is deleted when debug sessions reach CGF."* 🔴 Both halves of that
-        //    are now false: `CE-344` gave CGF a `BlueprintDebugSession`, and `CE-351` registers all
-        //    THREE runtime panes on both hosts through `AiRuntimePaneBinder`. ⇒ ⭐ ONE reason remains.
-        ["details"] = "one measured reason: $.mode Paused vs Running — the "
-                    + "editor has a PLANNING state with a halted clock while a cluster node's world ticks "
-                    + "from boot (CE-003), and the three-way rail deliberately does not equalise them. "
-                    + "The panel DOES name the opened asset on both hosts "
-                    + "since slice 2 — that half is asserted, not exempted. Its runtime views are "
-                    + "registered on both hosts since CE-351 — that half is not exempted either.",
+        // ⛔⛔⛔ CE-353 (`2026-09-26`) — THE `details` ENTRY IS DELETED, ON THIS RAIL'S OWN INSTRUCTION.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.25.6.
+        // 📐 `A_declared_divergence_that_stopped_diverging_is_deleted` reported, in TWO independent
+        //    full-capture runs: *"declared-by-design divergence(s) [details] now AGREE between the two
+        //    modes. ⭐ That is good news: delete the entry from DivergesByDesign so the kind is
+        //    genuinely compared from now on."* ⇒ ⭐ two runs, same verdict — this is that deletion.
+        // ⭐ Its reasons died one at a time, and each death is recorded:
+        //    · `$.focus` — GONE at slice 2 (`2026-08-25`): with an asset open both hosts name the SAME
+        //      focused pane, asserted by `The_same_opened_asset_looks_the_same_on_both_hosts`.
+        //    · `$.offeredViewIds 3 vs 1` — GONE at `CE-344` + `CE-351`: CGF has an
+        //      `IBlueprintDebugSession` and registers all three runtime panes via `AiRuntimePaneBinder`.
+        //    · `$.mode Paused vs Running` — the LAST reason, and the measurement no longer shows it.
+        // ⚠⚠ THE ONE THING TO WATCH, SAID PLAINLY: the deleted text argued `mode` was STRUCTURAL —
+        //    *"the editor has a PLANNING state with a halted clock while a cluster node's world ticks
+        //    from boot (CE-003), and the three-way rail deliberately does not equalise them."* 🔒 If
+        //    that is true and the agreement was capture TIMING, `The_two_modes_agree_on_every_shared_
+        //    panel_kind` will start flapping on `details`. ⛔ Then the answer is NOT to re-add this
+        //    entry blind — it is to measure WHY the two runs agreed, because one of the two claims is
+        //    wrong and the entry has been asserting the untested one since slice 1.
 
         // ⭐⭐⭐ CE-016 §7 (A2), `2026-08-26` — the `main-toolbar` DIVERGENCE ENTRY IS DELETED, and
         //    REPLACED by a SUBSET verdict (see SubsetByDesign below), not by nothing.

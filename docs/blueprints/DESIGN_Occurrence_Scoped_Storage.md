@@ -9173,6 +9173,30 @@ misread — by me — as a CGF wiring gap.
 a kind at least one host still publishes"* would close it. ⛔ Not written in this pass — it is harness
 work, and this lane is already across a lane boundary by permission for a specific deletion.
 
+### 32.25.6 ✅ `CE-353` PART TWO — **the `details` entry DELETED, on two runs' evidence** *(`2026-09-26`)*
+
+🔒 **User:** *"do the details deletion and the ce-354 recapture."*
+
+📐 **The evidence, and the reason it waited for a second run.**
+`A_declared_divergence_that_stopped_diverging_is_deleted` reported *"declared-by-design divergence(s)
+`[details]` now AGREE between the two modes"* in **both** full-capture runs of `2026-09-26`. ⭐ One run
+could be capture timing; two is a measurement. ⇒ the entry is deleted, which is literally what the rail
+instructs.
+
+| ⭐ its three reasons died one at a time, and each death is recorded | |
+|---|---|
+| `$.focus` | GONE at **slice 2** *(`2026-08-25`)* — both hosts name the same focused pane |
+| `$.offeredViewIds` 3 vs 1 | GONE at **`CE-344` + `CE-351`** — CGF has the session and registers all three runtime panes |
+| `$.mode` Paused vs Running | the **last** reason, and the measurement no longer shows it |
+
+⚠⚠ **THE RISK, STATED RATHER THAN GLOSSED.** The deleted text argued `mode` was **structural** — *"the
+editor has a PLANNING state with a halted clock while a cluster node's world ticks from boot
+(`CE-003`), and the three-way rail deliberately does not equalise them."* 🔒 **If that is true and the
+agreement was timing, `The_two_modes_agree_on_every_shared_panel_kind` will start flapping on
+`details`.** ⛔ **The answer then is NOT to re-add the entry blind** — ⭐ it is to measure **why** two
+runs agreed, because one of the two claims is false and **the entry has been asserting the untested
+one since slice 1**.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of
