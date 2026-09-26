@@ -101,6 +101,16 @@ public sealed class Aie030DebugSessionRegistryIntegrationTests
         // Now drive Update() so the session symbolication is exercised end-to-end.
         var world  = new EntityRepository();
         world.RegisterComponent<BTreeTraceWorkingMemory1024>();
+        // ⭐⭐ CE-352 — THIS RAIL HAD BEEN RED SINCE `CE-319`, AND IT FAILED IN TWO STAGES.
+        //   ① `BehaviorState` was never registered, so `AddComponent` threw before any assertion.
+        //   ② With that fixed the snapshot came back NULL, because `RootStateAccess.EnsureRootState`
+        //      **skips silently when the tier components are not registered** — documented behaviour
+        //      (§27.2: Fdp.Toolkits hosts may run without the Hrot-wide tier registration, and
+        //      provisioning must not fail at spawn) — so there was no occurrence slot to read.
+        //   ⚠ Verified RED at the base commit `3ed397ef9` in a worktree: pre-existing, not CE-349.
+        //   ⭐ The registration below is what `RootParamsTestHarness` requires of its callers.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+        Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
         var entity = world.CreateEntity();
         world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 4242, BrainTier = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree });
         Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(world, entity);

@@ -1931,13 +1931,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    📐 `BTreeAssetContributor.LoadFrom` calls `_debugSession?.SetDebugMetadata(blob.DebugMetadata,
         //    assetId)` (:98) — the node-index → VisualId symbolication table. ⭐ That is REAL and
         //    trace-INDEPENDENT: it is what lets any BTree debug surface name a node at all.
-        // ⚠⚠ STATED PLAINLY SO THIS IS NOT OVER-SOLD: the sessions' TRACE POLLING stays dead — 📐
-        //    measured `2026-09-26`, `BTreeDebugSession.Update(repo, entity)` has **ZERO** callers in
-        //    Hrot/ or FDP/, on EITHER host. ⇒ this makes CGF EQUAL to the editor, and the editor's own
-        //    trace loop is unwired (CE-348). ⛔ No coordinator is passed: the base class's pause/step
-        //    are empty virtuals and CGF has no ITimeCommands, so supplying one would be theatre.
-        _btreeDebugSession = new Hrot.BTree.Editor.Debug.BTreeDebugSession();
-        _hsmDebugSession   = new Hrot.Hsm.Editor.Debug.HsmDebugSession();
+        // ⚠⚠ STATED PLAINLY SO THIS IS NOT OVER-SOLD: the sessions' TRACE POLLING was dead when this
+        //    was written — 📐 `BTreeDebugSession.Update(repo, entity)` had ZERO callers on EITHER
+        //    host. ⭐ `CE-348` then wired it on both, from the canvas draw hook.
+        // ⭐⭐⭐ CE-349 (2026-09-26) — AND THE COORDINATOR IS NOW PASSED, so BTree/HSM pause, step and
+        //    continue are LIVE on this host. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.24.
+        // 🔴 THE RETRACTED CLAIM, kept visible because it was MINE and it was wrong: this comment
+        //    used to read *"CGF has no ITimeCommands, so supplying one would be theatre."* ⛔ That
+        //    asserted an ABSENCE from a TYPE NAME. CGF has had a full IEngineDebugTimeController —
+        //    `CgfClusterDebugTimeController`, built at :1468, twenty lines above the Blueprint debug
+        //    session it already drives. The missing thing was never the capability; it was that
+        //    `AiTracerCoordinator` reached time through a different interface.
+        // ⚠ The coordinator is NOT kept in a field: nothing on this host reads it, and both
+        //   sessions already hold it. ⛔ Absent and explained beats present and unused.
+        var aiDebug        = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_debugTimeController!);
+        _btreeDebugSession = aiDebug.BTree;
+        _hsmDebugSession   = aiDebug.Hsm;
 
         _aiCatalogBuilder = BuildAssetCatalog();
         var catalog       = _aiCatalogBuilder.Catalog;

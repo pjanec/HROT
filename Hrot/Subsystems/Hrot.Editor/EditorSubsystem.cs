@@ -1213,15 +1213,27 @@ namespace Hrot.Editor
             _aiCoordinator.TriggerInitialLoad();
 
             // ── AIE-030: Shared debug session infrastructure (created before contributor, wired in RegisterWindows) ──
-            // T4d: the SUBSYSTEM-SPECIFIC coordinator, not the base class. The base's
-            // RequestPause/RequestContinue/RequestStepOneTick are virtual no-ops, so constructing it
-            // here meant a BTree or HSM tracer asking the simulation to stop did nothing at all --
-            // silently. It publishes intents on _orchestrationBus, the bus the master drains (T3),
-            // so path D now has the same shape as the cluster path.
+            // ⭐⭐⭐ CE-349 (2026-09-26) — THE AI DEBUGGERS NOW USE THE HOST'S ONE TIME CONTROL.
+            //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.24.
+            //    🔒 User: "editor also has its local cluster orchestrator, so for consistency they
+            //       should be using same time control means."
+            // 🔴 What was here: `new EditorAiTracerCoordinator(_timeCommands)` -- a host-specific
+            //    subclass over ITimeCommands, a SECOND time abstraction with one implementation on
+            //    one host, while this same method already builds an IEngineDebugTimeController for
+            //    the Blueprint session and the breakpoint manager. Now all four debuggers share it.
+            // ⭐⭐ THE ADAPTER IS HOISTED, NOT DUPLICATED. It used to be built at the breakpoint block
+            //    ~500 lines below; building a second one here would be two instances of one concept
+            //    (ruling 9), and capturing the field before it is assigned would pin null -- the
+            //    CE-343 lesson. `_timeController` is assigned above (:1151), so hoisting is legal and
+            //    the breakpoint block reads this same instance.
+            _bpTimeAdapter       = new MasterSyncTimeControllerAdapter(_timeController!);
+            // ⚠ _timeCommands stays: the transport facade and the toolbar still publish intents
+            //   through it (:5051, :5064). ⛔ It is no longer the AI debuggers' route to time.
             _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
-            _aiTracerCoordinator = new Hrot.Editor.Debug.EditorAiTracerCoordinator(_timeCommands);
-            _btreeDebugSession   = new Hrot.BTree.Editor.Debug.BTreeDebugSession(_aiTracerCoordinator);
-            _hsmDebugSession     = new Hrot.Hsm.Editor.Debug.HsmDebugSession(_aiTracerCoordinator);
+            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter);
+            _aiTracerCoordinator = aiDebug.Coordinator;
+            _btreeDebugSession   = aiDebug.BTree;
+            _hsmDebugSession     = aiDebug.Hsm;
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
@@ -1743,7 +1755,9 @@ namespace Hrot.Editor
             // ⭐ BATCH 84 / R-66: kept as a FIELD so RunStateSource's "is time frozen?" signal reads
             //   through this adapter -- the same one the breakpoint manager drives time with. ⛔ A
             //   second reading of _timeController.GetMode() here would be a duplicate rule.
-            var bpTimeAdapter           = _bpTimeAdapter = new MasterSyncTimeControllerAdapter(_timeController!);
+            // ⭐ CE-349: built ONCE, up at the AI debug block, so the AI tracer coordinator and the
+            //   breakpoint manager drive the SAME adapter instance. ⛔ Not re-constructed here.
+            var bpTimeAdapter           = _bpTimeAdapter!;
             var bpEditSvc               = new ComponentEditServiceBuilder().Build();
             // _blueprintRegistry is required for BlueprintVariablePredicateDto -- the predicate that
             // "Add Conditional Data Breakpoint..." synthesizes. Omitting it makes

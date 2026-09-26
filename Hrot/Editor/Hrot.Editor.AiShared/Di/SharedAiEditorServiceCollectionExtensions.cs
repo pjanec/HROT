@@ -31,7 +31,14 @@ public static class SharedAiEditorServiceCollectionExtensions
         services.AddSingleton<IDebugSessionRegistry, DebugSessionRegistry>();
         services.AddSingleton<LiveSessionRegistry>();
         services.AddSingleton<ILiveSessionProvider>(sp => sp.GetRequiredService<LiveSessionRegistry>());
-        services.AddSingleton<AiTracerCoordinator>();
+        // ⭐⭐ CE-349 — the coordinator's time control is RESOLVED, not defaulted away.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.24. ⚠ GetService, not GetRequiredService: a
+        //    container with no debugger time control is legitimate (this extension has only test
+        //    callers today), and demanding one would turn an absent optional into a startup crash.
+        //    ⛔ A host that HAS one registers it first — and the production hosts do not come through
+        //    here at all: they call AiDebugSessionComposer.Compose, which REFUSES null.
+        services.AddSingleton<AiTracerCoordinator>(sp =>
+            new AiTracerCoordinator(sp.GetService<Hrot.Blueprints.Core.Debug.IEngineDebugTimeController>()));
 
         // Comparison sanitization registry (populated at startup by each subsystem host)
         services.AddSingleton<SanitizerRegistry>();

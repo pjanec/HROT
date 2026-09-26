@@ -8903,7 +8903,11 @@ consumers and the missing piece had a name and a slice number.
 reading unadopted as unnecessary** — and it is reached the same way, by characterising a measurement
 before searching `docs/`.
 
-## 32.23 📋 `CE-349` + `CE-350` — **ONE TIME-CONTROL ABSTRACTION FOR THE AI DEBUGGERS** *(APPROVED, NOT YET BUILT)*
+## 32.23 📐 `CE-349` + `CE-350` — **ONE TIME-CONTROL ABSTRACTION FOR THE AI DEBUGGERS** *(the PRE-BUILD measurement)*
+
+> ⭐⭐ **`CE-349` IS BUILT — §32.24 is the AS-BUILT and is what to quote.** ⚠ This section is kept
+> because it is the **measurement**, and it held up: nothing in §32.24 contradicts it. ⛔ Only its
+> *"NOT YET BUILT"* framing and its guess at the shape are superseded. `CE-350` is still open.
 
 > 🔒 **User, `2026-09-26`:** *"cgf should use the cluster time control but i think editor should do the
 > same as editor also has its local cluster orchestrator so for consistency they should be using same
@@ -8956,6 +8960,142 @@ referenced by AiShared, already owns the other debugger contracts)* and retire t
 ⛔ **Not folded into `CE-349`** — a shared-interface move touches Blueprints, Breakpoints, CGF and the
 editor at once, and mixing it with a behaviour change makes the diff unreviewable. 🔒 The same
 discipline that kept `CE-340` out of `CE-341`.
+
+## 32.24 ✅ `CE-349` — **THE AS-BUILT: ONE TIME CONTROL, BOTH HOSTS, THE SUBCLASS GONE** *(`2026-09-26`)*
+
+> 🔒 **User:** *"cgf should use the cluster time control but i think editor should do the same, as
+> editor also has its local cluster orchestrator, so for consistency they should be using same time
+> control means."* → **"go with 1, file 2 as follow-up."**
+
+### 32.24.1 ⭐ THE SHAPE
+
+```mermaid
+classDiagram
+    class IEngineDebugTimeController {
+        <<interface>>
+        +bool IsPausedByDebugger
+        +RequestPause()
+        +RequestResume()
+        +RequestStepOneTick()
+    }
+    class MasterSyncTimeControllerAdapter {
+        EXISTS - editor
+    }
+    class CgfClusterDebugTimeController {
+        EXISTS - CGF
+    }
+    class AiTracerCoordinator {
+        CHANGED
+        -IEngineDebugTimeController TimeController
+        +bool HasTimeControl
+        +RequestPause()
+        +RequestContinue()
+        +RequestStepOneTick()
+    }
+    class AiDebugSessionComposer {
+        NEW - AiComposition
+        +Compose(IEngineDebugTimeController) AiDebugSessions
+    }
+    class BTreeDebugSession { EXISTS }
+    class HsmDebugSession { EXISTS }
+    class BlueprintDebugSession { EXISTS }
+    class DataBreakpointManager { EXISTS }
+
+    IEngineDebugTimeController <|.. MasterSyncTimeControllerAdapter
+    IEngineDebugTimeController <|.. CgfClusterDebugTimeController
+    AiTracerCoordinator --> IEngineDebugTimeController
+    BlueprintDebugSession --> IEngineDebugTimeController
+    DataBreakpointManager --> IEngineDebugTimeController
+    AiDebugSessionComposer ..> AiTracerCoordinator : creates
+    AiDebugSessionComposer ..> BTreeDebugSession : creates
+    AiDebugSessionComposer ..> HsmDebugSession : creates
+    BTreeDebugSession --> AiTracerCoordinator
+    HsmDebugSession --> AiTracerCoordinator
+```
+
+⭐ **Caption — what the picture shows that the prose hid:** every arrow into
+`IEngineDebugTimeController` *except* `AiTracerCoordinator`'s already existed. ⛔ **The deleted
+`Hrot.Editor.Debug.EditorAiTracerCoordinator` is not on this canvas at all** — it was a fourth
+debugger reaching time through a parallel interface (`ITimeCommands`) that only one host implemented,
+which is precisely why BTree/HSM pause worked on the editor and was a silent no-op on CGF.
+
+```mermaid
+sequenceDiagram
+    participant U as operator
+    participant S as BTree/HsmDebugSession
+    participant C as AiTracerCoordinator
+    participant T as IEngineDebugTimeController
+    participant K as the host's clock
+
+    U->>S: Pause() / StepOver() / Continue()
+    S->>C: RequestPause / RequestStepOneTick / RequestContinue
+    C->>T: RequestPause / RequestStepOneTick / RequestResume
+    Note over C,T: Continue maps to Resume - one verb, two spellings,<br/>mapped in exactly ONE place
+    alt editor
+        T->>K: MasterSyncController.SwitchToDeterministic / Step
+    else CGF
+        T->>K: publish the time INTENT the toolbar publishes
+    end
+```
+
+⭐ **Caption:** the host difference is now entirely below the interface. ⭐⭐ Above it, the editor and
+CGF run **the same objects** — which is what *"same time control means"* asked for.
+
+### 32.24.2 📐 WHAT CHANGED, FILE BY FILE
+
+| | |
+|---|---|
+| ⭐ `AiTracerCoordinator` *(AiShared)* | gains `AiTracerCoordinator(IEngineDebugTimeController? = null)`, a `protected TimeController`, a public `HasTimeControl`; the three virtuals **forward** instead of being empty |
+| ⛔ `Hrot.Editor.Debug.EditorAiTracerCoordinator` | **DELETED** — ⚠ **not** the same-named `Hrot.Editor.DebugApi.EditorAiTracerCoordinator`, which arms trace buffers and is untouched |
+| ⭐ `AiDebugSessionComposer` *(NEW, AiComposition)* | `Compose(controller) → AiDebugSessions(Coordinator, BTree, Hsm)`; ⛔ **throws on a null controller** |
+| ⭐ `EditorSubsystem` | calls the composer; ⭐⭐ **`_bpTimeAdapter` is HOISTED** from the breakpoint block (`:1746`) to the AI-debug block (`:1215`) so ONE adapter instance serves both — ⛔ a second `new` here would be two instances of one concept, and capturing the field before assignment would pin null *(the `CE-343` lesson, one commit old)* |
+| ⭐ `CgfSubsystem` | calls the composer with `_debugTimeController` *(built 470 lines earlier)*; gains an `_aiTracerCoordinator` field |
+| ⭐ `SharedAiEditorServiceCollectionExtensions` | `AddSingleton<AiTracerCoordinator>` now **resolves** the controller via `GetService` instead of silently defaulting it away |
+| ⭐ `TheTracerCoordinatorActuallyControlsTimeTests` | **re-pointed, not weakened** — the same three claims, plus a fourth; the null-refusal claim moved from one host's constructor to the boundary **both** hosts cross |
+
+### 32.24.3 ⚠ THE PROPERTY THAT WAS GIVEN UP — **stated, not buried**
+
+⛔ The deleted subclass published time **INTENTS** on the orchestration bus; its own header argued
+that *"the intent already fans out"*, so a debugger pause would go cluster-wide for free later. ⭐ The
+adapter replacing it calls the local `MasterSyncController` **directly**.
+
+⚠ **This is NOT a new asymmetry introduced here.** 📐 It is the path the editor's OWN
+`BlueprintDebugSession` and `DataBreakpointManager` have always taken — the AI debuggers were the
+*only* ones on the intent path. ⇒ ⭐⭐ **if direct-vs-intent is the wrong call, it is now wrong in ONE
+place for all four debuggers instead of right in one corner and wrong in three** — which is the whole
+value of collapsing to one abstraction, and is where `CE-350` would fix it.
+
+### 32.24.4 🔒 THE METHOD NOTE — **a retraction left visible in the code**
+
+⛔ `CgfSubsystem`'s comment used to read *"CGF has no `ITimeCommands`, so supplying a coordinator
+would be theatre."* 🔴 **I wrote that, and it was an absence claimed from a TYPE NAME** — the
+capability had been there since slice 4, twenty lines above, already driving the Blueprint debug
+session. ⭐ The corrected comment **keeps the wrong claim visible** rather than quietly replacing it,
+because the next reader's instinct will be the same one.
+
+🔒 **The generalisation, now three-for-three this session** *(`catalog`/`bpChannelCatalog` §32.18.1 ·
+the scenario root §32.20 · this one)*: ⭐⭐⭐ **a type the host does not have is not a capability the
+host does not have.**
+
+### 32.24.5 ⚠ `CE-352` — **A RAIL THIS PROGRAMME BROKE IN `CE-319` AND NOBODY SAW**
+
+📐 Gating `CE-349` surfaced `Aie030DebugSessionRegistryIntegrationTests.Contributor_WiresDebugMetadata_IntoSession`
+as **RED — and a worktree at the base commit `3ed397ef9` shows it was red there too**, so it is not
+`CE-349`'s. ⭐ Last touched by **`6f64208d6` (`CE-319`, ours)**.
+
+| ⭐ it failed in TWO stages, and the second is the one worth recording | |
+|---|---|
+| ① | the fixture adds a `BehaviorState` it never **registers** ⇒ `AddComponent` **threw in setup**. ⛔⛔ **A rail that throws in setup asserts nothing and looks exactly like a rail that runs** |
+| ② | with that fixed the snapshot came back **null** — ⭐ because `RootStateAccess.EnsureRootState` **skips silently when the tier components are not registered**, which is *documented, deliberate* §27.2 behaviour *(`Fdp.Toolkits` hosts may run without the Hrot-wide tier registration; provisioning must not fail at spawn)*. ⇒ no occurrence slot, `TryGetState` false, no snapshot |
+
+⭐ **Fix:** register `BehaviorState` **and** call `BlueprintTierTable.RegisterAll(world)` — exactly what
+`RootParamsTestHarness` already demands of its callers *("world must already have the tier components
+registered … without them there is nowhere for the slot to go")*. ✅ 3/3.
+
+🔒 **The durable fact, for §31's readers:** ⚠ **a correct silent-skip in production provisioning makes
+a TEST fixture fail as a plausible `null` rather than as an error** — ⇒ any fixture that reaches
+`EnsureRootState` on a hand-built `EntityRepository` must register the tiers first, or it will assert
+against a snapshot that was never built.
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 

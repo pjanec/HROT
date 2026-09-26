@@ -5,8 +5,9 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-26
 build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DEDUPLICATION IS FINISHED.**
-  ⭐⭐⭐ **NEXT ACTION IS `CE-349`, ALREADY APPROVED — see §0.** Branch `behaviors`, everything PUSHED.
-  ⚠ ONE VERIFICATION IS OUTSTANDING: the `T3` system suite (see §0's "unresolved" line).
+  ✅ **`CE-349` IS DONE `2026-09-26` — the AI debuggers use the host's ONE time control on BOTH
+  hosts, and the per-host subclass is deleted (§32.24).** ⭐⭐⭐ **NEXT IS `CE-351`, then `CE-350` — see §0.**
+  Branch `behaviors`, everything PUSHED.
   ⛔ HISTORY of this programme's slices follows; read §0 FIRST, not this block.
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
@@ -80,7 +81,7 @@ build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DE
   CGF still needs an `ITimeCommands`.
   📋 OPEN: HSM subtree AUTHORING (**the real blocker**) · BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
-current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-349`, approved), the ONE document to read
+current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-351`, then `CE-350`), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
   §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
   gate baselines, §0e the standing constraints.
@@ -109,46 +110,59 @@ RELEARN
 
 ---
 
-## 0. ⭐⭐⭐ NEXT: **`CE-349` — ONE TIME-CONTROL ABSTRACTION FOR THE AI DEBUGGERS** *(APPROVED)*
+## 0. ⭐⭐⭐ NEXT: **`CE-351`, THEN `CE-350`** — ✅ **`CE-349` IS DONE**
 
 > ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
 > that must NEVER be committed.** Leave it stashed.
 > ⚠⚠ **ONE VERIFICATION IS UNRESOLVED** — see §0z.
 
-### 🔒 FIRST ACTION ON RESUME — **`CE-349`, and the measurement is ALREADY DONE**
+### ✅ `CE-349` IS BUILT — **do not re-derive it; 📄 `DESIGN_Occurrence_Scoped_Storage.md` §32.24 is the as-built**
 
 🔒 **User, `2026-09-26`:** *"cgf should use the cluster time control but i think editor should do the
 same as editor also has its local cluster orchestrator so for consistency they should be using same
-time control means."* → then, on the two options offered: **"go with 1, file 2 as follow-up."**
+time control means."* → **"go with 1, file 2 as follow-up."** ⇒ ✅ **option 1 shipped.**
 
-⭐⭐⭐ **DO NOT RE-MEASURE THIS — the claim table is in `DESIGN_Occurrence_Scoped_Storage.md` §32.23
-and the tracker row `CE-349`.** The findings, verbatim:
-
-| 📐 measured `2026-09-26` | |
+| ⭐ what landed | |
 |---|---|
-| ⭐ **`IEngineDebugTimeController` is ALREADY the one debugger time-control abstraction** | `Hrot.Blueprints.Core.Debug` — `IsPausedByDebugger` · `RequestPause()` · `RequestResume()` · `RequestStepOneTick()` |
-| ⭐ **BOTH hosts already implement AND construct it** | `MasterSyncTimeControllerAdapter` over the editor's own `MasterSyncController` (`EditorSubsystem:1746`) · `CgfClusterDebugTimeController` (`CgfSubsystem:1468`) — *both even named `bpTimeAdapter`* |
-| ⭐ **its consumers are already shared** | `BlueprintDebugSession` · `DataBreakpointManager` · `PerspectiveWorkspaceRegistrar` |
-| ⭐ **the TRANSPORT is common too** | CGF's controller *"publishes the same time INTENTS the toolbar already publishes"* → `ClusterOpEgressTranslator` → the orchestrator's `MasterSyncController`; the editor's `IntentTimeCommands` says *"path D becomes path A — the same shape the cluster path uses"* |
-| ⛔ **THE SINGLE HOLD-OUT** | `AiTracerCoordinator` goes through **`ITimeCommands`** instead — a SECOND abstraction, one implementation (`Hrot.Editor.Debug.EditorAiTracerCoordinator`), one host |
-| ⭐ **the surfaces match** | `AiTracerCoordinator`'s virtuals are `RequestPause` / `RequestContinue` / `RequestStepOneTick` — the interface's three, modulo `Continue`/`Resume` |
-| ⭐ **reachability is fine, no new project reference** | `Hrot.Diagnostics.Breakpoints` → `Hrot.Blueprints.Core`, and `Hrot.Editor.AiShared` → Breakpoints |
+| ⭐ `AiTracerCoordinator` takes `IEngineDebugTimeController?` | its three virtuals **forward** (`Continue`→`Resume`) instead of being empty |
+| ⛔ `Hrot.Editor.Debug.EditorAiTracerCoordinator` **DELETED** | ⚠⚠ **NOT** the same-named `Hrot.Editor.DebugApi.EditorAiTracerCoordinator`, which arms trace buffers and is untouched — **two live classes share that name** |
+| ⭐⭐ new `AiDebugSessionComposer` *(`Hrot.Editor.AiComposition`)* | builds coordinator + BOTH sessions, and **throws on a null controller** — the rail that makes the `T4d` defect unreachable rather than fixed-once |
+| ⭐⭐ `EditorSubsystem` **hoists** `_bpTimeAdapter` | from the breakpoint block to the AI-debug block, so ONE adapter serves both. ⚠ Verified straight-line: **no `return` between `:1047` and `:1760`** |
+| ⭐ `CgfSubsystem` passes `_debugTimeController` | ⇒ **BTree/HSM pause, step and continue are LIVE on CGF for the first time** |
+| ⭐ the DI registration **resolves** the controller | instead of silently defaulting it away |
 
-⭐⭐ **THE WORK:** give `AiTracerCoordinator` an `IEngineDebugTimeController` and **delete the per-host
-subclass**; the editor passes `_bpTimeAdapter`, CGF passes its controller. ⇒ **BTree/HSM pause/step
-works on BOTH hosts**, from the abstraction Blueprint and breakpoints already use.
-⚠ Put any shared construction in **`Hrot.Editor.AiComposition`** *(created `2026-09-26` by `CE-340`)*
-— ⛔ **do not write it twice**; that is the mistake this session spent five rows undoing.
+⚠⚠ **THE PROPERTY GIVEN UP, so nobody rediscovers it as a regression:** the deleted subclass published
+time **INTENTS** *(cluster fan-out for free)*; the adapter calls the local `MasterSyncController`
+directly. ⭐ That is the path the editor's OWN Blueprint session and breakpoint manager always took —
+so the asymmetry is **removed**, not created. ⇒ if direct-vs-intent is wrong it is now wrong in ONE
+place for all four debuggers, which is `CE-350`'s to fix.
 
-⛔⛔ **AND IT CORRECTS THE PREVIOUS SESSION, which the next one must not re-inherit:** I twice wrote
-*"CGF has no `ITimeCommands`, so supplying a coordinator would be theatre"* and deferred BTree/HSM
-pause/step as *"a real slice"*. 🔴 **True of the TYPE NAME, false of the CAPABILITY** — CGF has had
-debugger time control since slice 4. ⇒ **`CE-349` is a WIRING job.**
+⭐ **Gates:** the feature's own rail `TheTracerCoordinatorActuallyControlsTimeTests` **4/4**, and
+**red-proved** — reintroducing the `T4d` no-op reddens 2 of the 4. `Hrot.Editor.Tests` **424/0/1skip**,
+`Hrot.BTree.Editor.Tests` **629/0**, `Hrot.Hsm.Editor.Tests` **579/0**,
+⭐⭐ `Hrot.Editor.AiShared.Tests` **2073/0/1skip — BETTER than the baseline, which carried one red.**
+`Hrot.CGF` + every touched project build clean. ⚠ Needed one **new project reference**
+(`Hrot.Editor.Tests` → `Hrot.Editor.AiComposition`): the transitive one through `Hrot.Editor` did not
+surface the namespace at compile time.
 
-📋 **THEN `CE-350`** *(filed as the follow-up the user asked for)*: move `IEngineDebugTimeController`
-out of `Hrot.Blueprints.Core` to a neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* and retire
-the `[Obsolete] IBlueprintTimeController` alias. ⛔ Deliberately a separate batch.
+✅ **`CE-352` — and it is OURS, not `CE-349`'s.** Gating turned up
+`Aie030DebugSessionRegistryIntegrationTests.Contributor_WiresDebugMetadata_IntoSession` RED; a
+**worktree at `3ed397ef9`** proved it red at the base commit too, and it was last touched by
+`6f64208d6` *(`CE-319`)*. 🔴 Two stages: ① a `BehaviorState` added without being registered ⇒ the
+fixture **threw in setup**, asserting nothing while looking like a passing shape; ② once fixed, the
+snapshot was **null**, because `RootStateAccess.EnsureRootState` **skips silently when the tier
+components are not registered** *(deliberate §27.2 behaviour for `Fdp.Toolkits` hosts)*. ⭐ Fixed by
+registering `BehaviorState` + `BlueprintTierTable.RegisterAll` — what `RootParamsTestHarness` already
+demands. 📄 §32.24.5. 🔒 **Carry the lesson:** a correct silent-skip in production provisioning makes
+a test fixture fail as a plausible `null`, not as an error.
+
+### ⭐ NEXT — **`CE-351`, then `CE-350`**
+
+| # | | |
+|---|---|---|
+| **1** | ⭐⭐ **`CE-351`** *(register the runtime-inspector pane on CGF)* | 🔒 **The `T3` red whose own exit condition is now met** — see §0z. Mirror the editor's `if (debugSession != null)` guard; turns the conformance rail green and removes the last known pane asymmetry |
+| **2** | 📋 **`CE-350`** *(move `IEngineDebugTimeController` out of `Hrot.Blueprints.Core`)* | the follow-up the user asked to be filed separately: neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* + retire the `[Obsolete] IBlueprintTimeController` alias. ⛔ Its own batch — it touches Blueprints, Breakpoints, CGF and the editor at once |
 
 ### ⭐ AFTER THAT — the open queue, in the order last discussed
 
