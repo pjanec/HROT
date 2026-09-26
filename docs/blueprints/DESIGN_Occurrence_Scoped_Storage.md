@@ -8841,6 +8841,68 @@ scheduler** *(CGF regenerates nothing — the reload pipeline recompiles from me
 variables bridge** and **graph-signature window** *(CGF registers neither)*, and **pause/step
 plumbing** *(CGF has no `ITimeCommands`; slice 4 gave it a cluster time controller instead)*.
 
+## 32.22 ✅ `CE-348` — **THE KERNEL ADAPTER "SLICE 3+" DEFERRED, BUILT** *(user, `2026-09-26`)*
+
+> 🔒 **User, on the framing:** *"zero callers for btreedebugsession and trace loop is again a sign of
+> under adoption, not un-necessity."* · **on the anchor:** *"Yes (1). Pinning to concrete entity might
+> come later when necessity comes."*
+
+### 32.22.1 ⭐ IT WAS NAMED, SCHEDULED AND NEVER BUILT
+
+📄 `docs/projects/Hrot/AI/Hrot.BTree.Editor.md` — *"When a simulation is running, the editor connects
+a `BTreeDebugSession` to the **kernel adapter**"* (`:58`); the session exposes `RecordNodeExecuted()`,
+`RecordAsyncEvent()` and `RaiseBreakpointHit()` ***"for the FUTURE kernel adapter"***, with ***"step
+controls … no-ops until kernel wiring (Slice 3+)"*** (`:294`); `LiveBlackboardPanel` shows a `--`
+placeholder *"until Slice 3 wires actual values"* (`:312`).
+
+⇒ ⭐⭐ **The adapter is this.** ⛔ Nothing was designed away and nothing was dead.
+
+### 32.22.2 ⭐⭐ THE ANCHOR — **option (1), and it turned out to be the DESIGNED one**
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the graph follows the ENTITY-INSPECTOR SELECTION** | 📐 `SharedEntitySelection` (`CE-301`, 📄 `DESIGN_Editor_Entity_Selection_Source.md`) is *"the AI editors' view of **THE ONE** selection"*, written **solely** by `SelectionNotificationSystem` from `SelectionChangedNotification.Primary` ⇒ **every** cause moves it: a map click, the entity inspector, the orbat, a context-menu *Select*, a remote `CMD_SET_SELECTION` |
+| ⭐ why it beat the alternatives | the canvas and the inspector now show the same entity **by construction**, with **no new concept** — and on CGF the three perspective stores already share ONE `_sharedEntitySelection` |
+| ⛔ **pinning is deliberately OUT** | 🔒 user: *"might come later when necessity comes"* — ⭐ and `SharedEntitySelection`'s own remarks already state that **pinning does not go through it** (`R-100`), so the deferral matches the existing design rather than postponing a decision it had made |
+| ⛔ rejected: *"first/any entity running the asset"* | wrong the moment there are two, which is the normal case |
+
+### 32.22.3 ⭐⭐⭐ WHAT ONE LINE OF PUMPING LIGHTS UP — **and what it does NOT**
+
+📐 **The consumers were already constructed and registered, sitting dark:**
+`BTreeRuntimeOverlayRenderer` (`BTreeDocumentFactory:202`) · `HeatmapOverlayRenderer` (`:216`) ·
+the breakpoint gutter (`BTreeEditorHostServices:90`) · `SubtreeBoundaryRenderer`.
+
+| ✅ works the moment this pumps | ⚠ still needs the trace buffer ARMED |
+|---|---|
+| ⭐⭐ the **executing-node outline** and the live snapshot — 📐 `BTreeDebugSession.Update` reads the running node + call stack from **`RootStateAccess.TryGetState`**, i.e. **the occurrence root slot THIS programme built in `CE-319`** ⇒ no arming needed | the **node history** and the **heatmap** — they read `BTreeTraceWorkingMemory1024`, armed separately via `EditorAiTracerCoordinator.ArmEntity`'s `PatchDebugStateCommand` |
+
+🔒 **Stated so it is not over-claimed:** this delivers the *snapshot* half on both hosts. ⛔ The history
+half is one opt-in away and is **not** claimed here; ⛔ nor is **pause/step**, which needs an
+`ITimeCommands` CGF does not have.
+
+### 32.22.4 ⭐ THE SHAPE
+
+⭐⭐ **`AiDebugSessionPump` lives in `Hrot.Editor.AiComposition`** and both hosts call it — ⛔ writing
+the poll twice would have been the sixth duplicate in a session that removed five.
+⚠ **Pumped from the canvas's `AfterDraw`**, so a graph that is not drawn costs nothing, and
+`AiDebugSessionPump.Then` composes it onto the editor's existing selection bridge without either
+owning the other.
+
+🔴 **The providers are `Func<>`, not values — the `CE-343` lesson applied rather than re-learned.**
+📐 Both hosts assign their world during initialisation, **after** the canvas hook is built ⇒ capturing
+it would have pinned `null` forever. ⭐ A rail pins the per-fire resolution.
+
+### 32.22.5 🔒 THE METHOD NOTE — **the inverse seam-law error, and who caught it**
+
+⛔ I measured `0 callers` and wrote *"the trace loop is dead on both hosts."* ⭐⭐ **The user corrected
+the READING, not the measurement** — and the corpus then showed the buffers have **six** live
+consumers and the missing piece had a name and a slice number.
+
+⇒ 🔒 **`grep` reports a count truthfully; only the owning design says what the count MEANS.**
+⚠ The familiar seam-law failure is *"we need a shared X"* when X exists. **This is its inverse:
+reading unadopted as unnecessary** — and it is reached the same way, by characterising a measurement
+before searching `docs/`.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

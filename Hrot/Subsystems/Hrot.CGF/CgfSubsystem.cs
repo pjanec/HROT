@@ -2102,15 +2102,41 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         void RegisterCanvas(Hrot.Editor.AiShared.Windows.PerspectiveWorkspaceRegistrar registrar, string kind)
         {
             var renderer = new NodeEditor.UI.Canvas.CanvasRenderer();
-            registrar.RegisterExtraWindow(windowManager,
-                new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
+            var canvas = new Hrot.Editor.AiShared.Windows.AiGraphCanvasWindow(
                     assetKind:  kind,
                     docManager: _aiDocumentManager!,
                     renderer:   new Hrot.Editor.AiShared.Windows.DelegatingCanvasRenderSeam(
                         renderDelegate:    view => renderer.Render(view, null),
                         renderWithFindBar: (view, fb, cmds) => renderer.Render(view, fb, cmds)),
                     pickers: adapters.PickerRegistry,
-                    input:   adapters.InputSource));
+                    input:   adapters.InputSource);
+
+            // ⭐⭐⭐ CE-348 (2026-09-26) — DRIVE THE DEBUG SESSION FROM THE CANVAS, AS THE EDITOR DOES.
+            //    🔒 User: "zero callers … is again a sign of under adoption, not un-necessity."
+            // 📐 The design names this as unfinished: Hrot.BTree.Editor.md:58 has the editor connect a
+            //    BTreeDebugSession to the "kernel adapter", and :294 says the Record* methods exist
+            //    "for the FUTURE kernel adapter" — deferred at "Slice 3+" and never built, on EITHER
+            //    host. ⭐ Four canvas overlays were registered and sitting dark waiting for it.
+            // ⭐⭐ ANCHOR = option (1), approved by the user: follow the ENTITY-INSPECTOR SELECTION.
+            //    ⭐ On this host the three perspective stores share ONE `_sharedEntitySelection`
+            //    (CE-301's single selection), so canvas and inspector cannot disagree.
+            // ⭐⭐⭐ The SNAPSHOT half needs no trace arming: BTreeDebugSession.Update reads the running
+            //    node from RootStateAccess (the occurrence root slot, CE-319) ⇒ the executing-node
+            //    outline lights up immediately. ⚠ History/heatmap still need the trace buffer armed.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.22.
+            var pumpServices = new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                World          = () => _context?.World,
+                SelectedEntity = () => _sharedEntitySelection.Selected,
+            };
+            canvas.AfterDraw = kind switch
+            {
+                "BTree" => Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(_btreeDebugSession, pumpServices),
+                "HSM"   => Hrot.Editor.AiComposition.AiDebugSessionPump.ForHsm(_hsmDebugSession, pumpServices),
+                _       => null,
+            };
+
+            registrar.RegisterExtraWindow(windowManager, canvas);
                     // ⛔ saveDocument is absent, and ⚠⚠ NOT as a gate on editing — 🔒 the 2026-08-25
                     //   STEER forbids gating, and this is not one. 📐 Measured: it is the
                     //   save-on-CLOSE callback for a DIRTY OPEN DOCUMENT, and CGF can open no document

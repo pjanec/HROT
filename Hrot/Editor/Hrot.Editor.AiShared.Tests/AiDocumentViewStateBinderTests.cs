@@ -226,3 +226,111 @@ public sealed class AiActiveDocumentBinderTests
         => Assert.Throws<ArgumentNullException>(
                () => Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(null!));
 }
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-348</c> — the kernel adapter the design deferred at "Slice 3+".</b>
+/// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.22.
+///
+/// <para>🔒 <b>User:</b> <i>"zero callers for btreedebugsession and trace loop is again a sign of
+/// under adoption, not un-necessity."</i> ⭐ The corpus agrees — <c>Hrot.BTree.Editor.md:294</c> says
+/// the session's <c>Record*</c> methods exist <i>"for the FUTURE kernel adapter"</i>.</para>
+///
+/// <para>⚠ These rails pin the PUMP's contract — when it advances the session and when it must not.
+/// ⛔ They do not drive a real kernel: <c>Update</c> needs a live <c>EntityRepository</c>, and the
+/// session's own behaviour is its suite's business (<c>T-1</c>).</para>
+/// </summary>
+public sealed class AiDebugSessionPumpTests
+{
+    /// <summary>
+    /// ⭐⭐ <b>No selected entity ⇒ the session is NOT advanced, and nothing throws.</b>
+    /// 🔒 An empty selection is an ordinary state on a per-frame hook, not an error.
+    /// </summary>
+    [Fact]
+    public void WithNoSelectedEntity_TheSessionIsNotAdvanced()
+    {
+        int worldAsked = 0;
+        var pump = Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(
+            new Hrot.BTree.Editor.Debug.BTreeDebugSession(),
+            new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                World          = () => { worldAsked++; return null; },
+                SelectedEntity = () => null,
+            });
+
+        var ex = Record.Exception(() => pump(null!));
+
+        Assert.Null(ex);
+        Assert.Equal(1, worldAsked);   // ⭐ asked, then declined to advance
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>No session ⇒ a no-op that never touches the providers.</b> ⛔ A host without a session
+    /// (as CGF was before <c>CE-345</c>) must not pay for the hook, and must not need to branch.
+    /// </summary>
+    [Fact]
+    public void WithNoSession_ThePumpIsAPureNoOp()
+    {
+        int asked = 0;
+        var pump = Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(
+            null,
+            new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                World          = () => { asked++; return null; },
+                SelectedEntity = () => { asked++; return null; },
+            });
+
+        pump(null!);
+
+        Assert.Equal(0, asked);
+    }
+
+    /// <summary>
+    /// 🔴 <b>The providers are resolved PER FIRE — the <c>CE-343</c> lesson, applied.</b>
+    /// 📐 Both hosts assign their world during initialisation, AFTER the canvas hook is built ⇒
+    /// capturing it would pin <see langword="null"/> forever.
+    /// </summary>
+    [Fact]
+    public void TheWorldProvider_IsResolvedPerFire_NotCapturedAtBuildTime()
+    {
+        int calls = 0;
+        var pump = Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(
+            new Hrot.BTree.Editor.Debug.BTreeDebugSession(),
+            new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                World          = () => { calls++; return null; },
+                SelectedEntity = () => null,
+            });
+
+        pump(null!);
+        pump(null!);
+        pump(null!);
+
+        Assert.Equal(3, calls);
+    }
+
+    /// <summary>⭐ <c>Then</c> runs both actions, in order — the editor composes the pump onto a
+    /// canvas hook that already carries a selection bridge, and neither may own the other.</summary>
+    [Fact]
+    public void Then_RunsBothActionsInOrder()
+    {
+        var order = new List<string>();
+        var composed = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(
+            _ => order.Add("first"), _ => order.Add("second"));
+
+        composed(null!);
+
+        Assert.Equal(new[] { "first", "second" }, order);
+    }
+
+    /// <summary>⚠ <c>Then</c> tolerates a null half, so a host need not branch.</summary>
+    [Fact]
+    public void Then_ToleratesANullHalf()
+    {
+        var ran = false;
+        Hrot.Editor.AiComposition.AiDebugSessionPump.Then(null, _ => ran = true)(null!);
+        Assert.True(ran);
+
+        Assert.Null(Record.Exception(
+            () => Hrot.Editor.AiComposition.AiDebugSessionPump.Then(null, null)(null!)));
+    }
+}

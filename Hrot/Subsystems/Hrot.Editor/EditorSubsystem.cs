@@ -4399,10 +4399,33 @@ namespace Hrot.Editor
             // Each AfterDraw reads ctx.AssetRef (set by the document factory) and maps
             // the single selected node to a BTreeNodeSelection / HsmStateSelection published
             // to the perspective's EditorSelectionStore so GetCurrentFacet() returns non-null.
-            btreeCanvasWindow.AfterDraw =
-                BTreeSelectionBridgeHelper.BuildAfterDrawAction(_btreeSelectionStore);
-            hsmCanvasWindow.AfterDraw =
-                HsmSelectionBridgeHelper.BuildAfterDrawAction(_hsmSelectionStore);
+            // ⭐⭐⭐ CE-348 (2026-09-26) — THE KERNEL ADAPTER THE DESIGN DEFERRED AT "Slice 3+".
+            //    🔒 User: "zero callers for btreedebugsession and trace loop is again a sign of under
+            //    adoption, not un-necessity." 📐 The corpus agrees: Hrot.BTree.Editor.md:58 says the
+            //    editor "connects a BTreeDebugSession to the KERNEL ADAPTER", and :294 says its
+            //    Record* methods exist "for the FUTURE kernel adapter". It was never built.
+            // ⭐ Four overlays were already registered and sitting dark — the runtime outline, the
+            //   heatmap, the breakpoint gutter and the subtree boundary.
+            // ⭐⭐ ANCHOR = option (1), approved by the user: the graph follows the ENTITY-INSPECTOR
+            //   SELECTION (SharedEntitySelection, CE-301 — the ONE selection every cause moves), so
+            //   canvas and inspector agree by construction. ⛔ Per-tab PINNING is deliberately out.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.22.
+            var aiPumpServices = new Hrot.Editor.AiComposition.AiDebugSessionPumpServices
+            {
+                // ⚠ PROVIDERS: _world is assigned during Initialize, after this hook is built.
+                World          = () => _world,
+                SelectedEntity = () => _btreeSelectionStore.SelectedEntity,
+            };
+
+            btreeCanvasWindow.AfterDraw = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(
+                BTreeSelectionBridgeHelper.BuildAfterDrawAction(_btreeSelectionStore),
+                Hrot.Editor.AiComposition.AiDebugSessionPump.ForBTree(_btreeDebugSession, aiPumpServices));
+
+            hsmCanvasWindow.AfterDraw = Hrot.Editor.AiComposition.AiDebugSessionPump.Then(
+                HsmSelectionBridgeHelper.BuildAfterDrawAction(_hsmSelectionStore),
+                Hrot.Editor.AiComposition.AiDebugSessionPump.ForHsm(
+                    _hsmDebugSession,
+                    aiPumpServices with { SelectedEntity = () => _hsmSelectionStore.SelectedEntity }));
 
             // ── AIE-047: Blueprint "My Blueprint" panel window ────────────────────────────────
             _blueprintMyBlueprintWindow = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
