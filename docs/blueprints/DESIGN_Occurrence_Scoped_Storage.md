@@ -9139,10 +9139,39 @@ entry**, plus the now-dead `DivergesByDesign["runtime-inspector"]` and reason (2
 
 ⛔⛔ **All three live in `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` — the
 system-test harness, which is the BACKEND lane's file.** 🔒 The two-session protocol makes a
-cross-lane edit a **STOP-and-report, not a judgement call**, so this lane reports it instead.
+cross-lane edit a **STOP-and-report, not a judgement call**, so this lane **asked**.
 ⭐ **No new red is created by the work above:** `details` still diverges on reason (1) *(`$.mode`
 Paused vs Running — a real host difference the rail deliberately does not equalise)*, so
 `A_declared_divergence_that_stopped_diverging_is_deleted` does not flip.
+
+### 32.25.4 ✅ `CE-353` — **THE DELETIONS, MADE WITH THE USER'S AUTHORISATION** *(`2026-09-26`)*
+
+🔒 **User:** *"yes, do the ce-353 deletions here."* ⇒ the cross-lane edit was authorised, not assumed.
+
+| # | what | |
+|---|---|---|
+| ① | `"runtime-inspector"` dropped from `ported[]` | ⛔ not because CGF lacks it — because **no host has that panel** |
+| ② | `DivergesByDesign["runtime-inspector"]` deleted | ⭐ its text is preserved in the comment that replaces it, so the record is not lost |
+| ③ | `DivergesByDesign["details"]` trimmed **two reasons → one** | reason (2) *(`$.offeredViewIds` 3 vs 1)* is dead: `CE-344` gave CGF the session, `CE-351` registers all three panes. ⭐ Reason (1) *(`$.mode`)* **stays** — a real host difference |
+| ④ | the slice-1 `EditorOnlyKinds` comment marked **HISTORICAL** | ⛔ not rewritten — it is a true record of what slice 1 published; it just must not be read as current |
+
+### 32.25.5 ⭐⭐⭐ THE FINDING THE DELETION PRODUCED — **the control could not have caught this**
+
+📐 `A_declared_divergence_that_stopped_diverging_is_deleted` is the control on `DivergesByDesign`, and
+its own header says so: *"without this, `DivergesByDesign` is an ignore-list that only grows."*
+⛔⛔ **But it filters on `a.ContainsKey(k) && b.ContainsKey(k)`** — it compares the two hosts' models
+for kinds **present in both captures**.
+
+⇒ 🔒 **An exemption whose PANEL is deleted outright is INVISIBLE to it.** ⭐⭐ It can catch an
+exemption that stopped being **NEEDED** *(the hosts agree)*; it cannot catch one that stopped being
+**MEANINGFUL** *(the thing it exempts is gone)*. 📌 That is precisely how
+`["runtime-inspector"]` survived five days past `CE-303`, while a **different** rail
+(`The_ported_kinds_are_really_published_by_the_cluster`) went red for the same root cause and was
+misread — by me — as a CGF wiring gap.
+
+⚠ **Stated as a limitation, not fixed here:** a third rail asserting *"every `DivergesByDesign` key is
+a kind at least one host still publishes"* would close it. ⛔ Not written in this pass — it is harness
+work, and this lane is already across a lane boundary by permission for a specific deletion.
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 

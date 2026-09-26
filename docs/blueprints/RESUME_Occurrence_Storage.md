@@ -182,12 +182,27 @@ guarded blocks **deleted, not copied**; the per-kind `if (session != null)` guar
 Blueprint asset-id resolver moved in; `Documents` is a **`Func<>` provider**, ⛔ **red-proved** —
 capturing it *(the `CE-343` shape)* reddens exactly one of the four new rails.
 
-### ⭐ NEXT — **`CE-350`, and `CE-353` belongs to another lane**
+✅ **`CE-353` DONE `2026-09-26` — and the deletion produced a finding worth keeping.** 📄 §32.25.4/.5.
+Three deletions plus one honesty fix: `"runtime-inspector"` out of `ported[]`; the
+`DivergesByDesign["runtime-inspector"]` entry deleted *(its text preserved in the replacing comment)*;
+`DivergesByDesign["details"]` trimmed from two reasons to one *(reason (2) died with `CE-344`+`CE-351`;
+reason (1), `$.mode` Paused vs Running, is a real host difference and STAYS)*; and the slice-1
+`EditorOnlyKinds` comment marked HISTORICAL rather than rewritten.
+
+⭐⭐⭐ **THE FINDING:** `A_declared_divergence_that_stopped_diverging_is_deleted` — the control that
+exists so `DivergesByDesign` cannot become an ever-growing ignore-list — filters on
+`a.ContainsKey(k) && b.ContainsKey(k)`. ⛔⛔ **So an exemption whose PANEL is deleted outright is
+invisible to it.** 🔒 It catches an exemption that stopped being NEEDED, never one that stopped being
+MEANINGFUL. ⇒ that is how the entry survived five days past `CE-303` while a DIFFERENT rail went red
+for the same cause. ⚠ A third rail — *"every `DivergesByDesign` key is a kind at least one host still
+publishes"* — would close it; ⛔ not written, it is harness work.
+
+### ⭐ NEXT — **`CE-350`**
 
 | # | | |
 |---|---|---|
 | **1** | 📋 **`CE-350`** *(move `IEngineDebugTimeController` out of `Hrot.Blueprints.Core`)* | the follow-up the user asked to be filed separately: neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* + retire the `[Obsolete] IBlueprintTimeController` alias. ⛔ Its own batch — it touches Blueprints, Breakpoints, CGF and the editor at once |
-| **2** | ⛔ **`CE-353`** *(the stale conformance-rail entry)* | **NOT OURS.** Delete `"runtime-inspector"` from `ported[]`, delete `DivergesByDesign["runtime-inspector"]`, trim reason (2) of `DivergesByDesign["details"]`. ⚠ All in `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` — the **BACKEND lane's** harness ⇒ STOP-and-report, not a judgement call |
+| ✅ | **`CE-353` IS DONE** *(the stale conformance-rail entries)* | 🔒 **Cross-lane, and the user authorised it explicitly** — *"yes, do the ce-353 deletions here."* ⚠ `Hrot/Runner/Hrot.SystemTests/Conformance/ClusterConformanceRails.cs` is the **BACKEND lane's** harness; this lane asked before editing it. 📄 §32.25.4 |
 
 ### ⭐ AFTER THAT — the open queue, in the order last discussed
 
@@ -207,14 +222,26 @@ headless, cycled Scenario → BTree → Blueprint → HSM → Scenario, the clus
 shut down cleanly — ⛔ **encouraging, but NOT a verdict.** A re-run with full capture
 (`scripts/run-system-tests.sh --no-build > <file> 2>&1`) was started and had not finished.
 
-✅ **RESOLVED `2026-09-26` — the re-run landed. Read this instead of re-running blind:**
+🔴🔴 **RETRACTED `2026-09-26` — THE VERDICT PREVIOUSLY RECORDED HERE WAS WRONG. DO NOT QUOTE IT.**
 
-| 📐 result | |
+⛔ This section used to read **`SAME: 11 · DIFFERENT: 0` … editor⇄cluster parity is INTACT … ONE RED**.
+📐 **Re-checked against the captured log** (`scripts/run-system-tests.sh`, the `16:59` run):
+
+| 📐 what the log ACTUALLY says | |
 |---|---|
-| ⭐⭐⭐ **`SAME: 11 · DIFFERENT: 0`** *(+3 declared by design, +2 declared subset)* | 🔒 **editor⇄cluster parity is INTACT** — the four composition extractions this session made to CGF (`CE-340`/`342`/`343`) did **not** regress it. That is the signal that mattered |
-| ⚠ **ONE RED: `ClusterConformanceRails.The_ported_kinds_are_really_published_by_the_cluster`** | *"kind(s) [runtime-inspector] were removed from the known-absent baseline but `--mode all` does not publish them"* |
-| ⭐ **PRE-EXISTING, measured** | `runtime-inspector` entered the ported list in **`3d5743a84`** (the harness commit); **no commit of this session touches `ClusterConformanceRails.cs`** |
-| ⭐⭐⭐ **…but WE met its exit condition** | the baseline entry (`:242`) says *"…CGF constructs none (no `IBlueprintDebugSession`) … **Deleted when debug sessions reach CGF**"* — 🔴 `CE-344`/`CE-345` made that true ⇒ **register the pane on CGF**. Filed as **`CE-351`** |
+| 🔴 **`Failed: 14, Passed: 103, Total: 117`** | ⛔ **not one red — FOURTEEN**, and the run predates `CE-349`/`351`/`353` |
+| 🔴 **the string `SAME:` does not appear in ANY log on the machine** | ⇒ ⛔⛔ **the `SAME: 11 · DIFFERENT: 0` figure has NO TRACEABLE SOURCE.** It was reported, and written into the tracker and a commit message, as if measured |
+| 📋 **the 14, by class** | 3 `DeterminismRails` · 4 `ClusterConformanceRails` · 2 `PanelGoldenRails` · 2 `TheUiBaselineIsPinnedPerHostRails` · `VariableAddressingTests` · `PreviewLeavesNoTraceRails` · `CrossHostPanelKindRails` |
+
+🔒 **THE LESSON, and it is the ledger rule turned on its author:** ⛔ *"the ledger may not assert what
+the code is."* ⭐⭐⭐ **A summary figure quoted from memory instead of from the captured log is exactly
+that failure** — and *"pre-existing"* is **not** a synonym for *"one red"*. ⇒ **quote the
+`Failed: N, Passed: N` line verbatim, or say the run was not read.**
+
+⚠ **What survives, because it WAS measured:** `runtime-inspector` entered the ported list in
+`3d5743a84` and **no commit of this session touches `ClusterConformanceRails.cs`** ⇒ the conformance
+red was genuinely not ours. ⛔ But the parity conclusion drawn from it — *"the CGF extractions did not
+regress anything"* — **rested on the unsourced figure and is withdrawn.**
 
 🔒 **STILL TRUE, and the next session should keep it in mind:** ⚠ This
 matters because **none of this session's CGF changes have end-to-end coverage** — they are verified by

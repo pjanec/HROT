@@ -131,6 +131,10 @@ public sealed class ClusterConformanceRails
         //      blackboard-authoring · my-blueprint · variables · watch · ai-breakpoints ·
         //      graph-canvas · details · runtime-inspector · diagnostics · bookmarks
         //    ⇒ each of those is now a SHARED kind and is DIFFED for real rather than exempted.
+        //    ⚠⚠ HISTORICAL as of `2026-09-26` (`CE-353`): the list above is what slice 1 published and
+        //       is left as written, but `runtime-inspector` is NO LONGER A PANEL ON EITHER HOST —
+        //       `CE-303` (`2026-09-21`) dissolved `RuntimeInspectorWindow` and its panes became
+        //       `details.runtime.<kind>` views. ⛔ Do not read this line as current state.
         //    ⛔ This is the "reviewed one-line deletion" this baseline's own doc describes; nothing was
         //    added to it in exchange (the three kinds that still differ are declared in
         //    DivergesByDesign, WITH their measured reason, ⛔ not hidden back in here).
@@ -235,13 +239,23 @@ public sealed class ClusterConformanceRails
                         + "references neither validator assembly, so assetCount/hasValidators are "
                         + "legitimately 0/false there. Deleted when asset indexing reaches CGF.",
 
-        // 📐 Measured: `$.registeredPaneCount` 1 vs 0.
-        // ⭐ A runtime-inspector pane REQUIRES a debug session to bind to; the editor registers the
-        //   Blueprint pane only inside `if (_blueprintDebugSession != null)`. CGF constructs no
-        //   IBlueprintDebugSession, so a pane here could only ever answer null.
-        ["runtime-inspector"] = "a pane binds to a debug session and CGF constructs none "
-                              + "(no IBlueprintDebugSession); the editor registers its pane only when it "
-                              + "has one. Deleted when debug sessions reach CGF.",
+        // ⛔⛔ CE-353 (`2026-09-26`) — THE `runtime-inspector` ENTRY IS DELETED, AND NOT BECAUSE IT
+        //    STOPPED DIVERGING: **the PANEL it exempted no longer exists on EITHER host.**
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.25.3.
+        // 🔴 `CE-303` (`2026-09-21`) DISSOLVED `RuntimeInspectorWindow` — `IRuntimeInspectorPane`'s own
+        //    header now reads *"a pane is now reached through details.runtime.<kind> and nothing
+        //    else"*. ⇒ neither mode publishes the kind, so this entry described a panel that had been
+        //    deleted five days earlier, and `The_ported_kinds_are_really_published_by_the_cluster`
+        //    had been RED for exactly that reason.
+        // ⚠⚠ AND IT NAMES A BLIND SPOT IN THE CONTROL BELOW: `A_declared_divergence_that_stopped_
+        //    diverging_is_deleted` only considers kinds present in BOTH captures, so an entry whose
+        //    panel is deleted outright is invisible to it — it can catch an exemption that stopped
+        //    being NEEDED, never one that stopped being MEANINGFUL.
+        // ⭐ The real capability now lives as `details.runtime.<kind>` views, registered on BOTH hosts
+        //    by `AiRuntimePaneBinder` (`CE-351`) — which is why reason (2) of `details` goes too.
+        // 📐 Its text was: "a pane binds to a debug session and CGF constructs none (no
+        //    IBlueprintDebugSession); the editor registers its pane only when it has one. Deleted
+        //    when debug sessions reach CGF."
 
         // 📐 Measured: `$.mode` Paused vs Running, `$.focus` VariableOutline vs GraphCanvas.
         // ⭐⭐ `mode` is a REAL difference between the hosts, not a wiring gap: the editor has a
@@ -253,13 +267,17 @@ public sealed class ClusterConformanceRails
         //    both hosts the Details panel now names the SAME asset and the same focused pane, which
         //    `The_same_opened_asset_looks_the_same_on_both_hosts` asserts directly. ⭐ TWO measured
         //    reasons remain, and each names the capability whose absence causes it.
-        ["details"] = "two measured reasons, both pre-dating slice 2: (1) $.mode Paused vs Running — the "
+        // ⭐⭐ REASON (2) DELETED `2026-09-26` (`CE-353`). It read: *"(2) $.offeredViewIds 3 vs 1 —
+        //    details.runtime.Blueprint requires an IBlueprintDebugSession and CGF constructs none
+        //    (CE-004). Reason (2) is deleted when debug sessions reach CGF."* 🔴 Both halves of that
+        //    are now false: `CE-344` gave CGF a `BlueprintDebugSession`, and `CE-351` registers all
+        //    THREE runtime panes on both hosts through `AiRuntimePaneBinder`. ⇒ ⭐ ONE reason remains.
+        ["details"] = "one measured reason: $.mode Paused vs Running — the "
                     + "editor has a PLANNING state with a halted clock while a cluster node's world ticks "
-                    + "from boot (CE-003), and the three-way rail deliberately does not equalise them; "
-                    + "(2) $.offeredViewIds 3 vs 1 — details.runtime.Blueprint requires an "
-                    + "IBlueprintDebugSession and CGF constructs none (CE-004). Reason (2) is deleted "
-                    + "when debug sessions reach CGF. The panel DOES name the opened asset on both hosts "
-                    + "since slice 2 — that half is asserted, not exempted.",
+                    + "from boot (CE-003), and the three-way rail deliberately does not equalise them. "
+                    + "The panel DOES name the opened asset on both hosts "
+                    + "since slice 2 — that half is asserted, not exempted. Its runtime views are "
+                    + "registered on both hosts since CE-351 — that half is not exempted either.",
 
         // ⭐⭐⭐ CE-016 §7 (A2), `2026-08-26` — the `main-toolbar` DIVERGENCE ENTRY IS DELETED, and
         //    REPLACED by a SUBSET verdict (see SubsetByDesign below), not by nothing.
@@ -1038,11 +1056,18 @@ public sealed class ClusterConformanceRails
 
         var b = await CaptureByKindAsync(cluster, _out);
 
-        // \u2b50 The nine authoring kinds deleted from EditorOnlyKinds by slice 1, plus `bookmarks`.
+        // \u2b50 The authoring kinds deleted from EditorOnlyKinds by slice 1, plus `bookmarks`.
+        // \u26d4\u26d4 CE-353 (`2026-09-26`) \u2014 `runtime-inspector` REMOVED from this list, and the reason is
+        //    NOT that CGF still lacks it: \ud83d\udd34 `CE-303` (`2026-09-21`) DISSOLVED `RuntimeInspectorWindow`,
+        //    so the kind is published by NEITHER mode and this rail would fail identically against the
+        //    EDITOR. \ud83d\udcc4 DESIGN_Occurrence_Scoped_Storage.md \u00a732.25.3.
+        // \u26a0 The capability was not lost \u2014 a pane is a `details.runtime.<kind>` DETAILS VIEW now, on
+        //   both hosts since `CE-351`. \u21d2 what is asserted moved to the `details` kind, which is in
+        //   this list already. \u26d4 Do NOT re-add this entry: there is no panel of that kind to publish.
         string[] ported =
         {
             "blackboard-authoring", "my-blueprint", "variables", "watch", "ai-breakpoints",
-            "graph-canvas", "details", "runtime-inspector", "diagnostics", "bookmarks",
+            "graph-canvas", "details", "diagnostics", "bookmarks",
         };
 
         var absent = ported.Where(k => !b.ContainsKey(k)).ToArray();
