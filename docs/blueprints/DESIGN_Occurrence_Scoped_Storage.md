@@ -8903,6 +8903,60 @@ consumers and the missing piece had a name and a slice number.
 reading unadopted as unnecessary** — and it is reached the same way, by characterising a measurement
 before searching `docs/`.
 
+## 32.23 📋 `CE-349` + `CE-350` — **ONE TIME-CONTROL ABSTRACTION FOR THE AI DEBUGGERS** *(APPROVED, NOT YET BUILT)*
+
+> 🔒 **User, `2026-09-26`:** *"cgf should use the cluster time control but i think editor should do the
+> same as editor also has its local cluster orchestrator so for consistency they should be using same
+> time control means."* → **"go with 1, file 2 as follow-up."**
+
+### 32.23.1 📐 THE CLAIM TABLE — **the premise is right; the divergence is NARROWER than it looks**
+
+| the claim | 📐 how it IS | 📄 how it was MEANT to be |
+|---|---|---|
+| *"the editor has its own cluster orchestrator"* | ✅ `MasterSyncController _timeController` and `ClusterMaster _clusterMaster` on `EditorSubsystem`; `_orchestrationBus = _node.EventBus` | ✅ consistent with the cluster design — the editor is a MASTER, CGF a SLAVE |
+| *"they should use the same time-control means"* | ⭐⭐ **they ALREADY DO, at both the interface and the transport level — except in ONE place** | ✅ `IEngineDebugTimeController` is the stated abstraction *"for diagnostic debuggers"* |
+| **the shared interface** | `IEngineDebugTimeController` *(`Hrot.Blueprints.Core.Debug`)* — `IsPausedByDebugger` · `RequestPause()` · `RequestResume()` · `RequestStepOneTick()` | — |
+| **both hosts implement AND construct it** | `MasterSyncTimeControllerAdapter` (`EditorSubsystem:1746`) · `CgfClusterDebugTimeController` (`CgfSubsystem:1468`) — ⭐ *both even named `bpTimeAdapter`* | — |
+| **its consumers are already shared** | `BlueprintDebugSession` · `DataBreakpointManager` · `PerspectiveWorkspaceRegistrar` | — |
+| **the transport is common** | CGF's controller *"publishes the same time INTENTS the toolbar already publishes"* → `ClusterOpEgressTranslator` → the orchestrator's `MasterSyncController`. The editor's `IntentTimeCommands`: *"path D becomes path A — the same shape the cluster path uses."* | ✅ slice 4 §3a: *"CGF is a **slave**: it cannot switch modes, only **request**"* |
+| 🔴 **THE HOLD-OUT** | `AiTracerCoordinator` uses **`ITimeCommands`** — a SECOND abstraction for one concept, with **one** implementation and **one** host | ⛔ no design asks for two |
+
+⭐ **The surfaces already match:** `AiTracerCoordinator`'s virtuals are `RequestPause` /
+`RequestContinue` / `RequestStepOneTick` — the interface's three methods, modulo the
+`Continue`/`Resume` name.
+
+### 32.23.2 ⭐ `CE-349` — THE WIRING JOB
+
+⭐⭐ Give `AiTracerCoordinator` an `IEngineDebugTimeController`; **delete the per-host subclass**
+(`Hrot.Editor.Debug.EditorAiTracerCoordinator`). The editor passes `_bpTimeAdapter`, CGF passes its
+controller. ⇒ **BTree/HSM pause/step works on BOTH hosts**, from the abstraction Blueprint and
+breakpoints already use.
+
+⭐ **No new project reference:** `Hrot.Diagnostics.Breakpoints` → `Hrot.Blueprints.Core`, and
+`Hrot.Editor.AiShared` → Breakpoints ⇒ the interface is already visible.
+⚠ Any shared construction belongs in **`Hrot.Editor.AiComposition`** — ⛔ **not written twice.**
+
+⛔⛔ **IT ALSO CORRECTS §32.21.2 AND §32.20.** Those sections say *"CGF has no `ITimeCommands`, so
+supplying a coordinator would be theatre"* and defer BTree/HSM pause/step as *"a real slice"*.
+🔴 **True of the TYPE NAME, false of the CAPABILITY** — CGF has had debugger time control since
+slice 4. ⇒ **a wiring job.** 🔒 **The THIRD absence-claimed-from-a-name error in one session**, after
+`catalog`/`bpChannelCatalog` (§32.18.1) and the scenario root (§32.20): ⭐⭐ **a type the host does not
+have is not a capability the host does not have.**
+
+### 32.23.3 📋 `CE-350` — THE FOLLOW-UP, DELIBERATELY SEPARATE
+
+⚠ `IEngineDebugTimeController` lives under **`Hrot.Blueprints.Core`** for historical reasons only: it
+is named for the ENGINE and consumed by Blueprint, breakpoints, the perspective registrar, CGF and —
+after `CE-349` — the AI tracer, **none of which are Blueprints**. 📌 Its file still carries an
+`[Obsolete("Use IEngineDebugTimeController…")]` alias ⇒ **a rename already happened and the MOVE did
+not follow.**
+
+⭐ **Lean: move it to `Hrot.Diagnostics.Breakpoints`** *(already references `Blueprints.Core`, already
+referenced by AiShared, already owns the other debugger contracts)* and retire the alias.
+⛔ **Not folded into `CE-349`** — a shared-interface move touches Blueprints, Breakpoints, CGF and the
+editor at once, and mixing it with a behaviour change makes the diff unreviewable. 🔒 The same
+discipline that kept `CE-340` out of `CE-341`.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

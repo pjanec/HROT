@@ -4,7 +4,10 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-26
-build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Branch `behaviors`.
+build-state: ✅ **`E5` IS COMPLETE (all 7 items + `A1`) AND THE EDITOR⇄CGF DEDUPLICATION IS FINISHED.**
+  ⭐⭐⭐ **NEXT ACTION IS `CE-349`, ALREADY APPROVED — see §0.** Branch `behaviors`, everything PUSHED.
+  ⚠ ONE VERIFICATION IS OUTSTANDING: the `T3` system suite (see §0's "unresolved" line).
+  ⛔ HISTORY of this programme's slices follows; read §0 FIRST, not this block.
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
   Rails `E5_R1`..`E5_R4` in `HsmOccurrenceKeyTests`, red-proved. 📄 §32.11 is the AS-BUILT.
@@ -77,7 +80,7 @@ build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Bran
   CGF still needs an `ITimeCommands`.
   📋 OPEN: HSM subtree AUTHORING (**the real blocker**) · BTree-hosts-BTree (not built).
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
-current-answer: ⭐⭐⭐ START AT §0 — it names the next slice (`E5`), the ONE document to read
+current-answer: ⭐⭐⭐ START AT §0 — it names the NEXT ACTION (`CE-349`, approved), the ONE document to read
   (`DESIGN_Occurrence_Scoped_Storage.md` §32) and the READING ORDER inside it (§32.2 the review first).
   §0a is what this session landed, §0b what is open and whose it is, §0c the method lessons, §0d the
   gate baselines, §0e the standing constraints.
@@ -106,22 +109,69 @@ RELEARN
 
 ---
 
-## 0. ⭐⭐⭐ NEXT: **`E5` — an HSM state hosts a BTree.** 📄 `DESIGN_Occurrence_Scoped_Storage.md` **§32**
+## 0. ⭐⭐⭐ NEXT: **`CE-349` — ONE TIME-CONTROL ABSTRACTION FOR THE AI DEBUGGERS** *(APPROVED)*
 
 > ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
 > that must NEVER be committed.** Leave it stashed.
+> ⚠⚠ **ONE VERIFICATION IS UNRESOLVED** — see §0z.
 
-### 🔒 FIRST ACTION ON RESUME
+### 🔒 FIRST ACTION ON RESUME — **`CE-349`, and the measurement is ALREADY DONE**
 
-⭐ **Read `DESIGN_Occurrence_Scoped_Storage.md` §32 end to end**, in this order: **§32.2** *(the review
-— eight findings, the two blocking ones)* → **§32.3** *(the decision)* → §32.4–§32.6 *(the three UML
-diagrams)* → §32.8 *(seven items)* → §32.10 *(acceptance `A1`–`A8`)*.
-⛔ **Do NOT re-derive it, and do NOT start from `Q36`** — that document holds the options and the
-approval; §32 is the buildable shape.
-⚠⚠ **`build-state` is `DESIGN`, not `READY-TO-BUILD`** — it was demoted on `2026-09-23` by its own
-review. ⛔ **The pre-review §32 is SUPERSEDED and its diagrams were DELETED**; what it claimed is
-recorded in the file's closing `## ⛔ HISTORY — §32's pre-review shape`. **Never quote it.**
+🔒 **User, `2026-09-26`:** *"cgf should use the cluster time control but i think editor should do the
+same as editor also has its local cluster orchestrator so for consistency they should be using same
+time control means."* → then, on the two options offered: **"go with 1, file 2 as follow-up."**
+
+⭐⭐⭐ **DO NOT RE-MEASURE THIS — the claim table is in `DESIGN_Occurrence_Scoped_Storage.md` §32.23
+and the tracker row `CE-349`.** The findings, verbatim:
+
+| 📐 measured `2026-09-26` | |
+|---|---|
+| ⭐ **`IEngineDebugTimeController` is ALREADY the one debugger time-control abstraction** | `Hrot.Blueprints.Core.Debug` — `IsPausedByDebugger` · `RequestPause()` · `RequestResume()` · `RequestStepOneTick()` |
+| ⭐ **BOTH hosts already implement AND construct it** | `MasterSyncTimeControllerAdapter` over the editor's own `MasterSyncController` (`EditorSubsystem:1746`) · `CgfClusterDebugTimeController` (`CgfSubsystem:1468`) — *both even named `bpTimeAdapter`* |
+| ⭐ **its consumers are already shared** | `BlueprintDebugSession` · `DataBreakpointManager` · `PerspectiveWorkspaceRegistrar` |
+| ⭐ **the TRANSPORT is common too** | CGF's controller *"publishes the same time INTENTS the toolbar already publishes"* → `ClusterOpEgressTranslator` → the orchestrator's `MasterSyncController`; the editor's `IntentTimeCommands` says *"path D becomes path A — the same shape the cluster path uses"* |
+| ⛔ **THE SINGLE HOLD-OUT** | `AiTracerCoordinator` goes through **`ITimeCommands`** instead — a SECOND abstraction, one implementation (`Hrot.Editor.Debug.EditorAiTracerCoordinator`), one host |
+| ⭐ **the surfaces match** | `AiTracerCoordinator`'s virtuals are `RequestPause` / `RequestContinue` / `RequestStepOneTick` — the interface's three, modulo `Continue`/`Resume` |
+| ⭐ **reachability is fine, no new project reference** | `Hrot.Diagnostics.Breakpoints` → `Hrot.Blueprints.Core`, and `Hrot.Editor.AiShared` → Breakpoints |
+
+⭐⭐ **THE WORK:** give `AiTracerCoordinator` an `IEngineDebugTimeController` and **delete the per-host
+subclass**; the editor passes `_bpTimeAdapter`, CGF passes its controller. ⇒ **BTree/HSM pause/step
+works on BOTH hosts**, from the abstraction Blueprint and breakpoints already use.
+⚠ Put any shared construction in **`Hrot.Editor.AiComposition`** *(created `2026-09-26` by `CE-340`)*
+— ⛔ **do not write it twice**; that is the mistake this session spent five rows undoing.
+
+⛔⛔ **AND IT CORRECTS THE PREVIOUS SESSION, which the next one must not re-inherit:** I twice wrote
+*"CGF has no `ITimeCommands`, so supplying a coordinator would be theatre"* and deferred BTree/HSM
+pause/step as *"a real slice"*. 🔴 **True of the TYPE NAME, false of the CAPABILITY** — CGF has had
+debugger time control since slice 4. ⇒ **`CE-349` is a WIRING job.**
+
+📋 **THEN `CE-350`** *(filed as the follow-up the user asked for)*: move `IEngineDebugTimeController`
+out of `Hrot.Blueprints.Core` to a neutral home *(lean: `Hrot.Diagnostics.Breakpoints`)* and retire
+the `[Obsolete] IBlueprintTimeController` alias. ⛔ Deliberately a separate batch.
+
+### ⭐ AFTER THAT — the open queue, in the order last discussed
+
+| # | | |
+|---|---|---|
+| 1 | ⭐⭐ **HSM subtree AUTHORING** | 🔴 **THE REAL BLOCKER for everything `E5` built.** `HsmFacets.StateFacet` exposes only `OnEntryAction`/`OnExitAction`/`ActivityAction`/`TimerAction` — **no subtree fields** — and nothing outside the mapper writes `StateNode.SubtreeAssetId`/`SubtreeName` ⇒ **no asset can declare a hosting state**, so `E5`'s runtime and validator rules 8/8b/10 are unreachable on a real asset |
+| 2 | ⚠ **arm the trace buffers** | `CE-348` pumps the session, so the **snapshot** half is live; the **history + heatmap** halves still need `BTreeTraceWorkingMemory1024` armed — one opt-in away via `EditorAiTracerCoordinator.ArmEntity`'s `PatchDebugStateCommand` |
+| 3 | ⛔ **BTree-hosts-BTree** | not built; `E5`'s shape with the NODE's visual id as the site |
+| 4 | ⚠ **`CE-321` ②** *(combat pipeline)* · **`CE-332`** *(7 `Hrot.IG.Tests` rails)* | ⛔ **not ours** — other lanes |
+
+### ⚠⚠ §0z — THE ONE UNRESOLVED VERIFICATION
+
+⛔ **The `T3` system suite has NOT been confirmed green for this session's work.** 📐 What happened:
+the first run was piped through `tail -40`, so the exit code observed was **`tail`'s, not the
+suite's**, and the summary was truncated away. ⭐ What IS known from that run: the editor booted
+headless, cycled Scenario → BTree → Blueprint → HSM → Scenario, the cluster stepped six times and it
+shut down cleanly — ⛔ **encouraging, but NOT a verdict.** A re-run with full capture
+(`scripts/run-system-tests.sh --no-build > <file> 2>&1`) was started and had not finished.
+
+🔒 **NEXT SESSION: run it and read the actual counts before claiming anything about CGF.** ⚠ This
+matters because **none of this session's CGF changes have end-to-end coverage** — they are verified by
+build + the editor-side unit suites only, and `CE-340`/`342`/`343`/`345`/`347`/`348` all touched CGF's
+composition root.
 
 ### ⭐⭐ WHAT `E5` IS, AFTER THE REVIEW
 
