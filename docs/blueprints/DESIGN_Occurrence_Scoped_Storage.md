@@ -8736,6 +8736,70 @@ should have made the third a prior, not a surprise.**
 behaviour-preserving-or-better and are done; `CE-345`/`CE-347` are **capability gaps on CGF**, filed
 with their measurements, and I have **not** verified they are cheap.
 
+## 32.21 ✅ `CE-345` + `CE-347` — **THE TWO CGF GAPS, AND A THIRD FOUND WHILE MEASURING THEM** *(`2026-09-26`)*
+
+> 🔒 Both were filed by §32.20 **explicitly uncosted** — *"I have not verified they are cheap."*
+> ⭐ Measuring first is what made one of them a wiring job and the other a much smaller claim than it
+> looked.
+
+### 32.21.1 ⭐ `CE-347` — THE FACET PICKERS: A GENUINE WIRING JOB
+
+📐 **Every prerequisite was already on the host.** `BuildDrawers(asset, registry, exporter, ctx)` needs
+a `BehaviorRegistry`; `NodeProperties.SetFacetEditService(editService, drawers)` needs an
+`IComponentEditService`. ⇒ CGF has **all three**: `_behaviorRegistry`, `_facetEditService` (`:1474`)
+and `schemaExporter` (`:1949`) — plus the two registrars the pickers hang off (`:2065-2066`).
+
+⛔⛔ **The obvious fix was the wrong one.** Pasting the editor's three arms into `CgfSubsystem` would
+have created a **FIFTH duplicate in the session that removed four.** ⇒ ⭐ the arms moved into
+`AiFacetPickerBinder` (`Hrot.Editor.AiComposition`) and **both** hosts call it; the editor's inline
+copy is deleted in the same commit. 🔒 **Net dedup, not new duplication.**
+
+⭐ **The `BB1D` detail the move had to preserve:** one `FacetFqnContext` is shared between the
+dispatcher (writer) and the drawer (reader), so the blackboard-field picker filters by the current
+action's DTO type **in the same frame**. ⛔ Two contexts would render a frame stale.
+
+### 32.21.2 ⚠ `CE-345` — THE DEBUG SESSIONS: **REAL, BUT MUCH SMALLER THAN THE ROW IMPLIED**
+
+📐 **What a session on CGF actually buys, measured:**
+
+| | |
+|---|---|
+| ✅ **REAL and trace-independent** | `BTreeAssetContributor.LoadFrom` calls `_debugSession?.SetDebugMetadata(blob.DebugMetadata, assetId)` (`:98`) — the **node-index → `VisualId` symbolication table**. ⭐ Without it no BTree debug surface can name a node at all |
+| ✅ **binding** | the document factory hands the session to the runtime-overlay and breakpoint-gutter renderers, exactly as on the editor |
+| 🔴🔴 **NOT delivered — and this is the finding** | **the trace polling stays dead.** 📐 `BTreeDebugSession.Update(repo, entity)` is the trace-poll entry point *(it reads `BTreeTraceWorkingMemory1024` off the entity)* and it has **ZERO callers** in `Hrot/` or `FDP/` — ⛔ **on EITHER host** |
+
+⇒ ⭐⭐ **`CE-345`'s premise was "CGF lacks what the editor has". Measured: the editor does not have it
+either.** Wiring CGF makes the two hosts **equal**, and equal here means *equally unwired for BTree/HSM
+trace polling*. 🔒 That is worth doing — symbolication is real — ⛔ **but it must not be reported as
+"BTree debugging now works on CGF".**
+
+⭐ **No coordinator is passed.** The base `AiTracerCoordinator`'s `RequestPause`/`Continue`/`StepOneTick`
+are **empty virtuals**, the editor's subclass overrides them with `ITimeCommands`, and **CGF has no
+`ITimeCommands`** ⇒ supplying the base would be theatre. ⚠ Pause/step for BTree/HSM on CGF is a real
+slice and is **not** claimed here.
+
+### 32.21.3 🔴 THE THIRD FINDING — **`CE-348`: THE BTree/HSM TRACE LOOP IS DEAD ON BOTH HOSTS**
+
+📐 Measured exhaustively: `grep -rn "DebugSession" … | grep "\.Update("` over `Hrot/` **and** `FDP/`
+returns **0**. ⇒ the capability is **built, reachable and never driven** — trap #5 in its purest form,
+and the same shape `CE-059` found for the Blueprint session and `DEBT-AIB-028` found for rules 8/8b.
+
+⚠⚠ **This was invisible until the host comparison forced it.** 🔒 **Asking *"why does host A lack X?"*
+is how you discover that **host B lacks it too*** — ⭐ the comparison is the instrument, not the goal.
+
+### 32.21.4 ⭐ THE HOST-DIFFERENCE LEDGER, NOW MEASURED RATHER THAN ASSERTED
+
+| the three the user challenged | verdict |
+|---|---|
+| debug sessions | 🔴 Blueprint was a **defect** (`CE-344`) · BTree/HSM now constructed (`CE-345`) · ⚠ trace loop dead on **both** (`CE-348`) |
+| scenario sources | 🔴 **the same path, spelled twice** (`CE-346`) |
+| picker drawers | 🔴 **a gap**, every prerequisite present (`CE-347`) |
+
+⚠ **What remains legitimately different, and this time it is measured:** the editor's **regeneration
+scheduler** *(CGF regenerates nothing — the reload pipeline recompiles from memory)*, its **legacy
+variables bridge** and **graph-signature window** *(CGF registers neither)*, and **pause/step
+plumbing** *(CGF has no `ITimeCommands`; slice 4 gave it a cluster time controller instead)*.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

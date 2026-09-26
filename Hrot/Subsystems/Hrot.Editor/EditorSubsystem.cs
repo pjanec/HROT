@@ -3595,62 +3595,23 @@ namespace Hrot.Editor
                     AfterRetarget    = active =>
                     {
 
-                // SE2: Rebuild picker-drawer maps for the newly active BTree / HSM asset so that
-                // attribute-dispatched dropdowns (BehaviorHash, BlackboardField, HSM action/guard/
-                // state/event) reflect the fields and methods of the live document rather than a
-                // stale, fixed-at-ctor asset.  The maps are small (1–2 entries) and built cheaply
-                // from the asset already in memory — no I/O.  Calling SetFacetEditService also
-                // drops the cached StructEdit session so the next render opens a fresh one against
-                // the correct facet type (harmless when the asset type did not change).
-                if (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree
-                    && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
-                    && _behaviorRegistry is not null)
-                {
-                    // BB1D: share ONE BTreeFacetFqnContext between the dispatcher (writer)
-                    // and the drawer (reader) so the blackboard-field picker filters by the
-                    // current action's DtoType in the same frame.
-                    var btreeCtx     = new BTreeFacetFqnContext();
-                    var btreeDrawers = BTreePickerDrawerFactory.BuildDrawers(
-                        btreeAsset, _behaviorRegistry, sharedSchemaExporter, btreeCtx);
-                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, btreeDrawers);
-                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
-                    // reads the updated FQN on the same frame.
-                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
-                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
-                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
-                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(
-                        BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, btreeCtx));
-                }
-                else if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm
-                    && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
-                {
-                    // BB1D: share ONE HsmFacetFqnContext between the dispatcher (writer)
-                    // and the drawer (reader) so the blackboard-field picker filters by the
-                    // current transition action's DtoType in the same frame.
-                    var hsmCtx     = new HsmFacetFqnContext();
-                    var hsmDrawers = HsmPickerDrawerFactory.BuildDrawers(
-                        hsmAsset, sharedSchemaExporter, hsmCtx);
-                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, hsmDrawers);
-                    // FIX-A + BB1D: wire the per-asset facet dispatcher with the shared context
-                    // so NodePropertiesSource.FacetFor() returns a non-null facet and the picker
-                    // reads the updated FQN on the same frame.
-                    // ⭐ S2: this used to be `Inspector.SetFacetDispatcher`. The node arms are a Details
-                    //   VIEW now (details.nodeproperties, Rank 20), and a view instance is per-window —
-                    //   so the per-PERSPECTIVE services live on the registrar's NodeProperties source.
-                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(
-                        HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, hsmCtx));
-                }
-                else
-                {
-                    // Switching to Blueprint or clearing: reset pickers to null (plain-text fallback).
-                    // The edit service itself remains so the inspector still renders struct fields.
-                    _btreeRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
-                    _hsmRegistrar?.NodeProperties.SetFacetEditService(facetEditService, null);
-                    // FIX-A: clear facet dispatchers when no BTree/HSM is active.
-                    _btreeRegistrar?.NodeProperties.SetFacetDispatcher(null);
-                    _hsmRegistrar?.NodeProperties.SetFacetDispatcher(null);
-                }
+                // ⭐⭐⭐ CE-347 (2026-09-26) — THE PICKER REBUILD IS SHARED WITH CGF NOW.
+                //    🔒 User: "why hosts differ in … picker drawer … I would expect these 3 to be
+                //    same in both cgf and editor." 📐 They should: CGF has the same two registrars
+                //    and made 0 picker calls to this file's 13, with no design behind the gap.
+                // ⛔ Copying these three arms into CgfSubsystem would have been a FIFTH duplicate in
+                //    the session that removed four ⇒ one implementation, both callers.
+                // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.21.
+                Hrot.Editor.AiComposition.AiFacetPickerBinder.Rebuild(
+                    active,
+                    new Hrot.Editor.AiComposition.AiFacetPickerServices
+                    {
+                        BTreeRegistrar   = _btreeRegistrar,
+                        HsmRegistrar     = _hsmRegistrar,
+                        FacetEditService = facetEditService,
+                        BehaviorRegistry = _behaviorRegistry,
+                        ActionSchema     = sharedSchemaExporter,
+                    });
 
                 // AIE-047/048: Retarget Blueprint-specific windows.
                 if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)

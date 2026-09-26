@@ -261,6 +261,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Editor.AiShared.Comparison.ComparisonSessionRegistry? _comparisonSessionRegistry;
     private Hrot.Blueprints.Core.Debug.BlueprintDebugSession?    _blueprintDebugSession;
+    // ⭐⭐⭐ CE-345 (2026-09-26) — the BTree/HSM debug sessions this host never constructed.
+    //    🔒 User: "why hosts differ in debug session … I would expect these 3 to be same in both."
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.21.
+    private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeDebugSession;
+    private Hrot.Hsm.Editor.Debug.HsmDebugSession?     _hsmDebugSession;
 
     /// <summary>
     /// ⭐⭐ Path segments of the <c>Hrot.AI.Behaviors</c> project file, used to find the SOURCE tree that
@@ -1922,6 +1927,18 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ── The shared services (§2 :2561 / :2719) ─────────────────────────────
         // ⭐⭐⭐ SLICE 2 (CE-012/013) — the catalog is POPULATED now. ⚠ Slice 1 built a bare
         //    `new AssetCatalog()` and said so; that is what made every window show its empty state.
+        // ⭐⭐⭐ CE-345 — CONSTRUCTED BEFORE THE CATALOGUE, BECAUSE THE CONTRIBUTOR CONSUMES IT.
+        //    📐 `BTreeAssetContributor.LoadFrom` calls `_debugSession?.SetDebugMetadata(blob.DebugMetadata,
+        //    assetId)` (:98) — the node-index → VisualId symbolication table. ⭐ That is REAL and
+        //    trace-INDEPENDENT: it is what lets any BTree debug surface name a node at all.
+        // ⚠⚠ STATED PLAINLY SO THIS IS NOT OVER-SOLD: the sessions' TRACE POLLING stays dead — 📐
+        //    measured `2026-09-26`, `BTreeDebugSession.Update(repo, entity)` has **ZERO** callers in
+        //    Hrot/ or FDP/, on EITHER host. ⇒ this makes CGF EQUAL to the editor, and the editor's own
+        //    trace loop is unwired (CE-348). ⛔ No coordinator is passed: the base class's pause/step
+        //    are empty virtuals and CGF has no ITimeCommands, so supplying one would be theatre.
+        _btreeDebugSession = new Hrot.BTree.Editor.Debug.BTreeDebugSession();
+        _hsmDebugSession   = new Hrot.Hsm.Editor.Debug.HsmDebugSession();
+
         _aiCatalogBuilder = BuildAssetCatalog();
         var catalog       = _aiCatalogBuilder.Catalog;
 
@@ -2176,8 +2193,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //    was TRUE when slice 1 shipped and went STALE when CE-059 built the session; the
                 //    comment kept the omission looking deliberate. 📄 §32.20.
                 BlueprintDebugSession = _blueprintDebugSession,
-                // ⚠ BTree/HSM debug sessions are still genuinely absent on this host — nothing
-                //   constructs them. ⛔ A GAP (CE-345), not a design decision; stated, not defaulted.
+                // ⭐ CE-345 — and the BTree/HSM sessions too, so the runtime-overlay and
+                //   breakpoint-gutter renderers bind here exactly as they do in the editor.
+                BTreeDebugSession = _btreeDebugSession,
+                HsmDebugSession   = _hsmDebugSession,
                 // ⭐⭐ MA-003 — the host tail: mark the document dirty so CE-020's save reaches the
                 //   file. ⛔ No regeneration scheduler here (CGF regenerates nothing — the reload
                 //   pipeline recompiles from the in-memory asset), which is the ONE place the two
@@ -2213,7 +2232,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 HsmStore         = hsmStore,
                 BlueprintStore   = blueprintStore,
                 BlueprintOutline = () => blueprintOutline,
-                // ⛔ No host extras on CGF: no facet pickers, no legacy store, no signature window.
+                // ⭐⭐⭐ CE-347 (2026-09-26) — THE FACET PICKERS, WHICH THIS HOST NEVER WIRED.
+                //    🔒 Raised by the user. 📐 Measured: this file constructs `_btreeRegistrar`
+                //    and `_hsmRegistrar` (:2065-2066) — the very objects the pickers hang off — and
+                //    made **0** SetFacetEditService/SetFacetDispatcher calls to the editor's 13, so
+                //    attribute-dispatched dropdowns fell back to plain text on CGF.
+                //    ⛔ No design says CGF should lack them ⇒ a GAP, not a decision.
+                // ⭐ Every prerequisite was already here: _behaviorRegistry, _facetEditService and
+                //   the schema exporter. 🔒 A production caller that HAS a dependency must pass it.
+                // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.21.
+                AfterRetarget = active =>
+                    Hrot.Editor.AiComposition.AiFacetPickerBinder.Rebuild(
+                        active,
+                        new Hrot.Editor.AiComposition.AiFacetPickerServices
+                        {
+                            BTreeRegistrar   = _btreeRegistrar,
+                            HsmRegistrar     = _hsmRegistrar,
+                            FacetEditService = _facetEditService,
+                            BehaviorRegistry = _behaviorRegistry,
+                            ActionSchema     = schemaExporter,
+                        }),
+                // ⛔ Still editor-only and correctly so: the legacy variables bridge and the
+                //   graph-signature window — CGF registers neither.
             });
 
         // ── SLICE 3 (CE-019/020) — SAVE + HOT RELOAD ───────────────────────────
@@ -2912,9 +2952,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             new Hrot.Editor.AiComposition.AiAssetCatalogOptions
             {
                 ProjectPath = AiBehaviorsProjectPath,
-                // ⚠ No debug session on this host, so BTree symbolication is genuinely unavailable
-                //   (slice 1 §9.4). ⛔ Stated, not silently defaulted.
-                BTreeDebugSession = null,
+                // ⭐ CE-345 — symbolication is wired now; this used to be `null` on the strength of
+                //   a slice-1 statement that CE-059 had already overtaken.
+                BTreeDebugSession = _btreeDebugSession,
                 Info = m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
                 Warn = m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
             });
