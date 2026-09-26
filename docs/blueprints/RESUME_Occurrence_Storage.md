@@ -168,7 +168,16 @@ headless, cycled Scenario → BTree → Blueprint → HSM → Scenario, the clus
 shut down cleanly — ⛔ **encouraging, but NOT a verdict.** A re-run with full capture
 (`scripts/run-system-tests.sh --no-build > <file> 2>&1`) was started and had not finished.
 
-🔒 **NEXT SESSION: run it and read the actual counts before claiming anything about CGF.** ⚠ This
+✅ **RESOLVED `2026-09-26` — the re-run landed. Read this instead of re-running blind:**
+
+| 📐 result | |
+|---|---|
+| ⭐⭐⭐ **`SAME: 11 · DIFFERENT: 0`** *(+3 declared by design, +2 declared subset)* | 🔒 **editor⇄cluster parity is INTACT** — the four composition extractions this session made to CGF (`CE-340`/`342`/`343`) did **not** regress it. That is the signal that mattered |
+| ⚠ **ONE RED: `ClusterConformanceRails.The_ported_kinds_are_really_published_by_the_cluster`** | *"kind(s) [runtime-inspector] were removed from the known-absent baseline but `--mode all` does not publish them"* |
+| ⭐ **PRE-EXISTING, measured** | `runtime-inspector` entered the ported list in **`3d5743a84`** (the harness commit); **no commit of this session touches `ClusterConformanceRails.cs`** |
+| ⭐⭐⭐ **…but WE met its exit condition** | the baseline entry (`:242`) says *"…CGF constructs none (no `IBlueprintDebugSession`) … **Deleted when debug sessions reach CGF**"* — 🔴 `CE-344`/`CE-345` made that true ⇒ **register the pane on CGF**. Filed as **`CE-351`** |
+
+🔒 **STILL TRUE, and the next session should keep it in mind:** ⚠ This
 matters because **none of this session's CGF changes have end-to-end coverage** — they are verified by
 build + the editor-side unit suites only, and `CE-340`/`342`/`343`/`345`/`347`/`348` all touched CGF's
 composition root.
