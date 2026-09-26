@@ -2186,32 +2186,24 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐ This is the editor's handler, trimmed to what this host has: the three stores, and the
         //   Blueprint outline. ⛔ No picker-drawer rebuild (no facet pickers here), no legacy store,
         //   no signature window (not registered on CGF).
-        _aiDocumentManager.ActiveChanged += () =>
-        {
-            var active = _aiDocumentManager.Active;
-
-            btreeStore.ActiveAsset     = active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree     ? active.Asset : null;
-            hsmStore.ActiveAsset       = active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm       ? active.Asset : null;
-            blueprintStore.ActiveAsset = active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint ? active.Asset : null;
-
-            if (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)
+        // ⭐⭐⭐ CE-343 (2026-09-26) — ONE ACTIVE-DOCUMENT BINDER, SHARED WITH THE EDITOR.
+        //    🔒 User: "lets first finish the deduplication before adding new stuff."
+        // 🔴 What was here was "the editor's handler, trimmed" (slice-2 §11 ②) — the third copy
+        //    of one policy, for the same reason as the other two: the shared home was frozen.
+        // ⚠ The seven-argument Retarget is where a copy silently degrades a panel — drop
+        //    currentGraphId and Local Variables edits the wrong graph (BP-57/BP-72); drop indicators
+        //    and BP-223's refusal toast is discarded. ⇒ it is written ONCE now.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+        Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+            new Hrot.Editor.AiComposition.AiActiveDocumentServices
             {
-                // ⭐ The BlueprintAsset lives on the canvas context the factory just built.
-                var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
-                blueprintOutline.Retarget(
-                    editableAsset:  active.Asset,
-                    blueprintAsset: ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset,
-                    hostServices:   ctx?.View.Host,
-                    commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
-                    view:           ctx?.View,
-                    currentGraphId: ctx?.CurrentGraphId,
-                    indicators:     ctx?.Indicators);
-            }
-            else
-            {
-                blueprintOutline.Retarget(null, null, null, null);
-            }
-        };
+                DocumentManager  = _aiDocumentManager,
+                BTreeStore       = btreeStore,
+                HsmStore         = hsmStore,
+                BlueprintStore   = blueprintStore,
+                BlueprintOutline = () => blueprintOutline,
+                // ⛔ No host extras on CGF: no facet pickers, no legacy store, no signature window.
+            });
 
         // ── SLICE 3 (CE-019/020) — SAVE + HOT RELOAD ───────────────────────────
         // 📄 DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md §4/§5/§6 ①②.
@@ -2896,77 +2888,35 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder BuildAssetCatalog()
     {
-        // ⭐⭐⭐ RULING 67 RESOLVED — config → source walk-up → output directory, in AiShared's stated
-        //    "single authority for roots". ⛔ The bare walk-up that used to be here answered null on a
-        //    DEPLOYED node, which is what made authoring on CGF impossible; the config arm is the fix.
-        //    ⚠ Always non-null now, so the old "the catalog will be EMPTY" warning is replaced by a
-        //    statement of WHICH arm answered — 📌 "empty" and "pointed elsewhere" are different problems
-        //    and the log has to distinguish them.
-        // ⭐⭐⭐ CE-098 (J1-a) — the root-reporting policy lives in AssetRoots now; this host supplies only
-        //    its own routing. ⭐ Same shape as `warnMissingRoot` below: shared BODY, host PREFIX. 📄 §5c.15.
-        Hrot.Editor.AiShared.AssetRoots.ReportBase(
-            info: m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
-            warn: m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
-            AiBehaviorsProjectPath);
+        // ⭐⭐⭐ CE-342 (2026-09-26) — ONE CATALOGUE COMPOSITION, SHARED WITH THE EDITOR.
+        //    🔒 User: "lets first finish the deduplication before adding new stuff."
+        // 🔴 What was here MIRRORED EditorSubsystem:1228-1306 — the same three roots from the same
+        //    resolver, the same five contributors, the same thirteen-argument builder call, the same
+        //    two RefreshJsonContributors lines. ⚠ J1/J2 (CE-091/093/095/098) had already shared the
+        //    POLICY (AssetRoots.ResolveAssetsRoot / ReportBase / RefreshJsonContributors); ⛔ what
+        //    stayed duplicated was the CONSTRUCTION, which AiShared cannot hold because it cannot name
+        //    the contributor types. ⭐ Hrot.Editor.AiComposition can.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+        var aiCatalog = Hrot.Editor.AiComposition.AiAssetCatalogComposer.Compose(
+            new Hrot.Editor.AiComposition.AiAssetCatalogOptions
+            {
+                ProjectPath = AiBehaviorsProjectPath,
+                // ⚠ No debug session on this host, so BTree symbolication is genuinely unavailable
+                //   (slice 1 §9.4). ⛔ Stated, not silently defaulted.
+                BTreeDebugSession = null,
+                Info = m => FdpLog<CgfSubsystem>.Info("[CGF] {0}", m),
+                Warn = m => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", m),
+            });
 
-        // ⭐⭐⭐ CE-093 (J1) — this local function WAS `ResolveAssetsRoot`, spelled out.
-        //    📐 `AssetRoots.ResolveAssetsRoot(kind, segments)` is defined as
-        //    `Path.Combine(ResolveBase(segments), AssetsRelative(kind))` — byte-for-byte what `RootFor`
-        //    computed. ⇒ ⛔ ruling 9: the shared resolver existed and this host re-spelled it. ⭐ Adopting
-        //    it is behaviour-preserving HERE and is the same call the editor now makes, which is the
-        //    point — one resolver, so the two hosts cannot drift again.
-        string RootFor(Hrot.Editor.AiShared.AssetKind kind) =>
-            Hrot.Editor.AiShared.AssetRoots.ResolveAssetsRoot(kind, AiBehaviorsProjectPath);
+        var builder = aiCatalog.Builder;
 
-        var bpRootDir = RootFor(Hrot.Editor.AiShared.AssetKind.Blueprint);
-
-        // ⚠ No debug session on this host, so BTree symbolication is not wired — the contributor takes it
-        //   as an optional argument and CGF genuinely has none (slice 1 §9.4). ⛔ Not a silent default.
-        var btreeContrib     = new Hrot.BTree.Editor.Catalog.BTreeAssetContributor(null);
-        var hsmContrib       = new Hrot.Hsm.Editor.Catalog.HsmAssetContributor();
-        var bpContrib        = new Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor(bpRootDir);
-        var btreeJsonContrib = new Hrot.BTree.Editor.Catalog.BTreeJsonAssetContributor(null);
-        var hsmJsonContrib   = new Hrot.Hsm.Editor.Catalog.HsmJsonAssetContributor();
-
-        var btreeJsonRoot = RootFor(Hrot.Editor.AiShared.AssetKind.BTree);
-        var hsmJsonRoot   = RootFor(Hrot.Editor.AiShared.AssetKind.Hsm);
-
-        // ⭐ MA-019 — keep the roots and the two JSON contributors reachable: CREATE has to write into the
-        //   SAME directory this catalog scans and then Refresh the SAME contributor, or the minted asset
-        //   exists on disk and cannot be addressed (the editor's BUG-A6, and ruling 67's own failure mode).
-        _bpRootDir        = bpRootDir;
-        _btreeJsonRootDir = btreeJsonRoot;
-        _hsmJsonRootDir   = hsmJsonRoot;
-        _btreeJsonContrib = btreeJsonContrib;
-        _hsmJsonContrib   = hsmJsonContrib;
-
-        var builder = new Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder(
-            btreeContrib, hsmContrib, bpContrib,
-            asm => btreeContrib.LoadFrom(asm),
-            asm => hsmContrib.LoadFrom(asm),
-            ()  => bpContrib.Refresh(),
-            bTreeJsonContributor: btreeJsonContrib,
-            hsmJsonContributor:   hsmJsonContrib,
-            // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path, as delegates for the same documented reason the
-            //    LoadFrom callbacks above are delegates: these contributors' projects reference AiShared,
-            //    so it cannot name their types. ⚠ Roots resolved AT CALL TIME (the fields are assigned
-            //    later in this method).
-            bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
-            bTreeJsonRootDir: () => _btreeJsonRootDir,
-            hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
-            hsmJsonRootDir:   () => _hsmJsonRootDir,
-            // ⭐⭐ CE-095 (J1 K5) — the missing-root warning, routed to this host's log. ⚠ The message BODY
-            //    is now the shared one, so the two hosts cannot word the same fault differently; the
-            //    `[CGF]` prefix stays here because the routing is the host's.
-            warnMissingRoot:  msg => FdpLog<CgfSubsystem>.Warn("[CGF] {0}", msg));
-
-        // ⭐⭐⭐ CE-095 (J1 K5) — the initial JSON refresh, now the SAME call every later refresh makes.
-        //    🔴 What was here: an inline `Directory.Exists` + `Refresh` + `Warn` pair per kind — a second
-        //       implementation of the policy `RefreshJsonContributors` owns, differing in that one clause.
-        //    ⚠ Moved to AFTER construction (it was before): `AddContributor` calls `Rebuild()` and each
-        //      contributor's `ContributorChanged` re-triggers it, so the cache is correct either way.
-        builder.RefreshJsonContributors(Hrot.Editor.AiShared.AssetKind.BTree);
-        builder.RefreshJsonContributors(Hrot.Editor.AiShared.AssetKind.Hsm);
+        // ⭐ MA-019 — CREATE has to write into the SAME directory this catalogue scans and then
+        //   Refresh the SAME contributor, or the minted asset exists on disk and cannot be addressed.
+        _bpRootDir        = aiCatalog.BlueprintRootDir;
+        _btreeJsonRootDir = aiCatalog.BTreeJsonRootDir;
+        _hsmJsonRootDir   = aiCatalog.HsmJsonRootDir;
+        _btreeJsonContrib = aiCatalog.BTreeJsonContributor;
+        _hsmJsonContrib   = aiCatalog.HsmJsonContributor;
 
         // ⭐⭐⭐ CE-053 — THE SCENARIO CONTRIBUTOR, which this host never had.
         // 📄 The user's `--mode cgf` visual check, 2026-08-26, symptoms 4/5/6 — ONE root, three symptoms.

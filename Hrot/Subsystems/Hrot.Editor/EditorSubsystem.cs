@@ -1225,85 +1225,34 @@ namespace Hrot.Editor
             // ────────────────────────────────────────────────────────────────────────────────────
 
             // ── AIE-015: Build the shared AI asset catalog ───────────────────────────────────────
-            // Contributors are created and registered in one step via AiAssetCatalogBuilder.
-            // The blueprints directory mirrors the path used by the retired CreateBlueprintWindowRegistrar.
-            // AIE-030: pass _btreeDebugSession so LoadFrom wires NodeDebugMetadata for symbolication.
-            var btreeContrib  = new BTreeAssetContributor(_btreeDebugSession);
-            var hsmContrib    = new HsmAssetContributor();
+            // ⭐⭐⭐ CE-342 (2026-09-26) — ONE CATALOGUE COMPOSITION, SHARED WITH CGF.
+            //    🔒 User: "lets first finish the deduplication before adding new stuff."
+            // 🔴 What was here: ~45 lines that CgfSubsystem.BuildAssetCatalog mirrored — the same
+            //    three roots, the same five contributors, the same thirteen-argument builder call and
+            //    the same two RefreshJsonContributors lines.
+            // ⭐⭐ Most of this path was ALREADY unified by J1/J2 (CE-091/093/095/098): AssetRoots's
+            //    resolver and reporter, and RefreshJsonContributors. ⛔ What those could NOT absorb is
+            //    the CONSTRUCTION, because AiShared cannot NAME the contributor types — their projects
+            //    reference it. ⭐ Hrot.Editor.AiComposition is the first place that can.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+            var aiCatalog = Hrot.Editor.AiComposition.AiAssetCatalogComposer.Compose(
+                new Hrot.Editor.AiComposition.AiAssetCatalogOptions
+                {
+                    ProjectPath       = AiBehaviorsProjectPath,
+                    // ⭐ The editor HAS a BTree debug session, so symbolication is wired (AIE-030).
+                    BTreeDebugSession = _btreeDebugSession,
+                    Info = m => Console.WriteLine($"[EditorSubsystem] {m}"),
+                    Warn = m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}"),
+                });
 
-            // PU-301/PU-402: JSON file-based contributors for the dual-load strategy (§3 D4).
-            // Editor-owned *.btree.json / *.hsm.json live in the SOURCE tree (Trees/ Machines/ under
-            // the Hrot.AI.Behaviors project) — committed + regenerated to C# on build. The editor's
-            // BaseDirectory is the deploy/bin dir, NOT the source tree, so we resolve the project
-            // directory the same robust way RebuildAndReloadAI does: walk up from CWD and BaseDirectory
-            // looking for the .csproj (AiBehaviorsProjectPath). A hard-coded "../../../" is fragile and
-            // breaks when the editor runs from a different bin depth (BATCH-11 fix).
-            // ⭐⭐⭐ CE-093 (J1) — ALL THREE ROOTS NOW COME FROM THE SAME RESOLVER, and that is a FIX.
-            //
-            // 🔴🔴 What was here, measured `2026-08-27`: the Blueprint root went through
-            //    `ResolveAssetsRoot` (⇒ ruling 67's config → walk-up → output dir), while the two JSON
-            //    roots were hand-combined from `ResolveProjectDir` — THE WALK-UP ONLY, which answers null
-            //    when there is no source tree. ⇒ ⛔⛔ a SPLIT BRAIN INSIDE ONE HOST: a configured node
-            //    listed blueprints from its configured tree and, in the same breath, gave up on its own
-            //    BTree/HSM JSON assets. ⚠ CGF had already been given ruling 67's resolver; the editor had
-            //    only had it applied to one of its three roots.
-            //
-            // ⭐⭐ `ResolveAssetsRoot(kind, …)` IS `Path.Combine(ResolveBase(…), AssetsRelative(kind))` —
-            //    the seam already existed and was under-adopted, so this is adoption, not extraction.
-            //    ⇒ the null-guards are gone because ResolveBase always answers (its last arm is the
-            //    output directory), which is the same reason CGF's null arms went.
-            //
-            // BUG-A6: store scan roots and JSON contributors as fields so RegisterWindows
-            // can target new-asset writes at the source dir and refresh the right contributor.
-            _bpRootDir        = AssetRoots.ResolveAssetsRoot(AssetKind.Blueprint, AiBehaviorsProjectPath);
-            _btreeJsonRootDir = AssetRoots.ResolveAssetsRoot(AssetKind.BTree,     AiBehaviorsProjectPath);
-            _hsmJsonRootDir   = AssetRoots.ResolveAssetsRoot(AssetKind.Hsm,       AiBehaviorsProjectPath);
-
-            // ⭐⭐⭐ CE-098 (J1-a) — and it is REPORTED by the SHARED policy, not by a copy of CGF's.
-            //    ⚠⚠ J1 introduced these ~9 lines here by copying CGF's reporting block across — ⛔ a
-            //       unification that fixes a drift by cloning the fix is only half done, and the two
-            //       copies had already worded the same fault differently. 📄 §5c.15.
-            AssetRoots.ReportBase(
-                info: m => Console.WriteLine($"[EditorSubsystem] {m}"),
-                warn: m => Console.WriteLine($"[EditorSubsystem] WARNING: {m}"),
-                AiBehaviorsProjectPath);
-
-            var bpRootDir        = _bpRootDir;
-            var bpContrib        = new BlueprintAssetContributor(bpRootDir);
-            _btreeJsonContrib    = new BTreeJsonAssetContributor(_btreeDebugSession);
-            _hsmJsonContrib      = new HsmJsonAssetContributor();
-            var btreeJsonContrib = _btreeJsonContrib;
-            var hsmJsonContrib   = _hsmJsonContrib;
-            _aiCatalogBuilder = new AiAssetCatalogBuilder(
-                btreeContrib,
-                hsmContrib,
-                bpContrib,
-                asm => btreeContrib.LoadFrom(asm),
-                asm => hsmContrib.LoadFrom(asm),
-                ()  => bpContrib.Refresh(),
-                bTreeJsonContributor: btreeJsonContrib,
-                hsmJsonContributor:   hsmJsonContrib,
-                // ⭐⭐ CE-091 (J2 K1) — the JSON refresh path, handed over as delegates for the same
-                //    documented reason the LoadFrom callbacks above are delegates: these contributors'
-                //    projects reference AiShared, so it cannot name their types. ⚠ The root dirs are
-                //    resolved AT CALL TIME because these fields are assigned later in Initialize.
-                bTreeJsonRefresh: root => btreeJsonContrib.Refresh(rootDirectory: root),
-                bTreeJsonRootDir: () => _btreeJsonRootDir,
-                hsmJsonRefresh:   root => hsmJsonContrib.Refresh(rootDirectory: root),
-                hsmJsonRootDir:   () => _hsmJsonRootDir,
-                // ⭐⭐ CE-095 (J1 K5) — the missing-root warning, routed to this host's log.
-                warnMissingRoot:  msg => Console.WriteLine($"[EditorSubsystem] WARNING: {msg}"));
-
-            // ⭐⭐⭐ CE-095 (J1 K5) — THE INITIAL JSON REFRESH IS THE SAME CALL AS EVERY LATER ONE.
-            //    🔴 What was here: an inline `if (Directory.Exists(root)) Refresh(...) else warn(...)` pair,
-            //       i.e. a SECOND implementation of the policy `RefreshJsonContributors` owns — differing
-            //       from it in exactly the missing-root clause. ⇒ ruling 9; the clause moved into the
-            //       method and the block became these two lines. 📄 §5c.13.
-            //    ⚠ It now runs AFTER construction rather than before it; `AssetCatalog.AddContributor`
-            //      calls `Rebuild()` and every contributor's `ContributorChanged` re-triggers it, so the
-            //      cache is correct either way and nothing is subscribed this early.
-            _aiCatalogBuilder.RefreshJsonContributors(AssetKind.BTree);
-            _aiCatalogBuilder.RefreshJsonContributors(AssetKind.Hsm);
+            _aiCatalogBuilder = aiCatalog.Builder;
+            // ⚠ BUG-A6 — CREATE must write into the SAME directory this catalogue scans and then
+            //   refresh the SAME contributor, so these stay host fields.
+            _bpRootDir        = aiCatalog.BlueprintRootDir;
+            _btreeJsonRootDir = aiCatalog.BTreeJsonRootDir;
+            _hsmJsonRootDir   = aiCatalog.HsmJsonRootDir;
+            _btreeJsonContrib = aiCatalog.BTreeJsonContributor;
+            _hsmJsonContrib   = aiCatalog.HsmJsonContributor;
 
             // MTB-P5-T2: Add scenario contributor (non-file-backed; projects AvailableScenarios).
             _scenarioContributor = new Hrot.Editor.AiShared.Catalog.ScenarioCatalogContributor(
@@ -3623,12 +3572,28 @@ namespace Hrot.Editor
             // Each BlackboardAuthoringWindow reads its store's ActiveAsset every frame (pull model),
             // so updating ActiveAsset here is all that is needed for the window to show the right schema.
             // AIE-047/048: Also retarget My Blueprint + Details + Variables windows for Blueprint.
-            _aiDocumentManager.ActiveChanged += () =>
-            {
-                var active = _aiDocumentManager.Active;
-                _btreeSelectionStore.ActiveAsset       = (active?.Kind == Hrot.Editor.AiShared.AssetKind.BTree)      ? active.Asset : null;
-                _hsmSelectionStore.ActiveAsset         = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Hsm)        ? active.Asset : null;
-                _blueprintSelectionStore.ActiveAsset   = (active?.Kind == Hrot.Editor.AiShared.AssetKind.Blueprint)  ? active.Asset : null;
+            // ⭐⭐⭐ CE-343 (2026-09-26) — ONE ACTIVE-DOCUMENT BINDER, SHARED WITH CGF.
+            //    🔒 User: "lets first finish the deduplication before adding new stuff."
+            // 🔴 The three selection stores and the seven-argument Blueprint-outline retarget were
+            //    duplicated in CgfSubsystem ("the editor's handler, trimmed" — slice-2 §11 ②).
+            //    ⛔ That retarget is where a copy silently degrades a panel: drop currentGraphId and
+            //    Local Variables edits the wrong graph (BP-57/BP-72); drop indicators and BP-223's
+            //    refusal toast is discarded. ⇒ written ONCE now.
+            // ⭐ Everything below stays here because it is genuinely editor-only: the BTree/HSM
+            //    picker-drawer maps and facet dispatchers, the legacy variables bridge, the
+            //    graph-signature window. CGF has none of them.
+            // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.19.
+            Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+                new Hrot.Editor.AiComposition.AiActiveDocumentServices
+                {
+                    DocumentManager  = _aiDocumentManager,
+                    BTreeStore       = _btreeSelectionStore,
+                    HsmStore         = _hsmSelectionStore,
+                    BlueprintStore   = _blueprintSelectionStore,
+                    // ⚠ A PROVIDER: this field is assigned ~900 lines below, long after this Bind.
+                    BlueprintOutline = () => _blueprintMyBlueprintWindow,
+                    AfterRetarget    = active =>
+                    {
 
                 // SE2: Rebuild picker-drawer maps for the newly active BTree / HSM asset so that
                 // attribute-dispatched dropdowns (BehaviorHash, BlackboardField, HSM action/guard/
@@ -3694,24 +3659,6 @@ namespace Hrot.Editor
                     var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
                     var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
 
-                    // Retarget My Blueprint window.
-                    // BCP-BATCH-02-FIX Task 3: pass the document's real command set (ctx.Commands)
-                    // so the panel's "+ Variable" hits the registered editor.create-variable handler
-                    // (which appends a VariableDecl) instead of a fresh, empty command instance.
-                    _blueprintMyBlueprintWindow?.Retarget(
-                        editableAsset:  active.Asset,
-                        blueprintAsset: bpAsset,
-                        hostServices:   ctx?.View.Host,
-                        commands:       ctx?.Commands ?? new NodeEditor.Core.Action.EditorCommandsImpl(),
-                        // BP-12b: item rename/delete/duplicate record onto this document's undo stack.
-                        view:           ctx?.View,
-                        // BP-57/BP-72: the Local Variables section is GRAPH-scoped — it follows the
-                        // canvas through this provider, the same one the signature window below
-                        // takes. The other five sections are asset-scoped and ignore it.
-                        currentGraphId: ctx?.CurrentGraphId,
-                        // BP-223: where the locals "+" refusal on a macro graph is drawn.
-                        indicators:     ctx?.Indicators);
-
                     // ⭐ S1 — the Details node view PULLS this (see the field's remarks); the assignment
                     //   stays exactly where BlueprintDetailsWindow.Retarget(bpAsset) used to be.
                     _blueprintActiveAsset = bpAsset;
@@ -3729,12 +3676,12 @@ namespace Hrot.Editor
                 else
                 {
                     // Clear Blueprint windows when switching away from Blueprint perspective.
-                    _blueprintMyBlueprintWindow?.Retarget(null, null, null, null);
                     _blueprintActiveAsset = null;
                     _blueprintLegacySelectionStore.SelectAsset(null);
                     _blueprintSignatureWindow?.Retarget(null);
                 }
-            };
+                    },
+                });
 
             // Global Asset Browser — single instance, Global scope, shows Open-docs section.
             // ⚠⚠ MEASURED 2026-08-22: this window was CONSTRUCTED HERE AND NEVER USED — zero other

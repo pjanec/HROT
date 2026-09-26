@@ -8604,6 +8604,88 @@ slice-2 finding are **untouched**:
 `Hrot.Editor.AiComposition` exists to hold them. ⛔ **Not folded in here** — each needs its own
 capture measurement, which is the discipline that made this one safe.
 
+## 32.19 ✅ `CE-342` + `CE-343` — **THE DEDUPLICATION IS FINISHED** *(user, `2026-09-26`)*
+
+> 🔒 **User:** *"lets first finish the deduplication before adding new stuff."*
+> ⭐ §32.17 unified the **validator policy**, §32.18 the **document composition**. These two close the
+> remaining pair `CE-340` named: the **asset catalogue** and the **active-document retarget**.
+
+### 32.19.1 ⭐ `CE-342` — THE CATALOGUE
+
+📐 **Most of this path was ALREADY unified, and saying so is the honest framing.** The `J1`/`J2`
+programme *(`CE-091`/`093`/`095`/`098`)* had pushed the hard parts into shared code:
+`AiAssetCatalogBuilder`, `AssetRoots.ResolveAssetsRoot` *(ruling 67's config → walk-up → output-dir
+chain)*, `AssetRoots.ReportBase`, and `RefreshJsonContributors`.
+
+⇒ ⛔ **What was left duplicated is the CONSTRUCTION** — three roots, five contributors, a
+thirteen-argument call, two refresh lines, and the field capture. 🔒 **And `AiShared` could never have
+absorbed it**, because it cannot NAME the contributor types: their projects reference *it*. ⭐ That
+reference wall is exactly why the builder takes `LoadFrom`/`Refresh` as **delegates** — and why
+`Hrot.Editor.AiComposition` *(created by `CE-340`)* is the first place that can hold the composition.
+
+| per-host input | editor | CGF |
+|---|---|---|
+| `BTreeDebugSession` | ✅ real *(symbolication, `AIE-030`)* | ⛔ `null` — genuinely none *(slice 1 §9.4)* |
+| log routing | `Console.WriteLine("[EditorSubsystem] …")` | `FdpLog<CgfSubsystem>` |
+| `ProjectPath` | 📐 **measured identical** in both | same |
+
+⚠ **The Scenario contributor is deliberately NOT in the composer** — 📐 the editor enumerates
+`IEditorLogic.AvailableScenarios` under `EditorBootstrap.ScenariosRoot`; CGF enumerates relative paths
+under `OrchestrationConstants.GetSharedScenariosRoot()`. 🔒 A genuine host difference ⇒ each adds its
+own afterwards, rather than a delegate that would make one look like the other.
+
+⭐ **Safety check before extracting:** the five captured fields *(`_bpRootDir`, the two JSON roots, the
+two JSON contributors)* are assigned **exactly once** in each host ⇒ hoisting them into a returned
+record is behaviour-preserving. 📐 Verified by grep on both files.
+
+### 32.19.2 ⭐ `CE-343` — THE ACTIVE-DOCUMENT RETARGET
+
+📐 The shared core is **small and load-bearing**: the three selection stores, and the
+**seven-argument** `BlueprintMyBlueprintWindow.Retarget` pulled off the document's `AiCanvasContext`.
+📐 Both hosts construct the **same panel type**.
+
+⛔⛔ **The second one is where a copy silently degrades a panel**, and each argument has a defect
+behind it: drop `currentGraphId` and the Local Variables section edits a graph the designer is not
+looking at (`BP-57`/`BP-72`); drop `indicators` and `BP-223`'s refusal toast is discarded; drop
+`commands` and *"+ Variable"* hits a fresh empty command instance (`BCP-BATCH-02-FIX`).
+
+⭐ **Everything else in the editor's handler stays there** — the BTree/HSM picker-drawer maps and facet
+dispatchers, the legacy variables bridge, the graph-signature window. ⛔ CGF has none of them, so they
+run in an `AfterRetarget` hook rather than being pushed into shared code that would have to no-op.
+
+#### 🔴🔴 32.19.2a THE BUG THIS EXTRACTION NEARLY INTRODUCED — **and it is the exact failure mode the programme is closing**
+
+📐 **Measured mid-edit:** `EditorSubsystem` wires `ActiveChanged` at **`:3575`** and does not assign
+`_blueprintMyBlueprintWindow` until **`:4449`**. ⛔ The original code read the field **late**, inside
+the handler, through `?.`. ⇒ 🔴 **capturing it by value into the services record would have passed
+`null` forever, silently disabling the Blueprint outline on the EDITOR only** — a capability present
+on one host and missing on the other, with nothing to say so.
+
+⭐ **Fixed by making it a PROVIDER** (`Func<…>`), resolved per fire, which preserves the original
+semantics exactly. ⭐⭐ **Pinned by a rail** that assigns the panel *after* `Bind` and asserts the
+provider was asked. 🔒 **The lesson generalises: when lifting a lambda's body into a record, every
+field it read LATE becomes a capture — and a `?.` on a not-yet-assigned field is invisible at the
+lift site.**
+
+### 32.19.3 📐 THE DEDUPLICATION LEDGER — **what is now shared, and what is left**
+
+| the four copies `CE-340` found | status |
+|---|---|
+| the rule-8/8b resolvers | ✅ `CE-341` — `StatefulScopeQueries`, derived by `HsmValidator` |
+| the `DocumentOpened` → factory switch | ✅ `CE-340` — `AiDocumentViewStateBinder` |
+| `BuildAssetCatalog` | ✅ **`CE-342`** — `AiAssetCatalogComposer` |
+| the `ActiveChanged` handler | ✅ **`CE-343`** — `AiActiveDocumentBinder` |
+
+🔒 **All four had ONE cause:** `Hrot.Editor.AiShared` was **frozen** *(slice-2's `known-conflict`,
+freeze owner = variable-model lane)*, so the shared home was off-limits and copying was the only legal
+move. ⭐ **The freeze was lifted `2026-08-25`** and nothing had revisited the copies until now.
+⇒ ⭐⭐ **the durable lesson: a lifted freeze does not un-write its workarounds — someone has to go
+back, and nothing schedules that.**
+
+⚠ **What is NOT claimed:** the two hosts still differ in everything they *should* — debug sessions,
+schedulers, picker drawers, scenario sources, window sets. ⛔ This programme unified the four places
+they had accidentally diverged, not the places they legitimately differ.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

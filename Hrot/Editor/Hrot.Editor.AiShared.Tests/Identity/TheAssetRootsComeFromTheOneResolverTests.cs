@@ -92,26 +92,47 @@ public sealed class TheAssetRootsComeFromTheOneResolverTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>And the two composition roots must still resolve their THREE roots</b> — ⛔ otherwise the
-    /// scan above is satisfied by a host that resolves nothing at all, which is the vacuous pass a
-    /// forbid-only rail invites. 📌 <c>CE-064</c>'s shape: an assertion that is correct, universal and
-    /// unreachable.
+    /// ⭐⭐⭐ <b>The ANTI-VACUITY half: something must still resolve all THREE roots</b> — ⛔ otherwise the
+    /// forbid-scan above is satisfied by a tree that resolves nothing at all. 📌 <c>CE-064</c>'s shape:
+    /// an assertion that is correct, universal and unreachable.
+    ///
+    /// <para>⚠⚠ <b>RE-POINTED <c>2026-09-26</c> (<c>CE-342</c>), and the distinction matters:</b> this is
+    /// a rail whose SETUP no longer produces its situation, <b>not</b> an assertion that weakened.
+    /// 🔴 It used to read each composition root's source, because each host resolved its own three roots.
+    /// ⭐ <c>CE-342</c> moved that into ONE shared <c>AiAssetCatalogComposer</c>, so CGF legitimately
+    /// stopped calling <c>ResolveAssetsRoot</c> — the very drift the rail exists to prevent is now
+    /// structurally impossible rather than merely checked. ⇒ the guard moves to the composer, and a
+    /// SECOND rail proves both hosts reach it, which together are STRICTLY STRONGER than the original.
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.19.</para>
     /// </summary>
-    [Theory]
-    [InlineData("EditorSubsystem.cs")]
-    [InlineData("CgfSubsystem.cs")]
-    public void EachCompositionRootResolvesAllThreeKindsThroughTheResolver(string fileName)
+    [Fact]
+    public void TheSharedComposerResolvesAllThreeKindsThroughTheResolver()
     {
-        var text = File.ReadAllText(TheFile(fileName));
+        var text = File.ReadAllText(TheFile("AiAssetCatalogComposer.cs"));
 
-        // ⚠ CGF routes all three through one `RootFor(kind)` local, the editor names each kind — so the
-        //   assertion is on the CALL, not on how many times it appears.
         Assert.Contains("ResolveAssetsRoot(", text);
 
         foreach (var kind in new[] { "Blueprint", "BTree", "Hsm" })
             Assert.True(
                 text.Contains($"AssetKind.{kind}", StringComparison.Ordinal),
-                $"{fileName} no longer mentions AssetKind.{kind}; this rail can no longer see its roots.");
+                $"AiAssetCatalogComposer no longer mentions AssetKind.{kind}; this rail cannot see its roots.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>…and BOTH hosts must actually reach it.</b> ⛔ Without this, the composer could resolve all
+    /// three roots impeccably while a host quietly hand-rolled its own catalogue again — which is the
+    /// same vacuous pass in a new place.
+    /// </summary>
+    [Theory]
+    [InlineData("EditorSubsystem.cs")]
+    [InlineData("CgfSubsystem.cs")]
+    public void EachCompositionRootComposesItsCatalogThroughTheSharedComposer(string fileName)
+    {
+        var text = StrippedOfCommentLines(File.ReadAllText(TheFile(fileName)));
+
+        Assert.True(
+            text.Contains("AiAssetCatalogComposer.Compose(", StringComparison.Ordinal),
+            $"{fileName} no longer composes its asset catalogue through the shared composer.");
     }
 
     /// <summary>

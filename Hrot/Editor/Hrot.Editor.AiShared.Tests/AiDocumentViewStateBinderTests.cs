@@ -121,3 +121,108 @@ public sealed class AiDocumentViewStateBinderTests
     public void Bind_WithNullServices_Throws()
         => Assert.Throws<ArgumentNullException>(() => AiDocumentViewStateBinder.Bind(null!));
 }
+
+/// <summary>
+/// ⭐⭐⭐ <b><c>CE-343</c> — the shared active-document binder.</b>
+/// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.19.
+/// </summary>
+public sealed class AiActiveDocumentBinderTests
+{
+    private sealed class FakeAsset : IEditableAsset
+    {
+        public Guid AssetId { get; } = Guid.NewGuid();
+        public string Name => "A";
+        public AssetKind Kind { get; init; } = AssetKind.BTree;
+        public string SourceFilePath => "/a.json";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => false;
+#pragma warning disable 67
+        public event Action? Changed;
+#pragma warning restore 67
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The active kind's store gets the asset and EVERY other store goes null.</b>
+    /// ⛔ The null half is the load-bearing one: a store left pointing at the previous asset keeps
+    /// rendering its schema, which is the defect the per-frame pull model would otherwise hide.
+    /// </summary>
+    [Fact]
+    public void OnlyTheActiveKindsStore_HoldsTheAsset()
+    {
+        var manager = new AiDocumentManager(_ => { });
+        var btree = new Hrot.Editor.AiShared.Selection.EditorSelectionStore();
+        var hsm   = new Hrot.Editor.AiShared.Selection.EditorSelectionStore();
+        var bp    = new Hrot.Editor.AiShared.Selection.EditorSelectionStore();
+
+        Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+            new Hrot.Editor.AiComposition.AiActiveDocumentServices
+            {
+                DocumentManager = manager,
+                BTreeStore = btree, HsmStore = hsm, BlueprintStore = bp,
+            });
+
+        var asset = new FakeAsset { Kind = AssetKind.BTree };
+        manager.Open(asset);
+
+        Assert.Same(asset, btree.ActiveAsset);
+        Assert.Null(hsm.ActiveAsset);
+        Assert.Null(bp.ActiveAsset);
+    }
+
+    /// <summary>
+    /// 🔴🔴 <b>THE RAIL THAT PINS THE BUG THIS EXTRACTION NEARLY INTRODUCED.</b>
+    /// 📐 <c>EditorSubsystem</c> wires <c>ActiveChanged</c> ~900 lines BEFORE it assigns
+    /// <c>_blueprintMyBlueprintWindow</c>. ⇒ the outline must be resolved PER FIRE, not captured at
+    /// bind time — capturing would have passed <see langword="null"/> forever and silently disabled
+    /// the panel on the editor only. ⛔ That is exactly the split this whole programme is closing.
+    /// </summary>
+    [Fact]
+    public void TheOutlineProvider_IsResolvedPerFire_NotCapturedAtBindTime()
+    {
+        var manager = new AiDocumentManager(_ => { });
+        Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? late = null;
+        int resolved = 0;
+
+        Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+            new Hrot.Editor.AiComposition.AiActiveDocumentServices
+            {
+                DocumentManager  = manager,
+                BlueprintOutline = () => { resolved++; return late; },
+            });
+
+        // ⭐ Assigned AFTER Bind, exactly as the editor does.
+        late = new Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow();
+
+        manager.Open(new FakeAsset { Kind = AssetKind.BTree });
+
+        Assert.Equal(1, resolved);   // ⛔ a captured value would never have asked
+    }
+
+    /// <summary>⭐ The host hook runs, and receives the active document.</summary>
+    [Fact]
+    public void TheHostHook_RunsAfterTheSharedRetarget()
+    {
+        var manager = new AiDocumentManager(_ => { });
+        var store = new Hrot.Editor.AiShared.Selection.EditorSelectionStore();
+        IEditableAsset? seenInHook = null;
+
+        Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(
+            new Hrot.Editor.AiComposition.AiActiveDocumentServices
+            {
+                DocumentManager = manager,
+                BTreeStore      = store,
+                // ⭐ Asserts ORDER: the store is already retargeted when the hook runs.
+                AfterRetarget   = _ => seenInHook = store.ActiveAsset,
+            });
+
+        var asset = new FakeAsset { Kind = AssetKind.BTree };
+        manager.Open(asset);
+
+        Assert.Same(asset, seenInHook);
+    }
+
+    [Fact]
+    public void Bind_WithNullServices_Throws()
+        => Assert.Throws<ArgumentNullException>(
+               () => Hrot.Editor.AiComposition.AiActiveDocumentBinder.Bind(null!));
+}
