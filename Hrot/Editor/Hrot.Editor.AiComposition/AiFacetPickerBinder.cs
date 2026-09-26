@@ -1,4 +1,5 @@
 using Fdp.Toolkit.Behavior;
+using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Editor.AiShared.Documents;
@@ -28,6 +29,14 @@ public sealed record AiFacetPickerServices
     public BehaviorRegistry? BehaviorRegistry { get; init; }
 
     public IActionSchemaExporter? ActionSchema { get; init; }
+
+    /// <summary>
+    /// ⭐⭐ §11.1a — the asset catalogue behind the hosted-subtree picker
+    /// (<c>[AiAssetPicker(AssetKind.BTree)]</c> on <c>StateFacet.SubtreeName</c>).
+    /// ⛔ A host that has a catalogue must pass it: without one the field offers nothing and reads
+    /// as *"there are no BTree assets"* rather than *"this host wired nothing"*.
+    /// </summary>
+    public IAssetCatalog? Catalog { get; init; }
 }
 
 /// <summary>
@@ -83,11 +92,14 @@ public static class AiFacetPickerBinder
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
         {
             var ctx     = new HsmFacetFqnContext();
-            var drawers = HsmPickerDrawerFactory.BuildDrawers(hsmAsset, services.ActionSchema, ctx);
+            var drawers = HsmPickerDrawerFactory.BuildDrawers(
+                hsmAsset, services.ActionSchema, ctx, services.Catalog);
 
             services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
+            // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at
+            //   pick time (§11.1a's sequence), which is what makes a later rename healable.
             services.HsmRegistrar?.NodeProperties.SetFacetDispatcher(
-                HsmSelectionBridgeHelper.BuildFacetDispatcher(hsmAsset, ctx));
+                new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(hsmAsset, ctx, services.Catalog));
         }
         else
         {

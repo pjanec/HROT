@@ -76,4 +76,12 @@ public enum HsmDiagnosticCode
     // stack dies. Detected over the ASSET graph at validation time, never at runtime.
     // DESIGN_Occurrence_Scoped_Storage.md §32.16. Hard-error.
     SubtreeAssetCycle,
+
+    // (§11.1a) A state names a hosted subtree that resolves to no BTree asset in the catalogue —
+    // neither by name nor by its stored Guid. The BTree twin is Rule 6 (Subtree with
+    // IsResolved == false); this is the HSM side of the same claim.
+    // ⚠ Reported rather than auto-cleared: the asset may simply be absent from THIS session's
+    // catalogue (an unloaded project, a partial checkout), and erasing the reference would turn a
+    // recoverable situation into data loss. HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    SubtreeReferenceDangling,
 }

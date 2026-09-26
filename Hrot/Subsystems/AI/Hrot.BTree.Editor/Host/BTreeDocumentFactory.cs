@@ -110,6 +110,24 @@ public static class BTreeDocumentFactory
                 $"Expected {nameof(BehaviorTreeAsset)} but got {asset.GetType().Name}.",
                 nameof(asset));
 
+        // ── 0. Reconcile the subtree references ───────────────────────────────
+        // ⭐⭐⭐ §S1 ② — RESOLVE BEFORE ANYTHING READS `IsResolved`.
+        // 🔴 THE DEFECT THIS CLOSES, measured 2026-09-26: `BTreeSubtreeResolver` had **ZERO
+        //    production callers** — only tests — so the heal rule it implements never ran on a real
+        //    document. ⇒ renaming a hosted tree left every referencing asset dangling for ever,
+        //    with Rule 6 reporting it and nothing able to repair it.
+        // ⚠ `BehaviorTreeAssetProjector:179` writes `IsResolved = false` on every projected Subtree
+        //    node, so that path in particular depended entirely on a resolve that never happened.
+        // ⭐ Opening a document is the right moment: the one place holding BOTH the asset and the
+        //   catalogue, and it re-runs after a hot reload for free. 🔒 The HSM twin does exactly this
+        //   (`HsmDocumentFactory` step 0) — user: *"no differences, consistency."*
+        // ⚠ A heal is a real edit — `MarkDirty` so it is saved rather than redone every load.
+        if (assetCatalog is not null &&
+            Hrot.BTree.Editor.Model.BTreeSubtreeResolver.Resolve(btAsset, assetCatalog) > 0)
+        {
+            btAsset.MarkDirty();
+        }
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         var graphModel = new BTreeGraphModel(btAsset);
 

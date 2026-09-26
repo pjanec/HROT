@@ -901,6 +901,12 @@ public sealed class StateNode : IContainerNodeModel
     // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.8 item 1.
     public string? SubtreeName;
 
+    // ⭐⭐ DERIVED, NOT PERSISTED — recomputed by HsmSubtreeResolver against the asset catalogue on
+    //    load and after a hot reload. 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    // ⛔ Deliberately absent from StateNodeDto, mirroring BTree: a persisted `true` would outlive
+    //    the asset it describes and claim a dangling reference is fine.
+    public bool IsSubtreeResolved;
+
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
     public Vector2? SizeOverride { get; set; }

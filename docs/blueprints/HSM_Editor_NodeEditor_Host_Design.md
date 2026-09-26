@@ -1101,6 +1101,56 @@ would leave nothing to heal from, and the whole reason for storing both would be
 already did. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §32. ⭐ It makes the value **authorable**, which
 is the only thing that was missing.
 
+#### ✅ AS-BUILT `2026-09-26` — **piece 4: WHO CALLS THE RESOLVER, and it was not obvious** *(`CE-361`)*
+
+⛔⛔ **The table above has three rows and needed a fourth.** As designed, piece 3 read piece 1's
+derived flag, which only piece 2 sets — and **nothing called piece 2.** 📐 `IsSubtreeResolved`
+defaults to `false` ⇒ the rule reported **every** hosting state as dangling. 🔒 **`CE-338`/`CE-339`'s
+control arms in `HsmDocumentFactoryTests` caught it** — rails that assert *"with no catalogue,
+nothing is badged."*
+
+| # | as-built | |
+|---|---|---|
+| **4** | ⭐⭐⭐ **`HsmDocumentFactory.Build` step 0** — resolve, then `MarkDirty()` if anything healed | ⭐ **opening a document is the one place holding BOTH the asset and the catalogue**, and it re-runs after a hot reload for free. 📐 `AiDocumentViewStateBinder:131` already passed `catalog: services.Catalog` ⇒ **zero composition-root changes** |
+| **3′** | ⭐⭐ **the rule asks `SubtreeReferenceResolver` directly, and SKIPS when handed no catalogue** | ⛔ without a catalogue you cannot know whether a reference resolves — reporting it as broken is a **guess**. ⚠ Rule 10 (`SubtreeAssetCycle`) already skipped for exactly this reason; the rule now matches it. ⇒ it no longer depends on someone having run the walker first — 🔒 **the silent-default shape** |
+
+#### The OTHER sequence — **document open, which the pick diagram above does not show**
+
+```mermaid
+sequenceDiagram
+    participant B as AiDocumentViewStateBinder
+    participant FA as HsmDocumentFactory
+    participant R as HsmSubtreeResolver
+    participant SR as SubtreeReferenceResolver
+    participant A as HsmAsset
+    participant V as HsmValidator
+
+    B->>FA: Build(asset, bundle, catalog)
+    FA->>R: step 0 - Resolve(asset, catalog)
+    loop every hosting state
+        R->>SR: Resolve(catalog, name, guid, BTree)
+        SR-->>R: Name / AssetId / IsResolved / Healed
+        R->>A: write back - never erase
+    end
+    R-->>FA: healed count
+    alt healed > 0
+        FA->>A: MarkDirty
+    end
+    FA->>V: Validate(asset) with the SAME catalog
+    Note over FA,V: no catalog anywhere on this path - the rule is SKIPPED, not guessed
+```
+
+⚠ **Caption — what the picture shows that the prose hid:** the resolver has **exactly one production
+caller**, and it is the document factory. ⛔ Before `CE-361` that arrow **did not exist on either
+host**, so every box after it ran on a flag nobody had set. 🔒 That is the edge the module-diagram
+rule exists to force you to look up.
+
+⚠ **Piece 1 is unchanged and still not persisted** — it remains the inspector's `[EditReadOnly]`
+display flag. ⛔ What changed is that **validation no longer trusts it**.
+
+🔒 **BTree was in the same state and was fixed in the same commit** — 📄
+`BTree_Editor_NodeEditor_Host_Design.md` §S1's as-built. User: *"no differences, consistency."*
+
 ### 11.2 Inspector dispatch
 
 The shared Inspector window (shared infra §10) dispatches on `ActiveSubSelection`:

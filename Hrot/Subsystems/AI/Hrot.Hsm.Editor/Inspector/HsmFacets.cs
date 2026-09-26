@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared;
+using Hrot.Editor.AiShared.Catalog;
+using Hrot.Editor.AiShared.Inspector;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core.Attributes;
 
@@ -27,6 +29,28 @@ public struct StateFacet
     [EditDisplayName("Timer action")]
     [HsmActionPicker]
     public string? TimerAction;
+
+    // ⭐⭐⭐ HSM SUBTREE AUTHORING — 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
+    // 🔒 User, 2026-09-26: "the tree asset must be pickable."
+    // 🔴 Until this field existed, E5's whole runtime for "an HSM state hosts a BTree" was
+    //    UNREACHABLE on a real asset: nothing outside the mapper could write SubtreeAssetId /
+    //    SubtreeName, so validator rules 8/8b/10 could never fire.
+    // ⭐ ONE editable field; the Guid and the resolved flag are DERIVED and shown read-only —
+    //   deliberately the same shape as BTreeSubtreeFacet, whose pair is already read-only.
+    [EditDisplayName("Hosted subtree (BTree asset)")]
+    [AiAssetPicker(AssetKind.BTree)]
+    public string? SubtreeName;
+
+    /// <summary>⭐ The persisted RENAME SURVIVOR. ⛔ Never typed — written by the pick, healed by
+    /// <c>HsmSubtreeResolver</c>. Shown so a dangling reference is diagnosable.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Hosted subtree asset id")]
+    public string SubtreeAssetId;
+
+    /// <summary>⚠ DERIVED, never persisted — recomputed against the catalogue on load/hot-reload.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Subtree resolves")]
+    public bool IsSubtreeResolved;
 
     public StateFlags Flags;
 

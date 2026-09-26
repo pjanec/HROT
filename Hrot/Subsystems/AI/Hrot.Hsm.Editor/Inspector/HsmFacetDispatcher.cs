@@ -18,6 +18,11 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     private readonly HsmFacetMapper      _mapper;
     private readonly HsmFacetFqnContext? _fqnContext;
 
+    /// <summary>⭐ §11.1a — needed to turn a PICKED NAME into the stable Guid at the moment of the
+    /// pick. ⚠ Optional: a headless fixture may have no catalogue, and then only the name is
+    /// written. ⛔ A production host has one and must pass it.</summary>
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
+
     public HsmFacetDispatcher(HsmAsset asset)
         : this(asset, null)
     {
@@ -29,9 +34,24 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// current transition action FQN.
     /// </summary>
     public HsmFacetDispatcher(HsmAsset asset, HsmFacetFqnContext? fqnContext)
+        : this(asset, fqnContext, catalog: null)
+    {
+    }
+
+    /// <summary>
+    /// ⭐⭐ §11.1a — the production overload. <paramref name="catalog"/> is what turns a PICKED
+    /// SUBTREE NAME into the stable Guid at pick time.
+    /// ⛔ A host that has a catalogue must use THIS constructor; the two above exist for headless
+    /// fixtures, and a dispatcher without one writes the name only.
+    /// </summary>
+    public HsmFacetDispatcher(
+        HsmAsset asset,
+        HsmFacetFqnContext? fqnContext,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog)
     {
         _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
         _fqnContext = fqnContext;
+        _catalog    = catalog;
         _mapper     = new HsmFacetMapper(asset, fqnContext);
     }
 
@@ -106,7 +126,47 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         if (f.DeferredEventIds is not null)
             s.DeferredEventIds.AddRange(f.DeferredEventIds);
 
+        // ⭐⭐⭐ §11.1a — THE GUID IS CAPTURED AT PICK TIME, while the catalogue entry is in hand.
+        // ⛔ Deriving it only on load would mean a rename between the pick and the first reload
+        //    leaves NOTHING to heal from — and the whole point of storing both would be lost.
+        // ⚠ `_catalog` is optional so a headless fixture need not supply one; a production host
+        //   HAS one and passes it (the silent-default rule).
+        ApplySubtreePick(s, f.SubtreeName);
+
         _asset.MarkDirty();
+    }
+
+
+    /// <summary>
+    /// ⭐⭐ Writes a picked subtree name onto the state and captures the matching asset id.
+    /// 📄 <c>HSM_Editor_NodeEditor_Host_Design.md</c> §11.1a.
+    /// </summary>
+    private void ApplySubtreePick(Hrot.Hsm.Editor.Model.StateNode s, string? pickedName)
+    {
+        // ⭐ Clearing the field UNSETS the host entirely — both halves go, because an empty name
+        //   with a live Guid would be a reference the designer cannot see or edit.
+        if (string.IsNullOrWhiteSpace(pickedName))
+        {
+            s.SubtreeName       = null;
+            s.SubtreeAssetId    = Guid.Empty;
+            s.IsSubtreeResolved = false;
+            return;
+        }
+
+        s.SubtreeName = pickedName;
+
+        var picked = _catalog?.FindByName(pickedName);
+        if (picked != null && picked.Kind == Hrot.Editor.AiShared.AssetKind.BTree)
+        {
+            s.SubtreeAssetId    = picked.AssetId;
+            s.IsSubtreeResolved = true;
+        }
+        else
+        {
+            // ⚠ Typed or stale name with no catalogue match: keep the name and ⛔ do NOT clear a
+            //   previously captured Guid — the never-erase rule (§7.1a branch ③).
+            s.IsSubtreeResolved = false;
+        }
     }
 
     private void ApplyTransitionFacet(Guid visualId, TransitionFacet f)

@@ -95,6 +95,7 @@ public sealed class HsmValidator
         CheckConcurrentStatefulSubtrees(asset, diagnostics);
         CheckConcurrentSharedScopeKeys(asset, diagnostics);
         CheckSubtreeAssetCycles(asset, diagnostics);
+        CheckSubtreeReferenceDangling(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -229,6 +230,57 @@ public sealed class HsmValidator
                     $"Global transition references event ID {g.EventId} which is not present in the event table.",
                     new[] { g.VisualId }));
             }
+        }
+    }
+
+
+    /// <summary>
+    /// ⭐⭐ <b>§11.1a — a hosted-subtree reference that resolves to nothing.</b> The HSM twin of
+    /// BTree's Rule 6 (<c>Subtree with IsResolved == false</c>).
+    ///
+    /// <para>⛔⛔ <b>NULL CATALOGUE SKIPS THE RULE</b>, exactly as rule 10 above does. 🔴 An earlier
+    /// draft read the derived <c>IsSubtreeResolved</c> flag instead, on the premise that
+    /// <c>HsmSubtreeResolver</c> had already run. 📐 <b>Measured, and the premise was false:</b> the
+    /// flag defaults to <c>false</c>, so a validator handed no catalogue reported EVERY hosted
+    /// subtree as dangling — <c>CE-338</c>/<c>CE-339</c>'s control arms caught it. ⚠ Without a
+    /// catalogue you cannot know whether a reference resolves; reporting it as broken is a guess.</para>
+    ///
+    /// <para>⭐ <b>It asks <see cref="SubtreeReferenceResolver"/>, not the stored flag.</b> That is
+    /// the SAME function the walker uses, so this is one rule with two callers, not two rules — and
+    /// it removes the dependency on someone having run the walker first, which is precisely the
+    /// silent-default shape.</para>
+    ///
+    /// <para>⚠ A state that hosts NOTHING is skipped: an empty reference is the ordinary case, not a
+    /// dangling one.</para>
+    /// </summary>
+    private void CheckSubtreeReferenceDangling(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        if (_catalog is null) return;
+
+        foreach (var s in asset.AllStates)
+        {
+            bool hostsSomething =
+                !string.IsNullOrEmpty(s.SubtreeName) || s.SubtreeAssetId != Guid.Empty;
+
+            if (!hostsSomething)
+                continue;
+
+            var r = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.Resolve(
+                _catalog, s.SubtreeName, s.SubtreeAssetId, Hrot.Editor.AiShared.AssetKind.BTree);
+
+            if (r.IsResolved)
+                continue;
+
+            string what = !string.IsNullOrEmpty(s.SubtreeName)
+                ? $"'{s.SubtreeName}'"
+                : $"asset id {s.SubtreeAssetId}";
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.SubtreeReferenceDangling,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' hosts subtree {what}, which no longer resolves to a BTree asset "
+              + "— reselect or clear it.",
+                new[] { s.StableId }));
         }
     }
 

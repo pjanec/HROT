@@ -1512,3 +1512,26 @@ is a `string[]` of names. 🔒 **That is true of the runtime BLOB, which is expl
 `"not persisted (runtime-only)"`** — ⛔ it is NOT true of the authored asset, whose DTO carries the
 full triple. ⇒ **the two hosts' persistence shapes already agree**; only the resolver behaviour and
 the missing picker differed.
+
+#### ✅ AS-BUILT `2026-09-26` — **and the fix was only half of it: THE RESOLVER WAS NEVER CALLED** *(`CE-361`)*
+
+⛔⛔ **This section, as first written, prescribed fixing the erase. 📐 Measured after building it:
+`BTreeSubtreeResolver` had ZERO PRODUCTION CALLERS** — only its own declaration and six test call
+sites across `Hrot/` and `FDP/`. ⇒ ⭐⭐ **the heal rule was live in tests only**, and a rename left
+every referencing asset dangling for ever with Rule 6 reporting it and nothing able to repair it.
+
+⚠⚠ **`BehaviorTreeAssetProjector:179` writes `IsResolved = false`** on every projected Subtree node,
+so that path depended entirely on a resolve that never happened.
+
+⭐ **Step 0 in `BTreeDocumentFactory.Build`** now resolves against the catalogue before the graph
+model is built, and `MarkDirty()` when a name was healed. ⭐ **Opening a document is the right
+moment** — the one place holding BOTH the asset and the catalogue, and it re-runs after a hot reload
+for free. 📐 `AiDocumentViewStateBinder:119` already passed `assetCatalog: services.Catalog`
+⇒ **zero composition-root changes.** 🔒 The HSM twin does exactly the same
+(📄 `HSM_Editor_NodeEditor_Host_Design.md` §11.1a) — user: *"no differences, consistency."*
+
+🔒 **HOW IT WAS FOUND, because the mechanism generalises:** `HsmSubtreeResolver`'s header said
+*"call it after load and after a hot reload, **exactly like `BTreeSubtreeResolver`**"* — a
+**design principle written as if measured.** ⛔ It was load-bearing and false. ⇒ ⭐⭐ **`R-139`'s
+claim table applies to the prose written INTO the code being built, not only to the lean handed to
+the user.**

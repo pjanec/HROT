@@ -40,6 +40,11 @@ public sealed class HsmFacetMapper
             OnExitAction            = s.OnExitAction,
             ActivityAction          = s.ActivityAction,
             TimerAction             = s.TimerAction,
+            // ⭐ §11.1a — the authored name, plus its two derived companions.
+            SubtreeName             = s.SubtreeName,
+            SubtreeAssetId          = s.SubtreeAssetId == Guid.Empty ? string.Empty
+                                                                     : s.SubtreeAssetId.ToString(),
+            IsSubtreeResolved       = s.IsSubtreeResolved,
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19

@@ -86,6 +86,24 @@ public static class HsmDocumentFactory
                 $"Expected {nameof(HsmAsset)} but got {asset.GetType().Name}.",
                 nameof(asset));
 
+        // ── 0. Reconcile the hosted-subtree references ────────────────────────
+        // ⭐⭐⭐ §11.1a — RESOLVE BEFORE ANYTHING READS `IsSubtreeResolved`.
+        // 🔴 THE DEFECT THIS AVOIDS, and an existing rail caught it: the dangling rule reads a
+        //    DERIVED flag that only `HsmSubtreeResolver` sets. With no production caller the flag
+        //    is permanently false ⇒ the rule would report EVERY hosting state as dangling.
+        // ⚠⚠ That was not hypothetical — it was the state BTree was in: `BTreeSubtreeResolver` had
+        //    ZERO production callers, `BehaviorTreeAssetProjector` writes `IsResolved = false`, and
+        //    `BTreeValidator` Rule 6 fires on `!IsResolved`. ⭐ `CE-361` wired the twin step 0 into
+        //    `BTreeDocumentFactory`, so both hosts now resolve at the same moment.
+        // ⭐ Opening a document is the right moment: it is the one place that has BOTH the asset and
+        //   the catalogue, and it re-runs after a hot reload for free.
+        // ⚠ A heal is a real edit — `MarkDirty` so it is saved rather than re-done every load.
+        if (catalog is not null &&
+            Hrot.Hsm.Editor.Model.HsmSubtreeResolver.Resolve(hsmAsset, catalog) > 0)
+        {
+            hsmAsset.MarkDirty();
+        }
+
         // ── 1. Graph model ────────────────────────────────────────────────────
         // ⭐⭐⭐ E5 / items 6-7 (2026-09-26) — THE CANVAS NOW ASKS THE SAME QUESTIONS THE DIAGNOSTICS
         //    WINDOW DOES. 🔴 This used to be `new HsmGraphModel(hsmAsset)` with NO resolvers, while

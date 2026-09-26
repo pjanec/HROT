@@ -2308,6 +2308,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                             FacetEditService = _facetEditService,
                             BehaviorRegistry = _behaviorRegistry,
                             ActionSchema     = schemaExporter,
+                            // ⭐ §11.1a — same catalogue, same picker. ⛔ Not editor-only.
+                            Catalog          = _aiCatalogBuilder?.Catalog,
                         }),
                 // ⛔ Still editor-only and correctly so: the legacy variables bridge and the
                 //   graph-signature window — CGF registers neither.

@@ -479,10 +479,17 @@ public static class HsmPickerDrawerFactory
     /// When <paramref name="exporter"/> and <paramref name="fqnContext"/> are provided, the
     /// <see cref="HsmBlackboardFieldPickerDrawer"/> filters variables by the current action's DtoType.
     /// </summary>
+    /// <param name="catalog">
+    /// ⭐⭐ §11.1a — the asset catalogue that feeds the <c>[AiAssetPicker]</c> on
+    /// <c>StateFacet.SubtreeName</c>. ⚠ Optional so headless fixtures need not supply one; ⛔ a
+    /// production host HAS one and must pass it, or the hosted-subtree field silently offers
+    /// nothing — the exact silent-default shape this codebase keeps paying for.
+    /// </param>
     public static IReadOnlyDictionary<Type, IImGuiFieldDrawer> BuildDrawers(
         HsmAsset               asset,
         IActionSchemaExporter? exporter   = null,
-        HsmFacetFqnContext?    fqnContext  = null)
+        HsmFacetFqnContext?    fqnContext  = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
 
@@ -498,6 +505,16 @@ public static class HsmPickerDrawerFactory
             .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
             .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset))
             .Register<HsmBlackboardFieldPickerAttribute>(bbDrawer);
+
+        // ⭐⭐ §11.1a — the hosted-subtree picker. ⚠ Registered only when a catalogue exists: a
+        //    drawer over a null catalogue could only ever draw an empty list, and an empty dropdown
+        //    reads as "there are no BTrees" rather than "this host wired nothing".
+        if (catalog is not null)
+        {
+            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(
+                new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(
+                    catalog, Hrot.Editor.AiShared.AssetKind.BTree));
+        }
 
         return new Dictionary<Type, IImGuiFieldDrawer>
         {

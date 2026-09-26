@@ -3625,6 +3625,9 @@ namespace Hrot.Editor
                         FacetEditService = facetEditService,
                         BehaviorRegistry = _behaviorRegistry,
                         ActionSchema     = sharedSchemaExporter,
+                        // ⭐ §11.1a — feeds the hosted-subtree picker on StateFacet, and the
+                        //   dispatcher's pick-time Guid capture. ⛔ This host HAS a catalogue.
+                        Catalog          = _aiCatalogBuilder?.Catalog,
                     });
 
                 // AIE-047/048: Retarget Blueprint-specific windows.

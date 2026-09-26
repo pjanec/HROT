@@ -4,12 +4,12 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **HSM SUBTR
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-26
-build-state: 🟡 **DESIGN APPROVED AND WRITTEN (§7.1a / §11.1a / §S1). BUILD NOT STARTED.**
-  ⭐⭐⭐ **START AT §1 — the four build items.** ⛔ **§2 is the measurement; DO NOT RE-DERIVE IT.**
-  Branch `behaviors`, HEAD `6c98681f8` at time of writing, tree clean, everything pushed.
+build-state: ✅ **BUILT `2026-09-26` — all four items done, plus a FIFTH the build discovered (`CE-361`).**
+  ⭐⭐⭐ **START AT §1a — what was built and what it cost.** ⛔ **§2 is the measurement; DO NOT RE-DERIVE IT.**
+  Branch `behaviors`. ⚠ Verify HEAD against git — this line is a snapshot.
 current-answer: ⭐⭐⭐ §1 is the build list · §2 the measurements already made · §3 the corrections that
   must not be re-inherited · §4 standing constraints · §5 gate baselines.
-known-rot: nothing.
+known-rot: ⚠ §1's four rows say ☐; they are all DONE — §1a carries the as-built and is authoritative.
 known-conflict: ⚠ `RESUME_Occurrence_Storage.md` is the PREVIOUS programme's doc. That programme is
   COMPLETE; that doc's §0 now points here. ⛔ Two `RESUME_*` files exist for this one lane — this is
   the live one.
@@ -56,6 +56,33 @@ unreachable on a real asset. This programme makes the reference **authorable by 
 | **2** | ⭐⭐ **`SubtreeReferenceResolver`** — the shared DECISION: `Resolve(catalog, name, guid) → (Name, AssetId, IsResolved, Healed)`. 📄 **The heal rule is §7.1a's sequence diagram — follow it exactly** | `Hrot.Editor.AiShared/References/` | ☐ |
 | **3** | ⭐⭐⭐ **HSM** — `StateFacet.SubtreeName` + `[AiAssetPicker(AssetKind.BTree)]`, read-only `SubtreeAssetId` + `IsSubtreeResolved`; `StateNode.IsSubtreeResolved` **derived, NOT persisted**; `HsmSubtreeResolver` walking `asset.AllStates`; facet mapper BOTH directions; a dangling validator rule mirroring BTree's Rule 6 | `Hrot.Hsm.Editor/` | ☐ |
 | **4** | ⭐ **BTree** — `[AiAssetPicker(AssetKind.BTree)]` on `BTreeSubtreeFacet.SubtreeName`; **fix `BTreeSubtreeResolver` to HEAL instead of erasing** | `Hrot.BTree.Editor/` | ☐ |
+
+⛔⛔ **THE FOUR BOXES ABOVE ARE ALL TICKED — see §1a.** They are left unticked as the dispatched
+scope; §1a is the as-built and wins.
+
+---
+
+## 1a. ✅ AS-BUILT `2026-09-26` — **four items shipped, and a FIFTH the build found**
+
+| id | what | rails |
+|---|---|---|
+| **`CE-358`** | ⭐⭐ the shared picker — `AiAssetPickerAttribute` + `AiAssetPickerDrawer` + `SubtreeReferenceResolver` | `SubtreeReferenceResolverTests` **8** |
+| **`CE-359`** | ⭐⭐⭐ HSM authoring — `StateFacet.SubtreeName`, the Guid captured **at pick time**, `HsmSubtreeResolver`, the `SubtreeReferenceDangling` rule | `HsmSubtreeAuthoringTests` **8** |
+| **`CE-360`** | 🔴 BTree's resolver **erased the persisted Guid** on a missed name — routed through the shared rule | `BTreeSubtreeResolverTests` **6** |
+| ⭐⭐ **`CE-361`** | 🔴🔴 **the item the BUILD found: `BTreeSubtreeResolver` had ZERO PRODUCTION CALLERS.** Step 0 added to **both** document factories; the HSM dangling rule now asks the resolver and **skips with no catalogue** | `BTreeDocumentFactoryTests` **+2**, `HsmSubtreeAuthoringTests` **+1** |
+
+### 🔒 The one thing worth carrying forward from this build
+
+⛔⛔ **`CE-361` was found because MY OWN DESIGN'S PROSE was an unmeasured principle.**
+`HsmSubtreeResolver`'s header said *"call it after load and after a hot reload, **exactly like
+`BTreeSubtreeResolver`**"* — describing a convention that **did not exist**. ⇒ ⭐⭐ **`R-139`'s claim
+table applies to the prose written INTO the code you are building, not only to the lean handed to
+the user.**
+
+⭐ **What caught it: an EXISTING rail, not a new one.** `CE-338`/`CE-339`'s control arms
+(*"with no catalogue, nothing is badged"*) reddened, because the new dangling rule read a derived
+flag that nothing set. 🔒 **T-1 ③ inverted:** the rails went red for a TRUE reason ⇒ **the product
+side moved, not the rails.**
 
 ⭐ **Registration:** both hosts already wire facet pickers through
 [`AiFacetPickerBinder`](https://github.com/pjanec/HROT/blob/behaviors/Hrot/Editor/Hrot.Editor.AiComposition/AiFacetPickerBinder.cs)
