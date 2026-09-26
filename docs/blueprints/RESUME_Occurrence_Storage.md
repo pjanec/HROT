@@ -1,6 +1,11 @@
 <!--STATUS
 state: LIVE
-doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-SCOPED STORAGE.
+doc-type: ⛔⛔ **NOT THE LIVE RESUME DOC ANY MORE.** The OCCURRENCE-SCOPED STORAGE programme is
+  COMPLETE (E5 + the debug/harness tail). ⭐⭐⭐ **THE LIVE DOC IS
+  `RESUME_Hsm_Subtree_Authoring.md`** — HSM subtree authoring + the shared asset picker.
+  ⚠ Two RESUME_* files exist for the `behaviors` lane; pick by PROGRAMME, and this one is HISTORY.
+  ⭐ Keep it: §0a-§0e record what was built and the method lessons, and §2/§3 of the live doc cite them.
+  (former doc-type) THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-SCOPED STORAGE.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-26
@@ -117,7 +122,17 @@ RELEARN
 
 ---
 
-## 0. ⭐⭐⭐ NEXT: **HSM SUBTREE AUTHORING** — ✅ **THE WHOLE DEBUG/HARNESS TABLE IS CLEAR**
+## 0. ➡️ **THIS PROGRAMME IS COMPLETE — THE LIVE DOC IS [`RESUME_Hsm_Subtree_Authoring.md`](RESUME_Hsm_Subtree_Authoring.md)**
+
+> ✅ **Occurrence-scoped storage is DONE** — `E5` (all 7 items + `A1`), the editor⇄CGF deduplication,
+> `CE-349`/`CE-350` (one debugger time control, neutral home), and the whole harness tail
+> `CE-352`..`CE-357`. ⛔ **Nothing here is in flight.**
+> ⭐⭐⭐ **HSM subtree AUTHORING — the blocker this doc kept naming — has its own programme and its own
+> resume doc now.** Read that one.
+> ⚠ The rest of this file is the record of what was built and **the method lessons**, which the live
+> doc cites rather than repeats.
+
+### ⛔ HISTORY — the former §0 header: ✅ **THE WHOLE DEBUG/HARNESS TABLE IS CLEAR**
 
 > ✅ **NOTHING IS IN FLIGHT.** Branch `behaviors`, tree clean, everything pushed.
 > ⛔ `git stash@{0}` holds *"EXPERIMENT: RootParamsBytes always 100 — probe only"* — **a diagnostic
