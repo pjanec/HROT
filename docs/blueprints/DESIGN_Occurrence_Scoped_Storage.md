@@ -9197,6 +9197,17 @@ agreement was timing, `The_two_modes_agree_on_every_shared_panel_kind` will star
 runs agreed, because one of the two claims is false and **the entry has been asserting the untested
 one since slice 1**.
 
+✅ **VERIFIED IMMEDIATELY AFTER THE DELETION** *(`Failed: 1, Passed: 1` on the two affected rails)*:
+
+| rail | verdict |
+|---|---|
+| ⭐⭐ `A_declared_divergence_that_stopped_diverging_is_deleted` | ✅ **GREEN** — the deletion is what it was asking for |
+| ⭐⭐⭐ `The_two_modes_agree_on_every_shared_panel_kind` | ⚠ still red — ⛔ **but on `[ExConObserver]` ALONE** *(`CE-357`, not ours)*. 🔒 **`details` is NOT named** ⇒ it is now compared FOR REAL and **agrees** |
+
+⇒ ⭐⭐ **the feared flap did not happen on the first post-deletion run.** ⚠ One run is not a guarantee
+against an intermittent `$.mode`; **the watch above stands**, and the mechanism to check it is written
+there rather than left to memory.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of
