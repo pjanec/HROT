@@ -243,6 +243,28 @@ that failure** — and *"pre-existing"* is **not** a synonym for *"one red"*. �
 red was genuinely not ours. ⛔ But the parity conclusion drawn from it — *"the CGF extractions did not
 regress anything"* — **rested on the unsourced figure and is withdrawn.**
 
+🔴🔴 **AND IT WAS NOT MERELY UNSOURCED — THE RAIL SAID THE OPPOSITE.**
+`ClusterConformanceRails.The_two_modes_agree_on_every_shared_panel_kind` — **the rail whose whole job
+is to answer *"is editor⇄cluster parity intact?"*** — **was RED at the time**, with
+*"panel kind(s) present in `--mode all` and absent in the EDITOR, and NOT declared: `[ExConObserver]`"*.
+⇒ 🔒 filed as `CE-357`; ⛔ **not ours** *(byte-identical message before and after this session's work)*,
+but the claim I made was the inverse of the measurement.
+
+### ✅ §0z-2 — **THE SECOND FULL-CAPTURE `T3` RUN, `2026-09-26`** *(after `CE-349`/`351`/`353`)*
+
+| 📐 quoted verbatim from the log | |
+|---|---|
+| **before** *(`16:59`, pre-`CE-349`)* | `Failed: 14, Passed: 103, Skipped: 0, Total: 117` |
+| **after** *(`18:2x`, post-`CE-353`)* | `Failed: 13, Passed: 104, Skipped: 0, Total: 117, Duration: 18 m 30 s` |
+| ✅ **FIXED — exactly one** | `ClusterConformanceRails.The_ported_kinds_are_really_published_by_the_cluster` ⇒ 🔒 **`CE-353` worked, and it is the only thing that moved** |
+| ✅ **NEW FAILURES — NONE** | ⇒ ⭐⭐ `CE-349`, `CE-351` and `CE-353` introduced **no regression**. ⚠ *That* is the parity-ish statement that is actually supported; ⛔ it is **not** the same as *"parity is intact"* — `CE-357` is still red |
+| 📋 **the remaining 13, by cause** | 3 `DeterminismRails` · 3 `ClusterConformanceRails` *(`CE-357` `ExConObserver` · `[details]` stopped-diverging · entity-delete)* · 2 `TheUiBaselineIsPinnedPerHostRails` (`CE-355`) · 2 `PanelGoldenRails` (`CE-354`) · `CrossHostPanelKindRails` (`CE-356`) · `VariableAddressingTests` · `PreviewLeavesNoTraceRails` |
+
+⭐⭐ **AND THE `details` QUESTION IS SETTLED BY THE SECOND RUN:**
+`A_declared_divergence_that_stopped_diverging_is_deleted` reports *"`[details]` now AGREE between the
+two modes"* in **both** runs ⇒ 🔒 the entry wants **DELETING**, not trimming. ⛔ Left trimmed-but-present
+because deletion exceeds the one cross-lane authorisation given for `CE-353`.
+
 🔒 **STILL TRUE, and the next session should keep it in mind:** ⚠ This
 matters because **none of this session's CGF changes have end-to-end coverage** — they are verified by
 build + the editor-side unit suites only, and `CE-340`/`342`/`343`/`345`/`347`/`348` all touched CGF's
