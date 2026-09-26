@@ -1,4 +1,4 @@
-using Hrot.Blueprints.Core.Debug;
+using Hrot.Diagnostics.Breakpoints;
 
 namespace Hrot.Editor.AiShared.Debug;
 

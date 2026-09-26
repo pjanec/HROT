@@ -36,7 +36,7 @@ public sealed class TheWatchPinsOnAPickedEntityTests
                ReadValue: () => BitConverter.GetBytes(1));
 
     /// <summary>⭐ The manager needs a time controller; nothing here pauses.</summary>
-    private sealed class NoTimeControl : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    private sealed class NoTimeControl : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
     {
         public bool IsPausedByDebugger => false;
         public void RequestPause() { }

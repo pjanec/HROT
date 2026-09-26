@@ -9208,6 +9208,61 @@ one since slice 1**.
 against an intermittent `$.mode`; **the watch above stands**, and the mechanism to check it is written
 there rather than left to memory.
 
+## 32.26 ✅ `CE-350` — **THE DEBUGGER TIME CONTRACT LEAVES `Hrot.Blueprints.Core`** *(`2026-09-26`)*
+
+🔒 **User:** *"yes, do ce-350, use roslyn cli is mpc not working."*
+
+### 32.26.1 📐 THE CLAIM TABLE — **checked BEFORE the first edit, and one row corrected the plan**
+
+| the lean rested on | 📐 code — how it IS | 📄 design basis |
+|---|---|---|
+| `Hrot.Diagnostics.Breakpoints` is a legal home | ✅ it references `Blueprints.Core` **one-way**; `Blueprints.Core` does **not** reference back ⇒ **no cycle** | ✅ it already owns the other debugger contracts |
+| moving it forces `Blueprints.Core → Breakpoints` | 🔴 **FALSE** — nothing in the `Blueprints.Core` **project** uses the interface except its own declaration file | — |
+| consumers need new project references | 🔴 **FALSE** — `Hrot.Blueprints.Editor`, `Hrot.Editor.AiShared` and `Hrot.CGF` **already** reference Breakpoints ⇒ **zero added** | — |
+| the alias is dead weight | ✅ **one** production site named it — `MasterSyncTimeControllerAdapter`, which implemented both **and needed `#pragma warning disable CS0618` to do it** ⇒ 🔒 the only production code touching the alias existed to silence the warning the alias produced | ⚠ its own `[Obsolete]` text said *"removed after one batch"* — the rename happened, the move never followed |
+
+### 32.26.2 ⭐ WHAT MOVED
+
+| | |
+|---|---|
+| ⭐ `IEngineDebugTimeController` | `Hrot.Blueprints.Core.Debug` → **`Hrot.Diagnostics.Breakpoints`**, one declaration, `Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/IEngineDebugTimeController.cs` |
+| ⛔ `IBlueprintTimeController` | **DELETED**, with the `#pragma` that existed only for it |
+| ⭐ production `using` changes | **3** — `AiTracerCoordinator`, `BlueprintDebugSession`, `MasterSyncTimeControllerAdapter` *(+ `AiDebugSessionComposer`, added this same day by `CE-349`)* |
+| ⭐ fully-qualified references repointed | 6 files, mechanically |
+| ⭐ `Stride/` incl. `HrotStrideApp.Windows` | **zero references** ⇒ the union rule needed no second workspace |
+
+### 32.26.3 🔴 THE MISTAKE THE BUILD CAUGHT — **a type MOVE is not a namespace RENAME**
+
+⛔ The first pass **swapped** `using Hrot.Blueprints.Core.Debug;` → `using Hrot.Diagnostics.Breakpoints;`
+in eight files. 🔴 **Wrong in four of them**: they also use `BlueprintDebugSession`,
+`IBlueprintProbeSink` and other types that genuinely **stay** in the old namespace.
+
+🔒 **The generalisation:** ⭐⭐ **moving ONE type out of a namespace SPLITS that namespace's contents
+across two** ⇒ a consumer may need **both** usings. ⛔ A swap silently assumes the namespace had a
+single occupant — ⚠ and it fails loudly only because the compiler is watching; **the same assumption
+inside a text-replace RENAME would have produced no error at all.**
+
+### 32.26.4 ⭐⭐ THE TWO ALIAS RAILS — **delete one, RE-POINT the other, and the difference is the rule**
+
+| rail | verdict | why |
+|---|---|---|
+| `IBlueprintTimeController_Still_Resolves_Through_Inheritance` | ⛔ **DELETED** | its subject is gone. ⚠ Re-pointing it would assert *"the interface is assignable from itself"* — **a tautology dressed as a regression test** |
+| `MasterSyncTimeControllerAdapter_ImplementsInterface` | ⭐ **RE-POINTED** | the alias assertion was its **only** statement ⇒ 🔴 deleting the line left a test that **passes while asserting nothing** — caught on re-read. ⭐ Re-pointed at the interface the adapter really implements, which is the claim the test's own NAME makes |
+
+🔒 **The rule: DELETE a rail when its SUBJECT is gone; RE-POINT it when only its SPELLING changed.**
+⛔ And a test whose sole assertion is removed must never be left empty — that is strictly worse than
+either option, because it still reports green.
+
+### 32.26.5 ⭐ WHERE ROSLYN PAID, MEASURED
+
+📐 `roslyn_find_references` *(over stdio — the MCP was down; `is_msbuild_workspace: true`,
+`has_more: false`)*: **32 references / 21 files** for the interface, **8 / 6** for the alias.
+⭐ It **excluded four files text search flagged** — `EditorSubsystem`, `CgfSubsystem`,
+`PerspectiveWorkspaceRegistrar`, `RunStateSource` — all doc-comment mentions only, and it let
+`DataBreakpointManager` be skipped *(already in the destination namespace)*. ⇒ ⛔ editing those five
+would have been churn, and on `RunStateSource` it would have added a `using` for a type the file
+never uses.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

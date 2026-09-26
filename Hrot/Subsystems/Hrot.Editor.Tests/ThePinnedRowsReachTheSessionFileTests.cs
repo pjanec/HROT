@@ -40,7 +40,7 @@ public sealed class ThePinnedRowsReachTheSessionFileTests
                ClrType:   typeof(int),
                ReadValue: () => BitConverter.GetBytes(1));
 
-    private sealed class NoTimeControl : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    private sealed class NoTimeControl : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
     {
         public bool IsPausedByDebugger => false;
         public void RequestPause() { }

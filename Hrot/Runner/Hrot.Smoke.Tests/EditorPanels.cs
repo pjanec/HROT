@@ -6,7 +6,7 @@ using Fdp.Presentation.Icons;
 using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
-using Hrot.Blueprints.Core.Debug;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Windows;

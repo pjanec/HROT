@@ -30,7 +30,7 @@ namespace Hrot.Editor.AiShared.Tests.Windows;
 public sealed class TheSharedYellowReachesEveryTableTests
 {
     /// <summary>⭐ The manager needs a time controller; nothing here pauses.</summary>
-    private sealed class NoTimeControl : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    private sealed class NoTimeControl : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
     {
         public bool IsPausedByDebugger => false;
         public void RequestPause() { }

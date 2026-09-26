@@ -147,7 +147,7 @@ public sealed class AiRuntimePaneBinderTests
                new Fdp.Core.EntityRepository(),
                new NoTimeControl());
 
-    private sealed class NoTimeControl : Hrot.Blueprints.Core.Debug.IEngineDebugTimeController
+    private sealed class NoTimeControl : Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController
     {
         public bool IsPausedByDebugger => false;
         public void RequestPause() { }

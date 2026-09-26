@@ -5,7 +5,7 @@ using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Hrot.Blueprints.Core.Compiler.Emit;
-using Hrot.Blueprints.Core.Debug;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Blueprints.Editor.Runtime;
 
 namespace Hrot.ClusterRunner.Integration.Tests;

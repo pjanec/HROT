@@ -674,8 +674,13 @@ public sealed class TripleBufferPauseTests
 
 /// <summary>
 /// Verifies the contract of <see cref="IEngineDebugTimeController"/> as implemented
-/// by <see cref="MockDebugTimeController"/>, and confirms that
-/// <see cref="IBlueprintTimeController"/> still resolves through inheritance.
+/// by <see cref="MockDebugTimeController"/>.
+///
+/// <para>⛔ <c>CE-350</c> (<c>2026-09-26</c>): the companion test
+/// <c>IBlueprintTimeController_Still_Resolves_Through_Inheritance</c> is <b>DELETED</b>, not
+/// re-pointed — the obsolete alias it asserted is gone, so the claim no longer has a subject.
+/// ⭐ Re-pointing it at <see cref="IEngineDebugTimeController"/> would have produced a tautology
+/// (<i>"the interface is assignable from itself"</i>) dressed as a regression test.</para>
 /// </summary>
 public sealed class EngineDebugTimeControllerTests
 {
@@ -701,18 +706,6 @@ public sealed class EngineDebugTimeControllerTests
         Assert.False(tc.IsPausedByDebugger);
     }
 
-    /// <summary>
-    /// <see cref="IBlueprintTimeController"/> must still derive from
-    /// <see cref="IEngineDebugTimeController"/> so callers that hold an
-    /// <c>IBlueprintTimeController</c> reference can use it as the base interface.
-    /// </summary>
-    [Fact]
-    public void IBlueprintTimeController_Still_Resolves_Through_Inheritance()
-    {
-        // IBlueprintTimeController IS-A IEngineDebugTimeController.
-        Assert.True(
-            typeof(IEngineDebugTimeController).IsAssignableFrom(typeof(IBlueprintTimeController)));
-    }
 }
 
 // ---------------------------------------------------------------------------

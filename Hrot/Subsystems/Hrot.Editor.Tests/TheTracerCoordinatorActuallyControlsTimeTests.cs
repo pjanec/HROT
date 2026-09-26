@@ -1,5 +1,5 @@
 using System.Collections.Generic;
-using Hrot.Blueprints.Core.Debug;
+using Hrot.Diagnostics.Breakpoints;
 using Hrot.Editor.AiComposition;
 using Hrot.Editor.AiShared.Debug;
 using Xunit;

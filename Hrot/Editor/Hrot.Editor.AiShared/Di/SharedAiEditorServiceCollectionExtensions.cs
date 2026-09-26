@@ -38,7 +38,7 @@ public static class SharedAiEditorServiceCollectionExtensions
         //    ⛔ A host that HAS one registers it first — and the production hosts do not come through
         //    here at all: they call AiDebugSessionComposer.Compose, which REFUSES null.
         services.AddSingleton<AiTracerCoordinator>(sp =>
-            new AiTracerCoordinator(sp.GetService<Hrot.Blueprints.Core.Debug.IEngineDebugTimeController>()));
+            new AiTracerCoordinator(sp.GetService<Hrot.Diagnostics.Breakpoints.IEngineDebugTimeController>()));
 
         // Comparison sanitization registry (populated at startup by each subsystem host)
         services.AddSingleton<SanitizerRegistry>();
