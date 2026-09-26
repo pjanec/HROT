@@ -197,6 +197,62 @@ public sealed class HsmDocumentFactoryTests : IDisposable
             "rule 8b's resolver must reach the canvas's validator, not just the Diagnostics window's");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> item 7's forwarding rail — the CATALOGUE reaches the canvas's validator,
+    /// so rule 10 (<c>SubtreeAssetCycle</c>) badges here too.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>🔒 <b>The silent-default rule's prescribed control: asserted on the CONSTRUCTED OBJECT,
+    /// not on the registrar's source.</b> ⛔ <c>HsmValidator</c> skips the cycle rule when handed no
+    /// catalogue — that is a deliberate optional dependency, and this rail is what stops it becoming
+    /// the *"a production caller that HAS a dependency did not pass it"* defect.</para>
+    ///
+    /// <para>⭐ The two arms differ ONLY by the catalogue, so the control arm is the red-proof.</para>
+    /// </summary>
+    [Fact]
+    public void HsmDocumentFactory_ForwardsTheCatalog_SoTheCycleRuleBadgesTheCanvas()
+    {
+        // ⭐ A machine whose single state hosts a child that hosts the machine back.
+        var root = new StateNode("__root__");
+        var s    = new StateNode("S") { IsInitial = true, Parent = root };
+        root.Children.Add(s);
+        var hsm = new HsmAsset(
+            Guid.NewGuid(), "CycleHost", "", false, "",
+            new HsmDefinitionBlob(), new MachineMetadata(), root,
+            new List<StateNode> { s }, new List<TransitionNode>(),
+            new List<GlobalTransitionNode>(), new List<RegionNode>(), new List<EventDefinition>());
+        s.SubtreeAssetId = hsm.AssetId;    // the degenerate ring — one asset, no second type needed
+
+        var catalog = new CycleFakeCatalog(hsm);
+
+        // ⛔ WITHOUT the catalogue — the rule cannot fire. That WAS the state before this change.
+        var without = HsmDocumentFactory.Build(hsm, MakeBundle());
+        without.View.Model.Nodes.Should().NotContain(n => n.State == NodeEditor.Primitives.NodeState.Error,
+            "with no catalogue the cycle rule is skipped — the control arm");
+
+        // ⭐ WITH it — the same asset, the same factory, one argument different.
+        var with = HsmDocumentFactory.Build(hsm, MakeBundle(), catalog: catalog);
+        with.View.Model.Nodes.Should().Contain(n => n.State == NodeEditor.Primitives.NodeState.Error,
+            "the canvas must badge a hosting cycle, not only the Diagnostics window");
+    }
+
+    /// <summary>Minimal catalogue for the cycle forwarding rail.</summary>
+    private sealed class CycleFakeCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly Dictionary<Guid, IEditableAsset> _byId = new();
+        public CycleFakeCatalog(params IEditableAsset[] assets)
+        {
+            foreach (var a in assets) _byId[a.AssetId] = a;
+        }
+        public IReadOnlyList<IEditableAsset> All => _byId.Values.ToList();
+        public IEditableAsset? FindByAssetId(Guid id) => _byId.GetValueOrDefault(id);
+        public IEditableAsset? FindByName(string n) => _byId.Values.FirstOrDefault(a => a.Name == n);
+        public IReadOnlyList<IEditableAsset> WhereDependsOn(Guid id) => Array.Empty<IEditableAsset>();
+#pragma warning disable 67
+        public event Action<AssetKind>? Changed;
+#pragma warning restore 67
+    }
+
     // ── AIE-022 Tests ──────────────────────────────────────────────────────────
 
     [Fact]

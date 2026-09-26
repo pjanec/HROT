@@ -75,7 +75,8 @@ public static class HsmDocumentFactory
         IDataBreakpointManager? breakpointManager = null,
         IReadOnlyList<ICustomCanvasRenderer>? extraRenderers = null,
         Func<Guid, bool>? isStatefulSubtree = null,
-        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -93,13 +94,20 @@ public static class HsmDocumentFactory
         //    ⛔ That is exactly the split HsmGraphModel's own remarks warn about: "a resolver on
         //    only one of them would make a state light up in one surface and not the other."
         //
-        // ⛔⛔ WHY DELEGATES AND NOT AN IAssetCatalog. The predicate has to switch on BOTH
-        //    BehaviorTreeAsset and HsmAsset, and this assembly (Hrot.Hsm.Editor) cannot see the
-        //    former — so it COULD NOT compute it even if handed the catalogue. 🔒 The resolvers'
-        //    own remarks say they live "at the only layer that sees both asset types", and that a
-        //    second copy would let the two surfaces disagree. ⇒ pass the ANSWER, not the source.
-        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
-        var graphModel = new HsmGraphModel(hsmAsset, isStatefulSubtree, sharedScopeKeys);
+        // ⛔⛔ WHY THE TWO RESOLVERS ARE DELEGATES AND ITEM 7'S DEPENDENCY IS A CATALOGUE — the
+        //    difference is real, not an inconsistency:
+        //    ① rules 8/8b (§32.15): the predicate has to switch on BOTH BehaviorTreeAsset and
+        //      HsmAsset, and this assembly (Hrot.Hsm.Editor) cannot see the former — so it COULD
+        //      NOT compute it even if handed the catalogue. 🔒 The resolvers' own remarks say they
+        //      live "at the only layer that sees both asset types", and that a second copy would
+        //      let the two surfaces disagree. ⇒ pass the ANSWER, not the source.
+        //    ② rule 10 / item 7 (§32.16): the hosting edge is read through ISubtreeHostingAsset,
+        //      so the walk needs NO knowledge of either concrete type ⇒ the catalogue is passable
+        //      and the adapter lives ONCE, inside SubtreeCycleDetector, instead of at every
+        //      composition root. ⭐ The interface removed the constraint rather than working
+        //      around it.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15 and §32.16.
+        var graphModel = new HsmGraphModel(hsmAsset, isStatefulSubtree, sharedScopeKeys, catalog);
 
         // ── 2. Kind-specific host components ─────────────────────────────────
         var nodeCatalog  = new HsmNodeCatalog();

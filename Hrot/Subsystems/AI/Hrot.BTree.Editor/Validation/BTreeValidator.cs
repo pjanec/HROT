@@ -39,9 +39,60 @@ public sealed class BTreeValidator
         CheckOrphanedNodes(asset, diagnostics);
         CheckNestedDecorators(asset, diagnostics);
         if (catalog != null)
+        {
             CheckDanglingBlueprintReferences(asset, catalog, diagnostics);
+            CheckSubtreeAssetCycles(asset, catalog, diagnostics);
+        }
 
         return diagnostics;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> item 7 — <c>SubtreeAssetCycle</c>: this asset hosts a sub-tree that hosts
+    /// this asset again.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⛔⛔ <b>NOT the same rule as <see cref="CheckCycles"/>, and the distinction is the point.</b>
+    /// That one walks <c>ChildVisualIds</c> — the NODE graph inside this one asset. This one walks the
+    /// ASSET graph through <c>ISubtreeHostingAsset</c>. 📐 A tree can be perfectly acyclic by the first
+    /// rule while hosting a sub-tree that hosts it back.</para>
+    ///
+    /// <para>⭐⭐ <b>This is the arm that can fire on a shipped asset today</b> — <c>BTreeSubtreePayload</c>
+    /// is authored and persisted, where the HSM side still has no authoring gesture.</para>
+    ///
+    /// <para>⭐⭐ <b>It targets THE SUBTREE NODE ON THE RING</b> — the node whose <c>SubtreeAssetId</c>
+    /// is the ring's next hop, i.e. the edge a designer can cut HERE. 🔴 The first cut targeted
+    /// <c>Guid.Empty</c> always, reasoning that <i>"for <c>A→B→A</c> opened at <c>B</c>, no node of
+    /// <c>B</c> is at fault."</i> ⛔ Wrong — a ring has no innocent edge. ⚠ When this asset is only on
+    /// the APPROACH path (<c>A→B→C→B</c> validated from <c>A</c>) nothing here IS at fault, and the
+    /// diagnostic correctly falls back to tree-level.</para>
+    ///
+    /// <para>⚠ The walk is shared with <c>HsmValidator</c> so the two cannot drift into two answers for
+    /// one question (ruling 9).</para>
+    /// </summary>
+    private static void CheckSubtreeAssetCycles(
+        BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
+    {
+        var cycle = Hrot.Editor.AiShared.SubtreeCycleDetector.FindCycleFrom(catalog, asset.AssetId);
+        if (cycle.Count == 0) return;
+
+        // ⭐ The edge to cut, if this asset sits on the ring at all.
+        var nextHop = Hrot.Editor.AiShared.SubtreeCycleDetector.NextHopInRing(cycle, asset.AssetId);
+        var target  = Guid.Empty;
+        if (nextHop is not null)
+        {
+            foreach (var n in asset.Nodes)
+            {
+                if (n.Subtree?.SubtreeAssetId == nextHop.Value) { target = n.VisualId; break; }
+            }
+        }
+
+        out_.Add(new BTreeDiagnostic(
+            target,
+            BTreeDiagnosticSeverity.Error,
+            BTreeDiagnosticCode.SubtreeAssetCycle,
+            $"Sub-tree hosting forms a cycle: " +
+            $"{Hrot.Editor.AiShared.SubtreeCycleDetector.DescribeCycle(catalog, cycle)}. " +
+            $"Hosted sub-trees are expanded inline every tick, so a cycle recurses without a base case."));
     }
 
     // ---- Rule implementations -----------------------------------------------

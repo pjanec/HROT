@@ -7867,7 +7867,7 @@ BTree host's is.
 | **4** | `HsmBridgeEmitCore` emits the `HsmHostedSubtrees.Register(blob, …)` call beside the existing `HsmParamBindings.Register` | ⭐ gated on at least one hosting state ⇒ every shipped asset emits **nothing** and the golden stays byte-identical *(`A6`)* |
 | **5** | **`BrainTickSystem.TickHostedChildren`** — after `HsmKernel.Update`: read the entries, read `GetActiveLeafIds`, walk each leaf to root via `StateDef.ParentIndex` to build the active set, then `Tick` the active hosts and `Reset` the inactive ones | ⭐ `childBb` is the `ref byte` at `BrainTickSystem.cs:262-264`, guard and all. ⛔ Skip the whole branch when the machine has no entries — the common case |
 | **6** | wire `HsmValidator`'s `isStatefulSubtree` / `sharedScopeKeys` at the composition root | 📌 F8 — Rules 8/8b are inert today; `E5` is what makes them mean something |
-| **7** | ⚠ **the `A` hosts `B` hosts `A` cycle** — the validator names it as unowned (`HsmValidator.cs:400-410`) and `E5` is the owner | ⭐ a resolver-backed asset walk at **validation** time, not a runtime guard |
+| **7** | ✅ **BUILT `2026-09-26` — §32.16.** the `A` hosts `B` hosts `A` cycle — the validator named it unowned and `E5` is the owner | ⭐ a resolver-backed asset walk at **validation** time, not a runtime guard. ⭐⭐ **As built it is `IAssetCatalog`-backed rather than delegate-backed, and it serves BOTH validators** — see §32.16.4 |
 
 ### 32.9 ⚠ WHAT THIS DOES **NOT** DO
 
@@ -8319,8 +8319,130 @@ it is **AUTHORING**. 📐 `HsmFacets.StateFacet` exposes `OnEntryAction`, `OnExi
 ⚠ A stale note on `IsStatefulSubtreeAsset` blamed `DEBT-AIB-028`(a) for this; **that is fixed** and
 `E5` added `SubtreeName` beside it — the note is corrected in place.
 
-⛔ **Item 7** (the `A` hosts `B` hosts `A` cycle) is untouched and now genuinely cheap: it needs the
-same catalogue this change proved is reachable.
+✅ **Item 7** (the `A` hosts `B` hosts `A` cycle) was **BUILT next, on `2026-09-26`** — §32.16 — on
+exactly the catalogue this change proved reachable.
+
+## 32.16 ✅ `E5` ITEM 7 — **THE `A` HOSTS `B` HOSTS `A` CYCLE, AT VALIDATION TIME** *(`2026-09-26`)*
+
+> 📄 Spec: §32.8 item **7** — *"a resolver-backed asset walk at **validation** time, not a runtime
+> guard"*. 🔒 `HsmValidator` had named it unowned for four batches: *"that is a walk over ASSETS, needs
+> a resolver this validator does not have, and belongs to whoever builds subtree hosting for real."*
+
+### 32.16.1 📐 THE INVENTORY — **four cycle detectors exist and NONE of them is this one**
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=".*Cycle.*" label=Class` | ⭐ **4 detectors, all INTRA-asset** |
+| `grep -rn "cycle" Hrot.BTree.Editor` | the two BTree ones |
+
+| the existing detector | what it walks | ⛔ why it is not item 7 |
+|---|---|---|
+| `BTreeValidator.CheckCycles` (`:220`) | `ChildVisualIds` **inside one asset** | a node graph, not an asset graph |
+| `BTreeLinkValidator.WouldCreateCycle` (`:56`) | the ancestor chain, at link-creation time | intra-asset, and interactive |
+| `ContainerCycleDetector` *(`NodeEditor.Core/Spatial`)* | spatial container nesting | not assets at all |
+| `HsmValidator.SubtreeHostsUnder` (`:308`) | the **state tree** | ⭐ its own remark says *"it cannot cycle by construction"* and disclaims the asset question |
+
+⇒ 🔒 **item 7 is genuinely unbuilt**, and the risk was the opposite of the usual one: **four plausible
+prior arts, none applicable** — reusing any of them would have pinned the wrong graph.
+⚠ **`check_index_coverage` is NOT available through the CLI**, so this enumeration is `search_graph`
++ grep agreeing, not a coverage-proved exhaustive claim.
+
+### 32.16.2 ⛔⛔ THE TWO SEAMS THAT LOOKED RIGHT AND ARE NOT
+
+🔴 **This is the measurement that decided the design, and both candidates would have compiled.**
+
+| candidate | 📐 measured | verdict |
+|---|---|---|
+| ⭐⭐ **`IAssetCatalog.WhereDependsOn(Guid)`** — the name is exactly the question | 🔴 **`AssetCatalog.cs` returns `Array.Empty<IEditableAsset>()`** with the comment *"reverse-dependency tracking comes in Phase 5/6"*, and its own rail is named **`WhereDependsOn_ReturnsEmpty`** | ⛔ **a STUB.** Building on it would have produced a rule that never fires — the silent-default disease, in the one slice that exists to cure it. ⚠ And it is the **reverse** edge; a cycle walk needs forward ones |
+| ⭐ **`ReferenceCatalog` / `IReferenceCatalogContributor`** — a real, populated cross-asset graph with 4 contributors | 📐 `AssetReference` is `(HostAssetId, …, TargetKey: string, TargetKind: SubElementKind)` — it models asset → **SUB-ELEMENT** *(action FQNs, guard FQNs, machine-scoped event names, blackboard variables)*. ⛔ `SubElementKind` has **no hosted-subtree member**, and `HsmReferenceContributor` emits **nothing** for `SubtreeAssetId` | ⛔ **wrong edge type.** ⚠ `SubElementKind.AssetReference` exists but nothing emits it |
+
+⇒ ⭐⭐ **The forward edge "which assets does this asset host" is not recorded anywhere.** That absence —
+not the algorithm — is item 7's actual content.
+
+### 32.16.3 ⭐⭐⭐ THE SHAPE
+
+```mermaid
+classDiagram
+    class ISubtreeHostingAsset {
+        <<interface>>
+        +GetHostedSubtreeAssetIds() IReadOnlyCollection~Guid~
+    }
+    class SubtreeCycleDetector {
+        <<static>>
+        +FindCycleFrom(IAssetCatalog, Guid) IReadOnlyList~Guid~
+    }
+    class IAssetCatalog {
+        <<interface>>
+        +FindByAssetId(Guid) IEditableAsset
+    }
+    class HsmAsset {
+        +GetHostedSubtreeAssetIds()
+    }
+    class BehaviorTreeAsset {
+        +GetHostedSubtreeAssetIds()
+    }
+    class HsmValidator {
+        -IAssetCatalog _catalog
+        -CheckSubtreeAssetCycles()
+    }
+    class BTreeValidator {
+        -CheckSubtreeAssetCycles()
+    }
+
+    ISubtreeHostingAsset <|.. HsmAsset : existing type, new member
+    ISubtreeHostingAsset <|.. BehaviorTreeAsset : existing type, new member
+    SubtreeCycleDetector ..> IAssetCatalog : resolves ids
+    SubtreeCycleDetector ..> ISubtreeHostingAsset : reads edges
+    HsmValidator ..> SubtreeCycleDetector
+    BTreeValidator ..> SubtreeCycleDetector
+```
+
+⭐ **Caption — what the picture shows that prose hid.** ⛔ **`SubtreeCycleDetector` depends on NEITHER
+editor assembly.** That is the whole reason one algorithm can serve both validators: the edge is read
+through `ISubtreeHostingAsset`, so the detector never names `HsmAsset` or `BehaviorTreeAsset` — the
+exact constraint that forced `CE-338` to pass delegates instead of the catalogue. ⭐ Here the interface
+removes the constraint rather than working around it.
+
+```mermaid
+sequenceDiagram
+    participant V as HsmValidator / BTreeValidator
+    participant D as SubtreeCycleDetector
+    participant C as IAssetCatalog
+    participant A as ISubtreeHostingAsset
+
+    V->>D: FindCycleFrom(catalog, asset.AssetId)
+    loop DFS, onPath set
+        D->>C: FindByAssetId(id)
+        C-->>D: IEditableAsset (or null)
+        D->>A: GetHostedSubtreeAssetIds()
+        A-->>D: hosted ids
+        Note over D: id already onPath => CYCLE
+    end
+    D-->>V: the cycle path, or empty
+    V->>V: one diagnostic naming the path
+```
+
+⭐ **Caption.** The **`onPath` set, not a visited set, is what makes it a cycle test** — a visited set
+alone answers *"seen before"*, which is true of a legitimate diamond *(two states hosting the same
+child)* and would false-positive on it. ⚠ A separate `done` set keeps it linear.
+
+### 32.16.4 ⭐ THE DECISIONS, AND WHAT WAS REJECTED
+
+| decision | why |
+|---|---|
+| ⭐⭐⭐ **ONE detector in `Hrot.Editor.AiShared`, used by BOTH validators** | ⛔ a cycle is a property of the ASSET GRAPH, not of whichever editor is open. 🔒 Ruling 9 — and an HSM-only rule would report `A→B→A` when the HSM is open and stay silent when the BTree is |
+| ⭐⭐ **`IAssetCatalog`, not a third resolver delegate** | 📐 `BTreeValidator.Validate` **already takes `IAssetCatalog?`** *(for `CheckDanglingBlueprintReferences`)* ⇒ the BTree arm needs **no new plumbing**. ⚠ A delegate would put the catalogue→ids adapter at **every composition root**; the catalogue puts it in the detector, **once** |
+| ⭐⭐ **a NEW interface, not a member on `IStatefulScopeAsset`** | ⭐ *hosted-subtree ids* is a COMPOSITION fact; `HasAnyStatefulNode`/`GetSharedScopeKeys` are a STORAGE-FOOTPRINT fact. ⛔ Merging them would make every implementer answer a question it may not have |
+| ⭐ **report the PATH, not just "a cycle exists"** | ⚠ `BTreeValidator.CheckCycles` emits *"A cycle was detected in the behavior tree graph"* with `Guid.Empty` and no path — ⛔ unactionable. The asset rule names the ring |
+| 🔴🔴 **CORRECTED DURING THE BUILD — TARGET THE HOSTING SITE ON THE RING** *(`SubtreeCycleDetector.NextHopInRing`)* | ⛔⛔ **The first cut emitted NO target**, on my argument that *"for `A→B→A` opened at `B`, no state of `B` is at fault."* 🔴 **That is wrong — a ring has no innocent edge**: cutting `B`'s edge to `A` breaks it exactly as well as cutting `A`'s. ⚠ And the empty target meant `HsmGraphModel` **had nothing to badge**, so the rule was invisible on the canvas. ⭐⭐ **The forwarding rail caught it, not review** — the arm asserting the badge went red. ⭐ The approach path keeps it honest: for `A→B→C→B` validated from `A`, the ring is `B→C→B`, `A` is NOT in it, and the diagnostic correctly falls back to asset-level |
+| ⛔ **rejected: a runtime guard** | §32.8 item 7 says validation time. ⭐ And `HostedSubtree.Tick` would recurse to a stack overflow long before any counter could report usefully |
+
+### 32.16.5 ⚠ WHAT IT DOES **NOT** DO
+
+⛔ **Same honest caveat as `CE-338`: no HSM asset can declare a hosting state yet** *(`HsmFacets.StateFacet`
+has no subtree fields)*, so the HSM arm of this rule cannot fire on a shipped asset today. ⭐ **The BTree
+arm CAN** — `BTreeSubtreePayload.SubtreeAssetId` is authored and persisted, and three shipped assets
+carry it. ⇒ 🔒 **this is the first `E5` rule with a live production arm.**
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 

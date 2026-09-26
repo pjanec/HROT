@@ -53,9 +53,10 @@ public sealed class HsmAssetValidator : IAssetValidator
     public HsmAssetValidator(
         IActionSchemaExporter? schema = null,
         Func<Guid, bool>? isStatefulSubtree = null,
-        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null)
+        Func<Guid, IReadOnlyCollection<int>>? sharedScopeKeys = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
-        _inner = new HsmValidator(schema, isStatefulSubtree, sharedScopeKeys);
+        _inner = new HsmValidator(schema, isStatefulSubtree, sharedScopeKeys, catalog);
     }
 
     public AssetKind SupportedKind => AssetKind.Hsm;

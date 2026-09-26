@@ -2189,7 +2189,11 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         //    for the switch, so this is now one expression over the catalogue CGF
                         //    already holds. 🔒 A production caller that HAS a dependency must pass it.
                         isStatefulSubtree: IsStatefulSubtreeAsset,
-                        sharedScopeKeys:   SharedScopeKeysOfAsset);
+                        sharedScopeKeys:   SharedScopeKeysOfAsset,
+                        // ⭐⭐ E5 item 7 (§32.16) — the cycle rule's catalogue, the same one the two
+                        //    resolvers above already close over. 🔒 A production caller that HAS a
+                        //    dependency must pass it.
+                        catalog:           _aiCatalogBuilder?.Catalog);
                     break;
 
                 case Hrot.Editor.AiShared.AssetKind.Blueprint:

@@ -3383,7 +3383,13 @@ namespace Hrot.Editor
                     new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
                         sharedSchemaExporter,
                         isStatefulSubtree: IsStatefulSubtreeAsset,
-                        sharedScopeKeys:   SharedScopeKeysOfAsset),
+                        sharedScopeKeys:   SharedScopeKeysOfAsset,
+                        // ⭐⭐ E5 item 7 (§32.16) — the A-hosts-B-hosts-A cycle rule's dependency.
+                        //    ⛔ Unlike the two resolvers above, this one is the CATALOGUE itself: the
+                        //    hosting edge is read through ISubtreeHostingAsset, so the walk never
+                        //    names either concrete asset type and the adapter lives once, in
+                        //    SubtreeCycleDetector.
+                        catalog:           _aiCatalogBuilder?.Catalog),
                 },
                 liveValueProvider: hsmLiveValueProvider);
 
@@ -4595,7 +4601,11 @@ namespace Hrot.Editor
                             //    HsmGraphModel's remarks explicitly warn about.
                             // 🔒 A production caller that HAS a dependency must PASS it.
                             isStatefulSubtree: IsStatefulSubtreeAsset,
-                            sharedScopeKeys:   SharedScopeKeysOfAsset);
+                            sharedScopeKeys:   SharedScopeKeysOfAsset,
+                            // ⭐⭐ E5 item 7 (§32.16) — the cycle rule on the CANVAS too, for the
+                            //    same reason items 6 gave: a rule wired on one surface only is the
+                            //    split this whole slice exists to close.
+                            catalog:           _aiCatalogBuilder?.Catalog);
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Blueprint:
                         // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.

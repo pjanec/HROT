@@ -231,7 +231,7 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
@@ -488,6 +488,30 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
                     AssetId, v.Scope, Guid.Empty, v.Name));
         }
         return (IReadOnlyCollection<int>?)keys ?? Array.Empty<int>();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5</c> item 7 — the forward asset edge: every sub-tree asset any NODE hosts.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⭐⭐ <b>This is the arm that can actually fire today.</b> Unlike the HSM side — where no
+    /// authoring gesture writes <c>StateNode.SubtreeAssetId</c> yet — <c>BTreeSubtreePayload</c> is
+    /// authored and persisted, and shipped assets carry it.</para>
+    ///
+    /// <para>⚠ <b>An UNRESOLVED subtree node contributes no edge</b> (<c>SubtreeAssetId</c> is
+    /// <c>Guid.Empty</c>). ⛔ That is <c>UnresolvedSubtree</c>'s defect to report, not the cycle
+    /// walk's — one authoring mistake must not produce two unrelated diagnostics.</para>
+    /// </summary>
+    public IReadOnlyCollection<Guid> GetHostedSubtreeAssetIds()
+    {
+        HashSet<Guid>? ids = null;
+        foreach (var node in _nodes)
+        {
+            var id = node.Subtree?.SubtreeAssetId ?? Guid.Empty;
+            if (id == Guid.Empty) continue;
+            (ids ??= new HashSet<Guid>()).Add(id);
+        }
+        return (IReadOnlyCollection<Guid>?)ids ?? Array.Empty<Guid>();
     }
 
     public IReadOnlyList<BlackboardAliasBinding> GetAliasesFor(string variableName) =>

@@ -14,7 +14,7 @@ namespace Hrot.Hsm.Editor.Model;
 // Editor-side model of an HSM asset.
 // Implements IEditableAsset so the shared asset catalog can hold it.
 // Mutable; tracks layout, editor-specific identity, and a reference to the kernel blob.
-public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset, IStatefulScopeAsset
+public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
     // Identity
     public Guid AssetId { get; }
@@ -143,6 +143,28 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
                     AssetId, v.Scope, System.Guid.Empty, v.Name));
         }
         return (IReadOnlyCollection<int>?)keys ?? System.Array.Empty<int>();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E5</c> item 7 — the forward asset edge: every sub-tree asset any STATE hosts.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
+    ///
+    /// <para>⭐ Walks <see cref="AllStates"/>, which is the FLATTENED state list — ⛔ deliberately not
+    /// the parent/child recursion <c>HsmValidator.SubtreeHostsUnder</c> does, because that one exists
+    /// to answer a per-COMPOSITE question (which region hosts what) and this one is per-ASSET.</para>
+    ///
+    /// <para>⚠ <b>Returns the SET, so a child hosted from two states appears once</b> — that is a
+    /// legitimate diamond, and the cycle walk cares only whether the edge exists.</para>
+    /// </summary>
+    public IReadOnlyCollection<System.Guid> GetHostedSubtreeAssetIds()
+    {
+        HashSet<System.Guid>? ids = null;
+        foreach (var s in AllStates)
+        {
+            if (s.SubtreeAssetId == System.Guid.Empty) continue;
+            (ids ??= new HashSet<System.Guid>()).Add(s.SubtreeAssetId);
+        }
+        return (IReadOnlyCollection<System.Guid>?)ids ?? System.Array.Empty<System.Guid>();
     }
 
     public void SetBlackboardVariables(IEnumerable<BlackboardVariableEntry> vars)

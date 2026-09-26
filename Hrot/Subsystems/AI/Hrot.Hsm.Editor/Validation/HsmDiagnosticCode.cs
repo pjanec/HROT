@@ -69,4 +69,11 @@ public enum HsmDiagnosticCode
     // is shared per entity, so concurrent writes from two regions race and corrupt the slot.
     // The shared-slot analogue of ConcurrentStatefulSubtree. Hard-error.
     ConcurrentSharedScopeKey,
+
+    // (E5 item 7) This asset hosts a sub-tree that — directly or through a chain of further
+    // hosts — hosts this asset again: A hosts B hosts A. Hosting is expanded INLINE by
+    // BrainTickSystem.TickHostedChildren, so a ring has no base case and recurses until the
+    // stack dies. Detected over the ASSET graph at validation time, never at runtime.
+    // DESIGN_Occurrence_Scoped_Storage.md §32.16. Hard-error.
+    SubtreeAssetCycle,
 }
