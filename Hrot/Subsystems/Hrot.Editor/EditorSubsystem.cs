@@ -3382,14 +3382,13 @@ namespace Hrot.Editor
                 {
                     new Hrot.Hsm.Editor.Validation.HsmAssetValidator(
                         sharedSchemaExporter,
-                        isStatefulSubtree: IsStatefulSubtreeAsset,
-                        sharedScopeKeys:   SharedScopeKeysOfAsset,
-                        // ⭐⭐ E5 item 7 (§32.16) — the A-hosts-B-hosts-A cycle rule's dependency.
-                        //    ⛔ Unlike the two resolvers above, this one is the CATALOGUE itself: the
-                        //    hosting edge is read through ISubtreeHostingAsset, so the walk never
-                        //    names either concrete asset type and the adapter lives once, in
-                        //    SubtreeCycleDetector.
-                        catalog:           _aiCatalogBuilder?.Catalog),
+                        // ⭐⭐⭐ ONE ARGUMENT, §32.17 (2026-09-26). The validator derives rules 8/8b's
+                        //    two predicates AND item 7's cycle walk from this single catalogue.
+                        // 🔴 This used to pass two private resolvers that were BYTE-IDENTICAL to
+                        //    CgfSubsystem's copies — two hosts running two copies of one policy.
+                        //    ⭐ IStatefulScopeAsset (CE-338) made deriving them centrally possible;
+                        //    the duplicate was mine and is deleted.
+                        catalog: _aiCatalogBuilder?.Catalog),
                 },
                 liveValueProvider: hsmLiveValueProvider);
 
@@ -4600,12 +4599,10 @@ namespace Hrot.Editor
                             //    the node badges blank — the split both resolvers' remarks and
                             //    HsmGraphModel's remarks explicitly warn about.
                             // 🔒 A production caller that HAS a dependency must PASS it.
-                            isStatefulSubtree: IsStatefulSubtreeAsset,
-                            sharedScopeKeys:   SharedScopeKeysOfAsset,
-                            // ⭐⭐ E5 item 7 (§32.16) — the cycle rule on the CANVAS too, for the
-                            //    same reason items 6 gave: a rule wired on one surface only is the
-                            //    split this whole slice exists to close.
-                            catalog:           _aiCatalogBuilder?.Catalog);
+                            // ⭐⭐⭐ ONE ARGUMENT, §32.17 — rules 8/8b AND the item-7 cycle rule all
+                            //    derive from this catalogue, so the canvas and the Diagnostics window
+                            //    cannot drift apart and the editor and CGF run the SAME code.
+                            catalog: _aiCatalogBuilder?.Catalog);
                         break;
                     case Hrot.Editor.AiShared.AssetKind.Blueprint:
                         // AIE-046: Blueprint canvas binding via BlueprintDocumentFactory.
@@ -5655,51 +5652,17 @@ namespace Hrot.Editor
         // Shared between both BTree and HSM perspective registrars so the
         // "Static Parameters" panel in InspectorWindow knows which blackboard variable
         // is currently bound.
-        /// <summary>
-        /// ⭐⭐⭐ <b><c>E4</c> — THE resolver <c>DEBT-AIB-028</c>'s activation recipe asks for:</b>
-        /// <c>id =&gt; catalog.TryFind(id, out a) &amp;&amp; a.HasAnyStatefulNode()</c>.
-        ///
-        /// <para>
-        /// ⭐ <b>It lives HERE and nowhere else</b>, because this is the only place that can see both
-        /// <c>BehaviorTreeAsset</c> and <c>HsmAsset</c>. ⛔ Two copies — one per validator entry point —
-        /// would let the node badges and the Diagnostics window disagree about which sub-trees are
-        /// stateful, which is the same class of split the slot-key discipline exists to prevent.
-        /// </para>
-        ///
-        /// <para>
-        /// ⚠⚠ <b>CORRECTED <c>2026-09-26</c>.</b> This said <i>"rules 8/8b may still not fire on real
-        /// assets: <c>StateNode.SubtreeAssetId</c> is not persisted (<c>DEBT-AIB-028</c>(a))"</i>.
-        /// ⭐ <b>Both halves are now done:</b> the Guid persists (<c>DEBT-AIB-028</c>(a)) and
-        /// <c>E5</c> added <c>SubtreeName</c> beside it, round-tripped by <c>E5_A1</c>.
-        /// ⛔ <b>What still gates the rules is AUTHORING</b> — no inspector surface writes either
-        /// field, so no real asset declares a hosting state yet. 📄
-        /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.15.
-        /// </para>
-        /// </summary>
-        // ⭐⭐ 2026-09-26: the two-type switch became `is IStatefulScopeAsset`. Both assets already
-        //    had these members with identical signatures; what was missing was the SEAM. ⇒ any
-        //    holder of an IAssetCatalog can now build this — which is what let CgfSubsystem stop
-        //    being structurally unable to. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
-        private bool IsStatefulSubtreeAsset(Guid assetId)
-            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
-                   is Hrot.Editor.AiShared.IStatefulScopeAsset a && a.HasAnyStatefulNode();
-
-        /// <summary>
-        /// ⭐⭐ <b><c>E4</c>'s SECOND resolver, supplied in Batch 69.</b> Rule 8b compares the shared
-        /// (<c>Behavior</c>/<c>Entity</c>) scope keys of sub-trees running in different parallel
-        /// regions; ⛔ left at its <c>_ =&gt; Array.Empty&lt;int&gt;()</c> default it could never fire.
-        ///
-        /// <para>
-        /// ⭐ <b>Same shape, same place, same reason as <see cref="IsStatefulSubtreeAsset"/></b> — one
-        /// definition, at the only layer that sees both asset types. ⚠ Batch 68 threaded the parameter
-        /// and flagged that it was still defaulted; this fills it.
-        /// </para>
-        /// </summary>
-        private IReadOnlyCollection<int> SharedScopeKeysOfAsset(Guid assetId)
-            => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
-                   is Hrot.Editor.AiShared.IStatefulScopeAsset a
-                   ? a.GetSharedScopeKeys()
-                   : System.Array.Empty<int>();
+        // ⭐⭐⭐ THE TWO RESOLVERS LIVED HERE AND ARE GONE (2026-09-26, §32.17).
+        //    🔴 They were BYTE-IDENTICAL to CgfSubsystem's private copies — two hosts running two
+        //    copies of one policy, which is what ruling 9 forbids and what had let CGF sit silently
+        //    without rules 8/8b until CE-338 (where I wired CGF by COPYING them, rather than sharing).
+        //    ⭐ The one definition is now StatefulScopeQueries.IsStatefulSubtree / .SharedScopeKeysOf
+        //    in Hrot.Editor.AiShared, and HsmValidator derives both from the catalogue it is handed.
+        //    ⚠ Their old doc-comment claimed they had to live here "because this is the only place
+        //    that can see both BehaviorTreeAsset and HsmAsset" — TRUE until CE-338 added
+        //    IStatefulScopeAsset, and false the moment it did.
+        //    ⛔ What still gates rules 8/8b on a REAL asset is AUTHORING: no inspector surface writes
+        //    StateNode.SubtreeAssetId/SubtreeName. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.15.
 
         private static string? ResolveExpressionTargetField(object? facet) => facet switch
         {

@@ -224,25 +224,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// </summary>
     private Hrot.Editor.AiShared.Catalog.AiAssetCatalogBuilder? _aiCatalogBuilder;
 
-    /// <summary>
-    /// ⭐⭐ <b><c>E5</c> items 6-7 — rule 8's resolver, so the CGF canvas asks what the editor's
-    /// canvas asks.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.15.
-    ///
-    /// <para>⛔ <b>This is a SECOND call site, not a second copy of the logic</b> — the predicate is
-    /// one expression over <see cref="Hrot.Editor.AiShared.IStatefulScopeAsset"/>, which is the seam
-    /// that replaced <c>EditorSubsystem</c>'s two-type switch. ⚠ Before that interface existed, CGF
-    /// was structurally unable to answer this: it cannot see both asset types.</para>
-    /// </summary>
-    private bool IsStatefulSubtreeAsset(Guid assetId)
-        => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
-               is Hrot.Editor.AiShared.IStatefulScopeAsset a && a.HasAnyStatefulNode();
-
-    /// <summary>⭐ Rule 8b's resolver — same shape, same reason as <see cref="IsStatefulSubtreeAsset"/>.</summary>
-    private IReadOnlyCollection<int> SharedScopeKeysOfAsset(Guid assetId)
-        => _aiCatalogBuilder?.Catalog?.FindByAssetId(assetId)
-               is Hrot.Editor.AiShared.IStatefulScopeAsset a
-               ? a.GetSharedScopeKeys()
-               : System.Array.Empty<int>();
+    // ⭐⭐⭐ CGF'S COPIES OF THE TWO RESOLVERS ARE GONE (2026-09-26, §32.17).
+    //    🔴 CE-338 gave CGF these rules by COPYING EditorSubsystem's two private methods verbatim
+    //    — byte-identical, in a second host. ⛔ That is two implementations of one concept, and the
+    //    duplication is precisely the mechanism that had made CGF silently miss rules 8/8b before.
+    //    ⭐ One definition now: StatefulScopeQueries in Hrot.Editor.AiShared, derived by HsmValidator
+    //    from the single catalogue this subsystem already hands it.
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-059</c> — the AI-graph debug session and the registry the <c>debug.*</c> toolbar group
@@ -2182,18 +2169,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                         // ⭐⭐⭐ CE-071 — see the BTree arm above.
                         extraRenderers:    Hrot.Editor.AiShared.Comparison.Rendering
                             .ComparisonCanvasRenderers.For(_comparisonSessionRegistry, doc.Asset.AssetId),
-                        // ⭐⭐⭐ E5 items 6-7 (2026-09-26) — CGF gets the SAME resolvers the editor
-                        //    does. 🔴 It could not before: the predicate needed a switch over BOTH
-                        //    BehaviorTreeAsset and HsmAsset, and duplicating EditorSubsystem's copy
-                        //    is what its own remarks forbid. ⭐ IStatefulScopeAsset removed the need
-                        //    for the switch, so this is now one expression over the catalogue CGF
-                        //    already holds. 🔒 A production caller that HAS a dependency must pass it.
-                        isStatefulSubtree: IsStatefulSubtreeAsset,
-                        sharedScopeKeys:   SharedScopeKeysOfAsset,
-                        // ⭐⭐ E5 item 7 (§32.16) — the cycle rule's catalogue, the same one the two
-                        //    resolvers above already close over. 🔒 A production caller that HAS a
-                        //    dependency must pass it.
-                        catalog:           _aiCatalogBuilder?.Catalog);
+                        // ⭐⭐⭐ ONE ARGUMENT, §32.17 (2026-09-26) — CGF and the editor now hand the
+                        //    validator the SAME single dependency and it derives rules 8/8b and the
+                        //    item-7 cycle walk itself. 🔴 CE-338 wired CGF by COPYING the editor's two
+                        //    private resolvers verbatim; that duplicate is deleted, because two hosts
+                        //    running two copies of one policy is how CGF came to be missing these
+                        //    rules in the first place.
+                        catalog: _aiCatalogBuilder?.Catalog);
                     break;
 
                 case Hrot.Editor.AiShared.AssetKind.Blueprint:

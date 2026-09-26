@@ -57,9 +57,27 @@ public sealed class HsmValidator
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _schema = schema;
-        _isStatefulSubtree = isStatefulSubtree ?? (_ => false);
-        _sharedScopeKeys = sharedScopeKeys ?? (_ => System.Array.Empty<int>());
         _catalog = catalog;
+
+        // ⭐⭐⭐ ONE DEFINITION OF THE TWO PREDICATES, DERIVED FROM THE CATALOGUE.
+        //    📄 DESIGN_Occurrence_Scoped_Storage.md §32.17.
+        // 🔴 Until 2026-09-26 the production hosts each carried their own BYTE-IDENTICAL copy of these
+        //    two expressions (EditorSubsystem and CgfSubsystem) and passed them in. ⛔ Two copies of one
+        //    policy is the thing ruling 9 forbids, and it is the same mechanism that had left CGF
+        //    silently without rules 8/8b before CE-338.
+        // ⭐ IStatefulScopeAsset (CE-338) is what makes deriving them here possible at all: the
+        //    predicate no longer needs to see BehaviorTreeAsset, so it no longer has to be computed
+        //    in the one assembly that does.
+        // ⚠ The delegates SURVIVE as an override seam — the E4 rails drive rules 8/8b with precise
+        //    stub resolvers, and a test must be able to say "pretend this id is stateful" without
+        //    building a catalogue. ⛔ Production passes the catalogue and nothing else.
+        // ⭐ A null catalogue answers false/empty, reproducing the historical defaults exactly.
+        // ⚠ Called STATICALLY rather than as an extension: the receiver is deliberately nullable
+        //    (a host without a catalogue must behave as before), and the static form says so.
+        _isStatefulSubtree = isStatefulSubtree ?? new Func<Guid, bool>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.IsStatefulSubtree(catalog, id));
+        _sharedScopeKeys = sharedScopeKeys ?? new Func<Guid, IReadOnlyCollection<int>>(
+            id => Hrot.Editor.AiShared.StatefulScopeQueries.SharedScopeKeysOf(catalog, id));
     }
 
     public IReadOnlyList<HsmDiagnostic> Validate(HsmAsset asset,

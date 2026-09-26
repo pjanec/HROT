@@ -8293,6 +8293,14 @@ window disagree."* ⇒ **the Diagnostics window had them; the node badges did no
 lives in `Hrot.Hsm.Editor`, which **cannot see `BehaviorTreeAsset`** — so handed an `IAssetCatalog` it
 still could not compute the predicate. ⇒ pass the **answer**, not the source.
 
+> 🔴🔴 **SUPERSEDED `2026-09-26` — §32.17.** The paragraph above is TRUE of the code as it stood
+> *before* this same section's `IStatefulScopeAsset`, and **FALSE the moment that interface existed**:
+> the predicate became `catalog.FindByAssetId(id) is IStatefulScopeAsset a && …`, which compiles in
+> **any** assembly referencing `Hrot.Editor.AiShared`, `Hrot.Hsm.Editor` included. ⛔ I did not re-check
+> the justification after removing its cause, and so **wrote a byte-identical copy of both resolvers
+> into `CgfSubsystem`.** ⭐ Production now passes **only the catalogue** and `HsmValidator` derives both
+> predicates through `StatefulScopeQueries`; the delegates survive as a TEST override seam only.
+
 ⭐⭐ **And that constraint is what `IStatefulScopeAsset` dissolves.** 📐 Both assets have carried these
 two members, with identical signatures, since `E4` — **with no common type**, so every caller needed a
 two-type `switch`, which only an assembly referencing both editors can write. 📌 That is exactly two
@@ -8443,6 +8451,70 @@ child)* and would false-positive on it. ⚠ A separate `done` set keeps it linea
 has no subtree fields)*, so the HSM arm of this rule cannot fire on a shipped asset today. ⭐ **The BTree
 arm CAN** — `BTreeSubtreePayload.SubtreeAssetId` is authored and persisted, and three shipped assets
 carry it. ⇒ 🔒 **this is the first `E5` rule with a live production arm.**
+
+## 32.17 🔴 **THE EDITOR AND CGF WERE RUNNING TWO COPIES OF ONE POLICY — AND `CE-338` WROTE THE SECOND** *(user, `2026-09-26`)*
+
+> 🔒 **User, verbatim:** *"You mention editor path is wired and then you go cgf, that seems like editor
+> is running different code, not unified, which is undesired."*
+
+⛔⛔ **The observation is correct, and it was made from the REPORT — not from a rail, not from review.**
+📐 Measured immediately after: `EditorSubsystem.IsStatefulSubtreeAsset`/`SharedScopeKeysOfAsset` and
+`CgfSubsystem.IsStatefulSubtreeAsset`/`SharedScopeKeysOfAsset` were **BYTE-IDENTICAL**.
+
+### 32.17.1 ⛔ HOW IT HAPPENED — **an expired justification, and I did not re-check it**
+
+| step | |
+|---|---|
+| **the original reason was SOUND** | the predicate needs a `switch` over **both** `BehaviorTreeAsset` and `HsmAsset`, which only an assembly referencing both editors can write ⇒ it lived in `EditorSubsystem`, and `HsmValidator` took a **delegate** |
+| 🔴 **`CE-338` DISSOLVED that reason** | `IStatefulScopeAsset` made the predicate one expression over `IAssetCatalog`, writable **anywhere** |
+| ⛔⛔ **and then wrote the duplicate anyway** | to give CGF the rules, `CE-338` **copied the two methods verbatim** into `CgfSubsystem` rather than sharing them |
+
+🔒 **The seam law's usual failure is not adopting an EXISTING seam. This is the sharper form:
+NOT ADOPTING THE SEAM YOU JUST BUILT, in the same commit that built it.** ⚠ And the cost is not
+aesthetic — ⭐ **two copies of this exact policy are *why* CGF was silently missing rules 8/8b**, which
+is the defect `CE-338` existed to fix. ⇒ the fix reproduced the disease one layer up.
+
+### 32.17.2 📐 THE FULL DUPLICATION SURFACE — **measured, because the user's question was broader than the resolvers**
+
+| what | editor | CGF | verdict |
+|---|---|---|---|
+| **the two rule-8/8b resolvers** | `EditorSubsystem` | `CgfSubsystem` | 🔴 **byte-identical ⇒ FIXED HERE** |
+| **the `DocumentOpened` → factory `switch`** *(3 kinds)* | `:4573-4620` | `:2164-2205` | ⚠ **structurally identical, values differ** — see §32.17.4 |
+| **`BuildAssetCatalog`** | `:986-1061` | *"mirrors `EditorSubsystem`… including the dual-load"* | ⚠ recorded by its own slice |
+| **the `ActiveChanged` handler** | `:3012` | *"the editor's handler, trimmed"* | ⚠ recorded by its own slice |
+
+⭐⭐ **Why the last three were copies, and it is NOT carelessness** — 📄
+`DESIGN_Cgf_Editor_Sharing_Slice2_Open_Asset.md` §11 ① says the deliverable was *"the same three
+factories the editor wires, **minus the debug sessions CGF has none of**"*, and its STATUS carries
+`known-conflict: CONSUMES Hrot.Editor.AiShared; **must NOT modify it** (freeze owner = variable-model
+lane)`. 🔒 **A FREEZE forbade the extraction**: the shared home was off-limits, so copying was the only
+legal move. ⭐⭐ **That freeze was LIFTED `2026-08-25`** *(`R-128`; restated in `Q57`)* ⇒ **the
+constraint that forced the copies no longer exists**, and nothing has revisited them since.
+
+### 32.17.3 ⭐ WHAT WAS FIXED HERE
+
+| | |
+|---|---|
+| ⭐⭐ **`StatefulScopeQueries`** *(new, `Hrot.Editor.AiShared`)* | `IsStatefulSubtree(this IAssetCatalog?, Guid)` + `SharedScopeKeysOf(...)` — **one definition**. A null catalogue answers false/empty, reproducing the historical defaults exactly |
+| ⭐⭐⭐ **`HsmValidator` DERIVES both from the catalogue it is already handed** | ⇒ production passes **one argument**, not three |
+| ⛔ **both private copies DELETED** | `EditorSubsystem` and `CgfSubsystem` now pass `catalog:` and nothing else |
+| ⭐ **the delegates SURVIVE as an override seam** | ⚠ the `E4` rails drive rules 8/8b with precise stub resolvers and must be able to say *"pretend this id is stateful"* without building a catalogue ⇒ **zero test churn**, and the seam is honest rather than vestigial |
+| ⭐⭐ **the rail that makes it checkable** | `TheValidator_DerivesRule8_FromTheCatalogAlone_WithNoResolverDelegates` — a REAL stateful child asset, **no stub predicate anywhere**. ⛔ If it reddens, a host will hand-roll the predicate again |
+
+### 32.17.4 ⚠ WHAT IS **NOT** FIXED — **the `DocumentOpened` switch, and the honest reason**
+
+⛔ The two factory `switch` blocks remain duplicated. 📐 They are structurally identical and differ
+**only in the values each host supplies** — debug sessions *(the editor has three; CGF passes `null`)*,
+the selection store, the adapter bundle, and the channel-command catalogue.
+
+| ⭐ the lean | **extract one `AiDocumentViewStateBinder` into `Hrot.Editor.AiShared`, taking a per-host services record, called by both** |
+|---|---|
+| **precedent** | 📄 `Architect_Question_60` option `C′` rules exactly this shape for the scenario facade: *"extract a shared facade → into `Hrot.Editor.AiShared` (CGF already reaches it); instantiate in BOTH… ⭐ this IS 'share it, instantiate in both, minimal duplication'"*, citing `CE-037` as the same move |
+| ⛔ **why NOT in this pass** | it touches CGF's **shell composition** rather than the AI validator seam, it is a bigger blast radius than the defect the user pointed at, and it wants its own measurement of what each host's handler actually captures — ⚠ `HN-037`'s lesson, quoted by `Q60` itself: *"measure what the methods capture before lifting"* |
+| ⭐ **filed, not forgotten** | `CE-340`, with this section as its basis |
+
+🔒 **Stated plainly so the answer is not over-claimed: the editor and CGF now share the VALIDATOR
+policy, and still each carry their own copy of the DOCUMENT-FACTORY wiring.**
 
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
