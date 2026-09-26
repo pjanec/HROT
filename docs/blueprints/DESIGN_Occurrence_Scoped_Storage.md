@@ -8063,6 +8063,39 @@ it now compiles the **bridge registrar**, which ships for every asset and every 
 downgrade: the registrar carries the slot manifest, the params supply and the interpreter
 construction — more surface than the orchestrator ever had, and it had no compile rail either.
 
+### 32.13 ✅ `CE-337`'s THREE SWEEPS — **all three resolved `2026-09-26`, and the answer to each was NOT "delete"**
+
+> 🔒 **User: "Lets finish those."** ⭐ Each was *"decide on evidence"*, and the evidence settled all
+> three the same way: **the no-op was the defect, not the code.**
+
+| # | the loose end | 📐 measured | ✅ resolution |
+|---|---|---|---|
+| ① | `OrchestratorAliasCollector` **orphaned** — zero production callers since both `Emit`s return `null` | alias DATA is still live: `AddAlias` exists on both editor models and both mappers persist `dto.Aliases` | ⭐ **KEEP** *(tombstoned)*. Deleting it would not remove the dormancy — the authoring does. ⇒ the dormancy is made LOUD instead |
+| ② | the declared **slice field has no writer** | 🔴 **my earlier phrasing was wrong and this corrects it:** the projection was NOT dead — `BTreeJsonGenerator:141` still ran it and **added a real blackboard variable** per bound sub-tree. ⚠ What died is the READER. 📐 **0 of 26** shipped `*.btree.json` carries a non-empty `SubtreeSyncBindings`, so the cost today is zero | ⭐ **STOP DECLARING IT** + warn. A field declared, packed and then read by nothing is the silent-default disease waiting for the first author who binds one |
+| ③ | the stale **`BrainBlackboard`** name — 26 assets + the default | 📐 It is an **IDENTITY TOKEN, not a type.** Since `P4`-② dispatch is `byte`; since `CE-337` **no production site emits it as a C# type at all**. It mangles into the params-layout struct name and feeds `SubtreeSyncIdentity.Derive`, which matches sub-trees by (name, dto type, dto ns) | ⛔ **DO NOT RENAME** — `BTreeBridgeEmitCore:415-420` already priced it: 11 generated structs across 44 files, and silently broken sub-tree matching. ⭐ **DOCUMENTED** on the constant instead, with the measurement |
+
+#### 32.13.1 ⭐⭐ THE ONE CHANGE — **three silent no-ops become one loud warning**
+
+⭐ `BTreeJsonGenerator` no longer declares the Approach-B slice variable, and instead emits
+`BTREE0002` when an asset carries **aliases or sync bindings**: *"hosting data that NOTHING CONSUMES
+… the data round-trips and is not lost … hosting is per-SITE now."*
+
+| ⭐ why a warning and not a deletion | |
+|---|---|
+| ⭐⭐⭐ **the data is authorable and round-trips** | ⛔ removing the authoring is a UI-lane change; removing the *consumer* already happened. A warning is the only honest thing the generator can say |
+| ⭐⭐ **it fires on nothing today** | 📐 0 of 26 assets carry either ⇒ no golden moves, and `CE337_R3` **pins the silence**: ⛔ a warning everyone sees is a warning nobody reads |
+| ⭐ **it is the rule this programme keeps paying for** | 🔒 the silent-default rule — *a capability that looks built and does nothing*. Before this, an author who created an alias or a binding got **silence** |
+
+#### 32.13.2 📐 RAILS
+
+`CE337_R1` *(bindings ⇒ warning, and NO slice variable reaches the generated struct)* · `CE337_R2`
+*(an alias ⇒ warning)* · `CE337_R3` *(an ordinary asset ⇒ **no** warning)*.
+🔴 **Red-proof:** suppressing the warning reddens `R1` and `R2` and leaves `R3` green.
+⚠ **Method note:** the first red-proof attempt edited the condition to `if (false)`, which **failed to
+compile** — so the run used a STALE binary and printed a confident PASS. 📌 The second stale-binary
+trap, exactly as `CLAUDE.md` records it. ⭐ The compiling form (`path == "\u0000never" && …`) gave the
+real answer.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

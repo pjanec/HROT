@@ -304,75 +304,18 @@ public sealed class TheOrchestratorIsGeneratedTests
 
     // ══ Q49 D + Q50 A — SUBTREE SYNC, END TO END ═════════════════════════════
 
-    /// <summary>
-    /// ⭐⭐⭐ <b>THE RAIL THE WHOLE APPROACH-B ARM WAS BLOCKED ON.</b>
-    /// 🔒 <b>User, <c>2026-08-22</c>:</b> <i>"i hoped the editor automatically adds the subtree's
-    /// data"</i> — this is that, proven at the generator.
-    ///
-    /// <para>⛔⛔ <b>Before this batch BOTH halves were impossible</b> and the emitter said so at the call
-    /// site: <i>"a generator provably has no groups to pass."</i> ① the identity lived only in a UI draw
-    /// *(<c>Q49</c>, gap ①)*; ② the field the body writes was declared by nothing *(<c>Q50</c>, gap ②)*.
-    /// ⇒ ⭐ this asserts <b>both are now true at once</b>, from two sibling <c>*.btree.json</c> files and
-    /// <b>no editor state whatsoever</b>.</para>
-    ///
-    /// <para>⚠ <b>And it asserts the AGREEMENT, not just presence</b>: the declared field name and the
-    /// name the orchestrator writes are compared to each other. ⛔ A group emitted against an undeclared
-    /// field is the non-compiling state <c>BP-306</c> filed, and a rail that only checked "a file was
-    /// produced" would pass straight through it.</para>
-    /// </summary>
-    [Fact]
-    public void TwoSiblingTrees_YieldAnOrchestratorAndTheMasterDeclaresItsSlice()
-    {
-        var callee = SampleScoutDto();
-        callee.Name               = "ShootBT";
-        callee.AssetId            = Guid.NewGuid();
-        // ⭐⭐⭐ A type the MASTER's compilation can actually resolve. ⛔ This is not fixture
-        //    convenience — it is the design constraint, and the rail below pins the other side of it:
-        //    a callee whose blackboard is GENERATED (Category-2) is not resolvable while the master is
-        //    generated, because sibling generators cannot see each other's output in one pass.
-        callee.BlackboardTypeName = "System.Guid";
+    // ⛔ REMOVED 2026-09-26 (CE-337's sweep): TwoSiblingTrees_YieldAnOrchestratorAndTheMasterDeclaresItsSlice.
+    //
+    // ⭐ It asserted TWO things: ① the sibling pass emits the Approach-B orchestrator, and ② the
+    //   master DECLARES the resolved slice field. ① died when both arms were retired; ② died three
+    //   days later when the sweep stopped declaring the field at all — a variable read and written
+    //   by nothing is the silent-default disease, so the declaration went with its reader.
+    // ⭐⭐ Its fixture and its surviving question — "what happens to an asset that carries sync
+    //   bindings?" — are now CE337_R1_SyncBindingsWarnAndDeclareNoSliceVariable, which asserts the
+    //   WARNING and the ABSENCE of the slice. ⛔ Keeping this alongside it would be two rails over
+    //   one behaviour, disagreeing about the answer.
+    // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.13.
 
-        var master = SampleScoutDto();
-        master.Name    = "MasterAI";
-        master.AssetId = Guid.NewGuid();
-        // ⭐⭐⭐ MANAGED (Category-2) is REQUIRED, and the rail says so rather than assuming it: a
-        //    Category-1 blackboard is a hand-written struct the generator only reflects, so it cannot
-        //    gain the slice field — see WithoutAManagedBlackboard_NothingIsEmitted below.
-        master.Blackboard.Managed = true;
-        string masterVar = EnsureVariable(master);
-
-        var nodeId = Guid.NewGuid();
-        master.Nodes.Add(new BTreeSubtreeNodeDto
-        {
-            VisualId = nodeId,
-            Subtree  = new BTreeSubtreePayloadDto
-            {
-                SubtreeAssetId = callee.AssetId,
-                SubtreeName    = callee.Name,
-                IsResolved     = true,
-            },
-        });
-        master.SubtreeSyncBindings[nodeId.ToString()] = new List<SubtreeSyncBindingDto>
-        {
-            new() { FieldName = "Health", MasterVariableName = masterVar, SyncIn = true, SyncOut = true },
-        };
-
-        var result = RunTwo(new BTreeJsonGenerator(),
-            ("/p/MasterAI.btree.json", BTreeJsonServices.Serialize(master)),
-            ("/p/ShootBT.btree.json",  BTreeJsonServices.Serialize(callee)));
-
-        // ⚠ HALVED 2026-09-23 (CE-337): ① asserted the Approach-B orchestrator BODY, and there is
-        //    no orchestrator any more — both arms emit nothing. ⛔ The half that can still be wrong is
-        //    ②, the SLICE the master declares, and it is what the sibling resolution exists for.
-        OrchestratorText(result).Should().BeNull(
-            "CE-337 retired both arms — the sibling resolution now feeds the DECLARATION only");
-
-        // ② the master DECLARES the slice field the resolution produced. 🔒 This is the claim the
-        //    sibling-pass machinery is really about, and it survives the emitter's retirement.
-        string all = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
-        all.Should().Contain("ShootBT_",
-            "the master's generated blackboard must still carry the resolved slice field");
-    }
 
     /// <summary>
     /// ⛔⛔ <b>The anti-vacuity half, and it is the one that matters.</b> ⚠ WITHOUT the callee's sibling
@@ -463,6 +406,107 @@ public sealed class TheOrchestratorIsGeneratedTests
             "an unresolvable slice type must SKIP the asset, loudly");
         OrchestratorText(result).Should().BeNull(
             "⛔ never a group against a field the compilation cannot type");
+    }
+
+    // ══ CE-337 — THE RETIRED ARMS' DATA IS LOUD, NOT SILENT ═════════════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE337_R1</c> — an asset that carries sub-tree sync bindings gets a WARNING, and
+    /// NO auto-allocated slice variable.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.13.
+    ///
+    /// <para>🔴 <b>What used to happen:</b> the generator declared one blackboard variable per bound
+    /// sub-tree so the Approach-B orchestrator could write <c>ref master.{slice}</c>. ⛔ That
+    /// orchestrator is retired (<c>CE-337</c>), so the field would be declared, packed into the
+    /// struct, and then read and written by NOTHING.</para>
+    ///
+    /// <para>⭐⭐ <b>The rule this serves is the silent-default one.</b> 📐 0 of 26 shipped assets
+    /// carry a binding, so nothing warns today and no golden moves — ⚠ but an author can still
+    /// create one in the editor, and before this they got silence.</para>
+    /// </summary>
+    [Fact]
+    public void CE337_R1_SyncBindingsWarnAndDeclareNoSliceVariable()
+    {
+        var callee = SampleScoutDto();
+        callee.Name = "ShootBT";
+        callee.AssetId = Guid.NewGuid();
+        callee.BlackboardTypeName = "System.Guid";
+
+        var master = SampleScoutDto();
+        master.Name = "MasterAI";
+        master.AssetId = Guid.NewGuid();
+        master.Blackboard.Managed = true;
+        string masterVar = EnsureVariable(master);
+
+        var nodeId = Guid.NewGuid();
+        master.Nodes.Add(new BTreeSubtreeNodeDto
+        {
+            VisualId = nodeId,
+            Subtree  = new BTreeSubtreePayloadDto
+            {
+                SubtreeAssetId = callee.AssetId, SubtreeName = callee.Name, IsResolved = true,
+            },
+        });
+        master.SubtreeSyncBindings[nodeId.ToString()] = new List<SubtreeSyncBindingDto>
+        {
+            new() { FieldName = "Health", MasterVariableName = masterVar, SyncIn = true, SyncOut = true },
+        };
+
+        var result = RunTwo(new BTreeJsonGenerator(),
+            ("/p/MasterAI.btree.json", BTreeJsonServices.Serialize(master)),
+            ("/p/ShootBT.btree.json",  BTreeJsonServices.Serialize(callee)));
+
+        result.Diagnostics.Should().Contain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "hosting data nothing consumes must be LOUD — that is the whole of CE-337's sweep");
+
+        OrchestratorText(result).Should().BeNull("both arms are retired");
+
+        string all = string.Join("\n", result.GeneratedTrees.Select(t => t.ToString()));
+        all.Should().NotContain("Auto-allocated sub-tree parameter slice",
+            "⛔ no slice variable may be declared for a writer that no longer exists");
+        all.Should().NotContain("ShootBT_",
+            "⛔ and therefore no slice field reaches the generated blackboard struct");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE337_R2</c> — an ALIAS warns too, for the same reason.</b>
+    ///
+    /// <para>⚠ The alias arm was retired first (<c>CE-335</c>/<c>CE-337</c>), and alias data still
+    /// round-trips — <c>AddAlias</c> and the mappers are live. ⇒ an author can create an alias and it
+    /// will simply do nothing. ⭐ This makes that visible at build time.</para>
+    /// </summary>
+    [Fact]
+    public void CE337_R2_AnAliasWarnsBecauseNothingConsumesIt()
+    {
+        var dto = SampleScoutDto();
+        string varName = EnsureVariable(dto);
+        dto.Aliases = new Dictionary<string, List<BlackboardAliasBindingDto>>
+        {
+            [varName] = new() { Alias("PatrolSubTree") },
+        };
+
+        var result = Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(dto));
+
+        result.Diagnostics.Should().Contain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "an alias that nothing consumes must say so rather than being silently inert");
+        OrchestratorText(result).Should().BeNull();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE337_R3</c> — and the CORPUS stays silent.</b>
+    ///
+    /// <para>🔒 The other half of the claim, and the one that protects the build: a warning that
+    /// fires on shipped assets would be noise nobody reads within a week. 📐 0 of 26 carry either
+    /// kind of hosting data, so an unaliased asset must produce NO codegen warning at all.</para>
+    /// </summary>
+    [Fact]
+    public void CE337_R3_AnOrdinaryAssetWarnsAboutNothing()
+    {
+        var result = Run(new BTreeJsonGenerator(), "/p/SampleScout.btree.json",
+            BTreeJsonServices.Serialize(SampleScoutDto()));
+
+        result.Diagnostics.Should().NotContain(d => d.Id == BTreeJsonGenerator.CodegenWarningId,
+            "⛔ the corpus must stay silent — a warning everyone sees is a warning nobody reads");
     }
 
     // ══ CE-336 — THE EMITTED TEXT MUST COMPILE ═══════════════════════════════════════════

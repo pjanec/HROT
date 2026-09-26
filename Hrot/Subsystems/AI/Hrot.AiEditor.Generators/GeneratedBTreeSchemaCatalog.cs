@@ -28,6 +28,15 @@ namespace Hrot.AiEditor.Generators;
 /// <c>BTreeJsonServices</c>, the <b>same</b> path the generator uses for the asset it is generating ⇒
 /// 📌 ruling 9 — a schema change cannot desynchronise two readers, because there is one reader.</para>
 /// </summary>
+// ⛔⛔ ORPHANED 2026-09-26 by CE-337 — ZERO PRODUCTION CALLERS.
+//
+// ⭐ Its one consumer was Q49 option D's subtree-sync projection in BTreeJsonGenerator, whose READER
+//   (the Approach-B orchestrator) was retired with both arms. The generator no longer parses it.
+//
+// 🔒 KEPT, NOT DELETED — "unreferenced is not unintentional", and this one has a NAMED future use:
+//   per-SITE sub-tree hosting (E5's shape, applied to a BTree node) needs exactly this — what a
+//   SIBLING asset declares, read from JSON without loading an assembly. ⛔ Do not re-wire it to an
+//   orchestrator; that mechanism is gone. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.13.
 internal static class GeneratedBTreeSchemaCatalog
 {
     /// <summary>⭐ What one sibling tree contributes: its identity and the blackboard type it declares.

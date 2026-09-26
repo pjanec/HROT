@@ -3,14 +3,17 @@ state: LIVE
 doc-type: THE resumption doc for the `behaviors` lane — programme: OCCURRENCE-SCOPED STORAGE.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-23
+updated: 2026-09-26
 build-state: ✅ **`E5` IS BUILT — items 1-5 of 7, runtime half PROVEN.** Branch `behaviors`.
   ⭐⭐⭐ An HSM state hosts a BTree: `StateNode.SubtreeName`, `HsmHostedSubtrees`, `HostedChildren`,
   the slot + table emission in `HsmBridgeEmitCore`, and `BrainTickSystem.TickHostedChildren`.
   Rails `E5_R1`..`E5_R4` in `HsmOccurrenceKeyTests`, red-proved. 📄 §32.11 is the AS-BUILT.
   ✅ `CE-333` ROUTED (the HSM alias arm is retired) · ✅ `CE-335` FIXED · ✅ `CE-336` BUILT — the
   compile rail, and it found THREE more latent defects on its first run (§32.11.5) ⇒ `A2` is MET.
-  ✅ `CE-337` DONE — **both BTree orchestrator arms RETIRED** (user: "retire the arm"), §32.12.
+  ✅ `CE-337` DONE — **both BTree orchestrator arms RETIRED** (user: "retire the arm"), §32.12,
+  **and its three sweeps are CLOSED** (§32.13): none of the three answers was "delete" — the collector
+  is KEPT, the slice declaration is STOPPED, the `BrainBlackboard` name is an IDENTITY TOKEN and must
+  NOT be renamed. ⭐ Three silent no-ops became one loud `BTREE0002`, rails `CE337_R1`..`R3`.
   📋 OPEN: `CE-334` (the ActivityAction one-shot — needs its own approval, it is an ExtDeps change).
   ⛔ **ITEMS 6-7 DEFERRED with a measurement** (§32.11.3) and **`A1` NOT BUILT** — see §0b.
   ✅ `O7c` COMPLETE · `CE-325`..`CE-331` all DONE.
@@ -117,7 +120,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | **`CE-321` ②** | 120 rounds, correct target, in range, bullets live on 53 ticks, `Health.Current` never leaves 100 ⇒ `WeaponFireIntent → FireProcessing → Raycast → HitResolution → Damage` | **combat pipeline** |
 | **`CE-332`** | 7 `Hrot.IG.Tests` translator rails that have **never run** — measured to contain zero references to anything this programme touched | **UI** |
 | **BTree-hosts-BTree** | ⛔ **NOT BUILT, and no longer expressible the old way** — both orchestrator arms are retired (`CE-337`). ⭐ It is `E5`'s shape with the NODE's visual id as the site: a `{SubtreeAssetId, SubtreeName}` pair, `ComputeTreeStateKey`, a `HostedChildren` binding, and a per-frame tick. ⛔ A SLICE, not a patch — and nothing should re-wire an emitter to `OrchestratorAliasCollector` to fake it | ⭐ **ours, when wanted** |
-| **two loose ends from `CE-337`** | `OrchestratorAliasCollector` is **orphaned** (zero production callers, tombstoned not deleted), and `SubtreeSyncProjection`'s declared slice field now has **no writer** | ⚠ sweeps, each with its own evidence |
+| **`CE-334`** | 🔴 an HSM `ActivityAction` runs **once** on a quiescent machine; a shipped asset pays it today. ⛔ The candidate fix is an `ExtDeps` change touching **every HSM**, so it needs its own approval — as `CE-322`'s did | ⭐ **ours, blocked on a decision** |
 | **`E5` items 6-7** | wire `HsmValidator`'s `isStatefulSubtree`/`sharedScopeKeys`, then the `A`-hosts-`B`-hosts-`A` cycle check. ⛔ **Deferred with a measurement, not dropped:** `HsmDocumentFactory:87` builds `HsmGraphModel(hsmAsset)` with no resolver, and `AiEditorAdapterBundle` carries **no asset catalogue** to build one from ⇒ it needs a service the HSM editor's composition root does not have | ⚠ **editor-lane shaped** — ask before absorbing |
 | **`E5` `A1`** | round-trip `SubtreeName` through real JSON text into a fresh model | ⭐ ours, small |
 | **`CE-334`** | 🔴 **an HSM `ActivityAction` runs ONCE on a quiescent machine** — the per-tick hook does not exist. Bites a shipped asset today. ⛔ Needs its own approval: the candidate fix is an `ExtDeps` change touching every HSM | ⭐ **ours** — `E5` ROUTES AROUND it (decision `B`), it does not fix it |
@@ -136,6 +139,7 @@ through `MachineMetadata.StateStableIds`. 🔒 **`HsmHostedSubtrees` is that, wi
 | **5** | ⚠ **A fresh worktree is not automatically a valid baseline environment**, and ⛔ **do not tear one down while a run is still using it** — I killed the `Hrot.Blueprints.Tests` leg that way |
 | **6** | ⛔⛔ **A TEXT-ASSERTING golden cannot tell you the code it pins is not valid C#** — that is exactly how `CE-333` survived. 🔒 §32.8 `A2` makes "it COMPILES" an acceptance item |
 | **7** | 🔴🔴 **A DESIGN CAN CONTRADICT ITS OWN DOCUMENT.** §32 assumed a per-frame HSM hook while §31.18.1 — **in the same file, written the same day** — already proved the phase machine's fixed point. ⇒ `R-129`'s *"read the owning design"* bites hardest when the owning design **is the one you are writing**: re-read the sections your new one depends on, not only the ones it cites |
+| **10** | ⛔⛔ **A RETIREMENT CASCADES, AND THE CASCADE IS THE WORK.** 📐 Retiring one emitter orphaned a collector, a projection's output, a per-compile catalogue parse and 12 rails. ⭐ Each needed its own verdict — KEEP-and-tombstone, STOP-declaring, DOCUMENT, re-home or delete — and *"delete it too"* was the right answer for **none** of them. 🔒 Budget the sweep, not just the removal |
 | **9** | ⭐⭐⭐ **ONE COMPILE RAIL BEAT FOUR TEXT RAILS.** 📐 `CE-336`'s first run found **three** further defects in an emitter four text rails had been asserting past for months — a `Name =` argument on an attribute with no such property, two EMPTY type names, and a fallback naming a type `P4` deleted. 🔒 When a rail asserts EMITTED CODE, assert that it **compiles**; the text assertions are then about intent, not validity |
 | **8** | ⛔⛔ **"The model to copy" is a CLAIM, and it needs the same measurement as any other.** §32 rated `BTreeOrchestratorEmitCore` ⭐ from its text and 🔴 the HSM twin — 📐 they are the SAME arm, same collector, same emptiness, and **both** emit a method that does not exist (`CE-335`) |
 

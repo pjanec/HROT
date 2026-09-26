@@ -99,10 +99,13 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // (AiPrimitiveTickCore Params-size fallback) below.
         System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
             GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
-        // ⭐ Q49 option D: what every SIBLING tree declares — the only input the subtree-sync projection
-        //   cannot read out of this asset's own JSON.
-        System.Collections.Generic.IReadOnlyDictionary<Guid, GeneratedBTreeSchemaCatalog.Entry> btreeCatalog =
-            GeneratedBTreeSchemaCatalog.Parse(btreeJsonFiles);
+        // ⛔ CE-337 (2026-09-26) — THE SIBLING CATALOG PARSE IS GONE. It existed for ONE consumer:
+        //   Q49 option D's subtree-sync projection, which needed what every SIBLING tree declares —
+        //   the only input it could not read out of this asset's own JSON. ⇒ with the projection's
+        //   reader retired, `GeneratedBTreeSchemaCatalog.Parse(btreeJsonFiles)` was parsing EVERY
+        //   sibling *.btree.json on EVERY compile to produce a value nothing read.
+        // ⚠ GeneratedBTreeSchemaCatalog itself is KEPT and tombstoned — the per-site hosting that
+        //   replaces the alias arms will need exactly this cross-asset lookup. 📄 DESIGN §32.13.
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try
@@ -123,46 +126,40 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             return;
         }
 
-        // ⭐⭐⭐ Q50 option A + Q49 option D — DECLARE THE SUB-TREE SLICES, then derive the groups.
-        //    🔒 User, 2026-08-22: "i hoped the editor automatically adds the subtree's data, which is
-        //       likely the option A."
-        //    ⛔⛔ ORDER IS LOAD-BEARING: this runs BEFORE the blackboard is sized, packed or emitted,
-        //       because the slice fields ARE blackboard variables. Doing it after would emit an
-        //       orchestrator writing `ref master.X` into a struct that was already packed without X —
-        //       gap ②, which is exactly why the Approach-B arm could never ship (BP-342, BP-306's shape).
-        //    ⭐ Both halves come from ONE walk over persisted data (SubtreeSyncProjection): the groups
-        //      and the fields they require. Two walks would be two answers to "which nodes qualify".
-        //    ⛔⛔ AND IT REQUIRES A **MANAGED** MASTER BLACKBOARD — measured 2026-08-22, by a rail that
-        //       failed with the probe REMOVED. A Category-1 blackboard is a HAND-WRITTEN struct this
-        //       generator only reflects: it cannot gain a field, so the slice can never be declared and
-        //       emitting the orchestrator anyway would reference a member that does not exist — the very
-        //       state gap ② is. ⇒ no managed blackboard ⇒ NO groups, NO slices, silently and completely.
-        //       ⚠ Neither BP-342 nor Q50 named this constraint; the rail found it.
-        var (approachBGroups, sliceFields) = dto.Blackboard.Managed
-            ? SubtreeSyncProjection.Project(
-                dto,
-                assetId => btreeCatalog.TryGetValue(assetId, out var e) ? e.BlackboardTypeName : null)
-            : (System.Array.Empty<OrchestratorSyncGroup>(),
-               System.Array.Empty<SubtreeSyncProjection.SliceField>());
-
-        foreach (var slice in sliceFields)
+        // ⛔⛔⛔ CE-337 (2026-09-23) — THE SLICE DECLARATION IS GONE, AND WHAT REPLACES IT IS A WARNING.
+        //
+        // 🔴 What stood here: SubtreeSyncProjection.Project declared one blackboard variable per
+        //    bound sub-tree ("Auto-allocated sub-tree parameter slice (Approach B)"), so the
+        //    Approach-B orchestrator could write `ref master.{slice}`. ⭐ The ORDER was load-bearing
+        //    and the comment said so — it ran before the blackboard was sized, packed or emitted.
+        //
+        // ⛔ THAT ORCHESTRATOR NO LONGER EXISTS. CE-337 retired both arms
+        //    (BTreeOrchestratorEmitCore.Emit → null): the emission never compiled, and its
+        //    `ref master` projection needs a blackboard STRUCT that P4 deleted. ⇒ declaring the
+        //    field now would add a variable that NOTHING READS AND NOTHING WRITES — it would grow
+        //    the packed blackboard of every asset that carries a binding, silently.
+        //
+        // ⭐⭐ SO THE NO-OP IS MADE LOUD INSTEAD. 📐 Measured 2026-09-23: 0 of 26 shipped
+        //    *.btree.json carries a non-empty SubtreeSyncBindings, and 0 carries an alias ⇒ no
+        //    warning fires today and no golden moves. ⚠ But an author CAN still create either in the
+        //    editor, and before this they would have got silence. 🔒 The rule this serves is the
+        //    silent-default one: a capability that looks built and does nothing is the failure this
+        //    programme keeps paying for.
+        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12 / §32.13.
+        if ((dto.SubtreeSyncBindings is { Count: > 0 }) || (dto.Aliases is { Count: > 0 }))
         {
-            // ⚠ A hand-authored variable of the same name WINS — the designer's declaration is explicit
-            //   and this one is derived; silently overwriting it would lose authored data.
-            bool alreadyDeclared = false;
-            foreach (var existing in dto.Blackboard.Variables)
-                if (string.Equals(existing.Name, slice.FieldName, StringComparison.Ordinal))
-                { alreadyDeclared = true; break; }
-            if (alreadyDeclared) continue;
-
-            dto.Blackboard.Variables.Add(new BlackboardVariableDto
-            {
-                Name = slice.FieldName,
-                Type = new BlackboardTypeRefDto { TypeId = slice.TypeId },
-                Comment = "Auto-allocated sub-tree parameter slice (Approach B).",
-                IsAutoManaged = true,
-            });
+            spc.ReportDiagnostic(MakeCodegenWarningDiagnostic(path,
+                "This asset declares sub-tree hosting data (aliases and/or SubtreeSyncBindings) that " +
+                "NOTHING CONSUMES: CE-337 retired both BTree orchestrator arms, so no orchestrator is " +
+                "emitted and no parameter slice is declared. The data round-trips and is not lost. " +
+                "Sub-tree hosting is per-SITE now (DESIGN_Occurrence_Scoped_Storage.md §32) and the " +
+                "BTree-hosts-BTree case is not built yet."));
         }
+
+        // ⭐ Approach-B groups are still computed as EMPTY and passed on: Emit's signature keeps the
+        //   parameter (two production callers supply it) and its null-argument contract is the one
+        //   thing about that method that never became untrue.
+        var approachBGroups = System.Array.Empty<OrchestratorSyncGroup>();
 
         // Validate bound method signatures before emitting.
         // An asset with any incompatible/unresolved bound leaf is skipped + BTREE0002 Warning.
