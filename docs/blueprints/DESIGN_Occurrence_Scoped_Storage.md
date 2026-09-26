@@ -8686,6 +8686,56 @@ back, and nothing schedules that.**
 schedulers, picker drawers, scenario sources, window sets. ⛔ This programme unified the four places
 they had accidentally diverged, not the places they legitimately differ.
 
+## 32.20 🔴 **"LEGITIMATE HOST DIFFERENCES" — I ASSERTED THREE AND MEASURED NONE** *(user, `2026-09-26`)*
+
+> 🔒 **User:** *"Why hosts differ in debug session and picker drawer and scenario sources? I would
+> expect these 3 to be same in both cgf and editor."*
+
+⛔⛔ **§32.18/§32.19 closed with the line *"the hosts still differ in everything they should — debug
+sessions, schedulers, picker drawers, scenario sources, window sets."*** 🔴 **That sentence was a
+PRINCIPLE where a `file:line` should have been** — the exact tell the claim-table rule names. ⇒ the
+user asked for the measurement and **all three named items failed it.**
+
+### 32.20.1 📐 THE CLAIM TABLE, BUILT AFTER THE FACT
+
+| I claimed | 📐 how it IS | 📄 how it was MEANT to be | verdict |
+|---|---|---|---|
+| *"CGF has no debug session"* | 🔴 **FALSE for Blueprint.** `CgfSubsystem:1527-1532` **constructs, `Attach()`es and stores** a `BlueprintDebugSession` — **362 lines BEFORE** `BuildAiShell` (`:1889`) — and the factory was handed `debugSession: null` | `DESIGN_Cgf_Editor_Sharing_Slice4_Debug_PauseStep.md` is **BUILT** (`CE-025..031`): debug pause/step **is** a CGF capability | 🔴 **DEFECT — `CE-344`, fixed** |
+| *"scenario sources genuinely differ"* | 🔴 **FALSE — the same path, spelled twice.** `GetSharedScenariosRoot()` = `{staging}/shared/scenarios`; `EditorBootstrap.ScenariosRoot` = `Path.Combine(ClusterConfiguration.Default.NasBasePath, "scenarios")`, and `NasBasePath` **is initialised to `GetSharedRoot()`** (`ClusterConfiguration.cs:34`) with `Default` a get-only property never reassigned (`:37`) | ⭐ `GetSharedScenariosRoot`'s own summary: *"the root the operator's scenario list comes from on **EVERY host**"* | 🔴 **UNDER-ADOPTION — `CE-346`, fixed** |
+| *"picker drawers are editor-only"* | ⚠ **UNSUPPORTED.** CGF **has** `_btreeRegistrar`/`_hsmRegistrar` (`:2065-2066`), the very objects the editor hangs pickers on — 📐 **0** `SetFacetEditService`/`SetFacetDispatcher` calls on CGF vs **13** on the editor | ⛔ **searched the CGF slice designs — NO record that CGF should lack them** | ⚠ **GAP — `CE-347`, filed** |
+
+⚠ **The one part that survives:** BTree and HSM debug sessions are genuinely **not constructed** on
+CGF — nothing builds them. ⛔ But that too is a **GAP** (`CE-345`), not a design decision, and calling
+it a "legitimate difference" was the same unmeasured move.
+
+### 32.20.2 ⭐⭐⭐ THE METHOD FAILURE, NAMED PRECISELY
+
+⛔ **This is not "I missed a case."** 📌 The three items were **the closing sentence of a report about
+removing accidental divergence** — ⇒ 🔒 **I catalogued the remaining differences as intended without
+opening a single one of them.** ⚠⚠ **And the same session had already been burned twice by exactly
+this**: `catalog`/`bpChannelCatalog` were *"different"* inputs that measured as the **same object**
+(§32.18.1). ⇒ ⭐⭐ **the third instance of "two spellings of one thing" in one day, and the first two
+should have made the third a prior, not a surprise.**
+
+| ⭐ the checkable habit | |
+|---|---|
+| ⭐⭐⭐ **A LIST OF "LEGITIMATE DIFFERENCES" IS A CLAIM TABLE** | ⛔ every row needs a `file:line` for *how it IS* **and** a design citation for *how it was MEANT to be* — or it is marked ⛔ assumed. 📌 Naming differences is exactly as load-bearing as naming duplicates: **it is what tells the next reader to stop looking** |
+| ⭐⭐ **"host X has none of these" is an ABSENCE claim** | ⇒ it falls under the enumeration rule. 📐 `grep -c` on both hosts is seconds and settles it — **0 vs 13** is not an opinion |
+| ⭐⭐ **A STALE COMMENT CAN MANUFACTURE A DIFFERENCE** | 📌 *"CGF constructs NO debug sessions (slice 1 §9.4)"* was **true when written** and went false when `CE-059` built the session. ⛔ It then made a live omission read as a deliberate one — for **both** the author and the reviewer |
+
+### 32.20.3 ⭐ WHAT WAS FIXED HERE, AND WHAT IS FILED
+
+| | |
+|---|---|
+| ✅ **`CE-344`** | CGF passes `_blueprintDebugSession` to the Blueprint document factory. 🔒 *A production caller that HAS a dependency must PASS it.* The stale comment is replaced with the measurement |
+| ✅ **`CE-346`** | `EditorBootstrap.ScenariosRoot` → `OrchestrationConstants.GetSharedScenariosRoot()`. ⚠ Behaviour-preserving *(proved identical above)*; removes a hand-combined base, which is the shape ruling 67 stamps out for asset roots |
+| 📋 **`CE-345`** | construct BTree/HSM debug sessions on CGF. ⚠ **Not attempted** — unlike the Blueprint one this is new construction, and I have not measured what those sessions require of a host |
+| 📋 **`CE-347`** | wire the BTree/HSM facet pickers on CGF's registrars. ⚠ **Not attempted** — needs the Details node-properties view measured on CGF first |
+
+🔒 **Stated so the correction is not over-claimed either:** `CE-344`/`CE-346` are proven
+behaviour-preserving-or-better and are done; `CE-345`/`CE-347` are **capability gaps on CGF**, filed
+with their measurements, and I have **not** verified they are cheap.
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

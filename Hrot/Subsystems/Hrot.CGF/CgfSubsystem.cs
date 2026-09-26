@@ -2165,8 +2165,19 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 BlueprintPeerCatalog = blueprintPeerCatalog,
                 BehaviorActions      = behaviorActions,
                 ChannelCommands      = bpChannelCatalog,
-                // ⚠ CGF constructs NO debug sessions (slice 1 §9.4). ⛔ Left null deliberately —
-                //   the record's optional members exist so a host can SAY it has none.
+                // 🔴🔴 CE-344 — CGF *DOES* HAVE A BLUEPRINT DEBUG SESSION, AND IT WAS NOT PASSED.
+                //    🔒 Raised by the user: "why hosts differ in debug session … I would expect
+                //    these to be same in both cgf and editor."
+                // 📐 Measured: `_blueprintDebugSession` is constructed, `Attach()`ed and assigned at
+                //    :1527-1532 — 362 lines BEFORE BuildAiShell — and the Blueprint document factory
+                //    was handed `debugSession: null`. ⛔ That is the silent-default rule exactly: a
+                //    production caller that HAS a dependency must PASS it.
+                // ⚠ The old comment here said "CGF constructs NO debug sessions (slice 1 §9.4)". That
+                //    was TRUE when slice 1 shipped and went STALE when CE-059 built the session; the
+                //    comment kept the omission looking deliberate. 📄 §32.20.
+                BlueprintDebugSession = _blueprintDebugSession,
+                // ⚠ BTree/HSM debug sessions are still genuinely absent on this host — nothing
+                //   constructs them. ⛔ A GAP (CE-345), not a design decision; stated, not defaulted.
                 // ⭐⭐ MA-003 — the host tail: mark the document dirty so CE-020's save reaches the
                 //   file. ⛔ No regeneration scheduler here (CGF regenerates nothing — the reload
                 //   pipeline recompiles from the in-memory asset), which is the ONE place the two
