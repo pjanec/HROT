@@ -8778,14 +8778,43 @@ are **empty virtuals**, the editor's subclass overrides them with `ITimeCommands
 `ITimeCommands`** ⇒ supplying the base would be theatre. ⚠ Pause/step for BTree/HSM on CGF is a real
 slice and is **not** claimed here.
 
-### 32.21.3 🔴 THE THIRD FINDING — **`CE-348`: THE BTree/HSM TRACE LOOP IS DEAD ON BOTH HOSTS**
+### 32.21.3 ⚠ THE THIRD FINDING — **`CE-348`: ONE UNADOPTED CONSUMER, NOT A DEAD CAPABILITY**
 
-📐 Measured exhaustively: `grep -rn "DebugSession" … | grep "\.Update("` over `Hrot/` **and** `FDP/`
-returns **0**. ⇒ the capability is **built, reachable and never driven** — trap #5 in its purest form,
-and the same shape `CE-059` found for the Blueprint session and `DEBT-AIB-028` found for rules 8/8b.
+> 🔒 **User, correcting my framing:** *"zero callers for btreedebugsession and trace loop is again a
+> sign of under adoption, not un-necessity."*
 
-⚠⚠ **This was invisible until the host comparison forced it.** 🔒 **Asking *"why does host A lack X?"*
-is how you discover that **host B lacks it too*** — ⭐ the comparison is the instrument, not the goal.
+⛔⛔ **My first statement of this finding was WRONG IN THE OPPOSITE DIRECTION to the usual failure.**
+I wrote *"the BTree/HSM trace loop is dead on both hosts"* — which reads as *the capability is dead*,
+and invites exactly the deletion that `R-129` exists to prevent. 📐 **The corpus settles it, and I had
+not searched it when I wrote the row.**
+
+⭐⭐ **The owning design exists and the capability is WELL ADOPTED** — 📄
+`docs/designs/behav-diag-1/Behav-diag-trace-buffers-DESIGN.md`: per-entity, zero-allocation,
+flight-recorder-survivable ring buffers, whose goal ⑦ is *"renders in the existing entity inspector
+and exports into JSON dumps."*
+
+| 📐 live consumer, measured | |
+|---|---|
+| `BTreeTraceWorkingMemoryRenderer` / `HsmTraceWorkingMemoryRenderer` | ⭐ the **entity inspector** — design goal ⑦, and its `BehaviorRegistryAccessor` is wired by **THREE** hosts: `EditorSubsystem:1181`, `CgfSubsystem:753`, `ReplayBrowserSubsystem:174` |
+| `BTreeTraceWorkingMemoryTranslator` / `HsmTraceWorkingMemoryTranslator` | ⭐ the **flight recorder** — design goal ③, traces survive save/replay |
+| `AiDiagnosticsTkbTranslator` · the two `BreakpointMenuPopulator`s · `DebugApiService:2772` (`traceArmed`) | ⭐ diagnostics, breakpoint menus, the HTTP/MCP surface |
+
+⇒ ⭐⭐⭐ **The gap is exactly ONE consumer: `BTreeDebugSession.Update(repo, entity)` and its HSM twin**
+— the poll that would feed the **AI CANVAS's** runtime overlay and node history. 📐 Zero callers, both
+hosts. 🔒 **Under-adoption of a working seam, precisely as the user said** — ⛔ and under no reading a
+deletion candidate.
+
+⚠⚠ **THE LESSON, and it is the mirror of the one this file already records.** The seam law's familiar
+failure is *"we need a shared X"* when X exists. 🔴 **This is its inverse: reading `0 callers` as
+`dead` instead of as `unadopted`** — and I reached it the same way, **by not searching the design
+corpus before characterising what I had measured.** ⭐ `grep` told me the call count truthfully; ⛔ only
+`behav-diag-1` could tell me what the count MEANT.
+
+⚠ **One real design question blocks the fix, and it is why this stays uncosted:** the debug session is
+per-**ASSET**, the trace buffer is per-**ENTITY**, and an asset is shared by many entities ⇒ *which
+entity does an open graph follow?* ⭐ The inspector sidesteps this by rendering the SELECTED entity;
+the canvas has no such anchor. 📌 `behav-diag-1`'s `design-talk.md` / `TASK-DETAIL.md` may already rule
+on it — read before choosing.
 
 ### 32.21.4 ⭐ THE HOST-DIFFERENCE LEDGER, NOW MEASURED RATHER THAN ASSERTED
 
