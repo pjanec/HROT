@@ -60,13 +60,13 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
             bpJsonFiles.Collect();
 
-        // ⭐⭐⭐ Q49 option D — the SIBLING TREES, for subtree-sync identity.
-        //    A generator cannot load assets, so a master tree cannot ask "what blackboard type does the
-        //    subtree I call declare?" the way the editor does (Q49 option C, catalog.FindByAssetId).
-        //    ⭐ These are the SAME *.btree.json AdditionalTexts this generator already receives — a
-        //      second projection of texts in hand, not new plumbing. See GeneratedBTreeSchemaCatalog.
-        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> btreeJsonCollected =
-            rawFiles.Collect();
+        // ⛔ CE-337 (2026-09-26) — the SIBLING-TREE collection is GONE, with GeneratedBTreeSchemaCatalog.
+        //    It existed for Q49 option D: a generator cannot load assets, so a master tree could not ask
+        //    "what blackboard type does the subtree I call declare?" the way the editor does. 📐 P4-②
+        //    made every interpreter Interpreter<byte, BTreeContext> ⇒ that question CEASED TO EXIST, and
+        //    its only asker (the Approach-B orchestrator) is retired. ⭐ Re-adding it is ONE line —
+        //    `rawFiles.Collect()` — which is why keeping it "because the plumbing is awkward" did not
+        //    survive contact with the code. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.12c.
 
         // Combine with the full compilation so the method-compatibility validator can
         // resolve type/method symbols, plus the collected *.bp.json schemas (Option A fallback).
@@ -75,54 +75,27 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
         // GenerateOneAsset re-runs on ANY compilation change (not only asset changes).
         // This is acceptable for the small *.btree.json asset set.  A fancier
         // incremental symbol extraction is deferred (VE-DEBT-003).
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles, ImmutableArray<(string Path, string Text)> BtreeJsonFiles)> combined =
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
             rawFiles.Combine(context.CompilationProvider)
                     .Combine(bpJsonCollected)
-                    .Combine(btreeJsonCollected)
                     .Select(static (pair, _) =>
-                        (pair.Left.Left.Left.Path, pair.Left.Left.Left.Text, pair.Left.Left.Right,
-                         pair.Left.Right, pair.Right));
+                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → validate bound methods → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles, item.BtreeJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
         });
     }
 
-    /// <param name="btreeJsonFiles">
-    /// ⚠⚠ <b>CURRENTLY UNREAD, AND DELIBERATELY STILL THREADED. <c>2026-09-26</c>, <c>CE-337</c>.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.13.
-    ///
-    /// <para>⭐ Its consumer was <c>GeneratedBTreeSchemaCatalog.Parse</c> → the subtree-sync
-    /// projection, whose READER (the Approach-B orchestrator) was retired. ⛔ The parse is gone
-    /// because it cost real work for an unread value: <see cref="GenerateOneAsset"/> runs
-    /// <b>ONCE PER ASSET</b>, so it deserialized every sibling <c>*.btree.json</c> N times per pass
-    /// — 📐 ~26 × 26 on today's corpus.</para>
-    ///
-    /// <para>🔒 <b>The PLUMBING stays on purpose.</b> Per-SITE BTree hosting needs exactly this input
-    /// — what a sibling asset declares, without loading an assembly — and re-adding an incremental
-    /// pipeline stage is the awkward half; re-adding one <c>Parse</c> call is the easy half.
-    /// ⚠ The catalog's contract is pinned by rails even while unwired
-    /// (<c>TheSiblingCatalogReadsTheAssetLevelBlackboardTypeName</c> and its sibling), so it can be
-    /// re-wired against a known-good answer rather than a guess.</para>
-    /// </param>
     private static void GenerateOneAsset(SourceProductionContext spc, string path, string text,
-        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles,
-        ImmutableArray<(string Path, string Text)> btreeJsonFiles)
+        Compilation compilation, ImmutableArray<(string Path, string Text)> bpJsonFiles)
     {
         // Option A: parse the blueprint schemas once, up front — used both by the method-compatibility
         // validator (AiPrimitiveTickCore method-resolution fallback) and the struct-size resolver
         // (AiPrimitiveTickCore Params-size fallback) below.
         System.Collections.Generic.IReadOnlyList<GeneratedBlueprintSchema> blueprintSchemas =
             GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
-        // ⛔ CE-337 (2026-09-26) — THE SIBLING CATALOG PARSE IS GONE. It existed for ONE consumer:
-        //   Q49 option D's subtree-sync projection, which needed what every SIBLING tree declares —
-        //   the only input it could not read out of this asset's own JSON. ⇒ with the projection's
-        //   reader retired, `GeneratedBTreeSchemaCatalog.Parse(btreeJsonFiles)` was parsing EVERY
-        //   sibling *.btree.json on EVERY compile to produce a value nothing read.
-        // ⚠ GeneratedBTreeSchemaCatalog itself is KEPT and tombstoned — the per-site hosting that
-        //   replaces the alias arms will need exactly this cross-asset lookup. 📄 DESIGN §32.13.
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         BehaviorTreeAssetDto? dto;
         try

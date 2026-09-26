@@ -8156,10 +8156,23 @@ through, it does not:**
 | the slot key `(hostAssetId, siteNodeVisualId, childAssetId)` | ⭐ all three are LOCAL to the hosting asset |
 | the child's interpreter | ⭐ `HostedChildren` → `BehaviorRegistry` **by name**, at registration |
 
-⇒ 🔒 **`GeneratedBTreeSchemaCatalog` has NO identified consumer, present or planned.** ⭐ It is kept on
-the weaker and honest ground that it is **pure, contract-pinned by two rails, and costs nothing while
-unwired** — ⛔ **not** because a named slice is about to want it. ⚠ A future reader deciding to delete
-it should read this section rather than the tombstone's original claim.
+⇒ 🔒 **`GeneratedBTreeSchemaCatalog` had NO identified consumer, present or planned.**
+
+#### 32.12c.2 ✅ **DELETED `2026-09-26`** 🔒 *(user: "delete it")*
+
+⭐ The type, its two rails, and its whole pipeline stage are gone: the `rawFiles.Collect()` provider,
+the `.Combine`, the tuple field and the `GenerateOneAsset` parameter.
+
+⚠⚠ **And the last argument for keeping it did not survive contact with the code either.** I wrote that
+the plumbing should stay because *"re-adding an incremental pipeline stage is the awkward half"*.
+📐 It is **one line** — `rawFiles.Collect()` — and the source said so all along: *"a second projection
+of texts in hand, **not new plumbing**."* ⇒ ⛔ **three successive justifications for keeping this
+(a named future use · a contract worth pinning · awkward plumbing) each failed on measurement.** 🔒
+That is the honest record of the decision, and it is why the deletion is safe rather than merely tidy.
+
+⭐ **Its blueprint twin `GeneratedBlueprintSchemaCatalog` is UNTOUCHED** and still read twice per asset
+*(`:188`, `:218`)* — the cross-asset-JSON PATTERN is alive and load-bearing; only this instance had
+lost its question.
 
 ### 32.13 ✅ `CE-337`'s THREE SWEEPS — **all three resolved `2026-09-26`, and the answer to each was NOT "delete"**
 
