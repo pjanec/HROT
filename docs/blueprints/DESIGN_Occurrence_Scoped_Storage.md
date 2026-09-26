@@ -8207,6 +8207,59 @@ compile** — so the run used a STALE binary and printed a confident PASS. 📌 
 trap, exactly as `CLAUDE.md` records it. ⭐ The compiling form (`path == "\u0000never" && …`) gave the
 real answer.
 
+## 32.14 ✅ `CE-334` — **AN ACTIVITY ACTION RUNS EVERY TICK** *(`2026-09-26`, an `ExtDeps` change)*
+
+> 🔒 **User, `2026-09-26`: "do it — add the steady state rail first."** ⭐ That is the approval this
+> needed: `CE-322`'s was explicitly conditional on the bug being HROT's glue; **this one is the
+> engine.**
+
+### 32.14.1 ⭐ THE CHANGE — **four lines, in the phase machine's `Idle` arm**
+
+`HsmKernelCore.ProcessInstancePhase`, `case InstancePhase.Idle:` — after timers, when the queue is
+**empty**, it now calls `ProcessActivityPhase` instead of doing nothing.
+
+⛔⛔ **NOT `header->Phase = InstancePhase.Activity`, and the distinction is the whole design.** The
+phase machine advances **one phase per tick** — `UpdateBatchCore` is a `for` over instances with no
+inner loop. Parking in `Activity` would give `Idle → Activity → Idle → Activity…`: an activity every
+**other** tick, which is not a frame hook either. ⭐ Running it in place and staying `Idle` is what
+makes *"every tick"* true.
+
+⭐ `ProcessActivityPhase` sets `Phase = Idle` on exit, so **every existing phase rail keeps its
+meaning**, and an un-entered machine (all leaves `0xFFFF`) skips every region — so §31.18's
+*"`Idle` + un-entered is a fixed point"* also still holds.
+
+### 32.14.2 🔴 A REAL HOLE THE CHANGE **EXPOSED** — not one it created
+
+`ProcessActivityPhase` walked `definition.GetState(leafId)` **unbounded**. Before, activities ran only
+after `Entry`/`RTC`, by which point the instance had been initialised. Running them from `Idle` reaches
+instances nothing has entered — and a default instance has `ActiveLeafIds` **all-zero**, so an empty
+blob was indexed at state 0 and `GetState` **threw**.
+📐 `Fhsm.Tests.Kernel.EventPipelineTests.Timer_Fires_And_Trigger_Workflow` caught it on the first run.
+⭐ Fixed with a bounds check that **skips** rather than throws — this is a per-frame loop over every
+instance, and one malformed instance must not take the frame down. ⚠ Deliberately only a bounds check;
+a cyclic `ParentIndex` would still spin, but that was reachable before this change and is out of scope.
+
+### 32.14.3 ⭐⭐⭐ FIVE WORKAROUNDS, AND TWO OF THEM LIVED IN RAILS
+
+§31.18.2 found three independent workarounds for the sibling defect. `CE-334` adds **two more, both
+inside test suites** — which is why no suite could see it:
+
+| # | where | what it did |
+|---|---|---|
+| ④ | 🔴 `Fhsm.Tests.Examples.IntegrationTests` — **the ENGINE's own suite** | enqueued a **dummy event (id 999, matching no transition)** purely to *"drive cycle and hit Activity phase again"*, then asserted the count went 1 → 2 |
+| ⑤ | 🔴 `Fdp.Examples.UrbanCombat.Tests.BlueprintTests` | seeded the APC into `Cruising` and relied, in its own words, on *"Phase Idle with an empty queue is a **no-op tick**, which is exactly the claim"* |
+
+🔒 **A behaviour that five independent authors worked around is not a policy; it is a defect** — the
+same argument §31.18.2 made, now with the engine's own rail among the exhibits.
+
+### 32.14.4 ⚠ THE BLAST RADIUS, MEASURED RATHER THAN ASSERTED
+
+| what moved | |
+|---|---|
+| `Fhsm.Tests` | **309 / 309** *(307 baseline + the 2 new rails)*. One rail inverted: ④'s dummy-event round became *"five quiet ticks each dispatch the activity"* |
+| `Fdp.Examples.UrbanCombat.Tests` | **29 / 29** — but its fixture needed `LocomotionChannel` **registered and attached**. ⭐ **That omission WAS the one-shot showing through**: the activity never ran, so the component the real APC always carries could be left out. The rail is now closer to production, not further |
+| ⭐⭐ **the honest residual risk** | an activity action that **assumes a component** now runs in states and on entities where it previously lay dormant ⇒ it will throw where it used to be silent. 📐 On today's corpus the only shipped activity action is `Activity_Cruise`, and in production the APC has `LocomotionChannel` — but this is the failure mode to expect if a new HSM misbehaves |
+
 ## ⛔ HISTORY — **§32's pre-review shape** *(authored and superseded on `2026-09-23`)*
 
 ⚠ **Kept so nobody re-quotes it as current, and DELIBERATELY WITHOUT ITS DIAGRAMS** — two pictures of

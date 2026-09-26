@@ -119,6 +119,63 @@ public sealed class HsmSubtreeAssetIdPersistenceTests
         Assert.Equal(Guid.Empty, ThroughDisk(asset).AllStates.Single(s => s.Name == "Plain").SubtreeAssetId);
     }
 
+    // ══ E5 / A1 — the NAME is the other half of the pair ════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E5</c> acceptance <c>A1</c> — <c>StateNode.SubtreeName</c> round-trips through real
+    /// JSON text.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.10.
+    ///
+    /// <para>⭐⭐ <b>Why the NAME and not just the Guid</b> (<c>Q36-B</c> = A): a host resolves its
+    /// child through <c>BehaviorRegistry</c>, which is keyed by NAME — there is no asset-id index,
+    /// and <c>Q36-B</c> ruled against adding one. ⇒ a Guid that survives a save while its name does
+    /// not is a host that cannot find its child. ⛔ The Guid stays as the rename-survivor.</para>
+    ///
+    /// <para>🔒 <b>Asserted on the asset that came BACK</b> — the same discipline rail 1 uses, and the
+    /// reason <c>DEBT-AIB-028</c>(a) was invisible for so long: an in-process set-then-read passes
+    /// the moment the property exists and proves nothing about the mapper.</para>
+    /// </summary>
+    [Fact]
+    public void E5_A1_ASubtreeHostingState_RoundTripsItsSubtreeName_ThroughJson()
+    {
+        var subtreeId = new Guid("e5a10000-0000-0000-0000-0000000005a1");
+
+        var asset = MakeParallelHostingAsset(subtreeId);
+        foreach (var s in asset.AllStates)
+            if (s.SubtreeAssetId == subtreeId) s.SubtreeName = "PatrolSubTree";
+
+        var restored = ThroughDisk(asset);
+
+        var hosts = restored.AllStates.Where(st => st.SubtreeAssetId != Guid.Empty).ToList();
+        Assert.Equal(2, hosts.Count);
+        Assert.All(hosts, st =>
+        {
+            Assert.Equal(subtreeId, st.SubtreeAssetId);
+            Assert.Equal("PatrolSubTree", st.SubtreeName);   // ⭐ BOTH halves, or the host is blind
+        });
+    }
+
+    /// <summary>
+    /// ⭐ A state that names no child keeps <c>SubtreeName</c> <c>null</c>, and the field is omitted
+    /// from the JSON entirely.
+    ///
+    /// <para>🔒 <b>This is what keeps every existing asset byte-identical</b>, and it is why
+    /// <c>hsm-persistence-shape</c> moves only when an asset is RE-SAVED with a hosting state — not
+    /// on the checked-in fixtures (the <c>BP-302</c> correction).</para>
+    /// </summary>
+    [Fact]
+    public void E5_A1_AStateNamingNoChild_OmitsSubtreeNameFromJson()
+    {
+        var root  = new StateNode("__root__");
+        var plain = new StateNode("Plain") { IsInitial = true, Parent = root };
+        root.Children.Add(plain);
+        var asset = MakeAsset(root, new List<StateNode> { plain }, new List<RegionNode>());
+
+        string json = HsmJsonServices.Serialize(HsmAssetMapper.ToDto(asset));
+
+        Assert.DoesNotContain("SubtreeName", json);
+        Assert.Null(ThroughDisk(asset).AllStates.Single(s => s.Name == "Plain").SubtreeName);
+    }
+
     // ══ rail 2 — E4's missing half: the RULES fire after a load ══════════════
 
     /// <summary>

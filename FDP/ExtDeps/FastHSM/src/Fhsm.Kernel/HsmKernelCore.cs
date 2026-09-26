@@ -114,6 +114,32 @@ namespace Fhsm.Kernel
                     {
                         header->Phase = InstancePhase.Entry;
                     }
+                    else
+                    {
+                        // ⭐⭐⭐ CE-334 (2026-09-26) — AN ACTIVE STATE'S ACTIVITY RUNS EVERY TICK.
+                        //
+                        // 🔴 What this used to be: nothing. `Idle` with an empty queue was a FIXED
+                        //    POINT, so after the one `Entry → Activity → Idle` round that follows
+                        //    initialisation, a quiescent machine NEVER dispatched an activity again.
+                        //    ⇒ `ActivityActionId` was a ONE-SHOT with a per-frame name.
+                        //
+                        // ⛔⛔ WHY NOT `header->Phase = InstancePhase.Activity` INSTEAD. The phase
+                        //    machine advances ONE PHASE PER TICK — `UpdateBatchCore` is a `for` over
+                        //    instances with no inner loop. Parking in `Activity` would give
+                        //    Idle→Activity→Idle→Activity…, i.e. an activity every OTHER tick, which
+                        //    is not a frame hook either. ⭐ Running it HERE and staying `Idle` is
+                        //    what makes "every tick" true.
+                        //
+                        // ⭐ `ProcessActivityPhase` sets `Phase = Idle` on exit, so the phase is
+                        //    unchanged and every existing phase rail keeps its meaning. An un-entered
+                        //    machine (all leaves 0xFFFF) skips every region, so §31.18's
+                        //    "Idle + un-entered is a fixed point" also still holds.
+                        // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.2.1; rail
+                        //    Fhsm.Tests.Kernel.ActivitySteadyStateTests.CE334_R1.
+                        ProcessActivityPhase(
+                            definition, instancePtr, instanceSize, contextPtr, deltaTime,
+                            ref cmdWriter, traceCtx);
+                    }
                     break;
 
                 case InstancePhase.Entry:
@@ -442,6 +468,19 @@ namespace Fhsm.Kernel
                 ushort current = leafId;
                 while (current != 0xFFFF)
                 {
+                    // ⭐⭐ CE-334 (2026-09-26) — BOUNDS-CHECK THE LEAF ID, and this is a REAL HOLE the
+                    //    same change EXPOSED rather than created. Before, activities ran only after
+                    //    Entry/RTC, by which point the instance had been initialised; running them
+                    //    from Idle reaches instances nothing has entered yet. 🔴 A default instance
+                    //    has ActiveLeafIds all-ZERO, so an empty or small blob was indexed at state 0
+                    //    and GetState THREW — `Fhsm.Tests.Kernel.EventPipelineTests
+                    //    .Timer_Fires_And_Trigger_Workflow` caught it immediately.
+                    // ⛔ Skip rather than throw: this runs inside a per-frame loop over every
+                    //    instance, and a malformed one must not take the frame down. ⚠ Deliberately
+                    //    only a BOUNDS check — a cyclic ParentIndex would still spin, but that was
+                    //    reachable before this change too and is not in scope here.
+                    if (current >= definition.Header.StateCount) break;
+
                     ref readonly var state = ref definition.GetState(current);
 
                     // Execute activity if present

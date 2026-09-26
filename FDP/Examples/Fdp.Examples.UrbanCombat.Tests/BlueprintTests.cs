@@ -329,6 +329,12 @@ namespace Fdp.Examples.UrbanCombat.Tests
             //   brain component. ⛔ Omitting it does not throw — the walk enumerates nothing and the
             //   brain silently never ticks, which is why it is registered explicitly.
             Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            // ⭐⭐⭐ CE-334 (2026-09-26): Activity_Cruise writes LocomotionChannel, and an active
+            //   state's activity now runs EVERY TICK rather than once ⇒ the component the real APC
+            //   always carries must be registered here too. ⛔ Registering it is not optional
+            //   plumbing: AddComponent throws without it, and — trap ⑨ — a MISSING registration is
+            //   the failure mode this programme has paid for repeatedly.
+            world.RegisterComponent<Fdp.Toolkit.Behavior.Components.LocomotionChannel>();
             return world;
         }
 
@@ -352,6 +358,16 @@ namespace Fdp.Examples.UrbanCombat.Tests
                 ActiveBehaviorHash = docId,
                 BrainTier          = BehaviorConstants.BrainTierHsm,
             });
+
+            // ⭐⭐⭐ CE-334 (2026-09-26) — LocomotionChannel is REQUIRED now, and the reason is the
+            //    point of the change: Activity_Cruise writes it, and an active state's activity runs
+            //    EVERY TICK instead of once. 🔴 Before, `Idle` with an empty queue was a no-op, so
+            //    these rails ticked an APC parked in Cruising and the activity never fired — the
+            //    fixture could omit the component the real APC always has.
+            // ⛔ That omission was not laziness; it was the one-shot showing through the fixture.
+            //    ⚠ A production APC carries LocomotionChannel, so this makes the rail MORE like the
+            //    real thing, not less. 📄 DESIGN_Occurrence_Scoped_Storage.md §32.14.
+            world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel());
             return e;
         }
     }
