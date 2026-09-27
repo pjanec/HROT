@@ -409,7 +409,7 @@ ORDER is load-bearing even though its scope is not: `CE-389` before `CE-390` bef
 |---|---|---|
 | ① | **`SelectTransition` (`:566`) and `ExecuteTransition` (`:699`) are ALREADY separate**; `ProcessRTCPhase` is a loop over them | ⭐⭐ **`CE-382` shrinks**: the polled arm needs a SELECTION variant only and calls `ExecuteTransition` **unchanged**. ⛔ The feared "selection is fused into RTC" does not hold |
 | ② | 🔴 **completion transitions are LIVE** — §2.3, corrected | ⭐ no code change, but the VALIDATOR must keep `IsPolled` and "no event" as DIFFERENT things, and §10 ③ gains its real argument |
-| ③ | **`StructureHash` hashes `state.Flags` (`HsmEmitter.cs:185`) but NOT `trans.Flags`** | ⭐⭐ an asset with no polled transition keeps its hash ⇒ **no golden churn from `CE-381`**. ⭐ The DERIVED `StateFlags.HasPolledTransition` is what gives hash coverage. ⚠ **Edge case, decide in the batch:** toggling `IsPolled` on ONE of TWO polled transitions in the same state moves neither flag ⇒ no hash change. Either add `trans.Flags` to the hash or record it as accepted |
+| ③ | **`StructureHash` hashes `state.Flags` (`HsmEmitter.cs:185`) but NOT `trans.Flags`** | ⭐⭐ an asset with no polled transition keeps its hash ⇒ **no golden churn from `CE-381`**. ⭐ The DERIVED `StateFlags.HasPolledTransition` is what gives hash coverage. 🔒 **EDGE CASE — DECIDED `2026-09-27`, user: "accept and document"** — see §8b |
 | ④ | **`AiFacetPickerBinder.Rebuild:95` — the ONE production site — already passes `services.ActionSchema`**, and `BuildDrawers` already takes an `IActionSchemaExporter?` | ⭐⭐⭐ **`CE-386` shrinks a lot**: no plumbing, no new service. Pass it into two existing drawers and filter by hosting flag. ⭐ Rail ⑧ re-aimed (§9). ⭐ Pattern to mirror: `BehaviorHashPickerDrawer.GetItems()` is already catalog-backed on the BTree side |
 | ⑤ | **`CE-387` has a COMPLETE worked precedent** — `E7b` did exactly this for the TRANSITION `ExpressionTargetField`: model, mapper, command sink, validator rule, emitter and a golden (`HsmExpressionTargetTests`) | ⭐⭐ `CE-387` is *"do for states what `E7b` did for transitions"*, same field name, same file set. ⚠ Note the two consumers are DIFFERENT mechanisms: transitions feed a compound `{Fqn}@{offset}` key, states feed `HsmParamBindings` seed offsets |
 | ⑥ | **`HsmAssetDto` uses `JsonIgnore(WhenWritingNull / WhenWritingDefault)` throughout**, and `HsmGoldenCorpusTests.TheCanonicalJsonOfEveryCorpusAssetIsUnchanged` compares canonical JSON | ⛔⛔ **A BUILD CONSTRAINT, not a hope:** `CE-385`'s five fields MUST carry those attributes or **all four shipped assets churn their golden.** ⭐ Now stated so it is checked, not discovered |
@@ -417,6 +417,28 @@ ORDER is load-bearing even though its scope is not: `CE-389` before `CE-390` bef
 ⚠ **Still unmeasured, and small:** `HsmBuilder` has `StateBuilder.Activity(string)` and
 `TransitionBuilder.Guard(string)` but no id-taking form, so `CE-383` also adds those. ⭐ `FastHSM` is
 vendored source co-evolved with this repo (`R-48`), so that is in-lane, not a cross-lane edit.
+
+---
+
+## 8b. 🔒 ACCEPTED LIMIT — **toggling `IsPolled` between two polled transitions in one state does not move `StructureHash`** *(user, `2026-09-27`: "accept and document")*
+
+📐 **The mechanism.** `ComputeStructureHash` appends `state.Flags` and **not** `trans.Flags`
+*(`HsmEmitter.cs:185`)*. `CE-381`'s `StateFlags.HasPolledTransition` is DERIVED — set when the state
+owns **at least one** polled transition. ⇒ flipping `IsPolled` on **one of two** polled transitions in
+the same state changes neither hashed value, so `StructureHash` is unchanged.
+
+| ⭐ what follows, stated precisely | |
+|---|---|
+| ⭐⭐ **A LIVE instance does not observe the edit until it re-attaches** | `ValidateInstance` gates on `header->MachineId == definition.Header.StructureHash`; an unchanged hash means the running instance keeps its current behaviour |
+| ⭐⭐⭐ **THE REASON THIS IS SAFE, AND IT IS THE DECIDING ONE:** `IsPolled` changes **no layout** | the hash's job is **instance-layout compatibility** — that a live instance's bytes still mean what the blob says. ⛔ A polling change moves no field, resizes nothing, and renumbers nothing ⇒ the stale instance is running *correct old behaviour*, not corrupt state |
+| ⭐ **it is the SAME contract every other non-layout edit already has** | 📌 changing a guard's implementation, or an action's body, is likewise invisible to a running instance until reload |
+| ⚠ **the observable symptom, so nobody debugs it twice** | edit polling in the editor while a cluster is live ⇒ **the change appears to do nothing** until the entity's behaviour is re-assigned or the machine hot-reloads |
+
+⛔ **REJECTED: add `trans.Flags` to `ComputeStructureHash`.** ⭐ Correct, and it would re-bake **every**
+asset that has any transition flag set — `IsExternal` is on essentially every transition — for a
+property the hash does not exist to protect. 🔒 **What would reverse this decision:** wanting a polling
+toggle to take effect on a LIVE cluster without a reload. ⚠ If that is ever wanted, the right fix is
+probably a targeted reload trigger, **not** widening a layout hash to cover behaviour.
 
 ---
 
