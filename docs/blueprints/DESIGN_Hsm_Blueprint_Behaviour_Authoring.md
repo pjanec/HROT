@@ -4,7 +4,8 @@ build-state: READY-TO-BUILD
 updated: 2026-09-27
 current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight build items (CE-381..CE-388).
   ⭐⭐ §11 is the SEPARATE call-cost thread (CE-389..CE-392) — it is independent of §8 and can land
-  before, after or alongside it; §11.4 answers "can we live without UnsafeShim".
+  before, after or alongside it; §11.4 answers "can we live without UnsafeShim", and §11.7 files the
+  engine-wide version as CE-393, CROSS-LANE and deliberately NOT started by this lane.
   ⭐ Start at §2 (INVENTORY) if you are about to argue that something here already exists — most of
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
@@ -521,3 +522,31 @@ the INVARIANT:
 
 ⭐ Deterministic, CI-able, and **red-proves by construction**: revert `CE-390` and the count becomes
 `1 + 2N`. ⚠ Wall-clock numbers may be reported as INFORMATION in the batch report; ⛔ they are not the gate.
+
+### 11.7 ⚠⚠ `CE-393` — **THE ENGINE-WIDE CAMPAIGN, FILED AND DELIBERATELY NOT STARTED** *(cross-lane)*
+
+⭐ §11.4 scopes `CE-392` to the one place the `behaviors` lane owns. ⛔ **The general version — "component
+access in this engine is never inlinable" — is a DIFFERENT item with a different owner**, and it is filed
+rather than folded in so it does not ride into a batch on the back of a blueprint measurement.
+
+📐 **Measured `2026-09-27`:** **1 486** production facade call sites, **458** of them in `*System*.cs`
+across **102** files.
+
+🔴🔴 **AND THE PRIOR-ART PASS CAME BACK NEGATIVE, WHICH IS THE FINDING.** ⭐ This repo's rule of thumb is
+that *"we need a shared X"* usually means **X exists and is under-adopted** — 📐 **not here.**
+`EntityQuery` exposes `ForEach(Action<Entity>)`, an `EntityEnumerator` whose `Current` is an `Entity`,
+`ForEachChunked` and `ForEachParallel` — **all of them yield an `Entity` and nothing else.** ⛔ There is
+**no typed chunk/array accessor** to adopt, so every system that iterates a query then pays a per-entity,
+per-component lookup through the shim. ⇒ ⭐⭐ **this is ADD-A-SEAM, not ADOPT-A-SEAM**, which is exactly
+the class of change that needs an architect round rather than a batch.
+
+| ⭐ the two halves, and they are separable | owner |
+|---|---|
+| **A — contained.** Make the indirection cheaper **without touching a single call site**: constrained entry points for callers that already hold the constraint, or a cached `delegate*<…>` in place of the `Delegate` in `UnmanagedAccessor<T>`. ⚠ The function-pointer form needs a SPIKE, not an assertion — generic instantiation + `GetFunctionPointer` is viable for value-type `T` and fragile in general | BACKEND *(`Fdp.Core` internals)* |
+| **B — architectural.** A typed accessor / chunk seam so a system resolves a component array **once per chunk** instead of once per entity. ⛔ Large blast radius, needs an architect question | BACKEND *(+ the user)* |
+
+⛔⛔ **AND THE HONEST PART: THIS DESIGN IS NOT ITS JUSTIFICATION.** ⭐ Once `CE-390` puts the store on the
+bridge, the blueprint hot path **stops making these calls at all** ⇒ the blueprint programme measures a
+cost it is about to stop paying. 🔒 **A campaign over 102 system files must be justified by ITS OWN
+profile, on a real `--mode all` run, not by this section.** ⚠ Quoting §11 as the reason would be the
+mirror of the mistake §2.4 records — a real measurement carried into a decision it does not support.
