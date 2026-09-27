@@ -94,13 +94,27 @@ could obtain.
 | **G4** | a transition cannot be driven by a CONDITION | guards are evaluated only inside the event phase (`HsmKernelCore.cs:629`). In production exactly ONE event is ever posted (`BrainTickSystem.cs:360`, MobilityLost) |
 | **G5** | a blueprint-hosted action cannot declare a channel | `[WritesChannel]` is an attribute on hand-written methods; nothing carries it from a `.bp.json` |
 
-### 2.3 ⚠ ADJACENT, AND DELIBERATELY NOT TOUCHED
+### 2.3 🔴 COMPLETION TRANSITIONS ARE **LIVE** — *(CORRECTED `2026-09-27`, pre-build measurement)*
 
-⭐ `TransitionDef.EventId`'s own comment says **`0 = completion`**, and `HsmEmitCore.cs:491` compiles a
-transition with no event name to `.On(0)` — but **nothing ever dispatches event 0**, so the concept is
-half-present and inert. ⛔ This design does NOT revive it (§10 ③ says why), and does not change the
-meaning of any existing eventless transition. 📐 Measured: all 7 transitions across the 4 shipped
-assets name an event, so the blast radius of leaving it inert is zero.
+⛔⛔ **THIS SECTION PREVIOUSLY READ *"nothing ever dispatches event 0, so the concept is half-present
+and inert."* THE SECOND HALF IS FALSE.** 📐 Measured in the pre-build pass:
+`ProcessRTCPhase` sets **`currentEventId = 0` after every executed transition** and loops
+(`HsmKernelCore.cs:502-556`), and `SelectTransition` matches `trans.EventId == eventId` for both
+global and state transitions (`:588`, `:629`). ⇒ **the RTC loop runs a COMPLETION PASS on every
+iteration after the first**, and an eventless transition — which `HsmEmitCore.cs:491` compiles to
+`.On(0)` — **is selected there today.**
+
+⭐ **What IS true:** an eventless transition can only fire **as a follow-on to another transition**.
+It is unreachable from `Idle`, which is the gap `G4` names. ⛔ *Unreachable from Idle* ≠ *inert*.
+
+⭐⭐⭐ **AND THIS STRENGTHENS THE USER'S CHOICE OF (b), EXPLICIT** *(§3.1, §10 ③)*: reusing `EventId 0`
+for polling would have **conflated COMPLETION with POLLED**, which are genuinely different — one
+fires once, as a consequence of a transition; the other is evaluated every quiescent tick. ⛔ A single
+encoding cannot express both. 🔒 That is a better argument than the one §10 ③ originally gave, and it
+was only available after measuring.
+
+⚠ **No collision risk with named events:** `HsmEmitCore.cs:216` treats `EventId == 0` as *unset* and
+assigns a fallback ⇒ authored events start at 1 *(verified against `HsmShowcase`: 1, 2, 3)*.
 
 ### 2.4 🔴 CORRECTION — **"the BTree side already solved this" was WRONG**
 
@@ -386,6 +400,26 @@ ORDER is load-bearing even though its scope is not: `CE-389` before `CE-390` bef
 
 ---
 
+## 8a. 📐 PRE-BUILD MEASUREMENT PASS — **`2026-09-27`, and it RESIZED three items**
+
+> 🔒 **User:** *"rather do more measurements than taking wrong decisions."* ⭐ This section records what
+> the pass found, so the next reader does not re-derive it — and so the two CORRECTIONS are visible.
+
+| # | measured | effect on the plan |
+|---|---|---|
+| ① | **`SelectTransition` (`:566`) and `ExecuteTransition` (`:699`) are ALREADY separate**; `ProcessRTCPhase` is a loop over them | ⭐⭐ **`CE-382` shrinks**: the polled arm needs a SELECTION variant only and calls `ExecuteTransition` **unchanged**. ⛔ The feared "selection is fused into RTC" does not hold |
+| ② | 🔴 **completion transitions are LIVE** — §2.3, corrected | ⭐ no code change, but the VALIDATOR must keep `IsPolled` and "no event" as DIFFERENT things, and §10 ③ gains its real argument |
+| ③ | **`StructureHash` hashes `state.Flags` (`HsmEmitter.cs:185`) but NOT `trans.Flags`** | ⭐⭐ an asset with no polled transition keeps its hash ⇒ **no golden churn from `CE-381`**. ⭐ The DERIVED `StateFlags.HasPolledTransition` is what gives hash coverage. ⚠ **Edge case, decide in the batch:** toggling `IsPolled` on ONE of TWO polled transitions in the same state moves neither flag ⇒ no hash change. Either add `trans.Flags` to the hash or record it as accepted |
+| ④ | **`AiFacetPickerBinder.Rebuild:95` — the ONE production site — already passes `services.ActionSchema`**, and `BuildDrawers` already takes an `IActionSchemaExporter?` | ⭐⭐⭐ **`CE-386` shrinks a lot**: no plumbing, no new service. Pass it into two existing drawers and filter by hosting flag. ⭐ Rail ⑧ re-aimed (§9). ⭐ Pattern to mirror: `BehaviorHashPickerDrawer.GetItems()` is already catalog-backed on the BTree side |
+| ⑤ | **`CE-387` has a COMPLETE worked precedent** — `E7b` did exactly this for the TRANSITION `ExpressionTargetField`: model, mapper, command sink, validator rule, emitter and a golden (`HsmExpressionTargetTests`) | ⭐⭐ `CE-387` is *"do for states what `E7b` did for transitions"*, same field name, same file set. ⚠ Note the two consumers are DIFFERENT mechanisms: transitions feed a compound `{Fqn}@{offset}` key, states feed `HsmParamBindings` seed offsets |
+| ⑥ | **`HsmAssetDto` uses `JsonIgnore(WhenWritingNull / WhenWritingDefault)` throughout**, and `HsmGoldenCorpusTests.TheCanonicalJsonOfEveryCorpusAssetIsUnchanged` compares canonical JSON | ⛔⛔ **A BUILD CONSTRAINT, not a hope:** `CE-385`'s five fields MUST carry those attributes or **all four shipped assets churn their golden.** ⭐ Now stated so it is checked, not discovered |
+
+⚠ **Still unmeasured, and small:** `HsmBuilder` has `StateBuilder.Activity(string)` and
+`TransitionBuilder.Guard(string)` but no id-taking form, so `CE-383` also adds those. ⭐ `FastHSM` is
+vendored source co-evolved with this repo (`R-48`), so that is in-lane, not a cross-lane edit.
+
+---
+
 ## 9. ⭐⭐⭐ ACCEPTANCE — **and every one is RED-PROVED**
 
 | # | rail | the red-proof that makes it load-bearing |
@@ -397,7 +431,7 @@ ORDER is load-bearing even though its scope is not: `CE-389` before `CE-390` bef
 | ⑤ | the new state's activity runs in the **same tick** the polled transition fired | park in `RTC` instead ⇒ must go red |
 | ⑥ | two parallel regions, each an activity on a different `ChannelKind`, both tick each frame | `HsmOrthogonalRegions` extended; drop one region ⇒ red |
 | ⑦ | a state's `ExpressionTargetField` set in the editor survives save→load→generate and reaches `HsmParamBindings` | unmap it in `HsmAssetMapper` ⇒ red |
-| ⑧ | **the forwarding rail** — the production registrar that HAS the catalog PASSES it to the pickers | assert on the CONSTRUCTED drawer, not on registrar source |
+| ⑧ | 🔴 **RE-AIMED `2026-09-27`** — the two pickers **USE** the exporter they are already given. 📐 Measured: the ONE production site, `AiFacetPickerBinder.Rebuild:95`, **already passes `services.ActionSchema`** into `BuildDrawers`, which already takes it — it simply never reaches `HsmActionPickerDrawer`/`HsmGuardPickerDrawer`. ⇒ the forwarding is NOT the defect; the CONSUMPTION is | assert on the CONSTRUCTED drawer's `GetItems()`, with a catalog holding an `hsmGuard` entry the asset does not mention |
 | ⑨ | a final state still publishes `BehaviorFinishedEvent` exactly once **after** a polled transition reaches it | — |
 
 ⚠ **Rail ⑧ exists because of a named repeat offender** — `HsmValidator._isStatefulSubtree` and
