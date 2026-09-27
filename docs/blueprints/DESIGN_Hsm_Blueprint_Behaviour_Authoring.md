@@ -711,3 +711,51 @@ fixing `CE-395` cannot silently land on top of polling.
 before the active-state walk and they are source-agnostic, so "polled global" needs its own decision
 about where it is evaluated. ⚠ Nothing rejects it yet either — a `GlobalTransitionNode` has no
 `IsPolled` to set, so it is unrepresentable rather than mishandled.
+
+### 13.2 `CE-382` — the polled arm *(`2026-09-27`)*
+
+⭐⭐⭐ **BUILT SMALLER THAN DESIGNED, AND `CE-381` IS WHY.** §8's item said *"a selection variant"*.
+⛔ **No selection code was written at all.** `CE-381` normalises every polled transition onto
+`ReservedEventIds.Polled`, so `SelectTransition` **with that id already matches exactly the polled
+set** — guards, priority, region handling and the region-index plumbing all come from the one
+existing implementation. ⚠ A second walk would have been a duplicate of the thing it copied.
+
+⭐⭐ **And the arm DELEGATES TO `ProcessRTCPhase` rather than executing a transition itself**, which
+is what gives polling **full run-to-completion semantics**: the loop executes the winner, sets
+`currentEventId = 0` and keeps going, so the newly entered state's COMPLETION transitions fire in the
+same tick exactly as they do after an event-driven transition. 🔒 Hand-rolling *"execute one
+transition"* would have made polled transitions second-class in a way no rail would have noticed.
+
+| what shipped | where |
+|---|---|
+| `TryTakePolledTransition` + `AnyActiveStateHasAPolledTransition` | `Fhsm.Kernel/HsmKernelCore.cs` |
+| the call, in the `Idle` arm **before** `ProcessActivityPhase` | same, `CE-334`'s empty-queue branch |
+| **6 rails** | `Fhsm.Tests/Kernel/PolledTransitionKernelTests.cs` |
+
+⭐ **Order is load-bearing and railed:** the polled check runs BEFORE the activities, so a transition
+taken this tick is followed by the **new** state's activity in that tick (`CE382_R5`), not the
+activity of the state being left.
+
+### 13.2a ⚠ THE RED-PROOF, INCLUDING THE RAIL IT DID **NOT** PROVE
+
+| inverse edit | what reddened |
+|---|---|
+| the arm is not called at all | **`R1`, `R3`, `R5`, `R6`** — the four asserting the feature DOES something |
+| the cheap gate always returns true | **`R4` only** — precisely the gate's own rail |
+| restored | **6/6** |
+
+⛔⛔ **`CE382_R2` — the SELECTIVITY rail — stayed GREEN under BOTH inverse edits, and that is worth
+saying rather than glossing.** It asserts an unmarked transition's guard is never called on a
+quiescent tick, and it is protected by the **event-id normalisation** (`CE-381`), not by this item:
+with the gate bypassed the arm still calls `SelectTransition` with the polled id, which an
+event-`7` transition cannot match. ⭐ Its red-proof therefore lives in `CE-381`'s
+`APolledTransitionIsNormalisedOntoTheReservedId…`. ⚠ **A rail that survives every inverse edit of
+the item it ships with is not proving that item** — recorded here so nobody reads six green rails as
+six independent proofs.
+
+📐 **Gates:** `Fhsm.Tests` **327/327** *(321 + 6)* · `Fdp.Toolkits.Tests` **2342/2342** ·
+`Hrot.AiEditor.Generators.Tests` **321/321** · `Hrot.Hsm.Editor.Tests` **587/587** · tree clean.
+
+⛔ **Still NOT reachable from an asset** — an HSM asset cannot yet name a polled transition, because
+that is `CE-385`'s DTO field. ⭐ Until then polling is exercised through `HsmBuilder.Polled()` and the
+compiler's `"polled": true`.
