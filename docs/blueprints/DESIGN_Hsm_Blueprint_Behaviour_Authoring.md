@@ -15,6 +15,9 @@ known-conflict: ⚠ HSM_Editor_NodeEditor_Host_Design.md §10.4 says the `Lane` 
   `[HsmAction]` "doesn't currently exist". It DOES — `HsmActionGenerator.cs:598` emits it. That line
   is rotted; this design does not depend on it either way.
 related-designs:
+  - RESUME_Hsm_Blueprint_Behaviour.md — ⭐ THE LANE'S STATE DOC for this programme: what is built,
+    what is next, the measurements already made and the fixture traps. ⛔ It is a SNAPSHOT; this
+    design wins on any disagreement.
   - HSM_Editor_NodeEditor_Host_Design.md — ⭐⭐ owns the HSM EDITOR surface: §7 transitions, §8 final
     states, §10.1/§10.2 the action/guard pickers this design finally wires to a catalog. ⛔ It does
     NOT own the kernel phase machine or the blueprint bridge.

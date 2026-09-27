@@ -4,7 +4,8 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **HSM SUBTR
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-27
-build-state: ⭐⭐⭐ **THIS PROGRAMME IS FINISHED. THE NEXT ONE IS `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md`**
+build-state: ⭐⭐⭐ **THIS PROGRAMME IS FINISHED. THE LIVE LANE DOC IS NOW
+  `RESUME_Hsm_Blueprint_Behaviour.md`** (design: `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md`)
   *(`2026-09-27`, READY-TO-BUILD, `CE-381`..`CE-388`)* — an editor-authored HSM as an entity behaviour, with
   blueprint ACTIONS and GUARDS and a POLLED transition. ⛔ Read that design's §2 INVENTORY before touching
   anything here; §2.4 records a CORRECTION to a claim made while scoping it.
