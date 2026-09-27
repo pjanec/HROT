@@ -7,6 +7,9 @@ known-rot: ⚠ predates the JSON substrate; `BTree_HSM_Editor_State_And_Forward_
   substrate assumptions here while leaving this the feature/UX spec. ⛔ Do not quote it for
   persistence shape.
 related-designs:
+  - DESIGN_Occurrence_Scoped_Storage.md — ⭐⭐ §33 (`E6`) owns the BTree-hosts-BTree RUNTIME + EMIT
+    half that this document's §S1 does not: the thunk, the slot declaration and the tick. §32 owns
+    the HSM twin (`E5`).
   - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a).
   - HSM_Editor_NodeEditor_Host_Design.md — the twin; §11.1a owns the HSM state's hosted-subtree field.
 -->
@@ -1512,6 +1515,18 @@ is a `string[]` of names. 🔒 **That is true of the runtime BLOB, which is expl
 `"not persisted (runtime-only)"`** — ⛔ it is NOT true of the authored asset, whose DTO carries the
 full triple. ⇒ **the two hosts' persistence shapes already agree**; only the resolver behaviour and
 the missing picker differed.
+
+#### ⛔⛔ THE REFERENCE IS AUTHORABLE; THE RUNTIME IS NOT — **`E6` designs the rest** *(`2026-09-27`)*
+
+📐 **Measured `2026-09-27`:** everything in this section works — pick, heal, persist, validate, emit,
+compile — and then `Fbt.Kernel/Runtime/Interpreter.cs:249` returns **`Failure`**, because
+`CE-337` retired the orchestrator that used to bridge it and nothing replaced it. ⛔ **No diagnostic
+fires**: the one generator warning keys on `Aliases`/`SubtreeSyncBindings`, which a picked subtree
+does not set, and Rule 6 keys on *unresolved*. ⇒ ⭐⭐ **the better you author it, the quieter it is.**
+
+⭐ **The missing half is designed and READY-TO-BUILD:** 📄 `DESIGN_Occurrence_Scoped_Storage.md`
+**§33 (`E6`)** — the hosting node compiles to an Action thunk over the existing `HostedSubtree` /
+`HostedChildren` seams, zero kernel change. ⚠ **This section owns the AUTHORING half only.**
 
 #### ✅ AS-BUILT `2026-09-26` — **and the fix was only half of it: THE RESOLVER WAS NEVER CALLED** *(`CE-361`)*
 
