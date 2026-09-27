@@ -1,3 +1,18 @@
+<!--STATUS
+state: LIVE
+doc-type: a SEQUENCING plan (how and in what order), not a design. ⛔ Quote a DESIGN for intent.
+updated: 2026-09-27 (related-designs added; no plan content changed)
+current-answer: the Progress blocks below, newest first.
+stale-below: ⚠ the Progress notes are dated; verify any "DONE"/"remaining" line against git before
+  acting on it.
+related-designs:
+  - DESIGN_Behavior_Self_Registration.md — ⭐⭐ Phase 2 here retired `AiBehaviorFactory` and ruled that
+    "every behavior self-registers via [BlueprintRegistrar] discovery". THAT design finishes the
+    sentence for C#-defined behaviours: it generates `CgfCuratedBehaviorRegistrar`'s body and deletes
+    the file. ⛔ This plan owns the sequencing HISTORY; it does not own that design.
+  - Behavior_Parameter_Resolver_Detailed_Design.md — owns the resolver overlay and R-132.
+-->
+
 # Behavior Architecture — Sequenced Implementation Plan
 
 > **Progress (2026-07-14, cont.):** **Phase 3 partially landed —** **I1** (AiPrimitive BTree

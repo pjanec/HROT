@@ -1,3 +1,18 @@
+<!--STATUS
+state: LIVE (partly superseded — see the banner below)
+updated: 2026-09-27 (related-designs added; no content changed)
+current-answer: the MODEL and PIPELINE here stand; DESIGN_Parameter_Model.md wins on any disagreement.
+stale-below: §6/§7 (ground truth + the G1-G7 gap list) were re-measured 2026-08-16 and are STALE.
+known-conflict: ⚠ §338 expresses R-132's probe as "RegisterResolver is reached ONLY from
+  CgfCuratedBehaviorRegistrar". DESIGN_Behavior_Self_Registration.md DELETES that class ⇒ the PROBE
+  must be re-expressed against the [BehaviorResolver] attribute. ⛔ The RULING is unchanged.
+related-designs:
+  - DESIGN_Parameter_Model.md — wins on any disagreement about the params model.
+  - DESIGN_Behavior_Self_Registration.md — owns WHERE a curated resolver is declared (the attribute).
+    ⛔ It does NOT own whether the overlay wins; §338 here does.
+  - Behavior_Architecture_Implementation_Plan.md — the sequencing history.
+-->
+
 # Behavior Parameters & the Resolver — Detailed Design
 
 > ## ⛔⛔ `2026-08-16` — READ [`DESIGN_Parameter_Model.md`](DESIGN_Parameter_Model.md) FIRST
