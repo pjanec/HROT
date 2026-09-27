@@ -625,7 +625,7 @@ mirror of the mistake §2.4 records — a real measurement carried into a decisi
 | `Fdp.Toolkits.Tests` | ✅ 2342 / 2342 ⚠ *(`DEBT-AIB-030`'s rotating flakes did not fire this run — a green here is weak evidence by construction)* |
 | `Hrot.Hsm.Editor.Tests` — `CE-386`/`CE-387` | ✅ 587 / 587 |
 | `Hrot.Blueprints.Tests` | ✅ 4036 passed, 18 skipped |
-| `Hrot.AiEditor.Generators.Tests` — `CE-384`/`CE-385` | ⚠ **4 failed / 317** — ⭐ **exactly `CE-376`'s four, BY NAME** |
+| `Hrot.AiEditor.Generators.Tests` — `CE-384`/`CE-385` | ⚠ **4 failed / 317** — ⭐ **exactly `CE-376`'s four, BY NAME.** 🔴 **SUPERSEDED `2026-09-27`: `CE-376` IS FIXED ⇒ this suite is now `321/321`, FULLY GREEN.** ⭐ The baseline row is kept because it is what the pre-build run measured; the CURRENT number is 321/321 |
 
 ### 12.2 ⭐⭐ `T3` — **6 failed / 111 passed / 117, and EVERY ONE IS PRE-EXISTING**
 

@@ -239,14 +239,9 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         ingress.Execute(world, 0.016f);
     }
 
-    private static unsafe int SlotCount(EntityRepository world, Entity entity)
-    {
-        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
-        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
-        //   production uses — it resolves whichever tier was actually chosen.
-        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
-    }
+    // ⛔ CE-376: the slot-COUNT helper is deleted. It counted every occurrence slot including the
+    //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
+    //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
     private static unsafe T ReadState<T>(EntityRepository world, Entity entity, int slotKey,
         Func<HillAttackMutableState, T> project)
@@ -307,7 +302,11 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         RootStateAccess.EnsureRootState(world, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, commander, assetName);
-        SlotCount(world, commander).Should().Be(1, "exactly one shared partition slot is provisioned");
+        // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY — a count also counts the two ROOT
+        //   slots (root params, root cursor), which is why this read "1" and found 3.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, commander, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
+            "two co-bound Behavior nodes provision exactly the ONE shared slot the manifest names");
 
         // Pre-seed a sentinel so we can prove Action_CalculateSegments writes THIS slot, not a fresh one.
         MutateState(world, commander, slotKey, (ref HillAttackMutableState s) => s.TotalSlots = 99);

@@ -279,19 +279,9 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         return (def!, alc);
     }
 
-    // ── Slot-count accessor (reuses BlueprintBlackboardPartitions.GetSlotCount) ────
-
-    private static unsafe int GetProvisionedSlotCount(EntityRepository world, Fdp.Core.Entity entity)
-    {
-        // ⭐ B4: was THREE arms over the tier trio and knew nothing about the 256 tier.
-        //   OccurrenceStoreAccess is the seam production uses for exactly this.
-        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        if (mem == null)
-            throw new InvalidOperationException(
-                "entity has no BlueprintBlackboard* tier component — slot count cannot be read");
-
-        return BlueprintBlackboardPartitions.GetSlotCount(mem);
-    }
+    // ⛔ CE-376: the slot-COUNT helper is deleted. It counted every occurrence slot including the
+    //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
+    //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
     private static unsafe bool TrySlotOffset(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
@@ -370,8 +360,11 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         AssignBehavior(world, entity, assetName);
 
-        GetProvisionedSlotCount(world, entity).Should().Be(1,
-            "one deduped manifest entry ⇒ exactly one provisioned partition slot");
+        // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY — a count also counts the two ROOT
+        //   slots (root params, root cursor), which is why this read "1" and found 3.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
+            "one deduped manifest entry ⇒ exactly the one authored slot the manifest names");
         TrySlotOffset(world, entity, behaviorKey).Should().BeTrue(
             "the shared Behavior slot must be attached under its scope-aware key");
 
@@ -437,8 +430,12 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         AssignBehavior(world, entity, assetName);
 
-        GetProvisionedSlotCount(world, entity).Should().Be(3,
-            "three deduped manifest entries ⇒ exactly three provisioned partition slots");
+        // ⭐ CE-376: the manifest's OWN keys, so the two Node-scoped slots and the one shared
+        //   Behavior slot are named rather than totalled. ⛔ The two ROOT slots are added by the
+        //   helper — a count here silently absorbed them.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
+            "two Node-scoped slots + one shared Behavior slot, exactly as the manifest names them");
 
         // The shared Behavior slot must exist under its scope-aware key.
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(

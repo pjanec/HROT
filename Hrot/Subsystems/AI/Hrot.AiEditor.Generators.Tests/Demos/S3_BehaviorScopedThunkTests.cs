@@ -240,14 +240,9 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         ingress.Execute(world, 0.016f);
     }
 
-    private static unsafe int SlotCount(EntityRepository world, Fdp.Core.Entity entity)
-    {
-        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
-        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
-        //   production uses — it resolves whichever tier was actually chosen.
-        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        return m == null ? 0 : BlueprintBlackboardPartitions.GetSlotCount(m);
-    }
+    // ⛔ CE-376: the slot-COUNT helper is deleted. It counted every occurrence slot including the
+    //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
+    //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
     private static unsafe int ReadCursor(EntityRepository world, Fdp.Core.Entity entity, int slotKey)
     {
@@ -311,7 +306,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         RootStateAccess.EnsureRootState(world, entity);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
         AssignBehavior(world, entity, assetName);
-        SlotCount(world, entity).Should().Be(1, "exactly one shared partition slot must be provisioned");
+        // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY. A bare count also counts the two
+        //   ROOT slots (root params, root cursor), which is why this read "1" and found 3.
+        RootParamsTestHarness.AssertAuthoredSlotsAre(
+            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
+            "two co-bound Behavior nodes provision exactly the ONE shared slot the manifest names");
 
         // One tick: A then B advance the SAME cursor (0→1→2).
         var ctx = new BTreeContext { Self = entity, World = world };

@@ -91,4 +91,72 @@ internal static unsafe class RootParamsTestHarness
         => ref System.Runtime.CompilerServices.Unsafe.As<byte, T>(
                ref System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                    ref RootParamsAccess.RootRef(world, entity), (nint)byteOffset));
+
+    /// <summary>
+    /// ⭐ Every slot key currently attached to <paramref name="entity"/>'s occurrence store — authored
+    /// and root alike, in slot order.
+    /// </summary>
+    internal static System.Collections.Generic.List<int> AttachedSlotKeys(
+        EntityRepository world, Entity entity)
+    {
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        if (mem == null)
+            throw new System.InvalidOperationException(
+                "entity has no BlueprintBlackboard* tier component — its slots cannot be read");
+
+        var keys = new System.Collections.Generic.List<int>();
+        int n = BlueprintBlackboardPartitions.GetSlotCount(mem);
+        for (int i = 0; i < n; i++)
+        {
+            int id = BlueprintBlackboardPartitions.GetSlot(mem, i).BlueprintId;
+            if (id != 0) keys.Add(id);   // 0 = unused slot
+        }
+        return keys;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-376</c> — assert WHICH slots are attached, never HOW MANY.</b>
+    ///
+    /// <para>🔴 <b>The defect this replaces, and it is worth stating because it recurred silently for
+    /// two slices.</b> Four rails asserted <c>GetSlotCount(store) == 1</c>. That counts <b>every</b>
+    /// occurrence slot, and since <c>O7c</c>-② *(<c>6f64208d6</c> — the BTree root cursor became a
+    /// slot)* plus <c>P3-C</c> *(root params became a slot)* the true total is <b>authored + 2</b>.
+    /// ⛔ The runtime was right and the assertion was stale, but a bare count cannot say which of the
+    /// two it is — so the rails read as a product defect for two slices.</para>
+    ///
+    /// <para>⭐⭐ <b>Why a SET and not a corrected number.</b> Writing <c>Be(3)</c> would be true today
+    /// and would rot the next time a root slot is added — exactly the failure being repaired. A set
+    /// comparison NAMES the newcomer instead of absorbing it: add a third root slot and this fails
+    /// saying <i>"unexpected key"</i>, which is a finding rather than an off-by-one.</para>
+    ///
+    /// <para>⚠ The root keys are DERIVED here, not hard-coded — <see cref="RootParamsAccess.KeyFor"/>
+    /// and <see cref="RootStateAccess.KeyFor"/> are the same functions production resolves through.</para>
+    /// </summary>
+    /// <param name="expectedAuthoredKeys">
+    /// The slot keys the asset's manifest should have provisioned. ⛔ Root slots are added by this
+    /// helper; do NOT include them.
+    /// </param>
+    internal static void AssertAuthoredSlotsAre(
+        EntityRepository world, Entity entity,
+        System.Collections.Generic.IEnumerable<int> expectedAuthoredKeys,
+        string because)
+    {
+        var expected = new System.Collections.Generic.HashSet<int>(expectedAuthoredKeys)
+        {
+            RootParamsAccess.KeyFor(world, entity),   // P3-C
+            RootStateAccess.KeyFor(world, entity),    // O7c-② (6f64208d6)
+        };
+
+        var actual  = new System.Collections.Generic.HashSet<int>(AttachedSlotKeys(world, entity));
+        var missing = new System.Collections.Generic.HashSet<int>(expected); missing.ExceptWith(actual);
+        var extra   = new System.Collections.Generic.HashSet<int>(actual);   extra.ExceptWith(expected);
+
+        if (missing.Count != 0 || extra.Count != 0)
+            throw new Xunit.Sdk.XunitException(
+                $"attached slot keys do not match the expectation — {because}.\n" +
+                $"  missing (expected, not attached): [{string.Join(", ", missing)}]\n" +
+                $"  unexpected (attached, not expected): [{string.Join(", ", extra)}]\n" +
+                $"  NOTE: the two ROOT slots (root params, root cursor) are expected by construction; " +
+                "an unexpected key here is a NEW slot someone added — name it, do not widen a count.");
+    }
 }
