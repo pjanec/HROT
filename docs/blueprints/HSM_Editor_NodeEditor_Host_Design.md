@@ -6,6 +6,9 @@ known-rot: ⚠ this document predates the JSON substrate. `BTree_HSM_Editor_Stat
   says so explicitly and SUPERSEDES the substrate assumptions here, while leaving this the
   feature/UX spec. ⛔ Do not quote this doc for persistence shape.
 related-designs:
+  - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns the BLUEPRINT-hosted action/guard binding and
+    the POLLED transition. ⚠ It supersedes this doc's §10.1/§10.2 on WHERE the pickers get their
+    items (a catalog, not the asset's own strings), and §10.4's claim that `Lane` does not exist.
   - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a);
     this doc owns only the HSM-side field, walker and validator rule.
   - BTree_Editor_NodeEditor_Host_Design.md — the twin; owns BTree's subtree node and its walker.

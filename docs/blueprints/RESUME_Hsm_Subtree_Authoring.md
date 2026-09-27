@@ -3,8 +3,12 @@ state: LIVE
 doc-type: THE resumption doc for the `behaviors` lane — programme: **HSM SUBTREE AUTHORING + THE SHARED ASSET PICKER**.
   ⚠ A STATE doc, not canon. Every "green"/"pushed"/"HEAD" line is a snapshot dated below.
   ⛔ VERIFY against git before acting ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-26
-build-state: ✅ **BUILT `2026-09-26` — all four items done, plus a FIFTH the build discovered (`CE-361`).**
+updated: 2026-09-27
+build-state: ⭐⭐⭐ **THIS PROGRAMME IS FINISHED. THE NEXT ONE IS `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md`**
+  *(`2026-09-27`, READY-TO-BUILD, `CE-381`..`CE-388`)* — an editor-authored HSM as an entity behaviour, with
+  blueprint ACTIONS and GUARDS and a POLLED transition. ⛔ Read that design's §2 INVENTORY before touching
+  anything here; §2.4 records a CORRECTION to a claim made while scoping it.
+  ✅ **BUILT `2026-09-26` — all four items done, plus a FIFTH the build discovered (`CE-361`).**
   ⭐⭐⭐ **START AT §1a — what was built and what it cost.** ⛔ **§2 is the measurement; DO NOT RE-DERIVE IT.**
   Branch `behaviors`. ⚠ Verify HEAD against git — this line is a snapshot.
 current-answer: ⭐⭐⭐ §1 is the build list · §2 the measurements already made · §3 the corrections that

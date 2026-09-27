@@ -53,6 +53,9 @@ known-rot: ⚠ this document predates UXI-11 (selection unification, ☑ 2026-09
      global entity selection state … every host"): EntityInspectorPanel.ChainToMap was RETIRED at S-3,
      with its operator toggle. Do not implement §5.4 as written.
 related-designs:
+  - docs/blueprints/DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — CONSUMES this file's
+    `ActionSchemaExporter` / behavior-action catalog to fill the HSM action and guard pickers,
+    filtered by the `hsmAction` / `hsmGuard` flags. It owns the HSM side only; the catalog stays here.
   - docs/blueprints/DESIGN_Editor_Entity_Selection_Source.md — owns WHERE an AI-editor view gets its
     entity (unified selection when docked, frozen snapshot when pinned). SUPERSEDES this file's
     §5.3 (the DDS bridge as ingress) and §5.4 (the per-window ChainToMap toggle).

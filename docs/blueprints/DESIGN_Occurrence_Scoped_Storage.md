@@ -112,6 +112,9 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns action/guard IDENTITY (how an HSM asset
+    ADDRESSES a blueprint-hosted thunk) and the POLLED transition. ⭐ This doc owns the occurrence
+    storage those thunks land in; it does NOT own how they are named or when a guard runs.
   - AI_Editor_Shared_Infrastructure.md — owns the shared asset PICKER and the subtree heal rule
     (§7.1a). This doc owns the runtime that consumes what they author.
   - HSM_Editor_NodeEditor_Host_Design.md — §11.1a owns HSM subtree AUTHORING (the facet field,
