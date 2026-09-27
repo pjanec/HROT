@@ -17,6 +17,14 @@ namespace Fhsm.Compiler.Graph
         public bool IsInternal { get; set; }  // Internal vs External
 
         /// <summary>
+        /// ⭐⭐ <b>CE-381 — evaluate this transition's guard every quiescent tick, with no event.</b>
+        /// ⛔ Distinct from an eventless (completion) transition, which the RTC loop already selects
+        /// once after another transition fires. 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c>
+        /// §3.1 / §2.3.
+        /// </summary>
+        public bool IsPolled { get; set; }
+
+        /// <summary>
         /// Stable identity for editor/visualisation tooling.
         /// Auto-generated when not explicitly supplied.
         /// </summary>

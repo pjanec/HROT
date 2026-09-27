@@ -235,5 +235,25 @@ namespace Fhsm.Compiler
             _transition.Priority = priority;
             return this;
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>CE-381 — mark this transition POLLED: its guard is evaluated every quiescent
+        /// tick, with no event.</b>
+        ///
+        /// <para>⛔⛔ <b>This is NOT "a transition with no event".</b> An eventless transition
+        /// (<c>EventId 0</c>) is already selected by the RTC loop's completion pass and fires ONCE,
+        /// as a consequence of another transition firing. A polled transition fires whenever its
+        /// guard passes while the machine is otherwise idle. 🔒 The two were deliberately NOT
+        /// collapsed onto one encoding — 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §2.3,
+        /// §3.1, §10 ③.</para>
+        ///
+        /// <para>⚠ A polled transition normally carries a <see cref="Guard"/>. One without a guard
+        /// fires on the first quiescent tick, which is legal and occasionally what you want.</para>
+        /// </summary>
+        public TransitionBuilder Polled(bool polled = true)
+        {
+            _transition.IsPolled = polled;
+            return this;
+        }
     }
 }

@@ -663,3 +663,51 @@ preview/spawn; none touches HSM authoring, the transition kernel or the blueprin
 ⇒ 🔒 **Any red in `Fhsm.Tests` during this programme is OURS**, with no ambiguity. ⛔ That property is
 the whole value of this section, and it expires the moment someone else's merge lands — **re-capture
 after a rule-7 re-sync.**
+
+---
+
+## 13. ✅ AS-BUILT
+
+### 13.1 `CE-381` — the two flags *(`2026-09-27`)*
+
+⭐⭐⭐ **ONE DEVIATION FROM §8's ITEM, AND IT IS A REAL ADDITION: `ReservedEventIds.Polled = 0xFFFD`,
+plus a NORMALISATION in the flattener.**
+
+🔴 **Why it was needed, found while writing the authoring surface.** A transition is created through
+`StateBuilder.On(...)`, so a polled transition authored the obvious way — `.On(0).GoTo(X).Polled()` —
+carries **`EventId 0`**. ⛔ And §2.3's correction says event 0 is the RTC loop's **completion pass**.
+⇒ that transition would be selected by the completion pass **as well as** the polled scan: exactly the
+POLLED/COMPLETION conflation §10 ③ rejected, reintroduced through the back door by the authoring API.
+
+⭐⭐ **The fix keeps the two disjoint BY CONSTRUCTION rather than by discipline.** `HsmFlattener` sets
+`def.EventId = node.IsPolled ? ReservedEventIds.Polled : node.EventId`. ⭐ It lives in the FLATTENER,
+not the builder, so **every** authoring route — fluent, the compiler's JSON parser, and the DTO
+emitter `CE-385` will add — lands on the same id with no per-route rule to remember.
+
+| what shipped | where |
+|---|---|
+| `TransitionFlags.IsPolled = 1 << 6` · `StateFlags.HasPolledTransition = 1 << 9` · `ReservedEventIds` *(`Completion`/`Polled`/`Timer`)* | `Fhsm.Kernel/Data/Enums.cs` |
+| `TransitionNode.IsPolled` | `Fhsm.Compiler/Graph/TransitionNode.cs` |
+| `TransitionBuilder.Polled(bool = true)` | `Fhsm.Compiler/HsmBuilder.cs` |
+| `"polled": true` — optional, absent by default | `Fhsm.Compiler/IO/JsonStateMachineParser.cs` |
+| the flag, the DERIVED state bit, and the id normalisation | `Fhsm.Compiler/HsmFlattener.cs` |
+| **12 rails** | `Fhsm.Tests/Compiler/PolledTransitionFlagTests.cs` |
+
+⭐⭐ **Red-proved, one inverse edit per load-bearing claim, each reddening EXACTLY its own rail:**
+removing the normalisation ⇒ only `APolledTransitionIsNormalisedOntoTheReservedId…` fails; removing
+the derivation ⇒ only `Flattener_DerivesHasPolledTransition_OnTheSourceStateOnly` fails; restored ⇒
+12/12.
+
+📐 **Gates:** `Fhsm.Tests` **321/321** *(309 pre-existing + 12 new)* · `Hrot.AiEditor.Generators.Tests`
+**321/321** · `Fdp.Toolkits.Tests` **2342/2342** · ⭐⭐ **working tree CLEAN — no golden regenerated**,
+which is §8a ③'s no-churn prediction met rather than assumed.
+
+⚠ **Two rails exist only because `CE-395` proved bit drift is live in this very enum:** the bit
+POSITIONS are asserted *(`1 << 6`, `1 << 9`)*, and `IsPolled` is asserted clear of **both** priority
+spellings — the declared `Priority_Mask = 0xF000` and the bits 8-11 the flattener actually writes. ⇒
+fixing `CE-395` cannot silently land on top of polling.
+
+⛔ **NOT done here, deliberately:** global transitions cannot be polled. `SelectTransition` scans them
+before the active-state walk and they are source-agnostic, so "polled global" needs its own decision
+about where it is evaluated. ⚠ Nothing rejects it yet either — a `GlobalTransitionNode` has no
+`IsPolled` to set, so it is unrepresentable rather than mishandled.

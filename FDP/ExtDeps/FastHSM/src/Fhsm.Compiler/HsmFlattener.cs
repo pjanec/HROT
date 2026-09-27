@@ -194,6 +194,18 @@ namespace Fhsm.Compiler
             if (node.IsParallel) flags |= StateFlags.IsParallel;
             if (node.IsFinal) flags |= StateFlags.IsFinal;
             if (node.Children.Count > 0) flags |= StateFlags.IsComposite;
+
+            // ⭐⭐⭐ CE-381 — DERIVED, never authored. The kernel's Idle arm already walks leaf→root
+            //   per region for activities; this bit makes the polled check ONE BIT TEST on that walk,
+            //   so a state with no polled transition costs nothing.
+            // ⚠ It is also the ONLY StructureHash coverage polling gets: ComputeStructureHash hashes
+            //   state.Flags and NOT trans.Flags. The residual gap is ACCEPTED (design §8b).
+            foreach (var t in node.Transitions)
+            {
+                if (!t.IsPolled) continue;
+                flags |= StateFlags.HasPolledTransition;
+                break;
+            }
             
             return flags;
         }
@@ -228,7 +240,16 @@ namespace Fhsm.Compiler
                 
                 def.SourceStateIndex = node.Source.FlatIndex;
                 def.TargetStateIndex = node.Target.FlatIndex;
-                def.EventId = node.EventId;
+
+                // ⭐⭐⭐ CE-381 — NORMALISE a polled transition onto the reserved id, whatever it was
+                //   authored with. This is what keeps POLLED and COMPLETION disjoint BY CONSTRUCTION:
+                //   authored as `.On(0)` a polled transition would carry EventId 0, and the RTC
+                //   loop's completion pass (ProcessRTCPhase sets currentEventId = 0 after every
+                //   executed transition) would select it TOO. 📄 design §2.3 / §10 ③.
+                // ⚠ Done HERE rather than in the builder so EVERY authoring route — fluent, JSON
+                //   parser, and the DTO emitter that CE-385 adds — lands on the same id.
+                def.EventId = node.IsPolled ? ReservedEventIds.Polled : node.EventId;
+
                 def.GuardId = node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF;
                 def.ActionId = node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF;
                 
@@ -249,7 +270,21 @@ namespace Fhsm.Compiler
             TransitionFlags flags = TransitionFlags.None;
             
             if (node.IsInternal) flags |= TransitionFlags.IsInternal;
-            
+
+            // ⭐⭐ CE-381 — the POLLED bit. The state-level HasPolledTransition is derived from this
+            //   in BuildStateFlags; the two must stay in step, which is why both are computed here
+            //   from the same source property rather than authored separately.
+            if (node.IsPolled) flags |= TransitionFlags.IsPolled;
+
+            // 🔴 CE-395 — THE PRIORITY ENCODING BELOW IS WRONG AND IS FILED, NOT FIXED HERE.
+            //   It writes bits 8-11 (<< 8) while Enums.cs declares Priority_Mask = 0xF000 and
+            //   HsmKernelCore.cs:631 reads (ushort)Flags >> 12 ⇒ every priority reads ZERO and
+            //   SelectTransition degenerates to first-match-wins. A second bug compounds it:
+            //   node.Priority defaults to 128 and `& 0x0F` truncates that to 0.
+            // ⛔ Not repaired inside CE-381: fixing it CHANGES WHICH TRANSITION WINS for any asset
+            //   that authors a priority, which is a behaviour change and deserves its own rail.
+            //   (Blast radius on shipped content is zero — all four assets author Priority 0.)
+
             // Encode priority (4 bits)
             // Priority is a byte (0-255). 
             // Assuming bits 8-11 usage: (priority & 0x0F) << 8.
