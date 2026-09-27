@@ -9868,3 +9868,213 @@ nothing about the child's registrar** — the one that actually races.
 ⚠ The ordinal site fallback *(now warned by `BEH010`)* · the `E3` baked-offset hazard · **no runtime
 cycle guard** — a hand-written ring still recurses until the stack dies, and it needs its own decision
 about what a cycle should DO.
+
+---
+
+## 33.12 ⭐⭐⭐ `E6b` — **THE EDITOR-AUTHORED PATH, END TO END** *(`2026-09-27`)*
+
+<!--SECTION-STATUS
+build-state: BUILT (2026-09-27) — all three rails green and red-proved; §33.12.6 is the as-built.
+owns: the ACCEPTANCE of the editor-authored (*.btree.json) hosting route — boot registration,
+  manifest provisioning, and the per-frame tick — as distinct from §33.11's kernel mechanism.
+supersedes: nothing. ⭐ §33.11 ④'s "3 shipped assets host" is the FACT that makes this section exist.
+-->
+
+🔒 **User, `2026-09-27`:** *"please make the editor path working as well. measure first, design next,
+only then implement."*
+
+### 33.12.1 ⭐⭐ INVENTORY — **measured BEFORE drawing, and it inverted the premise**
+
+⛔⛔ **I expected to find missing plumbing. There is none.** 📐 Every link of the editor route already
+exists and is individually correct; what is absent is **evidence that the chain runs as a chain.**
+
+| link | measured at | verdict |
+|---|---|---|
+| the generated registrar emits plan → slots → `SubtreeHost` → `Bind` | the 3 goldens | ✅ emitted |
+| production discovers it | `BlueprintRegistrarScanner.Scan:99` — any `[BlueprintRegistrar]` type; the generated class carries it | ✅ |
+| ⭐⭐ the hosted slot **sizes the tier** | `BehaviorIngressSystem.ProvisionStatefulSlots:780` sums **every** manifest slot into `requiredPayload`, and `Combine` put the hosted slots in that manifest | ✅ **no gap** |
+| the slot is attached | `AttachManifestSlots`, same method's tail | ✅ |
+| ⭐⭐ reassign resets the child cursor | `ResetHostedTreeStates:625` filters on `IsTreeStateSlot` ≡ `WorkingStateType == typeof(BehaviorTreeState)` — exactly what `BTreeHostedSites.TreeStateSlot` emits | ✅ **free** |
+| `BrainTickSystem` drives a BTree host | `:169` `BrainTierBTree → TickBTree`; `:297` ticks the root interpreter with `World`/`Self` on the context | ✅ |
+| kernel → host → child | `E6_R1`…`E6_R7b` | ✅ red-proved |
+| registrar ORDER | `CE-377` lazy bind | ✅ red-proved |
+
+⭐⭐ **Two things I expected to be gaps and measured as NOT gaps** — worth recording so the next
+session does not re-suspect them:
+
+| suspected | why it is fine |
+|---|---|
+| `HostedOccurrenceDemandCalculator.For` returns `null` unless `definition.HsmDefinition` is set ⇒ *"a BTree host gets no demand"* | 📐 that calculator sizes **lazily-attached blueprint** occurrences only. A hosted tree-state slot is **manifest-declared**, so `ProvisionStatefulSlots` already counts it. ⛔ Wiring the calculator for BTree would DOUBLE-count |
+| `TickHostedChildren` is called only from `TickHsm:436` ⇒ *"BTree hosts are never swept"* | 📐 deliberate: for a BTree host the kernel's own `ExecuteSubtree` runs the child **inline**, on the path. ⛔ A second sweep would tick the child twice |
+
+### 33.12.2 ⭐⭐⭐ THE MODULE DIAGRAM — **who runs what, and the ONE shared table**
+
+```mermaid
+graph TD
+  subgraph BOOT["BOOT — once per assembly scan"]
+    SCAN["BlueprintRegistrarScanner.Scan<br/>(reflection, ARBITRARY order)"]
+    REG["&lt;Asset&gt;Registrar.Register<br/>(GENERATED, one per *.btree.json)"]
+    PLAN["BTreeHostedSites.PlanFor<br/>walks blob.Nodes for NodeType.Subtree"]
+    BIND["BTreeHostedSites.Bind<br/>_byStructureHash[blob.StructureHash] = nodeIndex-&gt;key"]
+    HC["HostedChildren.Register<br/>LAZY since CE-377"]
+    SCAN --> REG --> PLAN --> BIND --> HC
+  end
+
+  subgraph ASSIGN["ASSIGN — BehaviorIngressSystem, frame of the assign"]
+    PROV["ProvisionStatefulSlots<br/>tier sized from the WHOLE manifest"]
+    ATT["AttachManifestSlots<br/>attaches the hosted tree-state slot"]
+    RST["ResetHostedTreeStates<br/>IsTreeStateSlot filter"]
+    PROV --> ATT --> RST
+  end
+
+  subgraph FRAME["EVERY FRAME — BrainTickSystem"]
+    TB["TickBTree :169/:297"]
+    ROOT["Interpreter.Tick (root)"]
+    EXEC["ExecuteSubtree (kernel)"]
+    OSH["OccurrenceSubtreeHost.Tick"]
+    HS["HostedSubtree.TickFromContext"]
+    CHILD["child Interpreter.Tick<br/>its OWN cursor slot"]
+    TB --> ROOT --> EXEC --> OSH --> HS --> CHILD
+  end
+
+  BIND -. "the node-&gt;key map" .-> OSH
+  HC -. "the child interpreter" .-> HS
+  ATT -. "the cursor slot" .-> CHILD
+
+  DEAD["TickHostedChildren :436"]
+  TB -.->|"NEVER — HSM branch only, and correctly so"| DEAD
+
+  classDef dead fill:#5a2a2a,stroke:#a33,color:#fff
+  class DEAD dead
+```
+
+⭐ **Caption — what the picture shows that the prose hid.** Three *different* lifetimes feed one tick:
+a **boot-time** map keyed by `StructureHash`, an **assign-time** slot on the entity, and a
+**per-frame** interpreter walk. ⛔ Nothing type-checks that the three agree — the slot key computed at
+boot must equal the slot attached at assign must equal the key looked up at tick. ⭐⭐ **That is the
+whole reason an end-to-end rail is not optional here:** every unit rail so far has supplied two of the
+three by hand. The red edge is the deliberate non-call ⑤ measures.
+
+### 33.12.3 ⭐⭐ THE SEQUENCE — **the three lifetimes, in order**
+
+```mermaid
+sequenceDiagram
+  autonumber
+  participant Scan as BlueprintRegistrarScanner
+  participant Reg as GENERATED Registrar
+  participant Sites as BTreeHostedSites
+  participant Kids as HostedChildren
+  participant Ing as BehaviorIngressSystem
+  participant Brain as BrainTickSystem
+  participant Kern as Interpreter (kernel)
+  participant Host as OccurrenceSubtreeHost
+
+  Note over Scan,Kids: BOOT
+  Scan->>Reg: Register(beh, staging, actions)
+  Reg->>Sites: PlanFor(blob, name, assetId)
+  Sites-->>Reg: Plan(Entries, Slots)
+  Reg->>Reg: definition.StatefulWorkingSlots = Combine(authored, hosted)
+  Reg->>Sites: Bind(beh, blob, plan)
+  Sites->>Kids: Register(beh, key, childName)
+  Note right of Kids: records NAME, resolves LATER (CE-377)
+
+  Note over Ing: ASSIGN FRAME
+  Ing->>Ing: ProvisionStatefulSlots — tier fits the WHOLE manifest
+  Ing->>Ing: AttachManifestSlots — the cursor slot exists
+
+  Note over Brain,Host: EVERY FRAME
+  Brain->>Kern: Tick(rootBlackboard, rootCursor, ctx{World,Self})
+  Kern->>Host: ExecuteSubtree(nodeIndex)
+  Host->>Sites: TryGetKey(blob, nodeIndex)
+  Sites-->>Host: treeStateSlotKey
+  Host->>Kids: Require(key)
+  Kids-->>Host: child interpreter
+  Host->>Kern: child.Tick(own cursor from the slot)
+```
+
+### 33.12.4 ⭐⭐⭐ THE RAILS — **three, and each pins a DIFFERENT one of the three lifetimes**
+
+| rail | what it runs | what it would catch that nothing else can |
+|---|---|---|
+| ⭐⭐⭐ **`E6_R8`** | a BTree host + child through the **real `BehaviorIngressSystem`** (assign) **and the real `BrainTickSystem`** (3 frames), asserting the child's leaf entered **3** times and its cursor is slot-resident. ⭐ The twin of `E5_R3`, which is the HSM arm's money rail | the **key agreement across all three lifetimes** — boot key ≡ attached slot ≡ tick lookup. ⛔ Every existing E6 rail hand-supplies at least two of them |
+| ⭐⭐⭐ **`E6_R9`** | compiles a **real shipped hosting asset** through the emitter and **INVOKES** the generated `Register`, then asserts the site is bound and the definition carries the hosted slot | ⛔ that the emitted TEXT is EXECUTABLE. 🔒 This is the `CE-333`/`CE-335` failure class by name — the retired orchestrator emitted a call to a method defined nowhere and passed its shape rails for months. **The goldens cannot see it** |
+| ⭐⭐ **`E6_R10`** | the shipped hosting blobs' `StructureHash` values are **DISTINCT** | 📐 `_byStructureHash` is ONE dictionary and **3 assets now write to it**; equal hashes silently clobber a host's node→key map, last writer wins. ⚠ Harmless while nothing shipped hosted; live now |
+
+⭐ **Home: `BTreeHostsBTreeTests`** *(the feature's own suite, `T-1` ④)*. ⚠ **§33.9 item 8 named
+`HostedSubtreeCursorTests` and the build used a new class** — recorded here rather than silently: that
+suite owns the `O4_*` cursor/ingress rails for the HSM arm and is already 600+ lines; splitting the
+BTree arm out was a judgement call, and `E6_R8` deliberately MIRRORS `O4_R5`'s ingress fixture rather
+than inventing one.
+
+### 33.12.5 ⛔ REJECTED
+
+| | why not |
+|---|---|
+| ⛔ **wire `HostedOccurrenceDemandCalculator` for BTree hosts** | 📐 the hosted slot is already in the manifest ⇒ it would be counted **twice** and push every hosting entity to a larger tier |
+| ⛔ **call `TickHostedChildren` from `TickBTree`** | the kernel runs the child **inline** on the path ⇒ the child would tick **twice per frame** |
+| ⛔ **assert the goldens harder** | 🔒 text cannot tell *"hosting works"* from *"hosting is spelled correctly"* — the sentence this whole section exists to honour |
+| ⚠ **a `--mode all` cluster run as the acceptance** | ⭐ it is the strongest evidence and it is `T3` — **async, never a foreground blocker**. 📋 Named as follow-up, not as this slice's gate |
+
+
+### 33.12.6 ✅ AS-BUILT — **`2026-09-27`, and the INVENTORY's premise held**
+
+⭐⭐⭐ **The measurement in §33.12.1 was right: no plumbing was missing.** All three rails passed on
+first run, and ⛔ **that is exactly why each was then RED-PROVED** — a rail that has never failed is a
+rail whose subject might not be load-bearing.
+
+| rail | where | result | ⭐ the inverse edit that reddened it |
+|---|---|---|---|
+| **`E6_R8`** | `BTreeHostsBTreeTests` | ✅ | drop `StatefulWorkingSlots = plan.Slots` from the definition ⇒ **RED**, with **0 compile errors** — a genuine behaviour red, not a build failure. ⭐ It proves the *manifest → ingress → attach → tick-time lookup* chain is real and not incidentally satisfied |
+| **`E6_R9`** | `BlueprintRegistrarBridgeIntegrationTests` | ✅ | force `hostsSubtrees = false` in `BTreeBridgeEmitCore` ⇒ **RED**. ⭐ The emitter is the subject, and the rail fails when it stops emitting |
+| **`E6_R10`** | same file | ✅ | — *(a distinctness assertion; its inverse is a hash collision, which cannot be staged without editing an asset)* |
+
+⭐⭐ **What `E6_R8` adds that no earlier rail could.** It is the first test in which **all three
+lifetimes of §33.12.2 are supplied by production code**: the key comes from `PlanFor` at boot, the slot
+from `BehaviorIngressSystem` at assign *(nothing in the test attaches it — that assertion is explicit)*,
+and the lookup from `OccurrenceSubtreeHost` at tick. ⛔ Every earlier E6 rail hand-supplied at least two
+of the three, so a disagreement between them was **structurally unobservable**.
+
+⭐⭐ **What `E6_R9` adds.** It **executes** a shipped hosting asset's generated registrar
+*(`T07_Subtree`)* and checks four things the goldens cannot: the manifest carries exactly one hosted
+tree-state slot · `SubtreeHost` is set *(without it the kernel keeps the historical `Subtree ⇒ Failure`
+stub)* · the key `Bind` published **equals** the key the manifest declared · and the child resolves when
+registered **after** the host — `CE-377`'s lazy bind, on real emitted code.
+
+⚠ **`E6_R10` found nothing today** — the three shipped hosting blobs' `StructureHash` values are
+distinct — ⭐ which is the answer, not an absence of one: the shared `_byStructureHash` dictionary is
+now *guarded* rather than *hoped about*.
+
+#### 🔴 THE RAILS EXPOSED A LATENT HARNESS HAZARD — **and the first diagnosis was WRONG**
+
+📐 Adding `E6_R9`/`E6_R10` reddened an **unrelated** rail,
+`HillAssault2I_Integration_Smoke_ProofTests` — which **passes in isolation**. ⭐ Measured cleanly:
+**4 failures with the rails stashed, 5 with them present.**
+
+⛔⛔ **My first diagnosis blamed the hosting tables** *(`BTreeHostedSites._byStructureHash` +
+`HostedChildren._bySlotKey`, left dirty by invoking a real registrar)* and I wrote that into a code
+comment **before capturing the error**. 🔴 **It was wrong.** The captured exception:
+
+```
+InvalidOperationException: Operations that change non-concurrent collections must have
+exclusive access. A concurrent update was performed on this collection and corrupted its state.
+  at Dictionary`2.TryInsert
+  at Fhsm.Kernel.HsmActionDispatcher.RegisterAction (HsmActionDispatcher.cs:41)
+  at BlueprintRegistrar_HsmTwoRegionParamsDemo_1434647B_Bp.Register(BlueprintRegistryStaging)
+```
+
+⇒ ⭐⭐ **the hazard is PRE-EXISTING and STRUCTURAL:** several classes in that assembly **invoke real
+generated registrars**, a registrar writes to process-wide **non-thread-safe** statics, and xUnit runs
+distinct test CLASSES in parallel. ⚠ It stayed latent only because the timing never lined up; the new
+rails widened the window.
+
+| ⭐ the fix, and why it is the TEST HARNESS and not the product | |
+|---|---|
+| `Hrot.AiEditor.Generators.Tests/AssemblyInfo.cs` → `DisableTestParallelization`, carrying the stack trace | ⭐ precedent: `Fdp.Toolkits.Tests/AssemblyInfo.cs` does the same for a static `ComponentTypeRegistry` race |
+| ⛔ **NOT** a lock in `HsmActionDispatcher` | 📐 in production the scan runs **once, single-threaded, at boot** (`BlueprintRegistrarScanner.Scan`), so the plain `Dictionary` is correct. Adding a lock to a startup-only path to satisfy a test runner is the wrong trade. 📋 If registrars ever run concurrently in production, **that** is when it must change |
+| ⭐ the table cleanup stays, demoted to hygiene | its comment now says so and points at the real fix — ⛔ a code comment asserting a cause I had not measured is the same disease as a ledger asserting what the code is |
+
+📐 **Verified: 4 failed / 317 passed / 321** — the four are `CE-376`'s stale slot-count rails, both new
+rails pass, and `HillAssault2I` is green again.
+
+📋 **The one honest remainder:** a `--mode all` cluster run *(`T3`, async)* is still the only thing that
+would exercise these assets inside the real product rather than a test host. ⛔ Named, not claimed.

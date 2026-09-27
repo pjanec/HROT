@@ -4,6 +4,9 @@ using Fbt;
 using Fbt.Compiler;
 using Fbt.Runtime;
 using Fdp.Core;
+using Fdp.Toolkit.Behavior.Components;
+using Fdp.Toolkit.Behavior.Events;
+using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Xunit;
@@ -501,6 +504,113 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         Assert.True(HostedChildren.TryGet(key, out var bound));
         Assert.Same(child, bound);
         Assert.Same(child, HostedChildren.Require(key));
+    }
+
+    // ── E6_R8 — E6b, the EDITOR-SHAPED path: ingress + BrainTickSystem ────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E6_R8</c> — THE EDITOR-PATH GATE. The host is ASSIGNED by the real
+    /// <see cref="BehaviorIngressSystem"/> and ticked by the real <see cref="BrainTickSystem"/>, and
+    /// the hosted child advances on every frame.</b> 📄 §33.12.4.
+    ///
+    /// <para>🔴🔴 <b>Why every earlier E6 rail is insufficient, stated exactly.</b> §33.12.2's module
+    /// diagram shows THREE lifetimes feeding one tick: a BOOT-time node→key map
+    /// (<see cref="BTreeHostedSites"/>, keyed by <c>StructureHash</c>), an ASSIGN-time slot on the
+    /// entity (<c>ProvisionStatefulSlots</c> → <c>AttachManifestSlots</c>), and a PER-FRAME lookup.
+    /// ⛔ <b>Nothing type-checks that the three agree</b> — the key computed at boot must equal the
+    /// slot attached at assign must equal the key looked up at tick. ⚠ Every rail before this one
+    /// hand-supplied at least two of the three, so a disagreement between them was unobservable.</para>
+    ///
+    /// <para>⭐ This is the twin of the HSM arm's money rail
+    /// (<c>HsmOccurrenceKeyTests.E5_R3</c>), deliberately down to the three-frame shape: a hosted
+    /// child that ticks ONCE and then stops is the failure that rail was written to catch.</para>
+    ///
+    /// <para>⚠ <b>Non-vacuity matters here</b>, so the rail asserts the slot was provisioned by the
+    /// MANIFEST — nothing in this test attaches it by hand, unlike <c>E5_R3</c>, which had to.</para>
+    /// </summary>
+    [Fact]
+    public void E6_R8_TheHostIsAssignedAndTickedByTheRealSystems()
+    {
+        const int HostId = 0x6B01;
+
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+
+        var beh = new BehaviorRegistry();
+
+        // ── BOOT: exactly what the GENERATED registrar emits (§33.12.3 steps 1-6) ──────
+        var hostBlob = BuildHostBlob(out var hostRegistry);
+        var plan     = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        Assert.Single(plan.Entries);
+        Assert.Single(plan.Slots);
+
+        var host = new Interpreter<byte, BTreeContext>(hostBlob, hostRegistry)
+        {
+            SubtreeHost = OccurrenceSubtreeHost.Instance,
+        };
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name                 = HostName,
+            BrainTier            = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter     = host,
+            StatefulWorkingSlots = plan.Slots,        // ⭐ the manifest carries the hosted cursor
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var child = BuildChild();
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name             = ChildName,
+            BrainTier        = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = child,
+        });
+
+        // ── ASSIGN: the real ingress provisions the tier AND attaches the hosted slot ──
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+
+        var ingress = new BehaviorIngressSystem(beh);
+        world.Bus.PublishManaged(new AssignBehaviorEvent
+        {
+            Entity = entity, BehaviorName = HostName, JsonParams = string.Empty,
+        });
+        world.Bus.SwapBuffers();
+        ingress.Execute(world, 0.016f);
+
+        int key = plan.Entries[0].TreeStateSlotKey;
+
+        // ⭐⭐ THE AGREEMENT ASSERTION: the slot the MANIFEST declared is the slot the BOOT-time key
+        //    names. ⛔ Nothing here attached it by hand — if ingress used a different key, or sized
+        //    the tier without counting the hosted slot, this is where it shows.
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        Assert.True(store != null, "ingress must have provisioned an occurrence store");
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out _),
+            "the hosted cursor slot must be attached FROM THE MANIFEST, not by the test");
+
+        // ── FRAMES: the real BrainTickSystem, three consecutive frames ─────────────────
+        _childFirstLeafEntries = 0;
+        _childTicks            = 0;
+
+        var brain = new BrainTickSystem(beh);
+        brain.Execute(world, 0.016f);
+        int afterFirst = _childTicks;
+        brain.Execute(world, 0.016f);
+        brain.Execute(world, 0.016f);
+
+        // ⭐⭐⭐ THE RAIL. 🔴 A host whose child never runs reads 0; one that runs once and stops
+        //    reads 1 — the E5_R3 failure shape, here for the BTree arm.
+        Assert.True(afterFirst >= 1, "the child must run on the first frame the host ticks");
+        Assert.Equal(3, _childTicks);
+
+        // ⭐ And it RESUMED rather than restarted: the running leaf is re-entered every frame while
+        //   the first leaf is entered exactly once.
+        Assert.Equal(1, _childFirstLeafEntries);
+
+        // ⭐ The cursor is SLOT-RESIDENT — the child's state lives in the entity's store, not on a
+        //   stack local the test owns.
+        Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int off));
+        Assert.True(Unsafe.AsRef<BehaviorTreeState>(store + off).RunningNodeIndex >= 0);
     }
 
     /// <summary>

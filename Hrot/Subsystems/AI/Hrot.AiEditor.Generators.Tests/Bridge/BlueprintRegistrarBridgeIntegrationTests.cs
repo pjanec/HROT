@@ -390,6 +390,170 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
     }
 
     // ─────────────────────────────────────────────────────────────────────────────
+    // E6b / §33.12.4 — the EDITOR-AUTHORED hosting route, EXECUTED not golden-compared
+    // ─────────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public void E6_R9_AShippedHostingAssetsGeneratedRegistrar_ActuallyWiresTheSite()
+    {
+        WeakReference<AssemblyLoadContext>[] weakRefs;
+        E6_R9_Body(out weakRefs);
+        AwaitAlcCollection(weakRefs);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E6_R9</c> — a REAL shipped hosting asset's generated registrar is COMPILED AND
+    /// INVOKED, and the hosting site really wires up.</b> 📄 §33.12.4.
+    ///
+    /// <para>🔴🔴 <b>This is the <c>CE-333</c>/<c>CE-335</c> failure class, by name.</b> The retired
+    /// <c>BTreeOrchestratorEmitCore</c> emitted a call to <c>{Child}.GetInterpreter()</c> — a method
+    /// <b>defined nowhere</b> — and passed its shape rails <b>for months</b>, because nothing ever
+    /// ran what it emitted. ⛔ <b>The goldens cannot see this</b>: they compare TEXT, and text cannot
+    /// tell <i>"hosting works"</i> from <i>"hosting is spelled correctly"</i>.</para>
+    ///
+    /// <para>⭐ <c>T07_Subtree</c> is the right subject: it is a genuine shipped asset
+    /// (<c>Assets/BTrees/Authoring/</c>), it is one of the THREE that host, and its tree is
+    /// Root→Sequence→Subtree with no bound action methods — so an empty action registry suffices and
+    /// the rail tests hosting rather than action binding.</para>
+    ///
+    /// <para>⭐⭐ It also exercises <c>CE-377</c> on the real emitted code: the child is registered
+    /// <b>AFTER</b> the host's registrar has already run and bound the site, which is the order an
+    /// eager resolve silently lost.</para>
+    /// </summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void E6_R9_Body(out WeakReference<AssemblyLoadContext>[] weakRefs)
+    {
+        try { E6_R9_Core(out weakRefs); }
+        finally
+        {
+            // ⭐ Invoking a REAL hosting registrar writes to two PROCESS-WIDE tables —
+            //   BTreeHostedSites._byStructureHash and HostedChildren._bySlotKey — so this test
+            //   leaves them as it found them. This suite is their only consumer in this assembly,
+            //   so clearing here cannot starve a sibling.
+            // ⚠⚠ THIS IS HYGIENE, NOT THE FIX FOR THE CROSS-TEST FAILURE THIS RAIL CAUSED. An
+            //    earlier version of this comment blamed these tables; that was WRONG. The captured
+            //    error was a corrupted non-concurrent Dictionary inside
+            //    Fhsm.Kernel.HsmActionDispatcher.RegisterAction — parallel test CLASSES both
+            //    invoking real registrars. ⇒ the actual fix is AssemblyInfo.cs's
+            //    DisableTestParallelization, which carries the stack trace.
+            BTreeHostedSites.ClearForTests();
+            HostedChildren.ClearForTests();
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void E6_R9_Core(out WeakReference<AssemblyLoadContext>[] weakRefs)
+    {
+        const string HostAsset = "T07_Subtree";
+        const string ChildName = "SampleScout";
+
+        var model   = LoadBTree(HostAsset);
+        var dto     = ToDtoWithTypeNames(model, HostAsset);
+        string json = BTreeJsonServices.Serialize(dto);
+        var srcs    = GenerateBTreeSources(json, HostAsset);
+        var (asm, alc) = CompileMultiAndLoad(srcs, "T07SubtreeHostingTest");
+
+        using var coordinator = CreateCoordinator();
+        var registrars = coordinator.ScanForRegistrars(asm);
+        var bridge = registrars.First(r => r.DeclaringType.Name == HostAsset + "Registrar");
+
+        var beh       = new BehaviorRegistry();
+        var bpStaging = _blueprintRegistry.BeginStaging();
+        var args = bridge.Parameters
+            .OrderBy(p => p.OrdinalIndex)
+            .Select(p => p.ParameterType == typeof(BehaviorRegistry) ? (object)beh
+                       : p.ParameterType == typeof(ActionRegistry<byte, BTreeContext>) ? new ActionRegistry<byte, BTreeContext>()
+                       : bpStaging)
+            .ToArray();
+
+        // ⭐⭐⭐ THE MOMENT THAT MATTERS: the emitted PlanFor / SubtreeHost / Bind lines EXECUTE.
+        bridge.RegisterMethod.Invoke(null, args);
+
+        beh.TryGetId(HostAsset, out int id).Should().BeTrue();
+        beh.TryGetDefinition(id, out var def).Should().BeTrue();
+
+        // ① the emitted manifest carries a hosted tree-state slot
+        def!.StatefulWorkingSlots.Should().NotBeNull(
+            "the emitted registrar must put the hosted cursor on the definition, or " +
+            "HostedSubtree.Tick throws on an undeclared slot (§19.6 ⑤)");
+        var hostedSlots = def.StatefulWorkingSlots!.Where(HostedSubtree.IsTreeStateSlot).ToList();
+        hostedSlots.Should().ContainSingle("T07_Subtree hosts exactly one sub-tree");
+
+        // ② the emitted registrar set the host, so the kernel can dispatch at all
+        def.BTreeInterpreter.Should().NotBeNull();
+        def.BTreeInterpreter!.SubtreeHost.Should().NotBeNull(
+            "without SubtreeHost the kernel keeps the historical 'Subtree => Failure' stub");
+
+        // ③ the emitted Bind published a node→key map for THIS blob, and the key agrees with the
+        //    slot the manifest declared — the boot-vs-manifest half of §33.12.2's agreement.
+        var blob = def.BTreeInterpreter.Blob;
+        int subtreeNodes = 0, boundNodes = 0;
+        int boundKey = 0;
+        for (int i = 0; i < blob.Nodes.Length; i++)
+        {
+            if (blob.Nodes[i].Type != NodeType.Subtree) continue;
+            subtreeNodes++;
+            if (BTreeHostedSites.TryGetKey(blob, i, out int k)) { boundNodes++; boundKey = k; }
+        }
+        subtreeNodes.Should().Be(1, "the shipped asset's shape is Root→Sequence→Subtree");
+        boundNodes.Should().Be(1, "every hosting node must have a registered slot key");
+        boundKey.Should().Be(hostedSlots[0].SlotKey,
+            "the key Bind published must be the key the manifest declared — nothing type-checks this");
+
+        // ④ CE-377: the CHILD registers AFTER the host already bound, and still resolves.
+        var cb = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq => seq.Action(
+                static (ref byte bb, ref BehaviorTreeState st, ref BTreeContext c, int pi)
+                    => NodeStatus.Running));
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name             = ChildName,
+            BrainTier        = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile(ChildName), cb.GetRegistry()),
+        });
+
+        HostedChildren.TryGet(boundKey, out var boundChild).Should().BeTrue(
+            "the child registered after the host must still resolve — CE-377's lazy bind");
+        boundChild.Should().NotBeNull();
+
+        alc.Unload();
+        weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>E6_R10</c> — the shipped hosting blobs have DISTINCT structure hashes.</b>
+    /// 📄 §33.12.4.
+    ///
+    /// <para>🔴 <b>Why this is a rail and not a comment.</b> <c>BTreeHostedSites</c> keeps ONE
+    /// process-wide dictionary keyed by <c>blob.StructureHash</c>, and <b>three shipped assets now
+    /// write to it</b>. Two hosting blobs with equal hashes would silently clobber each other's
+    /// node→key map — last writer wins — and a host would then look up a key belonging to a
+    /// different tree. ⚠ Harmless while nothing shipped hosted; live since <c>CE-364</c>.</para>
+    ///
+    /// <para>⭐ The rail is over the SET, not a count: it names the colliding pair when it fires.</para>
+    /// </summary>
+    [Fact]
+    public void E6_R10_TheShippedHostingBlobsHaveDistinctStructureHashes()
+    {
+        string[] hosting = { "T07_Subtree", "BTreeRenderShowcase", "CombatShowcase" };
+
+        var byHash = new System.Collections.Generic.Dictionary<int, string>();
+        foreach (var name in hosting)
+        {
+            var asset = LoadBTree(name);
+            int hash = asset.Blob!.StructureHash;
+
+            byHash.ContainsKey(hash).Should().BeFalse(
+                $"'{name}' and '{(byHash.TryGetValue(hash, out var other) ? other : "?")}' share " +
+                $"StructureHash {hash}; BTreeHostedSites keys its node→key map on it, so one host " +
+                "would silently read the other's map");
+            byHash[hash] = name;
+        }
+
+        byHash.Should().HaveCount(hosting.Length);
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────────
     // PU-203 HSM: bridge discovered, registered, definition populated
     // ─────────────────────────────────────────────────────────────────────────────
 
