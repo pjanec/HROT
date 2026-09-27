@@ -3,6 +3,8 @@ state: LIVE
 build-state: READY-TO-BUILD
 updated: 2026-09-27
 current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight build items (CE-381..CE-388).
+  ⭐⭐ §11 is the SEPARATE call-cost thread (CE-389..CE-392) — it is independent of §8 and can land
+  before, after or alongside it; §11.4 answers "can we live without UnsafeShim".
   ⭐ Start at §2 (INVENTORY) if you are about to argue that something here already exists — most of
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
@@ -376,6 +378,11 @@ are the same mechanism again and can follow on demand rather than on speculation
 blueprint activity, and a polled transition fires. CE-385…CE-387 make it authorable rather than
 hand-editable. **CE-388 is separable** and only matters once ④ is driven by blueprints.
 
+⭐⭐ **§11 carries a SECOND, INDEPENDENT thread — `CE-389`..`CE-392`, the per-call cost.** ⛔ It shares
+no file with the eight above except the emitter, and it gates on its own counter rail (§11.6). ⚠ Its
+ORDER is load-bearing even though its scope is not: `CE-389` before `CE-390` before any decision on
+`CE-392` — §11.4 says why.
+
 ---
 
 ## 9. ⭐⭐⭐ ACCEPTANCE — **and every one is RED-PROVED**
@@ -409,3 +416,108 @@ gone silently inert twice.
 | ④ | **register the blueprint thunk a second time under `FNV1a16(FQN)`** | two ids for one thunk, and `RegisterAction` is last-writer-wins — a collision would be silent |
 | ⑤ | **make guards cheap by caching the last result** | a guard over live blackboard state is not cacheable without an invalidation source, and there is none |
 | ⑥ | **a new picker/catalog for the HSM editor** | `ActionSchemaExporter` already carries the `hsmAction`/`hsmGuard` flags — building a second one is the duplicate-implementation `R-137`/ruling 9 forbids |
+
+---
+
+## 11. ⭐⭐⭐ THE COST OF A BLUEPRINT CALL — **what is CACHEABLE, and what is simply WASTE** *(`2026-09-27`)*
+
+> 🔒 **User:** *"now lets talk about how to make blueprint calls cheaper. Wha can be cached to mnimize
+> the cpu ticks on repeated calls"* — and, on the accessor layer: *"unsafeShim does not look like it is
+> something be can not live without, is it?"*
+
+⭐⭐ **The headline: the largest item is NOT a cache candidate, it is a value computed on every call and
+READ ON THE FIRST ONLY.** ⛔ Cache nothing until that is deleted — caching a redundant computation is
+the second-best fix to not doing it.
+
+### 11.1 📐 ONE CALL, STEADY STATE — **measured `2026-09-27`, HSM-hosted thunk, not the first dispatch**
+
+| # | work | per call | cacheable? |
+|---|---|---|---|
+| ① | `GCHandle.FromIntPtr(WorldHandle).Target` + castclass | 1 handle deref | ⛔ no — cannot live in an unmanaged struct, and `TickCore` needs the repo |
+| ② | **`RootParamsAccess.RequireRootBytes`** — `HasComponent<BehaviorState>` + `GetComponentRO` + `BlueprintTierTable.Of` *(≤4 `spec.Has`)* + `spec.Memory` + a slot scan | **≈7 indirect ECS ops** | 🔴 **NOT A CACHE PROBLEM — §11.2** |
+| ③ | `HsmOccurrence.KeyFor` — an FNV fold | negligible | — |
+| ④ | **`ResolveOrAttach`** → `OccurrenceStoreAccess.TryGetStore` **again** *(≤4 `spec.Has` + `spec.Memory`)* + a second slot scan | **≈5 indirect ECS ops** | ⭐⭐ **YES — §11.3** |
+| ⑤ | `HsmActionDispatcher` `Dictionary<ushort, IntPtr>` lookup | 1 hash + probe | ⭐ yes — §11.5 |
+| ⑥ | `TickCore` | the actual work | — |
+
+⚠ **Each "indirect ECS op" is TWO indirect calls deep:** `BlueprintTierSpec.Has`/`.Memory` are `Func<>`
+fields *(`BlueprintTierSpec.cs:45,164,167`)*, and beneath them `HasComponent<T>` routes through
+`UnsafeShim.UnmanagedAccessor<T>`, whose members are delegates built by `Delegate.CreateDelegate` over
+`MakeGenericMethod` *(`UnsafeShim.cs:168-198`)*. ⛔ **None of it inlines.**
+
+### 11.2 🔴 `CE-389` — **`RequireRootBytes` IS COMPUTED EVERY CALL AND READ ONLY ON THE FIRST**
+
+📐 `AiPrimitiveEmitter.EmitHsmOccurrenceBody` emits `byte* __hostParams = RequireRootBytes(...)`
+**unconditionally**; its only consumer is `HsmHostVariableAccess.For(...)`, which `EmitParamSeed` emits
+**inside `if (freshlyAttached)`**. ⇒ row ② is pure waste on every dispatch after the first.
+
+⭐⭐⭐ **The precedent is IN THE SAME METHOD.** `EmitParamSeed` declares `__rootParams` inside that arm
+with the comment *"a thunk on an entity that legitimately has none must not pay that on every dispatch
+— only on the one that would actually read the seed."* ⛔ **`__hostParams` never got the same
+treatment.** ⇒ the fix is to sink it, and it is one line in the emitter.
+
+### 11.3 ⭐⭐ `CE-390` — **THE STORE IS RESOLVED `1 + 2N` TIMES PER ENTITY PER TICK; ONE WOULD DO**
+
+> **What this picture shows that the prose hid:** `BrainTickSystem` ALREADY holds the store pointer
+> when it builds the bridge — and throws it away on the next line. Every thunk then re-derives it.
+
+```mermaid
+graph LR
+    subgraph today["TODAY - N blueprint calls on one entity"]
+        A["BrainTickSystem<br/>RootHsmAccess.TryGetInstance<br/>resolves the store"] -->|"DISCARDS it"| B["new HsmKernelBridge<br/>Self, WorldHandle, TraceContext"]
+        B --> C["thunk 1"]
+        B --> D["thunk N"]
+        C -->|"resolve x2"| S["OccurrenceStoreAccess"]
+        D -->|"resolve x2"| S
+        A -->|"resolve x1"| S
+    end
+    subgraph after["AFTER CE-390"]
+        A2["BrainTickSystem<br/>resolves the store ONCE"] -->|"HANDS IT OVER"| B2["HsmKernelBridge<br/>+ Store, + RootParams"]
+        B2 --> C2["thunk 1 - field read"]
+        B2 --> D2["thunk N - field read"]
+        A2 -->|"resolve x1"| S2["OccurrenceStoreAccess"]
+    end
+```
+
+⭐⭐⭐ **THE SAFETY INVARIANT, AND IT IS CHECKED NOT HOPED:** the store **BASE** is stable within a tick —
+only a TIER PROMOTION moves it, and that is `BlueprintMaintenanceSystem`, a **separate global system**
+which cannot run inside `BrainTickSystem.Execute`. ⛔⛔ **Slot OFFSETS are NOT stable** — `ResolveOrAttach`
+may `TryAttach` mid-tick. ⇒ **cache the base, never an offset**, and never either across ticks.
+
+### 11.4 ⛔⛔ `UnsafeShim` — **WE CANNOT DELETE IT, AND WE DO NOT NEED TO** *(the user's question, answered)*
+
+| the question | the measurement |
+|---|---|
+| *is it per-call reflection?* | ⛔ **No.** `UnmanagedAccessor<T>` is a static generic class; the reflection runs **once per `T`** in its static ctor. The per-call cost is **one delegate invoke** — cheap in absolute terms, but **never inlinable** |
+| *can we delete it?* | ⛔ **No.** It solves a real C# limitation: `EntityRepository.HasComponent<T>` is **unconstrained**, while the storage methods are `where T : unmanaged` / `where T : class`, and **you cannot overload on a constraint**. ⚠ And the facade has **3 099 call sites** *(`HasComponent<` 1263, `GetComponentRO<` 1100, `GetComponentRW<` 736)* |
+| *so is it unavoidable?* | ⭐⭐⭐ **Only where the constraint is genuinely unknown.** 📐 **`BlueprintTierSpec.For<TTier>()` is declared `where TTier : unmanaged`** and its lambdas still call the UNCONSTRAINED `repo.HasComponent<TTier>(e)` — paying constraint-erasure it had already paid for |
+| *does fixing that cross a lane?* | ⛔ **No, and this is the find.** `Fdp.Core.csproj` already grants **`InternalsVisibleTo("Fdp.Toolkits")`**, and the constrained methods are `internal`, not private ⇒ `repo.HasUnmanagedComponent<TTier>(e)` is callable **today**, from the toolkit, **with no `Fdp.Core` edit** |
+
+⇒ ⭐ **`CE-392`**: in `Fdp.Toolkits`, where a generic parameter is ALREADY constrained `unmanaged`, call
+the constrained method directly and skip the shim. ⛔ **Do NOT widen this into an engine-wide campaign**
+— that is `Fdp.Core`'s API surface and the BACKEND lane's property, and it would be a `R-137`-scale
+change for a delegate call.
+
+⚠⚠ **AND IT IS THE LOWEST-VALUE OF THE FOUR, BY CONSTRUCTION:** once `CE-390` lands, the hot path stops
+calling `BlueprintTierTable.Of` at all. ⇒ 🔒 **optimising an access you no longer make is the wrong
+order — `CE-389`, then `CE-390`, and only then decide whether `CE-392` still pays.**
+
+### 11.5 ⭐ WHAT ELSE, AND WHAT **NOT**
+
+| | |
+|---|---|
+| ⭐ **`CE-391`** | `HsmActionDispatcher`'s two `Dictionary<ushort, IntPtr>` → flat `IntPtr[65536]` *(512 KB each, allocated once)*. Hash+probe becomes an array index. Small, zero-risk |
+| ⛔ **the slot scan is NOT the problem** — 🔴 **a correction to this session's own earlier claim** | 📐 slot tables are **3 / 12 / 16 / 16 entries × 16 B** *(`BlueprintTierLadder.cs:92-125`, `SlotEntrySize = 16`)* = **48–256 bytes, 1–4 cache lines.** Real, but an order below the delegate-dispatched probes |
+| ⛔ **never cache a guard's RESULT** | no invalidation source exists — §10 ⑤ |
+| ⛔ **never cache a slot OFFSET across ticks** | a re-attach after a structure change moves it; that is what `ResolveOrAttach`'s `existingHash` re-check exists for |
+
+### 11.6 ⭐⭐⭐ HOW IT IS PROVEN — **a COUNTER rail, not a stopwatch**
+
+⛔⛔ **A wall-clock benchmark cannot gate in CI** — it is noisy, machine-dependent, and a regression hides
+inside the variance. ⭐⭐ **Instrument `OccurrenceStoreAccess.TryGetStore` with a call counter** and assert
+the INVARIANT:
+
+> **one store resolution per entity per tick, however many blueprint calls that entity makes.**
+
+⭐ Deterministic, CI-able, and **red-proves by construction**: revert `CE-390` and the count becomes
+`1 + 2N`. ⚠ Wall-clock numbers may be reported as INFORMATION in the batch report; ⛔ they are not the gate.
