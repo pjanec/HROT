@@ -120,6 +120,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         s.OnExitAction   = f.OnExitAction;
         s.ActivityAction = f.ActivityAction;
         s.TimerAction    = f.TimerAction;
+        s.ExpressionTargetField = f.ExpressionTargetField;   // CE-387
         s.Comment        = f.Comment;
         s.IsBreakpoint   = f.IsBreakpoint;
         s.DeferredEventIds.Clear();

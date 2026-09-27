@@ -50,6 +50,7 @@ public sealed class HsmFacetMapper
             ActivityBlueprintAssetId = s.ActivityBlueprintAssetId == Guid.Empty
                                          ? string.Empty
                                          : s.ActivityBlueprintAssetId.ToString(),
+            ExpressionTargetField    = s.ExpressionTargetField,   // CE-387
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19

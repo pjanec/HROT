@@ -5,14 +5,19 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-27
-build-state: ✅ **STAGE 1 COMPLETE AND PUSHED** — `CE-381`, `CE-382`, `CE-383`, `CE-384` (+ `CE-376`
-  cleared first). Branch `behaviors`, HEAD `d760b25db`. ⏭ **NEXT IS STAGE 2 — `CE-385`, `CE-386`,
-  `CE-387`** (§2), which makes the runtime reachable from the EDITOR rather than only from
-  hand-written JSON.
-current-answer: ⭐⭐⭐ **START AT §0** (three commands), then **§2** (what to build, with the
-  measurements ALREADY MADE — ⛔ do not re-derive them). §3 is the corrections that must not be
-  re-inherited. §4 the standing constraints. §5 the gate baselines. §6 what is open and NOT ours.
-known-rot: nothing yet.
+build-state: ✅✅ **STAGE 1 AND STAGE 2 ARE BOTH COMPLETE AND PUSHED** — `CE-381`..`CE-387`, plus
+  `CE-396` found and fixed inside `CE-385`, plus the design's §9 ③ validator rule which had been
+  neither built nor filed. Branch `behaviors`. ⭐ **The user's acceptance description now works AND
+  is authorable from the editor.** ⏭ **NEXT IS §7** — what is genuinely left, and it is short.
+current-answer: ⭐⭐⭐ **START AT §0** (three commands), then **§7 (WHAT IS LEFT)**. ⛔ §2 is now
+  HISTORY — it describes Stage 2 before it was built; read §2 only for the measurements, never for
+  what to do. §3 is the corrections that must not be re-inherited. §4 the standing constraints.
+  §5 the gate baselines. §6 what is open and NOT ours.
+stale-below: ⛔ §2 ("STAGE 2 — the three items") is DONE. Its measurements are still true; its
+  instructions are spent. §2.4's "not built, not filed" is FIXED.
+known-rot: ⚠ §2.2 said `CE-386` was "SMALLER than the design says". ⛔ HALF WRONG — the plumbing was
+  indeed already there, but `ActionSchemaExporter` collapsed `hsmAction`/`hsmGuard` into one bit, so
+  the item needed two new `ActionHosting` bits first. See §7 and design §13.5.
 known-conflict: ⚠ `RESUME_Hsm_Subtree_Authoring.md` is the PREVIOUS programme's doc and is COMPLETE;
   its build-state block already points here. ⛔ Two `RESUME_*` files exist for this one lane — THIS
   is the live one.
@@ -191,3 +196,53 @@ silent.
 | `CE-393` | the engine-wide accessor campaign | ⛔ BACKEND (`Fdp.Core`) |
 | `CE-394` | `HN-015` is FIXED and its tripwire is firing | ⛔ BACKEND (system-test harness) |
 | `CE-332` · `CE-321`② | `Hrot.IG.Tests` rails · rotted example scenarios | ⛔ other lanes / unmeasured |
+
+---
+
+## 7. ⏭ WHAT IS LEFT — **Stage 1 and Stage 2 are done; this is the remainder**
+
+> ⭐⭐⭐ **The user's acceptance description WORKS and is AUTHORABLE.** A few states, transitions
+> between them, a transition guarded by a blueprint function reading HSM blackboard variables, a
+> per-tick action in a state defined in a blueprint, parallel regions one action per channel, and an
+> exit state that finishes the behaviour — all of it is now reachable from the editor.
+
+### 7.1 ✅ BUILT IN STAGE 2 *(design §13.4-§13.6)*
+
+| id | one line |
+|---|---|
+| `CE-385` | the five editor-model fields + mapper + inspector; `ResolvePickedAssetId` shared by all three picks |
+| the §9 ③ rule | `MethodAndBlueprintBothBound` — a slot naming BOTH a method and a blueprint is now an ERROR, was silently accepted |
+| `CE-396` | `[AiAssetPicker]` dispatches on the attribute's KIND — it was hard-wired to BTree and would have offered BTrees in the blueprint fields |
+| `CE-386` | `ActionHosting.HsmGuard` + `HsmActivity`; both pickers read the catalog ⇒ the FIRST binding is makeable |
+| `CE-387` | `StateNode.ExpressionTargetField` — the emitter had consumed it since `E3b-0` and the editor could never produce it |
+
+### 7.2 🔴 THE ONE THING THAT BLOCKS ACCEPTANCE RAIL ④
+
+⛔⛔ **No blueprint in the repo declares `HsmGuard`.** 📐 Measured across every tracked `.bp.json`:
+**34 `BTreeAction` · 9 `BTreeCondition` · 2 `HsmAction` · ZERO `HsmGuard`.**
+
+⇒ ⭐ the guard picker is CORRECT and EMPTY, and rail ④ *("the id the blob addresses equals the id the
+registrar registers")* **cannot be closed by existing content** — it needs a guard blueprint authored
+first, then an end-to-end rail with the blueprint compiler in the loop.
+⭐⭐ **The chain is structurally complete and was verified by reading:** `AiPrimitiveEmitter.cs:280`
+writes `hsmGuard:` into `[GeneratedAiPrimitiveAction]`, and `CSharpEmitter.cs:476` registers the thunk
+via `HsmActionDispatcher.RegisterGuard((ushort)BlueprintId, …)` — **the same id `CE-384` bakes.**
+⚠ Verified by reading, NOT by a rail. That is exactly what ④ is for.
+
+### 7.3 📋 THE REST, AND NONE OF IT BLOCKS THE ACCEPTANCE TEST
+
+| id | what | note |
+|---|---|---|
+| `CE-388` | `WritesChannel` for blueprint-hosted HSM actions | separable; only matters once the per-channel actions are BLUEPRINTS rather than methods |
+| `CE-389`..`CE-392` | the per-call cost thread (design §11) | independent of §8 entirely; ⚠ ORDER is load-bearing: `CE-389` → `CE-390` → any `CE-392` decision |
+| `CE-395` | transition priority written to bits 8-11, read from 12-15 ⇒ always 0 | **filed not fixed** — it changes which transition wins. ⚠ Polled transitions inherit it |
+| `CE-393` · `CE-394` | ⛔ BACKEND lane | not ours |
+
+### 7.4 ⚠ A TRAP THIS SESSION PAID FOR TWICE — **add it to §3a's list**
+
+⛔⛔ **A red-proof script that restores with `mv file.bak file` restores the BACKUP's mtime**, which is
+OLDER than the patched build's output ⇒ **MSBuild skips the rebuild and the next run tests a STALE
+binary.** 📌 It surfaced as a phantom red in a rail whose production code was correct.
+⭐ **`touch` the file after every restore.** ⚠ This is the same disease as the two stale-binary traps
+in `CLAUDE.md`, in a third disguise: there the build failed or the wrong project was built; **here the
+right project was built and MSBuild decided it had nothing to do.**

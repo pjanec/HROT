@@ -10,7 +10,10 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
   ⭐⭐ §13 is the AS-BUILT: 13.1-13.3 = CE-381..CE-384 (the runtime spine), 13.4 = CE-385 + the §9 ③
-  validator rule + CE-396 (the editor half). ⏭ NEXT: CE-386, then CE-387.
+  validator rule + CE-396, 13.5 = CE-386, 13.6 = CE-387. ⭐⭐⭐ STAGE 1 AND STAGE 2 ARE COMPLETE —
+  everything §8 lists except CE-388 (channels, separable) is BUILT.
+  ⏭ WHAT IS LEFT: acceptance rail ④ cannot be closed by existing content (measured: ZERO tracked
+  .bp.json declares hsmGuard); CE-388; and the §11 call-cost thread CE-389..CE-392.
 stale-below: nothing yet.
 known-rot: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
   separately. MEASURED FALSE on 2026-09-27 — it collapses both into one `ActionHosting.Hsm` bit. The
@@ -887,3 +890,65 @@ through the unchanged constant overload.
 ⚠ **What is still NOT proved, said plainly:** §9 ④ *(the blob addresses the id the registrar
 registers)* remains **OPEN** — it needs the blueprint compiler in the loop, and the asset can only
 now carry the reference. ⭐ It is reachable for the first time as of this item.
+
+### 13.5 `CE-386` — the pickers read the catalog, and the exporter had to learn the ROLE first *(`2026-09-27`)*
+
+⭐⭐⭐ **What this closes: the FIRST binding is now makeable.** Both HSM pickers built their list
+**only from names the asset already bound** ⇒ an action could be picked once it was already in use.
+⛔ A picker that can only offer what you have already chosen is not a picker.
+
+#### 🔴 IT WAS BIGGER THAN §8a ④ ESTIMATED — **and §3.3 is why**
+
+📐 §8a ④ measured the PLUMBING correctly: `AiFacetPickerBinder.Rebuild:95`, the one production site,
+already passes `services.ActionSchema` into `BuildDrawers`, which already takes it. ⛔ **But §3.3's
+claim that the `hsmAction`/`hsmGuard` flags were "already populated" was HALF TRUE**, and the false
+half is the one this item needs: `ActionSchemaExporter.ProcessMethod` **read both flags and folded
+both into the single `ActionHosting.Hsm` bit**. ⇒ an `ActionSchemaEntry` could not say whether an
+entry was an HSM ACTIVITY or an HSM GUARD, so the two pickers could not be filtered apart.
+
+| ⭐ what shipped | |
+|---|---|
+| **`ActionHosting.HsmGuard` (bit 4) + `HsmActivity` (bit 5)** | set BESIDE the existing `Hsm`, from `[HsmAction]`/`[HsmGuard]`, `[SharedAiAction]`/`[SharedAiCondition]`, and a blueprint's `hsmAction`/`hsmGuard` |
+| **the DtoType-fallback arm keeps the role** | ⚠ `hosting = ActionHosting.Hsm` used to OVERWRITE, discarding the role on the very path that only exists because an HSM attribute supplied the DtoType — it would have put the entry in NEITHER picker |
+| **both drawers take an `IActionSchemaExporter?`** and the factory passes it | rail ⑧'s CONSUMPTION half |
+
+#### ⛔ REJECTED: reuse `IsCondition` to mean "HSM guard"
+
+⭐ Tempting — `[SharedAiCondition]` already sets it, and the HSM *generator* uses its own
+`entry.IsCondition` to mean guard. 🔴 **But `BTreeNodeCatalog.cs:104` turns `IsCondition` into the
+PERSISTED node kind** (`bt/condition` vs `bt/action`) ⇒ a blueprint declaring both `bTreeAction` and
+`hsmGuard` would silently flip from an action leaf to a condition leaf. ⚠ **Two vocabularies that
+happen to overlap are not one vocabulary.** ⭐ The new bits are purely additive, so the one production
+reader of `ActionHosting.Hsm` (`BehaviorActionCatalog.MapHosting`) is untouched.
+
+#### ⚠ TWO HONEST LIMITS
+
+| | |
+|---|---|
+| ⛔ **the guard picker will be EMPTY on today's content** | 📐 measured across every tracked `.bp.json`: **34 `BTreeAction`, 9 `BTreeCondition`, 2 `HsmAction`, ZERO `HsmGuard`**. ⭐ That is the feature working, not a gap — but it means **acceptance rail ④ still cannot be closed by existing content**; it needs a guard blueprint authored first |
+| ⭐ **the asset's own names stay in the union even WITH a catalog** | ⛔ dropping a name the current assembly no longer exports would HIDE a dangling binding instead of showing it — the same never-erase reasoning as the subtree reference |
+
+### 13.6 `CE-387` — the per-state params seed, which the emitter had consumed all along *(`2026-09-27`)*
+
+⭐⭐⭐ **A member reporting success while doing nothing.** `StateNodeDto.ExpressionTargetField` has
+existed since `E3b-0`, and `HsmBridgeEmitCore.EmitStateParamBindings:316` already turns it into a
+`HsmParamBindings.Register` table. ⛔ But `StateNode` (the EDITOR model) had no such field and
+`HsmAssetMapper` mapped it for **transitions only** ⇒ the DTO value was **always null**, the table was
+never emitted, and **every state's hosted occurrence seeded from offset 0** — precisely the defect
+`E3b-0` was built to remove.
+
+⭐ Shipped: the model field, the mapper **both directions**, `StateFacet` + the two facet halves, and
+`CountNodesReferencingVariable` widened to states.
+
+#### ⛔⛔ ONE NAME, TWO CONCEPTS — **and the rails pin the difference**
+
+⚠ `TransitionNode.ExpressionTargetField` and `StateNode.ExpressionTargetField` are **not the same
+thing**, which is the trap the shared name sets for the next reader.
+
+| | transition | state |
+|---|---|---|
+| direction | ⭐ **OUTPUT** — the field that RECEIVES the action's expression result | ⭐ **INPUT** — the variable the occurrence SEEDS its params FROM |
+| consumer | the compound `{Fqn}@{offset}` thunk key | `HsmParamBindings` seed offsets |
+| cross-region writer-conflict rule | ✅ **participates** — two regions writing one variable race | ⛔ **must NOT** — §9.6 permits concurrent READERS; folding states in would manufacture a hard error on a legal asset. **There is a rail for this** |
+| auto-managed variable cleanup on delete | ✅ `RemoveTransitionInternal` removes the promoted variable | ⛔ **deliberately none** — a state names an EXISTING packed input that other states may also seed from; deleting the state must not delete it |
+| `CountNodesReferencingVariable` | ✅ counts | ✅ **counts too** — the caller's question is `IsUnused`, and a variable something seeds from is plainly used. ⚠ Omitting it would resurrect trap #5 for the state case |

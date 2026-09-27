@@ -65,6 +65,10 @@ public static class HsmAssetMapper
                 //    serialises byte-identically (the golden-corpus constraint, design §8a ⑥).
                 ActivityBlueprintAssetId = s.ActivityBlueprintAssetId,
                 ActivityBlueprintName    = s.ActivityBlueprintName,
+                // ⭐⭐ CE-387 — the per-state params seed binding. 🔴 The DTO field and
+                //    HsmBridgeEmitCore.EmitStateParamBindings have existed since E3b-0; this arm is
+                //    what was missing, so the value was ALWAYS null and every state seeded from 0.
+                ExpressionTargetField = s.ExpressionTargetField,
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -254,6 +258,7 @@ public static class HsmAssetMapper
                 SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
                 ActivityBlueprintAssetId = sDto.ActivityBlueprintAssetId,   // CE-385
                 ActivityBlueprintName    = sDto.ActivityBlueprintName,      // CE-385
+                ExpressionTargetField    = sDto.ExpressionTargetField,      // CE-387
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,

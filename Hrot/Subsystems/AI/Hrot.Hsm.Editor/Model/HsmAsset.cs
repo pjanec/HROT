@@ -307,6 +307,14 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// count and the conflict rule cannot disagree about what "bound to this variable" means.
     /// </para>
     /// </summary>
+    /// <remarks>
+    /// ⭐⭐ <b><c>CE-387</c> — STATES count too, and for the same reason the rest of this method
+    /// exists.</b> A state's <c>ExpressionTargetField</c> is a <b>READ</b> (its occurrence seeds its
+    /// params from that variable) rather than a write, ⛔ but the caller's question is
+    /// <c>IsUnused</c>, and a variable that something seeds from is plainly USED. ⚠ Omitting them
+    /// would resurrect the exact defect this method was written to fix — a bound variable offered
+    /// for deletion with a clean conscience — for the state case.
+    /// </remarks>
     public int CountNodesReferencingVariable(string name)
     {
         int count = 0;
@@ -314,6 +322,8 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
             if (IsExpressionTargetOf(t.ExpressionTargetField, name)) count++;
         foreach (var g in AllGlobalTransitions)
             if (IsExpressionTargetOf(g.ExpressionTargetField, name)) count++;
+        foreach (var s in AllStates)
+            if (IsExpressionTargetOf(s.ExpressionTargetField, name)) count++;
         return count;
     }
 
@@ -921,6 +931,27 @@ public sealed class StateNode : IContainerNodeModel
     /// <summary>⭐ The picked blueprint's catalogue NAME, beside <see cref="ActivityBlueprintAssetId"/>.
     /// ⚠ Display + re-resolution only — ⛔ the emitted id comes from the Guid, never from this.</summary>
     public string? ActivityBlueprintName;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its
+    /// params from.</b> 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4;
+    /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    ///
+    /// <para>🔴 <b>The emitter has consumed this since <c>E3b-0</c> and the editor could never
+    /// produce it.</b> <c>StateNodeDto.ExpressionTargetField</c> existed and
+    /// <c>HsmBridgeEmitCore.EmitStateParamBindings</c> already turns it into a
+    /// <c>HsmParamBindings.Register</c> table — but <c>StateNode</c> had no such field and the mapper
+    /// mapped it for TRANSITIONS only ⇒ it was **always null**, and every state seeded from offset
+    /// 0.</para>
+    ///
+    /// <para>⛔⛔ <b>SAME NAME, DIFFERENT CONCEPT from <see cref="TransitionNode.ExpressionTargetField"/>
+    /// — do not unify them.</b> A transition's is an OUTPUT: the field that RECEIVES the expression
+    /// result of its action, which is why it participates in the cross-region WRITER-conflict rule.
+    /// A state's is an INPUT: the variable its occurrence SEEDS FROM. ⇒ a state binding must NEVER be
+    /// added to that conflict rule — concurrent readers are legal, and adding it would manufacture
+    /// false conflicts.</para>
+    /// </summary>
+    public string? ExpressionTargetField;
 
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }

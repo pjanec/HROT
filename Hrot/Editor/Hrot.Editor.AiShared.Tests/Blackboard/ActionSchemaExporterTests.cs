@@ -195,6 +195,57 @@ public sealed class ActionSchemaExporterTests
         Assert.True(entry.Hosting.HasFlag(ActionHosting.Hsm));
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-386</c> — the HSM ROLE survives into the schema.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3.
+    ///
+    /// <para>🔴 <b>What was lost.</b> <c>[HsmAction]</c> and <c>[HsmGuard]</c> both set
+    /// <c>ActionHosting.Hsm</c> and nothing else ⇒ the two rails directly above this one were the
+    /// WHOLE story the schema could tell, and the HSM action and guard pickers could not be filtered
+    /// apart. The attributes always carried the distinction; the exporter discarded it.</para>
+    ///
+    /// <para>⛔ <c>IsCondition</c> was NOT reused for this: <c>BTreeNodeCatalog:104</c> turns it into
+    /// the persisted BTree node kind, so a method hosted as both a BTree action and an HSM guard
+    /// would have silently become a condition leaf.</para>
+    /// </summary>
+    [Fact]
+    public void Rebuild_HsmActionAndHsmGuard_CarryDistinctRoleFlags()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.HsmActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var guard = exporter.All[Fqn(nameof(ActionFixtures.HsmGuardMethod))];
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.False(guard.Hosting.HasFlag(ActionHosting.HsmActivity));
+
+        // ⚠ Both still carry the broad Hsm bit — the change is ADDITIVE, so the one production
+        //   reader (BehaviorActionCatalog.MapHosting) is untouched.
+        Assert.True(action.Hosting.HasFlag(ActionHosting.Hsm));
+        Assert.True(guard.Hosting.HasFlag(ActionHosting.Hsm));
+    }
+
+    /// <summary>⭐ A shared ACTION is an HSM activity; a shared CONDITION is an HSM guard. ⚠ The
+    /// condition keeps <c>IsCondition</c> as well — that flag means "a BTree condition leaf" and is
+    /// a different question.</summary>
+    [Fact]
+    public void Rebuild_SharedActionAndCondition_MapToTheMatchingHsmRole()
+    {
+        var exporter = new ActionSchemaExporter();
+        exporter.Rebuild();
+
+        var action = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
+        Assert.True(action.Hosting.HasFlag(ActionHosting.HsmActivity));
+        Assert.False(action.Hosting.HasFlag(ActionHosting.HsmGuard));
+
+        var cond = exporter.All[Fqn(nameof(ActionFixtures.SharedConditionMethod))];
+        Assert.True(cond.Hosting.HasFlag(ActionHosting.HsmGuard));
+        Assert.True(cond.IsCondition, "IsCondition is the BTree node-kind signal and must survive");
+    }
+
     [Fact]
     public void Rebuild_SharedAction_HasBTreeHsmSharedHosting()
     {

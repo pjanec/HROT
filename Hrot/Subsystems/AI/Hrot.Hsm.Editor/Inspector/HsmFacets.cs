@@ -45,6 +45,17 @@ public struct StateFacet
     [HsmActionPicker]
     public string? TimerAction;
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its
+    /// params from. 📄 design §3.4; <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    /// ⛔⛔ <b>Same field name as <see cref="TransitionFacet.ExpressionTargetField"/>, opposite
+    /// direction:</b> a transition's RECEIVES its action's result; a state's is the SEED it reads.
+    /// ⚠ Unbound is the COMMON case and means "seed from offset 0", not an error.
+    /// </summary>
+    [EditDisplayName("Params seed (blackboard variable)")]
+    [HsmBlackboardFieldPicker]
+    public string? ExpressionTargetField;
+
     // ⭐⭐⭐ HSM SUBTREE AUTHORING — 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     // 🔒 User, 2026-09-26: "the tree asset must be pickable."
     // 🔴 Until this field existed, E5's whole runtime for "an HSM state hosts a BTree" was

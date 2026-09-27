@@ -41,24 +41,48 @@ public sealed class HsmFacetFqnContext
 
 /// <summary>
 /// StructEdit <see cref="IImGuiFieldDrawer"/> for fields marked with
-/// <see cref="HsmActionPickerAttribute"/>. Lists action function names from the
-/// active HSM asset's transitions + global transitions.
+/// <see cref="HsmActionPickerAttribute"/>.
+///
+/// <para>⭐⭐⭐ <b><c>CE-386</c> — it offers the REGISTERED HSM activities, not only the names this
+/// asset already mentions.</b> 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.3.</para>
+///
+/// <para>🔴 <b>What was broken.</b> The list was built ONLY from the asset's own bindings ⇒ a name
+/// could be picked once it was already in use, and the FIRST binding was UNMAKEABLE from the
+/// inspector. A picker that can only offer what you have already chosen is not a picker.</para>
+///
+/// <para>⚠ <b>The self-referential list SURVIVES as the no-catalog fallback</b> (the headless host,
+/// and every fixture that constructs a drawer with one argument) — ⛔ but a production caller that
+/// HAS the exporter must pass it, which is what the rail asserts. ⭐ The union is deliberate even
+/// WITH a catalog: an asset may name an action the current assembly no longer exports, and dropping
+/// it from the list would hide a dangling binding instead of showing it.</para>
 /// </summary>
 public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly IActionSchemaExporter? _schema;
 
-    public HsmActionPickerDrawer(HsmAsset asset)
+    public HsmActionPickerDrawer(HsmAsset asset) : this(asset, null) { }
+
+    public HsmActionPickerDrawer(HsmAsset asset, IActionSchemaExporter? schema)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _asset  = asset ?? throw new ArgumentNullException(nameof(asset));
+        _schema = schema;
     }
 
     public Type TargetType => typeof(string);
 
-    /// <summary>Returns all distinct action function names from the asset's transitions.</summary>
+    /// <summary>Every registered HSM ACTIVITY, unioned with the names this asset already binds.</summary>
     public IReadOnlyList<string> GetItems()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+
+        // ⭐ CE-386 — the catalog half. HsmActivity, not Hsm: a bare Hsm entry may be a GUARD, and
+        //   offering a guard as an activity is the wrong-kind defect CE-396 fixed one layer up.
+        if (_schema != null)
+            foreach (var kv in _schema.All)
+                if (kv.Value.Hosting.HasFlag(ActionHosting.HsmActivity))
+                    names.Add(kv.Key);
+
         foreach (var t in _asset.AllTransitions)
         {
             if (!string.IsNullOrEmpty(t.ActionFunction)) names.Add(t.ActionFunction!);
@@ -74,7 +98,7 @@ public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
         }
         foreach (var g in _asset.AllGlobalTransitions)
             if (!string.IsNullOrEmpty(g.ActionFunction)) names.Add(g.ActionFunction!);
-        return names.OrderBy(n => n).ToList();
+        return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
     /// <inheritdoc/>
@@ -123,22 +147,35 @@ internal static class HsmPickerHelper
 public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 {
     private readonly HsmAsset _asset;
+    private readonly IActionSchemaExporter? _schema;
 
-    public HsmGuardPickerDrawer(HsmAsset asset)
+    public HsmGuardPickerDrawer(HsmAsset asset) : this(asset, null) { }
+
+    /// <summary>⭐⭐ <c>CE-386</c> — see <see cref="HsmActionPickerDrawer"/> for why the catalog half
+    /// exists and why the asset's own names stay in the union.</summary>
+    public HsmGuardPickerDrawer(HsmAsset asset, IActionSchemaExporter? schema)
     {
-        _asset = asset ?? throw new ArgumentNullException(nameof(asset));
+        _asset  = asset ?? throw new ArgumentNullException(nameof(asset));
+        _schema = schema;
     }
 
     public Type TargetType => typeof(string);
 
+    /// <summary>Every registered HSM GUARD, unioned with the guards this asset already binds.</summary>
     public IReadOnlyList<string> GetItems()
     {
         var names = new HashSet<string>(StringComparer.Ordinal);
+
+        if (_schema != null)
+            foreach (var kv in _schema.All)
+                if (kv.Value.Hosting.HasFlag(ActionHosting.HsmGuard))
+                    names.Add(kv.Key);
+
         foreach (var t in _asset.AllTransitions)
             if (!string.IsNullOrEmpty(t.GuardFunction)) names.Add(t.GuardFunction!);
         foreach (var g in _asset.AllGlobalTransitions)
             if (!string.IsNullOrEmpty(g.GuardFunction)) names.Add(g.GuardFunction!);
-        return names.OrderBy(n => n).ToList();
+        return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
     public bool DrawInput(ref object value, EditNode node)
@@ -499,9 +536,14 @@ public static class HsmPickerDrawerFactory
 
         var bbDrawer = new HsmBlackboardFieldPickerDrawer(asset, exporter, fqnAccessor, fqnContext);
 
+        // ⭐⭐⭐ CE-386 — the exporter reaches the two pickers that had been ignoring it.
+        // 📐 The plumbing was already there: AiFacetPickerBinder.Rebuild:95, the ONE production
+        //    site, already passes services.ActionSchema into this factory, and the factory already
+        //    took it — it simply only ever reached HsmBlackboardFieldPickerDrawer. ⇒ the forwarding
+        //    was never the defect; the CONSUMPTION was (design §9 rail ⑧, re-aimed).
         var composite = new HsmCompositeStringDrawer()
-            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset))
-            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset))
+            .Register<HsmActionPickerAttribute>(new HsmActionPickerDrawer(asset, exporter))
+            .Register<HsmGuardPickerAttribute>(new HsmGuardPickerDrawer(asset, exporter))
             .Register<HsmStateSelectorAttribute>(new HsmStateSelectorDrawer(asset))
             .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset))
             .Register<HsmBlackboardFieldPickerAttribute>(bbDrawer);

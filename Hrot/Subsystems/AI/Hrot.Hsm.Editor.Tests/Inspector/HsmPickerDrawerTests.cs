@@ -111,6 +111,123 @@ public sealed class HsmPickerDrawerTests
         drawer.GetItems().Should().BeEmpty("no guard functions were registered");
     }
 
+    // ── CE-386: the action/guard pickers read the REGISTERED catalog ─────────
+
+    private sealed class StubExporter : Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter
+    {
+        private readonly System.Collections.Generic.Dictionary<string,
+            Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> _map = new(StringComparer.Ordinal);
+
+        public System.Collections.Generic.IReadOnlyDictionary<string,
+            Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry> All => _map;
+        public event Action? Changed { add { } remove { } }
+
+        public StubExporter Add(string fqn, Hrot.Editor.AiShared.Blackboard.ActionHosting hosting)
+        {
+            _map[fqn] = new Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry(
+                fqn, typeof(float), hosting,
+                Hrot.Editor.AiShared.Blackboard.BlackboardAccess.ReadWrite);
+            return this;
+        }
+
+        public Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry? Lookup(string fqn)
+            => _map.GetValueOrDefault(fqn);
+        public void Rebuild() { }
+    }
+
+    /// <summary>A catalog holding one HSM activity, one HSM guard, and one BTree-only action that
+    /// must appear in NEITHER HSM picker.</summary>
+    private static StubExporter ThreeKinds()
+    {
+        return new StubExporter()
+            .Add("Ns.Catalog.Chase",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm
+               | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmActivity)
+            .Add("Ns.Catalog.InRange",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm
+               | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmGuard)
+            .Add("Ns.Catalog.BTreeOnly",
+                 Hrot.Editor.AiShared.Blackboard.ActionHosting.BTree);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-386</c> — the FIRST binding is now makeable.</b> 📄 design §3.3, rail ⑧.
+    ///
+    /// <para>🔴 <b>The defect.</b> Both pickers built their list ONLY from names the asset already
+    /// bound ⇒ an action could be picked once it was already in use, and the first binding was
+    /// UNMAKEABLE from the inspector. ⛔ A picker that can only offer what you already chose is not
+    /// a picker.</para>
+    ///
+    /// <para>⚠ Asserted on the CONSTRUCTED drawer with a catalog holding entries the asset does NOT
+    /// mention — the shape rail ⑧ was re-aimed to, because the ONE production caller
+    /// (<c>AiFacetPickerBinder.Rebuild:95</c>) was already forwarding the exporter.</para>
+    /// </summary>
+    [Fact]
+    public void ActionPicker_OffersRegisteredHsmActivities_TheAssetDoesNotYetMention()
+    {
+        var items = new HsmActionPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+
+        items.Should().Contain("Ns.Catalog.Chase");
+        items.Should().NotContain("Ns.Catalog.InRange", "a GUARD is not an activity");
+        items.Should().NotContain("Ns.Catalog.BTreeOnly", "a BTree-only action is not HSM-hostable");
+    }
+
+    [Fact]
+    public void GuardPicker_OffersRegisteredHsmGuards_TheAssetDoesNotYetMention()
+    {
+        var items = new HsmGuardPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+
+        items.Should().Contain("Ns.Catalog.InRange");
+        items.Should().NotContain("Ns.Catalog.Chase", "an ACTIVITY is not a guard");
+        items.Should().NotContain("Ns.Catalog.BTreeOnly");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The asset's own names stay in the union, even WITH a catalog.</b> ⛔ Dropping a name
+    /// the current assembly no longer exports would HIDE a dangling binding rather than show it —
+    /// the same never-erase reasoning as the subtree reference.
+    /// </summary>
+    [Fact]
+    public void TheAssetsOwnNamesSurviveAlongsideTheCatalog()
+    {
+        var items = new HsmActionPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+
+        items.Should().Contain("Ns.Actions.StartIdle", "the asset binds it, catalog or not");
+        items.Should().Contain("Ns.Catalog.Chase");
+    }
+
+    /// <summary>⚠ The no-catalog FALLBACK is unchanged — a headless host still gets the
+    /// self-referential list rather than an exception or an empty one.</summary>
+    [Fact]
+    public void WithNoExporter_ThePickersFallBackToTheAssetsOwnNames()
+    {
+        new HsmActionPickerDrawer(MakeAsset()).GetItems()
+            .Should().Contain("Ns.Actions.StartIdle");
+        new HsmGuardPickerDrawer(MakeAsset()).GetItems()
+            .Should().BeEmpty("the fixture binds no guards, and there is no catalog to add any");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rail ⑧ proper: the drawer the FACTORY builds uses the exporter it is handed.</b>
+    /// ⚠ Constructing the drawer directly (above) proves the drawer; this proves the WIRING, which
+    /// is the half that went silently inert twice before (<c>HsmValidator._isStatefulSubtree</c>,
+    /// <c>BlackboardAuthoringWindow._actionSchemaExporter</c>).
+    /// </summary>
+    [Fact]
+    public void TheFactoryWiresTheExporterIntoBothPickers()
+    {
+        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset(), ThreeKinds());
+        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
+
+        var action = composite.Resolve(NodeWithAttribute(new HsmActionPickerAttribute()));
+        var guard  = composite.Resolve(NodeWithAttribute(new HsmGuardPickerAttribute()));
+
+        ((Hrot.Editor.AiShared.Inspector.IPickerListSource)action!).GetItems()
+            .Should().Contain("Ns.Catalog.Chase");
+        ((Hrot.Editor.AiShared.Inspector.IPickerListSource)guard!).GetItems()
+            .Should().Contain("Ns.Catalog.InRange");
+    }
+
     // ── CE-396: [AiAssetPicker] dispatches on the attribute's KIND ────────────
 
     private sealed class CatalogAsset : Hrot.Editor.AiShared.IEditableAsset

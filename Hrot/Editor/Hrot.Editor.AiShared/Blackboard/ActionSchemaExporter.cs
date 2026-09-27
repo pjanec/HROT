@@ -109,8 +109,12 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             isAiPrimitive = true;
             if (aiPrimitive.BTreeAction)    hosting |= ActionHosting.BTree;
             if (aiPrimitive.BTreeCondition) { hosting |= ActionHosting.BTree; isCondition = true; }
-            if (aiPrimitive.HsmAction)      hosting |= ActionHosting.Hsm;
-            if (aiPrimitive.HsmGuard)       hosting |= ActionHosting.Hsm;
+            // ⭐⭐ CE-386 — the ROLE bit is set beside Hsm. 🔴 Both flags used to fold into Hsm
+            //    alone, so nothing downstream could tell an HSM activity from an HSM guard and the
+            //    two HSM pickers could not be filtered apart. The attribute always carried them
+            //    separately; only the schema lost the distinction.
+            if (aiPrimitive.HsmAction)      hosting |= ActionHosting.Hsm | ActionHosting.HsmActivity;
+            if (aiPrimitive.HsmGuard)       hosting |= ActionHosting.Hsm | ActionHosting.HsmGuard;
             if (aiPrimitive.BlueprintCall)  hosting |= ActionHosting.Shared;
         }
 
@@ -124,25 +128,31 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             isCondition = true;
         }
 
-        // HSM attributes
+        // HSM attributes — CE-386: the role bit beside Hsm, exactly as for the AiPrimitive above.
         if (method.IsDefined(typeof(HsmActionAttribute), inherit: false))
-            hosting |= ActionHosting.Hsm;
+            hosting |= ActionHosting.Hsm | ActionHosting.HsmActivity;
 
         if (method.IsDefined(typeof(HsmGuardAttribute), inherit: false))
-            hosting |= ActionHosting.Hsm;
+            hosting |= ActionHosting.Hsm | ActionHosting.HsmGuard;
 
         // Shared AI attributes -- AllowMultiple, gather all instances
         foreach (SharedAiActionAttribute attr in
             method.GetCustomAttributes<SharedAiActionAttribute>(inherit: false))
         {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared;
+            // CE-386: a shared ACTION is an HSM activity, not a guard.
+            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.HsmActivity
+                     | ActionHosting.Shared;
             _ = attr; // DtoType is on the attribute but we take DtoType from the ref param
         }
 
         foreach (SharedAiConditionAttribute attr in
             method.GetCustomAttributes<SharedAiConditionAttribute>(inherit: false))
         {
-            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.Shared;
+            // ⭐ CE-386: a shared CONDITION is exactly what an HSM transition guard needs, so it
+            //   earns the guard bit. ⚠ IsCondition stays too — it is the BTree node-kind signal
+            //   (BTreeNodeCatalog:104) and means something different.
+            hosting |= ActionHosting.BTree | ActionHosting.Hsm | ActionHosting.HsmGuard
+                     | ActionHosting.Shared;
             isCondition = true;
             _ = attr;
         }
@@ -167,7 +177,11 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
             if (dtoType == null)
                 return;
             // Force Hsm-only hosting for the attribute-based fallback path.
-            hosting = ActionHosting.Hsm;
+            // ⚠ CE-386: KEEP the role bits. This arm is only reached because an [HsmAction]/
+            //   [HsmGuard] supplied the DtoType, so the role is already known — a bare
+            //   `hosting = Hsm` would throw it away and put the entry in neither picker.
+            hosting &= ActionHosting.HsmActivity | ActionHosting.HsmGuard;
+            hosting |= ActionHosting.Hsm;
         }
 
         // Read access annotation from the first parameter.
