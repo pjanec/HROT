@@ -458,6 +458,18 @@ re-quote *"shipped"*. ⭐ §3.1's BTree-hosts-BTree defect is the one that **is*
 
 ### 3.1 ⭐⭐ Hosting one graph inside another ALREADY SHIPS — and it is the template
 
+> ⛔⛔⛔ **SUPERSEDED `2026-09-23` BY `CE-337` — DO NOT QUOTE THIS SECTION FOR CURRENT STATE.**
+> ⭐ **It was TRUE when written**, and the mechanism it describes is still the right template — that
+> is why it is kept. ⛔ **But the mechanism it measures NO LONGER EXISTS:** `CE-337` retired **both**
+> `BTreeOrchestratorEmitCore` arms *(`Emit` returns `null` unconditionally, `:106`)*, so nothing
+> generates the `Orchestrate_<Sub>_Tick` action this section rests on.
+> ⇒ 📐 **Current state, measured `2026-09-27`: `NodeType.Subtree`'s `Failure` stub IS what a hosted
+> BTree does at runtime** *(`Fbt.Kernel/Runtime/Interpreter.cs:249`)*, and **BTree-hosts-BTree IS a
+> missing feature.** ⭐ The live answer is **§32.12.3** — *"`E5`'s shape with the NODE's visual id as
+> the site — NOT BUILT"*.
+> ⚠ **Read the two sentences below as HISTORY**: they are a correction to a still-earlier reading,
+> and time has turned them back around.
+
 ⛔ **Correction to an earlier reading of mine: `NodeType.Subtree`'s `Failure` stub is NOT how BTree
 hosts a BTree, and BTree-hosts-BTree is not a missing feature.** Measured:
 
