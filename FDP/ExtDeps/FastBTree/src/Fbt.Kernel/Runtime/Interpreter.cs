@@ -38,6 +38,16 @@ namespace Fbt.Runtime
         /// </summary>
         public IReadOnlyList<string> UnboundMethodNames => _unboundMethodNames;
 
+        /// <summary>
+        /// CE-365 -- what runs a <c>NodeType.Subtree</c> node. Null (the default) keeps the historical
+        /// behaviour: a Subtree node returns Failure.
+        /// <para>
+        /// Settable rather than a constructor argument because the host resolves its per-site keys
+        /// from the BLOB, which does not exist until this interpreter has been built around it.
+        /// </para>
+        /// </summary>
+        public ISubtreeHost<TBlackboard, TContext>? SubtreeHost { get; set; }
+
         public Interpreter(BehaviorTreeBlob blob, ActionRegistry<TBlackboard, TContext> registry)
         {
             _blob = blob ?? throw new ArgumentNullException(nameof(blob));
@@ -155,6 +165,17 @@ namespace Fbt.Runtime
         {
             if ((uint)nodeIndex >= (uint)_blob.Nodes.Length) return;
             ref var node = ref _blob.Nodes[nodeIndex];
+
+            // CE-365 / F14 -- a Subtree node's deactivation CANNOT go through the lookup below:
+            // its PayloadIndex indexes SubtreeAssetIds, not MethodNames, so that read would hit the
+            // wrong array. The host owns the reset. Without this the abandoned child keeps its
+            // cursor and the next entry resumes mid-tree.
+            if (node.Type == NodeType.Subtree)
+            {
+                SubtreeHost?.Reset(ref context, _blob, nodeIndex);
+                return;
+            }
+
             if (node.IsResourceOwning)
             {
                 int pi = node.PayloadIndex;
@@ -247,8 +268,11 @@ namespace Fbt.Runtime
                     // ObserverSelector uses standard selector semantics in the interpreter.
                     return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.Subtree:
-                    // Subtree execution requires external orchestration; return Failure as a safe stub.
-                    return NodeStatus.Failure;
+                    // CE-365 -- dispatch to the host that owns the occurrence storage. Without one,
+                    // this is the historical safe stub.
+                    return SubtreeHost is { } host
+                        ? host.Tick(ref bb, ref ctx, _blob, nodeIndex)
+                        : NodeStatus.Failure;
                 default:
                     return NodeStatus.Failure; // Unknown/Unimplemented node type
             }

@@ -188,6 +188,15 @@ namespace Fbt.Serialization
             {
                 nodeDef.SetResourceOwning();
             }
+            // CE-365 / F14 -- a hosting node ALWAYS owns a resource: the child's cursor, which lives
+            // in a slot the host must clear when it abandons the child mid-tree. Unconditional
+            // because the predicate above is keyed on MethodName against the DEACTIVATOR registry,
+            // and a Subtree node has no deactivator to register -- the ISubtreeHost owns its reset.
+            // Without this bit SweepExitedNode never visits the node at all.
+            else if (node.Type == NodeType.Subtree)
+            {
+                nodeDef.SetResourceOwning();
+            }
             nodes.Add(nodeDef);
 
             // Recursively flatten children

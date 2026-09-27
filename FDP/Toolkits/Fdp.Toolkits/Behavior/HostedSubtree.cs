@@ -70,6 +70,37 @@ public static unsafe class HostedSubtree
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-362</c> — the hosting call with NO arguments but the context and the key.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §33.
+    ///
+    /// <para>⭐⭐ <b>This is the ONE spelling of "which blackboard does the child get?"</b> Both hosts
+    /// reach it: an HSM state through <c>BrainTickSystem.TickHostedChildren</c>, and a BTree node
+    /// through <c>OccurrenceSubtreeHost</c>. ⛔ A second copy of these four lines for the BTree arm is
+    /// exactly what ruling 9 forbids, and it is how the two would drift on a question — <i>"what does
+    /// a child of a no-params behaviour read?"</i> — that has one right answer.</para>
+    ///
+    /// <para>⭐ <b>The child reads the HOST ENTITY's root params region.</b> ⚠ A behaviour with no
+    /// params has NO root slot, so the child is handed a scratch byte rather than a throw: that is
+    /// the <c>WanderMilitary</c> shape and it is legitimate. ⛔ <c>RootRef</c> would throw, and
+    /// <i>"did the lookup fail?"</i> cannot be told from a real miss.</para>
+    ///
+    /// <para>⭐ <b><c>TryGetRootBytes</c> is deliberately the def-free probe</b> — it answers the
+    /// guard from the STORE, so a caller needs no <c>BehaviorDefinition</c>. That is what lets a
+    /// generated thunk or a kernel dispatch reach this without carrying one.</para>
+    /// </summary>
+    public static NodeStatus TickFromContext(ref BTreeContext ctx, int treeStateSlotKey)
+    {
+        var child = HostedChildren.Require(treeStateSlotKey);
+
+        byte scratch = 0;
+        ref byte childBb = ref scratch;
+        if (RootParamsAccess.TryGetRootBytes(ctx.World, ctx.Self, out byte* root))
+            childBb = ref Unsafe.AsRef<byte>(root);
+
+        return Tick(child, ref childBb, ref ctx, treeStateSlotKey);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>D4</c>, HALF TWO — the <c>F14</c> case: the host ABANDONS a child that is still
     /// <c>Running</c>.</b> Registered as the hosting node's <b>deactivator</b>.
     ///

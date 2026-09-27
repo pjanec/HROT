@@ -1,0 +1,192 @@
+using System;
+using System.Collections.Generic;
+using Fbt;
+using Fdp.Toolkit.Behavior.Shared;
+
+namespace Fdp.Toolkit.Behavior;
+
+/// <summary>
+/// ⭐⭐⭐ <b>Which NODE of a BTree hosts a child, and under which tree-state slot.</b>
+/// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §33. The twin of <see cref="HsmHostedSubtrees"/>,
+/// keyed the same way — by the blob's <c>StructureHash</c>.
+///
+/// <para>⭐⭐⭐ <b>WHY IT WALKS THE BLOB, and this is the whole reason hand-written trees work.</b>
+/// 🔒 User, <c>2026-09-27</c>: *"i need to support hand written c# btree subtrees as well."*
+/// 📐 The blob is the ONE artefact both authoring routes produce: a <c>*.btree.json</c> asset goes
+/// editor → generated C# → <c>Compile()</c>, and a hand-written tree goes <c>BTreeBuilder</c> →
+/// <c>Compile()</c>. ⛔ Anything computed at EMIT time is invisible to the hand-written route **by
+/// construction**, because there is no emitter — <c>BTreeDefinitionGenerator</c> produces only a
+/// <c>Get&lt;Name&gt;()</c> catalog. ⇒ walking the blob is the only place that serves both.</para>
+///
+/// <para>⚠ <b>Startup-only</b>, like the registries beside it: <see cref="Plan"/> and
+/// <see cref="Bind"/> run during the <c>[BlueprintRegistrar]</c> scan; reads are lock-free after.</para>
+/// </summary>
+public static class BTreeHostedSites
+{
+    /// <summary>One hosting node, resolved to the slot its child's cursor lives in.</summary>
+    /// <param name="NodeIndex">The node's index in <c>blob.Nodes</c> — what the interpreter speaks in.</param>
+    /// <param name="ChildName">The child behaviour's REGISTRY name.</param>
+    /// <param name="TreeStateSlotKey">From <c>OccurrenceSlotKey.ComputeTreeStateKey(host, site, child)</c>.</param>
+    public readonly record struct Entry(int NodeIndex, string ChildName, int TreeStateSlotKey);
+
+    /// <summary>The result of walking one blob: what to declare, and what to bind.</summary>
+    /// <param name="Slots">Stateful manifest entries — one per hosting node. ⛔ These MUST reach the
+    /// <c>BehaviorDefinition</c>, or <see cref="HostedSubtree.Tick"/> throws on the undeclared slot.</param>
+    public readonly record struct Plan(IReadOnlyList<Entry> Entries, IReadOnlyList<StatefulSlotInfo> Slots);
+
+    // blob StructureHash -> nodeIndex -> slot key. Mirrors HsmHostedSubtrees._byMachine.
+    private static readonly Dictionary<int, Dictionary<int, int>> _byStructureHash = new();
+
+    /// <summary>
+    /// ⭐⭐ <b>Derives a stable asset identity from a NAME.</b>
+    /// ⚠ <c>BTreeDefinitionAttribute.AssetId</c> is documented *"null for hand-authored"*, so a
+    /// hand-written tree has no Guid — and the EDITOR already falls back this way
+    /// (<c>AssetIdHasher.FromName</c>, rail <c>LoadFrom_FallsBackToFromName_WhenAssetIdAbsent</c>).
+    /// ⭐ Both are <b>FNV-1a-32 on offset basis 2166136261</b>, so the two sides agree by
+    /// construction. ⛔ They cannot simply delegate — <c>Hrot.Editor.AiShared</c> does not reference
+    /// this assembly — so <c>CE-368</c>'s cross-assembly rail is what keeps them honest.
+    /// </summary>
+    public static Guid AssetIdFromName(string name)
+        => new Guid(BehaviorHash.FromName(name), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+
+    /// <summary>
+    /// ⭐⭐⭐ Walks <paramref name="blob"/> for <c>NodeType.Subtree</c> nodes and computes each one's
+    /// tree-state slot key. ⭐ PURE — it registers nothing, because
+    /// <c>BehaviorDefinition.StatefulWorkingSlots</c> is <c>init</c> and so must be known BEFORE the
+    /// definition is constructed. <see cref="Bind"/> is the second phase.
+    /// </summary>
+    /// <param name="hostName">The host behaviour's registry name; the identity fallback.</param>
+    /// <param name="hostAssetId">The host's editor asset id when it has one; <c>null</c> for a
+    /// hand-written tree, which derives from <paramref name="hostName"/>.</param>
+    public static Plan PlanFor(BehaviorTreeBlob blob, string hostName, Guid? hostAssetId = null)
+    {
+        if (blob is null) throw new ArgumentNullException(nameof(blob));
+
+        var entries = new List<Entry>();
+        var slots   = new List<StatefulSlotInfo>();
+        if (blob.Nodes is null) return new Plan(entries, slots);
+
+        Guid hostId = hostAssetId ?? AssetIdFromName(hostName);
+        var seen = new HashSet<int>();
+
+        for (int i = 0; i < blob.Nodes.Length; i++)
+        {
+            ref readonly var node = ref blob.Nodes[i];
+            if (node.Type != NodeType.Subtree) continue;
+
+            int pi = node.PayloadIndex;
+            if (blob.SubtreeAssetIds is null || pi < 0 || pi >= blob.SubtreeAssetIds.Length) continue;
+
+            string childName = blob.SubtreeAssetIds[pi];
+            if (string.IsNullOrWhiteSpace(childName)) continue;
+
+            // ⭐ The SITE. `.Subtree(name, visualId: …)` already accepts one, and BTreeBuilder.Compile
+            //   populates DebugMetadata unconditionally on both paths.
+            // ⚠⚠ THE ORDINAL FALLBACK IS A STATED LIMITATION, not a detail: ComputeSiteId's own doc
+            //   says "from the author's stable node id — NOT an ordinal". Inserting a Subtree node
+            //   above another in hand-written source shifts it, so that child's cursor resets ONCE.
+            //   Bounded and acceptable (a recompile, one lost cursor, never a wrong child) — and the
+            //   fix is free and the author owns it: pass `visualId:`. CE-367 warns.
+            Guid siteId = SiteIdOf(blob, i, hostName, childName);
+
+            int key = OccurrenceSlotKey.ComputeTreeStateKey(hostId, siteId, AssetIdFromName(childName));
+
+            // ⚠ Two nodes hosting the same child get DIFFERENT keys because the site differs, so a
+            //   collision means a duplicated visual id — malformed input, not a co-scoped share.
+            if (!seen.Add(key)) continue;
+
+            entries.Add(new Entry(i, childName.Trim(), key));
+            slots.Add(TreeStateSlot(key, childName.Trim()));
+        }
+
+        return new Plan(entries, slots);
+    }
+
+    /// <summary>
+    /// ⭐ Binds each planned site's child interpreter and publishes the node→key map for the
+    /// interpreter to read at tick time.
+    /// ⚠ Call AFTER the definition is registered, because <see cref="HostedChildren.Register"/>
+    /// resolves the CHILD through the registry and registrars run in an arbitrary order.
+    /// ⛔ An unresolvable child is SKIPPED here and surfaces at the hosting site as
+    /// <see cref="HostedChildren.Require"/>'s named exception — the same fails-closed policy
+    /// <see cref="HsmHostedSubtrees"/> follows.
+    /// </summary>
+    public static void Bind(BehaviorRegistry registry, BehaviorTreeBlob blob, in Plan plan)
+    {
+        if (registry is null) throw new ArgumentNullException(nameof(registry));
+        if (blob     is null) throw new ArgumentNullException(nameof(blob));
+        if (plan.Entries is null || plan.Entries.Count == 0) return;
+
+        var map = new Dictionary<int, int>(plan.Entries.Count);
+        foreach (var e in plan.Entries)
+        {
+            map[e.NodeIndex] = e.TreeStateSlotKey;
+            HostedChildren.Register(registry, e.TreeStateSlotKey, e.ChildName);
+        }
+
+        // ⭐ Last writer wins, deliberately: hot reload re-runs registrars and the NEW blob's map is
+        //   the one that must be reachable. Same rule HostedChildren.Register follows.
+        _byStructureHash[blob.StructureHash] = map;
+    }
+
+    /// <summary>⭐ The slot key for a hosting node, or <c>false</c> when this node hosts nothing.</summary>
+    public static bool TryGetKey(BehaviorTreeBlob blob, int nodeIndex, out int treeStateSlotKey)
+    {
+        treeStateSlotKey = 0;
+        return blob is not null
+            && _byStructureHash.TryGetValue(blob.StructureHash, out var map)
+            && map.TryGetValue(nodeIndex, out treeStateSlotKey);
+    }
+
+    /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
+    public static void ClearForTests() => _byStructureHash.Clear();
+
+    // ---- internals ----------------------------------------------------------
+
+    private static Guid SiteIdOf(BehaviorTreeBlob blob, int nodeIndex, string hostName, string childName)
+    {
+        var meta = blob.DebugMetadata;
+        if (meta is not null && nodeIndex < meta.Length)
+        {
+            string raw = meta[nodeIndex]?.VisualId ?? string.Empty;
+            if (!string.IsNullOrWhiteSpace(raw) && Guid.TryParse(raw, out var parsed) && parsed != Guid.Empty)
+                return parsed;
+        }
+        // ⚠ The ordinal fallback — see PlanFor's remarks. Keyed on the host AND child names too, so
+        //   two different hosts cannot collide on a bare index.
+        return AssetIdFromName($"{hostName}#{childName}#{nodeIndex}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ One hosted child's <c>BehaviorTreeState</c> slot.
+    /// ⛔ <b>Role=State / Scope=Behavior with <c>WorkingStateType == typeof(BehaviorTreeState)</c></b>
+    /// is what makes <see cref="HostedSubtree.IsTreeStateSlot"/>'s manifest test work — an authored
+    /// WorkingState struct can never be that type, so an external reset clears a hosted CURSOR and
+    /// never author state. ⚠ Identical to the HSM emitter's emission; re-spelling it is how the two
+    /// would drift.
+    /// </summary>
+    private static StatefulSlotInfo TreeStateSlot(int key, string childName)
+    {
+        int size = HostedSubtree.TreeStatePayloadSize;
+        return new StatefulSlotInfo(
+            key,
+            size,
+            unchecked(TypeNameHash("Fbt.BehaviorTreeState") ^ (uint)size),
+            typeof(Fbt.BehaviorTreeState),
+            childName + " (hosted)",
+            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State,
+            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
+    }
+
+    /// <summary>FNV-1a-32 over the type name — the same shape the emitters bake.</summary>
+    private static uint TypeNameHash(string typeName)
+    {
+        uint hash = 2166136261u;
+        foreach (char c in typeName)
+        {
+            hash ^= (byte)c;
+            hash *= 16777619u;
+        }
+        return hash;
+    }
+}
