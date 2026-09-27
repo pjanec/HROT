@@ -7,6 +7,9 @@ using Fdp.Presentation.WindowManager;
 using Fdp.Toolkit.Blueprints;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Diagnostics.Breakpoints;
+// CE-350 swapped this using instead of ADDING it. BlueprintDebugSession stayed in
+// Hrot.Blueprints.Core.Debug, so this file needs BOTH.
+using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.NodeDrawers;
 using Hrot.Blueprints.Editor.Windows;

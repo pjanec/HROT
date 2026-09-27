@@ -6,6 +6,10 @@ using Fdp.Toolkit.Blueprints;
 using Fdp.Toolkit.Blueprints.Components;
 using Hrot.Blueprints.Core.Compiler.Emit;
 using Hrot.Diagnostics.Breakpoints;
+// CE-350 moved IEngineDebugTimeController to Hrot.Diagnostics.Breakpoints and SWAPPED this using
+// instead of ADDING it. BlueprintDebugSession stayed in Hrot.Blueprints.Core.Debug, so this file
+// needs BOTH -- moving one type out of a namespace splits it across two.
+using Hrot.Blueprints.Core.Debug;
 using Hrot.Blueprints.Editor.Runtime;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
