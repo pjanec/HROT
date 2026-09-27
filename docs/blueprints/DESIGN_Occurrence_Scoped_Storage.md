@@ -1,7 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-23
-build-state: DESIGN  (§32 was READY-TO-BUILD for one commit; its own review DEMOTED it 2026-09-23)
+updated: 2026-09-27
+build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
+  one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
+  ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path).
+  ⚠ NOT AUDITED since the programme shipped, so DO NOT trust their headers without measuring:
+  §17 (O3a, says READY-TO-BUILD — BlueprintTierTable is in 90 files, so it is probably BUILT) ·
+  §19 (O4/C1, says READY-TO-BUILD) · §24 (O7, says BUILDING — O7c-4d deleted BrainHsm128, so it is
+  probably BUILT). 📌 Five stale build-state lines have now been found in this file and its
+  neighbours (§30, §31 on 2026-09-27; §29, §32 here) — treat a section header as a CLAIM, not a fact.
 current-answer: ⭐⭐⭐ §33 — E6, BTREE-HOSTS-BTREE — IS THE NEWEST SECTION AND IS READY-TO-BUILD
   (2026-09-27). Start there for the BTree hosting slice; it carries its own INVENTORY, three UML
   diagrams, five build items and its rejected alternatives.
@@ -3848,8 +3855,14 @@ than implied — pretending otherwise would be worse than the gap.
 
 ## 29. ⛔ `P3` — **THE ROOT BEHAVIOUR'S PARAMS MOVE INTO A SLOT** *(DESIGN, `2026-09-21`)*
 
-> **`build-state: DESIGN`** — ⛔ nothing here is built. 📄 `PLAN_Occurrence_Storage_Build.md` "THE PATH"
-> `P3`; it is what makes `P4` *(retire `BrainBlackboard`)* possible.
+> ⭐⭐ **`build-state: BUILT`** *(corrected `2026-09-27`)*. ⚠ **This line read *"`DESIGN` — nothing here
+> is built"* until then, which was FALSE by a whole slice: `P3` shipped, and `P4` — which this section
+> itself names as depending on it — is complete. 📐 **Measured, not assumed:**
+> `FDP/Toolkits/Fdp.Toolkits/Behavior/RootParamsAccess.cs` exists and `BehaviorIngressSystem` sizes the
+> root slot from `RootParamsBytes`; the `BrainBlackboard` this section was re-homing AWAY FROM is
+> deleted *(`CE-309`, §30.28)*. ⇒ a reader taking this header at face value would have concluded the
+> root params still live in a blackboard that no longer exists.
+> 📄 `PLAN_Occurrence_Storage_Build.md` "THE PATH" `P3`.
 
 ### 29.1 ⭐⭐ INVENTORY — **the LIVE params surface, re-measured after `E3a` + `P2`**
 
@@ -7597,7 +7610,12 @@ follow-up, and it is honest to say so rather than imply the capability is finish
 > 📄 [`Architect_Question_36_Subtree_Hosting_Runtime.md`](Architect_Question_36_Subtree_Hosting_Runtime.md)
 > holds the options, the rejected alternatives and the approval.
 >
-> ⛔⛔ **`build-state: DESIGN`, not `READY-TO-BUILD`.** ⚠ It carried `READY-TO-BUILD` for one commit
+> ⭐⭐ **`build-state: BUILT`** *(corrected `2026-09-27`; **§32.11 is the AS-BUILT**, and the authoring
+> half shipped `2026-09-26` — §32.28)*. ⚠ **This line read *"`DESIGN`, not `READY-TO-BUILD`"* until
+> then — true of the moment the review wrote it, and false ever since the build landed. ⛔ The
+> demotion below is HISTORY; it is kept because §32.3's corrected decision is what was actually built.**
+>
+> ⛔ **HISTORY — the demotion.** It carried `READY-TO-BUILD` for one commit
 > and the review in **§32.2 demoted it — eight findings, two blocking.** ⭐ **§32.3 is the corrected
 > decision** *(user, `2026-09-23`: **"go with b"**)* and §32.4–§32.10 are the shape that follows from
 > it. ⛔ The pre-review §32.2/§32.3/§32.5/§32.6/§32.8 are **SUPERSEDED** and live under

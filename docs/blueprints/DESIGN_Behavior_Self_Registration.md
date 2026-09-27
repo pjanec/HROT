@@ -1,8 +1,11 @@
 <!--STATUS
 state: LIVE
-build-state: READY-TO-BUILD
+build-state: ✅ BUILT (2026-09-27) — all five §9 items shipped as CE-371..CE-375. ⚠ This line read
+  READY-TO-BUILD for the whole of the build and was corrected afterwards; §10a is the AS-BUILT and
+  wins over §9 wherever they disagree.
 updated: 2026-09-27
-current-answer: §4 is the decision, §5-§7 the UML, §9 the build items. ⭐ Start at §2 (INVENTORY)
+current-answer: ⭐ §10a is the AS-BUILT — read it FIRST for what actually exists. §4 is the decision,
+  §5-§7 the UML, §9 the build items as dispatched. ⭐ Start at §2 (INVENTORY)
   if you are about to argue that something here already exists — it probably does, and §2 says which.
 stale-below: nothing yet.
 known-rot: nothing yet.
