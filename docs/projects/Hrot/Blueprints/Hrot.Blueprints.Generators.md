@@ -325,6 +325,16 @@ warnings map to `DiagnosticSeverity.Warning`.
 > 📌 **Verify with `-getItem:Analyzer`, never by eye:**
 > `dotnet msbuild <consumer>.csproj -t:ResolveReferences -getItem:Analyzer` — it prints the actual
 > resolved paths, which is how the `bin\Debug\net8.0\` flavour was caught.
+>
+> ⛔⛔ **AND THE RULE ABOVE APPLIES ONLY TO `Analyzer` ITEMS — an ORDINARY `ProjectReference` to the same
+> project is FINE.** 🔒 For an ordinary reference there is no analyzer load context, so nearest-TFM
+> picking `net8.0` for a `net8.0` consumer is **correct** and nothing needs shipping.
+> ⚠ **`CE-380` was filed against three consumers on exactly this confusion and refuted `2026-09-27`:** a
+> TEXT sweep for `OutputItemType="Analyzer"` matched `Hrot.AiEditor.Generators.Tests.csproj` because the
+> string appears **in a COMMENT** *("referenced as an ORDINARY LIBRARY, not `OutputItemType="Analyzer"`")*.
+> ⇒ ⭐⭐ **grep cannot tell a comment from an item, nor an ordinary reference from an analyzer one** — parse
+> the XML or use `-getItem`. 📐 Measured: of **12** analyzer-shipping projects, only `Hrot.AI.Behaviors`
+> ever shipped a defect-carrying one.
 
 To activate the generator in a consuming project, two MSBuild items are required:
 
