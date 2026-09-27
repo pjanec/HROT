@@ -606,3 +606,60 @@ bridge, the blueprint hot path **stops making these calls at all** ⇒ the bluep
 cost it is about to stop paying. 🔒 **A campaign over 102 system files must be justified by ITS OWN
 profile, on a real `--mode all` run, not by this section.** ⚠ Quoting §11 as the reason would be the
 mirror of the mistake §2.4 records — a real measurement carried into a decision it does not support.
+
+---
+
+## 12. 📐 THE GATE BASELINE — **captured `2026-09-27` at `9ead2fb14`, BEFORE any code change**
+
+> 🔒 **User:** *"shouldnt we run some system test like T3 before starting changes to know the baseline
+> state and to fix the system to start with a clean table?"* ⭐⭐ **Yes — and the reason is the gate
+> contract, not caution:** a red must be *confirmed pre-existing against a NAMED base sha*. ⛔ Captured
+> after the change, that confirmation is archaeology done with your own diff in the tree — which is
+> exactly how a real regression gets filed as *"pre-existing"*.
+
+### 12.1 ⭐ UNIT SUITES — **the ones `CE-381`..`CE-387` touch**
+
+| suite | result |
+|---|---|
+| `Fhsm.Tests` — ⭐⭐ **the kernel `CE-381`/`CE-382` edit** | ✅ **309 / 309** |
+| `Fdp.Toolkits.Tests` | ✅ 2342 / 2342 ⚠ *(`DEBT-AIB-030`'s rotating flakes did not fire this run — a green here is weak evidence by construction)* |
+| `Hrot.Hsm.Editor.Tests` — `CE-386`/`CE-387` | ✅ 587 / 587 |
+| `Hrot.Blueprints.Tests` | ✅ 4036 passed, 18 skipped |
+| `Hrot.AiEditor.Generators.Tests` — `CE-384`/`CE-385` | ⚠ **4 failed / 317** — ⭐ **exactly `CE-376`'s four, BY NAME** |
+
+### 12.2 ⭐⭐ `T3` — **6 failed / 111 passed / 117, and EVERY ONE IS PRE-EXISTING**
+
+⭐⭐⭐ **Proved by NAME against the previous recorded run, not by "it looks familiar":**
+`RESUME_Occurrence_Storage.md:305` lists the prior **13** as *"3 `DeterminismRails` · 3
+`ClusterConformanceRails` (… entity-delete) · 2 `TheUiBaselineIsPinnedPerHostRails` · 2
+`PanelGoldenRails` · `CrossHostPanelKindRails` · `VariableAddressingTests` ·
+`PreviewLeavesNoTraceRails`"*.
+
+| today's 6 | in the prior 13? |
+|---|---|
+| 3 × `DeterminismRails` *(`A_reload_in_one_process…`, `A_reload_rebuilds…`, `Two_fresh_processes…`)* | ✅ the 3 |
+| `ClusterConformanceRails.An_agent_can_delete_an_entity_and_the_world_loses_it` | ✅ the *entity-delete* one |
+| `VariableAddressingTests.A_staged_variable_write_is_pending_then_lands` | ✅ |
+| `PreviewLeavesNoTraceRails.A_runtime_spawn_breaks_the_entity_listing_HN_015` | ✅ |
+
+⭐⭐ **And the arithmetic closes:** 13 − 6 = **7 now GREEN** *(2 `TheUiBaselineIsPinnedPerHostRails` +
+2 `PanelGoldenRails` + `CrossHostPanelKindRails` + 2 `ClusterConformanceRails`)* ⇒ `CE-354`/`355`/`356`/
+`357` landed. 🔒 **ZERO new reds; the trend is 14 → 13 → 6.**
+
+### 12.3 ⛔ THE THREE CAUSES BEHIND THE SIX — **not six problems**
+
+| # | shape | evidence |
+|---|---|---|
+| ① | **4 × identical** `POST /sim/step failed (504): the master never entered the step barrier and the clock never advanced` | ⭐⭐ **DETERMINISTIC, not load** — 📐 re-run of `DeterminismRails` ALONE *(5 tests, 3m12s)* reproduces **3 failed / 2 passed**. ⛔ Not contention: 13 GB RAM free, 17 GB disk, 4 cores. ⚠ The master DOES step in the passing cases *(15 clean steps, `AwaitingACKs=[]`)*, and **no engine-side exception appears in the log** ⇒ it is not a throwing control plane |
+| ② | `Connection refused (localhost:40579)` — the editor process was not there | plausibly a cascade of ①; not separately diagnosed |
+| ③ | ⭐⭐⭐ **A TRIPWIRE FIRING AS DESIGNED — and it is GOOD NEWS** | `PreviewLeavesNoTraceRails` asserts `500` and got **`200`**. Its own header: *"⛔ When the converters are applied this reddens — then assert the listing SUCCEEDS and close `HN-015`."* ⇒ **the entity listing after a runtime spawn WORKS now; `HN-015` is fixed and nobody noticed.** ⛔ `Hrot/Runner/Hrot.SystemTests/` is the **BACKEND lane's** harness ⇒ STOP-and-report, filed as `CE-394` |
+
+### 12.4 ⭐ WHAT THIS MEANS FOR THE BUILD
+
+⭐⭐ **Nothing in `T3`'s reds sits in this programme's path** — they are cluster-time/step-barrier and
+preview/spawn; none touches HSM authoring, the transition kernel or the blueprint bridge.
+⭐⭐⭐ **The two suites `CE-381`/`CE-382` edit are 100% green.**
+
+⇒ 🔒 **Any red in `Fhsm.Tests` during this programme is OURS**, with no ambiguity. ⛔ That property is
+the whole value of this section, and it expires the moment someone else's merge lands — **re-capture
+after a rule-7 re-sync.**
