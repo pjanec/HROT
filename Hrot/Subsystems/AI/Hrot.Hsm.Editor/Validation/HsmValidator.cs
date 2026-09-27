@@ -96,6 +96,7 @@ public sealed class HsmValidator
         CheckConcurrentSharedScopeKeys(asset, diagnostics);
         CheckSubtreeAssetCycles(asset, diagnostics);
         CheckSubtreeReferenceDangling(asset, diagnostics);
+        CheckMethodAndBlueprintBothBound(asset, diagnostics);
 
         if (blackboard != null)
             CheckBlackboardRegionConflicts(asset, blackboard, diagnostics);
@@ -281,6 +282,55 @@ public sealed class HsmValidator
                 $"State '{s.Name}' hosts subtree {what}, which no longer resolves to a BTree asset "
               + "— reselect or clear it.",
                 new[] { s.StableId }));
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>Rule 12 (design §9 ③) — <c>MethodAndBlueprintBothBound</c>: one slot, one host.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §9 ③.
+    ///
+    /// <para>🔴 <b>Without this rule the asset COMPILES and one binding silently wins.</b> A named
+    /// activity/guard resolves through <c>FNV1a16(FQN)</c>; a blueprint-hosted one is baked as an
+    /// explicit id, and <c>HsmFlattener</c>'s override (<c>CE-383</c>) PREFERS the explicit id. ⇒
+    /// authoring both is not "belt and braces", it is a binding the designer cannot see being
+    /// discarded.</para>
+    ///
+    /// <para>⚠ <b>Keyed on the Guid, not the name.</b> The name is display-only and may be stale
+    /// after a rename; the Guid is what the emitter bakes, so it is what decides whether a blueprint
+    /// is really bound here. ⭐ Same reasoning as <c>SubtreeReferenceDangling</c>'s pair.</para>
+    ///
+    /// <para>⛔ <b>Checks BOTH transition kinds?</b> No — a GLOBAL transition has no blueprint guard
+    /// field: <c>CE-385</c> deliberately stopped at <c>TransitionNodeDto</c>, mirroring the DTO the
+    /// emitter reads. ⚠ If a global ever gains one, this rule gains a third arm.</para>
+    /// </summary>
+    private static void CheckMethodAndBlueprintBothBound(HsmAsset asset, List<HsmDiagnostic> out_)
+    {
+        foreach (var s in asset.AllStates)
+        {
+            if (s.ActivityBlueprintAssetId == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(s.ActivityAction))   continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"State '{s.Name}' binds BOTH the activity action '{s.ActivityAction}' and an "
+              + "activity blueprint — the blueprint would win and the action be discarded silently. "
+              + "Clear one.",
+                new[] { s.StableId }));
+        }
+
+        foreach (var t in asset.AllTransitions)
+        {
+            if (t.GuardBlueprintAssetId == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(t.GuardFunction))  continue;
+
+            out_.Add(new HsmDiagnostic(
+                HsmDiagnosticCode.MethodAndBlueprintBothBound,
+                HsmDiagnosticSeverity.Error,
+                $"Transition '{t.Source.Name}' → '{t.Target.Name}' binds BOTH the guard function "
+              + $"'{t.GuardFunction}' and a guard blueprint — the blueprint would win and the "
+              + "function be discarded silently. Clear one.",
+                new[] { t.Source.StableId }));
         }
     }
 

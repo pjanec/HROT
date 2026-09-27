@@ -45,6 +45,11 @@ public sealed class HsmFacetMapper
             SubtreeAssetId          = s.SubtreeAssetId == Guid.Empty ? string.Empty
                                                                      : s.SubtreeAssetId.ToString(),
             IsSubtreeResolved       = s.IsSubtreeResolved,
+            // ⭐ CE-385 — the blueprint-hosted activity, same name+id shape as the subtree pair.
+            ActivityBlueprintName    = s.ActivityBlueprintName,
+            ActivityBlueprintAssetId = s.ActivityBlueprintAssetId == Guid.Empty
+                                         ? string.Empty
+                                         : s.ActivityBlueprintAssetId.ToString(),
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19
@@ -73,6 +78,12 @@ public sealed class HsmFacetMapper
             TargetStateName       = t.Target.Name,
             EventId               = t.EventId,
             GuardFunction         = t.GuardFunction,
+            // ⭐ CE-385 / CE-381 — the blueprint-hosted guard and the polled marker.
+            GuardBlueprintName    = t.GuardBlueprintName,
+            GuardBlueprintAssetId = t.GuardBlueprintAssetId == Guid.Empty
+                                       ? string.Empty
+                                       : t.GuardBlueprintAssetId.ToString(),
+            IsPolled              = t.IsPolled,
             ActionFunction        = t.ActionFunction,
             ExpressionTargetField = t.ExpressionTargetField,
             Priority              = t.Priority,

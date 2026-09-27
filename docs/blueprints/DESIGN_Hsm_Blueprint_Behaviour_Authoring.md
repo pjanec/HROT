@@ -9,8 +9,12 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   ⭐ Start at §2 (INVENTORY) if you are about to argue that something here already exists — most of
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
+  ⭐⭐ §13 is the AS-BUILT: 13.1-13.3 = CE-381..CE-384 (the runtime spine), 13.4 = CE-385 + the §9 ③
+  validator rule + CE-396 (the editor half). ⏭ NEXT: CE-386, then CE-387.
 stale-below: nothing yet.
-known-rot: nothing yet.
+known-rot: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
+  separately. MEASURED FALSE on 2026-09-27 — it collapses both into one `ActionHosting.Hsm` bit. The
+  paragraph now carries the correction inline, and it makes CE-386 bigger than §8a ④ estimated.
 known-conflict: ⚠ HSM_Editor_NodeEditor_Host_Design.md §10.4 says the `Lane` property on
   `[HsmAction]` "doesn't currently exist". It DOES — `HsmActionGenerator.cs:598` emits it. That line
   is rotted; this design does not depend on it either way.
@@ -174,11 +178,21 @@ extended to activity and guard. ⛔ The FQN hash path is untouched for hand-writ
 ### 3.3 `G2` — the pickers read the EXISTING catalog
 
 ⭐ `ActionSchemaExporter` already discovers blueprint-hosted actions and guards from
-`[GeneratedAiPrimitiveAction]`, **with the `hsmAction`/`hsmGuard` flags already populated**. ⇒ the HSM
-pickers filter that catalog by the flag they need, exactly as `BTreeCommandSink` does. ⛔ No new
-catalog, no new discovery mechanism. ⚠ The self-referential list stays as a FALLBACK when no catalog
-is injected (the headless/test host) — **but a production caller that HAS the catalog must pass it**,
-which is the forwarding rail in §9.
+`[GeneratedAiPrimitiveAction]`. ⇒ the HSM pickers filter that catalog by the flag they need, exactly
+as `BTreeCommandSink` does. ⛔ No new catalog, no new discovery mechanism. ⚠ The self-referential list
+stays as a FALLBACK when no catalog is injected (the headless/test host) — **but a production caller
+that HAS the catalog must pass it**, which is the forwarding rail in §9.
+
+> 🔴 **CORRECTION, measured `2026-09-27` during `CE-385` — this paragraph used to claim the
+> `hsmAction`/`hsmGuard` flags are *"already populated"* in the exported schema. HALF TRUE, and the
+> false half is the one `CE-386` needs.** 📐 `ActionSchemaExporter.ProcessMethod:112-113` READS both
+> attribute flags and then **collapses both into the single `ActionHosting.Hsm` bit**; `IsCondition`
+> is set only by `BTreeCondition`. ⇒ **an `ActionSchemaEntry` cannot today tell an HSM ACTIVITY from
+> an HSM GUARD**, so `CE-386` cannot filter the two pickers apart without first making the
+> distinction representable. ⭐ The attribute itself does carry them separately
+> (`GeneratedAiPrimitiveActionAttribute.HsmAction` / `.HsmGuard`), so nothing has to be re-discovered
+> — only carried through. ⚠ `CE-386` is therefore **bigger than §8a ④ estimated**, in the exporter
+> rather than in the drawers.
 
 ### 3.4 `G3` — the state inspector gains the binding the emitter already consumes
 
@@ -807,3 +821,69 @@ fields are all `WhenWritingDefault`, and a rail asserts an asset naming no bluep
 ⚠ **What is NOT proved here, said plainly:** these rails test the **emitter**. The end-to-end claim
 *"the blob addresses the id the blueprint registrar registers"* needs the blueprint compiler in the
 loop and an asset that carries the reference — that is `CE-385`/`CE-386`. §9 ④ remains OPEN.
+
+### 13.4 `CE-385` + the §9 ③ validator rule + `CE-396` — the editor half *(`2026-09-27`)*
+
+⭐⭐⭐ **What this closes: the five fields are now AUTHORABLE.** `CE-384` shipped the DTO and the
+emitter; the editor MODEL had none of them, so a blueprint-hosted activity or guard could only be
+bound by hand-editing the `.hsm.json`.
+
+| layer | what landed |
+|---|---|
+| **model** | `StateNode.ActivityBlueprintAssetId` / `ActivityBlueprintName`; `TransitionNode.GuardBlueprintAssetId` / `GuardBlueprintName` / `IsPolled` |
+| **mapper** | all five, **both directions** (`HsmAssetMapper`) |
+| **inspector** | `StateFacet` + `TransitionFacet` gain the picker, the read-only id and the polled checkbox; `HsmFacetMapper` reads them, `HsmFacetDispatcher` writes them |
+| **validator** | 🔴 **rule 12 `MethodAndBlueprintBothBound`** — see below |
+
+#### ⭐⭐ `ResolvePickedAssetId` — ONE pick rule, not three
+
+⭐ The subtree pick (§11.1a) and both blueprint picks are the same rule: *a picked catalogue NAME
+becomes a stable Guid AT PICK TIME, and a name that does not resolve keeps the Guid already
+captured*. ⇒ `ApplySubtreePick`'s body was extracted to `HsmFacetDispatcher.ResolvePickedAssetId` and
+all three now call it. ⛔ Three spellings of one rule is how the never-erase branch quietly stops
+being true in one of them.
+
+#### 🔴 THE §9 ③ RULE WAS NEITHER BUILT NOR FILED — **now built**
+
+⛔⛔ A state naming BOTH `ActivityAction` and a blueprint was **silently accepted**. 📐 It is not a
+harmless duplicate: `HsmFlattener`'s explicit-id override (`CE-383`) makes the **blueprint win**, so
+the asset compiles and the named action is discarded with no message.
+⭐ `HsmDiagnosticCode.MethodAndBlueprintBothBound` (Error), checked for states *(activity)* and
+transitions *(guard)*. ⚠ **Keyed on the GUID, not the name** — a stale display name left by a rename
+must not manufacture a conflict; there is a rail for exactly that.
+⛔ **Global transitions are NOT checked**, because `GlobalTransitionNodeDto` has no blueprint-guard
+field — `CE-385` deliberately mirrored the DTO the emitter reads. ⚠ If a global ever gains one, this
+rule gains a third arm.
+
+#### 🔴 `CE-396` — **a latent picker defect this build would otherwise have shipped**
+
+⛔⛔ `HsmCompositeStringDrawer` keyed its registry by attribute **TYPE**, and `BuildDrawers`
+registered ONE `AiAssetPickerDrawer` hard-wired to `AssetKind.BTree`. With only
+`StateFacet.SubtreeName` in the tree that was invisible — ⇒ **`CE-385`'s `[AiAssetPicker(Blueprint)]`
+fields would have silently drawn the BTREE list.** ⭐ A picker offering the wrong KIND is worse than
+one offering nothing: the names are plausible, so nothing looks broken until the emitted id addresses
+the wrong asset.
+⭐ **Fix:** the registry maps an attribute type to a factory over the attribute INSTANCE, and the
+asset-picker registration builds one drawer PER KIND. ⚠ Every other picker is kind-less and registers
+through the unchanged constant overload.
+
+#### 📐 GATES + THE RED-PROOFS
+
+| gate | result |
+|---|---|
+| `Hrot.Hsm.Editor.Tests` *(build the TEST project, `--no-build` after)* | **603 / 603** — baseline 587, **+16 new rails**, zero pre-existing reds |
+| working tree after every run | **clean**, no golden moved |
+| a rail asserts an asset binding none of this **serialises without the new keys** | ⭐ the golden-corpus constraint of §8a ⑥, asserted rather than hoped |
+
+⭐⭐ **Four inverse edits, four reds** — every load-bearing claim is proved:
+
+| inverse edit | rail that went red |
+|---|---|
+| drop `CheckMethodAndBlueprintBothBound` from `Validate` | `AStateBindingBothAnActionAndABlueprint_IsAnError` |
+| drop `IsPolled` from the dto→model arm | `TheFiveFieldsSurviveSaveAndReopen` |
+| drop the activity arm from `ApplyStateFacet` | `PickingAnActivityBlueprint_WritesTheNameAndCapturesTheGuid` |
+| revert the picker to the hard-wired `AssetKind.BTree` | `AiAssetPicker_OffersTheKindTheFieldAsksFor…` |
+
+⚠ **What is still NOT proved, said plainly:** §9 ④ *(the blob addresses the id the registrar
+registers)* remains **OPEN** — it needs the blueprint compiler in the loop, and the asset can only
+now carry the reference. ⭐ It is reachable for the first time as of this item.

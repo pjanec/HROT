@@ -907,6 +907,21 @@ public sealed class StateNode : IContainerNodeModel
     //    the asset it describes and claim a dangling reference is fine.
     public bool IsSubtreeResolved;
 
+    // ⭐⭐⭐ CE-385 — the state's ACTIVITY (per-tick action) is hosted by a BLUEPRINT.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.
+    //
+    // ⛔⛔ This is NOT an alternative spelling of ActivityAction. A NAMED activity resolves through
+    //    FNV1a16(FQN); a blueprint-hosted thunk registers under its BlueprintId = FNV-1a32 of THIS
+    //    Guid — two id spaces no authorable string bridges (CE-383/CE-384). ⇒ the two fields are
+    //    MUTUALLY EXCLUSIVE, and the validator says so (design §9 ③).
+    // ⭐ Shaped exactly like the SubtreeAssetId/SubtreeName pair above: the Guid is the identity and
+    //    the RENAME SURVIVOR, the name is what the designer sees and picks.
+    public Guid ActivityBlueprintAssetId;
+
+    /// <summary>⭐ The picked blueprint's catalogue NAME, beside <see cref="ActivityBlueprintAssetId"/>.
+    /// ⚠ Display + re-resolution only — ⛔ the emitted id comes from the Guid, never from this.</summary>
+    public string? ActivityBlueprintName;
+
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
     public Vector2? SizeOverride { get; set; }
@@ -1065,6 +1080,29 @@ public sealed class TransitionNode
     public byte Priority;
     public TransitionKind Kind;
     public ushort SyncGroupId;
+
+    // ⭐⭐⭐ CE-385 — the transition's GUARD is hosted by a BLUEPRINT.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7. Same two-id-space reasoning as
+    // StateNode.ActivityBlueprintAssetId, and likewise MUTUALLY EXCLUSIVE with GuardFunction.
+    public Guid GuardBlueprintAssetId;
+
+    /// <summary>⭐ The picked blueprint's catalogue NAME. ⚠ Display + re-resolution only.</summary>
+    public string? GuardBlueprintName;
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-381</c>/<c>CE-385</c> — POLLED: this transition's guard is evaluated on every
+    /// QUIESCENT tick, with no event posted.</b>
+    ///
+    /// <para>⛔⛔ <b>Not the same as "a transition with no event".</b> An eventless transition is
+    /// selected by the RTC loop's COMPLETION pass and fires once, as a consequence of another
+    /// transition firing; a polled one fires whenever its guard passes while the machine is idle.
+    /// 🔒 The two were deliberately NOT collapsed onto one encoding — 📄 §2.3, §3.1, §10 ③.</para>
+    ///
+    /// <para>⚠ <b>Editing this on a LIVE cluster appears to do nothing</b> until the behaviour is
+    /// re-assigned: <c>IsPolled</c> moves no layout, so it does not always move
+    /// <c>StructureHash</c>. 🔒 Accepted and documented — §8b.</para>
+    /// </summary>
+    public bool IsPolled;
 
     // Editor-only (persisted in layout method)
     public List<Vector2> Waypoints { get; } = new();

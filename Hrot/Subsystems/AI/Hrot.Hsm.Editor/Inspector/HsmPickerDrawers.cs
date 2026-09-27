@@ -506,14 +506,24 @@ public static class HsmPickerDrawerFactory
             .Register<HsmEventPickerAttribute>(new HsmEventPickerDrawer(asset))
             .Register<HsmBlackboardFieldPickerAttribute>(bbDrawer);
 
-        // ⭐⭐ §11.1a — the hosted-subtree picker. ⚠ Registered only when a catalogue exists: a
-        //    drawer over a null catalogue could only ever draw an empty list, and an empty dropdown
-        //    reads as "there are no BTrees" rather than "this host wired nothing".
+        // ⭐⭐ §11.1a — the asset pickers. ⚠ Registered only when a catalogue exists: a drawer over a
+        //    null catalogue could only ever draw an empty list, and an empty dropdown reads as
+        //    "there are no such assets" rather than "this host wired nothing".
+        // ⭐⭐⭐ CE-396 — ONE drawer PER KIND, chosen from the attribute the field carries, so
+        //    `[AiAssetPicker(BTree)]` (StateFacet.SubtreeName) and `[AiAssetPicker(Blueprint)]`
+        //    (CE-385's activity/guard fields) each offer their own kind. ⛔ The previous
+        //    registration hard-wired BTree and would have answered for both.
         if (catalog is not null)
         {
-            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(
-                new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(
-                    catalog, Hrot.Editor.AiShared.AssetKind.BTree));
+            var byKind = new Dictionary<Hrot.Editor.AiShared.AssetKind,
+                                        Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer>();
+            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(attr =>
+            {
+                if (!byKind.TryGetValue(attr.Kind, out var d))
+                    byKind[attr.Kind] = d =
+                        new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, attr.Kind);
+                return d;
+            });
         }
 
         return new Dictionary<Type, IImGuiFieldDrawer>
@@ -531,13 +541,32 @@ public static class HsmPickerDrawerFactory
 /// </summary>
 internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
 {
-    private readonly Dictionary<Type, IImGuiFieldDrawer> _byAttribute = new();
+    // ⭐⭐⭐ CE-396 — the registry maps an attribute TYPE to a factory over the attribute INSTANCE,
+    //    not to a fixed drawer.
+    //
+    // 🔴 WHY IT HAD TO CHANGE. `AiAssetPickerAttribute` CARRIES A KIND (`[AiAssetPicker(BTree)]`,
+    //    `[AiAssetPicker(Blueprint)]`), and the old registry keyed by type alone ⇒ whichever kind was
+    //    registered first answered for EVERY kind. With only `StateFacet.SubtreeName` in the tree
+    //    that was invisible; CE-385's blueprint pickers would have silently drawn the BTREE list —
+    //    a dropdown full of plausible, wrong names. ⛔ A picker that offers the wrong asset kind is
+    //    worse than one that offers nothing: nothing is diagnosable.
+    // ⭐ Every other picker here is kind-less and registers through the constant overload unchanged.
+    private readonly Dictionary<Type, Func<Attribute, IImGuiFieldDrawer?>> _byAttribute = new();
 
     public Type TargetType => typeof(string);
 
     public HsmCompositeStringDrawer Register<TAttribute>(IImGuiFieldDrawer drawer) where TAttribute : Attribute
     {
-        _byAttribute[typeof(TAttribute)] = drawer;
+        _byAttribute[typeof(TAttribute)] = _ => drawer;
+        return this;
+    }
+
+    /// <summary>⭐ <c>CE-396</c> — register a drawer chosen FROM the attribute instance, for marker
+    /// attributes that carry a discriminator (today: <c>AiAssetPickerAttribute.Kind</c>).</summary>
+    public HsmCompositeStringDrawer Register<TAttribute>(Func<TAttribute, IImGuiFieldDrawer?> factory)
+        where TAttribute : Attribute
+    {
+        _byAttribute[typeof(TAttribute)] = a => factory((TAttribute)a);
         return this;
     }
 
@@ -546,8 +575,8 @@ internal sealed class HsmCompositeStringDrawer : IImGuiFieldDrawer
         if (node is null) return null;
         foreach (var attr in node.Metadata.CustomAttributes)
         {
-            if (_byAttribute.TryGetValue(attr.GetType(), out var drawer))
-                return drawer;
+            if (_byAttribute.TryGetValue(attr.GetType(), out var factory))
+                return factory(attr);
         }
         return null;
     }

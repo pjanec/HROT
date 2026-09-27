@@ -60,6 +60,11 @@ public static class HsmAssetMapper
                 RegionIndex    = s.RegionIndex,
                 SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
+                // ⭐⭐ CE-385 — the blueprint-hosted activity. Both DTO fields are
+                //    JsonIgnore(WhenWritingDefault/Null), so an asset that names none of this
+                //    serialises byte-identically (the golden-corpus constraint, design §8a ⑥).
+                ActivityBlueprintAssetId = s.ActivityBlueprintAssetId,
+                ActivityBlueprintName    = s.ActivityBlueprintName,
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -123,6 +128,10 @@ public static class HsmAssetMapper
                 Kind                  = (TransitionKindDto)t.Kind,
                 SyncGroupId           = t.SyncGroupId,
                 Comment               = t.Comment,
+                // ⭐⭐ CE-385 — the blueprint-hosted guard, and the polled marker (CE-381).
+                GuardBlueprintAssetId = t.GuardBlueprintAssetId,
+                GuardBlueprintName    = t.GuardBlueprintName,
+                IsPolled              = t.IsPolled,
             };
             foreach (var wp in t.Waypoints)
                 tDto.Waypoints.Add(new WaypointDto { X = wp.X, Y = wp.Y });
@@ -243,6 +252,8 @@ public static class HsmAssetMapper
                 RegionIndex   = sDto.RegionIndex,
                 SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
+                ActivityBlueprintAssetId = sDto.ActivityBlueprintAssetId,   // CE-385
+                ActivityBlueprintName    = sDto.ActivityBlueprintName,      // CE-385
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,
@@ -341,6 +352,9 @@ public static class HsmAssetMapper
                 Kind                  = (TransitionKind)tDto.Kind,
                 SyncGroupId           = tDto.SyncGroupId,
                 Comment               = tDto.Comment,
+                GuardBlueprintAssetId = tDto.GuardBlueprintAssetId,   // CE-385
+                GuardBlueprintName    = tDto.GuardBlueprintName,      // CE-385
+                IsPolled              = tDto.IsPolled,                // CE-381/CE-385
                 FlatIndex             = 0,   // runtime-only
                 EventId               = 0,   // runtime-only
             };

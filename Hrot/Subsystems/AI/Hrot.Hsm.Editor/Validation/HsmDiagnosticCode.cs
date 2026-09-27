@@ -84,4 +84,15 @@ public enum HsmDiagnosticCode
     // catalogue (an unloaded project, a partial checkout), and erasing the reference would turn a
     // recoverable situation into data loss. HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     SubtreeReferenceDangling,
+
+    // ⭐⭐⭐ (design §9 ③) A state names BOTH an activity ACTION and an activity BLUEPRINT, or a
+    // transition names BOTH a guard FUNCTION and a guard BLUEPRINT.
+    //
+    // 🔴 WHY THIS IS AN ERROR AND NOT A WARNING. The two resolve through DIFFERENT id spaces — a
+    // name through FNV1a16(FQN), a blueprint through (ushort)BlueprintId = FNV-1a32 of the asset
+    // Guid — and the flattener's explicit-id override (CE-383) makes the BLUEPRINT win silently.
+    // ⇒ the asset compiles, one binding is discarded with no message, and the designer watches the
+    // wrong behaviour run. ⛔ Exactly the silent TryGetValue miss E6 spent a batch on.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §9 ③. Hard-error.
+    MethodAndBlueprintBothBound,
 }

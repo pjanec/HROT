@@ -26,6 +26,21 @@ public struct StateFacet
     [HsmActionPicker]
     public string? ActivityAction;
 
+    // ⭐⭐⭐ CE-385 — the activity hosted by a BLUEPRINT instead of a C# method.
+    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.
+    // ⛔⛔ MUTUALLY EXCLUSIVE with ActivityAction above — the validator rejects an asset that sets
+    //    both (design §9 ③), because the two resolve through DIFFERENT id spaces and one would
+    //    silently win. ⚠ Deliberately shown side by side so the choice is visible.
+    [EditDisplayName("Activity blueprint (instead of an action)")]
+    [AiAssetPicker(AssetKind.Blueprint)]
+    public string? ActivityBlueprintName;
+
+    /// <summary>⭐ The persisted RENAME SURVIVOR and the id the emitter actually bakes. ⛔ Never
+    /// typed — written by the pick. Shown so a dangling reference is diagnosable.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Activity blueprint asset id")]
+    public string ActivityBlueprintAssetId;
+
     [EditDisplayName("Timer action")]
     [HsmActionPicker]
     public string? TimerAction;
@@ -96,6 +111,25 @@ public struct TransitionFacet
     [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
     [HsmGuardPicker]
     public string? GuardFunction;
+
+    // ⭐⭐⭐ CE-385 — the guard hosted by a BLUEPRINT. ⛔⛔ MUTUALLY EXCLUSIVE with GuardFunction
+    //    (design §9 ③). 📄 §3.2, §7.
+    [EditDisplayName("Guard blueprint (instead of a guard function)")]
+    [AiAssetPicker(AssetKind.Blueprint)]
+    public string? GuardBlueprintName;
+
+    /// <summary>⭐ The persisted RENAME SURVIVOR and the id the emitter bakes. ⛔ Never typed.</summary>
+    [EditReadOnly]
+    [EditDisplayName("Guard blueprint asset id")]
+    public string GuardBlueprintAssetId;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-381</c> — evaluate this transition's guard on every QUIESCENT tick, with no
+    /// event posted. ⛔ Not "a transition with no event": that one is the RTC loop's COMPLETION
+    /// pass and fires once. 📄 §2.3, §3.1.
+    /// </summary>
+    [EditDisplayName("Polled (guard runs every idle tick)")]
+    public bool IsPolled;
 
     [EditDisplayName("Effect action")]
     [HsmActionPicker]

@@ -133,6 +133,22 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         //   HAS one and passes it (the silent-default rule).
         ApplySubtreePick(s, f.SubtreeName);
 
+        // ⭐⭐ CE-385 — the blueprint-hosted activity, captured by the SAME rule as the subtree pick.
+        // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2.
+        if (string.IsNullOrWhiteSpace(f.ActivityBlueprintName))
+        {
+            s.ActivityBlueprintName    = null;
+            s.ActivityBlueprintAssetId = Guid.Empty;
+        }
+        else
+        {
+            s.ActivityBlueprintName    = f.ActivityBlueprintName;
+            s.ActivityBlueprintAssetId = ResolvePickedAssetId(
+                f.ActivityBlueprintName,
+                Hrot.Editor.AiShared.AssetKind.Blueprint,
+                s.ActivityBlueprintAssetId).Id;
+        }
+
         _asset.MarkDirty();
     }
 
@@ -154,19 +170,30 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         }
 
         s.SubtreeName = pickedName;
+        (s.SubtreeAssetId, s.IsSubtreeResolved) =
+            ResolvePickedAssetId(pickedName, Hrot.Editor.AiShared.AssetKind.BTree, s.SubtreeAssetId);
+    }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-385</c> — the ONE rule for "a picked catalogue NAME becomes a stable Guid, at
+    /// pick time".</b> Shared by the subtree pick (§11.1a) and both blueprint picks, because three
+    /// spellings of one rule is how the never-erase branch quietly stops being true in one of them.
+    ///
+    /// <para>⭐⭐ <b>The Guid is captured while the catalogue entry is in hand.</b> ⛔ Deriving it
+    /// only on load would mean a rename between the pick and the first reload leaves NOTHING to heal
+    /// from.</para>
+    ///
+    /// <para>⚠ <b>The never-erase branch (§7.1a ③):</b> a typed or stale name with no catalogue
+    /// match keeps <paramref name="currentId"/> — ⛔ a missing catalogue (headless fixture) must
+    /// never destroy a reference it simply cannot see.</para>
+    /// </summary>
+    private (Guid Id, bool Resolved) ResolvePickedAssetId(
+        string pickedName, Hrot.Editor.AiShared.AssetKind kind, Guid currentId)
+    {
         var picked = _catalog?.FindByName(pickedName);
-        if (picked != null && picked.Kind == Hrot.Editor.AiShared.AssetKind.BTree)
-        {
-            s.SubtreeAssetId    = picked.AssetId;
-            s.IsSubtreeResolved = true;
-        }
-        else
-        {
-            // ⚠ Typed or stale name with no catalogue match: keep the name and ⛔ do NOT clear a
-            //   previously captured Guid — the never-erase rule (§7.1a branch ③).
-            s.IsSubtreeResolved = false;
-        }
+        return picked != null && picked.Kind == kind
+            ? (picked.AssetId, true)
+            : (currentId, false);
     }
 
     private void ApplyTransitionFacet(Guid visualId, TransitionFacet f)
@@ -176,6 +203,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         t.EventId               = f.EventId;
         t.GuardFunction         = f.GuardFunction;
+        t.IsPolled              = f.IsPolled;             // CE-381
         t.ActionFunction        = f.ActionFunction;
         t.ExpressionTargetField = f.ExpressionTargetField;
         t.Priority              = f.Priority;
@@ -183,6 +211,21 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         t.SyncGroupId           = f.SyncGroupId;
         t.Comment               = f.Comment;
         t.IsBreakpoint          = f.IsBreakpoint;
+
+        // ⭐⭐ CE-385 — the blueprint-hosted guard, same pick rule as everything else.
+        if (string.IsNullOrWhiteSpace(f.GuardBlueprintName))
+        {
+            t.GuardBlueprintName    = null;
+            t.GuardBlueprintAssetId = Guid.Empty;
+        }
+        else
+        {
+            t.GuardBlueprintName    = f.GuardBlueprintName;
+            t.GuardBlueprintAssetId = ResolvePickedAssetId(
+                f.GuardBlueprintName,
+                Hrot.Editor.AiShared.AssetKind.Blueprint,
+                t.GuardBlueprintAssetId).Id;
+        }
 
         // TargetStateName: find the state by name and rewire.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))
