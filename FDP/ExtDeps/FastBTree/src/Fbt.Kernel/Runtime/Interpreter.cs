@@ -268,11 +268,7 @@ namespace Fbt.Runtime
                     // ObserverSelector uses standard selector semantics in the interpreter.
                     return ExecuteSelector(nodeIndex, ref node, ref bb, ref state, ref ctx);
                 case NodeType.Subtree:
-                    // CE-365 -- dispatch to the host that owns the occurrence storage. Without one,
-                    // this is the historical safe stub.
-                    return SubtreeHost is { } host
-                        ? host.Tick(ref bb, ref ctx, _blob, nodeIndex)
-                        : NodeStatus.Failure;
+                    return ExecuteSubtree(nodeIndex, ref bb, ref state, ref ctx);
                 default:
                     return NodeStatus.Failure; // Unknown/Unimplemented node type
             }
@@ -700,6 +696,43 @@ namespace Fbt.Runtime
 
             // Engine-emitted trace: every action/condition evaluation. Devirtualized
             // by the JIT because TContext is a struct constrained to ITreeTracer.
+            ctx.TraceNodeEvaluated(nodeIndex, status);
+
+            if (status == NodeStatus.Running)
+            {
+                state.RunningNodeIndex = (ushort)nodeIndex;
+            }
+            else if (state.RunningNodeIndex == nodeIndex)
+            {
+                state.RunningNodeIndex = 0;
+            }
+
+            return status;
+        }
+
+        /// <summary>
+        /// CE-365 -- a hosting node. Dispatches to <see cref="SubtreeHost"/>, or keeps the historical
+        /// Failure stub when none is set.
+        ///
+        /// <para>
+        /// THE RUNNING BOOKKEEPING BELOW IS NOT OPTIONAL and mirrors ExecuteAction's. The post-tick
+        /// sweep diffs NodeIndexStack + RunningNodeIndex to find nodes that LEFT the active path, so
+        /// a hosting node that never records itself as running is never swept -- and F14 (the host
+        /// abandons a still-Running child) silently does nothing. Measured: E6_R3 read a non-zero
+        /// child cursor after an abandonment until this was added.
+        /// </para>
+        /// </summary>
+        private NodeStatus ExecuteSubtree(
+            int nodeIndex,
+            ref TBlackboard bb,
+            ref BehaviorTreeState state,
+            ref TContext ctx)
+        {
+            if (SubtreeHost is not { } host)
+                return NodeStatus.Failure;
+
+            var status = host.Tick(ref bb, ref ctx, _blob, nodeIndex);
+
             ctx.TraceNodeEvaluated(nodeIndex, status);
 
             if (status == NodeStatus.Running)

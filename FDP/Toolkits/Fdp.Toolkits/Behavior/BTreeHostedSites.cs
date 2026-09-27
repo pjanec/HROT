@@ -138,6 +138,21 @@ public static class BTreeHostedSites
             && map.TryGetValue(nodeIndex, out treeStateSlotKey);
     }
 
+    /// <summary>
+    /// ⭐ Appends the hosted tree-state slots to an asset's AUTHORED slots.
+    /// ⚠ Hosted slots go LAST so an existing asset's slot ORDER is byte-identical — the same rule
+    /// the HSM emitter follows, and what keeps every golden still.
+    /// </summary>
+    public static StatefulSlotInfo[] Combine(
+        IReadOnlyList<StatefulSlotInfo>? authored, IReadOnlyList<StatefulSlotInfo> hosted)
+    {
+        int a = authored?.Count ?? 0;
+        var all = new StatefulSlotInfo[a + (hosted?.Count ?? 0)];
+        for (int i = 0; i < a; i++) all[i] = authored![i];
+        for (int i = 0; i < (hosted?.Count ?? 0); i++) all[a + i] = hosted![i];
+        return all;
+    }
+
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
     public static void ClearForTests() => _byStructureHash.Clear();
 

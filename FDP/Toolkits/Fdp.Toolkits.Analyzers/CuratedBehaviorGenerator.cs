@@ -222,6 +222,18 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             foreach (var t in tops)
             {
                 string safe = SanitizeIdentifier(t.Name);
+                if (!t.IsHsm)
+                {
+                    // E6 / CE-364 -- the blob must be a LOCAL: PlanFor walks it for hosting sites,
+                    // and the resulting Slots must be on the definition before it is constructed
+                    // (StatefulWorkingSlots is `init`). HostedSubtree.Tick THROWS on a slot the
+                    // manifest never declared, so the plan and the Bind ship together or neither.
+                    sb.AppendLine("            var __blob" + safe + " = " + catalogNs + "FbtTreeCatalog.Get" + safe + "(isResourceOwning);");
+                    sb.AppendLine("            var __plan" + safe + " = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(__blob" + safe + ", " + Q(t.Name) + ");");
+                    sb.AppendLine("            var __interp" + safe + " = new global::Fbt.Runtime.Interpreter<byte, global::Fdp.Toolkit.Behavior.BTreeContext>(__blob" + safe + ", actionRegistry);");
+                    // Hosting is opt-in per interpreter; without this a Subtree node returns Failure.
+                    sb.AppendLine("            __interp" + safe + ".SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;");
+                }
                 sb.AppendLine("            beh.Register(" + Q(t.Name) + ", new global::Fdp.Toolkit.Behavior.BehaviorDefinition");
                 sb.AppendLine("            {");
                 sb.AppendLine("                Name      = " + Q(t.Name) + ",");
@@ -235,12 +247,17 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 else
                 {
                     sb.AppendLine("                BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,");
-                    sb.AppendLine("                BTreeInterpreter = new global::Fbt.Runtime.Interpreter<byte, global::Fdp.Toolkit.Behavior.BTreeContext>(");
-                    sb.AppendLine("                    " + catalogNs + "FbtTreeCatalog.Get" + safe + "(isResourceOwning), actionRegistry),");
+                    sb.AppendLine("                BTreeInterpreter = __interp" + safe + ",");
+                    sb.AppendLine("                StatefulWorkingSlots = __plan" + safe + ".Slots,");
                 }
                 if (t.ParamsType != null)
                     sb.AppendLine("                BlackboardLayoutType = typeof(global::" + t.ParamsType + "),");
                 sb.AppendLine("            });");
+                // E6 / CE-364 -- bind AFTER Register, because HostedChildren resolves the CHILD
+                // through the registry and registrars run in an arbitrary order. An unresolvable
+                // child is skipped and surfaces at the hosting site as Require's named exception.
+                if (!t.IsHsm)
+                    sb.AppendLine("            global::Fdp.Toolkit.Behavior.BTreeHostedSites.Bind(beh, __blob" + safe + ", __plan" + safe + ");");
                 sb.AppendLine();
             }
 
