@@ -134,6 +134,19 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-383</c> — bake an EXPLICIT activity action id, bypassing the name hash.</b>
+        /// ⛔ Not for hand-written actions: use <see cref="Activity(string)"/>, whose FQN hash is the
+        /// identity (<c>E6</c>(A)). ⭐ This exists for a BLUEPRINT-hosted activity, which registers
+        /// under its <c>BlueprintId</c> — a value no authorable name hashes to. 📄
+        /// <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2.
+        /// </summary>
+        public StateBuilder ActivityId(ushort actionId)
+        {
+            _state.ActivityActionId = actionId;
+            return this;
+        }
+
         public StateBuilder TimerAction(string actionName)
         {
             _state.TimerAction = actionName;
@@ -224,6 +237,17 @@ namespace Fhsm.Compiler
             return this;
         }
         
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-383</c> — bake an EXPLICIT guard id, bypassing the name hash.</b>
+        /// ⛔ Not for hand-written guards: use <see cref="Guard(string)"/>. ⭐ This exists for a
+        /// BLUEPRINT-hosted guard, which registers under its <c>BlueprintId</c>. 📄 §3.2.
+        /// </summary>
+        public TransitionBuilder GuardId(ushort guardId)
+        {
+            _transition.GuardId = guardId;
+            return this;
+        }
+
         public TransitionBuilder Action(string actionName)
         {
             _transition.ActionFunction = actionName;

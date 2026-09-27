@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using Microsoft.CodeAnalysis;
 using Hrot.AiEditor.Persistence.Hsm;
 using Hrot.AiEditor.Persistence.Emit;
@@ -40,19 +41,40 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   shape this codebase files as a defect.
         //   Incrementality note: as on the BTree side, this makes GenerateOneAsset re-run on ANY
         //   compilation change. Acceptable for the small *.hsm.json asset set (VE-DEBT-003).
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation)> combined =
+        // ⭐⭐⭐ CE-384 — the *.bp.json AdditionalTexts, so a state's activity or a transition's guard
+        //   can BE a blueprint. 🔴 This is the ONLY way to learn a blueprint's BlueprintId from here:
+        //   the Blueprint generator and this one are SIBLING Roslyn generators driven from the same
+        //   PRE-generation compilation, so the generated {Name}_{BlueprintId:X8}_Bp class is
+        //   unresolvable by symbol "not even in a fully successful real build"
+        //   (GeneratedBlueprintSchemaCatalog's own header). ⭐ Same providers the BTree generator
+        //   already collects for the AiPrimitiveTickCore composition path.
+        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> bpJsonCollected =
+            context.AdditionalTextsProvider
+                .Where(static at => at.Path.EndsWith(".bp.json",
+                    System.StringComparison.OrdinalIgnoreCase))
+                .Select(static (at, ct) =>
+                {
+                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
+                    return (at.Path, text);
+                })
+                .Collect();
+
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
             rawFiles.Combine(context.CompilationProvider)
-                    .Select(static (pair, _) => (pair.Left.Path, pair.Left.Text, pair.Right));
+                    .Combine(bpJsonCollected)
+                    .Select(static (pair, _) =>
+                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
         });
     }
 
     private static void GenerateOneAsset(
-        SourceProductionContext spc, string path, string text, Compilation compilation)
+        SourceProductionContext spc, string path, string text, Compilation compilation,
+        ImmutableArray<(string Path, string Text)> bpJsonFiles)
     {
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         HsmAssetDto? dto;
@@ -84,11 +106,32 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
                 ? StructSizeResolver.MakeDelegate(compilation)
                 : null;
 
+        // ⭐⭐ CE-384 — Guid → the ushort the blueprint's generated thunk registers under.
+        //   ⛔ Returns null for an unknown asset id rather than 0: a 0 would be a VALID action id and
+        //   would silently mis-dispatch, which is the failure mode this whole id story exists to
+        //   avoid. The emitter then emits nothing and the validator is what complains.
+        //   ⚠ Built even when there are no blueprints — Parse() on an empty array is empty, and the
+        //   emitted output is byte-identical because no DTO names a blueprint.
+        var blueprintSchemas = GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+        System.Func<System.Guid, ushort?> blueprintIdResolver = assetId =>
+        {
+            foreach (var schema in blueprintSchemas)
+            {
+                if (schema.AssetId != assetId) continue;
+                // ⚠ A Library or Instance blueprint emits no HsmActivity/HsmGuard thunk, so resolving
+                //   one would bake an id nothing registers — a silent TryGetValue miss at dispatch,
+                //   which is the exact failure E6 spent a batch on.
+                if (!schema.IsAiPrimitive) return null;
+                return unchecked((ushort)schema.BlueprintId);
+            }
+            return null;
+        };
+
         // Emit topology core (CreateBuilder + [HsmDefinition] thunk, NO [HsmLayout]).
         string source;
         try
         {
-            source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver);
+            source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver);
         }
         catch (Exception ex)
         {

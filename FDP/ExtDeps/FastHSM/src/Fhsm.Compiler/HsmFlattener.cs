@@ -171,7 +171,12 @@ namespace Fhsm.Compiler
                 // Actions - Use 0xFFFF (None) if not present
                 def.OnEntryActionId = node.EntryActionId != 0 ? node.EntryActionId : (node.OnEntryAction != null ? actionTable[node.OnEntryAction] : (ushort)0xFFFF);
                 def.OnExitActionId = node.ExitActionId != 0 ? node.ExitActionId : (node.OnExitAction != null ? actionTable[node.OnExitAction] : (ushort)0xFFFF);
-                def.ActivityActionId = node.ActivityAction != null ? actionTable[node.ActivityAction] : (ushort)0xFFFF;
+                // ⭐ CE-383 — the explicit-id override, extended to ACTIVITY. Entry/exit have honoured
+                //   one since the JSON parser needed it; activity did not, and a blueprint-hosted
+                //   activity has no authorable NAME whose hash equals its BlueprintId. 📄 §3.2.
+                def.ActivityActionId = node.ActivityActionId != 0
+                    ? node.ActivityActionId
+                    : (node.ActivityAction != null ? actionTable[node.ActivityAction] : (ushort)0xFFFF);
                 def.TimerActionId = node.TimerAction != null ? actionTable[node.TimerAction] : (ushort)0xFFFF;
                 
                 // History
@@ -250,8 +255,20 @@ namespace Fhsm.Compiler
                 //   parser, and the DTO emitter that CE-385 adds — lands on the same id.
                 def.EventId = node.IsPolled ? ReservedEventIds.Polled : node.EventId;
 
-                def.GuardId = node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF;
-                def.ActionId = node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF;
+                // ⭐ CE-383 — the explicit-id override, extended to GUARD. A blueprint-hosted guard
+                //   registers under its BlueprintId, which no authorable name hashes to. 📄 §3.2.
+                def.GuardId = node.GuardId != 0
+                    ? node.GuardId
+                    : (node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF);
+                // ⚠ CE-383 — ALSO honoured here, and this one is a FIX rather than an extension:
+                //   TransitionNode.ActionId already existed and JsonStateMachineParser:92 already SET
+                //   it, but this line ignored it ⇒ a JSON-authored transition action was parsed and
+                //   silently DROPPED. 📐 Zero production blast radius (that parser has test-only
+                //   callers), and leaving one slot inconsistent in the very method being made
+                //   consistent is the worse outcome. Argued in the CE-383 report, not silent.
+                def.ActionId = node.ActionId != 0
+                    ? node.ActionId
+                    : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 
                 // Flags (include priority)
                 def.Flags = BuildTransitionFlags(node);
@@ -407,8 +424,20 @@ namespace Fhsm.Compiler
                 
                 def.TargetStateIndex = node.Target.FlatIndex;
                 def.EventId = node.EventId;
-                def.GuardId = node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF;
-                def.ActionId = node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF;
+                // ⭐ CE-383 — the explicit-id override, extended to GUARD. A blueprint-hosted guard
+                //   registers under its BlueprintId, which no authorable name hashes to. 📄 §3.2.
+                def.GuardId = node.GuardId != 0
+                    ? node.GuardId
+                    : (node.GuardFunction != null ? guardTable[node.GuardFunction] : (ushort)0xFFFF);
+                // ⚠ CE-383 — ALSO honoured here, and this one is a FIX rather than an extension:
+                //   TransitionNode.ActionId already existed and JsonStateMachineParser:92 already SET
+                //   it, but this line ignored it ⇒ a JSON-authored transition action was parsed and
+                //   silently DROPPED. 📐 Zero production blast radius (that parser has test-only
+                //   callers), and leaving one slot inconsistent in the very method being made
+                //   consistent is the worse outcome. Argued in the CE-383 report, not silent.
+                def.ActionId = node.ActionId != 0
+                    ? node.ActionId
+                    : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 def.Flags = BuildTransitionFlags(node);
                 
                 result[i] = def;

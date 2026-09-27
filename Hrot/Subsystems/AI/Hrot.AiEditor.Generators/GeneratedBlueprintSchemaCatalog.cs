@@ -38,15 +38,21 @@ namespace Hrot.AiEditor.Generators;
 /// </summary>
 internal sealed class GeneratedBlueprintSchema
 {
+    /// <summary>⭐ <c>CE-384</c> — the asset's own GUID. The catalog already parsed it to derive
+    /// <see cref="BlueprintId"/>; carrying it lets a consumer match by the handle an ASSET can
+    /// author, instead of re-implementing <c>ComputeBlueprintId</c> at the call site.</summary>
+    public Guid AssetId { get; }
+
     public string SanitizedName { get; }
     public int BlueprintId { get; }
     public bool IsAiPrimitive { get; }
     public IReadOnlyList<(string Name, string TypeId)> Parameters { get; }
 
     public GeneratedBlueprintSchema(
-        string sanitizedName, int blueprintId, bool isAiPrimitive,
+        Guid assetId, string sanitizedName, int blueprintId, bool isAiPrimitive,
         IReadOnlyList<(string Name, string TypeId)> parameters)
     {
+        AssetId        = assetId;
         SanitizedName = sanitizedName;
         BlueprintId   = blueprintId;
         IsAiPrimitive = isAiPrimitive;
@@ -129,7 +135,7 @@ internal static class GeneratedBlueprintSchemaCatalog
                     AddParameter(item, parameters);
             }
 
-            return new GeneratedBlueprintSchema(sanitizedName, blueprintId, isAiPrimitive, parameters);
+            return new GeneratedBlueprintSchema(assetId, sanitizedName, blueprintId, isAiPrimitive, parameters);
         }
         catch
         {

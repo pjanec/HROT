@@ -46,13 +46,32 @@ public static class HsmEmitCore
     /// Primitive-typed variables need no resolver and are unaffected.
     /// </summary>
     public static string EmitTopologyCore(HsmAssetDto dto, System.Func<string, int?>? sizeResolver)
+        => EmitTopologyCore(dto, sizeResolver, blueprintIdResolver: null);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-384</c> overload: resolves a BLUEPRINT ASSET ID to the <c>ushort</c> its
+    /// generated thunk registers under, so a state's activity or a transition's guard can be a
+    /// blueprint.</b>
+    ///
+    /// <para>🔴 <b>It is a delegate, and it has to be.</b> The blueprint's <c>BlueprintId</c> lives in
+    /// <c>GeneratedBlueprintSchemaCatalog</c>, which is <c>internal</c> to the GENERATOR assembly and
+    /// derives it from the <c>.bp.json</c> AdditionalTexts. ⛔ Sibling Roslyn generators cannot see
+    /// each other's output — the generated <c>{Name}_{BlueprintId:X8}_Bp</c> class is unresolvable by
+    /// symbol <i>"not even in a fully successful real build"</i> — so the id cannot be looked up here
+    /// and must be handed in. ⭐ Exactly the shape <paramref name="sizeResolver"/> already uses.</para>
+    /// </summary>
+    public static string EmitTopologyCore(
+        HsmAssetDto dto,
+        System.Func<string, int?>? sizeResolver,
+        System.Func<System.Guid, ushort?>? blueprintIdResolver)
     {
-        return EmitInternal(dto, includeLayout: false, sizeResolver);
+        return EmitInternal(dto, includeLayout: false, sizeResolver, blueprintIdResolver);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
     private static string EmitInternal(HsmAssetDto dto, bool includeLayout,
-        System.Func<string, int?>? sizeResolver = null)
+        System.Func<string, int?>? sizeResolver = null,
+        System.Func<System.Guid, ushort?>? bpId = null)
     {
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
@@ -81,7 +100,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto, sizeResolver);
+        EmitCreateBuilder(sb, dto, sizeResolver, bpId);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -192,7 +211,8 @@ public static class HsmEmitCore
     // ---- CreateBuilder ----
 
     private static void EmitCreateBuilder(StringBuilder sb, HsmAssetDto dto,
-        System.Func<string, int?>? sizeResolver = null)
+        System.Func<string, int?>? sizeResolver = null,
+        System.Func<System.Guid, ushort?>? bpId = null)
     {
         // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
         //    the whole asset. An unbound transition never touches this map, so an asset with no
@@ -331,13 +351,13 @@ public static class HsmEmitCore
             // Pass 1: declarations only (no transitions).
             var pendingTransitions = new System.Collections.Generic.List<(string VarName, TransitionNodeDto T)>();
             foreach (var topState in userTopLevel)
-                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames);
+                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId);
 
             // Pass 2: emit transitions after all states are declared (avoids GoTo forward-ref error).
             // Each state's own transitions are appended consecutively in document order, so the
             // per-state TransitionNode order (and thus the compiled blob) is unchanged.
             foreach (var (varName, t) in pendingTransitions)
-                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets);
+                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets, bpId);
         }
 
         // Global transitions sorted by EventId (matching original emitter: OrderBy(g => g.EventId))
@@ -381,7 +401,8 @@ public static class HsmEmitCore
         string pad,
         Dictionary<string, ushort> eventIdMap,
         System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
-        Dictionary<Guid, string> stateVarNames)
+        Dictionary<Guid, string> stateVarNames,
+        System.Func<System.Guid, ushort?>? bpId)
     {
         var outgoing = dto.Transitions
             .Where(t => t.SourceStableId == state.StableId)
@@ -397,7 +418,7 @@ public static class HsmEmitCore
         bool needsVar = varName != null;
 
         string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
-        var config   = BuildStateConfig(state, eventIdMap);
+        var config   = BuildStateConfig(state, eventIdMap, bpId);
 
         if (needsVar)
             sb.Append($"{pad}var {varName} = {decl}");
@@ -408,7 +429,7 @@ public static class HsmEmitCore
         sb.AppendLine(";");
 
         foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames);
+            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId);
 
         // Collect transitions for Pass 2 (not emitted here to avoid forward-ref errors).
         foreach (var t in outgoing)
@@ -422,12 +443,13 @@ public static class HsmEmitCore
         string parentVar, string pad, int depth,
         Dictionary<string, ushort> eventIdMap,
         System.Collections.Generic.List<(string VarName, TransitionNodeDto T)> pendingTransitions,
-        Dictionary<Guid, string> stateVarNames)
+        Dictionary<Guid, string> stateVarNames,
+        System.Func<System.Guid, ushort?>? bpId)
     {
         string stableGuid  = QuoteStr(child.StableId.ToString("D"));
         string lambdaParam = $"sb{depth}";
         string innerPad    = pad + "    ";
-        var config = BuildStateConfig(child, eventIdMap);
+        var config = BuildStateConfig(child, eventIdMap, bpId);
 
         var children = child.ChildStableIds
             .Where(id => stableIdToState.ContainsKey(id))
@@ -467,7 +489,7 @@ public static class HsmEmitCore
             }
 
             foreach (var grandchild in children)
-                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames);
+                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId);
 
             // Transitions are deferred to Pass 2 (referenced via captureVar) — no inline GoTo here.
 
@@ -484,7 +506,8 @@ public static class HsmEmitCore
         Dictionary<Guid, StateNodeDto> stableIdToState,
         string stateVar, TransitionNodeDto t, string pad,
         Dictionary<string, ushort> eventIdMap,
-        IReadOnlyDictionary<string, int> paramOffsets)
+        IReadOnlyDictionary<string, int> paramOffsets,
+        System.Func<System.Guid, ushort?>? bpId)
     {
         string onCall = t.EventName != null
             ? $"{stateVar}.On({QuoteStr(t.EventName)})"
@@ -497,6 +520,17 @@ public static class HsmEmitCore
 
         if (!string.IsNullOrEmpty(t.GuardFunction))
             chain += $".Guard({QuoteStr(t.GuardFunction!)})";
+        // ⭐⭐⭐ CE-384 — a BLUEPRINT guard, same reasoning as the activity above.
+        if (t.GuardBlueprintAssetId != Guid.Empty && bpId != null)
+        {
+            ushort? gid = bpId(t.GuardBlueprintAssetId);
+            if (gid.HasValue) chain += $".GuardId({gid.Value})";
+        }
+        // ⭐⭐ CE-381 — the POLLED marker. ⛔ Deliberately NOT expressed by omitting the event: an
+        //   eventless transition is a COMPLETION transition (§2.3). The flattener normalises a
+        //   polled transition onto ReservedEventIds.Polled so the two stay disjoint.
+        if (t.IsPolled)
+            chain += ".Polled()";
         if (!string.IsNullOrEmpty(t.ActionFunction))
             chain += $".Action({QuoteStr(EffectiveActionName(t.ActionFunction!, t.ExpressionTargetField, paramOffsets))})";
         if (t.Priority != 0)
@@ -666,7 +700,7 @@ public static class HsmEmitCore
         return result;
     }
 
-    private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap)
+    private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap, System.Func<System.Guid, ushort?>? bpId)
     {
         var parts = new List<string>();
         if (s.IsInitial)     parts.Add(".Initial()");
@@ -677,6 +711,18 @@ public static class HsmEmitCore
         if (s.OnEntryAction  != null) parts.Add($".OnEntry({QuoteStr(s.OnEntryAction)})");
         if (s.OnExitAction   != null) parts.Add($".OnExit({QuoteStr(s.OnExitAction)})");
         if (s.ActivityAction != null) parts.Add($".Activity({QuoteStr(s.ActivityAction)})");
+        // ⭐⭐⭐ CE-384 — a BLUEPRINT activity is addressed by ASSET ID and baked as an EXPLICIT id.
+        //   ⛔ There is no name to emit: the thunk registers under BlueprintId = FNV-1a32(assetId),
+        //   which no authorable string hashes to (§3.2), and the generated class name embeds that
+        //   hash so it is not a stable handle either.
+        //   ⚠ Emitted ONLY when the resolver finds it. An unresolved reference falls through with
+        //   NO .ActivityId(...) — the state simply has no activity, which is the same failure mode
+        //   as a dangling subtree name and is caught by the validator, not papered over with a 0.
+        if (s.ActivityBlueprintAssetId != Guid.Empty && bpId != null)
+        {
+            ushort? id = bpId(s.ActivityBlueprintAssetId);
+            if (id.HasValue) parts.Add($".ActivityId({id.Value})");
+        }
         if (s.TimerAction    != null) parts.Add($".TimerAction({QuoteStr(s.TimerAction)})");
         // Deferred events in ascending ID order (matching HsmFluentEmitter: OrderBy(id => id))
         var deferredIds = s.DeferredEventNames

@@ -110,6 +110,29 @@ public sealed class StateNodeDto
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string? SubtreeName { get; set; }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-384</c> — this state's ACTIVITY is a BLUEPRINT, addressed by asset id.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §7.
+    ///
+    /// <para>🔴 <b>Why a Guid and not a name.</b> A named action resolves through
+    /// <c>FNV1a16(FQN)</c>; a blueprint-hosted thunk registers under its <c>BlueprintId</c>, which is
+    /// FNV-1a32 of THIS Guid. ⛔ No authorable string bridges the two id spaces, and the generated
+    /// class name embeds the hash — so the ASSET ID is the only stable, authorable handle.</para>
+    ///
+    /// <para>⛔⛔ A state may set this OR <see cref="ActivityAction"/>, never both — a validator
+    /// rule, not a precedence rule.</para>
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Guid ActivityBlueprintAssetId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>Q36-B</c> = <b>A</b> — the blueprint's NAME beside its Guid, so a rename HEALS instead
+    /// of dangling. Mirrors the shipped <c>{SubtreeAssetId, SubtreeName}</c> pair.
+    /// ⚠ Display/heal only: the Guid is what resolves.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? ActivityBlueprintName { get; set; }
+
     // Deferred events (by name; emit core resolves to IDs using DTO event order)
     public List<string> DeferredEventNames { get; set; } = new();
 
@@ -176,6 +199,31 @@ public sealed class TransitionNodeDto
     public byte Priority { get; set; }
     public TransitionKindDto Kind { get; set; }
     public ushort SyncGroupId { get; set; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-384</c> — this transition's GUARD is a BLUEPRINT, addressed by asset id.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §7. Same reasoning as
+    /// <c>StateNodeDto.ActivityBlueprintAssetId</c>: the thunk registers under its
+    /// <c>BlueprintId</c> = FNV-1a32 of this Guid, and no authorable string reaches that id space.
+    /// ⛔⛔ A transition may set this OR <see cref="GuardFunction"/>, never both.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public Guid GuardBlueprintAssetId { get; set; }
+
+    /// <summary>⭐ <c>Q36-B</c> = <b>A</b> — the blueprint's NAME beside its Guid, so a rename heals.
+    /// ⚠ Display/heal only; the Guid resolves.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? GuardBlueprintName { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-381</c> — evaluate this transition's guard EVERY quiescent tick, with no event.</b>
+    /// ⛔⛔ NOT the same as omitting <see cref="EventName"/>: an eventless transition is a COMPLETION
+    /// transition, already selected once by the RTC loop after another transition fires. 📄 §2.3.
+    /// ⭐ The flattener normalises a polled transition onto <c>ReservedEventIds.Polled</c>, so the
+    /// two can never both claim it.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsPolled { get; set; }
 
     // Layout
     public List<WaypointDto> Waypoints { get; set; } = new();

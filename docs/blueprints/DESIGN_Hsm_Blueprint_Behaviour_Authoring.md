@@ -759,3 +759,48 @@ six independent proofs.
 ⛔ **Still NOT reachable from an asset** — an HSM asset cannot yet name a polled transition, because
 that is `CE-385`'s DTO field. ⭐ Until then polling is exercised through `HsmBuilder.Polled()` and the
 compiler's `"polled": true`.
+
+### 13.3 `CE-383` + `CE-384` — explicit ids, baked from the `.bp.json` *(`2026-09-27`)*
+
+⭐⭐ **`CE-383`** extended the explicit-id override — already honoured for entry/exit since the JSON
+parser needed one — to **activity** and **guard**, at both flatten sites, plus
+`StateBuilder.ActivityId(ushort)` / `TransitionBuilder.GuardId(ushort)`. **8 rails.**
+
+🔴 **It also FIXED a silent drop, and that is a deviation from §8's "name it, do not fix it".**
+`TransitionNode.ActionId` existed and `JsonStateMachineParser:92` already SET it, but the flattener
+ignored it ⇒ a JSON-authored transition action was **parsed and discarded**. 📐 Measured: that parser
+has **test-only callers**, so blast radius is zero. ⚠ Leaving one slot inconsistent inside the very
+expression being made consistent is the worse outcome — argued here rather than done quietly.
+
+### 13.3a 🔴 TWO CORRECTIONS TO §8's OWN ITEMS
+
+| §8 said | what is true |
+|---|---|
+| *"`HsmBridgeEmitCore.EmitBlueprintActionIds`"* | ⛔ **wrong emitter.** The action NAMES go into the fluent builder from **`HsmEmitCore`** (`BuildStateConfig`, `EmitTransitionCall`); `HsmBridgeEmitCore` writes the REGISTRAR. The id is emitted where the name would have been |
+| *"`CE-381`..`CE-384` are the spine ⇒ an HSM asset can address a blueprint"* | ⛔ **not without DTO fields**, which §8 put in `CE-385`. ⇒ the four DTO fields *(`ActivityBlueprintAssetId/Name`, `GuardBlueprintAssetId/Name`)* plus `IsPolled` were **pulled forward into `CE-384`**; the editor MODEL, mapper and inspector stay in `CE-385` |
+
+### 13.3b ⭐⭐ HOW THE ID CROSSES — **a delegate, because a symbol cannot**
+
+⭐ `EmitTopologyCore` gained a `Func<Guid, ushort?>? blueprintIdResolver`, **exactly the shape
+`sizeResolver` already uses**. The generator builds it from `GeneratedBlueprintSchemaCatalog`, which
+parses the `.bp.json` AdditionalTexts — the only available source, because sibling Roslyn generators
+cannot see each other's output.
+
+⭐ `GeneratedBlueprintSchema` now carries **`AssetId`**. It had already parsed the Guid to derive
+`BlueprintId` and simply did not keep it; carrying it lets a consumer match on **the handle an asset
+can author** instead of re-implementing `ComputeBlueprintId` at the call site.
+
+| ⛔ two refusals, both deliberate | |
+|---|---|
+| **an unresolved reference emits NOTHING** | ⭐ `0` is a VALID action id, so a fallback would **mis-dispatch silently** instead of failing — the `E6` disease. Red-proved: a `?? 0` fallback reddens `AnUnresolvedBlueprintReference_EmitsNoIdAtAll_NeverZero` |
+| **a non-`AiPrimitive` blueprint resolves to null** | a Library or Instance blueprint emits no `HsmActivity`/`HsmGuard` thunk, so baking its id would address something nothing registers. ⚠ **UNRAILED** — the rails use a stub resolver, so this gate is asserted by reading, not by a test |
+
+📐 **Gates:** `Fhsm.Tests` **335/335** · `Fdp.Toolkits.Tests` **2342/2342** ·
+`Hrot.AiEditor.Generators.Tests` **329/329** · `Hrot.Hsm.Editor.Tests` **587/587** ·
+`Hrot.Blueprints.Tests` **4036 + 18 skipped** · ⭐ tree clean, **no golden moved** — the new DTO
+fields are all `WhenWritingDefault`, and a rail asserts an asset naming no blueprint emits
+**byte-identically** with and without a resolver.
+
+⚠ **What is NOT proved here, said plainly:** these rails test the **emitter**. The end-to-end claim
+*"the blob addresses the id the blueprint registrar registers"* needs the blueprint compiler in the
+loop and an asset that carries the reference — that is `CE-385`/`CE-386`. §9 ④ remains OPEN.

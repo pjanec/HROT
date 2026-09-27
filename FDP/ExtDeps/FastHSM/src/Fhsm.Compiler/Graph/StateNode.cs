@@ -30,6 +30,18 @@ namespace Fhsm.Compiler.Graph
         public string? OnExitAction { get; set; }
         public ushort ExitActionId { get; set; } // Added for JSON parser support
         public string? ActivityAction { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-383</c> — an EXPLICIT activity action id, overriding the name hash.</b>
+        /// ⛔ <c>0</c> means "unset", exactly as for <see cref="EntryActionId"/>/<see cref="ExitActionId"/>,
+        /// which have carried this shape since the JSON parser needed it.
+        ///
+        /// <para>⭐ <b>Why it exists:</b> a blueprint-hosted thunk registers under its
+        /// <c>BlueprintId</c> — FNV-1a32 of the asset GUID — while a named action resolves through
+        /// <c>FNV1a16(FQN)</c>. No authorable STRING bridges those two id spaces, so the id has to be
+        /// baked. 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2.</para>
+        /// </summary>
+        public ushort ActivityActionId { get; set; }
         public string? TimerAction { get; set; }
         
         // Computed during flattening
