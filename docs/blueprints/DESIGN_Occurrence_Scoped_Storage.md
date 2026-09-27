@@ -9415,65 +9415,106 @@ one architecture rot apart, so the superseded `classDiagram` / `sequenceDiagram`
 
 <!--SECTION-STATUS
 build-state: READY-TO-BUILD
-owns: the RUNTIME + EMIT half of "a BTree node hosts another BTree". ⛔ The AUTHORING half is
-  DONE and owned elsewhere — BTree_Editor_NodeEditor_Host_Design.md §S1 (picker, heal, cycle rule).
+owns: the RUNTIME + KERNEL + REGISTRATION half of "a BTree node hosts another BTree", for BOTH
+  authoring routes (editor-authored *.btree.json AND hand-written C# BTreeBuilder).
+  ⛔ The editor AUTHORING half is DONE and owned elsewhere — BTree_Editor_NodeEditor_Host_Design.md
+  §S1 (picker, heal, Rule 6, cycle rule).
 supersedes: §3.1's "BTree-hosts-BTree is not a missing feature" (banner added 2026-09-27).
+revision: 2 (2026-09-27). ⚠ REVISION 1 chose a generated ACTION THUNK and is RETRACTED — see §33.2.
 -->
 
 🔒 **User, `2026-09-27`:** *"instead of warning, i would like you to design the missing parts of
-btree-hosts-btree so it can be implemented."*
+btree-hosts-btree so it can be implemented"* → then *"i need to support **hand written c# btree
+subtrees** as well; and for sure we need **end-to-end test that actually ticks a host and asserts
+the child advanced**."*
 
 ⭐ **The one-line state:** a BTree that hosts a BTree **authors, validates, saves and compiles
-today, and returns `Failure` every tick.** ⛔ Nothing warns. §32 built the whole hosting runtime for
-`E5`; this section connects the BTree node to it.
+today, and returns `Failure` every tick.** ⛔ Nothing warns.
 
-### 33.1 ⭐⭐ INVENTORY — **measured `2026-09-27`, and it is mostly BUILT**
+### 33.1 ⭐⭐ INVENTORY — **measured `2026-09-27`; it is mostly BUILT**
 
-📐 `search_graph(name_pattern=".*Hosted.*")` → 84 nodes · `".*TreeStateKey.*"` → 3 · corroborated by
-grep. ⭐⭐⭐ **The seam law's usual answer holds: the shared machinery EXISTS and is under-adopted.**
+📐 `search_graph`: `".*Hosted.*"` → 84 · `".*TreeStateKey.*"` → 3 · `".*BTreeDefinition.*"` → 31 ·
+`"(DeterministicGuid|GuidFrom|FromName|…)"` → 10. Corroborated by grep.
+⚠ `check_index_coverage` is not available through the CLI, so *"complete set"* below means
+**graph + grep agreeing**, not a coverage proof.
 
 | # | piece | state |
 |---|---|---|
-| ① | `HostedSubtree.Tick(child, ref bb, ref ctx, key)` — own `BehaviorTreeState`, `D4` reset half one | ✅ **built, GENERIC** |
-| ② | `HostedSubtree.Reset(...)` ×2 — `D4` half two, the `F14` abandon case | ✅ **built, GENERIC** |
-| ③ | `HostedChildren.Register / Require` — name→interpreter at REGISTRATION | ✅ **built, and its header already says *"one entry serves both hosts … the BTree orchestrator's alias hosting resolve the SAME way"*** |
-| ④ | `OccurrenceSlotKey.ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId)` | ✅ **built — and its site term is `ComputeSiteId(Guid nodeVisualId)`, documented as *"the hosting SITE, from the author's stable NODE id"*. ⭐ It was written for THIS case; `E5` passes an HSM `StableId` into a parameter named for a node** |
-| ⑤ | slot provisioning / `IsTreeStateSlot` / ingress detach | ✅ **built, GENERIC** |
-| ⑥ | authoring — picker, heal, `Rule 6`, `SubtreeAssetCycle`, `GetHostedSubtreeAssetIds` | ✅ **built `2026-09-26`** (`CE-358`…`CE-361`) |
-| ⑦ | **the emitter half** — collect the host's subtree SITES, declare their slots, register the children | ⛔ **MISSING** *(HSM's twin is `HsmBridgeEmitCore.CollectHostedSubtrees:547` + `EmitHostedSubtrees:670` + `EmitStatefulWorkingSlotsArray:571`)* |
-| ⑧ | **the tick** — nothing carries a BTree hosting node to ① | ⛔ **MISSING** — `Interpreter.cs:249` returns `Failure` |
+| ① | `HostedSubtree.Tick / .Reset ×2 / .IsTreeStateSlot` | ✅ **built, GENERIC** |
+| ② | `HostedChildren.Register / .Require` — name→interpreter at REGISTRATION | ✅ **built; its header already says *"one entry serves both hosts"*** |
+| ③ | `OccurrenceSlotKey.ComputeTreeStateKey(hostAssetId, siteNodeVisualId, childAssetId)` | ✅ **built — its site term is `ComputeSiteId(Guid nodeVisualId)`, documented *"from the author's stable NODE id"*. ⭐ Written for THIS case** |
+| ④ | slot provisioning · ingress detach · tier demand | ✅ **built, GENERIC** |
+| ⑤ | editor authoring — picker, heal, `Rule 6`, `SubtreeAssetCycle` | ✅ **built `2026-09-26`** (`CE-358`…`CE-361`) |
+| ⑥ | `blob.DebugMetadata[i].VisualId` — the site id, per node | ✅ **built and UNCONDITIONAL** — `BTreeBuilder.Compile` populates it on **both** paths (`:378`, `:407`) |
+| ⑦ | `BTreeBuilder.Subtree(treeName, Guid visualId = default, …)` | ✅ **built — a hand-written author can ALREADY supply a stable site id** |
+| ⑧ | name→Guid identity, hand-written trees | ✅ **the POLICY already exists**: `AssetIdHasher.FromName` (FNV-1a-32) and the editor already falls back to it — rail `LoadFrom_FallsBackToFromName_WhenAssetIdAbsent`. ⭐ The runtime has the same primitive in `BehaviorHash.FromName`, same offset basis |
+| ⑨ | **the kernel arm** — `Interpreter.cs:249` returns `Failure` | ⛔ **MISSING** |
+| ⑩ | **the site table** — nothing maps a blob's Subtree node to a slot key | ⛔ **MISSING** |
+| ⑪ | **registration** — nothing declares the slot or binds the child for a BTree host | ⛔ **MISSING** |
 
 ⚠⚠ **Three doc comments name `BTreeBridgeEmitCore.CollectHostedTreeStateSlots` as if it exists**
 *(`HostedSubtree.cs:115`, `HsmBridgeEmitCore.cs:532`, `HostedSubtreeCursorTests.cs:409`)*. 📐 **It has
-never existed** — grep and `search_graph` agree. ⇒ ⭐ **item ⑦ is the method those comments already
-describe**; building it makes three stale references true rather than adding a concept.
+never existed** — graph and grep agree. ⭐ Item ⑩ supersedes what they describe; **fix the three
+comments to point at `BTreeHostedSites`** rather than leave them naming a phantom.
 
-### 33.2 ⭐⭐⭐ THE DECISION — **the hosting node compiles to an ACTION THUNK**
+### 33.2 ⭐⭐⭐ THE DECISION — **the KERNEL dispatches `NodeType.Subtree` through a host interface**
 
-⭐ `Q36-A = B` *(approved `2026-09-23`)* — **the host ticks the child inline.** ⛔ That ruling is not
-re-opened here; only its BTree mechanism is.
+> ⛔⛔ **REVISION 1 IS RETRACTED, and the reason is worth keeping.** It chose *"compile the hosting
+> node to a generated ACTION thunk, zero kernel change"*, because that made `F14`'s deactivator free.
+> ⭐ **That reasoning was sound for EDITOR-AUTHORED trees and is WRONG once hand-written C# must
+> work**: a thunk is a thing the EMITTER writes, and 📐 **a hand-written tree has no emitter** — the
+> `BTreeDefinitionGenerator` emits only a `Get<Name>()` catalog, never a manifest or a registrar.
+> ⇒ the thunk shape would have produced **TWO hosting mechanisms**, which is what ruling 9 forbids.
+> 🔒 **The user's requirement did not add a feature to revision 1; it falsified its premise.**
 
-🔒 **A BTree hosting node compiles to a generated `[BTreeAction]` thunk whose whole body is
-`HostedSubtree.TickFromContext(ref ctx, KEY)`, with `HostedSubtree.Reset` registered as its
-deactivator.** ⭐ **Zero kernel change.**
+🔒 **`NodeType.Subtree` dispatches through an `ISubtreeHost` the kernel defines and the toolkit
+implements.** The site's slot key is resolved from a per-blob table built **at registration**, by
+walking the blob — ⭐ **the one route that serves editor-authored and hand-written identically,
+because both end up as a compiled `BehaviorTreeBlob`.**
 
-| ⭐ why this shape and not the kernel | |
+| ⭐ why this shape | |
 |---|---|
-| ⭐⭐⭐ **`F14` comes FREE** | 📐 `TreeCompiler:187` takes an `isResourceOwning` predicate over `MethodName`, and `Interpreter:163` resolves a deactivator by `MethodNames[pi]`. ⇒ an **Action** node with a registered deactivator is resource-owning **automatically**. ⛔ A `NodeType.Subtree` node's `PayloadIndex` indexes `SubtreeAssetIds`, **not** `MethodNames` — so kernel dispatch would need a second deactivator path built from scratch |
-| ⭐⭐ **the seam was BUILT for it** | `HostedChildren`'s header: *"a generated orchestrator thunk is a **static method** … the key is the natural handle, and **the thunk stays trivial**."* ⇒ this is the shape the table was designed to serve |
-| ⭐ **it is the retired orchestrator's shape, MINUS its defect** | 🔴 `CE-333`/`CE-335`: the old arm called `{Child}.GetInterpreter()`, **a method defined nowhere**. ⭐ `HostedChildren` is precisely the thing that replaced it. ⛔ **This is NOT a revival of the ALIAS collector** — §32.12.3's *"per SITE, not per alias"* is honoured: one thunk and one key **per hosting NODE** |
-| ⚠ **the cost, stated** | the blob marks the node `Action`, not `Subtree` ⇒ a blob→editor **projection** of a regenerated tree shows an Action. 📐 Impact measured: `SubtreeBoundaryRenderer` takes a `BehaviorTreeAsset` *(the editor model, from JSON)* — **not the blob** — so the canvas is unaffected; `BehaviorTreeAssetProjector:175` is the C#-authored reverse path only |
+| ⭐⭐⭐ **ONE mechanism for BOTH routes** | 📐 the blob is the only artefact both paths share. ⛔ Anything emit-side is invisible to hand-written C# **by construction** |
+| ⭐⭐ **the node stays a `Subtree` in the blob** | ⇒ `BehaviorTreeAssetProjector:175`, `BTreeGraphModel:108` and every debug surface keep working. ⭐ Revision 1's residual gap ③ **disappears** rather than being documented |
+| ⭐⭐ **`Q36-A = B` is honoured** | the HOST's own interpreter drives the child, inline, on the host's frame. ⛔ No second brain, no second system |
+| ⚠ **the cost, stated plainly** | an **ExtDeps change** — `Fbt.Kernel` + `Fbt.Compiler`. 📐 FastBTree is **vendored, not a submodule** *(no `.gitmodules`; `58b54a424` is our own kernel commit)*, so this is precedented. ⛔ It is still the largest blast radius in this slice and the reason `F14` is no longer free — see item 4 |
+
+⭐ **Dependency direction is preserved:** the **kernel declares** `ISubtreeHost`; **`Fdp.Toolkits`
+implements** it. ⛔ The kernel never learns what an occurrence slot is.
 
 ### 33.3 ⭐ THE CLASSES — `classDiagram`
 
 ```mermaid
 classDiagram
+    class ISubtreeHost~TBb,TCtx~ {
+        <<interface, NEW - Fbt.Kernel>>
+        +Tick(bb, ctx, blob, nodeIndex) NodeStatus
+        +Reset(ctx, blob, nodeIndex)
+    }
+    class Interpreter~TBb,TCtx~ {
+        <<EXISTS - 2 edits>>
+        -ISubtreeHost SubtreeHost
+        +ExecuteSubtree(nodeIndex) NodeStatus
+    }
+    class TreeCompiler {
+        <<EXISTS - 1 edit>>
+        +MarkSubtreeNodesResourceOwning()
+    }
+    class BTreeHostedSites {
+        <<static, NEW - Fdp.Toolkits>>
+        +Plan(blob, hostName, hostAssetId) Plan
+        +Bind(registry, plan)
+        +TryGetKey(blob, nodeIndex, key) bool
+    }
+    class OccurrenceSubtreeHost {
+        <<NEW - Fdp.Toolkits>>
+        +Tick(bb, ctx, blob, nodeIndex) NodeStatus
+        +Reset(ctx, blob, nodeIndex)
+    }
     class HostedSubtree {
-        <<static, EXISTS>>
+        <<static, EXISTS - gains 1>>
         +Tick(child, childBb, ctx, key) NodeStatus
         +Reset(ctx, key)
-        +Reset(world, self, key)
-        +IsTreeStateSlot(slot) bool
         +TickFromContext(ctx, key) NodeStatus
     }
     class HostedChildren {
@@ -9483,39 +9524,27 @@ classDiagram
     }
     class OccurrenceSlotKey {
         <<static, EXISTS>>
-        +ComputeTreeStateKey(hostId, siteNodeId, childId) int
+        +ComputeTreeStateKey(hostId, siteId, childId) int
     }
-    class RootParamsAccess {
-        <<static, EXISTS>>
-        +TryGetRootBytes(world, self, ptr) bool
+    class HsmHostedSubtrees {
+        <<static, EXISTS - the TWIN>>
+        +Register(blob, entries)
+        +TryGetForMachine(hash, entries) bool
     }
-    class BTreeBridgeEmitCore {
-        <<EXISTS - gains 3 members>>
-        +CollectHostedTreeStateSlots(dto) List
-        +EmitHostedSubtreeThunks(sb, dto)
-        +EmitHostedRegistrations(sb, dto)
-    }
-    class BTreeEmitCore {
-        <<EXISTS - EmitSubtree changes>>
-        +EmitSubtree(sb, node, pad, isLast)
-    }
-    class HsmBridgeEmitCore {
-        <<EXISTS - unchanged, the TEMPLATE>>
-        +CollectHostedSubtrees(dto) List
-        +EmitHostedSubtrees(sb, dto, pad)
-    }
-    BTreeBridgeEmitCore ..> OccurrenceSlotKey : bakes the key
-    BTreeBridgeEmitCore ..> HostedChildren : emits Register
-    BTreeEmitCore ..> BTreeBridgeEmitCore : thunk name per site
+    ISubtreeHost <|.. OccurrenceSubtreeHost
+    Interpreter ..> ISubtreeHost : dispatches Subtree
+    OccurrenceSubtreeHost ..> BTreeHostedSites : nodeIndex to key
+    OccurrenceSubtreeHost ..> HostedSubtree : TickFromContext
     HostedSubtree ..> HostedChildren : Require
-    HostedSubtree ..> RootParamsAccess : child blackboard
-    HsmBridgeEmitCore ..> OccurrenceSlotKey : same key fn
+    BTreeHostedSites ..> OccurrenceSlotKey : one key fn
+    HsmHostedSubtrees ..> OccurrenceSlotKey : same key fn
 ```
 
-⚠ **Caption — what the picture shows that prose hid:** **only ONE new member is runtime**
-(`TickFromContext`); everything else new is **emit-side**. ⭐ `HsmBridgeEmitCore` is drawn on the same
-canvas **unchanged** — it is the template, and drawing it is what proves the new members are a
-MIRROR rather than a second mechanism.
+⚠ **Caption — what the picture shows that prose hid:** `BTreeHostedSites` is drawn **beside**
+`HsmHostedSubtrees`, and the two are deliberately the same shape — *"which site hosts?"* keyed by the
+blob's `StructureHash`, answered into the **shared** `HostedChildren`/`OccurrenceSlotKey`. ⭐ Only
+`ISubtreeHost` crosses into the kernel, and it carries **no occurrence concept** — that is the whole
+dependency argument, drawn.
 
 ### 33.4 ⭐⭐ ONE HOSTED TICK — `sequenceDiagram`
 
@@ -9523,15 +9552,19 @@ MIRROR rather than a second mechanism.
 sequenceDiagram
     participant BTS as BrainTickSystem
     participant I as Interpreter (host)
-    participant T as generated thunk
+    participant SH as OccurrenceSubtreeHost
+    participant TB as BTreeHostedSites
     participant HS as HostedSubtree
     participant HC as HostedChildren
     participant CI as Interpreter (child)
 
     BTS->>I: Tick(hostBb, hostState, ctx)
-    I->>T: ExecuteAction - the hosting node is on the active path
-    T->>HS: TickFromContext(ctx, KEY)
-    HS->>HC: Require(KEY)
+    I->>I: reaches NodeType.Subtree at nodeIndex
+    I->>SH: Tick(bb, ctx, blob, nodeIndex)
+    SH->>TB: TryGetKey(blob, nodeIndex)
+    TB-->>SH: treeStateSlotKey
+    SH->>HS: TickFromContext(ctx, key)
+    HS->>HC: Require(key)
     HC-->>HS: child interpreter
     HS->>HS: resolve child BehaviorTreeState from the occurrence slot
     HS->>CI: Tick(childBb, OWN state, ctx)
@@ -9539,100 +9572,181 @@ sequenceDiagram
     alt status is not Running
         HS->>HS: zero the slot - D4 half one
     end
-    HS-->>T: status
-    T-->>I: status
-    Note over I,HS: host leaves the node while the child is Running
-    I->>HS: SweepExitedNodes fires the deactivator - Reset(ctx, KEY)
+    HS-->>SH: status
+    SH-->>I: status
+    Note over I,SH: host leaves the node while the child is Running
+    I->>SH: SweepExitedNodes - Reset(ctx, blob, nodeIndex)
+    SH->>HS: Reset(ctx, key)
 ```
 
-⚠ **Caption:** the **deactivator edge is the whole of `F14`**, and it is the edge prose keeps
-dropping — the thunk is only called on ENTRY, so nothing else can clear a child the host abandoned.
-⭐ It is free here **only because the node is an Action**; that is §33.2's argument, drawn.
+⚠ **Caption:** the **deactivator edge is the whole of `F14`** and it is the edge prose keeps dropping
+— the Subtree node is only executed on ENTRY, so nothing else can clear a child the host abandoned.
+⛔ **It is NOT free here** *(it was under revision 1's Action shape)*: the kernel must route a Subtree
+node's deactivation through `ISubtreeHost`, because its `PayloadIndex` indexes `SubtreeAssetIds` and
+**not** `MethodNames`. That is build item 4 and it is the subtlest part of the slice.
 
-### 33.5 ⭐⭐⭐ WHO CALLS IT EACH FRAME — **the module diagram, with the DEAD edge**
+### 33.5 ⭐⭐⭐ WHO CALLS IT EACH FRAME — **the module diagram**
 
 ```mermaid
 graph TD
+    subgraph author["authoring - two routes, ONE artefact"]
+        JSON["editor *.btree.json"]
+        CS["hand-written C# BTreeBuilder"]
+        GEN["generated registrar"]
+        CUR["CgfCuratedBehaviorRegistrar - hand-written"]
+        BLOB["compiled BehaviorTreeBlob"]
+        JSON --> GEN --> BLOB
+        CS --> CUR --> BLOB
+    end
+
     subgraph reg["registration - startup, once"]
-        R1["generated Register(beh, staging)"]
-        R2["HostedChildren table"]
-        R3["stateful manifest - one slot per site"]
-        R1 --> R2
-        R1 --> R3
+        P["BTreeHostedSites.Plan - walk the blob"]
+        SLOTS["StatefulWorkingSlots on the definition"]
+        BIND["BTreeHostedSites.Bind - HostedChildren.Register"]
+        BLOB --> P
+        P --> SLOTS
+        P --> BIND
     end
 
     subgraph frame["every frame"]
         B["BrainTickSystem.Tick"]
         HI["host Interpreter"]
-        TH["generated hosting thunk"]
+        SH["OccurrenceSubtreeHost"]
         HS["HostedSubtree.TickFromContext"]
         CH["child Interpreter"]
         B --> HI
-        HI --> TH
-        TH --> HS
+        HI --> SH
+        SH --> HS
         HS --> CH
         B --> TKC["TickHostedChildren - HSM states only"]
         TKC --> HS
     end
 
-    DEAD["Interpreter case NodeType.Subtree - returns Failure"]
-    HW["hand-written C# .Subtree(name)"]
-    HW --> DEAD
+    SLOTS -.provisions.-> HS
+    BIND -.resolves.-> HS
 
-    R3 -.provisions.-> HS
-    R2 -.resolves.-> HS
-
+    OLD["retired: BTreeOrchestratorEmitCore - Emit returns null"]
     classDef dead fill:#5b1a1a,stroke:#ff6b6b,color:#fff
-    class DEAD,HW dead
+    class OLD dead
 ```
 
-⛔⛔ **Caption — the RED path is what stays dead on purpose.** ⭐ After this slice, an
-**editor-authored** hosting node reaches the runtime through the thunk. ⚠ **A hand-written C#
-`.Subtree("Name")` still returns `Failure`**, because `BTreeBuilder.Subtree` bakes `NodeType.Subtree`
-and nothing dispatches it. 🔒 **That is a NAMED residual gap, not an oversight** — see §33.8 ②.
-⭐ Note also that `TickHostedChildren` and the thunk **converge on the same `HostedSubtree`** — one
-hosting body, two entry points, which is the property ruling 9 asks for.
+⭐⭐ **Caption — the load-bearing edge is `CS --> CUR --> BLOB`.** Both authoring routes **converge on
+the compiled blob BEFORE registration**, which is exactly why the blob-walk serves both and why
+anything emit-side cannot. ⛔ **Nothing is red in the frame loop any more** — revision 1 left a dead
+`NodeType.Subtree → Failure` edge for hand-written trees; this revision removes it. ⭐ Note also that
+`OccurrenceSubtreeHost` and `TickHostedChildren` **converge on the same `HostedSubtree`** — one
+hosting body, two entry points, which is what ruling 9 asks for.
 
-### 33.6 ⭐ THE KEY — **reused verbatim**
+### 33.6 ⭐⭐ IDENTITY — **the key, for both routes**
 
 ```
 key = OccurrenceSlotKey.ComputeTreeStateKey(
-          hostAssetId:      dto.AssetId,
-          siteNodeVisualId: node.VisualId,     // ⭐ the BTree NODE — literally what the param is named
-          childAssetId:     node.Subtree.SubtreeAssetId)
+          hostAssetId:      <see table>,
+          siteNodeVisualId: <see table>,
+          childAssetId:     <see table>)
 ```
 
-⛔ **No new key function, and no change to the existing one.** ⚠ Two nodes hosting the same child get
-**different** keys because the site differs — so a collision means a duplicated `VisualId`, i.e.
-malformed input, exactly as `E5` reasons at `HsmBridgeEmitCore:562`.
+| term | editor-authored | hand-written C# |
+|---|---|---|
+| **hostAssetId** | `[BTreeDefinition(AssetId=…)]` — emitted | ⭐ `AssetIdFromName(treeName)` — 📐 **`BTreeDefinitionAttribute.AssetId`'s own doc says *"null for hand-authored"***, and the EDITOR already falls back the same way |
+| **siteNodeVisualId** | the node's `VisualId`, through `DebugMetadata` | ⭐ `.Subtree(name, visualId: …)` when supplied; ⛔ **else `AssetIdFromName($"{treeName}#{childName}#{ordinal}")`** |
+| **childAssetId** | the child's `AssetId` | ⭐ `AssetIdFromName(childName)` |
 
-### 33.7 ⭐⭐ THE BUILD — **five items**
+⛔⛔ **THE ORDINAL FALLBACK IS A STATED LIMITATION, NOT A DETAIL.** `ComputeSiteId`'s own doc says
+*"from the author's stable node id — **not an ordinal**"*. ⚠ Inserting a Subtree node **above** another
+in hand-written source shifts the ordinal ⇒ **the slot key changes and that child's cursor resets
+once**. ⭐ **Acceptable** — it is a recompile, the manifest regenerates in the same pass, and the
+failure mode is one lost cursor, never a wrong child. ⛔ **The fix is free and the author owns it:
+pass `visualId:`.** ⇒ **emit a build warning naming the node** when a hosting `.Subtree(…)` has no
+`visualId` (item 6).
 
-| # | item | where | mirrors |
-|---|---|---|---|
-| **1** | ⭐ `HostedSubtree.TickFromContext(ref BTreeContext, int key)` — `Require` + child-blackboard resolution + `Tick`. ⚠ Resolve the blackboard with **`RootParamsAccess.TryGetRootBytes(world, self, …)`** *(def-free — measured)* and a `byte` scratch fallback, so **one spelling of the rule serves both hosts**; re-point `BrainTickSystem.TickHostedChildren` at it | `Fdp.Toolkits/Behavior/HostedSubtree.cs` | the body already inside `TickHostedChildren:520-527` |
-| **2** | ⭐⭐ `BTreeBridgeEmitCore.CollectHostedTreeStateSlots(dto)` — every `BTreeSubtreeNodeDto` with a non-empty `SubtreeAssetId` **and** name → `(VisualId, ChildName, SlotKey)`, deduped | `BTreeBridgeEmitCore` | `HsmBridgeEmitCore.CollectHostedSubtrees:547` **verbatim**, states→nodes |
-| **3** | ⭐⭐⭐ **declare the slot** — one `StatefulSlotInfo(key, sizeof(BehaviorTreeState), …, typeof(BehaviorTreeState), "<child> (hosted)", Role.State, Scope.Behavior)` per site, emitted **AFTER** the authored slots so existing slot order is byte-identical. ⛔⛔ **THIS AND ITEM 4 SHIP TOGETHER OR NEITHER** — `HostedSubtree.Tick` **throws** on an undeclared slot | `BTreeBridgeEmitCore` | `HsmBridgeEmitCore.EmitStatefulWorkingSlotsArray:637-652` **verbatim** |
-| **4** | ⭐⭐ emit **per site**: the thunk `Hosted_<Child>_<siteHash>_Tick`, its `HostedChildren.Register(beh, key, "<child>")`, and its deactivator registration bound to `HostedSubtree.Reset` | `BTreeBridgeEmitCore` | `HsmBridgeEmitCore.EmitHostedSubtrees:670` |
-| **5** | ⭐ `BTreeEmitCore.EmitSubtree` emits **`.Action(<thunkName>, visualId: …)`** instead of `.Subtree(name, …)` when the site resolved; ⚠ keep `.Subtree(…)` when it did **not** *(a dangling reference must not silently become a live action)* | `BTreeEmitCore:879` | — |
+⭐⭐ **`AssetIdFromName` must AGREE with the editor's `AssetIdHasher.FromName`**, or the editor and the
+runtime will disagree about a hand-written tree's identity. 📐 Both are **FNV-1a-32, offset basis
+`2166136261`**; the runtime already has the primitive in `BehaviorHash.FromName`. ⚠ **They differ in
+one edge case** — `BehaviorHash.FromName` nudges a zero hash to `FnvPrime`; `AssetIdHasher` does not.
+⛔ `Hrot.Editor.AiShared` does **not** reference `Fdp.Toolkits`, so they cannot simply delegate ⇒
+**a cross-assembly AGREEMENT RAIL** over a corpus of real names, in the shape this repo already uses
+for *"the three producers must agree"*. 📋 Item 7.
 
-⭐ **Gating, the rule every emitter addition here has learned:** items 2-5 emit **nothing** when no
-node hosts. 📐 **0 of 26 shipped `*.btree.json` hosts a subtree** ⇒ **every golden stays byte-identical**.
+### 33.7 ⭐⭐ REGISTRATION — **two phases, and the order is forced**
 
-⭐⭐ **Rails — into the features' own suites** *(`T-1` ④)*: `HostedSubtreeCursorTests`
-*(`O4_R1`'s neighbours — a BTree host keeps its own cursor; `F14` resets on abandon)* ·
-`BTreeBridgeEmitCore`'s existing emit tests *(slot declared · thunk emitted · register emitted ·
-nothing emitted when nothing hosts)* · ⛔ **and one end-to-end rail that TICKS a host and asserts the
-child advanced** — 🔒 the retired orchestrator passed its shape rails for months while emitting a
-call to a method that did not exist, **because nothing ever ran it.**
+⛔⛔ **`BehaviorDefinition.StatefulWorkingSlots` is `init`** ⇒ the slot list must exist **before** the
+definition is constructed. ⛔ But `HostedChildren.Register` needs the **child** in the registry, which
+may not be there yet. ⇒ **Plan, construct, Bind:**
 
-### 33.8 ⛔ REJECTED, and the NAMED residual gaps
+```csharp
+var blob = FbtTreeCatalog.GetPatrolHost(isResourceOwning);
+var plan = BTreeHostedSites.Plan(blob, hostName: BehaviorNames.PatrolHost);   // pure
+beh.Register(BehaviorNames.PatrolHost, new BehaviorDefinition {
+    Name = BehaviorNames.PatrolHost,
+    BrainTier = BehaviorConstants.BrainTierBTree,
+    BTreeInterpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry),
+    StatefulWorkingSlots = plan.Slots,        // ⭐ item 3 — the slot DECLARATION
+});
+BTreeHostedSites.Bind(beh, plan);             // ⭐ item 3 — after every registrar has run
+```
+
+⚠ **`Bind` is order-tolerant on purpose**, exactly as `HostedChildren.Register` already is: an
+unresolvable child is **skipped**, and the failure surfaces at the hosting site as `Require`'s named
+exception. ⭐ The generated registrar emits the identical two calls, so **editor-authored and
+hand-written registration are the same two lines.**
+
+### 33.8 ⭐⭐⭐ THE END-TO-END RAIL — **explicitly required by the user**
+
+> 🔒 **User, `2026-09-27`:** *"for sure we need end-to-end test that actually ticks a host and asserts
+> the child advanced."*
+
+⛔⛔ **This is the acceptance gate for the whole slice, not one rail among many.** 🔴 **The reason is
+measured, not rhetorical:** the retired `BTreeOrchestratorEmitCore` **passed its shape rails for
+months** while emitting a call to `{Child}.GetInterpreter()` — *a method defined nowhere* — because
+**nothing ever ran what it emitted** (`CE-333`/`CE-335`). ⇒ ⭐ **a rail that asserts emitted TEXT, or a
+registered TABLE, cannot distinguish "hosting works" from "hosting is spelled correctly."**
+
+⭐ **Home: `HostedSubtreeCursorTests`** *(`Fdp.Toolkits.Tests/Behavior/`)* — the feature's own suite,
+already carrying `O4_R1_AHostedSubtreeKeepsItsOwnCursor`. ⛔ **Not a new parallel class** (`T-1` ④).
+
+| rail | what it must do | ⛔ what would make it worthless |
+|---|---|---|
+| ⭐⭐⭐ **`E6_R1` — the child ADVANCES, twice, hand-written** | build a CHILD tree whose action increments a counter and returns `Running` on tick 1 and `Success` on tick 2; build a HOST with a `Subtree` node; register BOTH through the **real** `BehaviorDefinition` + `BTreeHostedSites.Plan/Bind`; spawn a real entity; run **`BrainTickSystem` twice**; assert the counter is **2** and the child's `BehaviorTreeState` in its OWN slot advanced between ticks | ⛔ asserting the site table has an entry · ⛔ calling `HostedSubtree.Tick` directly — that is ① and is ALREADY tested |
+| ⭐⭐ **`E6_R2` — the cursors are SEPARATE** | the host's `RunningNodeIndex` and the child's must differ while both are `Running` | 🔒 the `O4_R1` claim, now reached through the **kernel**, not a direct call |
+| ⭐⭐ **`E6_R3` — `F14` through the real interpreter** | make a host sibling fail so the Selector abandons a still-`Running` child; assert the child's slot is **zeroed** and it restarts from its root on re-entry | ⛔ calling `Reset` directly |
+| ⭐ **`E6_R4` — the EDITOR route reaches the same place** | the same assertion as `E6_R1`, from a `*.btree.json`-shaped DTO through the generated registrar | ⭐ this is what proves **one** mechanism, not two |
+| ⭐ **`E6_R5` — nothing hosts ⇒ nothing changes** | a tree with no `Subtree` node registers **no** slot and allocates **no** payload | ⛔ the A7 gating claim; cheap and it protects every shipped asset |
+| ⭐ **`E6_R6` — the INVERSE-EDIT red-proof** | with the kernel arm reverted to `return NodeStatus.Failure`, **`E6_R1` must go RED** | ⛔ without this the rail may be passing for an unrelated reason |
+
+⚠ **`E6_R1` and `E6_R6` together are the acceptance criterion.** ⛔ A batch that reports every other
+row green and skips `E6_R6` has **not** proved the arm is what makes it work.
+
+### 33.9 ⭐⭐ THE BUILD — **eight items**
+
+| # | id | item | where | risk |
+|---|---|---|---|---|
+| **1** | `CE-362` | ⭐ `HostedSubtree.TickFromContext(ref ctx, int key)` — `Require` + child-blackboard resolution + `Tick`. ⚠ Resolve with **`RootParamsAccess.TryGetRootBytes`** *(def-free — measured)* + a `byte` scratch fallback, and **re-point `BrainTickSystem.TickHostedChildren` at it** so one spelling serves both hosts | `Fdp.Toolkits` | ⭐ low — the body already exists inside `TickHostedChildren:520-527` |
+| **2** | `CE-363` | ⭐⭐ `BTreeHostedSites` — `Plan(blob, hostName, hostAssetId?)` walks `blob.Nodes` for `NodeType.Subtree`, reads the child name from `SubtreeAssetIds[pi]` and the site id from `DebugMetadata[i].VisualId`, computes the key (§33.6) and returns `(Slots, Entries)`; `Bind(registry, plan)`; `TryGetKey(blob, nodeIndex, out key)` keyed by `StructureHash` | `Fdp.Toolkits` | ⭐⭐ medium — **mirror `HsmHostedSubtrees` exactly**, including its *"skip, do not guess"* policy |
+| **3** | `CE-364` | ⭐⭐⭐ wire registration — `StatefulWorkingSlots = plan.Slots` + `Bind`, in **both** the generated BTree registrar and `CgfCuratedBehaviorRegistrar`. ⛔⛔ **THIS AND ITEM 5 SHIP TOGETHER OR NEITHER** — `HostedSubtree.Tick` **throws** on an undeclared slot, and §32.2.2 records `E5`'s first draft making exactly this mistake | `BTreeBridgeEmitCore` · `Hrot.AI.Behaviors` | ⭐⭐ medium |
+| **4** | `CE-365` | 🔴 **the KERNEL arm** — `ISubtreeHost<TBb,TCtx>` in `Fbt.Kernel`; `Interpreter` takes one (optional) and dispatches `case NodeType.Subtree`; **`SweepExitedNodes` routes a Subtree node's deactivation to `ISubtreeHost.Reset`** ⛔ *(its `PayloadIndex` indexes `SubtreeAssetIds`, so the `MethodNames` lookup is WRONG for it)*; `TreeCompiler` marks every Subtree node `IsResourceOwning` | `Fbt.Kernel` · `Fbt.Compiler` | 🔴 **HIGH — the only ExtDeps change.** ⚠ `Fbt.Tests` must stay green; `TreeCompilerSubtreeTests` already exists |
+| **5** | `CE-366` | ⭐⭐ `OccurrenceSubtreeHost : ISubtreeHost` — `TryGetKey` then `HostedSubtree.TickFromContext` / `.Reset`. ⚠ A site with **no** entry must fail the way §19.6 ⑤ rules, **not** silently | `Fdp.Toolkits` | ⭐ low |
+| **6** | `CE-367` | ⭐ **author-facing diagnostics** — a build warning when a hosting `.Subtree(…)` has no `visualId` (§33.6's ordinal fallback), and when a hosted child name resolves to no registered behaviour | `Fdp.Toolkits.Analyzers` | ⭐ low · ⚠ **independent — may land last** |
+| **7** | `CE-368` | ⭐ the **agreement rail**: `AssetIdHasher.FromName` ≡ the runtime's `AssetIdFromName` over a corpus of real names, with the zero-nudge edge case asserted explicitly | cross-assembly test | ⭐ low |
+| **8** | `CE-369` | ⭐⭐⭐ **§33.8's six rails**, `E6_R1`…`E6_R6` | `HostedSubtreeCursorTests` | ⭐⭐ medium — ⛔ **`E6_R1` + `E6_R6` are the acceptance gate** |
+
+⭐⭐ **Suggested order:** `1 → 2 → 4 → 5 → 3 → 8`, with `6` and `7` any time.
+⛔ **Items 3 and 5 must land in the same commit** *(the throw)*. ⭐ **Item 4 before 5**, so the arm
+exists before anything implements it. ⚠ **Item 8's `E6_R1` cannot pass until 1-5 are all in** — that
+is the point of it.
+
+⭐ **Gating:** a tree with no hosting node must register **no** slot and change **no** emitted byte.
+📐 **0 of 26 shipped `*.btree.json` hosts a subtree** ⇒ **every golden stays byte-identical**, and
+`E6_R5` pins it.
+
+### 33.10 ⛔ REJECTED, and the NAMED residual gaps
 
 | | why not |
 |---|---|
-| ⛔ **kernel dispatch on `NodeType.Subtree`** | the deactivator is the killer: a Subtree node's `PayloadIndex` indexes `SubtreeAssetIds`, so `F14` would need a second lookup path in `Interpreter`, plus a new `ActionRegistry` surface and an `IsResourceOwning` rule. ⚠ FastBTree **is** vendored and editable *(no submodule; `58b54a424` is ours)*, so this is a blast-radius judgement, **not** a "can't" |
+| ⛔⛔ **a generated ACTION thunk** *(revision 1's choice)* | 📐 **a hand-written tree has no emitter** — `BTreeDefinitionGenerator` emits only a `Get<Name>()` catalog. ⇒ it would need a SECOND mechanism for hand-written trees. ⭐ It was the right answer to the narrower question and is kept here as the record of why |
 | ⛔ **a second brain component for the child** | `Q36-A` option A, **ruled out `2026-09-23`** |
-| ⛔ **re-wire an emitter to `OrchestratorAliasCollector`** | §32.12.3 forbids it by name; it is per-ALIAS where this must be per-SITE |
-| ⚠ **② RESIDUAL — hand-written C# `.Subtree("X")` still returns `Failure`** | ⭐ **named, not fixed.** It needs the kernel arm above. 📐 Zero production call sites today. ⛔ Do not let a future reader mistake the silence for support |
-| ⚠ **③ RESIDUAL — the blob says `Action`** | a blob→editor projection of a regenerated hosting tree shows an Action. ⭐ If tooling ever needs the boundary from the blob, the fix is a `BTreeHostedSites` table beside `HsmHostedSubtrees` — ⛔ **not built speculatively; no consumer asks for it today** |
-| ⚠ **④ THE `E3` HAZARD IS UNCHANGED** | `Q36` §6: *"it does not license the `E3` hazard away"* — a hosted child's own actions resolve DTOs at baked offsets. ⭐ Unchanged by this slice, and still a named gap |
+| ⛔ **re-wire an emitter to `OrchestratorAliasCollector`** | §32.12.3 forbids it by name; per-ALIAS where this must be per-SITE |
+| ⛔ **require every hand-written `.Subtree` to pass a `visualId`** | ⚠ considered and rejected as the DEFAULT — it would break every existing hand-written call signature-compatibly but semantically. ⭐ The ordinal fallback plus item 6's warning gets the same safety without a flag day |
+| ⚠ **① RESIDUAL — the ordinal site fallback** | §33.6. ⭐ Bounded: one lost cursor on a source reorder, never a wrong child, and item 6 warns |
+| ⚠ **② RESIDUAL — the `E3` hazard is UNCHANGED** | `Q36` §6: *"it does not license the `E3` hazard away"* — a hosted child's own actions resolve DTOs at baked offsets |
+| ⚠ **③ RESIDUAL — no cycle guard at RUNTIME** | the editor's `SubtreeAssetCycle` rule catches a ring at authoring time, and hand-written trees get no such check ⇒ **a hand-written ring recurses until the stack dies.** ⭐ Cheap guard: a depth counter on `BTreeContext`, or refuse re-entry of a slot key already on the stack. 📋 **Named, NOT in this slice** — it needs its own decision about what a cycle should DO |
