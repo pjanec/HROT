@@ -4323,7 +4323,18 @@ which is why it is a separate id.
 
 ## 30. ⭐⭐⭐ `P4` — **RETIRE `BrainBlackboard` AND `Blackboard1024`** *(DESIGN, `2026-09-22`)*
 
-> **`build-state: READY-TO-BUILD`.** 📄 Supersedes the `P4` framing in
+> ⭐⭐ **`build-state: BUILT` (`2026-09-27`).** ⚠ **This line read `READY-TO-BUILD` until then, while
+> the components had already been deleted** — the design was BEHIND the code, which is the inverse of
+> the usual rot and just as misleading: a reader would have concluded `P4` was still to do.
+> 📐 **Verified by declaration sweep, not by memory:** `struct`/`class` declarations for
+> `BrainBlackboard`, `Blackboard1024`, `BrainHsm64`, `BrainHsm128` and `BrainBTreeState` return
+> **NOTHING** across the tree. ⚠ The name still appears ~110 times and **every one is deliberate**:
+> retirement comments, NEGATIVE rails that keep it retired (`Assert.DoesNotContain`), the
+> `"BrainBlackboard"` **identity token** `CE-337` ruled must not be renamed, and the unrelated enum
+> members `BlackboardTier.Blackboard1024` / `BlackboardTarget.Blackboard1024` (`CE-309`'s "third name
+> collision"). ⭐ Component **id 74 is RESERVED, not reused**, so a pre-retirement recording cannot
+> bind it to a different component.
+> 📄 Supersedes the `P4` framing in
 > [`PLAN_Occurrence_Storage_Build.md`](PLAN_Occurrence_Storage_Build.md) § "THE PATH" — see §30.9.
 
 ### 30.0 🔒 THE TWO RULINGS THAT RE-SCOPED IT *(user, `2026-09-22`)*
@@ -5708,6 +5719,11 @@ fixture did not, and nothing failed loudly enough to notice.
 ---
 
 ## 31. ⭐⭐⭐ `O7c` — **RETIRE THE ROOT BRAIN COMPONENTS** *(DESIGN, `2026-09-22`)*
+
+> ⭐⭐ **`build-state: BUILT` (`2026-09-27`).** ⚠ **This section carried NO `build-state` line at all
+> until then** — worse than a stale one, because a reader cannot even tell the question was asked.
+> 📐 Verified: `BrainHsm64`, `BrainHsm128` and `BrainBTreeState` have **no declaration** anywhere, and
+> the replacement `RootStateAccess` is present. ⛔ No open tracker row cites `O7c`.
 
 > 🔒 **The driver, in the user's words (`2026-09-22`):** *"i thought the reason is to allow for
 > subtrees (multiple trees on a single entity)."* ⭐⭐ **Correct, and it is the whole point.** A root
