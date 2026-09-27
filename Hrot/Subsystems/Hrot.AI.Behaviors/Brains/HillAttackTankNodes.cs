@@ -522,6 +522,8 @@ namespace Hrot.AI.Behaviors.Brains
             return NodeStatus.Success;
         }
 
+        [Fdp.Toolkit.Behavior.BehaviorResolver("HullDownAttackRun",
+            ParamsType = typeof(Hrot.AI.Behaviors.Brains.HullDownAttackParams))]
         public static unsafe void ParseHullDownAttackParams(string json, byte* ptr, int capacity)
         {
             if (string.IsNullOrWhiteSpace(json))

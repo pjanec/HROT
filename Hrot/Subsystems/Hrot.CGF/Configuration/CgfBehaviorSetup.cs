@@ -11,7 +11,8 @@ namespace Hrot.CGF.Configuration
     ///
     /// <para>
     /// Registration is entirely self-registration: every behavior — curated
-    /// (<c>CgfCuratedBehaviorRegistrar</c>) and JSON-authored (generated per-asset registrars) —
+    /// (the generated <c>CuratedBehaviorRegistrar</c>, from <c>[BTreeDefinition]</c>/<c>[HsmDefinition]</c>
+    /// marked <c>Curated = true</c>) and JSON-authored (generated per-asset registrars) —
     /// is discovered through its <c>[BlueprintRegistrar]</c> attribute and registers under its own
     /// name. There is no reflection entry point and no closure over geographic/entity context;
     /// behaviors reach that context at activation time through world singletons via their named
@@ -47,7 +48,7 @@ namespace Hrot.CGF.Configuration
 
             // The AI behaviors assembly is compile-time referenced; scan that single instance so
             // behavior and blueprint definitions share one type identity across the process.
-            var aiAssembly = typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly;
+            var aiAssembly = typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly;
 
             var bpStaging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(aiAssembly, bpStaging, behaviorRegistry);

@@ -575,9 +575,12 @@ namespace Fdp.Toolkit.Behavior
         /// <para>
         /// 📌 <b>User ruling (2026-08-23):</b> <i>"if curated (hand-authored) exists, then no other is
         /// needed — having automatically generated is undesired in such a case."</i>
-        /// <see cref="RegisterResolver"/> is reached ONLY from the curated registrar
-        /// (<c>CgfCuratedBehaviorRegistrar</c>); generated registrars never call it. So the presence
-        /// of an overlay is itself the signal that a human wrote a resolver for this behavior.
+        /// <see cref="RegisterResolver"/> is reached ONLY from the generated
+        /// <c>CuratedBehaviorRegistrar</c>, whose every call site is a method a human marked
+        /// <c>[BehaviorResolver]</c>; per-asset JSON registrars never call it. So the presence of an
+        /// overlay is itself the signal that a human wrote a resolver for this behavior.
+        /// ⚠ CE-374 moved the PROBE from "someone typed a call into CgfCuratedBehaviorRegistrar" to
+        /// "someone applied [BehaviorResolver]". The RULING above is unchanged.
         /// </para>
         ///
         /// <para>

@@ -664,6 +664,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ParsePlatoonHillAttackParams"/>. This is what the behavior registers as its
         /// resolver — no registration-time closure over geo/entity-map is needed.
         /// </summary>
+        [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack",
+            ParamsType = typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
         public static unsafe void ResolvePlatoonHillAttackParams(
             string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self,
             Fdp.Toolkit.Behavior.IHostVariableAccess? host)

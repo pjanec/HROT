@@ -38,7 +38,7 @@ public sealed class ABehaviourAdvertisesItsRealParametersTests
     /// <summary>
     /// The production loader, verbatim — <c>CgfSubsystem</c>'s <c>behavior-registry</c> boot step calls
     /// exactly this. It scans the compile-time <c>Hrot.AI.Behaviors</c> assembly through
-    /// <c>BlueprintRegistrarScanner</c> (which invokes <c>CgfCuratedBehaviorRegistrar</c> reflectively),
+    /// <c>BlueprintRegistrarScanner</c> (which invokes the generated <c>CuratedBehaviorRegistrar</c> reflectively),
     /// and since <c>CE-235</c> also binds each <c>[BehaviorContract]</c> DTO as the authored contract.
     /// ⭐ Using the real loader is the point: a fake registry proves the precedence rules work IF USED,
     /// never that they ARE used — which is how <c>CE-224</c> stayed hidden.

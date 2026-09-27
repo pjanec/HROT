@@ -1322,7 +1322,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
     /// into three entry points and one copy was wrong.</para>
     ///
     /// <para>⭐ So this drives the WHOLE chain: the curated resolver is registered exactly as
-    /// <c>CgfCuratedBehaviorRegistrar</c> registers one and invoked exactly as
+    /// the generated <c>CuratedBehaviorRegistrar</c> registers one and invoked exactly as
     /// <c>BehaviorIngressSystem:100</c> invokes it, then a REAL kernel tick fans out into two regions
     /// and each reads the blackboard at its own bound offset.</para>
     ///

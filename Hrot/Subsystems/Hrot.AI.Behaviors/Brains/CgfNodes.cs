@@ -158,6 +158,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the geographic transform from the world
         /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
         /// </summary>
+        [Fdp.Toolkit.Behavior.BehaviorResolver("MoveToLocation")]
         public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
@@ -170,6 +171,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// Resolver (ParseParamsDelegate shape): fetches the NetworkEntityMap from the world
         /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
         /// </summary>
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FireAtTarget")]
         public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
@@ -212,6 +214,9 @@ namespace Hrot.AI.Behaviors.Brains
             Unsafe.Write(ptr, p);
         }
 
+        // 3-param shape: the generator emits the (json, memory, capacity, world, self, host)
+        // adapter the hand-written registrar used to spell out by hand.
+        [Fdp.Toolkit.Behavior.BehaviorResolver("FollowRoute")]
         public static unsafe void ParseFollowRouteParams(string json, byte* ptr, int capacity)
         {
             var p = string.IsNullOrWhiteSpace(json)
@@ -622,7 +627,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the MoveToLocation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("MoveToLocation")]
+        [BTreeDefinition("MoveToLocation", Curated = true, ParamsType = typeof(MoveToLocationParams))]
         public static BTreeBuilder<MoveToBlackboard, BTreeContext> BuildMoveToLocationTree()
         {
             return new BTreeBuilder<MoveToBlackboard, BTreeContext>()
@@ -632,7 +637,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FollowRoute BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FollowRoute")]
+        [BTreeDefinition("FollowRoute", Curated = true, ParamsType = typeof(FollowRouteParams))]
         public static BTreeBuilder<FollowRouteBlackboard, BTreeContext> BuildFollowRouteTree()
         {
             return new BTreeBuilder<FollowRouteBlackboard, BTreeContext>()
@@ -642,7 +647,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the JoinFormation BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("JoinFormation")]
+        [BTreeDefinition("JoinFormation", Curated = true, ParamsType = typeof(JoinFormationParams))]
         public static BTreeBuilder<JoinFormationBlackboard, BTreeContext> BuildJoinFormationTree()
         {
             return new BTreeBuilder<JoinFormationBlackboard, BTreeContext>()
@@ -652,7 +657,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the WanderMilitary BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("WanderMilitary")]
+        [BTreeDefinition("WanderMilitary", Curated = true)]
         // ⭐ P4-②: `byte` here, and it is the RAW-DELEGATE case so nothing is lost. A selector-form
         //   builder still needs a struct with fields (which is why the wrapper structs stay — §30.18);
         //   this tree binds a delegate directly, and that delegate now takes `ref byte`.
@@ -667,7 +672,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// <summary>
         /// Exposes the FireAtTarget BTree structure for Fbt.SourceGen static analysis.
         /// </summary>
-        [BTreeDefinition("FireAtTarget")]
+        [BTreeDefinition("FireAtTarget", Curated = true, ParamsType = typeof(FireAtTargetParams))]
         public static BTreeBuilder<FireAtTargetBlackboard, BTreeContext> BuildFireAtTargetTree()
         {
             return new BTreeBuilder<FireAtTargetBlackboard, BTreeContext>()

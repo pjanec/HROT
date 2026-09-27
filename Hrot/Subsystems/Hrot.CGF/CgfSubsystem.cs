@@ -736,7 +736,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         _blueprintRegistry = new BlueprintRegistry();
 
         // Single self-registration pass: discovers every [BlueprintRegistrar] in the AI behaviors
-        // assembly (curated CgfCuratedBehaviorRegistrar + generated per-asset registrars) and
+        // assembly (the generated CuratedBehaviorRegistrar + generated per-asset registrars) and
         // registers each behavior under its own name, binding named resolvers by name. The scanner
         // injects an ActionRegistry populated from the assembly's [FbtRegistrar] so those trees'
         // bound actions/conditions execute real logic at runtime.

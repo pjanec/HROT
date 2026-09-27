@@ -350,7 +350,8 @@ zeros: **no exception, no log line, the behaviour otherwise running normally** �
 
 | ⭐ the rule now | |
 |---|---|
-| ⭐⭐ **the overlay WINS** | `RegisterResolver` is reached **only** from `CgfCuratedBehaviorRegistrar` *(every caller verified; no generated registrar calls it)* ⇒ ⭐ **the presence of an overlay IS the signal that a human wrote a resolver for this behavior** |
+| ⭐⭐ **the overlay WINS** | `RegisterResolver` is reached **only** from the **generated `CuratedBehaviorRegistrar`**, whose every call site is a method a human marked **`[BehaviorResolver]`** *(every caller verified; no per-asset JSON registrar calls it)* ⇒ ⭐ **the presence of an overlay IS the signal that a human wrote a resolver for this behavior** |
+| ⚠ **`2026-09-27` — the PROBE moved, the RULING did not** | `CE-374` deleted `CgfCuratedBehaviorRegistrar`, so the sentence above used to name a class that no longer exists. ⭐ **The human declaration is now the `[BehaviorResolver]` attribute**, and it is the same signal in a checkable form. ⛔ Nothing about *"curated wins by declaration"* changed. 📄 `DESIGN_Behavior_Self_Registration.md` §8 ① |
 | ⚠ **why it regressed** | `DEBT-AIB-021` *(Batch 70)* widened the generated-emit guard from *">=1 variable with a non-null `DefaultValueJson`"* to *">=1 packed managed variable"*. ⭐ Correct on its own terms, ⛔ but `PlatoonHillAttack`'s two variables have **no defaults**, so before that change no `ParseParams` was emitted and the curated resolver bound |
 | ⭐ **the generalisation** | ⛔ **two producers for one slot, bound by registration ORDER, is not a precedence rule — it is a race.** ⭐ Where a curated and a generated artefact can both fill a slot, **curated wins by declaration**, not by arriving first |
 

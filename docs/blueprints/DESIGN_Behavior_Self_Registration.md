@@ -329,6 +329,43 @@ cover. ⭐ Say so in the report rather than leaving a rail that silently referen
 
 ---
 
+## 10a. ✅ AS-BUILT `2026-09-27` — **one deviation, and the design was WRONG without it**
+
+> ⛔⛔ **THE DESIGN SAID `ParamsType` ON `[BTreeDefinition]` WAS ENOUGH TO IDENTIFY A CURATED
+> BEHAVIOUR. IT IS NOT.** 📐 Measured during the build: `Hrot.AI.Behaviors` carries **NINE**
+> `[BTreeDefinition]` methods and only **FIVE** are curated topologies.
+
+| the other four | why it is not a curated topology |
+|---|---|
+| `HideInCover_BT` · `HideInCover_BT_v2` | in `FbtTreeCatalog`, registered as a behaviour **nowhere** |
+| `PlatoonHillAttack` · `HullDownAttackRun` | 🔴 **topology owned by their GENERATED JSON registrars** — only their RESOLVERS are curated. ⛔ Registering them here **hard-errors on a duplicate name** |
+
+⛔ **`AssetId == null` does not discriminate either** — those four are hand-written C# attributes and
+carry no `AssetId`. ⚠ **`ParamsType` cannot**: `WanderMilitary` legitimately has none.
+
+⇒ ⭐⭐ **DEVIATION: a `bool Curated` opt-in on `[BTreeDefinition]` and `[HsmDefinition]`.** Default
+false; the generator registers only `Curated = true`. ⭐ It respects §11's actual objection — the
+rejected `[CuratedBehavior]` attribute would have **re-spelled the NAME**, and this does not; the
+name still comes from the one attribute that already carries it. ⭐ Pinned by
+`TheOptIn_KeepsNonCuratedDefinitionsOut`.
+
+### ⭐ Everything else landed as designed
+
+| | |
+|---|---|
+| ⭐ generated output | `FhsmMachineCatalog.g.cs` *(`GetIdle` + `GetIdleMetadata`)* · `CuratedBehaviorRegistrar.g.cs` *(6 topologies, 5 resolvers, sorted)* |
+| ⭐ `Idle` | `[HsmDefinition("Idle", Curated = true)]` on `CuratedMachines.BuildIdleMachine`, returning `StateMachineGraph` ⇒ **metadata emitted**, which is `CE-370`'s curated half |
+| ⭐ both resolver arities | `FollowRoute`/`HullDownAttackRun` wrapped *(3-param)*, `MoveToLocation`/`FireAtTarget`/`PlatoonHillAttack` direct *(6-param)*. ⚠ **A real bug caught in draft:** the params type was emitted **inside** the wrapper lambda instead of as `RegisterResolver`'s third argument |
+| ⭐⭐ `SR_R1` | **GREEN, then RED-PROVED** — dropping `Curated = true` from one topology reddens it naming `{"JoinFormation"}`. ⭐ Retired with the class, as designed |
+| ⚠ **`SR_R5b` was WRONG and reddened** | it assumed `RegisterResolver` creates an id with no topology. ⛔ It does not — the overlay waits in a **pending map**. ⭐ Re-pointed at the real behaviour: plant the topology afterwards and assert the overlay **binds**, which also covers the deferred order |
+| ⚠ **two COMPILE-BREAKING references** the design never mentioned | `CgfBehaviorSetup:50` and `CgfBlueprintRegistryScannerTests` used the deleted class as a **`typeof(...).Assembly` anchor**. ⭐ Re-pointed at `CgfNodes` — hand-written and permanent; ⛔ **not** at the generated registrar, which an assembly curating nothing would not emit |
+| ⭐ `R-132`'s probe | moved in `BehaviorRegistry`'s own remarks **and** §338, same commit |
+
+⚠ **`BTreeContext` is in `Fdp.Toolkit.Behavior`, not `Fbt.Runtime`** — the first generated source did
+not compile. ⭐ Only `Interpreter` and `ActionRegistry` are in `Fbt.Runtime`.
+
+---
+
 ## 11. ⛔ REJECTED
 
 | | why not |

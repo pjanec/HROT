@@ -51,7 +51,7 @@ namespace Hrot.SimHost.Tests
             var registry = new BlueprintRegistry();
             var staging  = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(
-                typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly,
+                typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
                 staging,
                 new BehaviorRegistry(),
                 skipOnUnknownParam: true);
@@ -104,7 +104,7 @@ namespace Hrot.SimHost.Tests
             // Populate registry via the same scanner path used by CGF.
             var staging = new BlueprintRegistryStaging();
             BlueprintRegistrarScanner.Scan(
-                typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly,
+                typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
                 staging,
                 new BehaviorRegistry(),
                 skipOnUnknownParam: true);
@@ -181,14 +181,14 @@ namespace Hrot.SimHost.Tests
 
             // First scan (use a fresh blueprint staging for each scan to avoid staging collision).
             BlueprintRegistrarScanner.Scan(
-                typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly,
+                typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
                 new BlueprintRegistryStaging(),
                 firstSink,
                 skipOnUnknownParam: true);
 
             // Second scan into a separate registry.
             BlueprintRegistrarScanner.Scan(
-                typeof(Hrot.AI.Behaviors.CgfCuratedBehaviorRegistrar).Assembly,
+                typeof(Hrot.AI.Behaviors.Brains.CgfNodes).Assembly,
                 new BlueprintRegistryStaging(),
                 secondSink,
                 skipOnUnknownParam: true);
