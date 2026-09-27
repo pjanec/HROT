@@ -29,12 +29,22 @@ public static class CombatShowcaseRegistrar
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
         var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 
+        // E6 — this asset hosts a sub-tree: plan its sites, then bind after Register.
+        var __hosted = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(
+            blob, "CombatShowcase", new global::System.Guid("aaaaaaaa-0000-0000-0000-000000000001"));
+        interpreter.SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;
+
         // 4. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).
         beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("CombatShowcase"), "CombatShowcase", new BehaviorDefinition
         {
             Name         = "CombatShowcase",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            StatefulWorkingSlots = __hosted.Slots,
         });
+
+        // E6 — bind AFTER Register: HostedChildren resolves the CHILD through the
+        //      registry, and registrars run in an arbitrary order.
+        global::Fdp.Toolkit.Behavior.BTreeHostedSites.Bind(beh, blob, __hosted);
     }
 }

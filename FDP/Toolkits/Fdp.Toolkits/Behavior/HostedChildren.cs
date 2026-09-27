@@ -34,52 +34,103 @@ namespace Fdp.Toolkit.Behavior;
 /// </summary>
 public static class HostedChildren
 {
-    // tree-state slot key -> the child's interpreter, resolved once at registration.
-    private static readonly Dictionary<int, Interpreter<byte, BTreeContext>> _bySlotKey = new();
+    /// <summary>
+    /// ⭐⭐⭐ <b>What a hosting site was TOLD, kept alongside what it RESOLVED TO.</b>
+    /// ⛔ Keeping the <c>Registry</c> + <c>ChildName</c> — rather than only the interpreter — is what
+    /// makes binding ORDER-INDEPENDENT; see <see cref="Register"/>'s remarks.
+    /// </summary>
+    private sealed class Binding
+    {
+        public required BehaviorRegistry Registry;
+        public required string ChildName;
+        public Interpreter<byte, BTreeContext>? Resolved;
+    }
+
+    // tree-state slot key -> what the host asked for, and the interpreter once it exists.
+    private static readonly Dictionary<int, Binding> _bySlotKey = new();
 
     /// <summary>
-    /// ⭐⭐ Resolves <paramref name="childName"/> through <paramref name="registry"/> and binds it to
+    /// ⭐⭐ Binds <paramref name="childName"/>, resolved through <paramref name="registry"/>, to
     /// <paramref name="treeStateSlotKey"/>.
     ///
-    /// <para>⛔ <b>An unresolvable child is SKIPPED, not thrown on</b>, and that is deliberate:
-    /// registrars run in an arbitrary order, so the child's own registrar may not have run yet when
-    /// the host's does. ⚠ The failure then surfaces at the hosting site as
-    /// <see cref="Require"/>'s exception, which names both the key and the child — a far better
-    /// message than <i>"registration order"</i> would have been.</para>
+    /// <para>⭐⭐⭐ <b>RESOLUTION IS LAZY, AND THAT IS THE WHOLE POINT — <c>CE-377</c>.</b>
+    /// 🔴 <b>The measured hazard:</b> registrars run in an ARBITRARY order, so a host's registrar
+    /// routinely runs before its child's. An eager resolve therefore SKIPPED the bind, and the node
+    /// then threw at tick time — a failure that depends on reflection order and so appears and
+    /// disappears between builds. 📐 This stopped being theoretical when <c>E6</c> wired the
+    /// editor-authored route: <b>three shipped assets</b> (<c>BTreeRenderShowcase</c>,
+    /// <c>CombatShowcase</c>, <c>T07_Subtree</c>) host <c>SampleScout</c>.</para>
+    ///
+    /// <para>⇒ ⭐ the entry records the REGISTRY and the NAME; the interpreter is looked up on first
+    /// use and cached. By tick time every registrar has run, so the order cannot matter. ⛔ This is
+    /// strictly better than a post-scan "resolve pending" pass, which would need a lifecycle hook
+    /// that does not exist and would leave the same hazard for anything registering after it.</para>
     ///
     /// <para>⭐ <b>Last writer wins by design.</b> Hot reload re-runs registrars, and the NEW
-    /// interpreter is the one that must be reachable; a first-writer-wins table would pin a child
-    /// from a collected assembly.</para>
+    /// binding is the one that must be reachable; a first-writer-wins table would pin a child from a
+    /// collected assembly. ⚠ Re-registering DROPS the cached interpreter, so a reloaded child is
+    /// picked up rather than the stale one.</para>
     /// </summary>
     public static void Register(BehaviorRegistry registry, int treeStateSlotKey, string childName)
     {
         if (registry is null) throw new ArgumentNullException(nameof(registry));
         if (string.IsNullOrWhiteSpace(childName)) return;
 
-        if (!registry.TryGetId(childName, out int id)) return;
-        if (!registry.TryGetDefinition(id, out var def)) return;
-        if (def.BTreeInterpreter is not { } interpreter) return;   // an HSM child cannot be hosted this way
-
-        _bySlotKey[treeStateSlotKey] = interpreter;
+        _bySlotKey[treeStateSlotKey] = new Binding { Registry = registry, ChildName = childName };
     }
 
     /// <summary>⭐ The child bound to this slot, or <c>false</c>.</summary>
     public static bool TryGet(int treeStateSlotKey, out Interpreter<byte, BTreeContext> interpreter)
-        => _bySlotKey.TryGetValue(treeStateSlotKey, out interpreter!);
+    {
+        interpreter = null!;
+        if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding)) return false;
+
+        var resolved = Resolve(binding);
+        if (resolved is null) return false;
+
+        interpreter = resolved;
+        return true;
+    }
 
     /// <summary>
     /// ⭐⭐ The child bound to this slot. ⛔ <b>THROWS rather than returning null</b> — the same
     /// choice <c>HostedSubtree.Tick</c> makes for a missing slot (§19.6 ⑤): a host that silently
     /// does nothing reads as <i>"the subtree just fails"</i>, which is the exact silent miss this
     /// programme keeps paying for.
+    ///
+    /// <para>⚠ <b>Two distinct failures, two messages</b>, because they have different fixes: no
+    /// binding at all means the HOST's registrar never called <see cref="Register"/>; a binding that
+    /// will not resolve means the CHILD is absent from the registry or is not a BTree behaviour.</para>
     /// </summary>
     public static Interpreter<byte, BTreeContext> Require(int treeStateSlotKey)
-        => _bySlotKey.TryGetValue(treeStateSlotKey, out var interpreter)
-            ? interpreter
-            : throw new InvalidOperationException(
-                $"No hosted child is bound to tree-state slot {treeStateSlotKey}. Either the child's " +
-                "registrar did not run, or the child is not a BTree behaviour. The host's generated " +
+    {
+        if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding))
+            throw new InvalidOperationException(
+                $"No hosted child is bound to tree-state slot {treeStateSlotKey}. The host's generated " +
                 "Register() binds it with HostedChildren.Register(beh, key, childName).");
+
+        return Resolve(binding)
+            ?? throw new InvalidOperationException(
+                $"The hosted child '{binding.ChildName}' bound to tree-state slot {treeStateSlotKey} does " +
+                "not resolve: it is not registered in that BehaviorRegistry, or it is not a BTree " +
+                "behaviour (an HSM child cannot be hosted this way).");
+    }
+
+    /// <summary>
+    /// ⚠ Resolve-and-cache. ⛔ A failed resolve is NOT cached — the child may simply not have been
+    /// registered yet, which is the entire reason this is lazy.
+    /// </summary>
+    private static Interpreter<byte, BTreeContext>? Resolve(Binding binding)
+    {
+        if (binding.Resolved is { } cached) return cached;
+
+        if (!binding.Registry.TryGetId(binding.ChildName, out int id)) return null;
+        if (!binding.Registry.TryGetDefinition(id, out var def)) return null;
+        if (def.BTreeInterpreter is not { } interpreter) return null;   // an HSM child cannot be hosted this way
+
+        binding.Resolved = interpreter;
+        return interpreter;
+    }
 
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
     public static void ClearForTests() => _bySlotKey.Clear();

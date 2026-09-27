@@ -421,6 +421,24 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}var interpreter = new Interpreter<byte, {ctxShort}>(blob, actionRegistry);");
         sb.AppendLine();
 
+        // ⭐⭐⭐ E6 / CE-364 — BTREE-HOSTS-BTREE, the EDITOR-AUTHORED route.
+        //
+        // ⭐ GATED on the asset actually hosting something. 📐 0 of 26 shipped *.btree.json carries a
+        //   Subtree node, so this emits NOTHING for every one of them and no golden moves. The same
+        //   gating rule the AssetId constant and E5's hosting table learned.
+        // ⛔⛔ THE PLAN AND THE BIND SHIP TOGETHER: HostedSubtree.Tick THROWS on a slot the manifest
+        //   never declared (§19.6 ⑤), so emitting one without the other turns every hosting node into
+        //   a hard failure. §32.2.2 records E5's first draft making exactly that mistake.
+        bool hostsSubtrees = CountSubtreeNodes(dto) > 0;
+        if (hostsSubtrees)
+        {
+            sb.AppendLine($"{pad2}// E6 — this asset hosts a sub-tree: plan its sites, then bind after Register.");
+            sb.AppendLine($"{pad2}var __hosted = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(");
+            sb.AppendLine($"{pad2}{Indent}blob, \"{name}\", new global::System.Guid(\"{dto.AssetId:D}\"));");
+            sb.AppendLine($"{pad2}interpreter.SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;");
+            sb.AppendLine();
+        }
+
         // 4a. Emit ParseParams into a local variable (must be declared in an unsafe context so
         //     the byte* parameter in the lambda is legal). The local is then passed into the
         //     BehaviorDefinition initializer below. Only emitted when ≥1 variable has a default.
@@ -462,8 +480,19 @@ public static class BTreeBridgeEmitCore
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
         if (isManaged)
-            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
+            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees);
+        else if (hostsSubtrees)
+            // ⚠ A NON-managed asset emits no authored slot array at all, so a hosting one would get
+            //   no manifest and HostedSubtree.Tick would throw. The hosted slots stand alone here.
+            sb.AppendLine($"{pad2}{Indent}StatefulWorkingSlots = __hosted.Slots,");
         sb.AppendLine($"{pad2}}});");
+        if (hostsSubtrees)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{pad2}// E6 — bind AFTER Register: HostedChildren resolves the CHILD through the");
+            sb.AppendLine($"{pad2}//      registry, and registrars run in an arbitrary order.");
+            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.BTreeHostedSites.Bind(beh, blob, __hosted);");
+        }
 
         sb.AppendLine($"{pad}}}");
     }
@@ -928,7 +957,8 @@ public static class BTreeBridgeEmitCore
     /// action loop below; action behavior/output is unchanged).
     /// </summary>
     private static void EmitStatefulWorkingSlotsArray(
-        StringBuilder sb, BehaviorTreeAssetDto dto, string pad)
+        StringBuilder sb, BehaviorTreeAssetDto dto, string pad,
+        bool appendHostedSlots = false)
     {
         // Collect unique stateful entries (deduped by SlotKey).
         var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Role, int Scope)>();
@@ -1049,9 +1079,29 @@ public static class BTreeBridgeEmitCore
         //    reads, on every entity carrying the behaviour.
         // ⭐ The slot MECHANISM is alive and unchanged; it moved to the per-SITE declaration E5 built
         //    (HsmBridgeEmitCore.CollectHostedSubtrees). 📄 DESIGN §32.12.
-        if (slotsBySeen.Count == 0) return;
+        if (slotsBySeen.Count == 0)
+        {
+            // ⛔⛔ E6 — a MANAGED asset that hosts a sub-tree but declares no AUTHORED slot would
+            //    otherwise fall out of here with no manifest at all, and HostedSubtree.Tick THROWS on
+            //    an undeclared slot (§19.6 ⑤). ⚠ The Combine wrap has nothing to combine WITH here,
+            //    so the hosted slots stand alone — the same array the non-managed arm emits.
+            if (appendHostedSlots)
+                sb.AppendLine($"{pad}StatefulWorkingSlots = __hosted.Slots,");
+            return;
+        }
 
-        sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
+        // ⭐ E6 — hosted tree-state slots ride AFTER the authored ones, so an existing asset's slot
+        //   ORDER is byte-identical. ⛔ The wrap is emitted ONLY when this asset hosts something;
+        //   0 of 26 shipped assets do, so none of their goldens move.
+        if (appendHostedSlots)
+        {
+            sb.AppendLine($"{pad}StatefulWorkingSlots = global::Fdp.Toolkit.Behavior.BTreeHostedSites.Combine(");
+            sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
+        }
+        else
+        {
+            sb.AppendLine($"{pad}StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
+        }
         sb.AppendLine($"{pad}{{");
         foreach (var (slotKey, wsTypeId, nodeLabel, role, scope) in slotsBySeen.Values)
         {
@@ -1085,7 +1135,24 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad}{Indent}new global::Fdp.Toolkit.Behavior.StatefulSlotInfo({slotKey}, global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>(), unchecked({typeNameHash}u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<{wsTypeFqn}>()), typeof({wsTypeFqn}), \"{escapedLabel}\"{roleScopeArgs}),");
         }
 
-        sb.AppendLine($"{pad}}},");
+        sb.AppendLine(appendHostedSlots ? $"{pad}{Indent}}}, __hosted.Slots)," : $"{pad}}},");
+    }
+
+    /// <summary>
+    /// ⭐ E6 — how many nodes of this asset host a sub-tree. ⚠ A node needs BOTH a name and a
+    /// resolved-or-not asset id to be a site; a bare empty payload is an unfinished authoring state,
+    /// not a hosting site.
+    /// </summary>
+    private static int CountSubtreeNodes(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Nodes == null) return 0;
+        int n = 0;
+        foreach (var node in dto.Nodes)
+            if (node is BTreeSubtreeNodeDto st &&
+                st.Subtree != null &&
+                !string.IsNullOrWhiteSpace(st.Subtree.SubtreeName))
+                n++;
+        return n;
     }
 
     /// <summary>

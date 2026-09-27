@@ -9414,7 +9414,8 @@ one architecture rot apart, so the superseded `classDiagram` / `sequenceDiagram`
 ## 33 ⭐⭐⭐ `E6` — **BTREE-HOSTS-BTREE: THE MISSING HALF** *(`2026-09-27`)*
 
 <!--SECTION-STATUS
-build-state: READY-TO-BUILD
+build-state: BUILT (2026-09-27) — all eight items. ⭐ The AS-BUILT is §33.11; where it disagrees
+  with §33.9's table or §33.6/§33.7's prose, §33.11 WINS.
 owns: the RUNTIME + KERNEL + REGISTRATION half of "a BTree node hosts another BTree", for BOTH
   authoring routes (editor-authored *.btree.json AND hand-written C# BTreeBuilder).
   ⛔ The editor AUTHORING half is DONE and owned elsewhere — BTree_Editor_NodeEditor_Host_Design.md
@@ -9739,6 +9740,18 @@ is the point of it.
 📐 **0 of 26 shipped `*.btree.json` hosts a subtree** ⇒ **every golden stays byte-identical**, and
 `E6_R5` pins it.
 
+> 🔴🔴 **FALSE — MEASURED `2026-09-27` DURING THE BUILD, AND IT IS THE SECOND CLAIM IN THIS SECTION
+> THAT DID NOT SURVIVE CONTACT.** **3 of the 26 host a sub-tree:**
+> `Hrot.AI.Behaviors/Assets/BTrees/BTreeRenderShowcase.btree.json` *(hosts `SampleScout`)* ·
+> `CombatShowcase.btree.json` · `Authoring/T07_Subtree.btree.json`.
+> ⇒ ⭐ the gating clause still holds for the **other 23** — a non-hosting asset emits nothing and its
+> golden is untouched — ⛔ **but "every golden stays byte-identical" is wrong, and the BTree golden
+> corpus moved for the hosting ones.** ⚠ **How the error was made:** the count came from
+> §32.13's *"0 of 26 carry a non-empty `SubtreeSyncBindings`"* — a claim about a **different
+> property** of the same corpus, reused without re-measuring. 🔒 *A count measured for one question is
+> not evidence for another.* ⭐ **The regenerated goldens are the feature landing on real assets, not
+> collateral** — see §33.11 ④.
+
 ### 33.10 ⛔ REJECTED, and the NAMED residual gaps
 
 | | why not |
@@ -9750,3 +9763,108 @@ is the point of it.
 | ⚠ **① RESIDUAL — the ordinal site fallback** | §33.6. ⭐ Bounded: one lost cursor on a source reorder, never a wrong child, and item 6 warns |
 | ⚠ **② RESIDUAL — the `E3` hazard is UNCHANGED** | `Q36` §6: *"it does not license the `E3` hazard away"* — a hosted child's own actions resolve DTOs at baked offsets |
 | ⚠ **③ RESIDUAL — no cycle guard at RUNTIME** | the editor's `SubtreeAssetCycle` rule catches a ring at authoring time, and hand-written trees get no such check ⇒ **a hand-written ring recurses until the stack dies.** ⭐ Cheap guard: a depth counter on `BTreeContext`, or refuse re-entry of a slot key already on the stack. 📋 **Named, NOT in this slice** — it needs its own decision about what a cycle should DO |
+
+### 33.11 ✅ AS-BUILT — **`2026-09-27`, all eight items**
+
+⭐⭐ **This subsection is the TRUTH where it disagrees with §33.6/§33.7/§33.9 above.** ⛔ Nothing above
+is deleted, because the *why* is still worth reading; ⚠ but a reader must quote §33.11 for *what*.
+
+| item | id | as built | ⚠ deviation from §33.9 |
+|---|---|---|---|
+| 1 | `CE-362` | `HostedSubtree.TickFromContext(ref ctx, key)`; `BrainTickSystem.TickHostedChildren` re-pointed at it | — |
+| 2 | `CE-363` | `BTreeHostedSites` — `PlanFor` / `Bind` / `TryGetKey` / `Combine` / `AssetIdFromName`, keyed by `StructureHash` | ⚠ **`Plan` is a RETURN TYPE, the method is `PlanFor`** — the design named `Plan(...)` for both |
+| 3 | `CE-364` | the four moves *(plan → slots on the definition → `SubtreeHost` → `Bind` after `Register`)* in **`CuratedBehaviorGenerator`** AND in **`BTreeBridgeEmitCore`** | ⛔⛔ **the design said `CgfCuratedBehaviorRegistrar`, which `CE-374` had already DELETED** ⇒ the wiring went into the GENERATOR. ⭐ Strictly better: one place feeds both routes |
+| 4 | `CE-365` | `ISubtreeHost<TBb,TCtx>` in `Fbt.Kernel`; `ExecuteSubtree`; the Subtree branch in `SweepExitedNode`; `TreeCompiler` marks Subtree nodes resource-owning | ⭐ **plus a defect the design did not anticipate — see the box below** |
+| 5 | `CE-366` | `OccurrenceSubtreeHost`, stateless singleton. `Tick` THROWS on an unbound site (§19.6 ⑤); `Reset` SKIPS | ⚠ the asymmetry is deliberate: a teardown that throws takes the whole tick with it |
+| 6 | `CE-367` | `SubtreeHostingAnalyzer` — **`BEH010`** (no `visualId`) and **`BEH011`** (empty child name) | ⛔ **the "child name resolves to no registered behaviour" half was NOT built** — see the box below |
+| 7 | `CE-368` | `AssetIdAgreementTests`, 16/16 | ⭐ the zero-nudge divergence is ASSERTED, not smoothed over |
+| 8 | `CE-369` | **7 rails, green, red-proved** | ⚠ `E6_R3` **split into `R3a`+`R3b`** — see the box below |
+
+#### 🔴 ① THE KERNEL DEFECT THE RAILS CAUGHT — **and why a shape rail would have missed it**
+
+📐 My first `case NodeType.Subtree:` returned the host's status **straight from the switch**, skipping
+the `RunningNodeIndex` bookkeeping `ExecuteAction` does. ⇒ ⛔ **the node never entered the path the
+post-tick sweep diffs, so `F14` silently did nothing** — the reset arm existed, was correct, and was
+**unreachable**. ⭐⭐ Exactly the failure mode §33.8 was written to catch: *a rail over emitted text or
+a registered table cannot tell "hosting works" from "hosting is spelled correctly."*
+⇒ `ExecuteSubtree` now mirrors `ExecuteAction` exactly, and `E6_R3a` pins it.
+
+#### ⚠ ② `E6_R3` SPLIT — **a measured kernel fact, not a convenience**
+
+📐 The shapes that abandon a still-`Running` child are a **`Parallel` child sweep** and the
+out-of-bounds **path reset**. ⛔ A `Selector`/`ObserverSelector` **RESUMES** into its running child, so
+the obvious *"a higher-priority branch preempts it"* rail **cannot occur** — two of my drafts failed
+for that reason before the cause was understood. ⇒ `R3a` proves the KERNEL routes the exit *(via a
+recording `ISubtreeHost`)*, `R3b` proves the reset ZEROES the cursor. ⭐ Composing them is honest;
+asserting a shape the kernel cannot produce would not have been.
+📋 **Named gaps:** a **`Parallel`-hosted** end-to-end, and a **`BrainTickSystem`-driven** one.
+
+#### ⛔ ③ ITEM 6'S SECOND HALF IS NOT BUILDABLE AS SPECIFIED
+
+📐 The registry is populated at BOOT by registrars the compiler cannot see, so an analyzer knows only
+the `[BTreeDefinition]`/`[HsmDefinition]` names **in the compilation it is handed** ⇒ a host in
+`Hrot.AI.Behaviors` naming a child registered from `Hrot.CGF` would warn **falsely**, and a false
+authoring warning is worse than none. ⭐ The runtime already fails loudly **and by name** at that site
+(`HostedChildren.Require`), which is the §19.6 ⑤ policy. 📋 A cross-assembly **boot-time** check —
+scan every registrar, diff planned children against registered names — is the shape that could work;
+**named, not attempted.**
+
+#### 🔴 ④ §33.9'S GATING CLAUSE WAS FALSE — **3 of 26 assets host, and 7 goldens moved**
+
+⛔ My first `BTreeBridgeEmitCore` draft wrapped every asset's slot array in `Combine(...)`
+unconditionally, which would have moved **every** BTree golden for a feature most assets do not use.
+⇒ the emission is gated on a `CountSubtreeNodes` walk and emits **nothing** when the asset hosts
+nothing. ⭐ **That gate is right and it works — for the 23 that host nothing.**
+
+🔴🔴 **But §33.9's *"0 of 26 hosts a subtree ⇒ every golden stays byte-identical"* is FALSE.**
+📐 **3 do** — `BTreeRenderShowcase`, `CombatShowcase`, `Authoring/T07_Subtree`, all hosting
+`SampleScout`. ⚠ **The error is reusable, so name it:** the count was lifted from §32.13's *"0 of 26
+carry a non-empty `SubtreeSyncBindings`"* — a **different property** of the same corpus — and never
+re-measured. 🔒 *A count measured for one question is not evidence for another.*
+
+| the regeneration | |
+|---|---|
+| **7 goldens**, `AI_REGENERATE_SNAPSHOTS=1` | 4 HSM `+1` line *(`CE-370`'s `HsmMetadata = blob.Metadata`)* · 3 BTree `+10` lines *(plan · `SubtreeHost` · slots · `Bind`)* |
+| ⭐ **34 insertions, ZERO deletions** | the diff SHAPE that separates a deliberate regeneration from a silent one |
+| ⭐⭐ **this is the feature landing, not collateral** | the editor-authored route is now exercised by **3 real shipped assets** in the golden corpus instead of none — ⛔ strictly better than the byte-identity it replaced |
+| 📐 `Hrot.AiEditor.Persistence.Tests` 147/147 | a different tier *(persistence shape)*, which this emission does not touch |
+
+⚠⚠ **`T07_Subtree` took the arm I nearly did not write:** it is a NON-managed asset, so it emits no
+authored slot array at all ⇒ without the standalone `StatefulWorkingSlots = __hosted.Slots,` branch it
+would have hosted with **no manifest** and `HostedSubtree.Tick` would have thrown on every tick. ⭐ The
+same hole exists for a MANAGED asset with zero authored slots, and is closed the same way.
+
+#### 🔴 ⑥ `CE-377` — **THE REGISTRATION-ORDER HAZARD, FOUND BY WIRING THE JSON ROUTE**
+
+⛔⛔ **Binding a hosted child was ORDER-DEPENDENT, and ④ is what made it matter.**
+`HostedChildren.Register` resolved the child EAGERLY through the registry and **returned silently**
+when it was not registered yet — with a doc comment saying so, treating it as acceptable because
+*"the failure surfaces at the hosting site."* 📐 **`[BlueprintRegistrar]` methods are discovered by
+reflection and run in an arbitrary order**, so a host whose registrar happens to run first lost its
+bind and the node **threw at tick time**. ⚠⚠ **Order-dependent ⇒ it appears and disappears between
+builds** — the worst failure shape there is.
+
+📐 **Why ④ turned it from latent to live:** the three shipped assets that host all host `SampleScout`,
+and **none of them controls when `SampleScoutRegistrar` runs.** Before `E6` wired the editor route,
+no shipped asset bound anything, so the hazard had no victim.
+
+| ⭐ the fix — **lazy resolution**, in `HostedChildren` | |
+|---|---|
+| the entry records the **registry + the child's NAME**; the interpreter is looked up on **first use** and cached | ⇒ by tick time every registrar has run, so **order cannot matter** |
+| a failed resolve is **NOT cached** | ⛔ caching a miss would reinstate the bug for anything registering later |
+| **two distinct messages** on `Require` | *no binding at all* = the HOST's registrar never called `Register`; *will not resolve* = the CHILD is absent or is an HSM. ⭐ Different causes, different fixes |
+| ⛔ **rejected: a post-scan "resolve pending" pass** | it needs a lifecycle hook that does not exist, and leaves the same hazard for anything registering after it |
+
+⭐⭐ **Rails `E6_R7` / `E6_R7b`** pin the PROPERTY, not today's accidental order: bind the host with the
+child **not yet registered**, register the child afterwards, and the site resolves — and a child that
+never appears still fails closed, **naming itself**.
+
+⚠ **`BTreeHostedSites.Bind`'s own remark was part of the problem** and is corrected in place: it told
+callers to `Bind` AFTER registering the definition, which **ordered the host's own two steps and said
+nothing about the child's registrar** — the one that actually races.
+
+#### 📋 ⑤ RESIDUALS — **unchanged from §33.10**
+
+⚠ The ordinal site fallback *(now warned by `BEH010`)* · the `E3` baked-offset hazard · **no runtime
+cycle guard** — a hand-written ring still recurses until the stack dies, and it needs its own decision
+about what a cycle should DO.

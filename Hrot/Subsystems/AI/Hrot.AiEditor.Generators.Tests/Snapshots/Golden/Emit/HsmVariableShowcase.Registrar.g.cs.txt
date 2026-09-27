@@ -78,6 +78,7 @@ public static class HsmVariableShowcaseRegistrar
             Name          = "HsmVariableShowcase",
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
+            HsmMetadata   = blob.Metadata,
             ParseParams   = __parseParams,
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {

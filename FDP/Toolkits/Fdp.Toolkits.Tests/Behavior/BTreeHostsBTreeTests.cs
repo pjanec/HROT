@@ -453,4 +453,72 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
 
         Assert.Equal(NodeStatus.Failure, host.Tick(ref hostBb, ref state, ref ctx));
     }
+
+    // ── E6_R7 — CE-377, the registration-ORDER hazard ─────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>E6_R7</c> — the host's registrar may run BEFORE the child's, and hosting must still
+    /// work.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §33.11 ⑥.
+    ///
+    /// <para>🔴 <b>Why this rail exists, and it is not hypothetical.</b> <c>[BlueprintRegistrar]</c>
+    /// methods are discovered by reflection and run in an ARBITRARY order. Until <c>CE-377</c>
+    /// <c>HostedChildren.Register</c> resolved the child EAGERLY and simply returned when it was not
+    /// registered yet ⇒ the bind was silently dropped and the node threw at TICK time. ⚠ The failure
+    /// was order-dependent, so it would appear and disappear between builds — the worst shape there
+    /// is.</para>
+    ///
+    /// <para>📐 <b>It stopped being theoretical when the editor-authored route was wired:</b> three
+    /// SHIPPED assets host <c>SampleScout</c> — <c>BTreeRenderShowcase</c>, <c>CombatShowcase</c> and
+    /// <c>Authoring/T07_Subtree</c> — and none of them controls when <c>SampleScoutRegistrar</c> runs.
+    /// ⛔ This rail pins the PROPERTY (order-independence), not today's accidental order, which is the
+    /// only form that cannot rot.</para>
+    /// </summary>
+    [Fact]
+    public void E6_R7_TheHostMayBindBeforeTheChildIsRegistered()
+    {
+        var beh      = new BehaviorRegistry();
+        var hostBlob = BuildHostBlob(out _);
+
+        // ⛔ THE HOST FIRST, and the child NOT registered at all yet — the order an eager resolve lost.
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        Assert.Single(plan.Entries);
+        int key = plan.Entries[0].TreeStateSlotKey;
+
+        // ⚠ Still unresolvable at this instant — and that must NOT be cached as a permanent miss.
+        Assert.False(HostedChildren.TryGet(key, out _));
+
+        // ⭐ NOW the child's registrar runs, exactly as a later [BlueprintRegistrar] would.
+        var child = BuildChild();
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name             = ChildName,
+            BrainTier        = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = child,
+        });
+
+        Assert.True(HostedChildren.TryGet(key, out var bound));
+        Assert.Same(child, bound);
+        Assert.Same(child, HostedChildren.Require(key));
+    }
+
+    /// <summary>
+    /// ⭐ <b>A child that never appears still fails CLOSED, and the message says WHICH child.</b>
+    /// ⛔ Lazy resolution must not turn a real miss into a silent one — that would be the §19.6 ⑤
+    /// failure the whole hosting design exists to avoid.
+    /// </summary>
+    [Fact]
+    public void E6_R7b_AChildThatNeverRegisters_ThrowsAndNamesIt()
+    {
+        var beh      = new BehaviorRegistry();
+        var hostBlob = BuildHostBlob(out _);
+
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => HostedChildren.Require(plan.Entries[0].TreeStateSlotKey));
+        Assert.Contains(ChildName, ex.Message);
+    }
 }

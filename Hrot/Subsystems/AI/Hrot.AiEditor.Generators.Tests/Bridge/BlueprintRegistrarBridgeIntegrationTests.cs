@@ -469,6 +469,24 @@ public sealed class BlueprintRegistrarBridgeIntegrationTests : IDisposable
         def.HsmDefinition.Should().NotBeNull(
             "HsmDefinition must be non-null for an HSM definition");
 
+        // ── CE-370 ────────────────────────────────────────────────────────────────
+        // Until 2026-09-27 the emitted registrar set HsmDefinition and NOT HsmMetadata, so every
+        // JSON-authored machine reached the three trace surfaces with a null overlay
+        // (HsmTraceWorkingMemoryTranslator, HsmTraceWorkingMemoryRenderer, BrainTickSystem) and
+        // rendered numeric ids -- while the one hand-written machine rendered names. This is the
+        // JSON-authored half of CE-370; SR_R4 pins the curated half.
+        //
+        // Folded into THIS test rather than a new class (T-1 (4)): it already compiles and invokes
+        // the real emitted bridge for a real asset, which is the only thing that can tell "the
+        // overlay is set" from "the emitter mentions it".
+        def.HsmMetadata.Should().NotBeNull(
+            "trace symbolication reads BehaviorDefinition.HsmMetadata; a null renders numeric ids");
+        def.HsmMetadata!.StateNames.Should().NotBeEmpty(
+            "an empty table symbolicates nothing -- GetStateName would still return State_<id>");
+        def.HsmMetadata.GetStateName(def.HsmMetadata.StateNames.Keys.First())
+            .Should().NotStartWith("State_",
+                "a real authored state name must come back, not the numeric fallback");
+
         alc.Unload();
         weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
     }

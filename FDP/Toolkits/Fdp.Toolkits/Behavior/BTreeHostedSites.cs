@@ -105,10 +105,14 @@ public static class BTreeHostedSites
     /// <summary>
     /// ⭐ Binds each planned site's child interpreter and publishes the node→key map for the
     /// interpreter to read at tick time.
-    /// ⚠ Call AFTER the definition is registered, because <see cref="HostedChildren.Register"/>
-    /// resolves the CHILD through the registry and registrars run in an arbitrary order.
-    /// ⛔ An unresolvable child is SKIPPED here and surfaces at the hosting site as
-    /// <see cref="HostedChildren.Require"/>'s named exception — the same fails-closed policy
+    /// ⭐⭐ <b>ORDER-INDEPENDENT since <c>CE-377</c>:</b> <see cref="HostedChildren.Register"/> records
+    /// the registry and the child's NAME and resolves LAZILY, so it does not matter whether the
+    /// child's registrar has run yet. ⚠ An earlier version of this remark told callers to invoke
+    /// <c>Bind</c> AFTER the definition is registered because resolution was eager — 📐 that was not
+    /// enough: it ordered the HOST's own two steps but said nothing about the CHILD's registrar,
+    /// which is the one that actually races.
+    /// ⛔ A child that never resolves still fails closed, at the hosting site, as
+    /// <see cref="HostedChildren.Require"/>'s named exception — the same policy
     /// <see cref="HsmHostedSubtrees"/> follows.
     /// </summary>
     public static void Bind(BehaviorRegistry registry, BehaviorTreeBlob blob, in Plan plan)

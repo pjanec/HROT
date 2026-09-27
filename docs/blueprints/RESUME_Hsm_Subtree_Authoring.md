@@ -97,6 +97,31 @@ BTree defect; it deserves the strongest rail)*; the HSM dangling diagnostic fire
 
 ---
 
+## 1b. ✅ WHAT CAME AFTER — **two follow-on programmes, both COMPLETE `2026-09-27`**
+
+⭐⭐ **This lane did not stop at authoring.** ⚠ A session resuming here should know these landed, and
+⛔ **read their owning designs, not this summary**, before touching either area.
+
+| programme | ids | owning design | one-line state |
+|---|---|---|---|
+| ⭐⭐⭐ **`E6` — BTREE-HOSTS-BTREE** | `CE-362`…`CE-369` | [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) **§33**, `build-state: BUILT`; ⭐ **§33.11 is the AS-BUILT and WINS over §33.6/§33.7/§33.9** | ✅ **a BTree node now hosts another BTree, through the real kernel.** `ISubtreeHost` in `Fbt.Kernel`, `OccurrenceSubtreeHost` + `BTreeHostedSites` in `Fdp.Toolkits`, wiring in BOTH registrar routes, `BEH010`/`BEH011` analyzers, 7 end-to-end rails red-proved |
+| ⭐⭐ **BEHAVIOUR SELF-REGISTRATION** | `CE-370`…`CE-375` | [`DESIGN_Behavior_Self_Registration.md`](DESIGN_Behavior_Self_Registration.md), §10a is the as-built | ✅ **`CgfCuratedBehaviorRegistrar` is DELETED** — a generator emits it from `[BTreeDefinition]`/`[HsmDefinition]`/`[BehaviorResolver]`. ⭐ `HsmDefinitionGenerator` → `FhsmMachineCatalog` is the twin that was missing |
+
+### ⚠⚠ The three things that would be re-derived otherwise
+
+| | |
+|---|---|
+| ⛔⛔ **`ExecuteSubtree` MUST mirror `ExecuteAction`'s `RunningNodeIndex` bookkeeping** | 📐 my first kernel arm returned the host's status straight from the switch ⇒ the node never entered the path the post-tick sweep diffs, so **`F14` was silently dead** while every shape rail stayed green |
+| ⛔⛔ **A `Selector`/`ObserverSelector` RESUMES into a running child** | ⇒ the obvious *"a higher-priority branch preempts the hosted child"* rail **cannot be written** — only a `Parallel` child sweep and the out-of-bounds path reset abandon a still-`Running` child. Two drafts failed before this was understood |
+| ⛔ **`StateMachineGraph.Compile()` ALREADY sets `blob.Metadata`** | ⇒ `CE-370` was a **one-line carry-across** in `HsmBridgeEmitCore`, not a build. ⚠ Both the tracker row's lean and the design's §8 ② said the catalog was "the one place that knows both" — **both were wrong**, and both reasoned from what the emitter did rather than what the blob held |
+
+📋 **Named gaps, deliberately not built:** a `Parallel`-hosted end-to-end · a `BrainTickSystem`-driven
+end-to-end · **no runtime cycle guard** *(a hand-written ring recurses until the stack dies)* · the
+*"child name resolves to no registered behaviour"* analyzer, which **cannot** be written per-compilation
+without false positives and needs a boot-time cross-assembly check instead.
+
+---
+
 ## 2. 📐 MEASURED ALREADY — **⛔ DO NOT RE-DERIVE**
 
 | # | fact | evidence |

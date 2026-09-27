@@ -154,6 +154,15 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}Name          = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier     = BehaviorConstants.BrainTierHsm,");
         sb.AppendLine($"{pad2}{Indent}HsmDefinition = blob,");
+        // ⭐⭐ CE-370 — SYMBOLICATION. Three production consumers read
+        //    BehaviorDefinition.HsmMetadata (HsmTraceWorkingMemoryTranslator:52,
+        //    HsmTraceWorkingMemoryRenderer:55, BrainTickSystem:447) and this emitter never set it,
+        //    so state/event/variable names rendered as NUMBERS for every JSON-authored machine while
+        //    the one hand-written machine had them.
+        // 📐 The fix is one line because the metadata was ALREADY THERE: StateMachineGraph.Compile()
+        //    ends with `blob.Metadata = HsmEmitter.BuildMachineMetadata(this)`. Nothing needed
+        //    building — only carrying across.
+        sb.AppendLine($"{pad2}{Indent}HsmMetadata   = blob.Metadata,");
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams   = __parseParams,");
         // ⭐⭐ CE-226 — DESCRIBE the parameters this asset accepts, not just parse them.

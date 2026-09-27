@@ -364,6 +364,24 @@ name still comes from the one attribute that already carries it. ⭐ Pinned by
 ⚠ **`BTreeContext` is in `Fdp.Toolkit.Behavior`, not `Fbt.Runtime`** — the first generated source did
 not compile. ⭐ Only `Interpreter` and `ActionRegistry` are in `Fbt.Runtime`.
 
+#### ⛔⛔ AMENDED `2026-09-27` — **§8 ② AND ITS FIRST BUILD WERE BOTH OVERTHOUGHT: `Compile()` ALREADY DID IT**
+
+📐 **The measurement, made while closing `CE-370`'s remaining half:** `StateMachineGraph.Compile()`
+ends with `blob.Metadata = HsmEmitter.BuildMachineMetadata(this)`. ⇒ ⭐⭐ **every HSM blob in the repo
+has carried its `MachineMetadata` all along** — the only thing missing was the `BehaviorDefinition`
+overlay carrying it across.
+
+| ⛔ what this design and its first build said | ⭐ what is true |
+|---|---|
+| §8 ②: *"`FhsmMachineCatalog` is the ONE place that knows both the blob and its `MachineMetadata`"* | ⛔ **false** — the **blob** knows both. The catalog is one of several places that could read it off |
+| §10a *(now corrected above)*: *"a blob-returning method returns `null` metadata; the graph shape is preferred"* | ⛔ **false** — **both** return shapes carry it, because it rides on the blob |
+| the first generator draft spelled `Normalize → Flatten → Emit` out by hand | ⛔ a **second copy** of a sequence `Compile()` already is. ⭐ Now `=> <call>().Compile();` and a uniform `Get<Name>Metadata() => Get<Name>().Metadata;` |
+| ⭐ the JSON-authored half | **one line** — `HsmMetadata = blob.Metadata,` in `HsmBridgeEmitCore`. ⇒ `CE-370` is closed in **both** halves |
+
+🔒 **The lesson, and it is this session's recurring one:** the row and this design both reasoned from
+**what the emitter did**, never from **what the blob held** — *a property of current code is not a
+property of the design space.* ⭐ The fix was a one-line carry-across, not a build.
+
 ---
 
 ## 11. ⛔ REJECTED

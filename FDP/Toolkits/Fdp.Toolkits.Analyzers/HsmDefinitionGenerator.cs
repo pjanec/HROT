@@ -167,33 +167,23 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
                 if (m.ReturnsGraph)
                 {
-                    // Normalize mutates the graph, so the pipeline runs on a freshly built one per
-                    // call -- the author's method is the factory, not a cached singleton.
+                    // StateMachineGraph.Compile() IS the pipeline -- Normalize, Flatten, Emit, AND
+                    // `blob.Metadata = BuildMachineMetadata(this)`. Spelling those four steps out
+                    // here would be a second copy of a sequence that already exists, and it is what
+                    // an earlier draft of this generator did.
                     sb.AppendLine("        public static global::Fhsm.Kernel.Data.HsmDefinitionBlob Get" + safeName + "()");
-                    sb.AppendLine("        {");
-                    sb.AppendLine("            var graph = " + call + ";");
-                    sb.AppendLine("            global::Fhsm.Compiler.HsmNormalizer.Normalize(graph);");
-                    sb.AppendLine("            return global::Fhsm.Compiler.HsmEmitter.Emit(global::Fhsm.Compiler.HsmFlattener.Flatten(graph));");
-                    sb.AppendLine("        }");
-                    sb.AppendLine();
-                    // CE-370: metadata beside the blob, from the SAME graph shape.
-                    sb.AppendLine("        public static global::Fhsm.Kernel.Data.MachineMetadata? Get" + safeName + "Metadata()");
-                    sb.AppendLine("        {");
-                    sb.AppendLine("            var graph = " + call + ";");
-                    sb.AppendLine("            global::Fhsm.Compiler.HsmNormalizer.Normalize(graph);");
-                    sb.AppendLine("            return global::Fhsm.Compiler.HsmEmitter.BuildMachineMetadata(graph);");
-                    sb.AppendLine("        }");
+                    sb.AppendLine("            => " + call + ".Compile();");
                 }
                 else
                 {
                     sb.AppendLine("        public static global::Fhsm.Kernel.Data.HsmDefinitionBlob Get" + safeName + "()");
                     sb.AppendLine("            => " + call + ";");
-                    sb.AppendLine();
-                    // A blob-returning method has already discarded the graph, so there is nothing to
-                    // build metadata from. Returning null keeps the catalog's shape uniform and is
-                    // honest about the loss; prefer the graph-returning shape.
-                    sb.AppendLine("        public static global::Fhsm.Kernel.Data.MachineMetadata? Get" + safeName + "Metadata() => null;");
                 }
+                sb.AppendLine();
+                // CE-370 -- the metadata rides ON the blob, so BOTH return shapes carry it and
+                // neither needs a second traversal.
+                sb.AppendLine("        public static global::Fhsm.Kernel.Data.MachineMetadata? Get" + safeName + "Metadata()");
+                sb.AppendLine("            => Get" + safeName + "().Metadata;");
                 sb.AppendLine();
             }
 

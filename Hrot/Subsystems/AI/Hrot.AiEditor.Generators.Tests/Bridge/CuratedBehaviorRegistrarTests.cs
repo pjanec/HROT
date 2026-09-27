@@ -128,11 +128,17 @@ public sealed class CuratedBehaviorRegistrarTests
     /// <para>📐 Measured <c>2026-09-27</c>: <c>HsmBridgeEmitCore</c> never emits <c>HsmMetadata</c>,
     /// so before this change the ONLY definition in the repo carrying it was the hand-written Idle —
     /// while three consumers read it (<c>HsmTraceWorkingMemoryTranslator</c>,
-    /// <c>HsmTraceWorkingMemoryRenderer</c>, <c>BrainTickSystem</c>). ⭐ The catalog is the one place
-    /// that holds the graph, so it is the only place that can supply both.</para>
+    /// <c>HsmTraceWorkingMemoryRenderer</c>, <c>BrainTickSystem</c>).</para>
     ///
-    /// <para>⚠ <b>Scope, stated honestly:</b> this pins the CURATED path. The JSON-authored half of
-    /// <c>CE-370</c> is NOT closed by this change and its row stays open.</para>
+    /// <para>⛔ <b>CORRECTED <c>2026-09-27</c>:</b> an earlier version of this comment said *"the
+    /// catalog is the one place that holds the graph, so it is the only place that can supply
+    /// both"*. 📐 False — <c>StateMachineGraph.Compile()</c> already sets <c>blob.Metadata</c>, so
+    /// the metadata rides ON THE BLOB and any registrar can carry it across. That is what closed the
+    /// JSON-authored half in one line.</para>
+    ///
+    /// <para>⚠ <b>Scope:</b> this pins the CURATED path. The JSON-authored half is pinned by
+    /// <c>BlueprintRegistrarBridgeIntegrationTests.Hsm_SampleGuard_Bridge_Register_RegistersHsmDefinition</c>,
+    /// which compiles and invokes the real emitted bridge.</para>
     /// </summary>
     [Fact]
     public void SR_R4_TheCuratedHsm_CarriesItsMachineMetadata()
