@@ -420,41 +420,38 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <b><c>CE405_R4</c> — ISSUING THE SAME COMMAND TWICE, DELIBERATELY, MEANS IT TWICE.</b>
-        /// A command that has COMPLETED (<c>Status == Success</c>) and is then issued again with
-        /// identical params must re-enter the executor — <i>"open that door"</i> twice is two opens,
-        /// not one.
+        /// 🔴🔴 <b><c>CE408_R1</c> — A COMPLETED COMMAND RE-ISSUED BY A PER-TICK ACTIVITY MUST NOT
+        /// RE-ENTER THE EXECUTOR.</b> 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §9.9.
         ///
-        /// <para>🔴 <b>This is the hole the first cut of <c>CE-405</c> had.</b> The guard was written
-        /// as <c>ActiveAction != id || Status == Failure</c>, copying the C# idiom at
-        /// <c>CgfNodes.cs:305,313</c>. ⛔ That copy is wrong for a blueprint, because <c>CgfNodes</c>
-        /// has a second route out that a blueprint statement does not: it FORWARDS the terminal
-        /// status up the tree (<c>CgfNodes.cs:307-310</c>) rather than re-issuing, so it never needs
-        /// to re-activate on Success. A channel-command op has no "return Success upward" — issuing
-        /// it again is the author's ONLY way to say "again".</para>
+        /// <para>⛔⛔ <b>This rail exists because the opposite was built first and shipped for one
+        /// commit.</b> <c>CE405_R4</c> asserted that a command whose <c>Status</c> had gone terminal
+        /// should re-activate — <i>"open that door twice is two opens"</i> — so the emitted guard was
+        /// <c>Status != Running</c>. 🔴 <b>The live run destroyed it.</b> An HSM activity blueprint
+        /// ticks every frame; <c>HsmFireActivity</c>'s <c>AimAndFire</c> completes immediately against
+        /// an invalid target, so every frame saw a terminal status and re-activated:
+        /// <c>ActionInstanceId</c> reached <b>266 in ~3 seconds</b>, i.e. 266 OnExit/OnEnter pairs on
+        /// a command nobody re-issued deliberately.</para>
         ///
-        /// <para>📐 <b>Measured across all 12 channel executors:</b> every one is a standing order
-        /// that terminates by setting Success or Failure (<c>AimAndFireExecutor.cs:49,56</c> ·
-        /// <c>OpenDoorExecutor.cs:33</c> · <c>EjectPassengersExecutor.cs:70</c> ·
-        /// <c>MoveToExecutor.cs:108,122</c>). ⇒ a terminal status is the runtime's own statement that
-        /// the previous instance is OVER, so a re-issue after it is a new instance by definition.</para>
+        /// <para>⭐ <b>The channel cannot distinguish the two readings</b> — "the activity ticked
+        /// again" and "the author asked again" are identical from here. 📐 The evidence breaks the
+        /// tie: all 12 channel executors are STANDING ORDERS doing their work in <c>Execute</c>
+        /// (<c>AimAndFireExecutor.cs:61-76</c> fires once per cooldown per Running tick;
+        /// <c>OpenDoorExecutor.cs:30-33</c>; <c>EjectPassengersExecutor.cs:37-70</c>) and NOT ONE
+        /// does its work in <c>OnEnter</c>. ⇒ the storm is real and measured; the deliberate-repeat
+        /// case has no instance in this codebase. <c>CE-408</c> carries the hole that leaves.</para>
         ///
-        /// <para>⚠ <b>What this does NOT mean.</b> Rate of fire is not this mechanism:
-        /// <c>AimAndFireExecutor.cs:61-76</c> publishes one <c>WeaponFireIntent</c> per cooldown from
-        /// <c>Execute</c>, every tick it is Running. ⭐ So one standing "fire at target" already
-        /// produces many shots, and issuing it twice was never how a second shot is requested.</para>
-        ///
-        /// <para>✅ <b>Red-proof:</b> narrow the guard back to <c>Status == Failure</c> ⇒ this reddens
-        /// with one <c>OnEnter</c> instead of two, while <c>R1</c>–<c>R3</c> stay green.</para>
+        /// <para>✅ <b>Red-proof:</b> widen the emitted guard back to <c>Status != Running</c> ⇒ this
+        /// reddens with 2 activations instead of 1.</para>
         /// </summary>
         [Fact]
-        public void CE405_R4_ReIssuingAfterTheCommandCompleted_IsANewCommand()
+        public void CE408_R1_ACompletedCommandReIssuedByAPerTickActivity_DoesNotReEnter()
         {
             var (actionInstanceId, onEnterCalls) =
                 ReIssue(ticks: 2, statusBetweenTicks: NodeStatus.Success);
 
-            Assert.Equal(2u, actionInstanceId);   // ⭐ two deliberate issues
-            Assert.Equal(2, onEnterCalls);        // ⭐ two activations
+            Assert.Equal(1u, actionInstanceId);   // ⭐ one standing order, not two
+            Assert.Equal(1, onEnterCalls);        // ⭐ and one activation — no storm
         }
+
     }
 }

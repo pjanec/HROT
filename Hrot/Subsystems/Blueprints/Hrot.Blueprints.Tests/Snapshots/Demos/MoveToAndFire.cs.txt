@@ -65,7 +65,7 @@ public static class MoveToAndFire_649F8F53_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
             bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* MoveTo */
-                || __ch_0.Status != global::Fbt.NodeStatus.Running;
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
             if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
             {

@@ -192,4 +192,57 @@ public sealed class BlueprintChannelDerivationTests
         Assert.True(result.IsComplete);
         Assert.Equal(new[] { Weapon }, result.ChannelComponentFqns);
     }
+
+    // ── CE-407 — the derivation and the emitter must agree on WHICH graph is main ──────────
+
+    /// <summary>
+    /// 🔴🔴 <b><c>CE407_R1</c> — a main graph kinded <c>Function</c> is walked, because that is the
+    /// kind every AUTHORED asset actually uses.</b>
+    /// 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §9.9.
+    ///
+    /// <para>⛔⛔ <b>Why every other rail in this file missed the defect:</b> they all build their
+    /// entry graph as <c>IrGraphKind.AiPrimitiveMain</c> — a kind <b>no authored asset uses</b>.
+    /// <c>Loco1.bp.json</c> and both end-to-end activity blueprints carry <c>"Kind": "Function"</c>,
+    /// and <c>AiPrimitiveEmitter.cs:325-326</c> resolves the main graph as
+    /// <c>AiPrimitiveMain ?? first Function</c> — so the emitter emitted a <c>TickCore</c> from a
+    /// graph the derivation refused to walk.</para>
+    ///
+    /// <para>🔴 The result was an EMPTY channel set with <c>IsComplete == true</c> — the one state
+    /// the design says must never be read as "writes nothing" — so the cleanup thunk was emitted
+    /// with a comment for a body, registered, and bound. 📐 <b>Measured live:</b> an entity that had
+    /// left its driving state still held <c>LocomotionChannel {ActiveAction=1, Status=Running}</c>.
+    /// ⚠ The golden corpus cannot catch this either: an empty cleanup body is valid output.</para>
+    ///
+    /// <para>⭐ <b>This rail pins the AGREEMENT between the two sites, not either rule alone.</b> If
+    /// the emitter's main-graph resolution changes, this must change with it.</para>
+    ///
+    /// <para>✅ <b>Red-proof:</b> drop the <c>?? first Function</c> fallback from the derivation ⇒
+    /// the set comes back empty and this reddens.</para>
+    /// </summary>
+    [Fact]
+    public void CE407_R1_AFunctionKindedMainGraph_IsStillWalked()
+    {
+        var d = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Main", IrGraphKind.Function, Command(Loco))));
+
+        Assert.True(d.IsComplete);
+        Assert.Equal(new[] { Loco }, d.ChannelComponentFqns);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE407_R2</c> — the non-vacuity half: an UNREACHED Function graph still contributes
+    /// nothing.</b> <c>CE407_R1</c>'s fallback must not degrade into "walk every graph in the asset",
+    /// which would bind a cleanup for a channel the blueprint never drives — the over-clean that can
+    /// wipe a parallel region's standing command. Only the FIRST Function graph is the main one.
+    /// </summary>
+    [Fact]
+    public void CE407_R2_ASecondUncalledFunctionGraph_ContributesNothing()
+    {
+        var d = BlueprintChannelDerivation.Derive(
+            Asset(Graph("Main",   IrGraphKind.Function, Command(Loco)),
+                  Graph("Unused", IrGraphKind.Function, Command(Weapon))));
+
+        Assert.True(d.IsComplete);
+        Assert.Equal(new[] { Loco }, d.ChannelComponentFqns);
+    }
 }

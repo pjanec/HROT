@@ -145,7 +145,7 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
             bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* AimAndFire */
-                || __ch_0.Status != global::Fbt.NodeStatus.Running;
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)1 /* AimAndFire */;
             unsafe
             {

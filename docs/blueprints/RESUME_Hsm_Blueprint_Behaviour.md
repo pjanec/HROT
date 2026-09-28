@@ -5,19 +5,12 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-28
-build-state: ✅ authoring programme COMPLETE (stages 1-2, all nine rails). ⏭ The LIVE work is the
-  CHANNEL-LIFECYCLE programme in §8 - built: CE-402, CE-403, CE-388 (D-A2/D-B1/D-D1/D-F), and
-  CE-404 (rail 5 MEASURED - no gap, so D-E is WITHDRAWN rather than built) and CE-406 (the
-  validator question, resolved by the user as "kept and re-aimed") and CE-405 (a re-issued
-  channel command no longer re-enters the executor). ⭐ The ONLY thing left in this programme is
-  the EDITOR END-TO-END CHECK (§8.4), which needs the WINDOWS session. Branch `behaviors`.
-  ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
-  (2026-09-28: CE-397 rail ④, CE-398/CE-400 rails ⑨/⑥ + the CE-399 sizing fix, CE-401 rail ⑦ —
-  see §7.2a). ⚠ The sentence below is the 2026-09-27 state and is kept for its detail:
-  ✅✅ **STAGE 1 AND STAGE 2 ARE BOTH COMPLETE AND PUSHED** — `CE-381`..`CE-387`, plus
-  `CE-396` found and fixed inside `CE-385`, plus the design's §9 ③ validator rule which had been
-  neither built nor filed. Branch `behaviors`. ⭐ **The user's acceptance description now works AND
-  is authorable from the editor.** ⏭ **NEXT IS §7** — what is genuinely left, and it is short.
+build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE and its
+  RUNTIME PROVED END TO END, headless, 2026-09-28 (§8.4): CE-402, CE-403, CE-388
+  (D-A2/D-B1/D-D1/D-F), CE-404 (rail 5 ⇒ D-E WITHDRAWN), CE-406, CE-405, and CE-407 + CE-408
+  which the LIVE RUN found after every gate was green. Left: CE-408's filed hole (nothing
+  exercises it), CE-409/CE-410 (other lanes), and the user's own editor AUTHORING pass.
+  Branch `behaviors`.
 current-answer: ⭐⭐⭐ **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
   work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
   acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
@@ -321,12 +314,11 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 
 | # | what | note |
 |---|---|---|
-| **1** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this, and now the ONLY thing left** | see §8.4. ⛔ **needs the WINDOWS session** — the editor cannot run from cloud |
+| **1** | ⭐ **`CE-408`** — a deliberate re-issue of an identical, COMPLETED channel command is swallowed | 📄 `Q74` §9.9. ⛔ Filed, not fixed: the channel cannot tell *"the activity ticked again"* from *"the author asked again"*, and the `!= Running` reading was **measured wrong** (266 re-enters in 3 s). ⭐ The principled fix is in the EMITTER — it can see a gated path vs a per-tick body. ⚠ **Nothing exercises the hole today** |
+| **2** | ⚠ **`CE-409` / `CE-410`** — the shipped scenarios are unloadable, and `load/live` lies about it | ⛔ **NOT this lane**: the asset corpus and the orchestrator/debug API. Filed with the measurement |
+| **3** | ⭐ **the EDITOR AUTHORING pass — the user's own** | 🔒 *"if the scenario is working i will then do manual editor run and will evaluate how to author stuff; just i need to be sure the runtime part is OK."* ✅ **The runtime part IS OK — proved live, §8.4.** What remains is judging the authoring UX (`CE-385`/`386`/`387`) by opening these assets in the editor on Windows |
 
-⭐ **Everything else in the channel-lifecycle programme is closed:** rail ⑤ measured (`CE-404`) ⇒
-**`D-E` WITHDRAWN**; the validator question resolved by the user as `CE-406` *(kept and re-aimed)*;
-`CE-405` fixed *(a re-issued channel command no longer re-enters the executor)*. 📄 `Q74` §9 is the
-as-built for all three.
+⭐ **The RUNTIME end-to-end check is DONE** — see §8.4. It needed no editor.
 
 ### 8.3 ⛔⛔ TRAPS THIS PROGRAMME PAID FOR — **do not re-derive these**
 
@@ -338,29 +330,41 @@ as-built for all three.
 | ⛔⛔ **the cleanup id is keyed on the SHORT method name** | `HsmActionGenerator.cs:565` emits `m.Name`; assets hold the FQN. `CE403_R2` pins it. ⛔ Hashing the FQN binds an id nothing registered — **no error anywhere**, the channel simply never releases |
 | ⚠ **`[WritesChannel]` is opt-in and always will be** | an UNDECLARED C# writer is undetectable. ⭐ What the compiler CAN do is refuse to guess when it cannot classify a call at all — that is `IsComplete == false`, and it must never be treated as "writes nothing" |
 
-### 8.4 ⭐⭐ THE EDITOR END-TO-END CHECK — **the original question, still unanswered**
+### 8.4 ✅ THE EDITOR END-TO-END CHECK — **the RUNTIME half is PROVED, headless** *(`2026-09-28`)*
 
-🔒 **User:** *"a scenario with entity using hsm that calls blueprint guards and blueprint actions, to test it end to end."*
+🔒 **User:** *"a scenario with entity using hsm that calls blueprint guards and blueprint actions, to
+test it end to end"* — then: *"can't you author scenario yourself and load and run and diagnose it
+using ai debug HTTP yourself?"*
 
-📐 **Measured gaps, and `CE-402` removed the one that made it impossible:**
+⭐⭐⭐ **Yes, and the editor was never required.** A `.hsm.json` self-registers as a named behaviour at
+build time *(the generated registrar calls `beh.Register(hash, "<Name>", …)`)*, so a scenario's
+`behaviorName` references an HSM directly.
 
-| # | gap | state |
+| the subject, authored by hand | |
+|---|---|
+| `Assets/Blueprints/HsmDriveActivity.bp.json` | `HsmAction` hosting, issues `MoveTo` on the locomotion channel |
+| `Assets/Blueprints/HsmFireActivity.bp.json` | `HsmAction` hosting, issues `AimAndFire` on the weapon channel |
+| `Assets/HSMs/HsmChannelE2E.hsm.json` | `Driving` → `Firing`, each activity a blueprint, the transition POLLED and guarded by the existing `HsmGuardDemo` blueprint |
+| `scenarios/hsm-channel-e2e/scenario.json` | two entities, `Open=false` and `Open=true`, so both sides of the hand-off are observable in one run |
+
+📐 **Run:** `--mode all` headless under `xvfb`, `POST /scenario/load/live`, `POST /sim/play`,
+**Scenario perspective** *(⚠ the AI runs on the CGF node — SimHost shows no `BehaviorState`)*.
+
+| entity | `LocomotionChannel` | `WeaponChannel` |
 |---|---|---|
-| ① | **no HSM asset names a blueprint activity** — `ActivityBlueprintName` is **zero** across all six `.hsm.json` | ⛔ OPEN. ⚠ **This is also why `D-B1` has no subject yet** |
-| ② | **no scenario uses an HSM** — the four name only `MoveToLocation` / `FireAtTarget` / `PlatoonHillAttack` | ⛔ OPEN |
-| ③ | nothing shipped would be VISIBLE — `HsmPolledGuardDemo` is 2 states and one bool | ⛔ OPEN |
-| ④ | a blueprint channel command never survived a tick | ✅ **FIXED — `CE-402`** |
+| `Open=false` — stays in `Driving` | `ActiveAction 1`, claimed by instance 2, id **1** stable, Running | untouched |
+| `Open=true` — transitioned to `Firing` | `ActiveAction 0`, id **1→2** ⇒ **RELEASED** | `ActiveAction 1`, claimed, id **1** |
 
-⭐⭐ **The build order, and step 1 needs no new C#:** `BuiltInChannelCommandCatalog.cs:73-87` already
-ships `MoveTo`→Locomotion and `AimAndFire`→Weapon as palette nodes, so the activity blueprints are
-authorable **in the editor** — which exercises `CE-385`/`386`/`387` at the same time.
+✅ **Every clause of the acceptance description**: HSM as behaviour · blueprint-guarded polled
+transition · a blueprint action ticking per state · one action per channel · the channel released on
+exit, incremented not reset.
 
-1. an activity blueprint issuing `MoveTo` · 2. one issuing `AimAndFire` · 3. an HSM asset: state A
-activity = the MoveTo blueprint, A→B polled + guarded by `HsmGuardDemo`, state B activity = the
-AimAndFire blueprint · 4. a scenario copying `test-move` with `behaviorName` → the new HSM.
+🔴🔴 **And the run found two defects every green gate had missed — `CE-407` and `CE-408`, both now
+fixed. 📄 `Q74` §9.9 is the record.** ⇒ ⭐ **a green gate table is not an answer to *"does the product
+work?"***
 
-⚠ **`HsmPolledGuardDemo` + `HsmGuardDemo` already exist** and the guard half is proved end-to-end
-(`CE398_R1`–`R3`). ⛔ **Running the editor needs the WINDOWS session** — not possible from cloud.
+⭐ **What is still the user's:** opening these assets in the editor on Windows to judge the AUTHORING
+surface. ⛔ That is a different claim from the runtime one, and only they can make it.
 
 ### 8.5 📐 GATE BASELINE at `6dcde3542`
 

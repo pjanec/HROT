@@ -52,7 +52,7 @@ public static class EnumDemo_235986DF_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
             bool __chNew_0 = __ch_0.ActiveAction != (ushort)99 /* DemoEnumAction */
-                || __ch_0.Status != global::Fbt.NodeStatus.Running;
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)99 /* DemoEnumAction */;
             unsafe
             {
@@ -128,6 +128,7 @@ public static class BlueprintRegistrar_EnumDemo_235986DF_Bp
             StructureHash = EnumDemo_235986DF_Bp.StructureHash,
             StateSize = EnumDemo_235986DF_Bp.StateSize,
             ParamsSize = EnumDemo_235986DF_Bp.ParamsSize,
+            WritesChannels = new global::System.Type[] { typeof(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel) },
             AssetId = new Guid("d06f6a14-3e77-4473-962f-36a5d10dc316"),
             StateClrType = typeof(EnumDemo_235986DF_Bp.WorkingState),
         });

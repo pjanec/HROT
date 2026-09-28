@@ -633,3 +633,55 @@ raw-name `ContainsKey` ⇒ `R2`+`R3` redden *(2 failed / 7 passed)*.
 
 ⛔ **Deliberately NOT done: wiring it into production or into the editor.** It stays the test-suite
 helper its own doc specifies.
+
+### 9.9 🔴🔴 WHAT **RUNNING IT** FOUND — **two defects that every green gate had missed**
+
+⭐⭐⭐ **The whole channel programme was green — 4048 blueprint tests, 2358 toolkit tests, 338 FastHSM
+tests, every acceptance rail closed — and the FIRST live run found two real defects.** 📄 The subject
+is `scenarios/hsm-channel-e2e` + `HsmChannelE2E.hsm.json` + the two activity blueprints, authored by
+hand and run headless through the debug HTTP API *(`RUNBOOK_Cluster_Debugging_Over_Http.md`)*.
+⛔ **No editor was needed:** a `.hsm.json` self-registers as a named behaviour at build time, so a
+scenario's `behaviorName` can reference it directly.
+
+#### ⛔ `CE-407` — the cleanup thunk was a NO-OP, so the channel leaked anyway
+
+| | |
+|---|---|
+| 🔴 **the disagreement** | `AiPrimitiveEmitter.cs:325-326` resolves the main graph as `AiPrimitiveMain ?? first Function`. `BlueprintChannelDerivation.cs:92` seeded its walk with `Where(g => g.Kind != IrGraphKind.Function)` — **no fallback** |
+| ⛔ **why it bites every real asset** | an AiPrimitive's entry graph is kinded **`Function`** in every authored asset *(`Loco1.bp.json`, both E2E activities)* ⇒ **the emitter emitted a `TickCore` from a graph the derivation refused to walk** |
+| ⛔⛔ **it failed in the worst direction** | `IsComplete` **true**, channel set **empty** — the one state §2 says must never mean *"writes nothing"*. The thunk compiled, registered, and the HSM bound its id |
+| 📐 **measured live** | an entity that had left `Driving` still held `LocomotionChannel {ActiveAction=1, BehaviorInstanceId=2, Status=Running}` |
+| ⚠ **why no test could catch it** | the golden corpus cannot — **an empty cleanup body is valid output**, so no snapshot moves. And every rail in `BlueprintChannelDerivationTests` built its entry graph as `AiPrimitiveMain`, **a kind no authored asset uses** |
+| ✅ **fixed** | the derivation resolves the main graph with the **same** fallback and adds it as a root. `CE407_R1` pins the AGREEMENT between the two sites; `CE407_R2` pins that this did not degrade into *"walk every graph"* |
+
+#### ⛔ `CE-408` — `!= Running` re-activated every frame
+
+⭐ §9.7's first cut answered the user's *"two shots"* question with `Status != Running`. 🔴 **The live
+run destroyed it:** an HSM activity ticks every frame, `AimAndFire` completes at once against an
+invalid target, so every frame re-activated — 📐 **`ActionInstanceId` reached 266 in ~3 seconds.**
+
+⭐⭐ **The channel cannot distinguish *"the activity ticked again"* from *"the author asked again"*** —
+both produce an identical `(ActiveAction, Params, Status)`. 📐 **Evidence broke the tie:** all 12
+executors are standing orders doing their work in `Execute`, **none in `OnEnter`** ⇒ the storm is
+measured, the deliberate-repeat case has **no instance in this codebase**. ⇒ reverted to
+`== Failure`; `CE408_R1` pins the no-storm property. ⛔ **The hole is real and filed as `CE-408`**: the
+distinction lives in CONTROL FLOW, and **the emitter can see it** *(gated path vs per-tick body)*
+where the channel cannot.
+
+#### ✅ What the run PROVED — the user's acceptance description, end to end
+
+| the ask | measured |
+|---|---|
+| an editor-defined HSM as an entity behaviour | `BehaviorState.ActiveBehaviorHash = 2134535788` = `HsmChannelE2E` |
+| a transition controlled by a blueprint condition | the **polled blueprint guard** fired; the `Open=true` entity reached `Firing` |
+| tick a blueprint action while in a state | `Driving` drove `LocomotionChannel`, `Firing` drove `WeaponChannel` |
+| one action per channel, in parallel | the two are independently observable on two components |
+| the channel released on exit | `Open=true`: `LocomotionChannel {ActiveAction=0, ActionInstanceId 1→2}` — **incremented, not reset** *(`BD1-DESIGN.md` §1.1)* |
+
+⚠ **Two ENVIRONMENT findings, neither this lane's surface:** `CE-409` *(every shipped scenario is
+unloadable — `P4` retired `BrainBlackboard` and never migrated the corpus)* and `CE-410`
+*(`POST /scenario/load/live` answers `ok:true` for a load whose 2PC prepare faulted)*.
+
+⇒ ⭐⭐⭐ **The standing lesson: a green gate table is not an answer to *"does the product work?"*** —
+this section is what running it bought.
+

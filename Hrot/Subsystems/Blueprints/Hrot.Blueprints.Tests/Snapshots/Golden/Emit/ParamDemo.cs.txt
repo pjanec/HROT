@@ -55,7 +55,7 @@ public static class ParamDemo_CEFE162F_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
             bool __chNew_0 = __ch_0.ActiveAction != (ushort)99 /* DemoEnumAction */
-                || __ch_0.Status != global::Fbt.NodeStatus.Running;
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)99 /* DemoEnumAction */;
             if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
             {
@@ -113,6 +113,7 @@ public static class BlueprintRegistrar_ParamDemo_CEFE162F_Bp
             StructureHash = ParamDemo_CEFE162F_Bp.StructureHash,
             StateSize = ParamDemo_CEFE162F_Bp.StateSize,
             ParamsSize = ParamDemo_CEFE162F_Bp.ParamsSize,
+            WritesChannels = new global::System.Type[] { typeof(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel) },
             AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d0"),
             StateClrType = typeof(ParamDemo_CEFE162F_Bp.WorkingState),
         });

@@ -71,7 +71,11 @@ public sealed class GoldenCorpusTests
         //    `HsmGuard`. Measured before it: 34 BTreeAction, 9 BTreeCondition, 2 HsmAction and ZERO
         //    HsmGuard, so the HSM GUARD path had no asset and acceptance rail 4 of
         //    DESIGN_Hsm_Blueprint_Behaviour_Authoring.md could not be closed by existing content.
-        Assert.Equal(48, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 48 → 50 for the Q74 §8.4 end-to-end subject: `HsmDriveActivity` and `HsmFireActivity`,
+        //    the first AiPrimitives in the corpus hosted as `HsmAction` AND commanding a channel.
+        //    Before them no HSM asset named a blueprint activity at all, so D-B1's auto-bind had
+        //    no subject outside a test fixture — and the live run against them found CE-407.
+        Assert.Equal(50, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

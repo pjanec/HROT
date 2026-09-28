@@ -38,25 +38,28 @@ internal static class ChannelCommandLowering
         //   (Wander) re-enters DELIBERATELY on a fresh destination. So "same action id" alone is the
         //   wrong test — the params bytes are compared too, and only a real change re-enters.
         //
-        // ⭐⭐⭐ AND "STILL RUNNING" IS THE THIRD PART OF A COMMAND'S IDENTITY — this is what lets an
-        //   author issue THE SAME COMMAND TWICE and mean it twice.
+        // ⛔⛔ CE-408 — WHY THIS IS `== Failure` AND **NOT** `!= Running`. It WAS `!= Running` for
+        //    one commit, on the reasoning that a terminal status means the previous instance is over
+        //    so a re-issue is a new one — which would let an author issue the same command twice and
+        //    mean it twice. 🔴 RUNNING IT KILLED THAT: a per-tick activity whose command completes
+        //    immediately then re-activates EVERY FRAME. Measured live on HsmFireActivity, whose
+        //    AimAndFire completes at once against an invalid target — `ActionInstanceId` reached
+        //    **266 in ~3 seconds**, i.e. 266 OnExit/OnEnter pairs.
         //
-        // 📐 Measured 2026-09-28 across all 12 channel executors: every one is a STANDING ORDER that
-        //    terminates by setting Status to Success or Failure (AimAndFireExecutor.cs:49,56 ·
-        //    OpenDoorExecutor.cs:33 · EjectPassengersExecutor.cs:70 · MoveToExecutor.cs:108,122 · …).
-        //    ⇒ a TERMINAL status is the runtime's own statement that the previous instance of this
-        //    command IS OVER. Re-issuing after that is by definition a NEW instance, never a
-        //    duplicate — so it must re-enter, or the second "open that door" is silently swallowed.
+        // ⭐ The two readings genuinely conflict, and the channel cannot tell them apart: "the
+        //   activity ticked again" and "the author asked again" look identical from here. 📐 The
+        //   tie-break is evidence — all 12 executors are STANDING ORDERS whose work happens in
+        //   Execute (AimAndFireExecutor.cs:61-76 fires once per cooldown per Running tick;
+        //   OpenDoorExecutor.cs:30-33; EjectPassengersExecutor.cs:37-70), and NOT ONE does its work
+        //   in OnEnter. ⇒ the re-enter storm is real and observed; the deliberate-repeat case has no
+        //   instance in this codebase. See CE-408 for the hole this leaves and the principled fix
+        //   (the EMITTER can see whether the op sits on a gated path or in a per-tick body; the
+        //   channel cannot).
         //
-        // ⚠ Hence `!= Running` and not `== Failure`. Deduplication applies ONLY while the command is
-        //   still in flight, which is exactly the re-plan storm CE-405 exists to stop. ⛔ A narrower
-        //   `== Failure` test (which is what the C# nodes use) is WRONG here: CgfNodes has a second
-        //   route out that a blueprint statement does not have — it FORWARDS the terminal status up
-        //   the tree (CgfNodes.cs:307-310) instead of re-issuing, so it never needs this case.
-        //   ⚠ NodeStatus.Failure is 0, so a default-initialised channel is correctly "not Running".
+        // ⚠ NodeStatus.Failure is 0, so a default-initialised channel is correctly "needs activation".
         e.WriteLine($"bool __chNew_{n} = __ch_{n}.ActiveAction != {op.ActionIdConstantName}");
         e.Indent();
-        e.WriteLine($"|| __ch_{n}.Status != global::Fbt.NodeStatus.Running;");
+        e.WriteLine($"|| __ch_{n}.Status == global::Fbt.NodeStatus.Failure;");
         e.Outdent();
         e.WriteLine($"__ch_{n}.ActiveAction = {op.ActionIdConstantName};");
         if (op.ParamFields.Count > 0)

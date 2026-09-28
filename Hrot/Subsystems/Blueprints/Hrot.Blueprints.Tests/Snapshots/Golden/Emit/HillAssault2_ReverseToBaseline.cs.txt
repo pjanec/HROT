@@ -70,7 +70,7 @@ public static class HillAssault2ReverseToBaseline_FF75553A_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
             bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* MoveTo */
-                || __ch_0.Status != global::Fbt.NodeStatus.Running;
+                || __ch_0.Status == global::Fbt.NodeStatus.Failure;
             __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
             unsafe
             {

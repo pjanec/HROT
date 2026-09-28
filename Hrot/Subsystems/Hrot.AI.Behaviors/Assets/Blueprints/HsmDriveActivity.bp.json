@@ -55,7 +55,7 @@
             "Comment": "The movement half of the acceptance description: while in this state, drive the locomotion channel."
           },
           "PinDefaults": {
-            "Destination": "<560  296  0>",
+            "Destination": "\u003C560\u00A0 296\u00A0 0\u003E",
             "ArrivalRadius": "5",
             "Speed": "8",
             "RouteHandle": "0",
@@ -102,7 +102,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "HSM activity: drives the LOCOMOTION channel while its state is active. Half of the end-to-end runtime check for the HSM + blueprint channel programme (Q74 section 8.4).",
+    "Description": "HSM activity: drives the LOCOMOTION channel while its state is active. Half of the end-to-end runtime check for the HSM \u002B blueprint channel programme (Q74 section 8.4).",
     "Category": null,
     "Recipe": null
   }

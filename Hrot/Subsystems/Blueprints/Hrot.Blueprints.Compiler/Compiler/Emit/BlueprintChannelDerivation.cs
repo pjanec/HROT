@@ -94,6 +94,30 @@ internal static class BlueprintChannelDerivation
             if (visited.Add(g.Id)) queue.Enqueue(g);
         }
 
+        // ⭐⭐⭐ CE-407 — AND THE MAIN GRAPH, WHICH IS NORMALLY Function-KINDED.
+        //
+        // 🔴 The defect this closes, found by RUNNING the thing and not by any test. The rule above
+        //    reads as obviously right and is wrong in practice: an AiPrimitive's entry graph is
+        //    kinded `Function` in every authored asset (Loco1, HsmDriveActivity, …), and
+        //    `AiPrimitiveEmitter.MainGraph:325-326` compensates with EXACTLY this fallback —
+        //        AiPrimitiveMain ?? first Function
+        //    so it emits a TickCore from that graph. The derivation had no such fallback, so for a
+        //    Function-kinded main graph it walked NOTHING, derived an EMPTY channel set, and emitted
+        //    a cleanup thunk whose body is the comment "commands no actuator channel".
+        //
+        // ⛔⛔ It fails in the worst possible direction: `IsComplete` stays TRUE and the set is
+        //    EMPTY, which §2 of the design says must never be read as "writes nothing". The thunk
+        //    still compiles, still registers, and the HSM still binds its id — so every check short
+        //    of running it passes while THE CHANNEL LEAKS ON STATE EXIT, which is the one thing this
+        //    whole mechanism exists to prevent. 📐 Measured live: an entity that left the driving
+        //    state kept `LocomotionChannel {ActiveAction=1, Status=Running}`.
+        //
+        // ⚠ The two sites must agree. If the emitter's main-graph resolution ever changes, this
+        //   must change with it — CE407_R1 pins the agreement rather than either rule alone.
+        var main = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.AiPrimitiveMain)
+                   ?? asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Function);
+        if (main != null && visited.Add(main.Id)) queue.Enqueue(main);
+
         var channels = new SortedSet<string>(StringComparer.Ordinal);
         var opaque   = new SortedSet<string>(StringComparer.Ordinal);
 

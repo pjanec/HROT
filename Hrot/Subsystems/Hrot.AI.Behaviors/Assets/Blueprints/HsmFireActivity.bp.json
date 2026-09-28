@@ -95,7 +95,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "HSM activity: drives the WEAPON channel while its state is active. Half of the end-to-end runtime check for the HSM + blueprint channel programme (Q74 section 8.4).",
+    "Description": "HSM activity: drives the WEAPON channel while its state is active. Half of the end-to-end runtime check for the HSM \u002B blueprint channel programme (Q74 section 8.4).",
     "Category": null,
     "Recipe": null
   }

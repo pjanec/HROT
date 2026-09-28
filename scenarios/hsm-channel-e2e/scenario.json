@@ -31,12 +31,6 @@
       "TargetMemory": {
         "Entries": []
       },
-      "BrainBlackboard": {
-        "X": 489,
-        "Y": 296,
-        "Speed": 5,
-        "ArrivalRadius": 5
-      },
       "SimTransform": {
         "Position": [
           368,
@@ -198,12 +192,6 @@
       },
       "TargetMemory": {
         "Entries": []
-      },
-      "BrainBlackboard": {
-        "X": 489,
-        "Y": 296,
-        "Speed": 5,
-        "ArrivalRadius": 5
       },
       "SimTransform": {
         "Position": [
