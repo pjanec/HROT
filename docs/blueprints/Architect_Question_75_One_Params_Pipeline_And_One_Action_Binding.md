@@ -1,9 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-28
-build-state: DESIGN
-current-answer: §4 carries the four decisions, each with a lean. §5 is the sequenced plan.
-  Nothing here is approved yet — the user approves per sub-question (ARCHITECT QUESTIONS rule).
+build-state: READY-TO-BUILD — all four decisions APPROVED by the user 2026-09-28.
+  ⚠ The approval was explicitly ON TRUST: "approved, but just by trusting your judgement, not
+  because i understand all the internals." ⛔ It therefore carries NO independent verification of
+  the mechanisms; §6's rails and the user's editor pass are the only checks this programme has.
+current-answer: §5 is the sequenced plan and §5.1 the measurements behind it. §4 carries the
+  four APPROVED decisions; D.1 is the R-132 precedence rule S4 must honour. Start at S1.
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: none known. §2's inventory supersedes two claims Claude made in chat on 2026-09-28
@@ -293,6 +296,27 @@ dropped" OVERSTATED it:** nothing advertises those two fields, so nothing can be
 reserved-for-later layout, and the right treatment is a **warning** — *"layout declares members the
 contract does not"* — not an error, and an authoring decision to either fill the contract or drop the
 fields.
+
+#### D.1 🔒 `R-132` BINDS THIS — **an auto-generated identity parse must never outrank a curated one**
+
+⭐⭐ **Surfaced by `rulings-check.py`'s staleness warning, which is what that gate is for.**
+📄 `RULINGS.md` `R-132`, from the user on `2026-08-23`: *"if curated (hand-authored) exists, then no
+other is needed — having automatically generated is undesired in such a case."*
+
+🔴 **The case behind it is this exact mechanism.** `ApplyResolverOverlay` once read
+`if (def.ParseParams == null)`, so a **generated** `ParseParams` won the slot, the curated geo-aware
+resolver for `PlatoonHillAttack` never ran, every mission key hit `default: break` and the params
+region stayed zeros — **no exception, no log line**, and the platoon drove to `(0,0)`.
+
+⇒ ⛔⛔ **Decision D's auto-generated identity parse is a NEW generated producer for a slot a curated
+declaration may also fill.** ⭐ It must inherit the same precedence, and the precedence must be
+**structural, not ordering-dependent**:
+
+| ⭐ the rule S4 must honour | |
+|---|---|
+| ⭐⭐⭐ **a `[BehaviorResolver]` declaration wins, always** | the identity parse is generated **only when no resolver is declared** — decided at GENERATION time, not by who registers last |
+| ⛔ **never `if (ParseParams == null)`** | that is the exact shape `R-132` was filed against |
+| ⭐ **and the rail already exists in spirit** | `Q75` §6's *"one parse factory"* reflection rail should also assert that no behaviour has BOTH a generated identity parse and a declared resolver |
 
 ---
 

@@ -11,8 +11,13 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   409/411/412. ⏭ LEFT: three NEW authoring defects the live run exposed — CE-413 (an inert DTO
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
-  Branch `behaviors` @ 2725b9fec.
-current-answer: ⭐⭐⭐ **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
+  Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
+current-answer: ⭐⭐⭐ **START AT §9** — the PARAMS-PIPELINE / ACTION-BINDING unification (`Q75`),
+  APPROVED and NOT STARTED, which is where the work now is. §9.0 is the verifiable state, §9.3 the
+  five-slice plan, §9.4 the seven measured traps, §9.2 what the approval does NOT mean.
+  ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
+  §8 only for §8.3's traps and §8.4's measured end-to-end result.
+  (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
   work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
   acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
   that must not be re-derived, §8.4 the editor end-to-end check the user originally asked for.
@@ -411,3 +416,75 @@ PR or repo artefact · ⛔ no PR unless explicitly asked ·
 ⭐ `CE-389`..`CE-392` *(the §11 call-cost thread)* · `CE-395` *(priority bits — filed not fixed)* ·
 `CE-393`/`CE-394` *(BACKEND lane)* · ⛔ `DESIGN_Resolver_World_Reach.md:346` carries a dead
 `CgfCuratedBehaviorRegistrar` citation — flagged in `E8c`'s `known-conflict`, deliberately not edited.
+
+---
+
+## 9. ⭐⭐⭐ THE PARAMS-PIPELINE / ACTION-BINDING UNIFICATION — **`Q75`, APPROVED, NOT STARTED** *(`2026-09-28`)*
+
+> ⭐⭐⭐ **RESUMING? START HERE, NOT AT §8.** §8's channel-lifecycle programme is COMPLETE, and the three
+> defects it left — `CE-413`, `CE-414` — are BUILT (§9.1). What remains from §8 is only `CE-415`,
+> `CE-408`, `CE-410` and the user's editor pass. **This section is the live programme.**
+
+### 9.0 📐 STATE, verifiable in one command
+
+| | |
+|---|---|
+| branch | **`behaviors`**, pushed, at **`7deefb2b5`** |
+| owning design | 📄 [`Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md`](Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md) — `build-state: DESIGN`, **approved, nothing built** |
+| tracker | [`CE-416`](Blueprint_Issues_Tracker.md) *(the pipeline — slices `S1`–`S4`)* · [`CE-417`](Blueprint_Issues_Tracker.md) *(the carrier — slice `S5`)* |
+| ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: RootParamsBytes always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
+
+```bash
+git log --oneline -6 behaviors   # 7deefb2b5 back to 2725b9fec is the CE-413/414 + Q75 work
+git stash list                   # must still show the RootParamsBytes probe
+```
+
+### 9.1 ✅ BUILT AND PUSHED SINCE §8 WAS WRITTEN
+
+| id | what | commit |
+|---|---|---|
+| `CE-414` | ⭐⭐⭐ **the HSM authoring path was missing the COMPOSE step the BTree has.** A blueprint pick now creates ONE `IsAutoManaged` variable typed from the blueprint's generated `Params`; the seed is that variable, so there is no byte window and nothing to check. Re-proved live | `2725b9fec` |
+| `CE-413` | a transition guard seeds from its OWN variable — the site key is the guard's asset Guid, so **no FastHSM change** | `2725b9fec` |
+| — | **shared:** `AutoManagedVariables` *(one lifecycle, both hosts — 63 insertions / 138 deletions across five sites)* + `AiPrimitiveNaming` | `185cf45f1` |
+| — | the managed-blackboard flip is **not** BTree-specific *(it moved into the shared compose)*; `Open` → `EngageTarget` | `54570bde0` |
+| `Q75` | the design, the two rows, reciprocal links, and the `G1` correction in `DESIGN_Parameter_Model.md` §6 | `bd56ad2ba` · `7deefb2b5` |
+
+### 9.2 🔒 THE APPROVAL, AND WHAT IT DOES *NOT* MEAN
+
+> 🔒 **User, `2026-09-28`:** *"approved, but just by trusting your judgement, not because i understand
+> all the internals."*
+
+⛔⛔ **Read this before citing "approved" as cover for anything.** All four decisions (`A`–`D`) are
+approved, so the programme may start — ⚠ **but the approval carries no independent verification of the
+internals.** ⇒ ⭐⭐⭐ **the design's own rails (`Q75` §6) and the user's editor pass are the ONLY checks
+this programme has.** ⛔ *"The user approved it"* is not an argument in a later disagreement about a
+mechanism; re-measure instead.
+
+### 9.3 ⏭ THE PLAN — **five slices, `Q75` §5**
+
+| # | slice | depends | ⚠ |
+|---|---|---|---|
+| **S1** | make `EmitBlackboardStructSource` **host-neutral** *(it reads only 3 things from the BTree DTO)*, then the HSM emits `{Asset}_Blackboard` from its existing `BlackboardTypeName`; set `JsonParamsDtoType` + `BlackboardLayoutType` | — | additive; HSM goldens move |
+| **S2** | ⭐⭐ **widen the factory to `FromJson<TJson, TLayout>(convert)` FIRST** — §9.4 ① — then route the three emitted producers through it with the identity conversion | S1 | rail: byte-for-byte equality before/after |
+| **S3** | split the five `[BehaviorResolver]` methods into their conversion halves | S2 | 🔴 the risky one — the geo shapes |
+| **S4** | D's three states: identity parse auto-generated for ②, ① left alone, warn on the `JoinFormation` shape | S3 | ⭐ mostly REMOVES author obligations |
+| **S5** | `BehaviorActionBinding` + the file-format migrator + per-slot `ExpressionTargetField` + the `(childAssetId, slotKind)` site key | — | 🔴 ~83 refs, whole-corpus golden move. ⛔ **independent of S1–S4 and must NOT be interleaved** |
+
+### 9.4 ⛔⛔ THE TRAPS — **measured, do NOT re-derive**
+
+| # | |
+|---|---|
+| **①** | 🔴🔴 **`BehaviorParams.FromJson<TDto>` CANNOT express the two-shape case** — it writes the type it deserialized (`Unsafe.Write(memory, dto)`), while `MoveToLocation` authors `[lat, lon]` and stores cartesian. ⇒ **S2 must widen it before routing anyone through it**, or S3 cannot land for three of the five |
+| **②** | **`G1` is NOT "partly done"** — `FromJson<TDto>` has **`callers_total: 0`** in production *(graph-measured, exact)*. Five producers exist and none uses it. `DESIGN_Parameter_Model.md` §6's row is corrected |
+| **③** | ⭐ **no curated resolver reads the world during DESERIALIZE** — `Resolve*` is the dependency-fetch half, `Parse*` the conversion half. S3 is a deletion, not a restructure |
+| **④** | 🔴 **`DelegateShape` is BTree-only** *(interpreter arities; the HSM has one dispatch signature)*, and **value 2 has no named member**. ⇒ the shared carrier does NOT carry it, and S5 must name value 2 first |
+| **⑤** | ⭐ **`BlackboardTypeName` IS populated on all 7 HSM assets** — S1 needs no naming decision |
+| **⑥** | ⚠ **`JoinFormation` is not a bug.** Its layout declares two fields its `[BehaviorContract]` deliberately does not — a reserved-for-later shape, carved out in `AGeneratedBehaviourAdvertisesItsManifestTests`. It gets a WARNING. ⛔ An earlier chat claim that its params are "silently dropped" **overstated it** |
+| **⑦** | 🔒 **`R-132` BINDS S4** — an auto-generated identity parse must never outrank a declared `[BehaviorResolver]`, and the precedence must be decided at GENERATION time. ⛔ **Never `if (ParseParams == null)`** — that is the exact shape `R-132` was filed against, and its case was `PlatoonHillAttack` driving to `(0,0)` with no exception and no log line. 📄 `Q75` §D.1 |
+| **⑧** | ⛔ **an HSM asset with an unmanaged blackboard emits nothing SILENTLY** where the BTree raises `BTREE0002`. The missing diagnostic rides with `CE-416` |
+
+### 9.5 ⏭ STILL OPEN FROM §8 — **not part of this programme**
+
+`CE-415` *(a `Vector3` pin default is discarded; `Loco1` presumably affected in production)* ·
+`CE-408` *(the deliberate-repeat hole, filed and unexercised)* · `CE-410` *(another lane)* ·
+⭐ **the user's editor authoring pass on Windows** — now with the compose step in place.
