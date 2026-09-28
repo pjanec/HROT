@@ -16,7 +16,12 @@ known-rot: nothing outstanding; two corrections are recorded IN PLACE and must n
   (D-A1) after measuring exactly ONE producer. A graph can also reach a channel through a macro,
   a Function graph, another asset, and HARDCODED C# - six IrOp kinds, and the compiler can only
   see the body of some. D-A1 is kept as a REJECTED arm; the lean is now D-A2 (derive what is
-  derivable, CARRY the [WritesChannel] declaration for what is not). Do not quote D-A1.
+  derivable, READ the existing [WritesChannel] declaration on the callee for what is not). Do not
+  quote D-A1. (3) Same day, second user input: the hardcoded-C# case is resolved by marking those
+  methods with [WritesChannel], and measuring showed the READER already exists -
+  RoslynClrSignatureResolver holds the IMethodSymbol, so the PureCall surface needs nothing new.
+  An earlier line costing D-A2 as "a new ActionSchemaEntry member" is narrowed to the
+  InlineActionCall surface only, and is marked NOT YET MEASURED.
 known-conflict: nothing.
 related-designs:
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md - OWNS CE-388 (its section 8, item G5) and the
@@ -217,6 +222,36 @@ channel member at all**, and `BehaviorActionEntry.ChannelTypeFqn` is documented 
 | ⛔ `D-A3` — hand-declare on the `.bp.json` | duplicates what ① and ③ already know, and goes stale when the graph changes. ⭐ Survives only as the **escape hatch** under `D-A2`'s unknown case |
 | ⚠ **`D-A4` — no declaration at all: RUNTIME ATTRIBUTION** | snapshot each channel's `ActionInstanceId` on state entry; on exit release those this state bumped. ⭐ **Needs nothing from anyone and is immune to every escape hatch above** — genuinely the most "it just works" arm. ⛔ Costs per-state storage in the occupancy slot, and ⚠ **it does not solve the ORTHOGONAL-REGION attribution problem** (region 1 writes Locomotion, region 0 exits and sees it changed since its entry) — though neither does the existing C# `ExitCleanup_` thunk, which zeroes unconditionally. ⭐ **Worth costing properly if `D-A2`'s unknown case turns out to be common** |
 
+#### ⭐⭐⭐ `D-A2` IS CHEAPER THAN FIRST WRITTEN — **the compiler can already read the callee's attributes** *(user, `2026-09-28`)*
+
+> 🔒 **User:** *"hardcoded c# can be marked with the existing attribute, whoch would resolve that, no?"*
+
+✅ **Yes.** 📐 And measuring it shows the plumbing is already in place, on **both** C# surfaces:
+
+| the C# surface | what the target IS | can `[WritesChannel]` be read? |
+|---|---|---|
+| ⭐ **`IrOp_InlineActionCall`** *(`Stage5_Schedule.cs:711`)* | 📐 its own comment: *"`[SharedAiAction]` methods are direct static method FQNs"* ⇒ the targets are the **`[SharedAiAction]`/`[BTreeAction]`/`[HsmAction]` family** | ✅ **trivially — `[WritesChannel]` is from the SAME attribute family** (`Fbt.Kernel.SharedAiAttributes.cs`) and was designed to sit beside them. Marking them is what it is FOR |
+| ⭐⭐ **`IrOp_PureCall`** *(`Stage5_Schedule.cs:1762,1781`, from `FunctionCallNode`)* | 📐 `IClrSignatureResolver`'s own header: *"the signature of a `FunctionCall` target method (**a curated C# helper**)"* | ✅ **and the READER ALREADY EXISTS.** `RoslynClrSignatureResolver` *(in the generator project)* resolves these through the **Roslyn semantic model** — `GetTypeByMetadataName` → `IMethodSymbol` — so `GetAttributes()` is right there. ⭐ The in-process host resolves by **reflection**, which reads attributes just as well |
+
+⭐⭐ **The check is one line and already written elsewhere:** `HsmActionGenerator.cs:129` does exactly
+`a.AttributeClass?.ToDisplayString() == "Fbt.Kernel.WritesChannelAttribute"`. ⇒ 🔒 **no new
+mechanism, no reflection where there was none, no assembly the host cannot load.**
+
+⭐ **And the unknown case plugs into an existing seam:** `IClrSignatureResolver.TryResolve` **already
+returns `false`** when the type or method cannot be found, with a defined fallback. `D-A2`'s
+fail-loud is a new arm on a branch that exists.
+
+⚠ **What this revises:** the sequencing step *"export `[WritesChannel]` through `ActionSchemaEntry`"*
+may be needed **only for the `InlineActionCall` surface**, and only if `Stage5` holds the catalog FQN
+rather than a symbol at that point. ⛔ **Not yet measured** — size it before building; the
+`PureCall` surface needs nothing new.
+
+⚠⚠ **What it does NOT fix, and this is the residual risk:** an **undeclared** C# writer is still
+undetectable — the attribute is opt-in and always will be. ⭐⭐ **But the difference matters: the
+compiler KNOWS it is calling C#**, so it can *demand* the declaration rather than silently assume an
+empty set. ⇒ 🔒 **that is what moves `D-A2` from "unsound" to "sound, given a required
+declaration"** — and it is why the unknown case below must be an error, not a default.
+
 #### 🔴🔴 MEASURED WHILE WRITING `D-A2` — **`[WritesChannel]` HAS ZERO PRODUCTION ADOPTION**
 
 📐 **Repo-wide, attribute APPLICATIONS of `[WritesChannel(...)]`: TWO — and both are inside
@@ -357,7 +392,7 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 | order | what | why here |
 |---|---|---|
 | **1** | ⭐⭐⭐ **`D-C` as `CE-402`** | it is a plain defect, not HSM-specific, and **nothing visible works until it lands** |
-| **1a** | ⭐⭐ **export `[WritesChannel]` through `ActionSchemaEntry`** *(part of `D-A2`; its own small item)* | ⭐ **the enabling step for everything after it**, and it is self-contained: one member on a record, one reflection read in `ActionSchemaExporter`, mirroring `CE-386` exactly. ⛔ Without it the compiler cannot see a hardcoded C# writer at all |
+| **1a** | ⭐⭐ **make `[WritesChannel]` readable on both C# call surfaces** *(part of `D-A2`)* | ⭐ **the `PureCall` surface needs NOTHING NEW** — `RoslynClrSignatureResolver` already holds the `IMethodSymbol`. ⚠ The `InlineActionCall` surface may need the attribute carried through `ActionSchemaEntry` (mirroring `CE-386`) **if** `Stage5` holds only the catalog FQN there — ⛔ **measure that first**; it is the only unknown left in `D-A2`'s cost |
 | **2** | `D-A` + `D-B` as `CE-388` | the release half, once there is something to release |
 | **3** | rail ⑤ | measure the gap before deciding `D-E` |
 | **4** | `D-E`, only if ⑤ says so | |
