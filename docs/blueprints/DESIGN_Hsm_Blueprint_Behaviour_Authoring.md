@@ -37,6 +37,12 @@ related-designs:
     NOT own action/guard IDENTITY, which is what §3.2 here settles.
   - AI_Editor_Shared_Infrastructure.md — ⭐ owns `ActionSchemaExporter` and the shared catalog that
     §3.3 reuses; §4.7 is the entry shape.
+  - Architect_Question_74_Blueprint_Channel_Lifecycle.md — ⭐⭐ OWNS the resolution of §8's LAST
+    unbuilt item, CE-388 (`WritesChannel` for blueprint-hosted activities). ⚠ It found that the item
+    as filed was HALF the problem: a blueprint channel command is also never CLAIMED
+    (`BehaviorInstanceId` unstamped), so arbitration wipes it next tick — filed separately as CE-402,
+    which must land FIRST. ⛔ Do not build CE-388 from §8's one-line description; §8 does not say what
+    the cleanup IS for a blueprint activity, and Q74 §4 is where that is decided.
   - Architect_Question_36_Subtree_Hosting_Runtime.md — APPROVED; `Q36-B = A`, "a name BESIDE a Guid".
     §7 here follows that ruling for the blueprint reference rather than inventing a second spelling.
   - Behavior_Parameter_Resolver_Detailed_Design.md — owns how a hosted occurrence's params are

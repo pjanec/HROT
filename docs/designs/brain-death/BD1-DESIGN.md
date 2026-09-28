@@ -20,6 +20,12 @@ known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HE
   answerable there. Step 16 of the end-to-end lifecycle below is the capability that a capability-only
   rule would cost.
 related-designs:
+  - ../../blueprints/Architect_Question_74_Blueprint_Channel_Lifecycle.md — ⭐ REUSES §1.1's
+    "zero ActiveAction, INCREMENT ActionInstanceId" idiom for cleanup at STATE granularity inside one
+    running HSM. ⛔ This document owns cleanup at BEHAVIOUR granularity (ChannelArbitrationSystem) and
+    that half is BUILT and untouched. ⚠ Q74 §0 ③ reports a gap on the CLAIM side that §1.1's guarantee
+    depends on: ChannelCommandLowering never stamps BehaviorInstanceId, so a blueprint-issued command
+    fails the arbitration predicate at :44 and is wiped next tick (CE-402).
   - ../gizmos-1/canvas-context-menu-design.md — owns the RIGHT-CLICK GESTURE this document's §2 assumed:
     hit-test → interned JSON → popup, with no presentation-tier branching. It supersedes §2.1's gesture
     while leaving §2.1's ROUTING RULE unhomed.
