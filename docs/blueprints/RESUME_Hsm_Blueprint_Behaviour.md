@@ -12,10 +12,11 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §9.6** — the `2026-09-28` SECOND MEASUREMENT PASS, which REOPENED
-  `Q75` and BLOCKED its `S1`/`S2`. ⛔ §9.3's five-slice plan and its "start at S1" instruction are
-  SUPERSEDED by it; read §9.6 before any other part of §9. §9.0-§9.2 (state, what is built, what
-  the approval does not mean) and §9.4 (the traps) are still current.
+current-answer: ⭐⭐⭐ **START AT §10** — the `2026-09-28` storage-simplification programme (`Q76`),
+  PARKED BY THE USER AND AWAITING ONE DECISION. It supersedes §9 as the live question: `Q75` now
+  DEPENDS on it. ⛔ Read §10 before §9. §9.6 (the second measurement pass that reopened `Q75`) is
+  still true and is the reason `Q75` is blocked; §9.3's "start at S1" remains SUPERSEDED.
+  ⚠ NOTHING IS IN FLIGHT AND NOTHING IS TO BE STARTED — including `Q75`'s `S0`.
   ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
   §8 only for §8.3's traps and §8.4's measured end-to-end result.
   (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
@@ -536,3 +537,54 @@ precedes it.
 pass is what that warning was for, and it found the plan wrong in two places within one session.**
 ⇒ ⛔ **Do not treat any remaining "approved" decision as measured** — A, B and D survived a
 re-measurement, which is a different and stronger claim than "the user approved them".
+
+---
+
+## 10. ⭐⭐⭐ THE STORAGE SIMPLIFICATION — **`Q76`, PARKED ON PURPOSE, ONE DECISION OPEN** *(`2026-09-28`)*
+
+> 🔒 **User:** *"not approved, i want it recorded so i can return to it any time."*
+> ⛔⛔ **Nothing is in flight. Nothing is to be started — including `Q75`'s `S0`.** This section
+> exists so the question can be picked up cold, without this session's conversation.
+
+📄 **THE DOCUMENT:** [`Architect_Question_76_One_Blackboard_Block_Per_Primitive.md`](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md)
+⭐ **Its §10 is the way back in** — the one open question, everything already measured, and what
+happens to each waiting finding under either outcome. ⛔ Do not re-derive any of it.
+
+### 10.1 ⭐ The single open question
+
+> **Adopt `B` — one contiguous blackboard block per running AI primitive, root and children alike?**
+
+⭐ `A` *(retire cross-entity shared memory)* and `C` *(retire `WorkingStateScope`)* are **RESOLVED —
+remove** — ⛔ **but both are sequenced INSIDE `B` and are INERT without it.** `A` standalone is
+~200 lines and parks under the user's own rule; `C` is impossible until occurrence identity supplies
+the keying. ⇒ **one decision, not three.** `D` and `E` are subordinate leans.
+
+### 10.2 📐 Why it got here — the short version
+
+⭐ The user asked why the storage model felt over-complex. Measured: the **root** behaviour is split
+across ≥2 slots while a **hosted child** is one; **two key schemes** exist for one concept; `Node`
+scope *(the default)* has **0** users and silently provisions nothing; and the shared-memory feature
+built on `Entity` scope has **one** cross-entity consumer — its own proof asset. 📌 **`Q76` §9**
+records that the author's *"this is incomprehensible"* arrived on `2026-07-16`, **the day after the
+feature shipped**, and was triaged as a documentation gap. ⇒ 🔒 **`R-150`**.
+
+### 10.3 ⛔ The one finding that does NOT wait for the decision
+
+🔴 **[`CE-418`](Blueprint_Issues_Tracker.md) — two offset authorities, and they already disagree**
+*(3 of 15 generated behaviours, 9 of 31 fields, runtime-probed)*. ⭐ It is a **live** defect in two
+user-facing surfaces — StructEdit's typed params editor and the replay predicate compiler both read
+the struct's offsets while the runtime writes the manifest's — ⭐ it **blocks `Q75`**, and ⭐ **its
+fix is identical whether or not `B` is adopted.** ⇒ **the one thing worth doing first, when work
+resumes.**
+
+⭐ The rest sit: `CE-420` *(a `Role=State` default is silently dropped)* · `CE-421` *(the shadow
+carries the previous behaviour's bytes across a switch)* · `CE-422`/`CE-423` *(both **dissolve** if
+`B` is taken — the scopes they describe stop existing)* · `CE-424` *(the seam header claims it is
+unimplemented; it shipped)*.
+
+### 10.4 ⚠ And `Q75` is not where it was
+
+📄 [`Architect_Question_75`](Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md)
+went back from `READY-TO-BUILD` to `DESIGN` on `2026-09-28` *(§9.6)*, and `Q76` §4-`E` rules that
+**`Q75` DEPENDS on `Q76`**: `Q75`'s `S0` is `Q76`'s first step, and its `S1`/`S2` assume one answer
+to *"where is this variable"*. ⛔ **Do not resume `Q75` at `S1`.**

@@ -2,9 +2,15 @@
 state: LIVE
 updated: 2026-09-28
 build-state: DESIGN — NOTHING BUILT, AND NOTHING IS TO BE STARTED (user, 2026-09-28: "yes, record
-  both, do not start anything"). A and C are RESOLVED (remove, both sequenced inside B); B, D and E
-  still carry leans and are unapproved. ⛔ A resolved decision is not a licence to build: no slice
-  of this document, including Q75's S0, has been authorised.
+  both, do not start anything" · "not approved, i want it recorded so i can return to it any time").
+  A and C are RESOLVED (remove, both sequenced inside B); B, D and E carry leans and are NOT
+  approved. ⛔ A resolved decision is not a licence to build: no slice of this document, including
+  Q75's S0, has been authorised.
+  ⛔⛔ AND A AND C ARE INERT ON THEIR OWN — read this before treating them as work in hand. Both
+  resolve to "remove, sequenced inside B", and B is undecided. If B is never taken, NEITHER removal
+  happens: A standalone is ~200 lines and PARKS under the user's own rule, and C is impossible
+  because scope can only go once occurrence identity supplies the keying. ⇒ the two resolutions are
+  real decisions hanging off an open premise, not a backlog. §10 is the way back in.
 current-answer: §0 is the proposal in one paragraph and §1 the measurements that justify it.
   §4 carries the decisions — A and C are RESOLVED with the measurement each was decided on; B, D, E
   are leans. §5 is what is DELETED and §6 what is KEPT-BUT-RE-EXPRESSED — read both before quoting
@@ -401,3 +407,53 @@ the six duplicates each shadow a clean twin that predates them.
 `WorkingState` per primitive genuinely is a limit)*, the design was architect-reviewed, and `Q4`
 gated the hazardous scope behind safeguards. ⛔ **What went wrong was not the build — it was
 treating an author's "this is incomprehensible" as a documentation request.**
+
+---
+
+## 10. ⭐⭐⭐ THE WAY BACK IN — **parked deliberately, `2026-09-28`**
+
+> 🔒 **User:** *"not approved, i want it recorded so i can return to it any time."*
+> ⇒ ⛔ **This is NOT a stalled batch and NOT a backlog item.** It is a decision left open on
+> purpose, with everything needed to take it already measured. **Nothing expires.**
+
+### 10.1 ⭐ The ONE question to answer on return
+
+> **Do we adopt `B` — one contiguous blackboard block per running AI primitive, root and children
+> alike?**
+
+⭐ **Everything else follows.** `A` and `C` are already decided *and fire only if `B` is yes*; `D`
+and `E` are subordinate to it. ⛔ **There is no second question to prepare.**
+
+### 10.2 📐 What is already measured, so it need not be re-derived
+
+| the question | ✅ the answer, and where |
+|---|---|
+| does the root really differ from a hosted child? | ✅ §1.1 — root is ≥2 slots, a hosted child is 1 |
+| is this a new model? | ⛔ no — §0, it is `DESIGN_Occurrence_Scoped_Storage` §3's own thesis, and its `O3` row is the unfinished half |
+| what does `B` cost in data migration? | ✅ **nothing** — §7, the store is `[DataPolicy(NoScenario)]` |
+| what does retiring shared memory save? | ✅ **10 files / 1 356 lines** + a vertical slice of the compiler — §4-`A` |
+| what does retiring scope save? | ✅ **~200 production sites, 77 author-facing, for 8 authored uses** — §4-`C` |
+| will anything shipped break? | ⛔ **no production behaviour uses any of it** — §1.4 |
+| does `PlatoonHillAttack2` have to die? | ⛔ **no** — §6: keep it, re-point it at the clean twins |
+| why was it built? | ✅ §9 — an architect-reviewed capability slice, and the author's complaint arrived the next day |
+
+### 10.3 ⚠ The ONE thing still unmeasured, and it belongs to `B`'s first step
+
+📐 **Whether the four `Behavior`-scoped uses can be re-expressed with the HOST owning the mutation**
+*(children return values, the host writes)*. ⭐ If yes, decision `D`'s `TryWrite` is unnecessary and
+`IHostVariableAccess`'s read-only rule survives untouched *(§D.1)*. ⇒ **a read of the six
+`HillAssault2I_*` graphs' write patterns** — ⛔ not needed to decide `B`, only to execute it.
+
+### 10.4 🔴 The findings that are waiting on this, and what happens to each
+
+| id | if `B` is taken | if `B` is dropped |
+|---|---|---|
+| [`CE-418`](Blueprint_Issues_Tracker.md) *(two offset authorities)* | ⭐ its fix is `B`'s first step | 🔴 **must still be fixed on its own** — it is a live defect either way, and `Q75` is blocked on it |
+| [`CE-420`](Blueprint_Issues_Tracker.md) *(`Role=State` default dropped)* | ⭐ subsumed | must be fixed in `ProvisionStatefulSlots` |
+| [`CE-421`](Blueprint_Issues_Tracker.md) *(shadow carry-over)* | ⭐ independent — fix either way | same |
+| [`CE-422`](Blueprint_Issues_Tracker.md) *(`Entity` scope)* · [`CE-423`](Blueprint_Issues_Tracker.md) *(`Node` scope silently skipped)* | ⭐⭐ **both DISSOLVE** — the scope they describe stops existing | 🔴 **both become real fixes** — reword one, diagnose the other |
+| [`CE-424`](Blueprint_Issues_Tracker.md) *(stale seam header)* | ⭐ fix while touching the seam | fix anyway, it is two sentences |
+
+⇒ ⭐⭐⭐ **`CE-418` is the one that does not wait.** It is a live defect in two user-facing surfaces
+*(StructEdit's typed params editor and the replay predicate compiler)*, it blocks `Q75`, and its fix
+is identical under both outcomes. ⛔ **Everything else can sit.**
