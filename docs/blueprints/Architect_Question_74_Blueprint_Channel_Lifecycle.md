@@ -1,19 +1,21 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-28
-build-state: PARTLY BUILT - section 4 APPROVED by the user 2026-09-28 ("approved, go ahead and
-  build it, including retrofitting"). D-C is BUILT as CE-402 and D-A2's retrofit as CE-403 (both
-  in 2c320079c); D-A2's derivation pass is BUILT as CE-388 slice 1. STILL OPEN: D-B1 (the
-  flattener auto-bind), D-E (deferred pending rail 5's measurement), D-D1 (restated - see below).
-  Section 9 is the AS-BUILT and carries every deviation.
+build-state: BUILT except one open user decision. Section 4 APPROVED by the user 2026-09-28
+  ("approved, go ahead and build it, including retrofitting"). BUILT: D-C as CE-402 and D-A2's
+  retrofit as CE-403 (2c320079c); D-A2's derivation as CE-388 slice 1 (c69405a0d); D-F, D-B1 and
+  D-D1 (6dcde3542). WITHDRAWN: D-E - rail 5 MEASURED 2026-09-28 and its premise is false, see 9.6.
+  STILL OPEN: the VALIDATOR question (the user's call, see 9.5) and CE-405 (found while measuring
+  rail 5, see 9.7). Section 9 is the AS-BUILT and carries every deviation.
 current-answer: section 4 is the five decisions, each with a lean. Read section 0 FIRST - it
   carries a defect found while writing this question (C0: a blueprint channel command is WIPED
   by ChannelArbitrationSystem on the next tick) which reframes CE-388 from "exit cleanup" to
   "the whole channel lifecycle, and the CLAIM half is missing too". Then read D-A, whose lean was
   CORRECTED by the user on 2026-09-28 - it opens with the reachability table that decides it.
   Section 1 is the INVENTORY, section 3 the diagrams, section 5 the blast radius, section 6 the
-  acceptance rails. SECTION 9 IS THE AS-BUILT - read it before quoting section 4 as a plan,
-  because three of its decisions were amended by measurement during the build.
+  acceptance rails - ALL SIX NOW CLOSED. SECTION 9 IS THE AS-BUILT - read it before quoting
+  section 4 as a plan, because FOUR of its decisions were amended by measurement during the build,
+  and D-E was withdrawn outright (9.6). 9.7 carries CE-405.
 stale-below: nothing.
 known-rot: nothing outstanding; two corrections are recorded IN PLACE and must not be re-inherited.
   (1) The CE-388 tracker row says "the .bp.json declares its channels" - D-A does not hand-declare.
@@ -360,7 +362,11 @@ enforcement is opt-in through an attribute nobody applied. ⚠ **That is the str
 `D-D1`:** the existing mechanism did not fail loudly, it simply never engaged. ⛔ It is also a small
 finding in its own right — whichever arm is chosen, those two thunks should gain `[WritesChannel]`.
 
-### `D-E` — the opt-out shape
+### `D-E` — the opt-out shape · ⛔⛔ **WITHDRAWN `2026-09-28` — MEASURED AWAY, NOT DEFERRED**
+
+> 🔴 **Rail ⑤ measured the premise and it is FALSE. See §9.6.** The arms below are kept so the record
+> shows what was considered; ⛔ **none of them is to be built.**
+
 
 | arm | reasoning |
 |---|---|
@@ -396,7 +402,7 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 | ② | an HSM state whose blueprint activity writes Locomotion gets a **non-zero `OnExitActionId`** with no authoring *(`D-A`+`D-B`)* | bind an explicit `OnExit` ⇒ it must be preserved, not overwritten |
 | ③ | on exit, `ActiveAction == 0` **and `ActionInstanceId` INCREMENTED** *(never `= default`)* | set `= default` ⇒ red, per `BD1-DESIGN.md` §1.1 |
 | ④ | a blueprint that commands **no** channel emits **byte-identical** output | ⭐ the no-churn gate `E3b-0` and `CE-397` both learned the hard way |
-| ⑤ | 📐 **the MEASUREMENT that may delete `D-E`:** release-on-exit then claim-on-entry in the **same tick** leaves no observable gap | — |
+| ⑤ | ✅ **MEASURED `2026-09-28` — NO GAP.** release-on-exit then claim-on-entry in the **same tick** leaves nothing observable. `CE404_R5a`/`R5b` in `LocomotionDispatcherTests.cs`; **⇒ `D-E` WITHDRAWN**. See §9.6 | ⭐ **`R5b` IS the inverse edit**: run the dispatcher BETWEEN the release and the claim ⇒ one frame with no executor at all |
 | ⑥ | derivation **fails loud** on a construct it cannot see | add an opaque node ⇒ a diagnostic, ⛔ never an empty set |
 
 ---
@@ -508,6 +514,59 @@ project plus four reference edits, against a linked-file precedent that is alrea
 
 | | |
 |---|---|
-| **`D-B1`** | the flattener auto-bind — the half that makes cleanup actually HAPPEN. Needs `D-F` landed first |
-| **`D-E`** | ⛔ **do not build until rail ⑤ measures the gap.** `CE382_R5` already proved the newly entered state's activity runs in the SAME tick, so release-then-reclaim may cost nothing observable — in which case `D-E` is deleted, not built |
-| **`D-D1`** | restated by amendment ②; ⚠ **it is now really two questions** — *"auto-bind for the C# route too?"* and *"should the validator be wired up at all?"* — and the second is the user's call |
+| ⚠ **the VALIDATOR question** | ⛔ **the user's call, not decided.** `HsmGraphValidator.ValidateChannelSafety` has no production caller and the wrong key shape. 🔴 **And measurement `2026-09-28` reframes it: repairing the key ALONE would make it actively WRONG** — the auto-bind sets `ExitActionId` and leaves `OnExitAction == null`, while the rule demands `state.OnExitAction == required`, so a repaired validator would red-flag `HsmTwoChannelRegionsDemo`, the very asset `D-B1` fixed. ⚠ Note also that *"no production caller"* is **as designed**: `docs/projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md` §7 item 7 specifies it as a **test-suite** helper |
+| ⭐ **`CE-405`** | the blueprint lowering bumps `ActionInstanceId` unconditionally where every C# writer guards it — found while measuring rail ⑤. See §9.7 |
+| ⭐⭐ **the EDITOR END-TO-END CHECK** | §8.4 of the resume doc. ⛔ needs the WINDOWS session |
+
+⭐ **Closed since this section was written:** `D-B1` and `D-D1` both BUILT (`6dcde3542`); `D-F` BUILT as a
+linked file (§9.4); `D-E` **WITHDRAWN** (§9.6).
+
+### 9.6 🔴 AMENDMENT ④ — **`D-E` is DELETED, and the measurement says why**
+
+📐 **What rail ⑤ measured.** `D-E`'s premise was that release-then-reclaim *"drops the command for a
+frame — a visible stutter on a driving vehicle."* ⛔ **It does not, and the reason is frame ordering,
+not luck:**
+
+| the claim | measured |
+|---|---|
+| the dispatcher is the ONLY observer of a channel | ✅ `LocomotionDispatcherSystem.cs:62,88` — it alone reads `ActionInstanceId`/`ActiveAction` and drives the executor |
+| it runs ONCE per frame, AFTER the brain | ✅ **`CgfLogicPack.cs:193-194`** — the pack appends `_cognitiveRuntimeModule.SimulationSystems` to the Simulation list and THEN `_actionDispatchModule.SimulationSystems`, and module-group order **is** array position *(its own comment at `:206`)*. ⭐ Corroborated for the blueprint route by `BlueprintTickSystem.cs:17` `[UpdateBefore(typeof(LocomotionDispatcherSystem))]` |
+| the new state's activity runs in the SAME tick as the transition | ✅ `CE382_R5` *(`PolledTransitionKernelTests.cs:208`)* |
+
+⇒ 🔒 **the `ActiveAction == 0` written by the `ExitCleanup_*` thunk lives between two statements of one
+brain tick and is overwritten before anything reads it.**
+
+✅ **`CE404_R5a`** applies the two production idioms verbatim inside one tick and asserts a clean
+hand-off with the muscle driven on the hand-off frame itself. ⭐⭐ **`CE404_R5b` is the red-proof and it
+is the interesting half**: the same two writes with the dispatcher run BETWEEN them produce exactly one
+frame on which **no executor runs at all**. ⇒ the gap `D-E` feared is real — and the schedule, not an
+opt-out flag, is what prevents it.
+
+⛔⛔ **So `D-E` is WITHDRAWN rather than deferred.** A `KeepChannelsOnExit` flag would add an authoring
+surface, an editor field and a DTO bit to prevent something that cannot happen.
+
+### 9.7 ⚠ FOUND WHILE MEASURING RAIL ⑤ — **`CE-405`, the unconditional `ActionInstanceId++`**
+
+📐 **The asymmetry.** `ChannelCommandLowering.cs:68` emits `__ch.ActionInstanceId++` with **no
+condition**. ⛔ Every production C# channel writer guards it instead — `CgfNodes.cs:305,313` /
+`348-351` / `384-387` / `580-582` compute
+`bool needsActivation = channel.ActiveAction != <id> || channel.Status == NodeStatus.Failure`.
+
+⇒ 🔴 `LocomotionDispatcherSystem.cs:62` reads any change in `ActionInstanceId` as *"a new action was
+dispatched"* and calls `OnExit(previous)` + `OnEnter(current)`. For `MoveTo`, `OnEnter` re-plans the
+path. **A blueprint issuing a channel command on a per-tick path re-plans every frame.**
+
+⚠⚠ **Not exercised today, and the reason is incidental.** 📐 Measured over 6 frames against the one
+shipped blueprint that issues a channel command, `HillAssault2ReverseToBaseline`: `ActionInstanceId`
+stays at **1**, `OnEnter` fires **once** — because its generated `TickCore` gates the command behind
+`ws.__phase` (`__block_entry` sets `ws.__phase = 1` and never re-enters). ⇒ **the graph's own wait
+structure is doing the guarding the emitter does not.**
+
+⭐⭐ **And §8.4's planned editor fixtures are exactly the unguarded shape** — an HSM activity blueprint
+issuing `MoveTo` while in the state, with no wait to gate it.
+
+⛔ **Filed, not fixed, deliberately.** Copying `needsActivation` verbatim would suppress the re-enter
+when the ACTION is unchanged but the PARAMS changed — and `CgfNodes.cs:461-463` *(Wander)* re-enters
+deliberately on a fresh destination. ⇒ **the open question is what counts as a NEW command** — action
+id only · action id + params bytes · an explicit re-issue op — and it is a `Q74` decision, not a
+mechanical edit.

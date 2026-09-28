@@ -6,9 +6,10 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-28
 build-state: ✅ authoring programme COMPLETE (stages 1-2, all nine rails). ⏭ The LIVE work is the
-  CHANNEL-LIFECYCLE programme in §8 - built: CE-402, CE-403, CE-388 (D-A2/D-B1/D-D1/D-F); left:
-  rail 5, then D-E only if it measures a gap, the validator question, and the editor fixtures.
-  Branch `behaviors` @ 6dcde3542.
+  CHANNEL-LIFECYCLE programme in §8 - built: CE-402, CE-403, CE-388 (D-A2/D-B1/D-D1/D-F), and
+  CE-404 (rail 5 MEASURED - no gap, so D-E is WITHDRAWN rather than built). Left, in order: the
+  validator question (the USER'S CALL - and measurement reframed it, see §8.2), CE-405, and the
+  editor fixtures. Branch `behaviors`.
   ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
   (2026-09-28: CE-397 rail ④, CE-398/CE-400 rails ⑨/⑥ + the CE-399 sizing fix, CE-401 rail ⑦ —
   see §7.2a). ⚠ The sentence below is the 2026-09-27 state and is kept for its detail:
@@ -306,6 +307,8 @@ git stash list                   # must still show the RootParamsBytes probe
 | `D-F` | **ONE `HsmActionKey`**, moved to `Fdp.Toolkits.Analyzers/Shared/`, `<Compile Link>`-ed into the compiler and Persistence | `6dcde3542` |
 | `D-B1` | blueprint cleanup thunk emitted + registered; `HsmEmitCore` bakes `.OnExitId(n)` **only when the state has no `OnExit`** | `6dcde3542` |
 | `D-D1` | the SAME auto-bind for the C# route, predicate read off the Roslyn `Compilation` | `6dcde3542` |
+| `CE-404` | ⭐⭐ **rail ⑤ MEASURED — there is no release-then-reclaim gap ⇒ `D-E` WITHDRAWN, not built.** `CE404_R5a`/`R5b` in `LocomotionDispatcherTests.cs` | *this batch* |
+| `CE-402` | *(row only)* the tracker still read `[ ] OPEN` although the fix shipped in `2c320079c` — closed | *this batch* |
 
 ⭐ **The concrete result:** `HsmTwoChannelRegionsDemo` bakes `.OnExitId(26097)` / `.OnExitId(46817)`,
 matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` / `_FireChannel`.
@@ -315,10 +318,12 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 
 | # | what | note |
 |---|---|---|
-| **1** | ⭐⭐ **rail ⑤ — MEASURE the release-then-reclaim gap** | 📄 `Q74` §6 ⑤. `CE382_R5` already proved the newly entered state's activity runs in the SAME tick ⇒ ⭐ **`D-E` may be DELETED rather than built.** ⛔ Do not build `D-E` before this measurement |
-| **2** | `D-E` — a per-state `KeepChannelsOnExit` opt-out | **only if ⑤ shows a visible gap** |
-| **3** | ⚠ **the validator question — USER'S CALL, not decided** | `HsmGraphValidator.ValidateChannelSafety` has **no production caller** and the **wrong key shape**. Wire it up, or delete it? ⛔ Do not quietly do either |
-| **4** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this** | see §8.4 |
+| **1** | ⚠ **the validator question — USER'S CALL, not decided** | `HsmGraphValidator.ValidateChannelSafety` has **no production caller** and the **wrong key shape**. 🔴 **Reframed by measurement `2026-09-28`, read this before deciding:** *"no production caller"* is **as designed** — [`Fdp.Toolkits.Analyzers.md`](../projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md) §7 item 7 specifies it as a **test-suite** helper. ⛔⛔ **And repairing the key ALONE would make it actively WRONG**: the auto-bind sets `ExitActionId` and leaves `OnExitAction == null`, while the rule demands `state.OnExitAction == required` ⇒ it would red-flag `HsmTwoChannelRegionsDemo`, the asset `D-B1` just fixed. ⭐ Session lean: **re-aim it** (match the short name, as the dispatcher does; accept `ExitActionId != 0`; one rail), ⛔ neither wire-into-production nor delete. 📄 `Q74` §9.5 |
+| **2** | ⭐ **`CE-405`** — the blueprint lowering bumps `ActionInstanceId` **unconditionally** where every C# writer guards it | 📄 `Q74` §9.7. ⛔ **Filed, not fixed on purpose**: the naive `needsActivation` copy breaks "same action, NEW params ⇒ re-plan" (`CgfNodes.cs:461-463`, Wander). ⚠ **Latent today** (the one shipped blueprint gates it behind `ws.__phase`) and **exercised by the §8.4 fixtures**, which are exactly the unguarded shape |
+| **3** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this** | see §8.4. ⛔ needs the WINDOWS session |
+
+⭐ **Done since this list was written:** rail ⑤ measured (`CE-404`) ⇒ **`D-E` WITHDRAWN**, so it is no
+longer on this list at all.
 
 ### 8.3 ⛔⛔ TRAPS THIS PROGRAMME PAID FOR — **do not re-derive these**
 
