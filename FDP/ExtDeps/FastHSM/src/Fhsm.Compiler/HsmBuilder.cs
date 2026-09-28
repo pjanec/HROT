@@ -147,6 +147,27 @@ namespace Fhsm.Compiler
             return this;
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-B1</c> — bake an EXPLICIT exit action id.</b>
+        /// The mirror of <see cref="ActivityId(ushort)"/>, and it exists for the same reason: a
+        /// BLUEPRINT-hosted activity's exit-cleanup registers under an id no authorable name hashes
+        /// to. ⛔ Not for hand-written cleanups — use <see cref="OnExit(string)"/>, whose FQN hash
+        /// is the identity.
+        ///
+        /// <para>⚠⚠ <b>THE FILL-AN-EMPTY-SLOT RULE IS ENFORCED BY THE EMITTER, NOT HERE.</b>
+        /// 📐 <c>HsmFlattener:173</c> reads <c>ExitActionId != 0 ? ExitActionId : hash(OnExitAction)</c>
+        /// — the explicit id WINS over the name — so this builder cannot express "only if unset".
+        /// ⭐ <c>HsmEmitCore</c> therefore emits <c>.OnExitId(n)</c> only for a state that has no
+        /// <c>OnExitAction</c>, which is what keeps an authored cleanup authoritative. ⛔ A caller
+        /// that sets both gets the id, silently — do not do that.</para>
+        /// </summary>
+        public StateBuilder OnExitId(ushort actionId)
+        {
+            // ⭐ The SAME field the JSON parser and CE-383's ActivityId shape already use; 0 = unset.
+            _state.ExitActionId = actionId;
+            return this;
+        }
+
         public StateBuilder TimerAction(string actionName)
         {
             _state.TimerAction = actionName;

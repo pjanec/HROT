@@ -33,6 +33,15 @@
   <ItemGroup>
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits\Blueprints\Shared\BlueprintTierLadder.cs"
              Link="Compiler\Shared\BlueprintTierLadder.cs" />
+
+    <!-- CE-388 / Q74 D-F: ONE spelling of the HSM exit-cleanup id. This emitter REGISTERS the
+         cleanup thunk under it; HsmEmitCore BAKES the same id into the HSM blob; the generated
+         HsmActionRegistrar computes it for the C# route. Three producers, one formula, LINKED —
+         see the fuller note in Hrot.AiEditor.Persistence.csproj.
+         🔒 User ruling 2026-09-28: "no duplicating the HsmActionKey formula, must be shared."
+         ⛔ CE-403 measured what a disagreement costs: a lookup that misses with no error anywhere. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
+             Link="Compiler\Shared\HsmActionKey.cs" />
   </ItemGroup>
 
   <ItemGroup>

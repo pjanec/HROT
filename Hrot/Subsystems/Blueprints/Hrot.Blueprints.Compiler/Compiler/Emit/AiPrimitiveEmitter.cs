@@ -385,6 +385,9 @@ internal static class AiPrimitiveEmitter
                 case AiPrimitiveHosting.HsmAction:
                     EmitHsmActivityThunk(e);
                     e.WriteLine();
+                    // ⭐⭐⭐ CE-388 / Q74 D-B1 — the RELEASE half of the channel lifecycle.
+                    EmitHsmExitCleanupThunk(e, asset);
+                    e.WriteLine();
                     break;
                 case AiPrimitiveHosting.HsmGuard:
                     EmitHsmGuardThunk(e);
@@ -592,6 +595,72 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("{");
         e.Indent();
         EmitHsmOccurrenceBody(e, "TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);");
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-B1</c> — the exit-cleanup thunk for a blueprint-hosted HSM
+    /// activity. The author declares NOTHING; the channel set is DERIVED.</b>
+    ///
+    /// <para>🔒 <b>The user's constraint:</b> <i>"the most common use case is a default so the user
+    /// does not need to author unless he needs something extra."</i> ⇒ the flattener binds this as
+    /// the state's <c>OnExit</c> whenever the state has none of its own, so a state whose activity
+    /// drives a channel releases it on exit with no authoring at all.</para>
+    ///
+    /// <para>⭐ <b>The body is the SAME idiom as the C# route</b> —
+    /// <c>HsmActionGenerator.EmitExitCleanupThunk</c> — and as <c>ChannelArbitrationSystem</c>:
+    /// zero <c>ActiveAction</c> and <b>INCREMENT</b> <c>ActionInstanceId</c>, never
+    /// <c>= default</c>. 📄 <c>brain-death/BD1-DESIGN.md</c> §1.1 explains why: resetting to default
+    /// makes <c>ActionInstanceId == DispatchedInstanceId</c>, so the executor's <c>OnExit</c> never
+    /// fires and the muscle drives forever.</para>
+    ///
+    /// <para>⚠ <b>Emitted even when the derived set is EMPTY</b>, and that is deliberate. The
+    /// alternative — emit only when non-empty — would force the HSM side to know each blueprint's
+    /// channel set in order to decide whether an id exists to bind, which means shipping that set
+    /// across the netstandard wall and keeping two producers in step. ⛔ <c>CE-403</c> measured what
+    /// that costs. ⭐ An empty cleanup is a genuine no-op; the coupling is not.</para>
+    ///
+    /// <para>⛔⛔ <b>An INCOMPLETE derivation never reaches here as "no channels".</b>
+    /// <c>BlueprintChannelDerivation</c> reports <c>IsComplete == false</c> with the opaque callees
+    /// named, and the caller raises a diagnostic instead of emitting a silently-empty body.</para>
+    /// </summary>
+    private static void EmitHsmExitCleanupThunk(CSharpEmitter e, IrAsset asset)
+    {
+        var derived = BlueprintChannelDerivation.Derive(asset);
+
+        e.WriteLine("/// <summary>CE-388: releases the channels this blueprint's activity claims, on state exit.</summary>");
+        e.WriteLine("public static unsafe void HsmExitCleanup(void* instance, void* context, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)");
+        e.WriteLine("{");
+        e.Indent();
+
+        if (derived.ChannelComponentFqns.Count == 0)
+        {
+            e.WriteLine("// CE-388: this blueprint commands no actuator channel, so there is nothing to");
+            e.WriteLine("//         release. The thunk still exists so the HSM side can bind one id");
+            e.WriteLine("//         unconditionally instead of tracking which blueprints have channels.");
+        }
+        else
+        {
+            e.WriteLine("var __bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
+            e.WriteLine("var __repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(__bridge->WorldHandle).Target!;");
+
+            int n = 0;
+            foreach (var channelFqn in derived.ChannelComponentFqns)
+            {
+                var v = "__ch" + n++;
+                e.WriteLine($"if (__repo.HasComponent<global::{channelFqn}>(__bridge->Self))");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine($"ref var {v} = ref __repo.GetComponentRW<global::{channelFqn}>(__bridge->Self);");
+                // ⛔ zero + INCREMENT, never `= default` — see the summary.
+                e.WriteLine($"{v}.ActiveAction     = 0;");
+                e.WriteLine($"{v}.ActionInstanceId = unchecked({v}.ActionInstanceId + 1u);");
+                e.Outdent();
+                e.WriteLine("}");
+            }
+        }
+
         e.Outdent();
         e.WriteLine("}");
     }

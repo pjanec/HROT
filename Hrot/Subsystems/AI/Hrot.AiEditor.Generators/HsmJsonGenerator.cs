@@ -127,11 +127,78 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             return null;
         };
 
+        // ⭐⭐⭐ CE-388 / Q74 D-B1 — the same lookup, returning the GENERATED CLASS NAME.
+        //
+        //   🔒 That string is what BOTH sides hash to get the exit-cleanup id: CSharpEmitter
+        //      registers the thunk under HsmActionKey.ForExitCleanup(className), and HsmEmitCore
+        //      bakes .OnExitId(<the same expression>) into the blob. The formula itself is a LINKED
+        //      file (Q74 D-F) precisely so there is one of it.
+        //   ⛔ Same null discipline as above, and for a sharper reason: a non-AiPrimitive emits no
+        //      HsmExitCleanup thunk at all, so resolving one would bake an id nothing registered —
+        //      and the ONLY symptom would be a channel that is never released. CE-403 measured that
+        //      exact class of silent miss in the sibling C# table.
+        System.Func<System.Guid, string?> blueprintClassNameResolver = assetId =>
+        {
+            foreach (var schema in blueprintSchemas)
+            {
+                if (schema.AssetId != assetId) continue;
+                if (!schema.IsAiPrimitive) return null;
+                return schema.GeneratedClassName;
+            }
+            return null;
+        };
+
+        // ⭐⭐⭐ CE-388 / Q74 D-D1 — "does this C# activity declare [WritesChannel]?"
+        //
+        //   🔒 User, 2026-09-28: "same auto-bind" — one rule for both routes, so a C# activity that
+        //      writes a channel releases it on exit without the author binding anything.
+        //   ⭐ Answered from the Roslyn COMPILATION, which is the only thing that knows: the
+        //      attribute lives on the method symbol, and no artefact carries it to the emitter.
+        //      (This is the same capability RoslynClrSignatureResolver already demonstrates.)
+        //   ⛔ Cached per compilation, not per state — GetTypeByMetadataName is not free and an
+        //      asset can bind the same activity in many states.
+        var writesChannelCache = new System.Collections.Generic.Dictionary<string, bool>(System.StringComparer.Ordinal);
+        System.Func<string, bool> csharpWritesChannel = actionFqn =>
+        {
+            if (writesChannelCache.TryGetValue(actionFqn, out bool cached)) return cached;
+
+            bool result = false;
+            int dot = actionFqn.LastIndexOf('.');
+            if (dot > 0)
+            {
+                string typeName   = actionFqn.Substring(0, dot);
+                string methodName = actionFqn.Substring(dot + 1);
+                var type = compilation.GetTypeByMetadataName(typeName);
+                if (type != null)
+                {
+                    foreach (var member in type.GetMembers(methodName))
+                    {
+                        foreach (var attr in member.GetAttributes())
+                        {
+                            // ⭐ The SAME comparison HsmActionGenerator.cs:129 makes. ⛔ Not a
+                            //   name-only check: an unrelated [WritesChannel] in another namespace
+                            //   must not turn on a cleanup binding.
+                            if (attr.AttributeClass?.ToDisplayString() == "Fbt.Kernel.WritesChannelAttribute")
+                            {
+                                result = true;
+                                break;
+                            }
+                        }
+                        if (result) break;
+                    }
+                }
+            }
+
+            writesChannelCache[actionFqn] = result;
+            return result;
+        };
+
         // Emit topology core (CreateBuilder + [HsmDefinition] thunk, NO [HsmLayout]).
         string source;
         try
         {
-            source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver);
+            source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver,
+                                                 blueprintClassNameResolver, csharpWritesChannel);
         }
         catch (Exception ex)
         {

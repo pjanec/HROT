@@ -794,6 +794,63 @@ namespace Fdp.Toolkit.Behavior.Tests
                 "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel", keys);
         }
 
+        /// <summary>
+        /// 🔴🔴🔴 <b><c>CE388_R8</c> — THE PARITY RAIL: the exit-cleanup id BAKED INTO THE BLOB equals
+        /// the id the generated registrar REGISTERED.</b> 📄 <c>Q74</c> §9.4 (<c>D-F</c>), §4 <c>D-D1</c>.
+        ///
+        /// <para>⭐⭐⭐ <b>Both sides are read from ARTEFACTS</b>, never recomputed here — the same
+        /// discipline as acceptance rail ④ (<c>HsmBlueprintGuardIdAgreementTests</c>), and for the
+        /// same reason: an id this test derives itself would agree with a wrong emitter.</para>
+        ///
+        /// <para>🔒 <b>This is the rail that makes the shared formula checkable.</b> The user ruled
+        /// <i>"no duplicating the HsmActionKey formula, must be shared"</i>; <c>HsmEmitCore</c> hashes
+        /// the short method name to bake <c>.OnExitId(n)</c> and <c>HsmActionGenerator</c> hashes it
+        /// to register <c>ExitCleanup_*</c>. ⛔ If those ever diverge the state binds an action
+        /// nothing registered, and the ONLY symptom is a channel that is never released — no
+        /// exception, no diagnostic. 📌 <c>CE-403</c> measured exactly that shape as break ③.</para>
+        ///
+        /// <para>⚠ <b>And it is the only place this can be caught.</b> The GOLDEN corpus cannot:
+        /// <c>AiAssetCorpus</c> has no Roslyn compilation, so it cannot answer "does this action
+        /// declare <c>[WritesChannel]</c>" and emits no <c>OnExitId</c> at all. ⇒ a regression in
+        /// <c>D-D1</c> would move ZERO baselines.</para>
+        /// </summary>
+        [Fact]
+        public void CE388_R8_TheBakedExitCleanupId_EqualsTheIdTheRegistrarRegistered()
+        {
+            var asm = typeof(global::Hrot.AI.Behaviors.Machines.HsmShowcase).Assembly;
+
+            // ── LEFT: what the generated registrar REGISTERED, by name ────────────────────
+            var map = RequiredExitCleanups();
+            Assert.Contains("Activity_DriveChannel", map.Keys);
+            Assert.Contains("Activity_FireChannel",  map.Keys);
+
+            var registrar = asm.GetType("Hrot.AI.Behaviors.Generated.HsmActionRegistrar")!;
+            registrar.GetMethod("RegisterAll", BindingFlags.Public | BindingFlags.Static)!
+                     .Invoke(null, null);
+
+            var actionTable = (System.Collections.IDictionary)typeof(Fhsm.Kernel.HsmActionDispatcher)
+                .GetField("ActionTable", BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetValue(null)!;
+
+            // ── RIGHT: what the COMPILED BLOB bound as each state's exit action ───────────
+            // ⭐ The GRAPH the generated CreateBuilder() produced — i.e. exactly what HsmEmitCore
+            //   wrote as `.OnExitId(n)`. ⛔ Read from the artefact, never recomputed here.
+            var graph = global::Hrot.AI.Behaviors.Machines.HsmTwoChannelRegionsDemo.CreateBuilder().Build();
+
+            var bound = new List<ushort>();
+            foreach (var state in graph.States.Values)
+                if (state.ExitActionId != 0 && state.ExitActionId != 0xFFFF)
+                    bound.Add(state.ExitActionId);
+
+            // ⭐⭐ The claim: the blob bound TWO cleanups it never authored — one per channel-writing
+            //    activity — and every one of them is a key the registrar actually registered.
+            Assert.Equal(2, bound.Count);
+            foreach (ushort id in bound)
+                Assert.True(actionTable.Contains(id),
+                    $"the blob binds OnExitActionId {id}, which NOTHING registered — the two sides "
+                    + "of the shared HsmActionKey have diverged (Q74 D-F)");
+        }
+
         /// <summary>The REAL generated registrar's cleanup table, read from the game assembly.</summary>
         private static IReadOnlyDictionary<string, string> RequiredExitCleanups()
         {

@@ -95,7 +95,7 @@ public sealed record AiAssetKind(
                 //    A baseline that under-records cannot catch a regression in what it omits.
                 // ⚠ Harmless until CE-384 gave the emitter a third argument — which is exactly how a
                 //    silent default survives: nothing in the corpus exercised it.
-                ("g.cs",           HsmEmitCore.EmitTopologyCore(dto, null, AiAssetCorpus.BlueprintIdResolver)),
+                ("g.cs",           HsmEmitCore.EmitTopologyCore(dto, null, AiAssetCorpus.BlueprintIdResolver, AiAssetCorpus.BlueprintClassNameResolver)),
                 ("Registrar.g.cs", HsmBridgeEmitCore.EmitBridge(dto)),
             };
             // ⭐ Batch 92 (92b): mirrors the generator exactly — the orchestrator part exists only when
@@ -234,6 +234,28 @@ public static class AiAssetCorpus
                 if (schema.AssetId != assetId) continue;
                 if (!schema.IsAiPrimitive) return null;
                 return unchecked((ushort)schema.BlueprintId);
+            }
+            return null;
+        };
+    });
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-388</c> — the class-name half of the pair, from the SAME parse.
+    /// ⛔ The corpus must build BOTH resolvers or its goldens diverge from production output by
+    /// omission rather than by change — the under-recording failure <c>CE-397</c> already hit once.
+    /// </summary>
+    public static Func<Guid, string?> BlueprintClassNameResolver => LazyClassNameResolver.Value;
+
+    private static readonly Lazy<Func<Guid, string?>> LazyClassNameResolver = new(() =>
+    {
+        var schemas = Hrot.AiEditor.Generators.GeneratedBlueprintSchemaCatalog.Parse(BlueprintInputs());
+        return assetId =>
+        {
+            foreach (var schema in schemas)
+            {
+                if (schema.AssetId != assetId) continue;
+                if (!schema.IsAiPrimitive) return null;
+                return schema.GeneratedClassName;
             }
             return null;
         };

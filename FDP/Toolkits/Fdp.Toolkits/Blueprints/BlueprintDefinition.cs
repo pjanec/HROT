@@ -68,6 +68,26 @@ public sealed record BlueprintDefinition
     public int ParamsSize { get; init; }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-388</c> / <c>Q74 D-A2</c> — the actuator channel components this blueprint's
+    /// graph commands, DERIVED by the compiler.</b> Empty for the overwhelming majority.
+    ///
+    /// <para>🔒 Nothing is authored: every channel-command node already names its channel type
+    /// (<c>BuiltInChannelCommandCatalog</c>), so the compiler holds the fact and the author does
+    /// not repeat it.</para>
+    ///
+    /// <para>⚠ <b>Informational — the exit CLEANUP does not go through this list.</b> The binding
+    /// is an action id (the generated <c>HsmExitCleanup</c> thunk, keyed by the shared
+    /// <c>HsmActionKey</c>), deliberately, so the HSM side never has to know a blueprint's channel
+    /// set. ⛔ Do not reconstruct the cleanup from this property — that would be the second
+    /// producer <c>R-132</c> forbids.</para>
+    ///
+    /// <para>⛔⛔ <b>EMPTY IS NOT "UNKNOWN".</b> The compiler emits this only when its derivation is
+    /// COMPLETE; when a graph calls hardcoded C# or another asset it raises a diagnostic instead.
+    /// So an empty list here means "commands no channel", never "we could not tell".</para>
+    /// </summary>
+    public IReadOnlyList<Type> WritesChannels { get; init; } = Array.Empty<Type>();
+
+    /// <summary>
     /// ⭐ The SAME <see cref="Fdp.Toolkit.Behavior.ParseParamsDelegate"/> a behaviour uses -- only the
     /// destination pointer differs (a behaviour passes <c>&amp;bb.BehaviorParameters[0]</c>, an Instance
     /// passes <c>slotPayload + ParamsOffset</c>). Bakes the declared defaults, then overlays the

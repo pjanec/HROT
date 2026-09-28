@@ -1,4 +1,4 @@
-namespace Fdp.Toolkit.Behavior.Analyzers
+namespace Fdp.Toolkit.Behavior.Shared
 {
     /// <summary>
     /// ⭐⭐⭐ <b><c>E6</c>/<c>W9</c> — the ONE place an HSM action or guard id is computed.</b>
@@ -16,6 +16,28 @@ namespace Fdp.Toolkit.Behavior.Analyzers
     /// ⚠⚠ <b>The ALGORITHM is shared here; the KEY STRING is not yet, and that is a live question —
     /// see <see cref="ForActionName"/>.</b>
     /// </para>
+    /// </summary>
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-388</c> / <c>Q74 D-F</c> — SHARED ACROSS THE netstandard2.0 WALL, `2026-09-28`.</b>
+    ///
+    /// <para>🔒 <b>User:</b> <i>"no duplicating the HsmActionKey formula, must be shared."</i>
+    /// ⛔⛔ <b>Why it is a LINKED FILE and still <c>internal</c>, rather than a public type.</b>
+    /// 📐 The three consumers — this analyzer, <c>Hrot.Blueprints.Compiler</c>'s netstandard leg and
+    /// <c>Hrot.AiEditor.Persistence</c> — are ALL netstandard2.0, so a <c>public</c> type in net8.0
+    /// <c>Fdp.Toolkits</c> is unreachable from every one of them. ⚠ And a shared ASSEMBLY is worse
+    /// here than anywhere else in the repo: this project ships as
+    /// <c>OutputItemType="Analyzer" ReferenceOutputAssembly="false"</c> to <b>12</b> consumers with
+    /// ZERO project references, so any dependency it gained would have to ship as an Analyzer item
+    /// into all 12 — <c>CE-379</c>'s exact defect class, which has its own gate script.</para>
+    ///
+    /// <para>⇒ ⭐ one source file, <c>&lt;Compile Link=…&gt;</c>-ed into each consumer, on the
+    /// <c>BlackboardParamsExpression</c> / <c>OccurrenceSlotKey</c> / <c>BlueprintTierLadder</c> /
+    /// <c>StructSizeResolver</c> pattern — four-for-four in this repo for this wall.</para>
+    ///
+    /// <para>⛔⛔ <b>THE PARITY THIS BUYS IS THE WHOLE POINT.</b> <c>CE-403</c> measured what a
+    /// disagreement costs: the cleanup table is keyed on the SHORT method name while an asset names
+    /// its activity by FQN, so the lookup misses silently. A second copy of this formula would be
+    /// the same failure with a different spelling.</para>
     /// </summary>
     internal static class HsmActionKey
     {

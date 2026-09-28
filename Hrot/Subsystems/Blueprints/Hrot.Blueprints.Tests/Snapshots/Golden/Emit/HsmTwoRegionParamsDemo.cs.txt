@@ -93,6 +93,14 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
         TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);
     }
     
+    /// <summary>CE-388: releases the channels this blueprint's activity claims, on state exit.</summary>
+    public static unsafe void HsmExitCleanup(void* instance, void* context, global::Fhsm.Kernel.Data.HsmCommandWriter* writer)
+    {
+        // CE-388: this blueprint commands no actuator channel, so there is nothing to
+        //         release. The thunk still exists so the HSM side can bind one id
+        //         unconditionally instead of tracking which blueprints have channels.
+    }
+    
 }
 
 [global::Fdp.Toolkit.Blueprints.Attributes.BlueprintRegistrar]
@@ -111,5 +119,6 @@ public static class BlueprintRegistrar_HsmTwoRegionParamsDemo_1434647B_Bp
             StateClrType = typeof(HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState),
         });
         global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction(unchecked((ushort)HsmTwoRegionParamsDemo_1434647B_Bp.BlueprintId), (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&HsmTwoRegionParamsDemo_1434647B_Bp.HsmActivity);
+        global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction(50120, (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&HsmTwoRegionParamsDemo_1434647B_Bp.HsmExitCleanup);
     }
 }
