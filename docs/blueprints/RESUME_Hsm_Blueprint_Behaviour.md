@@ -5,14 +5,24 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-28
-build-state: ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
+build-state: ✅ authoring programme COMPLETE (stages 1-2, all nine rails). ⏭ The LIVE work is the
+  CHANNEL-LIFECYCLE programme in §8 - built: CE-402, CE-403, CE-388 (D-A2/D-B1/D-D1/D-F); left:
+  rail 5, then D-E only if it measures a gap, the validator question, and the editor fixtures.
+  Branch `behaviors` @ 6dcde3542.
+  ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
   (2026-09-28: CE-397 rail ④, CE-398/CE-400 rails ⑨/⑥ + the CE-399 sizing fix, CE-401 rail ⑦ —
   see §7.2a). ⚠ The sentence below is the 2026-09-27 state and is kept for its detail:
   ✅✅ **STAGE 1 AND STAGE 2 ARE BOTH COMPLETE AND PUSHED** — `CE-381`..`CE-387`, plus
   `CE-396` found and fixed inside `CE-385`, plus the design's §9 ③ validator rule which had been
   neither built nor filed. Branch `behaviors`. ⭐ **The user's acceptance description now works AND
   is authorable from the editor.** ⏭ **NEXT IS §7** — what is genuinely left, and it is short.
-current-answer: ⭐⭐⭐ **START AT §0** (three commands), then **§7.2a** (all nine rails closed) and **§7.3 (WHAT IS LEFT)**. ⛔ §2 is now
+current-answer: ⭐⭐⭐ **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
+  work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
+  acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
+  that must not be re-derived, §8.4 the editor end-to-end check the user originally asked for.
+  ⛔ The OWNING design is Architect_Question_74_Blueprint_Channel_Lifecycle.md and its §9 is the
+  AS-BUILT: where §4 and §9 disagree, §9 wins.
+  (Historic: START AT §0 (three commands), then §7.2a and §7.3.) ⛔ §2 is now
   HISTORY — it describes Stage 2 before it was built; read §2 only for the measurements, never for
   what to do. §3 is the corrections that must not be re-inherited. §4 the standing constraints.
   §5 the gate baselines. §6 what is open and NOT ours.
@@ -264,3 +274,110 @@ binary.** 📌 It surfaced as a phantom red in a rail whose production code was 
 ⭐ **`touch` the file after every restore.** ⚠ This is the same disease as the two stale-binary traps
 in `CLAUDE.md`, in a third disguise: there the build failed or the wrong project was built; **here the
 right project was built and MSBuild decided it had nothing to do.**
+
+---
+
+## 8. ⭐⭐⭐ THE CHANNEL-LIFECYCLE PROGRAMME — **`Q74`, and it is where the work now is** *(`2026-09-28`)*
+
+> ⭐⭐⭐ **RESUMING? START HERE, NOT AT §7.** §1–§7 are the HSM+blueprint AUTHORING programme, which is
+> COMPLETE *(all nine §9 acceptance rails closed)*. Everything since is a SECOND programme that came
+> out of one user question — *"how do I check this in the editor?"* — and it is the live one.
+
+### 8.0 📐 STATE, verifiable in one command
+
+| | |
+|---|---|
+| branch | **`behaviors`**, pushed, at **`6dcde3542`** |
+| owning design | 📄 [`Architect_Question_74_Blueprint_Channel_Lifecycle.md`](Architect_Question_74_Blueprint_Channel_Lifecycle.md) — **§9 IS THE AS-BUILT; where §4 and §9 disagree, §9 WINS** |
+| ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: RootParamsBytes always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
+
+```bash
+git log --oneline -8 behaviors   # 6dcde3542 back to 84808faef is this programme
+git stash list                   # must still show the RootParamsBytes probe
+```
+
+### 8.1 ✅ BUILT AND PUSHED
+
+| id | what | commit |
+|---|---|---|
+| `CE-402` | a blueprint-issued channel command **CLAIMS** the channel. ⛔ Before it, `ChannelArbitrationSystem` wiped **every** blueprint channel command on the next tick — nothing ever moved, on the BTree route too | `2c320079c` |
+| `CE-403` | `[WritesChannel]` on the two `[HsmAction]` channel writers ⇒ `RequiredExitCleanups` non-empty **for the first time in this repo's history** | `2c320079c` |
+| `CE-388` slice 1 | `BlueprintChannelDerivation` — exact for channel-command ops + `GraphCall` reachability, **incomplete-with-names** for hardcoded C# and cross-asset calls | `c69405a0d` |
+| `D-F` | **ONE `HsmActionKey`**, moved to `Fdp.Toolkits.Analyzers/Shared/`, `<Compile Link>`-ed into the compiler and Persistence | `6dcde3542` |
+| `D-B1` | blueprint cleanup thunk emitted + registered; `HsmEmitCore` bakes `.OnExitId(n)` **only when the state has no `OnExit`** | `6dcde3542` |
+| `D-D1` | the SAME auto-bind for the C# route, predicate read off the Roslyn `Compilation` | `6dcde3542` |
+
+⭐ **The concrete result:** `HsmTwoChannelRegionsDemo` bakes `.OnExitId(26097)` / `.OnExitId(46817)`,
+matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` / `_FireChannel`.
+**Those two channels stopped leaking on state exit.**
+
+### 8.2 ⏭ WHAT IS LEFT — **in order**
+
+| # | what | note |
+|---|---|---|
+| **1** | ⭐⭐ **rail ⑤ — MEASURE the release-then-reclaim gap** | 📄 `Q74` §6 ⑤. `CE382_R5` already proved the newly entered state's activity runs in the SAME tick ⇒ ⭐ **`D-E` may be DELETED rather than built.** ⛔ Do not build `D-E` before this measurement |
+| **2** | `D-E` — a per-state `KeepChannelsOnExit` opt-out | **only if ⑤ shows a visible gap** |
+| **3** | ⚠ **the validator question — USER'S CALL, not decided** | `HsmGraphValidator.ValidateChannelSafety` has **no production caller** and the **wrong key shape**. Wire it up, or delete it? ⛔ Do not quietly do either |
+| **4** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this** | see §8.4 |
+
+### 8.3 ⛔⛔ TRAPS THIS PROGRAMME PAID FOR — **do not re-derive these**
+
+| trap | what it cost |
+|---|---|
+| ⭐⭐⭐ **ENUMERATE THE SNAPSHOT ROOTS before regenerating**, not the files your diff touched | `Hrot.Blueprints.Tests/Snapshots/` has **FIVE** roots — `DebugMap`, `Demos`, `Emit`, `Golden`, `Schedule`. Regenerating only the two the diff pointed at cost **a wasted 3 m 14 s gate run**. `ls <proj>/Snapshots/` first |
+| ⛔⛔ **THE GOLDEN CORPUS CANNOT CATCH A `D-D1` REGRESSION** | `AiAssetCorpus` has **no Roslyn compilation**, so it cannot answer *"does this action declare `[WritesChannel]`"* and emits **no `OnExitId` at all**. ⇒ a break in `D-D1` moves **zero baselines**. `CE388_R8` is the ONLY check — and it reads ARTEFACTS *(baked id vs the dispatcher's `ActionTable`)*, never emitted text |
+| ⚠ **`HsmFlattener:173` — the baked id WINS over the name** | `ExitActionId != 0 ? ExitActionId : hash(OnExitAction)`. ⇒ the builder **cannot** express "only if unset"; the fill-an-empty-slot rule lives at the EMIT site (`s.OnExitAction == null`). ⛔ Move it into the builder and authored cleanups get silently overridden |
+| ⛔⛔ **the cleanup id is keyed on the SHORT method name** | `HsmActionGenerator.cs:565` emits `m.Name`; assets hold the FQN. `CE403_R2` pins it. ⛔ Hashing the FQN binds an id nothing registered — **no error anywhere**, the channel simply never releases |
+| ⚠ **`[WritesChannel]` is opt-in and always will be** | an UNDECLARED C# writer is undetectable. ⭐ What the compiler CAN do is refuse to guess when it cannot classify a call at all — that is `IsComplete == false`, and it must never be treated as "writes nothing" |
+
+### 8.4 ⭐⭐ THE EDITOR END-TO-END CHECK — **the original question, still unanswered**
+
+🔒 **User:** *"a scenario with entity using hsm that calls blueprint guards and blueprint actions, to test it end to end."*
+
+📐 **Measured gaps, and `CE-402` removed the one that made it impossible:**
+
+| # | gap | state |
+|---|---|---|
+| ① | **no HSM asset names a blueprint activity** — `ActivityBlueprintName` is **zero** across all six `.hsm.json` | ⛔ OPEN. ⚠ **This is also why `D-B1` has no subject yet** |
+| ② | **no scenario uses an HSM** — the four name only `MoveToLocation` / `FireAtTarget` / `PlatoonHillAttack` | ⛔ OPEN |
+| ③ | nothing shipped would be VISIBLE — `HsmPolledGuardDemo` is 2 states and one bool | ⛔ OPEN |
+| ④ | a blueprint channel command never survived a tick | ✅ **FIXED — `CE-402`** |
+
+⭐⭐ **The build order, and step 1 needs no new C#:** `BuiltInChannelCommandCatalog.cs:73-87` already
+ships `MoveTo`→Locomotion and `AimAndFire`→Weapon as palette nodes, so the activity blueprints are
+authorable **in the editor** — which exercises `CE-385`/`386`/`387` at the same time.
+
+1. an activity blueprint issuing `MoveTo` · 2. one issuing `AimAndFire` · 3. an HSM asset: state A
+activity = the MoveTo blueprint, A→B polled + guarded by `HsmGuardDemo`, state B activity = the
+AimAndFire blueprint · 4. a scenario copying `test-move` with `behaviorName` → the new HSM.
+
+⚠ **`HsmPolledGuardDemo` + `HsmGuardDemo` already exist** and the guard half is proved end-to-end
+(`CE398_R1`–`R3`). ⛔ **Running the editor needs the WINDOWS session** — not possible from cloud.
+
+### 8.5 📐 GATE BASELINE at `6dcde3542`
+
+| suite | |
+|---|---|
+| `Hrot.Blueprints.Tests` | **4048** passed / 18 skipped |
+| `Fdp.Toolkits.Tests` | **2352** passed |
+| `Hrot.Hsm.Editor.Tests` | **615** passed |
+| `Hrot.AiEditor.Generators.Tests` | **342** passed |
+| `Fhsm.Tests` | **335** passed |
+
+⭐ Doc gates: `tracker-counts.py --check` *(open 112 / done 379 +1 refuted)* · `rulings-check.py`
+*(38/38)* · `design-digest.py --check` · `mermaid-check.mjs`.
+
+### 8.6 🔒 STANDING CONSTRAINTS — **still binding** *(and §4 above still applies)*
+
+⭐ Push only to `behaviors`, `git push -u origin behaviors`, retry network errors 2/4/8/16 s ·
+⛔ **never commit the stash** · ⭐ plain-chat questions, **never** the `AskUserQuestion` widget ·
+⭐ GitHub blob links for every doc and task id, and gloss every id on first mention *(user is on
+mobile)* · ⭐ run builds/tests/searches in the BACKGROUND · ⛔ no model identifier in any commit,
+PR or repo artefact · ⛔ no PR unless explicitly asked ·
+⚠ **cross-lane, STOP-and-report:** `Hrot/Runner/Hrot.SystemTests/`, `Hrot.IG.Tests`, `FDP/Engine/Fdp.Core`.
+
+### 8.7 ⚠ OPEN ELSEWHERE, NOT OURS
+
+⭐ `CE-389`..`CE-392` *(the §11 call-cost thread)* · `CE-395` *(priority bits — filed not fixed)* ·
+`CE-393`/`CE-394` *(BACKEND lane)* · ⛔ `DESIGN_Resolver_World_Reach.md:346` carries a dead
+`CgfCuratedBehaviorRegistrar` citation — flagged in `E8c`'s `known-conflict`, deliberately not edited.
