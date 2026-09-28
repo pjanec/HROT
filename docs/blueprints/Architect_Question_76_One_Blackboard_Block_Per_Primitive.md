@@ -1,11 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-28
-build-state: DESIGN — decisions A–E carry leans; nothing built. A requires the user's ruling
-  because R-137 governs it (a capability is being removed, not refactored).
+build-state: DESIGN — NOTHING BUILT, AND NOTHING IS TO BE STARTED (user, 2026-09-28: "yes, record
+  both, do not start anything"). A and C are RESOLVED (remove, both sequenced inside B); B, D and E
+  still carry leans and are unapproved. ⛔ A resolved decision is not a licence to build: no slice
+  of this document, including Q75's S0, has been authorised.
 current-answer: §0 is the proposal in one paragraph and §1 the measurements that justify it.
-  §4 carries the decisions. §5 is what is DELETED and §6 what is KEPT-BUT-RE-EXPRESSED — read
-  both before quoting a deletion. §7 is why this is cheap (nothing here is persisted).
+  §4 carries the decisions — A and C are RESOLVED with the measurement each was decided on; B, D, E
+  are leans. §5 is what is DELETED and §6 what is KEPT-BUT-RE-EXPRESSED — read both before quoting
+  a deletion. §7 is why this is cheap (nothing here is persisted).
+decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will the removal simplify
+  the code dramatically? if not, let's park it. if yes, let's remove it." Each resolution therefore
+  carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
+  ~200 lines and would park under the same rule. Reuse the rule on the next such question.
 stale-below: nothing.
 known-rot: none.
 known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the opposite on ONE point —
@@ -211,15 +218,34 @@ graph TD
 
 ## 4. ⭐⭐⭐ THE DECISIONS
 
-### A — retire cross-entity shared memory? ⚖️ **LEAN: YES — and it needs the USER's ruling, not mine**
+### A — retire cross-entity shared memory? ✅ **RESOLVED `2026-09-28`: REMOVE, SEQUENCED INSIDE `B`**
+
+> 🔒 **The user's decision RULE, verbatim:** *"will the removal simplify the code dramatically? if
+> not, let's park it. if yes, let's remove it."* ⇒ ⭐⭐ **the ruling is the rule plus the
+> measurement below**, not a preference — and it is reusable on the next such question.
 
 ⭐ 1 consumer, and it is its own proof (§1.4). ⭐ Cross-entity **write** was already deferred to
 *"a deferred-event bus… mirroring `AssignBehaviorEvent`→`BehaviorIngressSystem`"* — so today's shape
 is reads-by-memory and writes-by-messages, which is where slicing stopped rather than a decision.
 ⛔ **Rejected — keep it as an unpublished feature:** it is the arm that forces **name-only keying**,
 and 37 same-entity reads pay that collision domain for it.
-🔒 **`R-137` governs this** — a capability is being removed. ⇒ **the user rules; this document only
-measures.**
+
+📐 **THE SIMPLIFICATION, MEASURED** *(this is what the rule was applied to)*:
+
+| | |
+|---|---|
+| **whole files deleted** | **10, totalling 1 356 lines** — `SharedNodeDrawers.cs` 534 · `BlueprintSharedStateTests.cs` 277 · `BlueprintSharedState.cs` 216 · `ISharedStructTypeProvider.cs` 75 · `HillAttackSharedStateOps` 58 · `HillAttackSharedState` 50 · `SquadRallyState` 44 · `StatefulScopeQueries.cs` 46 · `IStatefulScopeAsset.cs` 36 · `StatefulSlotScope.cs` 20 |
+| scattered arms | `GetSharedNode`/`SetSharedNode` **119 refs / 19 files** · `SharedTypeId` 79/12 · `BlueprintSharedState` 26/13 · `IrOp_ReadShared`/`WriteShared` 15/4 |
+| ⭐⭐ **it is a FULL VERTICAL SLICE of the compiler** | an arm in **every** stage: node model → pin schema → `Stage0_Rehydrate` → `Stage2_Validate` + `BP2040`–`2042` → `Stage5_Schedule` → IR + `IrPrinter` → `StatementEmitter` → editor palette/drawers/command sink/graph model → the runtime accessor. ⇒ **one whole node kind leaves the blueprint language, end to end** |
+| replacement cost | ~150 lines — `IHostVariableAccess.TryWrite`, re-point `PlatoonHillAttack2` at the clean twins (§6), one composition rail |
+
+⚠⚠ **SEQUENCING, and it is part of the ruling:** 📐 **`A` ALONE is NOT dramatic** — the `Target`
+pin, one `Stage0` arm, one demo asset and `T38`, order of 200 lines. ⛔ On the user's own rule that
+would be *"park"*. ⭐⭐ **The 1 356 lines only become available once `B` gives the 58 `state`
+references a home** ⇒ **do NOT cut `A` standalone**; it lands inside `B` or not at all.
+
+🔒 **`R-137` is satisfied** — the capability is removed by an explicit user decision against a
+measurement, not silently lost to a refactor. 📄 `R-150` is the general form.
 
 ### B — one block per running primitive? ⚖️ **LEAN: YES**
 
@@ -228,12 +254,42 @@ measures.**
 ⚠ **Cost:** one `StructureHash` per block instead of per region ⇒ a hot reload that changes any
 variable invalidates that primitive's whole state. Acceptable — reload reprovisions anyway.
 
-### C — retire `WorkingStateScope`? ⚖️ **LEAN: YES, all three values**
+### C — retire `WorkingStateScope`? ✅ **RESOLVED `2026-09-28`: REMOVE, SEQUENCED INSIDE `B`**
 
-`Node` has **0** users and silently does nothing *(`CE-423`)*; `Behavior` becomes "a region of the
-block"; `Entity` goes with decision `A`. ⇒ the enum, its authoring surface and its three key arms
-all disappear. ⭐ **This is the single biggest cut in author-facing complexity**, and it is what the
-user's framing asks for.
+> 🔒 **User:** *"..same rule should be applied to scoping the blackboard variables"* — i.e. the same
+> measure-the-simplification test as `A`. ⭐ It clears, and **more decisively than `A` does.**
+
+`Node` has **0** declared users and silently does nothing *(`CE-423`)*; `Behavior` becomes "a named
+region of the block"; `Entity` goes with decision `A`.
+
+📐 **THE SIMPLIFICATION, MEASURED** *(production references, tests excluded unless stated)*:
+
+| | |
+|---|---|
+| 🔴 **THREE PARALLEL ENUMS FOR ONE CONCEPT** | `WorkingStateScope` *(authoring, netstandard2.0)* **38 refs / 16 files** · `StatefulSlotScope` *(runtime)* **29 / 10** · `OccurrenceSlotScope` *(the key)* **27** ⇒ **94 references across three spellings.** ⚠ The triplication is itself a symptom of `F5`'s two key schemes |
+| ⭐⭐⭐ **author-facing surface** | **77** references of Scope in the variable panel, the authoring window and the variable editor — **a three-valued dropdown on every blackboard variable** |
+| file format | **3 members** — `BehaviorTreeAssetDto:50`, `HsmAssetDto:300`, `BlackboardVariableEntry:41` ⇒ both hosts and the editor model |
+| runtime manifest | **102** `Scope` references under `Fdp.Toolkits/Behavior/` |
+| resolution machinery | `ResolveStatefulSlotKey` 11 · `StatefulScopeVariable` 11 · `ResolveVariableRoleScope` 2, plus their bodies |
+| whole files | `StatefulScopeQueries.cs` 46 · `IStatefulScopeAsset.cs` 36 · `StatefulSlotScope.cs` 20 = **102 lines** *(also counted in `A`)* |
+| test files referencing it | **37** *(27 + 10)* |
+| ⭐⭐⭐ **against AUTHORED USES in the whole corpus** | **8** — 4 `Behavior`, 4 `Entity`, **0 `Node`** *(and `Node` is the DEFAULT)* |
+
+⇒ ⭐⭐⭐ **~200 production reference sites, 77 of them author-facing, for 8 authored uses.**
+
+⭐⭐ **Why this is the stronger case even though `A` deletes more lines.** Scope is **the only one of
+these concepts an author must hold in their head**: a dropdown where *one value is silently broken*,
+*one means something other than its name* and *one works*. The shared-state accessor, for all its
+1 356 lines, is invisible to an author who never places the node. 🔒 That is exactly `R-150`'s
+criterion — complexity the author must understand is the cost that matters.
+
+⭐ **The residue is small:** the 4 `Behavior`-scoped variables become named regions of the host's
+block — which is what `Behavior` scope already means. ⚠ **The key function SHRINKS, it does not
+vanish:** `ComputeNested(hostKey, siteId, assetId)` survives for hosted occurrences; only the three
+scope arms go.
+
+⚠ **Same sequencing as `A`:** `C` is only possible once `B` supplies keying from occurrence
+identity. ⇒ **not a standalone cut.**
 
 ### D — add `IHostVariableAccess.TryWrite`? ⚖️ **LEAN: YES — the only new capability**
 
