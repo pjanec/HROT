@@ -224,7 +224,9 @@ internal sealed class IgNodeBootstrapper : SharedApplicationBootstrapper
 
     /// <inheritdoc/>
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
-        => new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.IG").Build();
+        => new Fdp.Toolkit.Scenario.ScenarioSerializerBuilder("Hrot.IG")
+            .WithUnknownComponentPolicy(Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip)
+            .Build();
 
     // ── Phase 4a: Populate togglable system groups ────────────────────────────
 

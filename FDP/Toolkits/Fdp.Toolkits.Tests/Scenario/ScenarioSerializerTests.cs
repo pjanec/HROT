@@ -524,6 +524,63 @@ namespace Fdp.Toolkit.Scenario.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <b><c>CE411_R1</c> — the LENIENT half of the unknown-component policy.</b> The same
+        /// DOM that throws under the default policy loads under
+        /// <see cref="UnknownComponentPolicy.WarnAndSkip"/>: the alien key is skipped, the entity
+        /// survives, and the known components on it are still injected.
+        ///
+        /// <para>🔒 <b>Why this option exists.</b> 📐 Measured 2026-09-28: P4 retired
+        /// <c>BrainBlackboard</c> without migrating the scenario corpus, so every scenario still
+        /// carrying the key was unloadable — the 2PC <c>PrepareLive</c> faulted, the commit was
+        /// skipped, and no exercise could start. ⇒ on a live cluster, refusing the whole scenario
+        /// is a worse outcome than loading it one component short.</para>
+        ///
+        /// <para>⛔ <b>It does not replace the migration chain.</b> A PLANNED retirement ships a
+        /// migrator (<c>V2ToV3_RemoveBrainBlackboard</c>); this policy is the safety net for the
+        /// ones nobody planned. And the strict default stays — see the test below, which is the
+        /// reason this is a policy and not a behaviour change.</para>
+        /// </summary>
+        [Fact]
+        public void CE411_R1_UnknownComponentKey_IsSkipped_UnderWarnAndSkip()
+        {
+            var entity = _repo.CreateEntity();
+            _repo.SetComponent(entity, new DummyPosition { X = 7f });
+
+            var dom = BuildSerializer().Serialize(_repo, new ScenarioHeader("TestSubsystem"));
+
+            var entitiesNode = (JsonObject)dom["Entities"]!;
+            var entityNode   = (JsonObject)entitiesNode.First().Value!;
+            entityNode.Add("RetiredComponent999", new JsonObject { ["Field"] = JsonValue.Create(42) });
+
+            using var freshRepo = new EntityRepository();
+            RegisterCommonComponents(freshRepo);
+            var lenient = new ScenarioSerializerBuilder("TestSubsystem")
+                .WithUnknownComponentPolicy(UnknownComponentPolicy.WarnAndSkip)
+                .Build();
+
+            // ⭐ No throw — and the entity is still there with its KNOWN component intact.
+            lenient.Deserialize(freshRepo, dom);
+
+            var loaded = new List<Entity>();
+            foreach (var e in freshRepo.Query().With<DummyPosition>().Build())
+                loaded.Add(e);
+
+            Assert.Single(loaded);
+            Assert.Equal(7f, freshRepo.GetComponent<DummyPosition>(loaded[0]).X);
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE411_R2</c></b> — the default is still <see cref="UnknownComponentPolicy.Throw"/>.
+        /// ⛔ If this ever flips, every editor and CI load silently starts dropping data, which is
+        /// exactly what the test below was written to prevent.
+        /// </summary>
+        [Fact]
+        public void CE411_R2_TheDefaultPolicyIsStillThrow()
+        {
+            Assert.Equal(UnknownComponentPolicy.Throw, BuildSerializer().UnknownComponentPolicy);
+        }
+
+        /// <summary>
         /// An unknown component key in the DOM must throw to surface version-skew / typos
         /// rather than silently dropping data.
         /// </summary>

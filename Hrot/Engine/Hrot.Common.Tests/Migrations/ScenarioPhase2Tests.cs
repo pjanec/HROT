@@ -44,7 +44,10 @@ public sealed class ScenarioPhase2Tests : IDisposable
         Assert.True(JsonEnvelope.HasEnvelope(dom));
         var meta = JsonEnvelope.Read(dom);
         Assert.Equal(DocType, meta.DocType);
-        Assert.Equal(1, meta.SchemaVersion);
+        // ⚠ Assert against the CONSTANT, not a literal. This line read `Assert.Equal(1, ...)` and
+        //   had been failing since the serializer moved to v2 — a literal here cannot survive a
+        //   schema bump, which is the whole reason ScenarioSchemaVersionAgreementTests exists.
+        Assert.Equal(ScenarioSerializer.CurrentSchemaVersion, meta.SchemaVersion);
     }
 
     // ── T02 ──────────────────────────────────────────────────────────────────

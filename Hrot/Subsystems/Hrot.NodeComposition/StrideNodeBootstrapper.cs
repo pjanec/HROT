@@ -324,7 +324,9 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
 
     /// <inheritdoc/>
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
-        => HrotScenarioSerializerFactory.Build(registry ?? new BehaviorRegistry());
+        => HrotScenarioSerializerFactory.Build(
+            registry ?? new BehaviorRegistry(),
+            unknownComponentPolicy: Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
 
     /// <inheritdoc/>
     protected override void PopulateSystems(

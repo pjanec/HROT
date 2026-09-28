@@ -7,11 +7,20 @@ namespace Hrot.SimHost.Serializers
 {
     public static class HrotScenarioSerializerFactory
     {
+        /// <param name="unknownComponentPolicy">
+        /// What to do with a component the registry cannot resolve. Defaults to
+        /// <see cref="UnknownComponentPolicy.Throw"/>, which is what the editor, CLI tooling and
+        /// CI want. ⭐ A live-cluster node passes <see cref="UnknownComponentPolicy.WarnAndSkip"/>
+        /// so one retired component cannot make a whole scenario unloadable — measured 2026-09-28,
+        /// when P4's unmigrated BrainBlackboard did exactly that to every shipped scenario.
+        /// </param>
         public static ScenarioSerializer Build(
             BehaviorRegistry behaviorRegistry,
-            BlueprintRegistry? blueprintRegistry = null)
+            BlueprintRegistry? blueprintRegistry = null,
+            UnknownComponentPolicy unknownComponentPolicy = UnknownComponentPolicy.Throw)
         {
             var builder = new ScenarioSerializerBuilder(HrotSubsystemTypes.Scenario)
+                .WithUnknownComponentPolicy(unknownComponentPolicy)
                 .RegisterTranslator(new MissionPlanTranslator(behaviorRegistry))
                 .RegisterTranslator(new TargetMemoryTranslator())
                 .RegisterTranslator(new PassengerBufferTranslator())

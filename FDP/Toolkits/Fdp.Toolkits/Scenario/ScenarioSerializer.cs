@@ -49,11 +49,25 @@ namespace Fdp.Toolkit.Scenario
         /// v2: entity DIS type is now persisted via the <c>DisEntityType</c> translator
         /// (added on top of the v1 component set). Load remains backward-compatible — v1
         /// files simply lack the <c>DisEntityType</c> entry.
+        /// v3: <c>BrainBlackboard</c> is retired, so a document this serializer writes can no
+        /// longer contain it — its output is v3-shaped by construction.
         /// </summary>
-        public const int CurrentSchemaVersion = 2;
+        /// <remarks>
+        /// ⚠⚠ TWO PRODUCERS OF ONE FACT, and they must agree. This constant is what a SAVE
+        /// stamps; <c>Hrot.Common.Scenario.Migrations.ScenarioMigrationModule.CurrentVersion</c>
+        /// is the highest version the migration CHAIN understands. They live in different
+        /// assemblies — Toolkits cannot reference Hrot.Common — so the duplication is structural
+        /// and cannot be collapsed into one symbol.
+        /// ⛔ If they drift, every freshly saved file claims a version the chain then tries to
+        /// migrate, or worse is silently treated as older than it is.
+        /// ⭐ Pinned by <c>ScenarioSchemaVersionAgreementTests</c> in <c>Hrot.Common.Tests</c>,
+        /// which is the one place that can see both.
+        /// </remarks>
+        public const int CurrentSchemaVersion = 3;
 
         private readonly string _subsystemType;
         private readonly IEntityScenarioTranslator[] _translators;
+        private readonly UnknownComponentPolicy _unknownComponentPolicy;
 
         /// <summary>Compiled 1:1 fallback serializer.</summary>
         public FdpAutoSerializer AutoSerializer { get; }
@@ -61,11 +75,41 @@ namespace Fdp.Toolkit.Scenario
         internal ScenarioSerializer(
             string subsystemType,
             IEntityScenarioTranslator[] translators,
-            FdpAutoSerializer autoSerializer)
+            FdpAutoSerializer autoSerializer,
+            UnknownComponentPolicy unknownComponentPolicy = UnknownComponentPolicy.Throw)
         {
-            _subsystemType = subsystemType;
-            _translators   = translators;
-            AutoSerializer = autoSerializer;
+            _subsystemType          = subsystemType;
+            _translators            = translators;
+            AutoSerializer          = autoSerializer;
+            _unknownComponentPolicy = unknownComponentPolicy;
+        }
+
+        /// <summary>
+        /// What this serializer does with a component name the registry cannot resolve.
+        /// See <see cref="UnknownComponentPolicy"/> for why this is per-host.
+        /// </summary>
+        public UnknownComponentPolicy UnknownComponentPolicy => _unknownComponentPolicy;
+
+        /// <summary>
+        /// Applies <see cref="UnknownComponentPolicy"/> to an unresolvable component key.
+        /// Returns true when the caller should skip the key and carry on.
+        /// </summary>
+        private bool HandleUnknownComponent(string caller, string componentName)
+        {
+            if (_unknownComponentPolicy == UnknownComponentPolicy.WarnAndSkip)
+            {
+                Fdp.Core.Logging.FdpLog<ScenarioSerializer>.Warn(
+                    "[ScenarioSerializer] {0}: skipping unknown component type name '{1}'. " +
+                    "It is not registered in the current ComponentTypeRegistry — most likely a " +
+                    "component retired without a migrator. The entity loads without it.",
+                    caller, componentName);
+                return true;
+            }
+
+            throw new InvalidOperationException(
+                $"[ScenarioSerializer] {caller}: unknown component type name '{componentName}'. " +
+                "The scenario file references a component that is not registered in the current " +
+                "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
         }
 
         /// <summary>
@@ -425,11 +469,8 @@ namespace Fdp.Toolkit.Scenario
 
                     // Find type ID by component name.
                     int typeId = FindTypeIdByName(compKvp.Key);
-                    if (typeId < 0)
-                        throw new InvalidOperationException(
-                            $"[ScenarioSerializer] Deserialize: unknown component type name '{compKvp.Key}'. " +
-                            "The scenario file references a component that is not registered in the current " +
-                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
+                    if (typeId < 0 && HandleUnknownComponent("Deserialize", compKvp.Key))
+                        continue;
 
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }
@@ -519,11 +560,8 @@ namespace Fdp.Toolkit.Scenario
                     if (translatorHandled.Contains(compKvp.Key)) continue;
 
                     int typeId = FindTypeIdByName(compKvp.Key);
-                    if (typeId < 0)
-                        throw new InvalidOperationException(
-                            $"[ScenarioSerializer] DeserializeWith: unknown component type name '{compKvp.Key}'. " +
-                            "The scenario file references a component that is not registered in the current " +
-                            "ComponentTypeRegistry. This may indicate a file version skew or a typo.");
+                    if (typeId < 0 && HandleUnknownComponent("DeserializeWith", compKvp.Key))
+                        continue;
 
                     AutoSerializer.TryInject(repo, entity, typeId, compKvp.Value, loadResolver);
                 }

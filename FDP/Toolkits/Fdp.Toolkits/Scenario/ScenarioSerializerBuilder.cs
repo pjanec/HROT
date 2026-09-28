@@ -27,6 +27,7 @@ namespace Fdp.Toolkit.Scenario
         private readonly string _subsystemType;
         private readonly List<IEntityScenarioTranslator> _translators = new();
         private bool _built;
+        private UnknownComponentPolicy _unknownComponentPolicy = UnknownComponentPolicy.Throw;
 
         /// <summary>
         /// Creates a builder for the supplied subsystem type.
@@ -60,6 +61,28 @@ namespace Fdp.Toolkit.Scenario
         }
 
         /// <summary>
+        /// Sets what the serializer does with a component name the registry cannot resolve.
+        /// Defaults to <see cref="UnknownComponentPolicy.Throw"/>.
+        /// </summary>
+        /// <remarks>
+        /// ⚠ Only a live-cluster load should pass <see cref="UnknownComponentPolicy.WarnAndSkip"/>,
+        /// and only as a safety net: refusing a whole scenario because of one retired component
+        /// costs the exercise, while skipping it costs one component. The editor, CLI tooling and
+        /// CI keep the default so a typo or a skew fails loudly, close to the edit that caused it.
+        /// ⛔ A PLANNED retirement is the migration chain's job, never this flag —
+        /// see <c>Migration-system.md</c>.
+        /// </remarks>
+        /// <returns>This builder (fluent API).</returns>
+        public ScenarioSerializerBuilder WithUnknownComponentPolicy(UnknownComponentPolicy policy)
+        {
+            if (_built)
+                throw new InvalidOperationException(
+                    "Cannot set the unknown-component policy after Build() has been called.");
+            _unknownComponentPolicy = policy;
+            return this;
+        }
+
+        /// <summary>
         /// Compiles the <see cref="FdpAutoSerializer"/> and returns a frozen
         /// <see cref="ScenarioSerializer"/>.
         /// </summary>
@@ -73,7 +96,8 @@ namespace Fdp.Toolkit.Scenario
             var autoSerializer = new FdpAutoSerializer();
             autoSerializer.Build();
 
-            return new ScenarioSerializer(_subsystemType, _translators.ToArray(), autoSerializer);
+            return new ScenarioSerializer(
+                _subsystemType, _translators.ToArray(), autoSerializer, _unknownComponentPolicy);
         }
     }
 }

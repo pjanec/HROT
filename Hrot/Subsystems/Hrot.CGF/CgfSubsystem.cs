@@ -1129,7 +1129,14 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             worldReplaced:         cgfGateElm == null ? null : cgfGateElm.OnWorldReplaced));
 
         // 2. CGF-Authoritative Scenario and Episode Load Handlers (must be BEFORE ReferenceLiveLoadHandler)
-        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(_behaviorRegistry!);
+        // ⭐ A live-cluster node loads LENIENTLY: a component the registry cannot resolve is
+        //   skipped with a warning, never a hard failure. Measured 2026-09-28 — P4 retired
+        //   BrainBlackboard without a migrator and every shipped scenario became unloadable,
+        //   the 2PC PrepareLive faulting so an exercise could not start at all. The editor and
+        //   CI keep the strict default so a typo still fails loudly. See UnknownComponentPolicy.
+        var scenarioSerializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(
+            _behaviorRegistry!,
+            unknownComponentPolicy: Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
         var scenarioLoader     = new HrotScenarioLoader(storageProvider, scenarioSerializer.SubsystemType);
 
         // ⭐⭐⭐ CE-046 (design §3 ③) — the shared scenario session, over THIS node's world and bus.

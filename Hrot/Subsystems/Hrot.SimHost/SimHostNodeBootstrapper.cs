@@ -266,7 +266,14 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
     /// <inheritdoc/>
     protected override ScenarioSerializer BuildSerializer(BehaviorRegistry? registry)
     {
-        return HrotScenarioSerializerFactory.Build(registry ?? new BehaviorRegistry());
+        // ⭐ A live-cluster node loads LENIENTLY: a component the registry cannot resolve is
+        //   skipped with a warning, never a hard failure. Measured 2026-09-28 — P4 retired
+        //   BrainBlackboard without a migrator and every shipped scenario became unloadable,
+        //   the 2PC PrepareLive faulting so an exercise could not start at all. The editor and
+        //   CI keep the strict default so a typo still fails loudly. See UnknownComponentPolicy.
+        return HrotScenarioSerializerFactory.Build(
+            registry ?? new BehaviorRegistry(),
+            unknownComponentPolicy: Fdp.Toolkit.Scenario.UnknownComponentPolicy.WarnAndSkip);
     }
 
     /// <inheritdoc/>
