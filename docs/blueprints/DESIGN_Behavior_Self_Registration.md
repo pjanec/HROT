@@ -23,6 +23,12 @@ related-designs:
     design deletes. ⚠ SEQUENCING: land this BEFORE `CE-364`, or those lines are written twice.
   - DESIGN_Parameter_Model.md — owns what a params region IS. This design only carries its TYPE
     from an attribute to the registration.
+  - DESIGN_Per_Variable_Param_Resolver.md — ⭐ `E8c`, still `build-state: DESIGN`. Its inventory
+    item ⑧ and its `D1-b` rejection basis DEPEND on what this design's generator emits: that a
+    curated resolver is registered by BEHAVIOUR NAME and owns the WHOLE behaviour. ⚠ `CE-374`'s
+    deletion left two citations there naming the deleted file; re-measured `2026-09-28` and both
+    conclusions held. ⛔ **If this generator ever gains a finer grain than one `ParseParams` per
+    `BehaviorDefinition`, `D1-b` must be re-opened** — say so here before changing it.
 -->
 
 # DESIGN — **Behaviour self-registration: the curated registrar becomes generated**

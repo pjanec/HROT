@@ -4,12 +4,15 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ENTITY BEHAVIOUR, WITH BLUEPRINT ACTIONS AND GUARDS**. ⚠ A STATE doc, not canon: every
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-27
-build-state: ✅✅ **STAGE 1 AND STAGE 2 ARE BOTH COMPLETE AND PUSHED** — `CE-381`..`CE-387`, plus
+updated: 2026-09-28
+build-state: ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
+  (2026-09-28: CE-397 rail ④, CE-398/CE-400 rails ⑨/⑥ + the CE-399 sizing fix, CE-401 rail ⑦ —
+  see §7.2a). ⚠ The sentence below is the 2026-09-27 state and is kept for its detail:
+  ✅✅ **STAGE 1 AND STAGE 2 ARE BOTH COMPLETE AND PUSHED** — `CE-381`..`CE-387`, plus
   `CE-396` found and fixed inside `CE-385`, plus the design's §9 ③ validator rule which had been
   neither built nor filed. Branch `behaviors`. ⭐ **The user's acceptance description now works AND
   is authorable from the editor.** ⏭ **NEXT IS §7** — what is genuinely left, and it is short.
-current-answer: ⭐⭐⭐ **START AT §0** (three commands), then **§7 (WHAT IS LEFT)**. ⛔ §2 is now
+current-answer: ⭐⭐⭐ **START AT §0** (three commands), then **§7.2a** (all nine rails closed) and **§7.3 (WHAT IS LEFT)**. ⛔ §2 is now
   HISTORY — it describes Stage 2 before it was built; read §2 only for the measurements, never for
   what to do. §3 is the corrections that must not be re-inherited. §4 the standing constraints.
   §5 the gate baselines. §6 what is open and NOT ours.
@@ -231,6 +234,18 @@ puts in `HsmActionDispatcher.GuardTable`. 📄 design **§13.7**.
 🔴 **It also found a golden that UNDER-RECORDED:** `AiAssetCorpus` emitted with no blueprint id
 resolver, so the baseline omitted the baked `.GuardId(...)`. Fixed; only the new asset's baseline
 moved. ⚠ Same silent-default shape as everything else this programme has caught.
+
+### 7.2a ✅✅ **ALL NINE §9 ACCEPTANCE RAILS ARE CLOSED** — `2026-09-28`
+
+⭐ Closed after ④: **⑨** and **⑥** by `CE-398` / `CE-400` *(design §13.8, which also carries `CE-399`,
+a hosted-occurrence params **sizing defect** the end-to-end run surfaced)*, and **⑦** by `CE-401`
+*(design §13.9)*. ⭐⭐ **The rail-to-test map lives in design §9's own table** — ⛔ do not re-derive it
+here; this line only says the work is done.
+
+| ⚠ two things worth not re-litigating | |
+|---|---|
+| **① and ⑨ OVERLAP ON PURPOSE** | ⭐ `CE382_R1` runs the **kernel phase machine** *(names which component broke)*; `CE398_R1` runs the **product** *(catches a broken registrar scan the kernel rail cannot see)*. ⛔ Deleting either loses a distinct signal |
+| **`CE-399` is NOT what unblocked ⑨** | 🔒 reverting it left `CE398_R1` green — it is a correctness fix with **its own rail** `CE399_R1`. ⛔ Do not credit it with rail ⑨ |
 
 ### 7.3 📋 THE REST, AND NONE OF IT BLOCKS THE ACCEPTANCE TEST
 

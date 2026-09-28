@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
+updated: 2026-09-28
 build-state: DESIGN
 current-answer: section 4. D1-a (with its MANDATORY clause four), D2 and D3 are leans awaiting
   approval; D4 is DECIDED (yes, a 4th+5th member - PackedField is unreachable from FDP/Toolkits);
@@ -16,9 +16,20 @@ review: reviewed twice, 2026-09-21. Round 1: the silent-TryRun path, D1's build-
   D5 re-filed as enforcement, A7 scoped by host. One round-2 premise did NOT verify - a
   warn-vs-fail artifact ruling in the asset-management corpus; searched, none found (section 6.1).
 stale-below: nothing.
-known-rot: nothing.
-known-conflict: nothing.
+known-rot: 2026-09-28 - FIXED, not outstanding, recorded so nobody re-derives it. Two citations
+  named CgfCuratedBehaviorRegistrar.cs, which CE-374 DELETED: the problem statement and inventory
+  item 8 (which also had a stale line number, :468 -> :531). Both re-measured against
+  CuratedBehaviorGenerator.cs:278,286 and both conclusions HELD - see the re-measurement note under
+  D1-b in section 4, which also strengthens D1-b's rejection basis from "nobody has done it yet" to
+  a structural property of the registry. Found by coordinator spot-check.
+known-conflict: DESIGN_Resolver_World_Reach.md:346 (the CuratedName row of 7.2a) carries the SAME
+  dead citation to CgfCuratedBehaviorRegistrar.cs:131-138. Its category-error ruling is unaffected -
+  the key is still a behaviour name - but the citation is dead and that document is BUILT/closed.
+  Flagged there in the D1-b note, deliberately not edited.
 related-designs:
+  - DESIGN_Behavior_Self_Registration.md - owns the GENERATOR that now emits every
+    RegisterResolver call (CuratedBehaviorGenerator) and the CE-374 deletion of the hand-written
+    CgfCuratedBehaviorRegistrar. This design's inventory item 8 depends on what that one produces.
   - DESIGN_Resolver_World_Reach.md - owns WHAT a resolver graph is and what it can REACH (R4), the
     publishing currency (7.1) and the selection RULING (7.2). This owns the BEHAVIOUR half of that
     selection: how a blackboard params VARIABLE names one. Its 7.2a records the three-arm shape
@@ -42,8 +53,14 @@ related-designs:
 >
 > ⇒ ⛔ **A behaviour's params can be authored and overridden, but never REFINED.** `PlatoonHillAttack`'s
 > geo-authored `[lat, lon]` still has to reach `IGeographicTransform.ToCartesian` through a **curated
-> C# resolver for the WHOLE behaviour** *(`CgfCuratedBehaviorRegistrar.cs:131–138`)* — which is why a
-> behaviour with one geo variable must hand-write the parse for **all** of them.
+> C# resolver for the WHOLE behaviour** *(`HillAttackCommanderNodes.cs:667`, `[BehaviorResolver("PlatoonHillAttack")]`)*
+> — which is why a behaviour with one geo variable must hand-write the parse for **all** of them.
+>
+> ⭐ **RE-MEASURED `2026-09-28` and the measurement SURVIVES its own citation moving.**
+> ⚠ This line used to cite `CgfCuratedBehaviorRegistrar.cs:131–138`, which **`CE-374` deleted.**
+> 📐 `ResolvePlatoonHillAttackParams` delegates to `ParsePlatoonHillAttackParams`, which deserialises
+> the **whole** `PlatoonHillAttackParamsJsonDto` and writes the **whole** `PlatoonHillAttackParams`
+> struct ⇒ **"hand-write the parse for all of them" is still literally true**, at a new address.
 
 ---
 
@@ -70,7 +87,7 @@ search_code(pattern="RegisterResolver")                                         
 | ⑤ | **`EmitManagedBlackboardVariablesArray`** — the manifest, `internal` so **both** bridges share it | `BTreeBridgeEmitCore.cs:1178`, called at `HsmBridgeEmitCore.cs:178` | ⭐⭐⭐ **the sharing PRECEDENT**: `CE-226` — *"duplicating the manifest emitter instead of sharing it would be the second producer for one slot that `R-132` forbids"* |
 | ⑥ | **`ManagedBlackboardVariable(Name, Type, ByteOffset)`** | `BehaviorRegistry.cs:35` | 🔴 **its consumer-side doc is STALE** — see §5 |
 | ⑦ | **`HostedParamResolvers`** — `Dictionary<Guid, object>`, `Register<T>` / `TryRun<T>` | `HostedParamResolvers.cs:34–90` | ⭐ the only `ResolveParams<T>` registry. ⛔ **keyed by a BARE Guid** — §4 `D1` turns on this |
-| ⑧ | **`BehaviorRegistry.RegisterResolver(name, ParseParamsDelegate, blackboardLayoutType)`** | `BehaviorRegistry.cs:468`, 5 callers | ⛔ **whole-behaviour, keyed by BEHAVIOUR name**; only production use is `CgfCuratedBehaviorRegistrar.cs:131–138` |
+| ⑧ | **`BehaviorRegistry.RegisterResolver(name, ParseParamsDelegate, blackboardLayoutType)`** | `BehaviorRegistry.cs:531` | ⛔ **whole-behaviour, keyed by BEHAVIOUR name.** 🔴 **RE-MEASURED `2026-09-28` — the producer MOVED, the property did not.** ⚠ This row used to say *"`:468`, 5 callers; only production use is `CgfCuratedBehaviorRegistrar.cs:131–138`"* — ⛔ **`CE-374` DELETED that file.** ⭐ The call is now **EMITTED** by `Fdp.Toolkits.Analyzers/CuratedBehaviorGenerator.cs:278` *(6-param shape)* and `:286` *(3-param shape, wrapped)*, one per `[BehaviorResolver]`-attributed method. 📐 **Still exactly 5, and the same 5** — `MoveToLocation`, `FireAtTarget`, `FollowRoute` *(`CgfNodes.cs:161,174,219`)*, `PlatoonHillAttack` *(`HillAttackCommanderNodes.cs:667`)*, `HullDownAttackRun` *(`HillAttackTankNodes.cs:525`)*. ⭐ **Still WHOLE-BEHAVIOUR:** `ApplyResolverOverlay` assigns `def.ParseParams`, **one delegate per `BehaviorDefinition`** — there is no per-variable grain to key on. ⭐ **Still NAME-keyed:** `_resolversByName[name]`, joined through `_nameToId` → `_definitions`. ⭐ **Still carries the DTO:** the generator emits `typeof(...)` as the third argument. ⇒ 🔒 **`D1-b`'s rejection basis in §4 is INTACT** — see the note under it |
 | ⑨ | **`BlueprintDefinition.Resolvers`** — `BlueprintResolverEntry` keyed by **graph name within one asset** | `BlueprintDefinition.cs:57` | ⭐ where a Library asset's resolvers are published today |
 | ⑩ | **`BlueprintRegistrarScanner.ComputeHostedOccurrenceDemands`** | `BlueprintRegistrarScanner.cs:180` | ⭐ the **join precedent**: a pass that reads the topology the generated registrar wrote and joins it to blueprints the same scan staged |
 
@@ -249,6 +266,38 @@ graph TD
 > variable resolved by hand-written C# *while its siblings are blueprint-resolved*, `D1-b` becomes
 > necessary. 📐 **I could not find one** — searched the 30 shipped behaviour assets and the 5
 > `RegisterResolver` call sites; every curated resolver today owns its whole behaviour.
+
+> #### 🔴 RE-MEASURED `2026-09-28` — **the basis rested on a DELETED FILE; the conclusion survives**
+>
+> ⚠ **Found by the coordinator spot-checking this design, and it was a real hole:** the sentence
+> *"every curated resolver today owns its whole behaviour"* was measured against
+> `CgfCuratedBehaviorRegistrar.cs`, which **`CE-374` deleted**. ⛔ An unverified claim resting on a
+> file that no longer exists is not a rejection basis, whatever its conclusion turns out to be.
+>
+> 📐 **Re-measured against the generator that replaced it** *(`CuratedBehaviorGenerator.cs:278,286`)*:
+>
+> | the claim | how it IS | verdict |
+> |---|---|---|
+> | *"5 `RegisterResolver` call sites"* | ⭐ **5 `[BehaviorResolver]` methods**, the same five behaviours, now EMITTED rather than typed | ✅ holds, producer moved |
+> | *"every curated resolver owns its WHOLE behaviour"* | ⭐⭐ `ApplyResolverOverlay` assigns **`def.ParseParams`** — **one delegate per `BehaviorDefinition`.** 📐 Spot-checked the hardest case: `ParsePlatoonHillAttackParams` deserialises the whole `PlatoonHillAttackParamsJsonDto` and writes the whole struct | ✅ **holds, and STRUCTURALLY** — there is no per-variable grain in the registry to own |
+> | *"a name-keyed registry would be a SECOND identity scheme"* | ⭐ `_resolversByName` is still keyed by behaviour name via `_nameToId` → `_definitions` | ✅ holds |
+>
+> ⭐⭐ **The re-measurement made the basis STRONGER than it was.** ⛔ The old wording was an
+> observation about five hand-written call sites — *"nobody has done it yet"*, which a sixth author
+> could falsify tomorrow. ⭐⭐⭐ **`def.ParseParams` being a single delegate is a PROPERTY OF THE
+> REGISTRY**: a curated resolver *cannot* own less than a whole behaviour, so `D1-b` is not
+> unnecessary-so-far, it is **describing a grain ⑧ does not have.**
+>
+> ⚠ **What still would change the lean, restated against the new basis:** a real case wanting one
+> variable resolved by hand-written C# while its siblings are blueprint-resolved. ⭐ Under `D1-a`
+> that author registers into `HostedParamResolvers` under `ResolverKey.Of(assetId, graphName)` —
+> ⛔ still no new identity scheme needed.
+>
+> ⚠ **One neighbour carries the same dead citation and is NOT fixed here:**
+> `DESIGN_Resolver_World_Reach.md:346` *(the `CuratedName` row of §7.2a, `build-state: BUILT`)* also
+> names `CgfCuratedBehaviorRegistrar.cs:131–138`. ⭐ Its **category-error ruling is unaffected** —
+> the key is still a behaviour name — but the citation is dead. Flagged, not edited: that document
+> belongs to a closed programme, and this row now carries the live measurement.
 
 #### 🔴 `D1-a`'s FOURTH CLAUSE — **a SCAN-TIME validation pass, and it is not optional**
 

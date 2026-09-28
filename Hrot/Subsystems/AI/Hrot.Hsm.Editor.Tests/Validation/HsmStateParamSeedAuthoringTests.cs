@@ -167,4 +167,81 @@ public sealed class HsmStateParamSeedAuthoringTests
                 d => d.Code == Hrot.Hsm.Editor.Validation.HsmDiagnosticCode.CrossRegionBlackboardConflict,
                 "a state's ExpressionTargetField is a SEED READ, and concurrent readers are legal");
     }
+
+    // ── CE-401 / ACCEPTANCE RAIL ⑦ — editor model → save → load → generate ───────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE401_R1</c> — <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §9 RAIL ⑦:
+    /// a state's <c>ExpressionTargetField</c> set in the EDITOR survives save → load → generate and
+    /// reaches <c>HsmParamBindings</c>.</b>
+    ///
+    /// <para>🔴 <b>Why this rail is needed although BOTH halves were already railed — and it is the
+    /// exact shape of the defect <c>CE-387</c> fixed.</b> <c>TheSeedBindingSurvivesSaveAndReopen</c>
+    /// above proves the editor model round-trips through the DTO;
+    /// <c>HsmStateParamBindingEmissionTests</c> (in <c>Hrot.AiEditor.Generators.Tests</c>) proves a DTO
+    /// reaches the emitted <c>HsmParamBindings.Register</c> table. ⛔ <b>Both stop at the DTO, from
+    /// opposite sides.</b> ⚠ The emission suite builds its <c>HsmAssetDto</c> BY HAND, so it stays
+    /// green no matter what <c>HsmAssetMapper</c> does — which is precisely how the original defect
+    /// survived: the DTO field and the emitter had both existed since <c>E3b-0</c>, the mapper carried
+    /// the field for TRANSITIONS only, and the production value was therefore always <c>null</c> with
+    /// nothing red.</para>
+    ///
+    /// <para>⚠ <b>The ACT is the PRODUCTION path, not a convenience round-trip.</b> SAVE is
+    /// model → <c>ToDto</c> → JSON; GENERATE is JSON → DTO → <c>EmitBridge</c>. ⛔ The generator never
+    /// loads the editor model, so re-hydrating one here would exercise a path nothing walks.</para>
+    ///
+    /// <para>✅ <b>Red-proof</b> — §9 ⑦'s own stated inverse edit: stop mapping
+    /// <c>ExpressionTargetField</c> for STATES in <c>HsmAssetMapper</c> ⇒ this rail reddens.</para>
+    /// </summary>
+    [Fact]
+    public void CE401_R1_ASeedAuthoredInTheEditorModel_ReachesTheEmittedBindingTable()
+    {
+        // ── ARRANGE: the editor model, as the state inspector leaves it ──────────────────────────
+        var root = new StateNode("__root__");
+        var one  = new StateNode("One") { IsInitial = true, Parent = root, ExpressionTargetField = "Alpha" };
+        var two  = new StateNode("Two") { Parent = root, ExpressionTargetField = "Beta" };
+        root.Children.Add(one);
+        root.Children.Add(two);
+
+        var hsm = new HsmAsset(
+            Guid.NewGuid(), "SeedEndToEnd", "", false, "Demo.Machines",
+            new HsmDefinitionBlob(), new MachineMetadata(), root,
+            new List<StateNode> { one, two },
+            new List<TransitionNode>(), new List<GlobalTransitionNode>(),
+            new List<RegionNode>(), new List<EventDefinition>());
+
+        hsm.SetBlackboardEditorManaged(true);
+        hsm.SetBlackboardVariables(new[]
+        {
+            // ⭐ Role defaults to Input, which is what makes them PACKED and addressable.
+            new BlackboardVariableEntry("Alpha", typeof(int),   null),
+            new BlackboardVariableEntry("Beta",  typeof(float), null),
+        });
+
+        // ── ACT: SAVE (model → DTO → json), then GENERATE (json → DTO → bridge) ──────────────────
+        string json   = HsmJsonServices.Serialize(HsmAssetMapper.ToDto(hsm));
+        var    loaded = HsmJsonServices.Deserialize(json)!;
+        string bridge = Hrot.AiEditor.Persistence.Emit.HsmBridgeEmitCore.EmitBridge(loaded);
+
+        // ── ASSERT: the table exists, and each state carries ITS OWN offset ──────────────────────
+        bridge.Should().Contain("HsmParamBindings.Register(blob",
+            "a seed authored in the editor must arrive as a runtime state→offset table");
+
+        string oneLine = LineContaining(bridge, one.StableId.ToString());
+        string twoLine = LineContaining(bridge, two.StableId.ToString());
+
+        oneLine.Should().Contain("), 0)", "Alpha is the first packed variable");
+        twoLine.Should().Contain("), 4)", "Beta follows a 4-byte int");
+        oneLine.Should().NotBe(twoLine, "two states seeding different variables must not share an offset");
+    }
+
+    /// <summary>The one line of <paramref name="text"/> containing <paramref name="needle"/>.</summary>
+    private static string LineContaining(string text, string needle)
+    {
+        int at = text.IndexOf(needle, StringComparison.Ordinal);
+        at.Should().BeGreaterThanOrEqualTo(0, $"the emitted bridge must mention '{needle}'");
+        int start = text.LastIndexOf('\n', at) + 1;
+        int end   = text.IndexOf('\n', at);
+        return end < 0 ? text.Substring(start) : text.Substring(start, end - start);
+    }
 }

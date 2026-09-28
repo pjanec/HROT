@@ -10,11 +10,13 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
   ⭐⭐ §13 is the AS-BUILT: 13.1-13.3 = CE-381..CE-384 (the runtime spine), 13.4 = CE-385 + the §9 ③
-  validator rule + CE-396, 13.5 = CE-386, 13.6 = CE-387, 13.7 = CE-397 (RAIL ④ CLOSED).
+  validator rule + CE-396, 13.5 = CE-386, 13.6 = CE-387, 13.7 = CE-397 (RAIL ④), 13.8 = CE-398/399/400
+  (RAILS ⑨ and ⑥, plus a sizing defect the end-to-end run found), 13.9 = CE-401 (RAIL ⑦).
   ⭐⭐⭐ STAGE 1 AND STAGE 2 ARE COMPLETE — everything §8 lists except CE-388 (channels, separable)
-  is BUILT. ⚠ §9 rails ⑥ (per-channel activities in two regions) and ⑨ (BehaviorFinishedEvent after
-  a polled transition) are NOT railed; ⑦ is covered by TWO rails either side of the DTO rather than
-  one end-to-end. ⛔ Do not read "rail ④ closed" as "all of §9 closed".
+  is BUILT.
+  ⭐⭐⭐ ALL NINE §9 ACCEPTANCE RAILS ARE CLOSED as of 2026-09-28. §9's table carries the rail name
+  per row. ⚠ An earlier version of this block said ⑥ and ⑨ were "NOT railed" and ⑦ was "covered by
+  two rails either side of the DTO" — all three are now closed and that sentence is SUPERSEDED.
   ⏭ WHAT IS LEFT: CE-388; the §11 call-cost thread CE-389..CE-392; and CE-395 (priority bits).
 stale-below: nothing yet.
 known-rot: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
@@ -465,6 +467,26 @@ probably a targeted reload trigger, **not** widening a layout hash to cover beha
 ---
 
 ## 9. ⭐⭐⭐ ACCEPTANCE — **and every one is RED-PROVED**
+
+> ### ✅✅ ALL NINE CLOSED — `2026-09-28`
+>
+> | # | closed by | where |
+> |---|---|---|
+> | ① | `CE382_R1_APolledTransitionFires_WithNoEventPosted` | `Fhsm.Tests` · `PolledTransitionKernelTests` |
+> | ② | `CE382_R2_AnUnmarkedTransitionsGuardIsNeverCalledOnAQuiescentTick` | same |
+> | ③ | `AStateBindingBothAnActionAndABlueprint_IsAnError` + `ATransitionBindingBothAGuardFunctionAndABlueprint_IsAnError` | `Hrot.Hsm.Editor.Tests` · `HsmBlueprintBehaviourAuthoringTests` |
+> | ④ | `HsmBlueprintGuardIdAgreementTests` *(5 rails, `CE-397`)* | `Hrot.AiEditor.Generators.Tests` |
+> | ⑤ | `CE382_R5_TheNewStatesActivityRunsInTheSameTick` | `Fhsm.Tests` · `PolledTransitionKernelTests` |
+> | ⑥ | `CE400_R1` *(`CE-400`)* | `Fdp.Toolkits.Tests` · `BrainTickSystemHsmArmTests` |
+> | ⑦ | `CE401_R1` *(`CE-401`)* | `Hrot.AiEditor.Generators.Tests` · `HsmStateParamBindingEmissionTests` |
+> | ⑧ | `ActionPicker_…` + `GuardPicker_OffersRegisteredHsmGuards_…` + `TheFactoryWiresTheExporterIntoBothPickers` | `Hrot.Hsm.Editor.Tests` · `HsmPickerDrawerTests` |
+> | ⑨ | `CE398_R1` + `R2` *(non-vacuity)* + `R3` *(`CE-398`)* | `Fdp.Toolkits.Tests` · `BrainTickSystemHsmArmTests` |
+>
+> ⚠ **① and ⑨ overlap deliberately and are NOT redundant.** ⭐ `CE382_R1` proves the **kernel phase
+> machine** fires a polled transition on a hand-built machine with hand-registered ids; `CE398_R1`
+> proves the **whole product** does it — real asset, real blueprint guard, real registrar scan, real
+> ingress, real `BrainTickSystem`. ⛔ A kernel rail cannot catch a broken registrar scan, and an
+> end-to-end rail cannot say *which* of ten components broke.
 
 | # | rail | the red-proof that makes it load-bearing |
 |---|---|---|
@@ -1112,3 +1134,61 @@ my change touched"* is a grep answer; *"every place this generated shape is reco
 question. ⭐ **`ls <project>/Snapshots/` costs nothing** — do it before the expensive run, not after
 it fails. 📐 **For the record, the other three roots were genuinely untouched** — `DebugMap 0`,
 `Schedule 0` — so the complete enumeration cost one command and would have saved the whole run.
+
+---
+
+### 13.9 `CE-401` — **ACCEPTANCE RAIL ⑦ IS CLOSED, AND §9 IS NOW COMPLETE** *(`2026-09-28`)*
+
+🔒 **User:** *"now do the remaining acceptance rails."*
+
+#### ⭐ WHAT WAS ACTUALLY MISSING — **not a gap in coverage, a gap BETWEEN two coverages**
+
+📐 Measured before writing anything. Rail ⑦'s claim — *a state's `ExpressionTargetField` set in the
+EDITOR survives save → load → generate and reaches `HsmParamBindings`* — had **two** suites either
+side of the DTO and **nothing spanning it**:
+
+| half | suite | where it stops |
+|---|---|---|
+| authoring | `HsmStateParamSeedAuthoringTests.TheSeedBindingSurvivesSaveAndReopen` | ⛔ editor model → DTO → **model**. Never reaches an emitter |
+| emission | `HsmStateParamBindingEmissionTests` ×3 | ⛔ starts from a **hand-built `HsmAssetDto`**. Never sees `HsmAssetMapper` |
+
+⛔⛔ **Both stay green if `HsmAssetMapper` drops the field** — the authoring half still round-trips
+its own model, and the emission half is handed the value by its own fixture. 🔴 **That is not a
+hypothetical: it is the exact defect `CE-387` fixed.** The DTO field and the emitter had existed
+since `E3b-0`; the mapper carried `ExpressionTargetField` for **transitions only**; the production
+value was therefore **always `null`** and **nothing was red.**
+
+⇒ ⭐⭐⭐ **`CE401_R1` is the span**, and its ACT is the production path: **SAVE** is
+model → `HsmAssetMapper.ToDto` → JSON, **GENERATE** is JSON → DTO → `HsmBridgeEmitCore.EmitBridge`.
+⛔ It deliberately does NOT re-hydrate the editor model after loading — the generator never does,
+so that would exercise a path nothing walks.
+
+#### ⚠ WHERE IT LIVES, AND WHY NOT WHERE IT WAS FIRST WRITTEN
+
+📌 The first draft went into `Hrot.AiEditor.Generators.Tests`, on the reasoning that it is the only
+project referencing **both** ends. ⛔ **It does not compile there: `HsmAsset`'s constructor is
+`internal`**, and that project is not in `Hrot.Hsm.Editor`'s `InternalsVisibleTo` list.
+
+⭐⭐ **The fix was not to widen `InternalsVisibleTo` — it was to notice the premise was wrong.**
+📐 `Hrot.Hsm.Editor` **references `Hrot.AiEditor.Persistence`**, so `HsmBridgeEmitCore` is reachable
+from `Hrot.Hsm.Editor.Tests` too — which is **the feature's own suite** (`T-1`), already has the
+`InternalsVisibleTo`, already owns `MakeMachine`, and runs in **948 ms** against the generators
+project's **1 m 9 s**. ⇒ 🔒 **a production-visibility change to host a test is a smell; the cheaper
+read of the reference graph removed the need for one.**
+
+#### ✅ THE RED-PROOF — §9 ⑦'s own stated inverse edit
+
+⭐ Stop mapping `ExpressionTargetField` for **states** in `HsmAssetMapper` *(leave the transition arm
+alone)* ⇒ `CE401_R1` reddens. ⛔ **`TheSeedBindingSurvivesSaveAndReopen` reddens too, and that is the
+point** — it proves the two rails are not testing the same thing from the same side: the authoring
+rail dies at the mapper, the span rail dies at the emitted table.
+
+#### ⭐⭐ §9 IS NOW COMPLETE — **and ① / ⑨ overlapping is deliberate**
+
+⚠ Worth saying plainly so a later reader does not "collapse the duplicate": `CE382_R1` and
+`CE398_R1` both assert *"a polled transition fires"*. ⭐ **They are different claims.** `CE382_R1`
+runs the **kernel phase machine** on a hand-built machine with hand-registered ids — it can say
+*which component* broke. `CE398_R1` runs the **product** — real asset, real blueprint guard, real
+registrar scan, real ingress, real `BrainTickSystem` — it can catch a broken registrar scan the
+kernel rail cannot see, and names nothing when it fails. ⛔ **Deleting either loses a distinct
+signal.**
