@@ -149,6 +149,15 @@ public static class AutoManagedVariables
         if (asset is null) throw new ArgumentNullException(nameof(asset));
         if (entry is null) throw new ArgumentNullException(nameof(entry));
 
+        // ⭐⭐⭐ SHARED, and it was wrongly called BTree-specific in the first cut of this type.
+        //   📐 Measured: BOTH emitters gate their whole params path on the managed flag —
+        //   BTreeJsonGenerator raises BTREE0002 and skips the asset, and
+        //   HsmBridgeEmitCore.PackParams:464 returns an EMPTY field list. ⛔ The HSM one is SILENT:
+        //   no ParseParams, no binding table, and a hosted blueprint whose params are always zero,
+        //   with no diagnostic. ⇒ composing on an unmanaged asset is never valid on either host, so
+        //   the flip belongs here rather than in one caller.
+        asset.SetBlackboardEditorManaged(true);
+
         string paramsVar = Create(asset, paramsBaseName, entry.DtoType);
 
         Type? wsType = WorkingStateTypeOf(entry);

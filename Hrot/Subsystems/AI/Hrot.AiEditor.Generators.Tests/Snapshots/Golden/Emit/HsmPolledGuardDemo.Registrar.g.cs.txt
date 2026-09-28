@@ -57,7 +57,7 @@ public static class HsmPolledGuardDemoRegistrar
                         {
                             switch (__prop.Name)
                             {
-                                case "Open":
+                                case "EngageTarget":
                                 {
                                     var __o = global::System.Text.Json.JsonSerializer.Deserialize<bool>(__prop.Value.GetRawText(), __paramJsonOpts);
                                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
@@ -82,7 +82,7 @@ public static class HsmPolledGuardDemoRegistrar
             ParseParams   = __parseParams,
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
-                new("Open", typeof(bool), 0),
+                new("EngageTarget", typeof(bool), 0),
             },
         });
         // E3b-0 / CE-414: which blackboard variable each HOSTING SITE seeds its

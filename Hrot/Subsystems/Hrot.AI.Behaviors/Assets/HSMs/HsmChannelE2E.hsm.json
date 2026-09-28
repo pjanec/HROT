@@ -154,7 +154,7 @@
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "{\"Open\":false}",
+        "DefaultValueJson": "{\"EngageTarget\":false}",
         "Comment": "CE-413/CE-414: composed by the transition's guard-blueprint pick. The guard is stamped with its SOURCE STATE, so before CE-414 it read Driving's window through its OWN Params type; the site key (the guard's asset id) is what separates them.",
         "IsAutoManaged": true
       }

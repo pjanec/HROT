@@ -1,6 +1,6 @@
-StructureHash: 0x8500B7DDAD5C7904
+StructureHash: 0xB47E585F0F0D48BA
 Parameters:
-  Open : System.Boolean @0 size=1
+  EngageTarget : System.Boolean @0 size=1
 WorkingState:
   (empty)
 Variables:

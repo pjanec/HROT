@@ -49,7 +49,7 @@
       "OnExitAction": null,
       "ActivityAction": null,
       "TimerAction": null,
-      "ExpressionTargetField": "Open",
+      "ExpressionTargetField": "EngageTarget",
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -121,7 +121,7 @@
     "HeavyDtoType": null,
     "Variables": [
       {
-        "Name": "Open",
+        "Name": "EngageTarget",
         "Type": {
           "TypeId": "System.Boolean",
           "IsArray": false,

@@ -234,22 +234,17 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     /// the HSM host calls too.</b> 🔒 User, <c>2026-09-28</c>: <i>"If btree does something right, hsm
     /// should reuse it by sharing wherever possible, not by duplication."</i>
     ///
-    /// <para>⚠ <b>All that is left here is the BTree-specific part</b>, and it is genuinely BTree's:
-    /// flipping the asset into editor-managed mode. An AiPrimitive binding bin-packs its <c>Params</c>
-    /// inline, so it hard-requires a managed blackboard (codegen otherwise fails with
-    /// <c>BTREE0002</c>). ⭐ Placing the node is exactly the moment that requirement becomes true, so it
-    /// is enabled here rather than letting the first Full Rebuild fail — there is no valid state with a
-    /// composed AiPrimitive node and <c>Managed=false</c>.</para>
+    /// <para>⚠⚠ <b>CORRECTED:</b> flipping the asset into editor-managed mode used to live here and was
+    /// described as BTree-specific. 📐 It is not — <c>HsmBridgeEmitCore.PackParams:464</c> gates the HSM
+    /// params path on the same flag, and does so <b>silently</b>. ⇒ it moved INTO
+    /// <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, where both hosts get it.</para>
     ///
     /// <para>⛔ The two CALLERS stay separate only because <c>BTreeActionPayload</c> and
     /// <c>BTreeConditionPayload</c> are two sealed classes with identical members and no common base —
     /// ⚠ a model duplication that predates this and is NOT resolved here.</para>
     /// </summary>
     private ComposedBlueprintVariables ComposeAiPrimitiveVariables(ActionSchemaEntry entry)
-    {
-        _asset.IsBlackboardEditorManaged = true;
-        return AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
-    }
+        => AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
 
     /// <summary>
     /// E2: composes a placed Condition node onto a Blueprint-compiled AiPrimitive (T31 shape),

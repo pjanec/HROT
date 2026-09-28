@@ -173,6 +173,28 @@ public sealed class AutoManagedVariablesTests
         Assert.Single(asset.BlackboardVariables);
     }
 
+    /// <summary>
+    /// ⛔⛔ <b>Composing FLIPS the asset into editor-managed mode — on BOTH hosts.</b>
+    ///
+    /// <para>📐 Both emitters gate their whole params path on that flag: <c>BTreeJsonGenerator</c>
+    /// raises <c>BTREE0002</c> and skips the asset, and <c>HsmBridgeEmitCore.PackParams:464</c> returns
+    /// an EMPTY field list — 🔴 <b>silently</b>, with no diagnostic, giving a hosted blueprint params
+    /// that are always zero. ⚠ The first cut of the compose called this BTree-specific and set it in
+    /// one caller; this rail is what stops that regressing.</para>
+    /// </summary>
+    [Fact]
+    public void ComposeForAiPrimitive_FlipsTheAssetIntoEditorManagedMode()
+    {
+        var asset = new StubAsset();
+        asset.SetBlackboardEditorManaged(false);
+
+        AutoManagedVariables.ComposeForAiPrimitive(
+            asset, EntryFor(typeof(Patrol_0000ABCD_Bp.Params)), workingStateBaseName: null);
+
+        Assert.True(asset.IsBlackboardEditorManaged,
+            "an unmanaged asset emits no ParseParams at all — on the HSM path without even a warning");
+    }
+
     /// <summary>⭐ Composing twice on one asset does not collide — the unique-name rule applies.</summary>
     [Fact]
     public void ComposeForAiPrimitive_Twice_ProducesDistinctVariables()
