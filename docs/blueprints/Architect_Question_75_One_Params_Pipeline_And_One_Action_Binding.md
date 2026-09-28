@@ -265,14 +265,34 @@ resolver that converts these into the HSM parameter/blackboard dto."*
 geo-authored shapes (`PlatoonHillAttack`'s `[lat, lon]`). ⛔ **Splitting them is where a silent
 regression would hide** — each needs a before/after rail on real authored JSON.
 
-### D — what happens to a curated behaviour with NO resolver? ⚖️ **LEAN: FAIL THE BUILD**
+### D — a behaviour with no resolver ⚖️ **LEAN REVISED — the first lean was wrong**
 
-📐 Measured: it registers no `ParseParams` at all, so `BehaviorIngressSystem:754` returns 0 and **its
-JSON params are silently dropped**. ⭐ With A+C every behaviour has a `TDto`, so the identity case
-*(deserialize only, no resolve)* is expressible — there is no longer any reason to have none.
-⇒ an analyzer error when a `[BehaviorContract]` DTO has members and nothing supplies a parse.
-⛔ **Rejected — default to an identity parse silently:** it would fix the symptom and keep the
-authoring mistake invisible.
+> 🔒 **User, `2026-09-28`:** *"there are behaviors having no parameters. There are also behavior not
+> requiring any special resolver (their behavior parameter DTO == the parameter DTO in the blackboard,
+> automatically convertible from json). both needs to be supported."*
+
+⛔ **My first lean — *"fail the build"* — collapsed three different states into one and would have
+rejected two legitimate ones.** 📐 Measured on the shipped curated registrar, and all three states are
+real today:
+
+| state | shipped example | what must happen |
+|---|---|---|
+| **① no parameters at all** | `Idle`, `WanderMilitary` — no `BlackboardLayoutType`, no resolver | ⭐ **legal and silent.** No parse is needed and none is generated |
+| **② params, JSON DTO ≡ layout** | the entire generated BTree/HSM corpus, and any curated behaviour whose contract mirrors its layout | ⭐⭐ **IDENTITY PARSE, generated automatically** — `FromJson<TDto>()` with `resolve: null`. ⛔ No author action, no attribute, no error |
+| **③ params needing conversion** | `FireAtTarget` *(networkId → `Entity`)*, `MoveToLocation` / `PlatoonHillAttack` *(`[lat, lon]` → cartesian)*, `FollowRoute`, `HullDownAttackRun` | `[BehaviorResolver]` supplying the conversion half only |
+
+⇒ ⭐⭐⭐ **The rule is: ① and ② need NO declaration. Only ③ does.** The build error is reserved for the
+one genuinely broken state — **a contract that advertises members which nothing can fill**.
+
+⚠ **And exactly one shipped behaviour sits in a FOURTH state, which is neither a bug nor ②:**
+`JoinFormation` declares `JoinFormationParams { int LeaderNetworkId; byte FormationTypeId; }` as its
+layout while its `[BehaviorContract]` DTO is **deliberately memberless** — *"currently parameterless;
+the contract exists to anchor the behavior ID and category"*, carved out explicitly in
+`AGeneratedBehaviourAdvertisesItsManifestTests`. ⛔ **Claude's chat claim that its params are "silently
+dropped" OVERSTATED it:** nothing advertises those two fields, so nothing can be dropped. ⭐ It is a
+reserved-for-later layout, and the right treatment is a **warning** — *"layout declares members the
+contract does not"* — not an error, and an authoring decision to either fill the contract or drop the
+fields.
 
 ---
 
@@ -280,24 +300,58 @@ authoring mistake invisible.
 
 | # | slice | decisions | depends on | shape |
 |---|---|---|---|---|
-| **S1** | **HSM emits `{Asset}_Blackboard`**; set `JsonParamsDtoType` + `BlackboardLayoutType`; keep the manifest as a fallback for assets that do not emit one | A | — | additive; HSM goldens move |
-| **S2** | **Route the three EMITTED producers through `FromJson<TDto>`** — BTree, HSM, blueprint-AiPrimitive. Resolve arg stays `null` | C | S1 | behaviour-identical by construction; rail: byte-for-byte equality before/after |
+| **S1** | **Make `EmitBlackboardStructSource` host-neutral** *(it reads only 3 things from the BTree DTO)*, then **HSM emits `{Asset}_Blackboard`** from its existing `BlackboardTypeName`; set `JsonParamsDtoType` + `BlackboardLayoutType`; keep the manifest as a fallback | A | — | additive; HSM goldens move |
+| **S2** | **Widen the factory to `FromJson<TJson, TLayout>`** *(§5.1a — it cannot express divergence today)*, then route the three EMITTED producers through it with the identity conversion | C | S1 | behaviour-identical by construction; rail: byte-for-byte equality before/after |
 | **S3** | **Split the five `[BehaviorResolver]` methods** into `ResolveParams<TDto>` halves and register them through the same factory | C | S2 | ⚠ **the risky slice** — one rail per behaviour on real authored JSON |
-| **S4** | **Analyzer error for a parameterised behaviour with no parse** | D | S3 | may redden real assets — that is the point |
+| **S4** | **The three states of D:** auto-generate the identity parse for ②, leave ① alone, and warn on the `JoinFormation` shape *(layout declares members the contract does not)* | D | S3 | ⭐ mostly REMOVES author obligations rather than adding one |
 | **S5** | **`BehaviorActionBinding`** + the file-format migrator + per-slot `ExpressionTargetField` + the `(childAssetId, slotKind)` site key | B | — *(independent of S1–S4)* | 🔴 the big one; both mappers, both editors, both emitters, whole-corpus golden move |
 
 ⭐ **S5 is independent** and can run in parallel or after. ⛔ **Do not interleave it with S2/S3** — a
 format migration and a pipeline change landing together makes a bisect useless.
 
-### 5.1 ⚠ What would make me revise this plan
+### 5.1 ✅ THE THREE OPEN QUESTIONS — **measured `2026-09-28`, none left open**
 
-| | |
-|---|---|
-| **if `EmitBlackboardStructSource` cannot name an HSM struct** | S1 grows a naming decision; `BlackboardTypeName` is present in the DTO but unused on the HSM path — ⛔ **unverified that it is populated for HSM assets** |
-| **if any of the five curated resolvers reads the world during DESERIALIZE** *(not just after)* | S3's clean split is impossible for that one and it keeps a fused method — a named exception, not a silent one |
-| **if `DelegateShape` has BTree-only members** | B's carrier needs a host-neutral vocabulary first, which is a decision this document has not taken |
+> 🔒 **User:** *"measure, leave no open questions what you can answer yourself."*
 
----
+| # | the question | ✅ the measurement | effect on the plan |
+|---|---|---|---|
+| **1** | can the struct emitter name an HSM struct? | ✅ **`BlackboardTypeName` is populated on ALL 7 HSM assets** and follows the same `{Name}_Blackboard` convention as the BTree. ⚠ **But `EmitBlackboardStructSource` takes a `BehaviorTreeAssetDto`** — it reads only three things from it: `Blackboard.Managed`, `Blackboard.Variables`, and the type name | ⭐ **S1 gains a first step: make the emitter HOST-NEUTRAL** — `(string typeName, IReadOnlyList<BlackboardVariableDto> vars, …)`. The HSM already has the projection it needs, `HsmBridgeEmitCore.ToPackable`. ⛔ Not a blocker; it is the sharing the user asked for |
+| **2** | do any curated resolvers read the world during DESERIALIZE? | ✅ **No — the split is already there in the source.** `ResolveMoveToParams` fetches `IGeographicTransform` and delegates to `ParseMoveToParams(json, ptr, capacity, geo)`; `ResolveFireAtTargetParams` does the same with `NetworkEntityMap`. The world read is a **dependency fetch**, used only during conversion | ⭐⭐ **S3 is much safer than feared.** The `Resolve*` wrapper is already the world-fetch half and `Parse*` the conversion half |
+| **3** | does `DelegateShape` have BTree-only members? | 🔴 **YES.** `ThreeParamReusable`, `FourParamFull` *("full blackboard access")*, `AiPrimitiveTickCore = 3`, and ⚠ **value 2 (`ThreeParamReusableStateful`) has NO named member in the editor enum** — it round-trips as a bare number. These are **BTree interpreter arities**; the HSM dispatches one fixed `(void*, void*, HsmCommandWriter*)` signature | ⭐ **decision B takes the vocabulary decision below rather than leaving it open** |
+
+#### 5.1a 🔴 WHAT MEASUREMENT 2 ALSO EXPOSED — **`FromJson<TDto>` CANNOT EXPRESS THE TWO-SHAPE CASE**
+
+⛔⛔ **This is the most important thing the measurement found, and it is a hole in the TARGET, not in
+today's code.** `MoveToLocation` has **two shapes**: `MoveToLocationParamsJsonDto` *(authored, geo)* and
+`MoveToLocationParams` *(the blittable layout, cartesian)* — exactly `DESIGN_Parameter_Model.md` §3.1's
+*"two shapes only on divergence"*. 📐 But the factory writes the type it deserialized:
+
+```csharp
+TDto dto = JsonSerializer.Deserialize<TDto>(json, JsonOptions);
+resolve?.Invoke(ref dto, world, self, host);
+Unsafe.Write(memory, dto);          // ⛔ assumes JsonDto == layout
+```
+
+⇒ ⭐⭐⭐ **`BehaviorParams.FromJson` must become two-typed** —
+`FromJson<TJson, TLayout>(Convert<TJson, TLayout> convert)`, with the identity case
+`FromJson<T>() == FromJson<T, T>(identity)` for states ① and ②. ⛔ Without this, **S3 cannot land for
+three of the five curated resolvers** and `CE-235`'s whole point — `JsonParamsDtoType` and
+`BlackboardLayoutType` are two members because they are two types — would be contradicted by the one
+factory meant to serve both.
+⇒ **S2 gains this signature change**, before any caller is routed through it.
+
+#### 5.1b ⚖️ THE `DelegateShape` VOCABULARY DECISION *(inside B, taken not deferred)*
+
+⭐ **The shared carrier does NOT carry `DelegateShape`.** 📐 Measured: every member is a BTree
+interpreter arity, and the HSM has exactly one dispatch signature — so a shared field would be
+meaningless on half its uses. ⇒ **`BehaviorActionBinding` carries the host-neutral five**
+*(`MethodFqn`, `BlueprintAssetId`, `BlueprintName`, `ExpressionTargetField`,
+`WorkingStateTypeId`/`WorkingStateTargetField`)*, and **`DelegateShape` stays a BTree-side field
+alongside it**.
+⛔ **Rejected — a host-neutral shape enum:** it would have to enumerate both hosts' dispatch
+conventions, which is two vocabularies wearing one name.
+⚠ **And S5 must first NAME value 2** — an unnamed enum member surviving a carrier migration is how a
+shape silently becomes `ThreeParamReusable`.
 
 ## 6. Rails the programme owes
 
