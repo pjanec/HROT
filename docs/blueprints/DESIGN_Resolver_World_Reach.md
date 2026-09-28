@@ -23,6 +23,11 @@ related-designs:
     mechanism" rail this must not break.
   - DESIGN_Occurrence_Scoped_Storage.md - owns WHERE a resolved DTO lands (28, 28.7) and supplies
     the only IHostVariableAccess implementation (E7a).
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md - owns the ROOT ingress half
+    of the params pipeline (one FromJson factory for every BehaviorDefinition.ParseParams). Added
+    2026-09-28: its decision D.1 reasons about curated-vs-generated precedence and had NOT cited
+    section 7.2's R-149 ruling; its section D.2 now records that the two agree. Read 7.2 before
+    re-opening any precedence question there.
   - DESIGN_Per_Variable_Param_Resolver.md - owns the BEHAVIOUR half of section 7.2's selection
     ruling: how a blackboard params VARIABLE names a resolver, and the Step-3 emit in both
     bridges. This design owns the blueprint half, which needs no property at all (section 11.1).

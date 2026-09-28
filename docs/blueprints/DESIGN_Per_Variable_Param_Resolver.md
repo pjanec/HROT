@@ -26,7 +26,17 @@ known-conflict: DESIGN_Resolver_World_Reach.md:346 (the CuratedName row of 7.2a)
   dead citation to CgfCuratedBehaviorRegistrar.cs:131-138. Its category-error ruling is unaffected -
   the key is still a behaviour name - but the citation is dead and that document is BUILT/closed.
   Flagged there in the D1-b note, deliberately not edited.
+known-conflict-2: 2026-09-28 - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md
+  (Q75) proposes, in its C/S2, to DELETE the two EmitParseParamsLocal lambdas this design adds Step 3
+  to, replacing them with one whole-behaviour BehaviorParams.FromJson call. Same file, opposite grain
+  (whole-behaviour vs per-variable), both marked build-state on the same day, neither naming the
+  other until now. Q75 section 2.6 has the comparison table and its C.1 records the grain as a JOINT
+  decision neither document may take alone. NOTHING in either may build until it is settled.
 related-designs:
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md - owns the WHOLE-BEHAVIOUR
+    half of the same pipeline (one factory for every BehaviorDefinition.ParseParams, the HSM
+    blackboard struct, and the action-binding carrier). It changes the SAME two emit sites this
+    design does. See the known-conflict-2 line above.
   - DESIGN_Behavior_Self_Registration.md - owns the GENERATOR that now emits every
     RegisterResolver call (CuratedBehaviorGenerator) and the CE-374 deletion of the hand-written
     CgfCuratedBehaviorRegistrar. This design's inventory item 8 depends on what that one produces.

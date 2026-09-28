@@ -12,9 +12,10 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §9** — the PARAMS-PIPELINE / ACTION-BINDING unification (`Q75`),
-  APPROVED and NOT STARTED, which is where the work now is. §9.0 is the verifiable state, §9.3 the
-  five-slice plan, §9.4 the seven measured traps, §9.2 what the approval does NOT mean.
+current-answer: ⭐⭐⭐ **START AT §9.6** — the `2026-09-28` SECOND MEASUREMENT PASS, which REOPENED
+  `Q75` and BLOCKED its `S1`/`S2`. ⛔ §9.3's five-slice plan and its "start at S1" instruction are
+  SUPERSEDED by it; read §9.6 before any other part of §9. §9.0-§9.2 (state, what is built, what
+  the approval does not mean) and §9.4 (the traps) are still current.
   ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
   §8 only for §8.3's traps and §8.4's measured end-to-end result.
   (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
@@ -460,7 +461,7 @@ internals.** ⇒ ⭐⭐⭐ **the design's own rails (`Q75` §6) and the user's e
 this programme has.** ⛔ *"The user approved it"* is not an argument in a later disagreement about a
 mechanism; re-measure instead.
 
-### 9.3 ⏭ THE PLAN — **five slices, `Q75` §5**
+### 9.3 ⛔ THE PLAN — **five slices, `Q75` §5** ⚠⚠ **SUPERSEDED BY §9.6 — do NOT start at `S1`**
 
 | # | slice | depends | ⚠ |
 |---|---|---|---|
@@ -488,3 +489,50 @@ mechanism; re-measure instead.
 `CE-415` *(a `Vector3` pin default is discarded; `Loco1` presumably affected in production)* ·
 `CE-408` *(the deliberate-repeat hole, filed and unexercised)* · `CE-410` *(another lane)* ·
 ⭐ **the user's editor authoring pass on Windows** — now with the compose step in place.
+
+---
+
+## 9.6 🔴🔴 THE SECOND MEASUREMENT PASS — **`Q75` REOPENED, `S1`/`S2` BLOCKED** *(`2026-09-28`)*
+
+> 🔒 **User, verbatim:** *"revise the architect question, measure rather than rushing to
+> implementation. use codebase memory, not just grep."*
+
+⭐⭐⭐ **RESUMING? THIS SECTION REPLACES §9.3.** Nothing was built; the plan changed before it started.
+📄 The revision lives in [`Q75` §0](Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md)
+and that is the one section to read there first.
+
+### 9.6.1 📐 What the re-measurement found — **two things, both blocking**
+
+| # | finding | where |
+|---|---|---|
+| ⭐⭐⭐ **①** | **The corpus has TWO offset authorities and they already disagree.** `ManagedBlackboardVariables[i].ByteOffset` *(from `BTreeBlackboardPackHelper.Pack`)* vs the CLR's layout of `BlackboardLayoutType`. 📐 **15 generated behaviours carry both; 3 disagree; 9 of 31 fields.** Cause: `Pack` derives alignment from **size** — `Math.Min(size,8)` — so `Vector3` *(12 bytes, aligned 4)* lands on 8; and an empty `Params` is 0 to `Pack`, 1 to the CLR. ⛔⛔ **LIVE:** StructEdit's *"Active Parameters"* **reads and writes** at the struct's offsets and the replay predicate compiler binds against them, while the ImGui render uses the manifest — **the two panels disagree about one entity.** ⇒ `CE-418` | `Q75` §2.5 |
+| ⭐⭐⭐ **②** | **A live design on this lane changes the SAME emit site at the OPPOSITE grain.** [`DESIGN_Per_Variable_Param_Resolver.md`](DESIGN_Per_Variable_Param_Resolver.md) *(`E8c`)* adds a per-VARIABLE Step 3 to `EmitParseParamsLocal` ×2; `Q75`'s `S2` **deletes those two lambdas**. Both `build-state`-marked the same day, neither naming the other. ⇒ `CE-419` | `Q75` §2.6 |
+
+⚠ **And a third, smaller:** `BehaviorParams.FromJson` has **no bake stage** — it is
+`Deserialize → resolve → Unsafe.Write`. ⇒ routing an emitted producer through it as-is **discards
+every authored default silently** *(`Q75` §5.1c)*. ⭐ The good news measured alongside it: the two
+**wire formats already agree**, because the generated struct declares one field per variable named
+by the variable. ⇒ the JSON contract survives the move; the defaults and the offsets do not.
+
+### 9.6.2 ⏭ THE PLAN NOW
+
+| # | | ⚠ |
+|---|---|---|
+| ⭐⭐⭐ **`S0`** | **one layout authority** — emit the struct with explicit `[FieldOffset]` taken from `Pack`, so the struct **becomes** the manifest. Write the parity rail **first** and watch it go red on today's tree | ⭐ **zero runtime bytes move**; 17 BTree goldens do. Fixes `CE-418` |
+| ⛔ **`PRE`** | ⛔ **not a slice — the joint grain decision with `E8c`**, taken once, with the user | ⛔ blocks `S2`/`S3` *(and `E8c`'s `D3`)*; does **not** block `S0`/`S1` |
+| **`S1`**…**`S4`** | as `Q75` §5, but `S1` now depends on `S0` and `S2`/`S3` on `PRE` | `S1` emits for **4** HSM assets, not 7 — the other three are unmanaged with zero variables |
+| **`S5`** | unchanged and still independent | — |
+
+### 9.6.3 ⭐ What did NOT move — **so the re-measurement is legible**
+
+✅ Decisions **A**, **B**, **D** stand. ✅ `§2.1`'s five producers · `§2.2`'s schema table ·
+**`FromJson<TDto>`'s zero production callers** · `§5.1a`'s two-shape hole · `§5.1b`'s `DelegateShape`
+decision — **all re-checked, all still true.** 🔴 **C is reopened**, and a new decision **E**
+precedes it.
+
+### 9.6.4 ⛔⛔ THE HONEST NOTE ABOUT THE APPROVAL
+
+⚠ §9.2 said the approval was on trust and carried no verification of the internals. 📐 **The second
+pass is what that warning was for, and it found the plan wrong in two places within one session.**
+⇒ ⛔ **Do not treat any remaining "approved" decision as measured** — A, B and D survived a
+re-measurement, which is a different and stronger claim than "the user approved them".
