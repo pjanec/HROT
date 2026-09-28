@@ -1,14 +1,19 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-28
-build-state: DESIGN - nothing is built from this until the user approves section 4.
+build-state: PARTLY BUILT - section 4 APPROVED by the user 2026-09-28 ("approved, go ahead and
+  build it, including retrofitting"). D-C is BUILT as CE-402 and D-A2's retrofit as CE-403 (both
+  in 2c320079c); D-A2's derivation pass is BUILT as CE-388 slice 1. STILL OPEN: D-B1 (the
+  flattener auto-bind), D-E (deferred pending rail 5's measurement), D-D1 (restated - see below).
+  Section 9 is the AS-BUILT and carries every deviation.
 current-answer: section 4 is the five decisions, each with a lean. Read section 0 FIRST - it
   carries a defect found while writing this question (C0: a blueprint channel command is WIPED
   by ChannelArbitrationSystem on the next tick) which reframes CE-388 from "exit cleanup" to
   "the whole channel lifecycle, and the CLAIM half is missing too". Then read D-A, whose lean was
   CORRECTED by the user on 2026-09-28 - it opens with the reachability table that decides it.
   Section 1 is the INVENTORY, section 3 the diagrams, section 5 the blast radius, section 6 the
-  acceptance rails.
+  acceptance rails. SECTION 9 IS THE AS-BUILT - read it before quoting section 4 as a plan,
+  because three of its decisions were amended by measurement during the build.
 stale-below: nothing.
 known-rot: nothing outstanding; two corrections are recorded IN PLACE and must not be re-inherited.
   (1) The CE-388 tracker row says "the .bp.json declares its channels" - D-A does not hand-declare.
@@ -424,3 +429,85 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 user has the last word; this question is for the user. ⛔ If it is ever relayed, ask for **evidence**
 (*"name every producer that writes a channel and what stamps `BehaviorInstanceId`"*), never a verdict,
 and say that this document is my own reasoning and must not be cited as evidence.
+
+---
+
+## 9. ⭐⭐⭐ THE AS-BUILT — **what landed, and every place measurement amended §4**
+
+🔒 **User, `2026-09-28`:** *"approved, go ahead and build it, including retrofitting"* — then, on the
+sharing mechanism: *"no duplicating the HsmActionKey formula, must be shared. (A) sounds good, no
+problem with making it public."*
+
+⚠⚠ **Read this section before quoting §4 as a plan.** Three decisions were amended by measurement
+DURING the build; §4 keeps the original arms so the record shows what was rejected and why, but
+where the two disagree, **§9 wins**.
+
+### 9.1 ✅ BUILT
+
+| decision | id | what landed | commit |
+|---|---|---|---|
+| **`D-C1`** | **`CE-402`** | `ChannelCommandLowering.Emit` claims the channel — `BehaviorInstanceId = BehaviorState.InstanceId`, guarded exactly as the channel itself is. ⭐ Before it, EVERY blueprint-issued channel command was zeroed by arbitration on the next tick | `2c320079c` |
+| **`D-A2`** *(retrofit half)* | **`CE-403`** | `[WritesChannel]` on the two `[HsmAction]` channel writers. `RequiredExitCleanups` is non-empty **for the first time in this repo's history** | `2c320079c` |
+| **`D-A2`** *(derivation half)* | **`CE-388` slice 1** | `BlueprintChannelDerivation` — exact for `IrOp_ChannelCommand` + `IrOp_GraphCall` reachability, **incomplete-with-names** for hardcoded C# and cross-asset calls | *this batch* |
+
+⭐ **Rails:** `CE402_R1/R2` · `CE403_R1/R2` · `CE388_R1`–`R7` *(9 cases)*. ✅ Every one red-proved.
+
+### 9.2 🔴 AMENDMENT ① — **the retrofit was 2 sites, not ~22**
+
+📐 `BehaviorActionCatalog.MapHosting:196` maps **only `ActionHosting.Shared`** to
+`BehaviorActionHosts.Blueprint` ⇒ a plain `[BTreeAction]`/`[HsmAction]` is **not blueprint-callable**,
+so `D-A2`'s derivation never reads it — and **no `[SharedAiAction]` in the repo writes a channel**.
+⛔⛔ And the BTree route **already has its own cleanup mechanism**, `[BTreeDeactivator]`
+*(`ai-btree-deactivator-1`)*, which `HillAttackTankNodes` uses ⇒ marking the ~9 `[BTreeAction]`
+writers would be **a second producer for one slot** (`R-132`). ⚠ *"~22"* counted channel WRITES, not
+sites this mechanism governs.
+
+### 9.3 🔴 AMENDMENT ② — **the chain had THREE breaks, and `D-B1` absorbed the consequence**
+
+📄 Full evidence in §4's zero-adoption subsection. ⇒ **`D-B1` is the WHOLE answer, not the nicer
+half** — there is no validator to fall back on — and **`D-D1` must be restated**: *"the validator then
+fires only on a conflict"* presumes a validator that runs, and none does.
+
+### 9.4 🔴 AMENDMENT ③ — **`D-F`, the SHARING MECHANISM: approved as public, BUILT as a linked file**
+
+⚠ **A decision `§4` never posed, and `CE-403`'s break ③ is why it matters:** the blueprint registrar
+and `HsmEmitCore` must agree on **one `ushort`** for the cleanup thunk, or the flattener binds a hash
+nothing is registered under — silently.
+
+🔒 **The user ruled: one shared formula, no copies, and public is acceptable.** ⭐ The first half is
+delivered. ⛔ **The second is NOT, and the reason is measured, not stylistic:**
+
+| project | target |
+|---|---|
+| `Fdp.Toolkits` — where a shared type would live | **net8.0** |
+| `Hrot.AiEditor.Persistence` — `HsmEmitCore` | ⛔ **netstandard2.0 ONLY** |
+| `Hrot.Blueprints.Compiler` | netstandard2.0**;**net8.0 |
+| `Fdp.Toolkits.Analyzers` — `HsmActionKey`'s current home | ⛔ **netstandard2.0** |
+
+⇒ ⛔⛔ **all three consumers are behind the netstandard wall, so a `public` type in a net8.0 assembly
+is UNREACHABLE from every one of them** — public or not, they cannot reference it. ⚠ And making it
+public *while linking the file* is actively worse: four assemblies would each declare the same public
+type, so anything referencing two of them — `Hrot.AiEditor.Generators.Tests` references both the
+compiler and persistence — gets **`CS0433` ambiguity**. 🔒 **That is exactly why `OccurrenceSlotKey`
+is `internal`.**
+
+⭐⭐ **BUILT AS:** `HsmActionKey.cs` moves to `FDP/Toolkits/Fdp.Toolkits/Behavior/Shared/`, stays
+`internal`, and is `<Compile Link=…>`-ed into the analyzer, the Blueprints compiler and
+`Hrot.AiEditor.Persistence`. **One source file, compiled into each assembly** — the repo's own
+four-for-four pattern for this wall: `OccurrenceSlotKey`, `BlueprintTierLadder`,
+`StructSizeResolver`, `BlackboardParamsExpression`.
+
+⭐ **Gated by a PARITY RAIL** mirroring `OccurrenceSlotKeyParityTests`: the id computed on each side
+of the wall must agree. ⛔ Without it this is the same trust-by-convention that produced break ③.
+
+⚠ **The rejected alternative, named so it is not re-proposed:** a new netstandard2.0 shared assembly
+all four reference would give a genuinely public single type. ⭐ Cleaner in principle; ⛔ a new
+project plus four reference edits, against a linked-file precedent that is already four-for-four.
+
+### 9.5 ⏭ STILL OPEN
+
+| | |
+|---|---|
+| **`D-B1`** | the flattener auto-bind — the half that makes cleanup actually HAPPEN. Needs `D-F` landed first |
+| **`D-E`** | ⛔ **do not build until rail ⑤ measures the gap.** `CE382_R5` already proved the newly entered state's activity runs in the SAME tick, so release-then-reclaim may cost nothing observable — in which case `D-E` is deleted, not built |
+| **`D-D1`** | restated by amendment ②; ⚠ **it is now really two questions** — *"auto-bind for the C# route too?"* and *"should the validator be wired up at all?"* — and the second is the user's call |

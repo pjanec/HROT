@@ -417,11 +417,19 @@ are the same mechanism again and can follow on demand rather than on speculation
 | **CE-385** | asset + model + mapper: the five §7 fields, both directions, round-tripped | persistence + editor |
 | **CE-386** | pickers read `ActionSchemaExporter`, filtered by `HsmAction` / `HsmGuard`; self-referential list stays as the no-catalog fallback | editor |
 | **CE-387** | `StateNode.ExpressionTargetField` + the state inspector's blackboard-field picker (G3) | editor |
-| **CE-388** | `WritesChannel` for blueprint-hosted HSM actions (G5) — the `.bp.json` declares channels, the bridge emits the exit-cleanup registration | compiler + generators |
+| **CE-388** | ⛔⛔ **THIS ONE-LINE DESCRIPTION IS SUPERSEDED — DO NOT BUILD FROM IT.** 📄 `Architect_Question_74_Blueprint_Channel_Lifecycle.md` owns it; its §9 is the as-built. ⚠ Two things here are WRONG: ① *"the `.bp.json` declares channels"* — **nothing is declared**, the compiler DERIVES them *(`BuiltInChannelCommandCatalog` already names each command's channel; `Q74 D-A2`)*; ② *"the bridge emits the exit-cleanup registration"* presumes a cleanup THUNK on this route — ⭐ the cleanup body is generated, but **binding it is the flattener's job** *(`Q74 D-B1`)*, and there is no validator to fall back on because the chain had **three breaks** *(`CE-403`)*. ⚠ **And it was HALF the problem:** the CLAIM side was broken too — a blueprint channel command was wiped by arbitration on the next tick *(`CE-402`, filed separately, NOT HSM-specific)*. ✅ **BUILT so far:** `CE-402` (claim) · `CE-403` (declaration) · `CE-388` slice 1 (derivation). ⏭ **LEFT:** `D-B1`, gated on `D-F` (the shared id formula) | compiler + generators |
 
 ⭐ **CE-381…CE-384 are the spine** — with those four an HSM asset can address a blueprint guard and a
 blueprint activity, and a polled transition fires. CE-385…CE-387 make it authorable rather than
 hand-editable. **CE-388 is separable** and only matters once ④ is driven by blueprints.
+
+> ⚠⚠ **`2026-09-28` — that last sentence is TRUE OF THE HSM HALF AND MISLEADING ABOUT THE REST.**
+> 📐 Measured while resolving `CE-388`: the same investigation found that a blueprint channel command
+> **never worked at all** — `ChannelCommandLowering` never stamped `BehaviorInstanceId`, so
+> `ChannelArbitrationSystem` zeroed it on the next tick. ⛔ That is **not** separable and **not**
+> HSM-specific: it broke a BTree-hosted blueprint identically. ⭐ Filed and fixed as `CE-402`.
+> ⇒ 🔒 *"separable"* described the EXIT half; the ENTRY half was a live defect nobody had a rail for.
+> 📄 `Architect_Question_74_Blueprint_Channel_Lifecycle.md` §0 ③.
 
 ⭐⭐ **§11 carries a SECOND, INDEPENDENT thread — `CE-389`..`CE-392`, the per-call cost.** ⛔ It shares
 no file with the eight above except the emitter, and it gates on its own counter rail (§11.6). ⚠ Its
