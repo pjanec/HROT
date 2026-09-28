@@ -5,12 +5,18 @@ build-state: DESIGN - nothing is built from this until the user approves section
 current-answer: section 4 is the five decisions, each with a lean. Read section 0 FIRST - it
   carries a defect found while writing this question (C0: a blueprint channel command is WIPED
   by ChannelArbitrationSystem on the next tick) which reframes CE-388 from "exit cleanup" to
-  "the whole channel lifecycle, and the CLAIM half is missing too". Section 1 is the INVENTORY,
-  section 3 the diagrams, section 5 the blast radius, section 6 the acceptance rails.
+  "the whole channel lifecycle, and the CLAIM half is missing too". Then read D-A, whose lean was
+  CORRECTED by the user on 2026-09-28 - it opens with the reachability table that decides it.
+  Section 1 is the INVENTORY, section 3 the diagrams, section 5 the blast radius, section 6 the
+  acceptance rails.
 stale-below: nothing.
-known-rot: nothing yet. ONE claim in the CE-388 tracker row is already known wrong and is
-  corrected in section 0: "the .bp.json declares its channels" presumes hand-declaration, and
-  D-A's lean is that the compiler DERIVES them instead.
+known-rot: nothing outstanding; two corrections are recorded IN PLACE and must not be re-inherited.
+  (1) The CE-388 tracker row says "the .bp.json declares its channels" - D-A does not hand-declare.
+  (2) 2026-09-28, USER CORRECTION: this document's FIRST draft of D-A leaned on pure derivation
+  (D-A1) after measuring exactly ONE producer. A graph can also reach a channel through a macro,
+  a Function graph, another asset, and HARDCODED C# - six IrOp kinds, and the compiler can only
+  see the body of some. D-A1 is kept as a REJECTED arm; the lean is now D-A2 (derive what is
+  derivable, CARRY the [WritesChannel] declaration for what is not). Do not quote D-A1.
 known-conflict: nothing.
 related-designs:
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md - OWNS CE-388 (its section 8, item G5) and the
@@ -88,7 +94,10 @@ grep  "BehaviorInstanceId ="  (production, non-test)                 -> 17 sites
 | ⑧ | **`ChannelCommandLowering.Emit`** — the blueprint write site | `ChannelCommandLowering.cs:8-49` | 🔴 the defect in ③ lives here |
 | ⑨ | **`ChannelArbitrationSystem`** | `ChannelArbitrationSystem.cs:44,62,80` | ⭐ behaviour-granularity cleanup, already automatic |
 | ⑩ | **`AiPrimitiveHosting`** — where `HsmAction`/`HsmGuard` are declared | `BlueprintAsset.cs:154` | the existing per-asset declaration surface, if a hand-declared override is ever needed |
-| ⑪ | **`BlueprintExposedChannelCommandAttribute`** | `BlueprintExposedChannelCommandAttribute.cs:1` | ⚠ **a PLACEHOLDER — "implemented in Slice 2", i.e. not implemented.** ⛔ A second source of channel commands is designed-but-absent; `D-A` must fail loud rather than derive an empty set if it ever lands |
+| ⑪a | **`ActionSchemaEntry(Fqn, DtoType, Hosting, Access, IsCondition, DtoFields, IsAiPrimitive)`** | `IActionSchemaExporter.cs:100` | 🔴 **NO channel member.** ⇒ `[WritesChannel]` on a C# node is invisible to the blueprint compiler. `D-A2` adds one, exactly as `CE-386` added the `HsmGuard`/`HsmActivity` hosting bits to this same surface |
+| ⑪b | **`BehaviorActionEntry.ChannelTypeFqn`** | `IBehaviorActionCatalog.cs:73` | ⛔ its own doc: *"Non-null only for `ChannelCommand` entries"* ⇒ a `Hardcoded` C# action contributes **no** channel information |
+| ⑪c | **`Stage2_5_ExpandMacros`** — compile-time fixpoint, removes the `MacroCallNode` | `MacroExpander.cs:16`, `BlueprintCompiler.cs:100` | ⭐⭐ **why macros are a NON-ISSUE for derivation:** they are gone before IR exists |
+| ⑫ | **`BlueprintExposedChannelCommandAttribute`** | `BlueprintExposedChannelCommandAttribute.cs:1` | ⚠ **a PLACEHOLDER — "implemented in Slice 2", i.e. not implemented.** ⛔ A second source of channel commands is designed-but-absent; `D-A` must fail loud rather than derive an empty set if it ever lands |
 
 ⭐ **Nothing named "blueprint channel lifecycle" exists.** ⛔ The only channel declaration mechanism
 is `[WritesChannel]`, which is a **C#-symbol** attribute and cannot reach a `.bp.json`.
@@ -145,6 +154,11 @@ the missing release is invisible. Fixing only `CE-388` would look like it change
 ```mermaid
 graph TD
     CAT["BuiltInChannelCommandCatalog<br/>entry names its channel type"] --> S5["Stage5_Schedule<br/>walks the graph"]
+    MAC["macro call"] -->|"Stage2_5 fixpoint<br/>INLINED before IR"| S5
+    GC["IrOp_GraphCall<br/>Function in same asset"] -->|"walk local call graph"| S5
+    LIB["IrOp_LibraryCall / AiPrimitiveCall<br/>another ASSET"] -->|"fixpoint over compile set"| S5
+    CS2["IrOp_InlineActionCall / PureCall<br/>HARDCODED C# - body opaque"] -->|"NEW: WritesChannel carried<br/>via ActionSchemaEntry"| S5
+    UNK["undeclared C# writer"] -.->|"UNDETECTABLE<br/>compile diagnostic"| S5
     S5 -->|"NEW: derived channel set"| BD["BlueprintDefinition<br/>+ WritesChannels"]
     BD --> REG["generated registrar<br/>NEW: auto cleanup thunk"]
     BD --> FL["HsmFlattener<br/>NEW: implicit OnExitActionId"]
@@ -167,17 +181,78 @@ whether they should share a binding policy; the diagram shows they currently sha
 
 ### `D-A` — where does the channel set come from?
 
+> #### 🔴🔴 CORRECTED `2026-09-28` — **"just derive it" is UNSOUND, and the user caught it**
+>
+> 🔒 **User, verbatim:** *"can the compiler really know from blueprint what channels it drives? if it
+> contains directly the channel control command, then yes, but it can call macros and functons and
+> even hardcoded c#"*
+>
+> ⛔ **The first draft of this section leaned on `D-A1` — pure derivation — after measuring exactly
+> ONE producer** (`IrOp_ChannelCommand` + the catalog). 📐 **Enumerated properly, a graph lowers to
+> 50+ `IrOp_*` kinds and SIX of them can reach a channel.** The lean held for one of the six.
+> ⭐ The corrected arms are below; ⚠ the old `D-A1` is kept as an arm so the record shows what was
+> rejected and why.
+
+📐 **The complete reachability table, measured** *(`IrOperation.cs`)*:
+
+| what the graph can reach | can the compiler know the channels? |
+|---|---|
+| ⭐ `IrOp_ChannelCommand` — a direct channel-command node | ✅ **YES** — the catalog entry names the channel type (⑦) |
+| ⭐⭐ **a MACRO** | ✅ **YES, and it is a NON-ISSUE.** 📐 `Stage2_5_ExpandMacros` is a **compile-time fixpoint pass that runs BEFORE IR** and *removes* the `MacroCallNode` from `host.Nodes` (`BlueprintCompiler.cs:100`, `MacroExpander.cs:16`) ⇒ by IR time a macro's channel commands are **ordinary inlined nodes in the host graph**. Nothing to do |
+| ⭐ `IrOp_GraphCall` — a Function graph in the SAME asset | ✅ **YES** — the compiler holds its IR; walk the local call graph |
+| ⚠ `IrOp_LibraryCall` · `IrOp_AiPrimitiveCall` · `IrOp_PeerCall` — another blueprint ASSET | ⚠ **ONLY with a fixpoint over the compile set.** ⛔ Unknown if the callee is not in this compile. *(`PeerCall` is additionally "designed-only and non-functional" per `DESIGN_Resolver_World_Reach.md` §8)* |
+| 🔴 `IrOp_InlineActionCall(ActionFqn, …)` · `IrOp_PureCall(MethodFqn, …)` — **ARBITRARY HARDCODED C#** | ⛔⛔ **NO.** The compiler holds a **string FQN and nothing else**, and the netstandard2.0 generator host **does not load `Fdp.Toolkits`** (the same wall that makes `NodePinSchema` degrade, ⑦'s own comment). **This is the user's objection, and it is correct** |
+
+⭐⭐⭐ **THE RESOLUTION: don't analyse the BODY — read the DECLARATION on the CALLEE.** 🔒 The
+attribute already exists and is already applied by the people who write these nodes:
+**`[WritesChannel(ChannelKind)]`** (③). ⛔ It is simply **never exported** anywhere the blueprint
+compiler can see it — 📐 measured: `ActionSchemaEntry` (`IActionSchemaExporter.cs:100`) has **no
+channel member at all**, and `BehaviorActionEntry.ChannelTypeFqn` is documented *"Non-null only for
+`ChannelCommand` entries"* ⇒ for a `Hardcoded` C# action the catalog carries **nothing**.
+
 | arm | reasoning |
 |---|---|
-| ⭐⭐⭐ **`D-A1` — DERIVE it in the compiler, author nothing** *(**LEAN**)* | `Stage5_Schedule` walks the graph; every channel-command op already carries its channel type from ⑦. Bake the derived set onto `BlueprintDefinition`. 🔒 **This is what makes the user's "default with no authoring" possible at all** — a declaration the author can forget is a declaration that will be forgotten |
-| ⛔ `D-A2` — hand-declare in the `.bp.json` | what the `CE-388` row assumed. ⛔ Duplicates a fact the compiler already has, and goes stale silently when the graph changes |
-| ⛔ `D-A3` — an attribute on the asset | same duplication, plus it needs ⑪, which is a placeholder |
+| ⭐⭐⭐ **`D-A2` — DERIVE what is derivable + CARRY the declaration for what is not** *(**LEAN**)* | ① derive `IrOp_ChannelCommand` and `IrOp_GraphCall` (macros already gone); ② **export `[WritesChannel]` through `ActionSchemaEntry`** so `InlineActionCall`/`PureCall` resolve by FQN lookup; ③ fixpoint across `LibraryCall`/`AiPrimitiveCall` within the compile set. 🔒 **The blueprint author still declares NOTHING** — the one declaration lives on the C# node, where its author already writes it for the BTree/HSM route. ⭐⭐ **Exact precedent, one week old: `CE-386` carried the `hsmAction`/`hsmGuard` flags through this same `ActionHosting` surface** because they were collapsed and invisible — same file, same shape, known cost |
+| ⛔ **`D-A1` — derive ONLY** *(the rejected first draft)* | ⛔ silently returns an incomplete set the moment a graph calls hardcoded C#, which is the most likely thing a "do something visible" activity does |
+| ⛔ `D-A3` — hand-declare on the `.bp.json` | duplicates what ① and ③ already know, and goes stale when the graph changes. ⭐ Survives only as the **escape hatch** under `D-A2`'s unknown case |
+| ⚠ **`D-A4` — no declaration at all: RUNTIME ATTRIBUTION** | snapshot each channel's `ActionInstanceId` on state entry; on exit release those this state bumped. ⭐ **Needs nothing from anyone and is immune to every escape hatch above** — genuinely the most "it just works" arm. ⛔ Costs per-state storage in the occupancy slot, and ⚠ **it does not solve the ORTHOGONAL-REGION attribution problem** (region 1 writes Locomotion, region 0 exits and sees it changed since its entry) — though neither does the existing C# `ExitCleanup_` thunk, which zeroes unconditionally. ⭐ **Worth costing properly if `D-A2`'s unknown case turns out to be common** |
 
-⚠ **`D-A1` carries a MANDATORY clause:** derivation must **fail loud** on a construct whose channels
-it cannot see — a peer call, a future ⑪ node, a custom C# node inside the graph. ⛔ **An empty
-derived set silently meaning "no cleanup needed" is the silent-default disease this repo keeps
-filing.** ⭐ The escape hatch is an explicit list in the `.bp.json`, which exists **only** for that
-case and is never the normal path.
+#### 🔴🔴 MEASURED WHILE WRITING `D-A2` — **`[WritesChannel]` HAS ZERO PRODUCTION ADOPTION**
+
+📐 **Repo-wide, attribute APPLICATIONS of `[WritesChannel(...)]`: TWO — and both are inside
+`Fbt.Tests/Unit/SharedAiAttributeTests.cs:98-99`, a unit test of the attribute itself.**
+⛔⛔ **Production applications: ZERO.** Meanwhile **four** production node files write channels —
+`CgfNodes.cs` (6 sites), `EqsCombatNodes.cs` (2), `HsmChannelRegionNodes.cs` (2),
+`HillAttackTankNodes.cs` (12) — **and not one declares it.**
+
+⇒ 🔒 **The whole `[WritesChannel]` → `RequiredExitCleanups` → `ValidateChannelSafety` chain is
+BUILT, GENERATED, VALIDATED — and INERT.** ⭐ It is the *"a capability that looks built and does
+nothing"* shape this repo keeps filing, in its purest form: the generator emits the cleanup thunks,
+the validator consults the dictionary, and the dictionary is **always empty**.
+
+| ⚠ what this does to the decisions | |
+|---|---|
+| ⛔ **`D-A2`'s fail-loud case is not rare — on day one it is the NORM** | every existing channel-writing node is undeclared ⇒ the first activity blueprint that calls one gets the diagnostic |
+| ⭐ **but the retrofit is SMALL and is a FIX, not a tax** | ~22 call sites across 4 files *(plus ~50 in `FDP/Examples`, out of scope)*. ⭐⭐ Those nodes **genuinely leak their channels on state exit today** — adding the attribute is not paperwork, it is closing a live defect |
+| ⭐⭐ **`D-A4` (runtime attribution) gains weight** | it needs **no** declaration, so zero adoption costs it nothing. ⚠ Still carries the orthogonal-region attribution problem and new per-state storage |
+| ⭐ **this deserves its own id whichever arm wins** | an inert validation chain is worth a row on its own — it will otherwise be "fixed" again by someone who assumes it works |
+
+⇒ ⭐⭐ **The lean SURVIVES but its cost is restated honestly: `D-A2` is "one member on
+`ActionSchemaEntry`" PLUS "retrofit ~22 attribute applications".** ⛔ The first draft of this
+section implied only the former.
+
+#### 🔴 `D-A2`'s UNKNOWN CASE — **a sub-decision, and the tempting answer is dangerous**
+
+⛔ A C# node with **no** `[WritesChannel]` that writes a channel anyway is **undetectable, full
+stop** — exactly as it is today on the BTree/HSM C# route. ⚠ Not a regression, but it must be said,
+and 📐 **it is live right now**: `Activity_DriveChannel`/`Activity_FireChannel` write channels and
+carry no attribute (see `D-D`'s blast radius).
+
+| what to do when the set cannot be determined | |
+|---|---|
+| ⭐⭐ **fail loud — a compile diagnostic naming the node** *(**LEAN**)* | the author adds `[WritesChannel]` to their node, or the explicit `D-A3` list to the asset. ⭐ One-time, local, and it makes the gap **visible** rather than silent |
+| ⛔⛔ **assume it writes ALL THREE channels** | ⚠ **looks like the safe default and is not:** an over-clean on exit **wipes a channel a PARALLEL REGION is currently driving**. ⛔ Turns a missing cleanup into a cross-region defect |
+| ⛔ assume NONE | today's behaviour, and the disease being treated |
 
 ### `D-B` — who binds the cleanup?
 
@@ -246,7 +321,8 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 | ⚠ **`BlueprintDefinition` gains a member** | `WritesChannels`. Every registrar emission moves — the same shape as `CE-399`'s `ParamsSize`, which was 34 files / 67 insertions |
 | ⭐ **`D-C` alone is tiny** | one line in `ChannelCommandLowering`, plus a guard. ⛔ But it moves every golden containing a channel command |
 | ⚠ **the flattener gains a rule** | `HsmFlattener` must consult the blueprint definition, which it does not do today. ⭐ It already consults the id resolver for `.ActivityId(n)`, so the seam exists |
-| ⛔ **`Fhsm.Kernel` is untouched** | deliberately — `D-B3` was rejected partly to keep it that way |
+| ⚠ **`ActionSchemaEntry` gains a member** *(`D-A2`)* | ⭐ cheap and precedented — `CE-386` added the `HsmGuard`/`HsmActivity` hosting bits to the same surface a week ago. ⛔ Every consumer of the record recompiles; it is a `record` with defaulted trailing members, so add the new one LAST |
+| ⛔ **`Fhsm.Kernel` is untouched** | deliberately — `D-B3` was rejected partly to keep it that way. ⚠ `D-A4` *(runtime attribution)* would break this, which is part of its cost |
 
 ---
 
@@ -268,8 +344,10 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 | if | then |
 |---|---|
 | rail ⑤ shows a **visible** one-frame gap | `D-E1` becomes necessary rather than optional |
-| ⑪ `BlueprintExposedChannelCommandAttribute` is implemented | `D-A1`'s derivation must cover it, or its mandatory fail-loud clause fires on every asset using it |
+| ⑫ `BlueprintExposedChannelCommandAttribute` is implemented | `D-A1`'s derivation must cover it, or its mandatory fail-loud clause fires on every asset using it |
 | a real case wants **different** exit behaviour per channel on one state | `D-E1`'s boolean is too coarse ⇒ a channel mask, not a flag |
+| ⭐ the `D-A2` unknown case turns out to be **common** — many activity blueprints call undeclared hardcoded C# | ⇒ **`D-A4` (runtime attribution) becomes the better arm**, because it needs no declaration from anyone. ⚠ Cost it against the orthogonal-region attribution problem before switching |
+| ~~a survey shows most channel-writing C# nodes already carry `[WritesChannel]`~~ | 📐 **MEASURED `2026-09-28`, and the answer is the opposite: ZERO production applications.** See the subsection under `D-A2`. ⇒ the fail-loud case is the norm on day one, and `D-A2` costs a ~22-site retrofit |
 | the user wants zero risk to the existing C# route | take `D-D2`; everything else is unaffected |
 
 ---
@@ -279,6 +357,7 @@ transition, so release-then-reclaim may cost nothing observable. ⭐ If the rail
 | order | what | why here |
 |---|---|---|
 | **1** | ⭐⭐⭐ **`D-C` as `CE-402`** | it is a plain defect, not HSM-specific, and **nothing visible works until it lands** |
+| **1a** | ⭐⭐ **export `[WritesChannel]` through `ActionSchemaEntry`** *(part of `D-A2`; its own small item)* | ⭐ **the enabling step for everything after it**, and it is self-contained: one member on a record, one reflection read in `ActionSchemaExporter`, mirroring `CE-386` exactly. ⛔ Without it the compiler cannot see a hardcoded C# writer at all |
 | **2** | `D-A` + `D-B` as `CE-388` | the release half, once there is something to release |
 | **3** | rail ⑤ | measure the gap before deciding `D-E` |
 | **4** | `D-E`, only if ⑤ says so | |
