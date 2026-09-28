@@ -40,12 +40,6 @@
           }
         ]
       },
-      "BrainBlackboard": {
-        "TargetPacked": 4294967297,
-        "MaxRounds": 5,
-        "CooldownSeconds": 2,
-        "RoundsFired": 0
-      },
       "SimTransform": {
         "Position": [
           493,
@@ -181,7 +175,6 @@
       "TargetMemory": {
         "Entries": []
       },
-      "BrainBlackboard": {},
       "SimTransform": {
         "Position": [
           560,
