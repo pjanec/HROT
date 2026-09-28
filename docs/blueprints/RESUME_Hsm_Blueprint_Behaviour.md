@@ -11,7 +11,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   409/411/412. ⏭ LEFT: three NEW authoring defects the live run exposed — CE-413 (an inert DTO
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
-  Branch `behaviors` @ 571f77c62.
+  Branch `behaviors` @ 2725b9fec.
 current-answer: ⭐⭐⭐ **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
   work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
   acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
@@ -288,7 +288,7 @@ right project was built and MSBuild decided it had nothing to do.**
 | ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: RootParamsBytes always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
 
 ```bash
-git log --oneline -14 behaviors  # 571f77c62 back to 84808faef is this programme
+git log --oneline -15 behaviors  # 2725b9fec back to 84808faef is this programme
 git stash list                   # must still show the RootParamsBytes probe
 ```
 
@@ -319,16 +319,18 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 
 ### 8.2 ⏭ WHAT IS LEFT — **in order**
 
-🔒 **User `2026-09-28`:** *"yes, file both as defects. We will tackle them after compaction."*
+🔒 **User `2026-09-28`, after compaction:** *"fix all to what it is meant to be."*
+⭐⭐⭐ **`CE-413` and `CE-414` are DONE** *(commit `2725b9fec`)* — rows 1 and 2 below are kept as HISTORY
+because the REFRAME is the useful part: `CE-414` as filed asked for the wrong fix.
 
 | # | what | note |
 |---|---|---|
-| **1** | ⭐⭐ **`CE-413`** — `TransitionNodeDto.ExpressionTargetField` is **INERT**; a guard silently inherits the source state's param window | `HsmAssetDto.cs:198` declares it, `HsmBridgeEmitCore.EmitStateParamBindings:288-322` reads it **only from states**. ⇒ the guard's layout dictates what the state's window must start with. 📐 Cost a full debugging round: the guard read the first byte of `560.0f` = `0x00` = a permanent `false`, silently. ⭐ **Decide:** honour it on transitions, or DELETE the member so it stops reading as a capability |
-| **2** | ⭐⭐ **`CE-414`** — a state's param seed is a **BYTE OFFSET**, so blackboard variable ORDER is load-bearing and nothing checks it | renaming/reordering/inserting a variable silently shifts every parameter of every state seeded at or after it. ⭐ **Candidate fix:** a compile-time name+type check at the seam — all the information is present at emit time |
-| **3** | ⭐ **`CE-415`** — a `Vector3` **pin default** is silently discarded; only a WIRED value survives | ⛔ not an authoring typo: shipped `Loco1.bp.json` has the same shape and emits no `Destination` either. ⚠ **`Loco1` is presumably affected in production today** |
-| **4** | ⭐ **`CE-408`** — a deliberate re-issue of an identical, COMPLETED channel command is swallowed | 📄 `Q74` §9.9. ⛔ Filed not fixed; **nothing exercises the hole today**. The principled fix is in the EMITTER (gated path vs per-tick body) |
-| **5** | ⚠ **`CE-410`** — `POST /scenario/load/live` answers `ok:true` for a load whose 2PC prepare faulted | ⛔ **NOT this lane** — orchestrator / debug API |
-| **6** | ⭐ **the EDITOR AUTHORING pass — the user's own** | ✅ The RUNTIME is proved (§8.4). What remains is judging the authoring UX by opening these assets in the editor on Windows. ⭐ **`CE-413`/`414`/`415` are exactly what to watch for** |
+| ~~**1**~~ | ✅ **`CE-413` DONE `2725b9fec`** — a guard blueprint seeds from its OWN variable. ⭐ The discriminator is the guard's ASSET GUID, so no FastHSM change was needed; the kernel stamps a guard with its SOURCE STATE and the site key separates them. 📄 `DESIGN_Occurrence_Scoped_Storage.md` §28.6c. ⛔ HISTORY of the filing: ⭐⭐ **`CE-413`** — `TransitionNodeDto.ExpressionTargetField` is **INERT**; a guard silently inherits the source state's param window | `HsmAssetDto.cs:198` declares it, `HsmBridgeEmitCore.EmitStateParamBindings:288-322` reads it **only from states**. ⇒ the guard's layout dictates what the state's window must start with. 📐 Cost a full debugging round: the guard read the first byte of `560.0f` = `0x00` = a permanent `false`, silently. ⭐ **Decide:** honour it on transitions, or DELETE the member so it stops reading as a capability |
+| ~~**2**~~ | ✅ **`CE-414` DONE `2725b9fec`, and REFRAMED** — the fix was NOT a check at the seam. 🔒 User: *"those dto define the offsets … you were fighting with what should not need no fighting."* ⭐⭐ The HSM authoring path was missing the COMPOSE step the BTree path has had since `E2`: a blueprint pick now creates ONE `IsAutoManaged` variable typed from the blueprint's generated `Params`, so the seed is that variable and there is no window to check. ⚠ It also needed `HsmJsonGenerator` to compose the Option-A size fallback, without which the whole feature is silently inert. 📐 **Re-proved live:** the demo drives to its seeded destination and destroys the 500 HP target with the composed shape. ⛔ HISTORY of the filing: ⭐⭐ **`CE-414`** — a state's param seed is a **BYTE OFFSET**, so blackboard variable ORDER is load-bearing and nothing checks it | renaming/reordering/inserting a variable silently shifts every parameter of every state seeded at or after it. ⭐ **Candidate fix:** a compile-time name+type check at the seam — all the information is present at emit time |
+| **1** | ⭐ **`CE-415`** — a `Vector3` **pin default** is silently discarded; only a WIRED value survives | ⛔ not an authoring typo: shipped `Loco1.bp.json` has the same shape and emits no `Destination` either. ⚠ **`Loco1` is presumably affected in production today** |
+| **2** | ⭐ **`CE-408`** — a deliberate re-issue of an identical, COMPLETED channel command is swallowed | 📄 `Q74` §9.9. ⛔ Filed not fixed; **nothing exercises the hole today**. The principled fix is in the EMITTER (gated path vs per-tick body) |
+| **3** | ⚠ **`CE-410`** — `POST /scenario/load/live` answers `ok:true` for a load whose 2PC prepare faulted | ⛔ **NOT this lane** — orchestrator / debug API |
+| **4** | ⭐ **the EDITOR AUTHORING pass — the user's own** | ✅ The RUNTIME is proved (§8.4), and `CE-413`/`CE-414` mean the pick now composes the params variable for you. What remains is judging the authoring UX by opening these assets in the editor on Windows. ⭐ **`CE-413`/`414`/`415` are exactly what to watch for** |
 
 ⭐⭐ **The channel-lifecycle programme itself is COMPLETE.** Everything above is either a NEW defect
 the live run exposed, another lane's, or the user's own editor pass.
