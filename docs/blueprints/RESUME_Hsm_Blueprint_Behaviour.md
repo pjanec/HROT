@@ -5,12 +5,13 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
 updated: 2026-09-28
-build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE and its
-  RUNTIME PROVED END TO END, headless, 2026-09-28 (§8.4): CE-402, CE-403, CE-388
-  (D-A2/D-B1/D-D1/D-F), CE-404 (rail 5 ⇒ D-E WITHDRAWN), CE-406, CE-405, and CE-407 + CE-408
-  which the LIVE RUN found after every gate was green. Left: CE-408's filed hole (nothing
-  exercises it), CE-409/CE-410 (other lanes), and the user's own editor AUTHORING pass.
-  Branch `behaviors`.
+build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE, and the
+  RUNTIME is PROVED END TO END live (§8.4): the demo scenario drives to a seeded destination and
+  destroys a target. Built: CE-402/403/388(D-A2,D-B1,D-D1,D-F)/404(D-E WITHDRAWN)/405/406/407/
+  409/411/412. ⏭ LEFT: three NEW authoring defects the live run exposed — CE-413 (an inert DTO
+  field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
+  CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
+  Branch `behaviors` @ 571f77c62.
 current-answer: ⭐⭐⭐ **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
   work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
   acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
@@ -282,12 +283,12 @@ right project was built and MSBuild decided it had nothing to do.**
 
 | | |
 |---|---|
-| branch | **`behaviors`**, pushed, at **`6dcde3542`** |
+| branch | **`behaviors`**, pushed, at **`571f77c62`** |
 | owning design | 📄 [`Architect_Question_74_Blueprint_Channel_Lifecycle.md`](Architect_Question_74_Blueprint_Channel_Lifecycle.md) — **§9 IS THE AS-BUILT; where §4 and §9 disagree, §9 WINS** |
 | ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: RootParamsBytes always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
 
 ```bash
-git log --oneline -8 behaviors   # 6dcde3542 back to 84808faef is this programme
+git log --oneline -14 behaviors  # 571f77c62 back to 84808faef is this programme
 git stash list                   # must still show the RootParamsBytes probe
 ```
 
@@ -305,6 +306,12 @@ git stash list                   # must still show the RootParamsBytes probe
 | `CE-406` | ⭐ **the channel-safety validator RE-AIMED for the auto-bind world** — skip a baked `ExitActionId`, match the short name as the dispatcher does, re-word the message. Kept as the test-suite helper its own doc specifies | *this batch* |
 | `CE-405` | ⭐⭐ **a re-issued channel command no longer re-enters the executor** — the lowering bumps `ActionInstanceId` only when the action id, the params bytes or a `Failure` status say the command is genuinely new | *this batch* |
 | `CE-402` | *(row only)* the tracker still read `[ ] OPEN` although the fix shipped in `2c320079c` — closed | *this batch* |
+| `CE-407` | 🔴 **the derived cleanup thunk was a NO-OP** — the derivation skipped `Function`-kinded graphs while the emitter falls back to them, so every authored blueprint derived an EMPTY channel set with `IsComplete==true` and the channel leaked anyway. **Found by RUNNING it; no test could catch it** | `cb5c81f96` |
+| `CE-408` | the `!= Running` re-activation reverted to `== Failure` — it stormed at **266 re-enters in 3 s** on a per-tick activity | `cb5c81f96` |
+| `CE-409` | `BrainBlackboard` removed from the two scenarios still carrying it ⇒ **the shipped scenarios load again** | `088bb485b` |
+| `CE-411` | **unknown-component strictness is now a per-host POLICY** — `Throw` by default, `WarnAndSkip` on the four cluster entry points only | `c02e29c43` |
+| `CE-412` | the migrator P4 owed — `V2ToV3_RemoveBrainBlackboard` + reverse, `CurrentVersion`→3, and the **two drifted schema-version producers** pinned | `c02e29c43` |
+| ⭐⭐ **the DEMO** | `hsm-channel-e2e` now genuinely **drives and shoots** — see §8.4 | `571f77c62` |
 
 ⭐ **The concrete result:** `HsmTwoChannelRegionsDemo` bakes `.OnExitId(26097)` / `.OnExitId(46817)`,
 matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` / `_FireChannel`.
@@ -312,13 +319,19 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 
 ### 8.2 ⏭ WHAT IS LEFT — **in order**
 
+🔒 **User `2026-09-28`:** *"yes, file both as defects. We will tackle them after compaction."*
+
 | # | what | note |
 |---|---|---|
-| **1** | ⭐ **`CE-408`** — a deliberate re-issue of an identical, COMPLETED channel command is swallowed | 📄 `Q74` §9.9. ⛔ Filed, not fixed: the channel cannot tell *"the activity ticked again"* from *"the author asked again"*, and the `!= Running` reading was **measured wrong** (266 re-enters in 3 s). ⭐ The principled fix is in the EMITTER — it can see a gated path vs a per-tick body. ⚠ **Nothing exercises the hole today** |
-| **2** | ⚠ **`CE-409` / `CE-410`** — the shipped scenarios are unloadable, and `load/live` lies about it | ⛔ **NOT this lane**: the asset corpus and the orchestrator/debug API. Filed with the measurement |
-| **3** | ⭐ **the EDITOR AUTHORING pass — the user's own** | 🔒 *"if the scenario is working i will then do manual editor run and will evaluate how to author stuff; just i need to be sure the runtime part is OK."* ✅ **The runtime part IS OK — proved live, §8.4.** What remains is judging the authoring UX (`CE-385`/`386`/`387`) by opening these assets in the editor on Windows |
+| **1** | ⭐⭐ **`CE-413`** — `TransitionNodeDto.ExpressionTargetField` is **INERT**; a guard silently inherits the source state's param window | `HsmAssetDto.cs:198` declares it, `HsmBridgeEmitCore.EmitStateParamBindings:288-322` reads it **only from states**. ⇒ the guard's layout dictates what the state's window must start with. 📐 Cost a full debugging round: the guard read the first byte of `560.0f` = `0x00` = a permanent `false`, silently. ⭐ **Decide:** honour it on transitions, or DELETE the member so it stops reading as a capability |
+| **2** | ⭐⭐ **`CE-414`** — a state's param seed is a **BYTE OFFSET**, so blackboard variable ORDER is load-bearing and nothing checks it | renaming/reordering/inserting a variable silently shifts every parameter of every state seeded at or after it. ⭐ **Candidate fix:** a compile-time name+type check at the seam — all the information is present at emit time |
+| **3** | ⭐ **`CE-415`** — a `Vector3` **pin default** is silently discarded; only a WIRED value survives | ⛔ not an authoring typo: shipped `Loco1.bp.json` has the same shape and emits no `Destination` either. ⚠ **`Loco1` is presumably affected in production today** |
+| **4** | ⭐ **`CE-408`** — a deliberate re-issue of an identical, COMPLETED channel command is swallowed | 📄 `Q74` §9.9. ⛔ Filed not fixed; **nothing exercises the hole today**. The principled fix is in the EMITTER (gated path vs per-tick body) |
+| **5** | ⚠ **`CE-410`** — `POST /scenario/load/live` answers `ok:true` for a load whose 2PC prepare faulted | ⛔ **NOT this lane** — orchestrator / debug API |
+| **6** | ⭐ **the EDITOR AUTHORING pass — the user's own** | ✅ The RUNTIME is proved (§8.4). What remains is judging the authoring UX by opening these assets in the editor on Windows. ⭐ **`CE-413`/`414`/`415` are exactly what to watch for** |
 
-⭐ **The RUNTIME end-to-end check is DONE** — see §8.4. It needed no editor.
+⭐⭐ **The channel-lifecycle programme itself is COMPLETE.** Everything above is either a NEW defect
+the live run exposed, another lane's, or the user's own editor pass.
 
 ### 8.3 ⛔⛔ TRAPS THIS PROGRAMME PAID FOR — **do not re-derive these**
 
@@ -330,41 +343,44 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 | ⛔⛔ **the cleanup id is keyed on the SHORT method name** | `HsmActionGenerator.cs:565` emits `m.Name`; assets hold the FQN. `CE403_R2` pins it. ⛔ Hashing the FQN binds an id nothing registered — **no error anywhere**, the channel simply never releases |
 | ⚠ **`[WritesChannel]` is opt-in and always will be** | an UNDECLARED C# writer is undetectable. ⭐ What the compiler CAN do is refuse to guess when it cannot classify a call at all — that is `IsComplete == false`, and it must never be treated as "writes nothing" |
 
-### 8.4 ✅ THE EDITOR END-TO-END CHECK — **the RUNTIME half is PROVED, headless** *(`2026-09-28`)*
+### 8.4 ✅ THE END-TO-END CHECK — **RUNTIME PROVED, AND THE DEMO NOW DRIVES AND SHOOTS**
 
 🔒 **User:** *"a scenario with entity using hsm that calls blueprint guards and blueprint actions, to
-test it end to end"* — then: *"can't you author scenario yourself and load and run and diagnose it
-using ai debug HTTP yourself?"*
+test it end to end"* · *"i need to be sure the runtime part is OK."*
 
-⭐⭐⭐ **Yes, and the editor was never required.** A `.hsm.json` self-registers as a named behaviour at
-build time *(the generated registrar calls `beh.Register(hash, "<Name>", …)`)*, so a scenario's
-`behaviorName` references an HSM directly.
+⭐⭐⭐ **It is. And the editor was never required** — a `.hsm.json` self-registers as a named behaviour
+at build time, so a scenario's `behaviorName` references it directly.
 
-| the subject, authored by hand | |
+| the subject | |
 |---|---|
-| `Assets/Blueprints/HsmDriveActivity.bp.json` | `HsmAction` hosting, issues `MoveTo` on the locomotion channel |
-| `Assets/Blueprints/HsmFireActivity.bp.json` | `HsmAction` hosting, issues `AimAndFire` on the weapon channel |
-| `Assets/HSMs/HsmChannelE2E.hsm.json` | `Driving` → `Firing`, each activity a blueprint, the transition POLLED and guarded by the existing `HsmGuardDemo` blueprint |
-| `scenarios/hsm-channel-e2e/scenario.json` | two entities, `Open=false` and `Open=true`, so both sides of the hand-off are observable in one run |
+| `Assets/Blueprints/HsmDriveActivity.bp.json` | `HsmAction`; `GetAllParameters` → `VectorOps.Vec3` → **linked** into `MoveTo`'s `Destination` |
+| `Assets/Blueprints/HsmFireActivity.bp.json` | `HsmAction`; `TargetNetworkId` → `NetworkEntityMapOps.ResolveTarget` → **linked** into `AimAndFire`'s `Target` |
+| `Assets/HSMs/HsmChannelE2E.hsm.json` | `Driving` → `Firing`, POLLED, guarded by the `HsmGuardDemo` blueprint. Blackboard: `Open`, `DestX`, `DestY`, `TargetNetworkId` |
+| `scenarios/hsm-channel-e2e/` | two Bradleys (`Open=false` / `Open=true`) + a static 500 HP target |
 
-📐 **Run:** `--mode all` headless under `xvfb`, `POST /scenario/load/live`, `POST /sim/play`,
-**Scenario perspective** *(⚠ the AI runs on the CGF node — SimHost shows no `BehaviorState`)*.
+📐 **Measured** *(`--mode all` headless, **Scenario perspective** — ⚠ the AI runs on the CGF node;
+SimHost shows no `BehaviorState`)*:
 
-| entity | `LocomotionChannel` | `WeaponChannel` |
-|---|---|---|
-| `Open=false` — stays in `Driving` | `ActiveAction 1`, claimed by instance 2, id **1** stable, Running | untouched |
-| `Open=true` — transitioned to `Firing` | `ActiveAction 0`, id **1→2** ⇒ **RELEASED** | `ActiveAction 1`, claimed, id **1** |
+| t | `Open=false` | `Open=true` | target |
+|---|---|---|---|
+| 6 s | (401.6, 296) `loco 1/Running` | (403.1, 360) `loco 0` · `wep 1/Running` · ammo **293** | hp **300** |
+| 18 s | (500.0, 296) `loco 1/Running` | (500.8, 360) `loco 0` · `wep 1/Running` · ammo **278** | hp **0** |
 
-✅ **Every clause of the acceptance description**: HSM as behaviour · blueprint-guarded polled
-transition · a blueprint action ticking per state · one action per channel · the channel released on
-exit, incremented not reset.
+✅ Every clause: HSM as behaviour · a blueprint-guarded POLLED transition reading a blackboard
+variable · a blueprint action ticking per state · one action per channel · the channel released on
+exit. **The `Open=true` entity destroys the target.**
 
-🔴🔴 **And the run found two defects every green gate had missed — `CE-407` and `CE-408`, both now
-fixed. 📄 `Q74` §9.9 is the record.** ⇒ ⭐ **a green gate table is not an answer to *"does the product
-work?"***
+⚠ **Two caveats worth knowing before reading anything into it:**
+⭐ the `Firing` entity **keeps rolling** after releasing locomotion — clearing the channel does not
+retract the nav intent `MoveTo` already latched *(correct per the channel design)*; and
+⭐ `NetworkIdentity` is **REASSIGNED at load** *(authored 2050, runtime 1002, by entity order)*, so
+`TargetNetworkId` names the assigned id.
 
-⭐ **What is still the user's:** opening these assets in the editor on Windows to judge the AUTHORING
-surface. ⛔ That is a different claim from the runtime one, and only they can make it.
+⭐⭐ **THE PARAM-SEEDING CHAIN, which is what `CE-413`/`CE-414` are about:**
+`behaviorParams` → HSM blackboard variable → blueprint `Parameter` *(seeded as a **byte window** from
+the state's `ExpressionTargetField` offset)* → `GetAllParameters` → `Vec3`/`ResolveTarget` →
+**LINKED** into the command pin. ⛔ The link is load-bearing — a `PinDefault` is dropped for a
+`Vector3` (`CE-415`).
 
 ### 8.5 📐 GATE BASELINE at `6dcde3542`
 
