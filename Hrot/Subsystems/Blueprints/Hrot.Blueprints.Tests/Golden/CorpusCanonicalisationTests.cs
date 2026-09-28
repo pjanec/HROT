@@ -277,7 +277,11 @@ public sealed class CorpusCanonicalisationTests
         // ⭐ 43 → 44 in the Q43 build: `ParamResolverDemo`, the first Construction-graph asset.
         // ⭐ 44 → 45 in the R4 build: `ResolverWorldReachDemo`.
         // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo`.
-        Assert.Equal(47, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 47 → 48 in CE-397: `HsmGuardDemo` — the FIRST AiPrimitive in the corpus hosted as an
+        //    `HsmGuard`. Measured before it: 34 BTreeAction, 9 BTreeCondition, 2 HsmAction and ZERO
+        //    HsmGuard, so the HSM GUARD path had no asset and acceptance rail 4 of
+        //    DESIGN_Hsm_Blueprint_Behaviour_Authoring.md could not be closed by existing content.
+        Assert.Equal(48, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

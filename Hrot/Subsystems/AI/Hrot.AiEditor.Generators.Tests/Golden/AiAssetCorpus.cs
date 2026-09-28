@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.Immutable;
 using System.IO;
 using System.Linq;
 using Hrot.AiEditor.Persistence.Emit;
@@ -83,7 +84,18 @@ public sealed record AiAssetKind(
                       ?? throw new InvalidDataException("Deserialized null.");
             var parts = new List<(string, string)>
             {
-                ("g.cs",           HsmEmitCore.EmitTopologyCore(dto)),
+                // ⭐⭐⭐ CE-397 — the BLUEPRINT ID RESOLVER, which this delegate used to omit.
+                // 🔴 It called `EmitTopologyCore(dto)` with no resolver, so for any asset binding a
+                //    blueprint activity or guard the baseline recorded the emitted source WITHOUT the
+                //    baked `.GuardId(...)` / `.ActivityId(...)` — measured the day the first such
+                //    asset (HsmPolledGuardDemo) entered the corpus: the real generated file carried
+                //    `.GuardId(36109)` and the recorded golden did not.
+                // ⛔ That directly contradicts this record's own contract, three lines up in
+                //    AiAssetKind.Emit: "These MUST be the same calls the production generator makes."
+                //    A baseline that under-records cannot catch a regression in what it omits.
+                // ⚠ Harmless until CE-384 gave the emitter a third argument — which is exactly how a
+                //    silent default survives: nothing in the corpus exercised it.
+                ("g.cs",           HsmEmitCore.EmitTopologyCore(dto, null, AiAssetCorpus.BlueprintIdResolver)),
                 ("Registrar.g.cs", HsmBridgeEmitCore.EmitBridge(dto)),
             };
             // ⭐ Batch 92 (92b): mirrors the generator exactly — the orchestrator part exists only when
@@ -172,6 +184,60 @@ public static class AiAssetCorpus
         => fileName.EndsWith(kind.FileSuffix, StringComparison.Ordinal)
             ? fileName[..^kind.FileSuffix.Length]
             : Path.GetFileNameWithoutExtension(fileName);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-397</c> — the corpus's <c>.bp.json</c> files, as the generator's
+    /// <c>AdditionalFiles</c> hand them over.</b>
+    ///
+    /// <para>⚠ <c>Assets/Blueprints</c> is NOT an <see cref="AiAssetKind"/> corpus of its own here —
+    /// it is an INPUT to the HSM emit, the same way <c>Hrot.AI.Behaviors.csproj</c> feeds
+    /// <c>*.bp.json</c> to <c>HsmJsonGenerator</c> alongside the <c>*.hsm.json</c> glob. ⛔ Promoting
+    /// it to a kind would add a second, unrelated golden tier for a directory this file only needs
+    /// to read.</para>
+    /// </summary>
+    public static System.Collections.Immutable.ImmutableArray<(string Path, string Text)> BlueprintInputs()
+    {
+        var dir = AppContext.BaseDirectory;
+        while (dir != null)
+        {
+            var candidate = Path.Combine(
+                dir, "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints");
+            if (Directory.Exists(candidate))
+                return Directory.GetFiles(candidate, "*.bp.json", SearchOption.AllDirectories)
+                                .OrderBy(p => Path.GetFileName(p), StringComparer.Ordinal)
+                                .Select(p => (p, File.ReadAllText(p)))
+                                .ToImmutableArray();
+            dir = Path.GetDirectoryName(dir);
+        }
+        throw new DirectoryNotFoundException(
+            "Blueprint inputs not found — expected Hrot/Subsystems/Hrot.AI.Behaviors/Assets/Blueprints.");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>The SAME resolver <c>HsmJsonGenerator:115-128</c> builds</b>, over the same inputs.
+    /// ⛔ Deliberately not a re-implementation of the id: it calls
+    /// <c>GeneratedBlueprintSchemaCatalog.Parse</c>, the production parser, and returns
+    /// <c>null</c> — never <c>0</c> — for an unknown or non-AiPrimitive asset, because <c>0</c> is a
+    /// VALID action id and a fallback would silently mis-dispatch.
+    /// </summary>
+    /// <remarks>⚠ Built ONCE — the corpus holds ~50 <c>.bp.json</c> files and the emit sweep runs
+    /// per asset, so rebuilding it each time would re-parse all of them for every corpus entry.</remarks>
+    public static Func<Guid, ushort?> BlueprintIdResolver => LazyResolver.Value;
+
+    private static readonly Lazy<Func<Guid, ushort?>> LazyResolver = new(() =>
+    {
+        var schemas = Hrot.AiEditor.Generators.GeneratedBlueprintSchemaCatalog.Parse(BlueprintInputs());
+        return assetId =>
+        {
+            foreach (var schema in schemas)
+            {
+                if (schema.AssetId != assetId) continue;
+                if (!schema.IsAiPrimitive) return null;
+                return unchecked((ushort)schema.BlueprintId);
+            }
+            return null;
+        };
+    });
 
     public static string ReadAsset(AiAssetKind kind, string assetName)
     {

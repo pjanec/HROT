@@ -1,0 +1,11 @@
+StructureHash: 0x8500B7DDAD5C7904
+Parameters:
+  Open : System.Boolean @0 size=1
+WorkingState:
+  (empty)
+Variables:
+  (empty)
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

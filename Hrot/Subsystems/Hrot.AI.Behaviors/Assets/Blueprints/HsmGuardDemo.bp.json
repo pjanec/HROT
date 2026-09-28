@@ -1,0 +1,124 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000150-0000-0000-0000-000000000001",
+  "Name": "HsmGuardDemo",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Condition",
+    "Hostings": [
+      "HsmGuard"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d1500001-0001-0001-0001-000000000001",
+      "Name": "Open",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "false",
+      "Tooltip": "The guard\u0027s verdict, seeded from the hosting HSM\u0027s blackboard.",
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000150-0000-0000-0000-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000150-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 160,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetParameter",
+          "ParameterId": "d1500001-0001-0001-0001-000000000001",
+          "Id": "20000150-0000-0000-0000-000000000002",
+          "Pins": [
+            {
+              "Id": "a1500000-0000-0000-0000-000000000001",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "System.Boolean",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 60,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000150-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 360,
+            "Y": 120,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000150-0000-0000-0000-000000000001",
+          "FromPinId": "e1500000-0000-0000-0000-000000000001",
+          "ToNodeId": "20000150-0000-0000-0000-000000000003",
+          "ToPinId": "e1500000-0000-0000-0000-000000000002"
+        },
+        {
+          "FromNodeId": "20000150-0000-0000-0000-000000000002",
+          "FromPinId": "a1500000-0000-0000-0000-000000000001",
+          "ToNodeId": "20000150-0000-0000-0000-000000000003",
+          "ToPinId": "e1500000-0000-0000-0000-000000000003"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CE-397 - the FIRST AiPrimitive in the corpus hosted as an HsmGuard. Measured 2026-09-27 across every tracked .bp.json: 34 BTreeAction, 9 BTreeCondition, 2 HsmAction and ZERO HsmGuard, so the HSM GUARD hosting path had no asset at all and acceptance rail 4 of DESIGN_Hsm_Blueprint_Behaviour_Authoring.md could not be closed by existing content. Graph: EventEntry -\u003E Return, with GetParameter(Open) wired into Return\u0027s Success data-in pin (BP-131: an AiPrimitive\u0027s Return carries a runtime Success pin, so the verdict is decided by the seeded parameter rather than picked at author time). It is deliberately the smallest graph that is still a REAL guard - what is under test is the ID AGREEMENT between the blob a hosting HSM compiles and the thunk this asset\u0027s registrar registers, not the graph body. LINK ORDER IS LOAD-BEARING: the Return node authors Pins:[] so Stage0_Rehydrate binds its incoming links POSITIONALLY against the pin order [In(exec), Success(data)] - the exec link must therefore be listed first. HsmPolledGuardDemo.hsm.json is the machine that binds this guard.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

@@ -216,18 +216,21 @@ silent.
 | `CE-386` | `ActionHosting.HsmGuard` + `HsmActivity`; both pickers read the catalog ⇒ the FIRST binding is makeable |
 | `CE-387` | `StateNode.ExpressionTargetField` — the emitter had consumed it since `E3b-0` and the editor could never produce it |
 
-### 7.2 🔴 THE ONE THING THAT BLOCKS ACCEPTANCE RAIL ④
+### 7.2 ✅ ACCEPTANCE RAIL ④ IS CLOSED — `CE-397` *(`2026-09-28`)*
 
-⛔⛔ **No blueprint in the repo declares `HsmGuard`.** 📐 Measured across every tracked `.bp.json`:
-**34 `BTreeAction` · 9 `BTreeCondition` · 2 `HsmAction` · ZERO `HsmGuard`.**
+⛔ **It used to be blocked by CONTENT, not by code:** no blueprint in the repo declared `HsmGuard`
+*(measured: 34 `BTreeAction` · 9 `BTreeCondition` · 2 `HsmAction` · **ZERO** `HsmGuard`)*, so the
+chain existed and nothing exercised it.
 
-⇒ ⭐ the guard picker is CORRECT and EMPTY, and rail ④ *("the id the blob addresses equals the id the
-registrar registers")* **cannot be closed by existing content** — it needs a guard blueprint authored
-first, then an end-to-end rail with the blueprint compiler in the loop.
-⭐⭐ **The chain is structurally complete and was verified by reading:** `AiPrimitiveEmitter.cs:280`
-writes `hsmGuard:` into `[GeneratedAiPrimitiveAction]`, and `CSharpEmitter.cs:476` registers the thunk
-via `HsmActionDispatcher.RegisterGuard((ushort)BlueprintId, …)` — **the same id `CE-384` bakes.**
-⚠ Verified by reading, NOT by a rail. That is exactly what ④ is for.
+⭐ **`CE-397` authored the two assets that do** — `HsmGuardDemo.bp.json` (the first `HsmGuard`
+AiPrimitive in the corpus) and `HsmPolledGuardDemo.hsm.json` (a POLLED transition guarded by it by
+GUID, seeded through `CE-387`'s state binding) — and the rail reads **both sides from artefacts**:
+the compiled blob's `TransitionDef.GuardId` against the keys the blueprint's own generated registrar
+puts in `HsmActionDispatcher.GuardTable`. 📄 design **§13.7**.
+
+🔴 **It also found a golden that UNDER-RECORDED:** `AiAssetCorpus` emitted with no blueprint id
+resolver, so the baseline omitted the baked `.GuardId(...)`. Fixed; only the new asset's baseline
+moved. ⚠ Same silent-default shape as everything else this programme has caught.
 
 ### 7.3 📋 THE REST, AND NONE OF IT BLOCKS THE ACCEPTANCE TEST
 

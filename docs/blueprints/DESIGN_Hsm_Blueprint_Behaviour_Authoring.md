@@ -10,10 +10,12 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   it does, and §2 says which. ⚠ §2.4 carries a CORRECTION to a claim this design's own author made
   in chat on 2026-09-27; read it before quoting "the BTree side already solved this".
   ⭐⭐ §13 is the AS-BUILT: 13.1-13.3 = CE-381..CE-384 (the runtime spine), 13.4 = CE-385 + the §9 ③
-  validator rule + CE-396, 13.5 = CE-386, 13.6 = CE-387. ⭐⭐⭐ STAGE 1 AND STAGE 2 ARE COMPLETE —
-  everything §8 lists except CE-388 (channels, separable) is BUILT.
-  ⏭ WHAT IS LEFT: acceptance rail ④ cannot be closed by existing content (measured: ZERO tracked
-  .bp.json declares hsmGuard); CE-388; and the §11 call-cost thread CE-389..CE-392.
+  validator rule + CE-396, 13.5 = CE-386, 13.6 = CE-387, 13.7 = CE-397 (RAIL ④ CLOSED).
+  ⭐⭐⭐ STAGE 1 AND STAGE 2 ARE COMPLETE — everything §8 lists except CE-388 (channels, separable)
+  is BUILT. ⚠ §9 rails ⑥ (per-channel activities in two regions) and ⑨ (BehaviorFinishedEvent after
+  a polled transition) are NOT railed; ⑦ is covered by TWO rails either side of the DTO rather than
+  one end-to-end. ⛔ Do not read "rail ④ closed" as "all of §9 closed".
+  ⏭ WHAT IS LEFT: CE-388; the §11 call-cost thread CE-389..CE-392; and CE-395 (priority bits).
 stale-below: nothing yet.
 known-rot: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
   separately. MEASURED FALSE on 2026-09-27 — it collapses both into one `ActionHosting.Hsm` bit. The
@@ -952,3 +954,72 @@ thing**, which is the trap the shared name sets for the next reader.
 | cross-region writer-conflict rule | ✅ **participates** — two regions writing one variable race | ⛔ **must NOT** — §9.6 permits concurrent READERS; folding states in would manufacture a hard error on a legal asset. **There is a rail for this** |
 | auto-managed variable cleanup on delete | ✅ `RemoveTransitionInternal` removes the promoted variable | ⛔ **deliberately none** — a state names an EXISTING packed input that other states may also seed from; deleting the state must not delete it |
 | `CountNodesReferencingVariable` | ✅ counts | ✅ **counts too** — the caller's question is `IsUnused`, and a variable something seeds from is plainly used. ⚠ Omitting it would resurrect trap #5 for the state case |
+
+### 13.7 `CE-397` — **ACCEPTANCE RAIL ④ IS CLOSED** *(`2026-09-28`)*
+
+⭐⭐⭐ **The id the blob addresses for a blueprint guard EQUALS the id the blueprint's registrar
+registers — proved against the artefacts, not against a recomputation.**
+
+#### 🔴 WHY IT COULD NOT BE CLOSED BEFORE: THE CORPUS HAD NO GUARD BLUEPRINT
+
+📐 Measured across every tracked `.bp.json`: **34 `BTreeAction` · 9 `BTreeCondition` · 2 `HsmAction` ·
+ZERO `HsmGuard`.** The whole chain existed and nothing exercised it. ⇒ two new assets:
+
+| asset | what it is |
+|---|---|
+| **`Assets/Blueprints/HsmGuardDemo.bp.json`** | ⭐ the FIRST AiPrimitive in the corpus hosted as an `HsmGuard`. `Intent: Condition`, one `bool` parameter `Open` wired into `Return`'s runtime `Success` pin (`BP-131`), so the verdict comes from the SEEDED parameter |
+| **`Assets/HSMs/HsmPolledGuardDemo.hsm.json`** | ⭐ `Waiting → Finished`, **POLLED**, guarded by that blueprint **by GUID**, with the source state's `ExpressionTargetField` (`CE-387`) seeding the guard's params from the blackboard. ⭐⭐ It is the user's whole acceptance description in one asset: a few states, a blueprint-programmed condition reading blackboard variables, and an exit state |
+
+⭐ **Both compile through the REAL generators**: `waiting.On(0).GoTo("Finished", …).GuardId(36109).Polled();`
+and `RegisterGuard(unchecked((ushort)HsmGuardDemo_C2A38D0D_Bp.BlueprintId), &…HsmGuard)`.
+
+#### ⭐⭐⭐ THE RAIL — **neither side recomputes the key**
+
+| side | where it comes from |
+|---|---|
+| **LEFT** | `HsmPolledGuardDemo.Compile()` → `TransitionDef.GuardId`. Asset strings → HSM generator → flattener → blob |
+| **RIGHT** | RUN the blueprint's own generated `[BlueprintRegistrar].Register(staging)`, then read the keys out of `HsmActionDispatcher`'s private `GuardTable` |
+
+⛔ **`(ushort)BlueprintId` is deliberately NOT the right-hand side** of the headline rail — that would
+be the blueprint half asserting itself. ⭐ The dispatcher table is **what the kernel actually looks a
+guard up in**, so it is the only right side that can fail for the real reason. 📌 The precedent
+`HsmActionIdAgreementTests` records why: its first draft recomputed the right side and a revert probe
+left it GREEN. **5 rails**, and the polled half (`IsPolled`, `EventId == ReservedEventIds.Polled`,
+the derived `HasPolledTransition`) is asserted on the blob too.
+
+#### 🔴🔴 A GOLDEN THAT UNDER-RECORDED — **found because this asset is the first to bind a blueprint**
+
+⛔⛔ `AiAssetCorpus`'s HSM `Emit` delegate called `HsmEmitCore.EmitTopologyCore(dto)` — **with no
+blueprint id resolver** — so the recorded baseline showed `.Polled()` and **no `.GuardId(36109)`**
+while the shipped file had both. ⚠ That contradicts the delegate's own contract three lines above it:
+*"These MUST be the same calls the production generator makes."*
+⭐ **Fixed**, by building the same resolver `HsmJsonGenerator:115` builds, over the same
+`Assets/Blueprints/*.bp.json` inputs, through the production `GeneratedBlueprintSchemaCatalog.Parse`.
+⭐⭐ **Measured no-churn:** after the fix, **only the new asset's baseline moved** — every other corpus
+asset is byte-identical, because none of them binds a blueprint.
+⚠ **This is the silent-default shape again**: harmless from `CE-384` until the day an asset used the
+third argument, and invisible until then.
+
+#### 📐 GATES + THE RED-PROOFS
+
+📐 `Hrot.AiEditor.Generators.Tests` **338/338** · `Hrot.Blueprints.Tests` **4039 / 18 skipped** ·
+`Fdp.Toolkits.Tests` **2342/2342** · `Hrot.Hsm.Editor.Tests` **614/614** · `Fhsm.Tests` **335/335** ·
+`Hrot.AiEditor.Persistence.Tests` **147/147** · `Hrot.AI.Behaviors` builds clean, no new warnings.
+
+⭐⭐ **Golden diff across the whole tree: 2 insertions, 0 deletions** *(two shape rows + 4 new
+baseline files)* — ⛔ **zero existing baseline lines changed.** ⚠ **A new corpus asset needs
+baselines in BOTH harnesses**: the HSM corpus AND the blueprint corpus *(Tier1, Tier2, shape,
+canonicalisation)*, and two hard-coded corpus counts went 47 → 48.
+
+| inverse edit | rail that went red |
+|---|---|
+| the emitter bakes `gid + 1` | `TheBlobsBlueprintGuardId_IsRegisteredByTheBlueprintsOwnRegistrar` |
+| the blueprint stops emitting `RegisterGuard` | same rail — ⭐ proving the RIGHT side is real, not vacuous |
+| the emitter drops `.Polled()` | `TheGuardedTransitionIsPolled_AndNormalisedOffTheCompletionEvent` |
+| the corpus emits with no blueprint resolver | `TheEmittedSourceOfEveryCorpusAssetIsUnchanged` — ⭐ the golden fix is load-bearing |
+
+⚠ **What rail ④ still does NOT prove, said plainly:** that the guard's params are seeded with the
+RIGHT bytes at runtime, or that the machine actually leaves `Waiting` when `Open` is true. ⭐ Those
+are the runtime claims `PolledTransitionKernelTests` and the `HsmOccurrence` suites already make for
+their own halves; ⛔ an end-to-end "entity ticks, guard fires, behaviour finishes" rail through the
+real `BrainTickSystem` is a separate, larger item and is **not** what §9 ④ asked for.

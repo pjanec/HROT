@@ -67,7 +67,11 @@ public sealed class GoldenCorpusTests
         //    (acceptance A3+A4), which no asset could express before.
         // ⭐ 45 → 46 in E8a: `OwnParamResolverDemo` — an AiPrimitive carrying its OWN resolver, the case
         //    that needs no binding at all (R-149).
-        Assert.Equal(47, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 47 → 48 in CE-397: `HsmGuardDemo` — the FIRST AiPrimitive in the corpus hosted as an
+        //    `HsmGuard`. Measured before it: 34 BTreeAction, 9 BTreeCondition, 2 HsmAction and ZERO
+        //    HsmGuard, so the HSM GUARD path had no asset and acceptance rail 4 of
+        //    DESIGN_Hsm_Blueprint_Behaviour_Authoring.md could not be closed by existing content.
+        Assert.Equal(48, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────
