@@ -220,16 +220,10 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         // ⭐ Drop the OUTGOING pick's variable first — on a re-pick as well as on a clear, because the
         //   new blueprint's Params is a different type and reusing the row would mis-type the seed.
-        string? bound = getTargetField();
-        if (!string.IsNullOrEmpty(bound))
-        {
-            var existing = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == bound);
-            if (existing is { IsAutoManaged: true })
-            {
-                _asset.RemoveVariable(bound!);
-                setTargetField(null);
-            }
-        }
+        //   ⭐⭐ SHARED rule: only a variable the EDITOR owns is removed.
+        if (Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+                .RemoveIfAutoManaged(_asset, getTargetField()))
+            setTargetField(null);
 
         if (string.IsNullOrWhiteSpace(pickedName)) return;
 
@@ -240,22 +234,15 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
                 _actionSchema, pickedName, out var entry))
             return;
 
-        string varName = UniqueVariableName(baseVariableName);
-        _asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
-            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
-        setTargetField(varName);
-    }
+        // ⭐⭐⭐ THE SAME COMPOSE THE BTree HOST CALLS — AutoManagedVariables.ComposeForAiPrimitive.
+        //   ⚠ workingStateBaseName: null is the ONE deliberate difference, and it is not an omission:
+        //     an HSM-hosted occurrence's working state lives in its occurrence slot, keyed
+        //     (machine, region, state, childAsset), so there is no variable to bind. The BTree host
+        //     binds one so its Scope can be widened to Behavior and two nodes can share a slot.
+        var composed = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForAiPrimitive(
+            _asset, entry, paramsBaseName: baseVariableName, workingStateBaseName: null);
 
-    /// <summary>baseName if free, else baseName_2, baseName_3, … — mirroring the BTree compose path.</summary>
-    private string UniqueVariableName(string baseName)
-    {
-        if (_asset.BlackboardVariables.All(v => v.Name != baseName)) return baseName;
-
-        for (int suffix = 2; ; suffix++)
-        {
-            string candidate = $"{baseName}_{suffix}";
-            if (_asset.BlackboardVariables.All(v => v.Name != candidate)) return candidate;
-        }
+        setTargetField(composed.ParamsVariable);
     }
 
 

@@ -3855,7 +3855,7 @@ the HSM box had none — which is the entire defect. Everything solid already ex
 | **②** the table | `EmitStateParamBindings` walks `dto.States` *(site `Guid.Empty`)* **and** `dto.Transitions` *(site = `GuardBlueprintAssetId`)* |
 | **③** the consumer | `HsmOccurrence.SeedParamsOffset(instance, writer, childAssetId)`; `AiPrimitiveEmitter` passes `AssetId` |
 | **④** the compose | `HsmFacetDispatcher.ComposeBlueprintParams` on both pick sites; delete-side cleanup in `HsmCommandSink.RemoveAutoManagedTargetVariable` for **states as well as transitions** |
-| **⑤** one naming helper | `Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming` — `BTreeNodeCatalog` forwards to it *(ruling 9)* |
+| **⑤** ⭐⭐⭐ ONE implementation, both hosts | `Hrot.Editor.AiShared.Blackboard.AutoManagedVariables` *(the lifecycle)* + `AiPrimitiveNaming` *(the convention)* — §28.6d |
 | **⑥** the size resolver | `HsmJsonGenerator` now composes `GeneratedBlueprintSchemaCatalog.TryResolveParamsSize`, as `BTreeJsonGenerator:182` already did |
 
 ⛔⛔ **⑥ is not housekeeping — without it the whole feature is silently inert.** 📐 A
@@ -3874,6 +3874,42 @@ entry — but it already shares one **occurrence slot**, whose key is the same
 
 ⭐ **Rails:** `O7_R49`/`O7_R50` *(`HsmOccurrenceKeyTests`)* · three emission rails
 *(`HsmStateParamBindingEmissionTests`)* · `CE414_R1`–`R4` *(`HsmStateParamSeedAuthoringTests`)*.
+
+#### 28.6d ✅ `CE-414` PART 2 — **THE COMPOSE IS SHARED, NOT MIRRORED** *(`2026-09-28`)*
+
+> 🔒 **User, on the first cut:** *"And pls share code, do not duplicate. If btree does something right,
+> hsm should reuse it by sharing wherever possible, not by duplication."*
+
+⛔⛔ **The first cut of §28.6c shared the NAMING convention and re-implemented everything else.** ⚠ That
+is the failure mode this repository names *"a shared X almost always means X exists and is
+under-adopted"* — and here the seam already existed: **`IBlackboardManagedAsset`**, which both
+`BehaviorTreeAsset` and `HsmAsset` implement and which all five sites were already calling. They each
+re-spelled the rules on top of it.
+
+📐 **Measured before the extraction — the same four operations in FIVE places:**
+
+| site | what it re-spelled |
+|---|---|
+| `BTreeCommandSink.ComposeAiPrimitiveAction` | unique name · create params var · derive `WorkingState` · create state var |
+| `BTreeCommandSink.ComposeAiPrimitiveCondition` | ⛔ **near-identical to the line above** — the BTree side was duplicated against ITSELF |
+| `BTreeCommandSink.GenerateUniqueVariableName` | the `_2`, `_3`, … suffix rule |
+| `HsmFacetDispatcher.ComposeBlueprintParams` + `UniqueVariableName` | the same two, again |
+| `BTreePickerDrawers.Promote` / `HsmPickerDrawers.Promote` | ⛔ **character-for-character identical bodies** |
+
+⭐⭐ **After: one type, `AutoManagedVariables`** — `UniqueName` · `Create` · `RemoveIfAutoManaged` ·
+`PromoteForSite` · `WorkingStateTypeOf` · `ComposeForAiPrimitive`. 📐 **63 insertions, 138 deletions**
+across the five sites.
+
+| ⛔ what is deliberately NOT shared | why it is correct, not unfinished |
+|---|---|
+| the BTree's **working-state variable** | an HSM-hosted occurrence's working state lives in its occurrence slot, keyed `(machine, region, state, childAsset)`. ⇒ there is no variable to bind, and inventing one would be a second storage story. ⭐ Expressed as an OPTION (`workingStateBaseName: null`), not a fork |
+| the BTree's **still-referenced** check before delete | a BTree variable can be bound by several nodes *(Slice 1's `Behavior`-scoped working state is exactly that)*; an HSM hosting site is 1:1 with its composed variable |
+| `IsBlackboardEditorManaged = true` on place | BTree-specific: an AiPrimitive binding bin-packs inline and fails `BTREE0002` without it |
+| the two BTree **payload types** | `BTreeActionPayload` and `BTreeConditionPayload` are two sealed classes with identical members and no common base. ⚠ **A model duplication that predates this and is NOT resolved here** — it is why the two callers still assign four fields each |
+
+⭐ **Rails:** `AutoManagedVariablesTests` *(7, in `Hrot.Editor.AiShared.Tests`)*, and the per-host rails
+now run THROUGH the shared code. ⚠ **Honest limit: the no-second-copy property is not machine-checked** —
+a future site could re-spell the rules and stay green. That is a review matter, not a gate.
 
 ### 28.7 ✅ `C1′` + `E7a` — **THE RESOLVE STAGE RUNS, AND IT SEES THE HOST** *(`2026-09-21`)*
 

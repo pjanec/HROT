@@ -266,13 +266,8 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     /// ⭐ One body, because states (activity) and transitions (guard) now both compose one.</para>
     /// </summary>
     private void RemoveAutoManagedTargetVariable(string? targetField)
-    {
-        if (string.IsNullOrEmpty(targetField)) return;
-
-        var varEntry = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == targetField);
-        if (varEntry is { IsAutoManaged: true })
-            _asset.RemoveVariable(targetField!);
-    }
+        => Hrot.Editor.AiShared.Blackboard.AutoManagedVariables
+               .RemoveIfAutoManaged(_asset, targetField);
 
     private void ApplyAddLink(GraphCommand.AddLink cmd)
     {
