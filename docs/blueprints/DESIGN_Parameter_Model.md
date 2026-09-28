@@ -121,6 +121,37 @@ none — an Instance payload **starts with the 16-byte `BlueprintLatentCursor`**
 ⭐ **One shape by default** — the authored DTO is an auto-generated mirror; two shapes only on
 divergence *(geo point vs cartesian, network id vs `Entity`, derived fields)*.
 
+#### 🔴🔴 AS MEASURED `2026-09-28` — **row 3's *"`Scope` decides sharing"* is TRUE OF ONE SCOPE OF THREE**
+
+> 🔒 **Raised by the user, who did not believe the model:** *"I still do not understand the
+> Node/Behavior/Entity scopes. I thought only real scope is 'behavior' and that the blackboard is
+> born and dies with the behavior."* ⭐⭐ **Measured, and the user's model matches the CODE.** ⛔ The
+> one-clause summary in the table above reads as though all three scopes work; they do not.
+
+📐 **The key formula — `OccurrenceSlotKey.Compute`, one switch, three arms:**
+
+| scope | what the key folds | a DECLARED `Role=State` variable with this scope |
+|---|---|---|
+| **`Node` = 0** ⚠ **the DEFAULT** | `assetId` + `nodeVisualId` — ⛔ **the variable NAME is not folded in at all** | 🔴🔴 **NO SLOT IS EVER PROVISIONED.** `BTreeBridgeEmitCore`'s standalone pass *(`:1055`)* reads `if (v.Scope != Behavior && v.Scope != Entity) continue;` — ⛔ **skipped, silently.** Its own comment gives the reason and it is sound: Node's key ignores the name, so a standalone variable *"has no node identity to key off"*. ⚠ **But `Node` is `0`, i.e. what a newly authored variable gets** ⇒ **the DEFAULT authoring produces nothing.** 📐 That is why all 8 shipped `Role=State` variables are `Behavior` or `Entity`: `Node` silently does not work |
+| **`Behavior` = 1** | `assetId` + variable **name** | ✅ **works as documented** — one slot per asset per name, shared by every node of that assignment |
+| **`Entity` = 2** | ⛔ **the variable NAME and NOTHING ELSE** | ⚠ **implemented, but not what its summary says.** ⭐ It is a **name-keyed entity-global region** — the declared counterpart of the undeclared `GetShared`/`SetShared` state — so **any two assets naming a variable identically collide by construction** *(guard: `TryAttach` refuses a key already present with a different `StructureHash`, so a TYPE mismatch is caught at attach, never prevented at authoring)*. 🔴 **And its doc — *"shared across all behaviors on an entity"* — is FALSE:** `BehaviorIngressSystem.DetachStatefulSlots:979` is a bare `foreach … TryDetach(s.SlotKey)` with **no scope filter**, so the slot dies on every behaviour switch. ⇒ the declared form and the undeclared `GetShared` form are one concept with **two different lifetimes** |
+
+⇒ ⭐⭐⭐ **Of the three, only `Behavior` behaves as this section's table implies for a declared
+variable.** ⛔ `Node` is unreachable by declaration *(and is the default)*; `Entity` works but is
+name-global and does not outlive the assignment.
+
+⚠ **`Node` scope is NOT dead** — it is how **node-bound** working state is keyed *(the node-driven
+loop in the same emitter, keyed on the node's `VisualId`)*, which is the overwhelmingly common case
+and is unaffected. ⛔ What does not work is **declaring** a standalone variable at that scope.
+
+📄 **Filed:** [`CE-422`](Blueprint_Issues_Tracker.md) *(the `Entity` doc/behaviour mismatch)* and
+[`CE-423`](Blueprint_Issues_Tracker.md) *(a standalone `Scope=Node` State variable is silently
+skipped, and `Node` is the default)*. ⚖️ **Lean on both: the CODE is right and the VOCABULARY is
+wrong** — detach-on-switch is `CE-302`'s leak fix and has teeth, and Node's key genuinely cannot
+address a standalone variable. ⇒ fix the **enum's names and summaries**, and make the skipped case
+a **diagnostic** instead of silence; ⛔ do not add cross-assignment persistence or a synthetic node
+identity without a named consumer.
+
 #### ✅ AS BUILT `2026-09-08` — `CE-235`: **the two shapes now have TWO MEMBERS, and the public one is the AUTHORED DTO**
 
 > 🔒 **User ruling, `2026-09-08`:** *"nothing but the behavior implementation itself should use and touch
