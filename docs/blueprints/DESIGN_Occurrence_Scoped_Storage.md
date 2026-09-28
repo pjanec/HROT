@@ -112,6 +112,10 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
+    ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
+    action-binding carrier. It is DESIGN, not built; it depends on this document's model and
+    does not change it.
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns action/guard IDENTITY (how an HSM asset
     ADDRESSES a blueprint-hosted thunk) and the POLLED transition. ⭐ This doc owns the occurrence
     storage those thunks land in; it does NOT own how they are named or when a guard runs.

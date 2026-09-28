@@ -19,6 +19,10 @@ known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a,
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
 related-designs:
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
+    ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
+    action-binding carrier. It is DESIGN, not built; it depends on this document's model and
+    does not change it.
   - DESIGN_Occurrence_Scoped_Storage.md — owns WHERE the bytes live and HOW an occurrence is
     addressed (the slot key, the tier components, the one FastHSM change). This document owns
     WHAT a parameter is and the rulings it must obey; it wins on any disagreement.
@@ -483,7 +487,7 @@ discovered structs. ⇒ **a variable can be struct-typed; a parameter cannot.**
 | **`G5`** name-derived `ActiveBehaviorHash` · **`G6`** `AiBehaviorFactory` retired | ✅ |
 | authored multi-field inputs — **BTree** (`BTreeBridgeEmitCore`, 45 `Role`/`Scope` refs) | ✅ |
 | authored multi-field inputs — **HSM** | ⛔ **0 refs in either HSM emitter** |
-| **`G1`** split deserialize from resolve | ◑ signature carries `world`/`self`; **the split does not exist** |
+| **`G1`** split deserialize from resolve | ⛔⛔ **CORRECTED `2026-09-28`: not ◑ — the split is DECLARED AND ENTIRELY UNADOPTED.** 📐 Graph-measured: `BehaviorParams.FromJson<TDto>(resolve)` has **`callers_total: 0`** in production. The five producers of `ParseParams` are five hand-written `[BehaviorResolver]` methods *(deserialize and resolve FUSED)*, three emitted per-variable switches *(no resolve at all)*, and — for a curated behaviour with no resolver — **nothing**, so its JSON params are silently dropped. ⇒ 📄 [`Architect_Question_75`](Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md), `CE-416` |
 | **`G3`** geo + entity-map as world singletons · **`G4`** duplicate-name guard · **`G7`** editor affordances | ⛔ |
 | Instance params — **anything** | ⛔ `.Overrides` is **never read**; attach carries no payload |
 | multi-occurrence — blueprint identity, HSM everything | ⛔ |

@@ -26,6 +26,10 @@ known-conflict: ⚠ HSM_Editor_NodeEditor_Host_Design.md §10.4 says the `Lane` 
   `[HsmAction]` "doesn't currently exist". It DOES — `HsmActionGenerator.cs:598` emits it. That line
   is rotted; this design does not depend on it either way.
 related-designs:
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
+    ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
+    action-binding carrier. It is DESIGN, not built; it depends on this document's model and
+    does not change it.
   - RESUME_Hsm_Blueprint_Behaviour.md — ⭐ THE LANE'S STATE DOC for this programme: what is built,
     what is next, the measurements already made and the fixture traps. ⛔ It is a SNAPSHOT; this
     design wins on any disagreement.

@@ -7,6 +7,10 @@ known-conflict: ⚠ §338 expresses R-132's probe as "RegisterResolver is reache
   CgfCuratedBehaviorRegistrar". DESIGN_Behavior_Self_Registration.md DELETES that class ⇒ the PROBE
   must be re-expressed against the [BehaviorResolver] attribute. ⛔ The RULING is unchanged.
 related-designs:
+  - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
+    ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
+    action-binding carrier. It is DESIGN, not built; it depends on this document's model and
+    does not change it.
   - DESIGN_Parameter_Model.md — wins on any disagreement about the params model.
   - DESIGN_Behavior_Self_Registration.md — owns WHERE a curated resolver is declared (the attribute).
     ⛔ It does NOT own whether the overlay wins; §338 here does.
