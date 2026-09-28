@@ -64,12 +64,17 @@ public static class MoveToAndFire_649F8F53_Bp
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* MoveTo */
+                || __ch_0.Status != global::Fbt.NodeStatus.Running;
             __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
             if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
             {
                 __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
             }
-            __ch_0.ActionInstanceId++;
+            if (__chNew_0)
+            {
+                unchecked { __ch_0.ActionInstanceId++; }
+            }
         }
         global::Hrot.Blueprints.Core.Debug.DebugProbe.NodeEnter(self, "20000005-0000-0000-0000-000000000003");
         ws.__phase = 1;

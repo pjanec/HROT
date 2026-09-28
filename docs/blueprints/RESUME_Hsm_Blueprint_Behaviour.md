@@ -8,8 +8,9 @@ updated: 2026-09-28
 build-state: ✅ authoring programme COMPLETE (stages 1-2, all nine rails). ⏭ The LIVE work is the
   CHANNEL-LIFECYCLE programme in §8 - built: CE-402, CE-403, CE-388 (D-A2/D-B1/D-D1/D-F), and
   CE-404 (rail 5 MEASURED - no gap, so D-E is WITHDRAWN rather than built) and CE-406 (the
-  validator question, resolved by the user as "kept and re-aimed"). Left, in order: CE-405 and
-  the editor fixtures. Branch `behaviors`.
+  validator question, resolved by the user as "kept and re-aimed") and CE-405 (a re-issued
+  channel command no longer re-enters the executor). ⭐ The ONLY thing left in this programme is
+  the EDITOR END-TO-END CHECK (§8.4), which needs the WINDOWS session. Branch `behaviors`.
   ✅✅✅ **STAGE 1, STAGE 2 AND ALL NINE §9 ACCEPTANCE RAILS ARE COMPLETE AND PUSHED**
   (2026-09-28: CE-397 rail ④, CE-398/CE-400 rails ⑨/⑥ + the CE-399 sizing fix, CE-401 rail ⑦ —
   see §7.2a). ⚠ The sentence below is the 2026-09-27 state and is kept for its detail:
@@ -309,6 +310,7 @@ git stash list                   # must still show the RootParamsBytes probe
 | `D-D1` | the SAME auto-bind for the C# route, predicate read off the Roslyn `Compilation` | `6dcde3542` |
 | `CE-404` | ⭐⭐ **rail ⑤ MEASURED — there is no release-then-reclaim gap ⇒ `D-E` WITHDRAWN, not built.** `CE404_R5a`/`R5b` in `LocomotionDispatcherTests.cs` | *this batch* |
 | `CE-406` | ⭐ **the channel-safety validator RE-AIMED for the auto-bind world** — skip a baked `ExitActionId`, match the short name as the dispatcher does, re-word the message. Kept as the test-suite helper its own doc specifies | *this batch* |
+| `CE-405` | ⭐⭐ **a re-issued channel command no longer re-enters the executor** — the lowering bumps `ActionInstanceId` only when the action id, the params bytes or a `Failure` status say the command is genuinely new | *this batch* |
 | `CE-402` | *(row only)* the tracker still read `[ ] OPEN` although the fix shipped in `2c320079c` — closed | *this batch* |
 
 ⭐ **The concrete result:** `HsmTwoChannelRegionsDemo` bakes `.OnExitId(26097)` / `.OnExitId(46817)`,
@@ -319,12 +321,12 @@ matching what the registrar registered for `ExitCleanup_Activity_DriveChannel` /
 
 | # | what | note |
 |---|---|---|
-| **1** | ⭐ **`CE-405`** — the blueprint lowering bumps `ActionInstanceId` **unconditionally** where every C# writer guards it | 📄 `Q74` §9.7. ⛔ **Filed, not fixed on purpose**: the naive `needsActivation` copy breaks "same action, NEW params ⇒ re-plan" (`CgfNodes.cs:461-463`, Wander). ⭐ **Session lean, awaiting the user: action id + params bytes** — a `memcmp` of the fixed-size params block, no authoring surface. ⚠ **Latent today** (the one shipped blueprint gates it behind `ws.__phase`) and **exercised by the §8.4 fixtures**, which are exactly the unguarded shape |
-| **2** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this** | see §8.4. ⛔ needs the WINDOWS session |
+| **1** | ⭐⭐⭐ **the EDITOR END-TO-END CHECK — the thing that started all this, and now the ONLY thing left** | see §8.4. ⛔ **needs the WINDOWS session** — the editor cannot run from cloud |
 
-⭐ **Done since this list was written:** rail ⑤ measured (`CE-404`) ⇒ **`D-E` WITHDRAWN**; and the
-**validator question RESOLVED** by the user as `CE-406` — kept and re-aimed, neither wired into
-production nor deleted (`Q74` §9.8). Neither is on this list any more.
+⭐ **Everything else in the channel-lifecycle programme is closed:** rail ⑤ measured (`CE-404`) ⇒
+**`D-E` WITHDRAWN**; the validator question resolved by the user as `CE-406` *(kept and re-aimed)*;
+`CE-405` fixed *(a re-issued channel command no longer re-enters the executor)*. 📄 `Q74` §9 is the
+as-built for all three.
 
 ### 8.3 ⛔⛔ TRAPS THIS PROGRAMME PAID FOR — **do not re-derive these**
 

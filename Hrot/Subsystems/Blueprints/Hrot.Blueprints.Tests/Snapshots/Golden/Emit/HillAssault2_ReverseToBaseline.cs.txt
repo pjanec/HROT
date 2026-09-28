@@ -69,25 +69,37 @@ public static class HillAssault2ReverseToBaseline_FF75553A_Bp
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
+            bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* MoveTo */
+                || __ch_0.Status != global::Fbt.NodeStatus.Running;
             __ch_0.ActiveAction = (ushort)1 /* MoveTo */;
             unsafe
             {
+                var __chNext_0 = new global::Fdp.Toolkit.Navigation.MoveToParams
+                {
+                    Destination = __t3,
+                    ArrivalRadius = __t4,
+                    Speed = __t5,
+                    ReverseAllowed = __t6
+                };
                 fixed (byte* __paramSlot_0 = __ch_0.Params)
                 {
-                    *(global::Fdp.Toolkit.Navigation.MoveToParams*)__paramSlot_0 = new global::Fdp.Toolkit.Navigation.MoveToParams
+                    if (!__chNew_0)
                     {
-                        Destination = __t3,
-                        ArrivalRadius = __t4,
-                        Speed = __t5,
-                        ReverseAllowed = __t6
-                    };
+                        __chNew_0 = !global::System.MemoryExtensions.SequenceEqual(
+                            new global::System.ReadOnlySpan<byte>(__paramSlot_0, sizeof(global::Fdp.Toolkit.Navigation.MoveToParams)),
+                            new global::System.ReadOnlySpan<byte>(&__chNext_0, sizeof(global::Fdp.Toolkit.Navigation.MoveToParams)));
+                    }
+                    *(global::Fdp.Toolkit.Navigation.MoveToParams*)__paramSlot_0 = __chNext_0;
                 }
             }
             if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
             {
                 __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
             }
-            __ch_0.ActionInstanceId++;
+            if (__chNew_0)
+            {
+                unchecked { __ch_0.ActionInstanceId++; }
+            }
         }
         ws.__phase = 1;
         return global::Fbt.NodeStatus.Running;

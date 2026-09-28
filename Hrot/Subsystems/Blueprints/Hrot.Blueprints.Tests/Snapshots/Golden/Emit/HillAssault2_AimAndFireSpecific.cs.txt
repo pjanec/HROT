@@ -144,23 +144,35 @@ public static class HillAssault2AimAndFireSpecific_2BA06733_Bp
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.WeaponChannel>(self);
+            bool __chNew_0 = __ch_0.ActiveAction != (ushort)1 /* AimAndFire */
+                || __ch_0.Status != global::Fbt.NodeStatus.Running;
             __ch_0.ActiveAction = (ushort)1 /* AimAndFire */;
             unsafe
             {
+                var __chNext_0 = new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams
+                {
+                    Target = __t31,
+                    CooldownSeconds = __t32
+                };
                 fixed (byte* __paramSlot_0 = __ch_0.Params)
                 {
-                    *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)__paramSlot_0 = new global::Fdp.Toolkit.Combat.Executors.AimAndFireParams
+                    if (!__chNew_0)
                     {
-                        Target = __t31,
-                        CooldownSeconds = __t32
-                    };
+                        __chNew_0 = !global::System.MemoryExtensions.SequenceEqual(
+                            new global::System.ReadOnlySpan<byte>(__paramSlot_0, sizeof(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams)),
+                            new global::System.ReadOnlySpan<byte>(&__chNext_0, sizeof(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams)));
+                    }
+                    *(global::Fdp.Toolkit.Combat.Executors.AimAndFireParams*)__paramSlot_0 = __chNext_0;
                 }
             }
             if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
             {
                 __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
             }
-            __ch_0.ActionInstanceId++;
+            if (__chNew_0)
+            {
+                unchecked { __ch_0.ActionInstanceId++; }
+            }
         }
         ws.__phase = 1;
         return global::Fbt.NodeStatus.Running;

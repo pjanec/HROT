@@ -5,9 +5,11 @@ build-state: BUILT except one open user decision. Section 4 APPROVED by the user
   ("approved, go ahead and build it, including retrofitting"). BUILT: D-C as CE-402 and D-A2's
   retrofit as CE-403 (2c320079c); D-A2's derivation as CE-388 slice 1 (c69405a0d); D-F, D-B1 and
   D-D1 (6dcde3542). WITHDRAWN: D-E - rail 5 MEASURED 2026-09-28 and its premise is false, see 9.6.
-  RESOLVED 2026-09-28 by the user ("ok, (C)"): the VALIDATOR question - kept and RE-AIMED as
-  CE-406, neither wired into production nor deleted, see 9.8. STILL OPEN: CE-405 only (found
-  while measuring rail 5, see 9.7). Section 9 is the AS-BUILT and carries every deviation.
+  RESOLVED 2026-09-28 by the user: the VALIDATOR question ("ok, (C)") - kept and RE-AIMED as
+  CE-406, neither wired into production nor deleted, see 9.8; and CE-405 ("action id + params
+  bytes") - a re-issued channel command no longer re-enters the executor, see 9.7. NOTHING in
+  this question is open; what remains is the EDITOR END-TO-END CHECK, which is the resume doc's
+  8.4 and needs a Windows host. Section 9 is the AS-BUILT and carries every deviation.
 current-answer: section 4 is the five decisions, each with a lean. Read section 0 FIRST - it
   carries a defect found while writing this question (C0: a blueprint channel command is WIPED
   by ChannelArbitrationSystem on the next tick) which reframes CE-388 from "exit cleanup" to
@@ -515,12 +517,12 @@ project plus four reference edits, against a linked-file precedent that is alrea
 
 | | |
 |---|---|
-| ⭐ **`CE-405`** | the blueprint lowering bumps `ActionInstanceId` unconditionally where every C# writer guards it — found while measuring rail ⑤. See §9.7 |
 | ⭐⭐ **the EDITOR END-TO-END CHECK** | §8.4 of the resume doc. ⛔ needs the WINDOWS session |
 
 ⭐ **Closed since this section was written:** `D-B1` and `D-D1` both BUILT (`6dcde3542`); `D-F` BUILT as a
 linked file (§9.4); `D-E` **WITHDRAWN** (§9.6); the **VALIDATOR question RESOLVED** by the user as
-`CE-406` — kept and re-aimed, neither wired into production nor deleted (§9.8).
+`CE-406` — kept and re-aimed, neither wired into production nor deleted (§9.8); and **`CE-405` FIXED**
+(§9.7). ⇒ ⭐ **nothing in this question is open.**
 
 ### 9.6 🔴 AMENDMENT ④ — **`D-E` is DELETED, and the measurement says why**
 
@@ -546,31 +548,51 @@ opt-out flag, is what prevents it.
 ⛔⛔ **So `D-E` is WITHDRAWN rather than deferred.** A `KeepChannelsOnExit` flag would add an authoring
 surface, an editor field and a DTO bit to prevent something that cannot happen.
 
-### 9.7 ⚠ FOUND WHILE MEASURING RAIL ⑤ — **`CE-405`, the unconditional `ActionInstanceId++`**
+### 9.7 ✅ `CE-405` — **the unconditional `ActionInstanceId++`, FOUND while measuring rail ⑤ and now FIXED**
 
-📐 **The asymmetry.** `ChannelCommandLowering.cs:68` emits `__ch.ActionInstanceId++` with **no
-condition**. ⛔ Every production C# channel writer guards it instead — `CgfNodes.cs:305,313` /
+🔒 **User, `2026-09-28`,** on what counts as a new command: *"action id + params bytes, go ahead"*.
+
+📐 **The asymmetry that was there.** `ChannelCommandLowering` emitted `__ch.ActionInstanceId++` with
+**no condition**. ⛔ Every production C# channel writer guards it instead — `CgfNodes.cs:305,313` /
 `348-351` / `384-387` / `580-582` compute
 `bool needsActivation = channel.ActiveAction != <id> || channel.Status == NodeStatus.Failure`.
 
 ⇒ 🔴 `LocomotionDispatcherSystem.cs:62` reads any change in `ActionInstanceId` as *"a new action was
-dispatched"* and calls `OnExit(previous)` + `OnEnter(current)`. For `MoveTo`, `OnEnter` re-plans the
-path. **A blueprint issuing a channel command on a per-tick path re-plans every frame.**
+dispatched"* and calls `OnExit(previous)` + `OnEnter(current)`. For `MoveTo`, `OnEnter` **re-plans the
+path**. **A blueprint issuing a channel command on a per-tick path re-planned every frame.**
 
-⚠⚠ **Not exercised today, and the reason is incidental.** 📐 Measured over 6 frames against the one
-shipped blueprint that issues a channel command, `HillAssault2ReverseToBaseline`: `ActionInstanceId`
-stays at **1**, `OnEnter` fires **once** — because its generated `TickCore` gates the command behind
-`ws.__phase` (`__block_entry` sets `ws.__phase = 1` and never re-enters). ⇒ **the graph's own wait
-structure is doing the guarding the emitter does not.**
+⚠⚠ **Why it was LATENT, and why that was luck rather than design.** 📐 Measured over 6 frames against
+the one shipped blueprint that issues a channel command, `HillAssault2ReverseToBaseline`:
+`ActionInstanceId` stayed at **1** and `OnEnter` fired **once** — because its generated `TickCore`
+gates the command behind `ws.__phase` (`__block_entry` sets `ws.__phase = 1` and never re-enters).
+⇒ 🔒 **the graph's own wait structure was doing the guarding the emitter did not** — and §8.4's editor
+fixtures, an HSM activity blueprint issuing `MoveTo` while in the state, have no wait to gate them.
 
-⭐⭐ **And §8.4's planned editor fixtures are exactly the unguarded shape** — an HSM activity blueprint
-issuing `MoveTo` while in the state, with no wait to gate it.
+### ✅ What landed — **the test is the action id AND the params bytes**
 
-⛔ **Filed, not fixed, deliberately.** Copying `needsActivation` verbatim would suppress the re-enter
-when the ACTION is unchanged but the PARAMS changed — and `CgfNodes.cs:461-463` *(Wander)* re-enters
-deliberately on a fresh destination. ⇒ **the open question is what counts as a NEW command** — action
-id only · action id + params bytes · an explicit re-issue op — and it is a `Q74` decision, not a
-mechanical edit.
+| | |
+|---|---|
+| ⭐ **the guard** | `bool __chNew = __ch.ActiveAction != <id> \|\| __ch.Status != NodeStatus.Running;` computed **before anything is overwritten**, then `if (__chNew) { unchecked { __ch.ActionInstanceId++; } }` |
+| ⭐⭐ **params are part of a command's IDENTITY** | ⛔ *"same action id ⇒ do not re-enter"* is **wrong on its own**: `CgfNodes.cs:461-463` *(Wander)* re-enters DELIBERATELY on a fresh destination, and suppressing that would break re-planning — a worse defect than the one being fixed. ⇒ the new params struct is built into a local and compared against the slot with `MemoryExtensions.SequenceEqual` over `sizeof(T)` bytes |
+| ⭐ **a raw byte compare, not `Equals`** | the params structs have no `Equals` override, so `ValueType.Equals` would be reflection-based per command per tick |
+| ⭐⭐⭐ **"still running" is the THIRD part of a command's identity** | 🔴 **the first cut of this fix got it wrong, and the user's question found it.** It guarded on `Status == Failure`, copying `CgfNodes.cs:305,313`. ⛔ **That copy is invalid here:** `CgfNodes` has a second route out that a blueprint statement does not — it **FORWARDS the terminal status up the tree** (`CgfNodes.cs:307-310`) instead of re-issuing, so it never needs to re-activate on `Success`. A channel-command op has no *"return Success upward"*: **issuing it again is the author's only way to say "again"** ⇒ *"open that door"* twice opened it **once**. ⭐ `!= Running` fixes it: dedup applies ONLY while the command is genuinely in flight |
+| 📐 **why a terminal status is the right signal** | measured across **all 12** channel executors: every one is a standing order that terminates by setting `Success` or `Failure` — `AimAndFireExecutor.cs:49,56` · `OpenDoorExecutor.cs:33` · `EjectPassengersExecutor.cs:70` · `MoveToExecutor.cs:108,122`. ⇒ a terminal status is **the runtime's own statement that the previous instance is OVER**, so a re-issue after it is a new instance by definition. ⚠ `NodeStatus.Failure` is `0`, so a default-initialised channel is correctly *"not Running"* |
+
+✅ **Rails `CE405_R1`/`R2`/`R3`** in `ChannelArbitrationTests.cs`, beside `CE402_R1`/`R2` — all three
+drive the **real generated blueprint** and replay its entry block by resetting `ws.__phase`, which is
+the per-tick shape the shipped asset's wait hides. `R1` re-issues an identical command five times
+⇒ `ActionInstanceId == 1` and **`OnEnter` called once**. ⭐⭐ **`R2` is the non-vacuity half** — a fresh
+`BaselineX` each tick ⇒ id `5`, `OnEnter` five times, so the fix cannot be "stopped bumping the id".
+`R3` pins the `Failure` retry, and ⭐⭐ **`R4` pins the deliberate repeat** — a command that COMPLETED
+and is issued again with identical params must re-enter. ✅ **Red-proofs, each its own inverse edit:**
+make the increment unconditional again ⇒ `R1` alone reddens *(1 failed / 3 passed)*; narrow the guard
+back to `Status == Failure` ⇒ `R4` alone reddens *(1 failed / 3 passed)*.
+
+⚠⚠ **What this is NOT, said plainly because it is the natural reading of *"issue it twice"*:** rate of
+fire is not this mechanism. `AimAndFireExecutor.cs:61-76` publishes one `WeaponFireIntent` per cooldown
+from `Execute`, **every tick the channel is Running** ⇒ ⭐ one standing *"fire at target"* already
+produces many shots over time, and issuing the command twice was never how a second shot is requested —
+before this change or after it.
 
 ### 9.8 ⭐⭐ THE VALIDATOR QUESTION — **RESOLVED: kept and RE-AIMED** *(`CE-406`)*
 
