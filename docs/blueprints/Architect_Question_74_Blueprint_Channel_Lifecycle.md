@@ -5,8 +5,9 @@ build-state: BUILT except one open user decision. Section 4 APPROVED by the user
   ("approved, go ahead and build it, including retrofitting"). BUILT: D-C as CE-402 and D-A2's
   retrofit as CE-403 (2c320079c); D-A2's derivation as CE-388 slice 1 (c69405a0d); D-F, D-B1 and
   D-D1 (6dcde3542). WITHDRAWN: D-E - rail 5 MEASURED 2026-09-28 and its premise is false, see 9.6.
-  STILL OPEN: the VALIDATOR question (the user's call, see 9.5) and CE-405 (found while measuring
-  rail 5, see 9.7). Section 9 is the AS-BUILT and carries every deviation.
+  RESOLVED 2026-09-28 by the user ("ok, (C)"): the VALIDATOR question - kept and RE-AIMED as
+  CE-406, neither wired into production nor deleted, see 9.8. STILL OPEN: CE-405 only (found
+  while measuring rail 5, see 9.7). Section 9 is the AS-BUILT and carries every deviation.
 current-answer: section 4 is the five decisions, each with a lean. Read section 0 FIRST - it
   carries a defect found while writing this question (C0: a blueprint channel command is WIPED
   by ChannelArbitrationSystem on the next tick) which reframes CE-388 from "exit cleanup" to
@@ -514,12 +515,12 @@ project plus four reference edits, against a linked-file precedent that is alrea
 
 | | |
 |---|---|
-| ⚠ **the VALIDATOR question** | ⛔ **the user's call, not decided.** `HsmGraphValidator.ValidateChannelSafety` has no production caller and the wrong key shape. 🔴 **And measurement `2026-09-28` reframes it: repairing the key ALONE would make it actively WRONG** — the auto-bind sets `ExitActionId` and leaves `OnExitAction == null`, while the rule demands `state.OnExitAction == required`, so a repaired validator would red-flag `HsmTwoChannelRegionsDemo`, the very asset `D-B1` fixed. ⚠ Note also that *"no production caller"* is **as designed**: `docs/projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md` §7 item 7 specifies it as a **test-suite** helper |
 | ⭐ **`CE-405`** | the blueprint lowering bumps `ActionInstanceId` unconditionally where every C# writer guards it — found while measuring rail ⑤. See §9.7 |
 | ⭐⭐ **the EDITOR END-TO-END CHECK** | §8.4 of the resume doc. ⛔ needs the WINDOWS session |
 
 ⭐ **Closed since this section was written:** `D-B1` and `D-D1` both BUILT (`6dcde3542`); `D-F` BUILT as a
-linked file (§9.4); `D-E` **WITHDRAWN** (§9.6).
+linked file (§9.4); `D-E` **WITHDRAWN** (§9.6); the **VALIDATOR question RESOLVED** by the user as
+`CE-406` — kept and re-aimed, neither wired into production nor deleted (§9.8).
 
 ### 9.6 🔴 AMENDMENT ④ — **`D-E` is DELETED, and the measurement says why**
 
@@ -570,3 +571,43 @@ when the ACTION is unchanged but the PARAMS changed — and `CgfNodes.cs:461-463
 deliberately on a fresh destination. ⇒ **the open question is what counts as a NEW command** — action
 id only · action id + params bytes · an explicit re-issue op — and it is a `Q74` decision, not a
 mechanical edit.
+
+### 9.8 ⭐⭐ THE VALIDATOR QUESTION — **RESOLVED: kept and RE-AIMED** *(`CE-406`)*
+
+🔒 **User, `2026-09-28`,** choosing option **(C)** from three put to them *(delete · wire into the
+editor · re-aim it)*: *"ok, (C)"*.
+
+⛔⛔ **The question `CE-403` left open was *"wire it up or delete it?"* — and MEASURING IT REFRAMED THE
+QUESTION BEFORE ANSWERING IT.** Both halves of that framing were wrong:
+
+| the framing | ⛔ what measurement said |
+|---|---|
+| *"it has no production caller ⇒ it is dead"* | ✅ **as designed.** `docs/projects/FDP/Toolkits/Fdp.Toolkits.Analyzers.md` §7 item 7 specifies it as *"part of your **test suite**"*. ⇒ deleting it on "nothing calls it" is the `UNREFERENCED IS NOT UNINTENTIONAL` error, against a live doc |
+| *"fix the key shape and it works"* | 🔴🔴 **it would become ACTIVELY WRONG.** `D-B1`/`D-D1` bake `.OnExitId(hash)` into `ExitActionId` and leave `OnExitAction == null`; the rule demanded `state.OnExitAction == required` ⇒ a key-repaired validator **red-flags `HsmTwoChannelRegionsDemo`, the asset the auto-bind fixed** |
+
+⚠ **The rule was written (`BHU-014`) when binding the cleanup BY NAME was the only way to release a
+channel. The auto-bind changed the world underneath it** — this is the `AN INVESTIGATION THAT LEARNS
+SOMETHING MUST UPDATE THE OWNING DESIGN` shape, caught here rather than later.
+
+### ✅ What landed — three edits in `HsmGraphValidator.cs`
+
+| # | edit | ⭐ why |
+|---|---|---|
+| **a** | `if (state.ExitActionId != 0) continue;` | a baked exit id means **something** releases, whoever bound it. This is what makes the check compatible with the auto-bind |
+| **b** | match on the **short member name** | ⭐ **not a loosening.** `HsmActionDispatcher` itself keys registrations on the short name (`HsmActionGenerator.cs:565` emits `m.Name`), so this makes the validator **agree with runtime**; a direct `ContainsKey(FQN)` silently missed every editor-authored state |
+| **c** | the message re-aimed, and it now distinguishes two cases | ⛔ the old text *"Add `OnExitAction = X` to this state"* is now **wrong advice** — the emitter does it for you. The two cases are *nothing bound at all* and *an authored `OnExit` displaced the cleanup* |
+
+⭐⭐ **What it can still catch — the reason it is kept rather than deleted:** the one hole the auto-bind
+cannot fill, **a state that authors its OWN `OnExitAction`**. `HsmEmitCore` fills an empty slot and never
+overwrites an authored name *(and it must stay at the emit site — `HsmFlattener:173` makes the baked id
+win over the name)*, so such a state silently loses its cleanup and nothing else in the toolchain says
+so. ⚠ 📐 **Measured: 28 `OnExitAction` entries across the six shipped `.hsm.json`, ALL 28 null** ⇒ a hole
+with no occupants today.
+
+✅ **Rails `CE406_R1`/`R2`/`R3`** in `HsmGraphValidatorChannelSafetyTests.cs` — the feature's own suite,
+joining the six `BHU-014` tests, **all of which still pass unchanged**. ⭐ **Each red-proved by its own
+inverse edit:** drop the `ExitActionId` guard ⇒ `R1` alone reddens *(1 failed / 8 passed)*; revert to the
+raw-name `ContainsKey` ⇒ `R2`+`R3` redden *(2 failed / 7 passed)*.
+
+⛔ **Deliberately NOT done: wiring it into production or into the editor.** It stays the test-suite
+helper its own doc specifies.
