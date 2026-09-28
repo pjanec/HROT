@@ -1,0 +1,102 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000160-0000-0000-0000-000000000002",
+  "Name": "HsmFireActivity",
+  "Dispatch": "AiPrimitive",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": {
+    "Intent": "Action",
+    "Hostings": [
+      "HsmAction"
+    ]
+  },
+  "Declarations": [],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "60000002-0001-0001-0001-000000000001",
+      "Name": "Main",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "60000002-0002-0002-0002-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 80,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "ChannelCommand",
+          "ChannelType": "WeaponChannel",
+          "ActionId": "AimAndFire",
+          "Id": "60000002-0003-0003-0003-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 160,
+            "Comment": "The weapon half of the acceptance description: a DIFFERENT channel from the movement state, so the two are independently observable."
+          },
+          "PinDefaults": {
+            "Target": "0",
+            "CooldownSeconds": "1.5"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "60000002-0004-0004-0004-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 900,
+            "Y": 240,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "60000002-0002-0002-0002-000000000001",
+          "FromPinId": "60ee0002-0001-a001-0001-000000000001",
+          "ToNodeId": "60000002-0003-0003-0003-000000000001",
+          "ToPinId": "60ee0002-0002-b001-0001-000000000001"
+        },
+        {
+          "FromNodeId": "60000002-0003-0003-0003-000000000001",
+          "FromPinId": "60ee0002-0003-a002-0001-000000000001",
+          "ToNodeId": "60000002-0004-0004-0004-000000000001",
+          "ToPinId": "60ee0002-0004-b002-0001-000000000001"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "HSM activity: drives the WEAPON channel while its state is active. Half of the end-to-end runtime check for the HSM + blueprint channel programme (Q74 section 8.4).",
+    "Category": null,
+    "Recipe": null
+  }
+}
