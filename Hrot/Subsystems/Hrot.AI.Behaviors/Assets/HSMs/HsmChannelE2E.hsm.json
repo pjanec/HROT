@@ -57,9 +57,10 @@
       "Y": 100,
       "SizeOverrideX": null,
       "SizeOverrideY": null,
-      "Comment": "Activity is a BLUEPRINT that commands the locomotion channel. OnExitAction is deliberately null: the emitter auto-binds the derived channel cleanup here (Q74 D-B1), so leaving the state releases the channel with no authoring.",
+      "Comment": "Activity is a BLUEPRINT commanding the locomotion channel. ExpressionTargetField=Open: the hosted blueprint's params are seeded as a contiguous window from that variable's offset, and the GUARD on this state's outgoing transition SHARES that window — so the blueprint's parameter list mirrors the blackboard from Open onward (Open, DestX, DestY). OnExitAction stays null: the channel cleanup is auto-bound (Q74 D-B1).",
       "IsCollapsed": false,
-      "ColorOverride": null
+      "ColorOverride": null,
+      "ExpressionTargetField": "Open"
     },
     {
       "StableId": "61000000-0000-0000-0000-00000000000b",
@@ -83,9 +84,10 @@
       "Y": 100,
       "SizeOverrideX": null,
       "SizeOverrideY": null,
-      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one.",
+      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. ExpressionTargetField=TargetNetworkId: seeds this ",
       "IsCollapsed": false,
-      "ColorOverride": null
+      "ColorOverride": null,
+      "ExpressionTargetField": "TargetNetworkId"
     }
   ],
   "Regions": [],
@@ -104,7 +106,7 @@
       "Kind": "External",
       "SyncGroupId": 0,
       "Waypoints": [],
-      "Comment": "POLLED and guarded by a BLUEPRINT, reusing the same HsmGuardDemo the authoring programme proved (CE-397). No event is posted: the guard reads the Open blackboard variable on every quiescent tick, so flipping Open drives the hand-off from the locomotion channel to the weapon channel."
+      "Comment": "POLLED and guarded by the HsmGuardDemo BLUEPRINT (CE-397). The guard reads 'Open' from the SOURCE STATE's param window — a transition cannot seed its own, because EmitStateParamBindings only reads ExpressionTargetField from states."
     }
   ],
   "GlobalTransitions": [],
@@ -131,6 +133,39 @@
         },
         "DefaultValueJson": "false",
         "Comment": "Seeds HsmGuardDemo's 'Open' parameter. Starts false so the machine stays in Driving and the locomotion channel can be observed before the hand-off.",
+        "IsAutoManaged": false
+      },
+      {
+        "Name": "DestX",
+        "Type": {
+          "TypeId": "System.Single",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "0",
+        "Comment": "Seeds HsmDriveActivity's DestX parameter. The blueprint composes DestX/DestY into a Vector3 and wires it into the MoveTo Destination pin.",
+        "IsAutoManaged": false
+      },
+      {
+        "Name": "DestY",
+        "Type": {
+          "TypeId": "System.Single",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "0",
+        "Comment": "Seeds HsmDriveActivity's DestY parameter.",
+        "IsAutoManaged": false
+      },
+      {
+        "Name": "TargetNetworkId",
+        "Type": {
+          "TypeId": "System.Int64",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "0",
+        "Comment": "Seeds HsmFireActivity's TargetNetworkId parameter, resolved to a live Entity for AimAndFire.",
         "IsAutoManaged": false
       }
     ]
