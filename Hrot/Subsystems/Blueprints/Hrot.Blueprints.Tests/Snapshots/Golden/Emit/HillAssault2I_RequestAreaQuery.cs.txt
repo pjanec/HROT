@@ -32,6 +32,7 @@ public static class HillAssault2IRequestAreaQuery_61F115B4_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -149,6 +150,7 @@ public static class BlueprintRegistrar_HillAssault2IRequestAreaQuery_61F115B4_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IRequestAreaQuery_61F115B4_Bp.StructureHash,
             StateSize = HillAssault2IRequestAreaQuery_61F115B4_Bp.StateSize,
+            ParamsSize = HillAssault2IRequestAreaQuery_61F115B4_Bp.ParamsSize,
             AssetId = new Guid("8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c62"),
             StateClrType = typeof(HillAssault2IRequestAreaQuery_61F115B4_Bp.WorkingState),
         });

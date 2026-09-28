@@ -35,6 +35,7 @@ public static class HillAssault2IDispatchAllToBaseline_64F11A6D_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -137,6 +138,7 @@ public static class BlueprintRegistrar_HillAssault2IDispatchAllToBaseline_64F11A
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.StructureHash,
             StateSize = HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.StateSize,
+            ParamsSize = HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.ParamsSize,
             AssetId = new Guid("8f1a2c93-4d5e-4a1b-9c3d-1e2f3a4b5c61"),
             StateClrType = typeof(HillAssault2IDispatchAllToBaseline_64F11A6D_Bp.WorkingState),
         });

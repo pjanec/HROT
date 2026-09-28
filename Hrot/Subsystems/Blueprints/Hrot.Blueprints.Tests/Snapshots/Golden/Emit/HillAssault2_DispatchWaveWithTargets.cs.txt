@@ -59,6 +59,7 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -197,6 +198,7 @@ public static class BlueprintRegistrar_HillAssault2DispatchWaveWithTargets_8CA4B
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.StructureHash,
             StateSize = HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.StateSize,
+            ParamsSize = HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.ParamsSize,
             AssetId = new Guid("6ffc2d3c-41e3-4016-8f2a-5dcb8720fb73"),
             StateClrType = typeof(HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

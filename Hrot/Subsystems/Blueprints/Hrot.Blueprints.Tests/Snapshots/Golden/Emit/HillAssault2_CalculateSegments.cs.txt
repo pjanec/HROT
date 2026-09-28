@@ -54,6 +54,7 @@ public static class HillAssault2CalculateSegments_FA6F3CC3_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -137,6 +138,7 @@ public static class BlueprintRegistrar_HillAssault2CalculateSegments_FA6F3CC3_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2CalculateSegments_FA6F3CC3_Bp.StructureHash,
             StateSize = HillAssault2CalculateSegments_FA6F3CC3_Bp.StateSize,
+            ParamsSize = HillAssault2CalculateSegments_FA6F3CC3_Bp.ParamsSize,
             AssetId = new Guid("7d4f2c81-3e9a-4b56-9c0d-1a2b3c4d5e6f"),
             StateClrType = typeof(HillAssault2CalculateSegments_FA6F3CC3_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

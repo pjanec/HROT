@@ -47,6 +47,22 @@ internal static class AiPrimitiveEmitter
         // `StateSize`. ⛔ The registrar used to write a literal `StateSize = 0`, which is not a
         // placeholder but a wrong answer: this struct occupies real bytes in Blackboard1024.
         e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();");
+
+        // ⭐⭐⭐ CE-399 — the PARAMS size, which this path never emitted. 📄
+        //   DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §13.8.
+        // 🔴 The hosted occurrence the kernel attaches is `Align8(sizeof(WorkingState)) + sizeof(Params)`
+        //    (OccurrenceWorkingState:121,146), but HostedOccurrenceDemandCalculator sized the tier from
+        //    `StateSize` ALONE ⇒ every hosted blueprint that declares parameters was under-reserved and
+        //    threw "no room for hosted slot" on its first real tick.
+        // ⚠ `BlueprintDefinition.ParamsSize` already existed and its own header called 0 "the truthful
+        //    answer ... for the Library/AiPrimitive kinds that do not attach through
+        //    BlueprintInstanceService" — TRUE of that service, and FALSE of the hosted-occurrence path
+        //    that arrived later. ⇒ nothing new is invented here; the existing field is finally filled.
+        // ⭐ Same expression as InstanceEmitter.EmitParamsGeometry, deliberately: two spellings of
+        //   "how big are the params" is how the two paths would drift apart.
+        e.WriteLine(asset.Parameters.Count > 0
+            ? "public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();"
+            : "public static int ParamsSize => 0;");
         e.WriteLine();
 
         EmitInitDefault(e, asset);

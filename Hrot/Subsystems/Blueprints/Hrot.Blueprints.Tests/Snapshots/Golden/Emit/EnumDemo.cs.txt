@@ -31,6 +31,7 @@ public static class EnumDemo_235986DF_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -110,6 +111,7 @@ public static class BlueprintRegistrar_EnumDemo_235986DF_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = EnumDemo_235986DF_Bp.StructureHash,
             StateSize = EnumDemo_235986DF_Bp.StateSize,
+            ParamsSize = EnumDemo_235986DF_Bp.ParamsSize,
             AssetId = new Guid("d06f6a14-3e77-4473-962f-36a5d10dc316"),
             StateClrType = typeof(EnumDemo_235986DF_Bp.WorkingState),
         });

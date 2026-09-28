@@ -36,6 +36,7 @@ public static class ParamDemo_CEFE162F_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -102,6 +103,7 @@ public static class BlueprintRegistrar_ParamDemo_CEFE162F_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = ParamDemo_CEFE162F_Bp.StructureHash,
             StateSize = ParamDemo_CEFE162F_Bp.StateSize,
+            ParamsSize = ParamDemo_CEFE162F_Bp.ParamsSize,
             AssetId = new Guid("00000000-aaaa-0002-0000-0000000000d0"),
             StateClrType = typeof(ParamDemo_CEFE162F_Bp.WorkingState),
         });

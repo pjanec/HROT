@@ -446,5 +446,299 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+
+        // ════════════════════════════════════════════════════════════════════════════════
+        // ⭐⭐⭐ CE-398 / ACCEPTANCE RAIL ⑨ — THE WHOLE MECHANISM, END TO END
+        // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §9 ⑨.
+        // ════════════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// ⭐⭐ Registers EVERYTHING the way hot reload does: <see cref="BlueprintRegistrarScanner"/>
+        /// over the real <c>Hrot.AI.Behaviors</c> assembly.
+        ///
+        /// <para>⛔ Deliberately NOT "reflect the one generated type and register its thunk by hand".
+        /// The scanner is the PRODUCTION discover-and-invoke path, so this fixture exercises the same
+        /// registration the game performs — including <c>HsmGuardDemo</c>'s
+        /// <c>HsmActionDispatcher.RegisterGuard</c> and <c>HsmPolledGuardDemo</c>'s behaviour
+        /// definition and <c>HsmParamBindings</c> table.</para>
+        /// </summary>
+        private static BehaviorRegistry ScanTheRealBehavioursAssembly()
+        {
+            var behaviours = new BehaviorRegistry();
+            Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(
+                typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo).Assembly,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry().BeginStaging(),
+                behaviours);
+            return behaviours;
+        }
+
+        /// <summary>
+        /// Writes the blackboard byte the guard's <c>Open</c> parameter is seeded from.
+        ///
+        /// <para>⛔⛔ <b>READS the slot ingress already attached — it must NOT attach one.</b>
+        /// 🔴 Measured: an earlier draft called <c>ResolveOrAttachRoot(..., MaxBehaviorParamByteSize,
+        /// ...)</c> and attached a slot of its OWN, far wider than the asset needs, on a tier ingress
+        /// had sized without it ⇒ the guard's occurrence then had nowhere to go. ⚠ A fixture that
+        /// provisions differently from production is testing a world that does not exist.</para>
+        /// </summary>
+        private static void SeedOpen(EntityRepository world, Entity e, bool open)
+        {
+            byte* p = RootParamsAccess.RequireRootBytes(world, e, out int len);
+            Assert.True(p != null && len > 0,
+                "ingress must have attached the root params slot — the behaviour declares a managed "
+              + "blackboard, so its generated registrar supplies ParseParams and RootParamsCost "
+              + "reserves the slot");
+            // ⚠ Offset 0: `Open` is the asset's only packed variable, and the Tier1 golden records
+            //   the guard's own `Open : System.Boolean @0 size=1`. The state's HsmParamBindings entry
+            //   (CE-387) is what makes the seed come from HERE.
+            *p = open ? (byte)1 : (byte)0;
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>The PRODUCTION assign path, not a hand-provisioned entity.</b>
+        ///
+        /// <para>🔴 <b>Measured the hard way:</b> the first draft created the entity and called
+        /// <c>RootHsmAccess.EnsureRootInstance</c> directly, and the guard's own occurrence had
+        /// nowhere to live — <i>"the tier is full"</i>. ⛔ That was the FIXTURE's fault, not the
+        /// product's: <c>HostedOccurrenceDemandCalculator.For</c> already counts
+        /// <c>trans.GuardId</c> (<c>:103</c>), and <c>BehaviorIngressSystem</c> reads that demand to
+        /// size the tier. ⇒ bypassing ingress bypassed the very sizing the feature depends on.</para>
+        ///
+        /// <para>⭐ So this publishes an <c>AssignBehaviorEvent</c> and lets ingress provision, which
+        /// is both correct AND a stronger rail: it now covers the SIZING of a blueprint-guarded
+        /// machine's tier, which nothing else did.</para>
+        /// </summary>
+        private static (EntityRepository world, BrainTickSystem sys, Entity e, int hash)
+            ArrangePolledGuardMachine(bool open)
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+
+            var behaviours = ScanTheRealBehavioursAssembly();
+            Assert.True(behaviours.TryGetId("HsmPolledGuardDemo", out int hash),
+                "the generated HsmPolledGuardDemoRegistrar must have registered the behaviour");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = e,
+                BehaviorName = "HsmPolledGuardDemo",
+                JsonParams   = string.Empty,
+            });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+
+            // ⛔ NON-VACUITY: ingress must actually have activated the brain. Without this a
+            //    mis-registered behaviour would leave the entity inert and every assertion below
+            //    would pass for the wrong reason.
+            ref var st = ref world.GetComponentRW<BehaviorState>(e);
+            Assert.Equal(hash, st.ActiveBehaviorHash);
+            Assert.Equal(BehaviorConstants.BrainTierHsm, st.BrainTier);
+
+            SeedOpen(world, e, open);
+
+            return (world, new BrainTickSystem(behaviours), e, hash);
+        }
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>RAIL ⑨ — and it is the END-TO-END proof of the whole programme.</b>
+        ///
+        /// <para>One entity, the REAL <c>HsmPolledGuardDemo</c> blob, the REAL blueprint-hosted guard
+        /// registered by the REAL registrar scanner, ticked by the REAL <see cref="BrainTickSystem"/>.
+        /// ⭐ Nothing here is hand-built: the chain is
+        /// <b>polled scan → blueprint guard thunk → params seeded from the blackboard → transition →
+        /// final state → <see cref="BehaviorFinishedEvent"/></b>, and <b>no event is ever posted</b>.</para>
+        ///
+        /// <para>⭐⭐ <b>Exactly once</b>, across many ticks — the `BHU-007` latch must not republish
+        /// while the instance id is unchanged.</para>
+        /// </summary>
+        [Fact]
+        public void CE398_R1_APolledBlueprintGuard_DrivesTheMachineToItsFinalState_AndFinishesOnce()
+        {
+            var (world, sys, e, _) = ArrangePolledGuardMachine(open: true);
+
+            // ⚠ Several ticks: the phase machine advances ONE PHASE PER TICK, so Entry/RTC/Activity
+            //   must drain before the Idle arm's polled scan can run at all (design §2.3).
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+
+            Assert.Equal(1, CountEventsForEntity(world, e));
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b>THE NON-VACUITY HALF, and it is what makes the rail above mean anything.</b>
+        ///
+        /// <para>🔴 With <c>Open = false</c> the guard must REFUSE and the machine must sit in
+        /// <c>Waiting</c> forever ⇒ <b>zero</b> <see cref="BehaviorFinishedEvent"/>s. ⚠ Without this,
+        /// a machine that simply fell through to its final state would pass the rail above and prove
+        /// nothing about the guard being consulted at all.</para>
+        /// </summary>
+        [Fact]
+        public void CE398_R2_WithTheGuardClosed_TheMachineNeverFinishes()
+        {
+            var (world, sys, e, _) = ArrangePolledGuardMachine(open: false);
+
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+
+            Assert.Equal(0, CountEventsForEntity(world, e));
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ <b>The transition really is POLLED — nothing posts an event.</b> ⚠ The instance's event
+        /// queue stays empty for the whole run, so the transition cannot have been taken by an
+        /// event round; the only remaining path is the <c>Idle</c> arm's polled scan (<c>CE-382</c>).
+        /// </summary>
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-399</c> — the reserved tier bytes must cover what the runtime ACTUALLY
+        /// attaches for a hosted blueprint.</b>
+        ///
+        /// <para>🔴 <b>The defect.</b> <c>HostedOccurrenceDemandCalculator.BuildActionIdIndex</c>
+        /// indexed <c>def.StateSize</c> alone, while
+        /// <c>OccurrenceWorkingState.ResolveOrAttach&lt;TParams, TWorkingState&gt;</c> attaches
+        /// <c>AlignedBytes(sizeof(TWorkingState)) + sizeof(TParams)</c> (<c>:121</c>, <c>:146</c>).
+        /// ⇒ the params bytes were never reserved, and the raw state size was summed UNALIGNED.
+        /// 📌 Measured on this guard: reserved <b>8</b>, needed <b>9</b>.</para>
+        ///
+        /// <para>⚠⚠ <b>SAID PLAINLY: this is NOT what unblocked rail ⑨.</b> A red-proof reverting the
+        /// fix left <c>CE398_R1</c> GREEN — that entity's tier had slack once the fixture stopped
+        /// attaching an oversized root-params slot of its own. ⇒ <c>CE-399</c> is a CORRECTNESS fix
+        /// with its own rail, not a prerequisite of rail ⑨, and claiming otherwise would have been a
+        /// false attribution. ⛔ The slack is not a guarantee: a machine hosting several occurrences
+        /// exhausts it, and the failure mode is a hard throw on the first tick.</para>
+        ///
+        /// <para>⭐ Both sides are READ, never recomputed by hand: the left from the production
+        /// calculator over the real registrar's staging, the right from the generated blueprint
+        /// class's own <c>StateSize</c>/<c>ParamsSize</c>.</para>
+        /// </summary>
+        [Fact]
+        public void CE399_R1_TheHostedDemandCoversWhatTheRuntimeActuallyAttaches()
+        {
+            var behaviours = new BehaviorRegistry();
+            var staging    = new Fdp.Toolkit.Blueprints.BlueprintRegistry().BeginStaging();
+            Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(
+                typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo).Assembly,
+                staging, behaviours);
+
+            Assert.True(behaviours.TryGetHostedOccurrenceDemand("HsmPolledGuardDemo", out var demand));
+            Assert.NotNull(demand);
+            Assert.Equal(1, demand!.SlotCount);
+
+            var bp = typeof(global::Hrot.AI.Behaviors.Generated.HsmGuardDemo_C2A38D0D_Bp);
+            int stateSize  = (int)bp.GetProperty("StateSize")!.GetValue(null)!;
+            int paramsSize = (int)bp.GetProperty("ParamsSize")!.GetValue(null)!;
+
+            int needed = OccurrenceWorkingState.AlignedBytes(stateSize) + paramsSize;
+            Assert.True(paramsSize > 0,
+                "the guard declares an Open parameter — a 0 here means the registration lost it");
+            Assert.True(demand.PayloadBytes >= needed,
+                $"the tier reserves {demand.PayloadBytes} bytes for this hosted occurrence but the "
+              + $"runtime attaches {needed} ({stateSize} state, aligned, + {paramsSize} params)");
+        }
+
+        // ════════════════════════════════════════════════════════════════════════════════
+        // ⭐⭐⭐ CE-400 / ACCEPTANCE RAIL ⑥ — ONE ACTION PER CHANNEL, IN PARALLEL
+        // 🔒 The user's words: "multiple actions in parallel, one per channel like one action for
+        //    movement, one for weapon control." 📄 design §9 ⑥.
+        // ════════════════════════════════════════════════════════════════════════════════
+
+        private static (EntityRepository world, BrainTickSystem sys, Entity e)
+            ArrangeTwoChannelRegions()
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+
+            var behaviours = ScanTheRealBehavioursAssembly();
+            // ⭐ The curated registrar in Hrot.AI.Behaviors registers the HAND-WRITTEN [HsmAction]
+            //   thunks; without it both activities are TryGetValue misses and nothing writes.
+            var hsmRegistrar = typeof(global::Hrot.AI.Behaviors.Machines.HsmShowcase).Assembly
+                .GetType("Hrot.AI.Behaviors.Generated.HsmActionRegistrar")!;
+            hsmRegistrar.GetMethod("RegisterAll",
+                System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)!
+                .Invoke(null, null);
+
+            Assert.True(behaviours.TryGetId("HsmTwoChannelRegionsDemo", out _));
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.AddComponent(e, new LocomotionChannel());
+            world.AddComponent(e, new WeaponChannel());
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity       = e,
+                BehaviorName = "HsmTwoChannelRegionsDemo",
+                JsonParams   = string.Empty,
+            });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+
+            return (world, new BrainTickSystem(behaviours), e);
+        }
+
+        /// <summary>
+        /// 🔴🔴🔴 <b>RAIL ⑥ — two orthogonal regions, two DIFFERENT command channels, both live.</b>
+        ///
+        /// <para>⭐ Region 0's activity writes <see cref="LocomotionChannel"/>, region 1's writes
+        /// <see cref="WeaponChannel"/>, and both land from ONE machine on ONE entity.</para>
+        ///
+        /// <para>⛔⛔ <b>"Both ran" is NOT the claim — "both tick EVERY FRAME" is.</b> A channel write
+        /// is idempotent, so a single write and a per-frame write are indistinguishable by the
+        /// channel's contents. ⇒ each activity bumps its own <c>ActionInstanceId</c>, and this asserts
+        /// the counters ADVANCE TOGETHER across successive ticks.</para>
+        /// </summary>
+        [Fact]
+        public void CE400_R1_TwoParallelRegions_DriveTwoDifferentChannels_EveryFrame()
+        {
+            var (world, sys, e) = ArrangeTwoChannelRegions();
+
+            // Drain Entry/RTC so both regions reach their Activity phase (one phase per tick).
+            for (int i = 0; i < 6; i++) sys.Execute(world, 0.016f);
+
+            uint loco0 = world.GetComponent<LocomotionChannel>(e).ActionInstanceId;
+            uint weap0 = world.GetComponent<WeaponChannel>(e).ActionInstanceId;
+
+            Assert.True(loco0 > 0, "region 0's activity never wrote the locomotion channel");
+            Assert.True(weap0 > 0, "region 1's activity never wrote the weapon channel");
+
+            // ⭐ The channels carry DIFFERENT actions — one machine, two independent outputs.
+            Assert.Equal(global::Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.ActionIdDrive,
+                         world.GetComponent<LocomotionChannel>(e).ActiveAction);
+            Assert.Equal(global::Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.ActionIdFire,
+                         world.GetComponent<WeaponChannel>(e).ActiveAction);
+
+            // ⭐⭐ …and BOTH keep advancing, in step, on every subsequent tick.
+            for (int i = 0; i < 4; i++) sys.Execute(world, 0.016f);
+
+            uint loco1 = world.GetComponent<LocomotionChannel>(e).ActionInstanceId;
+            uint weap1 = world.GetComponent<WeaponChannel>(e).ActionInstanceId;
+
+            Assert.True(loco1 > loco0, "the locomotion region stopped ticking");
+            Assert.True(weap1 > weap0, "the weapon region stopped ticking");
+            Assert.Equal(loco1 - loco0, weap1 - weap0);
+
+            world.Dispose();
+        }
+
+        [Fact]
+        public void CE398_R3_NoEventIsEverQueued_SoTheTransitionCanOnlyHaveBeenPolled()
+        {
+            var (world, sys, e, _) = ArrangePolledGuardMachine(open: true);
+
+            for (int i = 0; i < 12; i++)
+            {
+                sys.Execute(world, 0.016f);
+                byte* inst = InstanceOf(world, e, out int size);
+                Assert.Equal(0, HsmEventQueue.GetCount(inst, size));
+            }
+
+            world.Dispose();
+        }
     }
 }

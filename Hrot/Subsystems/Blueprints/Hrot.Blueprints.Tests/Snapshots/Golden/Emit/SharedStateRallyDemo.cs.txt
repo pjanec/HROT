@@ -31,6 +31,7 @@ public static class SharedStateRallyDemo_3CBD7255_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -95,6 +96,7 @@ public static class BlueprintRegistrar_SharedStateRallyDemo_3CBD7255_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = SharedStateRallyDemo_3CBD7255_Bp.StructureHash,
             StateSize = SharedStateRallyDemo_3CBD7255_Bp.StateSize,
+            ParamsSize = SharedStateRallyDemo_3CBD7255_Bp.ParamsSize,
             AssetId = new Guid("5ba00002-0000-0000-0000-0000000000e1"),
             StateClrType = typeof(SharedStateRallyDemo_3CBD7255_Bp.WorkingState),
         });

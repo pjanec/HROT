@@ -38,6 +38,7 @@ public static class SharedStateCrossEntityDemo_CBF3AB14_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -104,6 +105,7 @@ public static class BlueprintRegistrar_SharedStateCrossEntityDemo_CBF3AB14_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = SharedStateCrossEntityDemo_CBF3AB14_Bp.StructureHash,
             StateSize = SharedStateCrossEntityDemo_CBF3AB14_Bp.StateSize,
+            ParamsSize = SharedStateCrossEntityDemo_CBF3AB14_Bp.ParamsSize,
             AssetId = new Guid("e2b00001-0000-0000-0000-0000000000e2"),
             StateClrType = typeof(SharedStateCrossEntityDemo_CBF3AB14_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

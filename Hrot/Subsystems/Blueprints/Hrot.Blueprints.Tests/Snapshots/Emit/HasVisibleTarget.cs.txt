@@ -31,6 +31,7 @@ public static class HasVisibleTarget_96FB0E6E_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -93,6 +94,7 @@ public static class BlueprintRegistrar_HasVisibleTarget_96FB0E6E_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HasVisibleTarget_96FB0E6E_Bp.StructureHash,
             StateSize = HasVisibleTarget_96FB0E6E_Bp.StateSize,
+            ParamsSize = HasVisibleTarget_96FB0E6E_Bp.ParamsSize,
             AssetId = new Guid("00000004-0000-0000-0000-000000000001"),
             StateClrType = typeof(HasVisibleTarget_96FB0E6E_Bp.WorkingState),
         });

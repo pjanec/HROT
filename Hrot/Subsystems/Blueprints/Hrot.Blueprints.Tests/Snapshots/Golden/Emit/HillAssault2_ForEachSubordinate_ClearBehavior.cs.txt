@@ -31,6 +31,7 @@ public static class HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -101,6 +102,7 @@ public static class BlueprintRegistrar_HillAssault2ForEachSubordinateClearBehavi
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.StructureHash,
             StateSize = HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.StateSize,
+            ParamsSize = HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.ParamsSize,
             AssetId = new Guid("ead05968-d6d7-4e2f-8133-6782fd733bb4"),
             StateClrType = typeof(HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp.WorkingState),
         });

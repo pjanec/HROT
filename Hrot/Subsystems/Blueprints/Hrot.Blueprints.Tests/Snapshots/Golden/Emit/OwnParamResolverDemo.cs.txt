@@ -35,6 +35,7 @@ public static class OwnParamResolverDemo_225C1D48_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -109,6 +110,7 @@ public static class BlueprintRegistrar_OwnParamResolverDemo_225C1D48_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = OwnParamResolverDemo_225C1D48_Bp.StructureHash,
             StateSize = OwnParamResolverDemo_225C1D48_Bp.StateSize,
+            ParamsSize = OwnParamResolverDemo_225C1D48_Bp.ParamsSize,
             AssetId = new Guid("00000145-0000-0000-0000-000000000001"),
             StateClrType = typeof(OwnParamResolverDemo_225C1D48_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

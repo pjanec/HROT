@@ -144,9 +144,23 @@ public static class HostedOccurrenceDemandCalculator
             ushort actionId = unchecked((ushort)kv.Key);
             if (actionId == 0) continue;               // 0 means "no action" in a StateDef
 
+            // ⭐⭐⭐ CE-399 — THE PAYLOAD THE RUNTIME ACTUALLY ATTACHES, not just the working state.
+            //
+            // 🔴 This indexed `def.StateSize` alone, while
+            //    `OccurrenceWorkingState.ResolveOrAttach<TParams, TWorkingState>` attaches
+            //    `AlignedBytes(sizeof(TWorkingState)) + sizeof(TParams)` (`:121`, `:146`).
+            //    ⇒ every hosted blueprint DECLARING PARAMETERS was under-reserved, and the first real
+            //    tick threw "no room for hosted slot". 📌 Measured on a 1-byte-params guard: demand 8,
+            //    need 9.
+            // ⚠ The ALIGN matters independently: an empty WorkingState is `sizeof` 1 but occupies 8,
+            //    so summing raw sizes under-counts even with no params at all.
+            // ⛔ Why nothing caught it: no test drove a params-carrying hosted blueprint through
+            //    `BehaviorIngressSystem` — the occurrence suites hand-provision a full 1024 tier.
+            int payload = OccurrenceWorkingState.AlignedBytes(def.StateSize) + def.ParamsSize;
+
             index[actionId] = index.TryGetValue(actionId, out int existing)
-                ? Math.Max(existing, def.StateSize)
-                : def.StateSize;
+                ? Math.Max(existing, payload)
+                : payload;
         }
         return index;
     }

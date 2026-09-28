@@ -1023,3 +1023,92 @@ RIGHT bytes at runtime, or that the machine actually leaves `Waiting` when `Open
 are the runtime claims `PolledTransitionKernelTests` and the `HsmOccurrence` suites already make for
 their own halves; ⛔ an end-to-end "entity ticks, guard fires, behaviour finishes" rail through the
 real `BrainTickSystem` is a separate, larger item and is **not** what §9 ④ asked for.
+
+### 13.8 `CE-398` + `CE-399` + `CE-400` — **RAILS ⑥ AND ⑨, AND WHAT RUNNING IT FOUND** *(`2026-09-28`)*
+
+🔒 **User:** *"now do rail 6 and 9, whatever that proves the mechanism is working end to end."*
+
+#### ⭐⭐⭐ `CE-398` / RAIL ⑨ — the whole chain, through the real system
+
+One entity, the real `HsmPolledGuardDemo` blob, the real blueprint guard registered by the real
+`BlueprintRegistrarScanner` over `Hrot.AI.Behaviors`, assigned through the real
+`BehaviorIngressSystem`, ticked by the real `BrainTickSystem`:
+
+**polled scan → blueprint guard thunk → params seeded from the blackboard → transition → final state
+→ `BehaviorFinishedEvent`, exactly once**, with **no event ever posted**.
+
+| rail | claim |
+|---|---|
+| `CE398_R1` | it finishes, and **exactly once** across 12 ticks |
+| `CE398_R2` | ⛔ **the non-vacuity half** — with `Open = false` the guard REFUSES and the machine **never** finishes. Without this, a machine that simply fell through would pass `R1` and prove nothing |
+| `CE398_R3` | the instance's event queue is **empty on every tick**, so the transition can only have been taken by the polled scan |
+
+#### ⭐⭐ `CE-400` / RAIL ⑥ — one action per channel, in parallel
+
+📐 Measured first: `HsmOrthogonalRegions`' two regions bind **no activity at all**, and the only
+channel-writing HSM actions live in `FDP/Examples`, which the game assembly does not reference ⇒ rail
+⑥ had **no subject**. ⭐ New: `HsmChannelRegionNodes` (two `[HsmAction]` thunks, one per channel) and
+`HsmTwoChannelRegionsDemo.hsm.json` (a parallel composite whose region 0 drives `LocomotionChannel`
+and region 1 `WeaponChannel`).
+
+⛔⛔ **"Both ran" is NOT the claim — "both tick EVERY FRAME" is.** A channel write is idempotent, so
+one write and a per-frame write are indistinguishable from the channel's contents. ⇒ each activity
+bumps its own `ActionInstanceId`, and the rail asserts the two counters **advance together**.
+
+#### 🔴 `CE-399` — A REAL SIZING DEFECT THE END-TO-END RUN SURFACED
+
+⛔⛔ `HostedOccurrenceDemandCalculator.BuildActionIdIndex` indexed **`def.StateSize` alone**, while
+`OccurrenceWorkingState.ResolveOrAttach<TParams, TWorkingState>` attaches
+**`AlignedBytes(sizeof(TWorkingState)) + sizeof(TParams)`** (`:121`, `:146`). ⇒ the params bytes were
+never reserved and the state size was summed **unaligned**. 📌 Measured on the guard: reserved **8**,
+needed **9**. ⭐ `BlueprintDefinition.ParamsSize` already existed; the **AiPrimitive registration
+simply never filled it** — its own header called `0` truthful *"for the Library/AiPrimitive kinds that
+do not attach through BlueprintInstanceService"*, which was true of that service and **false of the
+hosted-occurrence path that arrived later**.
+
+⚠⚠ **SAID PLAINLY, BECAUSE A RED-PROOF CAUGHT ME ABOUT TO CLAIM OTHERWISE: `CE-399` is NOT what
+unblocked rail ⑨.** Reverting it left `CE398_R1` **green** — that entity's tier had slack once the
+FIXTURE stopped attaching an oversized root-params slot of its own. ⇒ it is a correctness fix with
+**its own rail** (`CE399_R1`, which compares the reserved bytes against what the generated class says
+the runtime attaches), not a prerequisite of ⑨. ⛔ The slack is not a guarantee: a machine hosting
+several occurrences exhausts it, and the failure is a hard throw on the first tick.
+
+#### ⚠ THE FIXTURE LESSON, WORTH CARRYING
+
+🔴 The first draft hand-provisioned the entity (`EnsureRootInstance` + its own
+`ResolveOrAttachRoot(MaxBehaviorParamByteSize)`) and the guard's occurrence had nowhere to live.
+⭐ **A fixture that provisions differently from production is testing a world that does not exist** —
+the rail now publishes an `AssignBehaviorEvent` and lets ingress size the tier, which is both correct
+and a stronger claim.
+
+#### 📐 GATES + RED-PROOFS
+
+⭐⭐ **Four inverse edits, four reds:** the demand drops the params bytes ⇒ `CE399_R1` · the registrar
+stops emitting `ParamsSize` ⇒ `CE399_R1` · region 1 loses its channel activity ⇒ `CE400_R1` · the
+transition is unmarked `IsPolled` ⇒ `CE398_R1`.
+
+⚠ **Golden churn, and it is the largest of this programme:** the `ParamsSize` emission adds **two
+lines to every AiPrimitive's generated source** — **34 files, 67 insertions, 0 deletions** in all.
+⛔ **No existing baseline LINE changed** — every hunk is a pure insertion.
+
+| where | files | insertions |
+|---|---|---|
+| `Hrot.Blueprints.Tests/Snapshots/Golden/Emit/` | 30 | 60 |
+| `Hrot.Blueprints.Tests/Snapshots/Emit/` | 2 | 4 |
+| ⚠ `Hrot.Blueprints.Tests/Snapshots/Demos/` | **1** | 2 |
+| `Hrot.AiEditor.Generators.Tests/.../hsm-persistence-shape.txt` | 1 | 1 |
+
+#### ⛔⛔ THE REGENERATION LESSON — **enumerate the snapshot ROOTS, not the files your diff touched**
+
+🔴 **Measured cost `2026-09-28`: one wasted 3 m 14 s full-suite gate run.** The first regeneration pass
+covered `Snapshots/Emit/` and `Snapshots/Golden/Emit/` — **the directories the diff already showed** —
+and the batch gate then came back with a single red, `Demos.MoveToAndFireDemoTests
+.MoveToAndFire_GeneratedSource_Snapshot`. ⭐ `Hrot.Blueprints.Tests/Snapshots/` has **FIVE** roots
+*(`DebugMap`, `Demos`, `Emit`, `Golden`, `Schedule`)*, and `Demos/MoveToAndFire.cs.txt` is a **second
+copy of the same generated source** under a different root.
+
+⇒ ⭐⭐⭐ **This is the `INVENTORY`-before-design rule in miniature, applied to baselines:** *"the files
+my change touched"* is a grep answer; *"every place this generated shape is recorded"* is a set
+question. ⭐ **`ls <project>/Snapshots/` costs nothing** — do it before the expensive run, not after
+it fails. 📐 **For the record, the other three roots were genuinely untouched** — `DebugMap 0`,
+`Schedule 0` — so the complete enumeration cost one command and would have saved the whole run.

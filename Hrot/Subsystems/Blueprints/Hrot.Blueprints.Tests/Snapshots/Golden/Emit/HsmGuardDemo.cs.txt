@@ -33,6 +33,7 @@ public static class HsmGuardDemo_C2A38D0D_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -107,6 +108,7 @@ public static class BlueprintRegistrar_HsmGuardDemo_C2A38D0D_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HsmGuardDemo_C2A38D0D_Bp.StructureHash,
             StateSize = HsmGuardDemo_C2A38D0D_Bp.StateSize,
+            ParamsSize = HsmGuardDemo_C2A38D0D_Bp.ParamsSize,
             AssetId = new Guid("00000150-0000-0000-0000-000000000001"),
             StateClrType = typeof(HsmGuardDemo_C2A38D0D_Bp.WorkingState),
         });

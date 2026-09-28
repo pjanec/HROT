@@ -411,6 +411,10 @@ internal sealed class CSharpEmitter
         // an AiPrimitive's working state is real bytes in Blackboard1024. Same expression the Instance
         // path uses, over this dispatch kind's own struct.
         WriteLine($"StateSize = {className}.StateSize,");
+        // ⭐⭐⭐ CE-399 — and the PARAMS size, which the hosted-occurrence tier sizing needs and this
+        //   registration never carried. The runtime attaches Align8(StateSize) + ParamsSize; without
+        //   this the demand calculator saw only the first term. 📄 §13.8.
+        WriteLine($"ParamsSize = {className}.ParamsSize,");
         WriteLine($"AssetId = new Guid(\"{asset.AssetId}\"),");
         WriteLine($"StateClrType = typeof({className}.WorkingState),");
         // 🔴🔴 Batch 57 (S1) — the block that was missing ENTIRELY. Without it

@@ -31,6 +31,7 @@ public static class HillAssault2IsSelfArrived_43D9F894_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -105,6 +106,7 @@ public static class BlueprintRegistrar_HillAssault2IsSelfArrived_43D9F894_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsSelfArrived_43D9F894_Bp.StructureHash,
             StateSize = HillAssault2IsSelfArrived_43D9F894_Bp.StateSize,
+            ParamsSize = HillAssault2IsSelfArrived_43D9F894_Bp.ParamsSize,
             AssetId = new Guid("7206bd2d-e8ac-48a6-a52e-e575fb9655b0"),
             StateClrType = typeof(HillAssault2IsSelfArrived_43D9F894_Bp.WorkingState),
         });

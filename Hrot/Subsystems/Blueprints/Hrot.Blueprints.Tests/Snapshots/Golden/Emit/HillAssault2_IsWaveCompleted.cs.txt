@@ -33,6 +33,7 @@ public static class HillAssault2IsWaveCompleted_D4A1CE64_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -108,6 +109,7 @@ public static class BlueprintRegistrar_HillAssault2IsWaveCompleted_D4A1CE64_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StructureHash,
             StateSize = HillAssault2IsWaveCompleted_D4A1CE64_Bp.StateSize,
+            ParamsSize = HillAssault2IsWaveCompleted_D4A1CE64_Bp.ParamsSize,
             AssetId = new Guid("1f8c294f-768b-4348-9916-3bb110c92bb9"),
             StateClrType = typeof(HillAssault2IsWaveCompleted_D4A1CE64_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

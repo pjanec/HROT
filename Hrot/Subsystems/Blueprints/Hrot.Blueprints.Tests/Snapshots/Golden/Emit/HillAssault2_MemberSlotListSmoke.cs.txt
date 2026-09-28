@@ -33,6 +33,7 @@ public static class HillAssault2MemberSlotListSmoke_C10B0564_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -99,6 +100,7 @@ public static class BlueprintRegistrar_HillAssault2MemberSlotListSmoke_C10B0564_
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2MemberSlotListSmoke_C10B0564_Bp.StructureHash,
             StateSize = HillAssault2MemberSlotListSmoke_C10B0564_Bp.StateSize,
+            ParamsSize = HillAssault2MemberSlotListSmoke_C10B0564_Bp.ParamsSize,
             AssetId = new Guid("e782b7df-f157-4fd6-8cb5-ae6853f9d5bd"),
             StateClrType = typeof(HillAssault2MemberSlotListSmoke_C10B0564_Bp.WorkingState),
             StateFields = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintFieldDescriptor>(global::System.StringComparer.Ordinal)

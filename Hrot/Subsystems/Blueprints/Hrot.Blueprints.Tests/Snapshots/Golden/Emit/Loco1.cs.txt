@@ -31,6 +31,7 @@ public static class Loco1_A9036715_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -112,6 +113,7 @@ public static class BlueprintRegistrar_Loco1_A9036715_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = Loco1_A9036715_Bp.StructureHash,
             StateSize = Loco1_A9036715_Bp.StateSize,
+            ParamsSize = Loco1_A9036715_Bp.ParamsSize,
             AssetId = new Guid("d7dedbce-4582-4664-a352-69962a0e0833"),
             StateClrType = typeof(Loco1_A9036715_Bp.WorkingState),
         });

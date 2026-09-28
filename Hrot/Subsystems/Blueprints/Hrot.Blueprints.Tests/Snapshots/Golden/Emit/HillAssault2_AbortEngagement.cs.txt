@@ -31,6 +31,7 @@ public static class HillAssault2AbortEngagement_2FA7F03D_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => 0;
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -91,6 +92,7 @@ public static class BlueprintRegistrar_HillAssault2AbortEngagement_2FA7F03D_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HillAssault2AbortEngagement_2FA7F03D_Bp.StructureHash,
             StateSize = HillAssault2AbortEngagement_2FA7F03D_Bp.StateSize,
+            ParamsSize = HillAssault2AbortEngagement_2FA7F03D_Bp.ParamsSize,
             AssetId = new Guid("a3f83b53-1baa-4912-b2f0-7ac57f95ba94"),
             StateClrType = typeof(HillAssault2AbortEngagement_2FA7F03D_Bp.WorkingState),
         });

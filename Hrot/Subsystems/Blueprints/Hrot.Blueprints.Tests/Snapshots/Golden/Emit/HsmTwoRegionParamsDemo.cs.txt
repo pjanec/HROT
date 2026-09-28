@@ -32,6 +32,7 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
     }
     
     public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<WorkingState>();
+    public static int ParamsSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Params>();
     
     private static unsafe void InitDefaultWorkingState(WorkingState* dst)
     {
@@ -105,6 +106,7 @@ public static class BlueprintRegistrar_HsmTwoRegionParamsDemo_1434647B_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.AiPrimitive,
             StructureHash = HsmTwoRegionParamsDemo_1434647B_Bp.StructureHash,
             StateSize = HsmTwoRegionParamsDemo_1434647B_Bp.StateSize,
+            ParamsSize = HsmTwoRegionParamsDemo_1434647B_Bp.ParamsSize,
             AssetId = new Guid("00000146-0000-0000-0000-000000000001"),
             StateClrType = typeof(HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState),
         });
