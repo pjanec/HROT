@@ -1,8 +1,7 @@
-StructureHash: 0xFCEE320CD43103B9
+StructureHash: 0x9EEB7574BC9E6470
 Parameters:
-  Open : System.Boolean @0 size=1
-  DestX : System.Single @4 size=4
-  DestY : System.Single @8 size=4
+  DestX : System.Single @0 size=4
+  DestY : System.Single @4 size=4
 WorkingState:
   (empty)
 Variables:

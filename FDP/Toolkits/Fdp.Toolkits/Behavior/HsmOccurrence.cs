@@ -131,6 +131,21 @@ public static unsafe class HsmOccurrence
     /// emitted body.</para>
     /// </summary>
     public static int SeedParamsOffset(void* hsmInstance, HsmCommandWriter* writer)
+        => SeedParamsOffset(hsmInstance, writer, HsmParamBindings.StateWideSite);
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — the same lookup, for ONE HOSTING SITE.</b>
+    ///
+    /// <para>⭐ <paramref name="childAssetId"/> is the blueprint the thunk belongs to — the SAME Guid
+    /// it passes to <see cref="KeyFor(void*, System.Guid, HsmCommandWriter*)"/> one line earlier, so
+    /// the slot and its seed are addressed by one identity rather than two.</para>
+    ///
+    /// <para>🔴 <b>Why the site is needed at all:</b> the kernel stamps a POLLED GUARD with its SOURCE
+    /// STATE, so a state's activity blueprint and the guard on its outgoing transition arrive with the
+    /// same <c>(machine, state)</c>. ⛔ Without the site they seed from one variable through two
+    /// different <c>Params</c> types.</para>
+    /// </summary>
+    public static int SeedParamsOffset(void* hsmInstance, HsmCommandWriter* writer, Guid childAssetId)
     {
         if (writer == null || hsmInstance == null) return HsmParamBindings.UnboundOffset;
 
@@ -138,7 +153,7 @@ public static unsafe class HsmOccurrence
         if (state == HsmCommandWriter.NoStateId) return HsmParamBindings.UnboundOffset;
 
         uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
-        return HsmParamBindings.SeedOffsetFor(machineId, state);
+        return HsmParamBindings.SeedOffsetFor(machineId, state, childAssetId);
     }
 
     /// <summary>

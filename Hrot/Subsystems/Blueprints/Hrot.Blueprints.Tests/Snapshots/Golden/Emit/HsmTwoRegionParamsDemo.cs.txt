@@ -79,7 +79,7 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
             //   slot. Copying them makes the move byte-identical at the first dispatch.
             // E3b-0 (§28.6): …and WHICH bytes is the STATE's own binding, not always the
             //   first variable — that is what lets two parallel regions differ.
-            int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);
+            int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);
             ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, bridge->Self);
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(

@@ -101,11 +101,6 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         // bridge writes ParseParams at the same offsets, so they must resolve sizes identically.
         // Only built when there is a managed blackboard to size; otherwise null, and the emitted
         // output is byte-identical to before.
-        System.Func<string, int?>? sizeResolver =
-            dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0
-                ? StructSizeResolver.MakeDelegate(compilation)
-                : null;
-
         // ⭐⭐ CE-384 — Guid → the ushort the blueprint's generated thunk registers under.
         //   ⛔ Returns null for an unknown asset id rather than 0: a 0 would be a VALID action id and
         //   would silently mis-dispatch, which is the failure mode this whole id story exists to
@@ -113,6 +108,28 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   ⚠ Built even when there are no blueprints — Parse() on an empty array is empty, and the
         //   emitted output is byte-identical because no DTO names a blueprint.
         var blueprintSchemas = GeneratedBlueprintSchemaCatalog.Parse(bpJsonFiles);
+
+        // BP-281 / E7b: the Roslyn-backed struct-size resolver, built once and used by BOTH
+        // emitters — the topology core bakes expression-target offsets into action keys and the
+        // bridge writes ParseParams at the same offsets, so they must resolve sizes identically.
+        // Only built when there is a managed blackboard to size; otherwise null, and the emitted
+        // output is byte-identical to before.
+        //
+        // ⭐⭐⭐ CE-414 — AND IT COMPOSES THE OPTION-A FALLBACK, exactly as BTreeJsonGenerator:182
+        //   already does. 🔴 Without it a variable typed `{Blueprint}_{Id:X8}_Bp+Params` — which is
+        //   the WHOLE POINT of the compose step: one struct-typed variable per hosting site — is
+        //   invisible to this sibling generator, Pack throws, PackParams swallows it and returns
+        //   EMPTY, and the asset emits no ParseParams and no param bindings AT ALL. ⛔ Silent, and
+        //   the symptom is a hosted blueprint whose params are always zero.
+        System.Func<string, int?>? sizeResolver = null;
+        if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
+            sizeResolver = typeId =>
+                roslynResolver(typeId)
+                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation);
+        }
+
         System.Func<System.Guid, ushort?> blueprintIdResolver = assetId =>
         {
             foreach (var schema in blueprintSchemas)

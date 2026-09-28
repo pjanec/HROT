@@ -708,7 +708,12 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
         e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
-        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer)",
+        // ⭐⭐⭐ CE-414 — AssetId identifies the HOSTING SITE, not just the state. The line above
+        //   already passes it to KeyFor; passing it here too means the occurrence's SLOT and its SEED
+        //   are addressed by ONE identity. 🔴 Without it a state's activity blueprint and the guard
+        //   blueprint on its outgoing transition — which the kernel stamps with the same state —
+        //   project two different Params types over one variable.
+        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId)",
                       "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen)",
                       "world", "bridge->Self");
         e.WriteLine("ref var p = ref *__params;");

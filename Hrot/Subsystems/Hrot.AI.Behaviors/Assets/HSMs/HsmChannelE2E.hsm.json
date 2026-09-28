@@ -60,7 +60,7 @@
       "Comment": "Activity is a BLUEPRINT commanding the locomotion channel. ExpressionTargetField=Open: the hosted blueprint's params are seeded as a contiguous window from that variable's offset, and the GUARD on this state's outgoing transition SHARES that window — so the blueprint's parameter list mirrors the blackboard from Open onward (Open, DestX, DestY). OnExitAction stays null: the channel cleanup is auto-bound (Q74 D-B1).",
       "IsCollapsed": false,
       "ColorOverride": null,
-      "ExpressionTargetField": "Open"
+      "ExpressionTargetField": "bpActivityParams"
     },
     {
       "StableId": "61000000-0000-0000-0000-00000000000b",
@@ -84,10 +84,10 @@
       "Y": 100,
       "SizeOverrideX": null,
       "SizeOverrideY": null,
-      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. ExpressionTargetField=TargetNetworkId: seeds this ",
+      "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. CE-414: bpActivityParams_2 IS HsmFireActivity's generated Params struct.",
       "IsCollapsed": false,
       "ColorOverride": null,
-      "ExpressionTargetField": "TargetNetworkId"
+      "ExpressionTargetField": "bpActivityParams_2"
     }
   ],
   "Regions": [],
@@ -100,6 +100,7 @@
       "GuardFunction": null,
       "GuardBlueprintAssetId": "00000150-0000-0000-0000-000000000001",
       "GuardBlueprintName": "HsmGuardDemo",
+      "ExpressionTargetField": "bpGuardParams",
       "IsPolled": true,
       "ActionFunction": null,
       "Priority": 0,
@@ -125,48 +126,37 @@
     "TypeName": "HsmChannelE2E_Blackboard",
     "Variables": [
       {
-        "Name": "Open",
+        "Name": "bpActivityParams",
         "Type": {
-          "TypeId": "System.Boolean",
+          "TypeId": "Hrot.AI.Behaviors.Generated.HsmDriveActivity_085BB11D_Bp+Params",
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "false",
-        "Comment": "Seeds HsmGuardDemo's 'Open' parameter. Starts false so the machine stays in Driving and the locomotion channel can be observed before the hand-off.",
-        "IsAutoManaged": false
+        "DefaultValueJson": "{\"DestX\":0,\"DestY\":0}",
+        "Comment": "CE-414: composed by the Driving state's activity-blueprint pick. The variable IS HsmDriveActivity's generated Params struct, so the seed offset is this one variable's offset and every field offset inside it comes from the DTO.",
+        "IsAutoManaged": true
       },
       {
-        "Name": "DestX",
+        "Name": "bpActivityParams_2",
         "Type": {
-          "TypeId": "System.Single",
+          "TypeId": "Hrot.AI.Behaviors.Generated.HsmFireActivity_055BAC64_Bp+Params",
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "0",
-        "Comment": "Seeds HsmDriveActivity's DestX parameter. The blueprint composes DestX/DestY into a Vector3 and wires it into the MoveTo Destination pin.",
-        "IsAutoManaged": false
+        "DefaultValueJson": "{\"TargetNetworkId\":0}",
+        "Comment": "CE-414: composed by the Firing state's activity-blueprint pick.",
+        "IsAutoManaged": true
       },
       {
-        "Name": "DestY",
+        "Name": "bpGuardParams",
         "Type": {
-          "TypeId": "System.Single",
+          "TypeId": "Hrot.AI.Behaviors.Generated.HsmGuardDemo_C2A38D0D_Bp+Params",
           "IsArray": false,
           "FixedLength": null
         },
-        "DefaultValueJson": "0",
-        "Comment": "Seeds HsmDriveActivity's DestY parameter.",
-        "IsAutoManaged": false
-      },
-      {
-        "Name": "TargetNetworkId",
-        "Type": {
-          "TypeId": "System.Int64",
-          "IsArray": false,
-          "FixedLength": null
-        },
-        "DefaultValueJson": "0",
-        "Comment": "Seeds HsmFireActivity's TargetNetworkId parameter, resolved to a live Entity for AimAndFire.",
-        "IsAutoManaged": false
+        "DefaultValueJson": "{\"Open\":false}",
+        "Comment": "CE-413/CE-414: composed by the transition's guard-blueprint pick. The guard is stamped with its SOURCE STATE, so before CE-414 it read Driving's window through its OWN Params type; the site key (the guard's asset id) is what separates them.",
+        "IsAutoManaged": true
       }
     ]
   }

@@ -297,7 +297,10 @@ public static class HsmBridgeEmitCore
         foreach (var f in packedFields)
             offsetMap[f.Name] = f;
 
-        var bound = new List<(Guid StableId, int Offset)>();
+        // (state StableId, SITE, offset). ⭐⭐⭐ CE-414: the SITE is the hosted blueprint's asset Guid,
+        //   or Guid.Empty for the state's own field — the default every unmatched site falls back to.
+        var bound = new List<(Guid StableId, Guid SiteId, int Offset)>();
+
         foreach (var st in dto.States)
         {
             // ⛔ An unbound state is the COMMON case, not an error — it seeds from 0 as before.
@@ -305,18 +308,48 @@ public static class HsmBridgeEmitCore
             // ⚠ A target naming a variable that is not packed (State-role, or renamed away) is
             //   skipped rather than emitted as a guess — the same "fails closed" rule §3.4 states.
             if (!offsetMap.TryGetValue(st.ExpressionTargetField!, out var field)) continue;
-            bound.Add((st.StableId, field.ByteOffset));
+
+            // ⭐ Guid.Empty, not the activity blueprint's id: ONE entry then serves the activity
+            //   blueprint AND all four C# action slots, which is what keeps this purely additive.
+            bound.Add((st.StableId, Guid.Empty, field.ByteOffset));
         }
+
+        // ⭐⭐⭐ CE-413 — A TRANSITION'S OWN ExpressionTargetField, KEYED BY ITS GUARD BLUEPRINT.
+        //
+        //   🔴 The field has been on TransitionNodeDto since E7b and was INERT for the HSM seed: the
+        //      kernel stamps a polled guard with its SOURCE STATE (HsmKernelCore.EvaluateGuard:768),
+        //      so before CE-414 a guard could only ever read the source state's binding — through its
+        //      OWN Params type, over bytes laid out for the activity's. ⛔ A type-pun, unguarded.
+        //   ⭐ The guard's asset id is the discriminator, and it needs no kernel change: it is the
+        //      same Guid the guard thunk already passes to HsmOccurrence.KeyFor for its slot.
+        //   ⚠ A transition whose guard is a C# METHOD is skipped: it has no asset id, so it would
+        //      register under Guid.Empty and silently overwrite the SOURCE STATE's own binding.
+        //      Its params come from the source state's field, which is what §28.6's comment in
+        //      HsmChannelE2E already documented as the behaviour.
+        foreach (var tr in dto.Transitions)
+        {
+            if (string.IsNullOrEmpty(tr.ExpressionTargetField)) continue;
+            if (tr.GuardBlueprintAssetId == Guid.Empty) continue;
+            if (!offsetMap.TryGetValue(tr.ExpressionTargetField!, out var field)) continue;
+            bound.Add((tr.SourceStableId, tr.GuardBlueprintAssetId, field.ByteOffset));
+        }
+
+        // ⛔ GlobalTransitions are NOT emitted, and that is a property of the model rather than an
+        //   omission: a global transition has no SourceStableId — it is evaluated against whatever
+        //   leaf is active — so there is no (state, site) pair to key it by. Its guard therefore
+        //   reads the ACTIVE state's binding. 📄 DESIGN_Occurrence_Scoped_Storage.md §28.6c.
 
         if (bound.Count == 0) return;
 
-        sb.AppendLine($"{pad2}// E3b-0: which blackboard variable each STATE's hosted occurrence seeds");
-        sb.AppendLine($"{pad2}//        its params from. Resolved to flat state indices at runtime via");
-        sb.AppendLine($"{pad2}//        the blob's own MachineMetadata.StateStableIds.");
-        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HsmParamBindings.Register(blob, new (global::System.Guid, int)[]");
+        sb.AppendLine($"{pad2}// E3b-0 / CE-414: which blackboard variable each HOSTING SITE seeds its");
+        sb.AppendLine($"{pad2}//        params from. Guid.Empty is the state-wide default; a non-empty");
+        sb.AppendLine($"{pad2}//        site is the hosted blueprint's asset id (CE-413: a guard).");
+        sb.AppendLine($"{pad2}//        Resolved to flat state indices at runtime via the blob's own");
+        sb.AppendLine($"{pad2}//        MachineMetadata.StateStableIds.");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.HsmParamBindings.Register(blob, new (global::System.Guid, global::System.Guid, int)[]");
         sb.AppendLine($"{pad2}{{");
-        foreach (var (stableId, offset) in bound)
-            sb.AppendLine($"{pad2}{Indent}(new global::System.Guid(\"{stableId}\"), {offset}),");
+        foreach (var (stableId, siteId, offset) in bound)
+            sb.AppendLine($"{pad2}{Indent}(new global::System.Guid(\"{stableId}\"), new global::System.Guid(\"{siteId}\"), {offset}),");
         sb.AppendLine($"{pad2}}});");
         sb.AppendLine();
     }

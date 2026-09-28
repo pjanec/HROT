@@ -85,12 +85,14 @@ public static class HsmPolledGuardDemoRegistrar
                 new("Open", typeof(bool), 0),
             },
         });
-        // E3b-0: which blackboard variable each STATE's hosted occurrence seeds
-        //        its params from. Resolved to flat state indices at runtime via
-        //        the blob's own MachineMetadata.StateStableIds.
-        global::Fdp.Toolkit.Behavior.HsmParamBindings.Register(blob, new (global::System.Guid, int)[]
+        // E3b-0 / CE-414: which blackboard variable each HOSTING SITE seeds its
+        //        params from. Guid.Empty is the state-wide default; a non-empty
+        //        site is the hosted blueprint's asset id (CE-413: a guard).
+        //        Resolved to flat state indices at runtime via the blob's own
+        //        MachineMetadata.StateStableIds.
+        global::Fdp.Toolkit.Behavior.HsmParamBindings.Register(blob, new (global::System.Guid, global::System.Guid, int)[]
         {
-            (new global::System.Guid("51000000-0000-0000-0000-00000000000a"), 0),
+            (new global::System.Guid("51000000-0000-0000-0000-00000000000a"), new global::System.Guid("00000000-0000-0000-0000-000000000000"), 0),
         });
 
     }

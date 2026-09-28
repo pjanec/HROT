@@ -23,6 +23,15 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// written. ⛔ A production host has one and must pass it.</summary>
     private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — what turns a picked BLUEPRINT NAME into its generated <c>Params</c>
+    /// type, so the pick can compose a struct-typed blackboard variable instead of leaving the author
+    /// to hand-mirror a byte layout.</b>
+    /// ⚠ Optional for the same reason <see cref="_catalog"/> is: a headless fixture may have none, and
+    /// then the pick behaves exactly as it did before. ⛔ A production host HAS one and must pass it.
+    /// </summary>
+    private readonly Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? _actionSchema;
+
     public HsmFacetDispatcher(HsmAsset asset)
         : this(asset, null)
     {
@@ -48,11 +57,29 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         HsmAsset asset,
         HsmFacetFqnContext? fqnContext,
         Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog)
+        : this(asset, fqnContext, catalog, actionSchema: null)
     {
-        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
-        _fqnContext = fqnContext;
-        _catalog    = catalog;
-        _mapper     = new HsmFacetMapper(asset, fqnContext);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — the production overload. <paramref name="actionSchema"/> is what lets a
+    /// blueprint pick COMPOSE its params variable.</b>
+    ///
+    /// <para>🔒 Without it the pick writes the blueprint's name and id and stops, which is what it did
+    /// before <c>CE-414</c> — and left the author to declare scalar variables whose packed layout had
+    /// to coincide, field for field, with the blueprint's generated <c>Params</c> struct.</para>
+    /// </summary>
+    public HsmFacetDispatcher(
+        HsmAsset asset,
+        HsmFacetFqnContext? fqnContext,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema)
+    {
+        _asset         = asset ?? throw new ArgumentNullException(nameof(asset));
+        _fqnContext    = fqnContext;
+        _catalog       = catalog;
+        _actionSchema  = actionSchema;
+        _mapper        = new HsmFacetMapper(asset, fqnContext);
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -136,6 +163,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         // ⭐⭐ CE-385 — the blueprint-hosted activity, captured by the SAME rule as the subtree pick.
         // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2.
+        string? previousActivity = s.ActivityBlueprintName;
         if (string.IsNullOrWhiteSpace(f.ActivityBlueprintName))
         {
             s.ActivityBlueprintName    = null;
@@ -150,7 +178,84 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
                 s.ActivityBlueprintAssetId).Id;
         }
 
+        // ⭐⭐⭐ CE-414 — COMPOSE. The state's ExpressionTargetField becomes ONE variable whose TYPE is
+        //   the picked blueprint's generated Params struct.
+        ComposeBlueprintParams(
+            previousActivity, s.ActivityBlueprintName, "bpActivityParams",
+            () => s.ExpressionTargetField, v => s.ExpressionTargetField = v);
+
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-414</c> — THE COMPOSE STEP: a picked blueprint brings its own params variable.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6c ·
+    /// <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2.
+    ///
+    /// <para>🔒 <b>This is the step the HSM authoring path was missing.</b> The BTree editor has had it
+    /// since <c>E2</c> — <c>BTreeCommandSink.ComposeAiPrimitiveAction</c> auto-creates ONE
+    /// <c>IsAutoManaged</c> variable typed from the blueprint's generated <c>Params</c> and points
+    /// <c>ExpressionTargetField</c> at it (see <c>T33_ComposedParamBlueprint.btree.json</c>). ⛔ Picking
+    /// a blueprint on an HSM state wrote the name and the id and stopped, so the author had to declare
+    /// SCALAR variables whose packed layout coincided, field for field and pad for pad, with the
+    /// struct — order load-bearing, and nothing checking it.</para>
+    ///
+    /// <para>⭐⭐ <b>With one struct-typed variable there is nothing left to check.</b> The seed's byte
+    /// offset is that variable's offset and every field offset inside it comes from the DTO, which is
+    /// what <c>DESIGN_Parameter_Model.md</c> §4 means by <i>"the compiler owns the layout"</i>.</para>
+    ///
+    /// <para>⚠ <b>Runs only on a CHANGE of pick.</b> A facet apply round-trips the current value on
+    /// every inspector edit, so composing unconditionally would churn a fresh variable per keystroke.
+    /// ⛔ And it never touches a variable the author owns — only one this step marked
+    /// <c>IsAutoManaged</c>.</para>
+    /// </summary>
+    private void ComposeBlueprintParams(
+        string? previousName,
+        string? pickedName,
+        string baseVariableName,
+        Func<string?> getTargetField,
+        Action<string?> setTargetField)
+    {
+        if (string.Equals(previousName, pickedName, StringComparison.Ordinal)) return;
+
+        // ⭐ Drop the OUTGOING pick's variable first — on a re-pick as well as on a clear, because the
+        //   new blueprint's Params is a different type and reusing the row would mis-type the seed.
+        string? bound = getTargetField();
+        if (!string.IsNullOrEmpty(bound))
+        {
+            var existing = _asset.BlackboardVariables.FirstOrDefault(v => v.Name == bound);
+            if (existing is { IsAutoManaged: true })
+            {
+                _asset.RemoveVariable(bound!);
+                setTargetField(null);
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(pickedName)) return;
+
+        // ⛔ No exporter (headless fixture) or no matching AiPrimitive ⇒ leave the site unbound. That
+        //   is the pre-CE-414 behaviour, not a corruption — and a parameterless blueprint legitimately
+        //   has nothing to bind.
+        if (!Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.TryFindAiPrimitiveByName(
+                _actionSchema, pickedName, out var entry))
+            return;
+
+        string varName = UniqueVariableName(baseVariableName);
+        _asset.AddVariable(new Hrot.Editor.AiShared.Blackboard.BlackboardVariableEntry(
+            varName, entry.DtoType, Comment: null, IsAutoManaged: true));
+        setTargetField(varName);
+    }
+
+    /// <summary>baseName if free, else baseName_2, baseName_3, … — mirroring the BTree compose path.</summary>
+    private string UniqueVariableName(string baseName)
+    {
+        if (_asset.BlackboardVariables.All(v => v.Name != baseName)) return baseName;
+
+        for (int suffix = 2; ; suffix++)
+        {
+            string candidate = $"{baseName}_{suffix}";
+            if (_asset.BlackboardVariables.All(v => v.Name != candidate)) return candidate;
+        }
     }
 
 
@@ -214,6 +319,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         t.IsBreakpoint          = f.IsBreakpoint;
 
         // ⭐⭐ CE-385 — the blueprint-hosted guard, same pick rule as everything else.
+        string? previousGuard = t.GuardBlueprintName;
         if (string.IsNullOrWhiteSpace(f.GuardBlueprintName))
         {
             t.GuardBlueprintName    = null;
@@ -227,6 +333,15 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
                 Hrot.Editor.AiShared.AssetKind.Blueprint,
                 t.GuardBlueprintAssetId).Id;
         }
+
+        // ⭐⭐⭐ CE-414 / CE-413 — COMPOSE the guard's own params variable.
+        //
+        //   🔴 This is the case that made the SITE necessary at all: the kernel stamps a polled guard
+        //      with its SOURCE STATE, so before CE-414 this variable and the source state's activity
+        //      variable were the same bytes read through two different Params types.
+        ComposeBlueprintParams(
+            previousGuard, t.GuardBlueprintName, "bpGuardParams",
+            () => t.ExpressionTargetField, v => t.ExpressionTargetField = v);
 
         // TargetStateName: find the state by name and rewire.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))

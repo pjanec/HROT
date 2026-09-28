@@ -118,4 +118,97 @@ public sealed class HsmStateParamBindingEmissionTests
         bridge.Should().Contain(StateOne.ToString(), "the bound state still registers");
         bridge.Should().NotContain(StateTwo.ToString(), "an unresolvable target must not be guessed");
     }
+
+    // ── CE-413 / CE-414: a transition's guard binds its OWN variable ────────────────────
+
+    private static readonly Guid GuardAssetId = new("bb3b0000-0000-0000-0000-0000000060a0");
+
+    /// <summary>Adds a transition <c>One -&gt; Two</c> with the given guard and target field.</summary>
+    private static HsmAssetDto WithGuardedTransition(
+        HsmAssetDto dto, Guid guardAssetId, string? guardMethod, string? targetField)
+    {
+        dto.Transitions.Add(new TransitionNodeDto
+        {
+            VisualId              = new Guid("bb3b0000-0000-0000-0000-0000000000c1"),
+            SourceStableId        = StateOne,
+            TargetStableId        = StateTwo,
+            IsPolled              = true,
+            GuardBlueprintAssetId = guardAssetId,
+            GuardBlueprintName    = guardAssetId == Guid.Empty ? null : "GuardBp",
+            GuardFunction         = guardMethod,
+            ExpressionTargetField = targetField,
+        });
+        return dto;
+    }
+
+    /// <summary>
+    /// 🔴🔴🔴 <b><c>CE-413</c> — A TRANSITION'S <c>ExpressionTargetField</c> IS NO LONGER INERT.</b>
+    ///
+    /// <para>⛔⛔ <b>It was carried on <c>TransitionNodeDto</c> since <c>E7b</c> and nothing read it for
+    /// the HSM seed.</b> The kernel stamps a polled guard with its SOURCE STATE, so a guard could only
+    /// ever get the source state's binding — and it read those bytes through its OWN <c>Params</c> type.
+    /// 🔴 A type-pun with no validator behind it.</para>
+    ///
+    /// <para>⭐ The fix needs no kernel change: the guard's ASSET GUID is the site, and it is the same
+    /// Guid the guard thunk already passes to <c>HsmOccurrence.KeyFor</c> for its slot.</para>
+    /// </summary>
+    [Fact]
+    public void AGuardBlueprintsOwnTargetField_EmitsASitedBinding()
+    {
+        var dto = WithGuardedTransition(MakeDto("Alpha", null), GuardAssetId, null, "Beta");
+
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        // ⭐⭐ THE RAIL. The guard registers under (SOURCE STATE, its own asset id) at BETA's offset —
+        //    while the state itself keeps the state-wide entry at ALPHA's offset.
+        bridge.Should().Contain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{GuardAssetId}\"), 4)",
+            "the guard must seed from its OWN variable, not the source state's");
+        bridge.Should().Contain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{Guid.Empty}\"), 0)",
+            "the state's own field stays the state-wide default every other site falls back to");
+    }
+
+    /// <summary>
+    /// ⚠ <b>A transition guarded by a C# METHOD emits NOTHING, and that is deliberate.</b>
+    ///
+    /// <para>⛔ A method guard has no asset id, so it would have to register under
+    /// <c>Guid.Empty</c> — which is the SOURCE STATE's own entry. ⇒ it would silently overwrite the
+    /// state's binding and change what every other site at that state seeds from. ⭐ Its params come
+    /// from the source state's field, which is exactly the pre-<c>CE-413</c> behaviour.</para>
+    /// </summary>
+    [Fact]
+    public void AMethodGuardsTargetField_EmitsNoSitedBinding()
+    {
+        var dto = WithGuardedTransition(MakeDto("Alpha", null), Guid.Empty, "Demo.Guards.IsOpen", "Beta");
+
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        // ⭐⭐ THE RAIL. Beta's offset (4) never appears — only the state's own entry at 0.
+        bridge.Should().Contain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{Guid.Empty}\"), 0)");
+        bridge.Should().NotContain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{Guid.Empty}\"), 4)",
+            "a method guard must never overwrite its source state's binding");
+    }
+
+    /// <summary>
+    /// ⛔ <b>The gating rule survives <c>CE-413</c>:</b> an asset whose ONLY binding would come from a
+    /// transition still emits a table — but an asset with no binding anywhere still emits none.
+    /// </summary>
+    [Fact]
+    public void ATransitionOnlyBinding_StillEmitsTheTable()
+    {
+        var dto = WithGuardedTransition(MakeDto(null, null), GuardAssetId, null, "Beta");
+
+        string bridge = HsmBridgeEmitCore.EmitBridge(dto);
+
+        bridge.Should().Contain("HsmParamBindings.Register(blob",
+            "a guard-only binding is still a binding");
+        bridge.Should().Contain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{GuardAssetId}\"), 4)");
+        bridge.Should().NotContain(
+            $"new global::System.Guid(\"{Guid.Empty}\")",
+            "no state bound its own field, so there is no state-wide entry to emit");
+    }
 }

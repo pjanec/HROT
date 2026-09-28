@@ -1108,6 +1108,81 @@ public sealed unsafe class HsmOccurrenceKeyTests
     }
 
     /// <summary>
+    /// 🔴🔴🔴 <b>Rail ㊾ — <c>CE-414</c>: TWO HOSTING SITES AT ONE STATE SEED FROM DIFFERENT
+    /// VARIABLES.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6c.
+    ///
+    /// <para>⛔⛔ <b>This is the case <c>E3b-0</c> could not close, and it is not hypothetical — it is
+    /// what a POLLED BLUEPRINT GUARD does today.</b> The kernel stamps a guard with its SOURCE STATE
+    /// (<c>HsmKernelCore.EvaluateGuard</c>), so a state's activity blueprint and the guard blueprint on
+    /// its outgoing transition arrive with the SAME <c>(machine, state)</c>. 🔴 Before this they read
+    /// ONE variable through TWO different <c>Params</c> types — a type-pun with no validator behind
+    /// it.</para>
+    ///
+    /// <para>⭐ The discriminator is the site's own asset Guid, which the thunk already holds for its
+    /// slot key — so the SEED and the SLOT are addressed by one identity.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R49_TwoSitesAtOneStateSeedFromTheirOwnVariables()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var state    = new Guid("07000000-0000-0000-0000-0000ce414a01");
+            var activity = new Guid("07000000-0000-0000-0000-0000ce414b01");
+            var guard    = new Guid("07000000-0000-0000-0000-0000ce414c01");
+
+            HsmParamBindings.Register(
+                BlobWithMetadata(state, Guid.NewGuid()),
+                new[]
+                {
+                    (state, HsmParamBindings.StateWideSite, 0),   // the state's own field
+                    (state, guard,                          16),  // the guard blueprint overrides it
+                });
+
+            // ⭐⭐ THE RAIL. One state, two sites, two offsets. 🔴 Before CE-414 both answered 0.
+            Assert.Equal(16, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1, guard));
+            Assert.Equal(0,  HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1, activity));
+
+            // ⭐ …and an UNREGISTERED site falls back to the state-wide default rather than to 0 by
+            //   accident — that fallback is what makes the whole change additive.
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1, Guid.NewGuid()));
+            Assert.Equal(0, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Rail ㊿ — <c>CE-414</c> is ADDITIVE: an asset that registers only STATE bindings answers
+    /// exactly what it answered before, for every site.</b>
+    ///
+    /// <para>⛔ Every HSM asset authored before <c>CE-414</c> — and every curated
+    /// <c>[SharedAiAction]</c>, which has no asset Guid at all — goes through this path. ⚠ If the
+    /// state-wide fallback ever stopped firing, the symptom would be every hosted occurrence silently
+    /// seeding from offset 0 again.</para>
+    /// </summary>
+    [Fact]
+    public void O7_R50_AStateOnlyRegistrationAnswersForEverySite()
+    {
+        HsmParamBindings.ClearAll();
+        try
+        {
+            var stateA = new Guid("07000000-0000-0000-0000-0000ce414a02");
+            var stateB = new Guid("07000000-0000-0000-0000-0000ce414b02");
+
+            // ⭐ The 2-tuple overload — byte-for-byte what every pre-CE-414 registrar emits.
+            HsmParamBindings.Register(BlobWithMetadata(stateA, stateB), new[] { (stateA, 4), (stateB, 12) });
+
+            var anySite = new Guid("07000000-0000-0000-0000-0000ce414c02");
+
+            Assert.Equal(4,  HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1, anySite));
+            Assert.Equal(12, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 2, anySite));
+            Assert.Equal(4,  HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 1));
+            Assert.Equal(12, HsmParamBindings.SeedOffsetFor(HostMachine, stateId: 2));
+        }
+        finally { HsmParamBindings.ClearAll(); }
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b>Rail ㉛ — END TO END, THROUGH A REAL KERNEL TICK: two parallel regions resolve two
     /// different seed offsets in ONE dispatch.</b>
     ///

@@ -244,4 +244,150 @@ public sealed class HsmStateParamSeedAuthoringTests
         int end   = text.IndexOf('\n', at);
         return end < 0 ? text.Substring(start) : text.Substring(start, end - start);
     }
+
+    // ── CE-414 — THE COMPOSE STEP ────────────────────────────────────────────────────────────────
+
+    /// <summary>
+    /// A stand-in for a generated AiPrimitive class: <c>{Name}_{Id:X8}_Bp</c> with its nested
+    /// <c>Params</c>. ⚠ The fields are never assigned here on purpose — the rails assert the variable's
+    /// TYPE, and giving them values would suggest the compose step copies data, which it does not.
+    /// </summary>
+#pragma warning disable CS0649
+    private static class Patrol_0000ABCD_Bp
+    {
+        public struct Params { public float DestX; public float DestY; }
+    }
+#pragma warning restore CS0649
+
+    /// <summary>
+    /// The one entry a picked blueprint resolves to. ⭐ Keyed by the generated <c>TickCore</c> FQN,
+    /// exactly as <c>ActionSchemaExporter</c> keys the real ones.
+    /// </summary>
+    private sealed class FakeSchema : IActionSchemaExporter
+    {
+        public IReadOnlyDictionary<string, ActionSchemaEntry> All { get; } =
+            new Dictionary<string, ActionSchemaEntry>
+            {
+                ["Demo.Generated.Patrol_0000ABCD_Bp.TickCore"] = new ActionSchemaEntry(
+                    "Demo.Generated.Patrol_0000ABCD_Bp.TickCore",
+                    typeof(Patrol_0000ABCD_Bp.Params),
+                    ActionHosting.Shared, BlackboardAccess.ReadWrite,
+                    IsCondition: false, DtoFields: null, IsAiPrimitive: true),
+            };
+
+        public ActionSchemaEntry? Lookup(string fqn) => All.TryGetValue(fqn, out var e) ? e : null;
+        public void Rebuild() { }
+        public event Action? Changed { add { } remove { } }
+    }
+
+    /// <summary>
+    /// 🔴🔴🔴 <b><c>CE-414</c> — PICKING AN ACTIVITY BLUEPRINT COMPOSES ITS PARAMS VARIABLE.</b>
+    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6c.
+    ///
+    /// <para>⛔⛔ <b>The defect this closes is an ABSENT STEP, which is why nothing was red.</b> The
+    /// BTree editor has composed since <c>E2</c> (<c>BTreeCommandSink.ComposeAiPrimitiveAction</c>, and
+    /// <c>T33_ComposedParamBlueprint.btree.json</c> is the shipped result: ONE variable typed
+    /// <c>ParamDemo_CEFE162F_Bp+Params</c>). Picking a blueprint on an HSM state wrote the name and the
+    /// asset id and stopped ⇒ the author had to declare SCALAR variables whose packed layout coincided,
+    /// field for field and pad for pad, with the blueprint's generated struct.</para>
+    ///
+    /// <para>⭐⭐ <b>The property that matters is the TYPE, not the name:</b> with the variable typed to
+    /// the struct, the seed's offset is that one variable's offset and every field offset inside it
+    /// comes from the DTO — so there is no declaration ORDER left to get wrong.</para>
+    /// </summary>
+    [Fact]
+    public void CE414_R1_PickingAnActivityBlueprint_ComposesAStructTypedParamsVariable()
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var sel = new HsmStateSelection(state.StableId);
+
+        var facet = (StateFacet)d.GetFacet(sel)!;
+        facet.ActivityBlueprintName = "Patrol";
+        d.ApplyFacet(sel, facet);
+
+        // ⭐⭐ THE RAIL. One variable, and its TYPE is the blueprint's generated Params struct.
+        var composed = hsm.BlackboardVariables.Should().ContainSingle().Subject;
+        composed.FieldType.Should().Be(typeof(Patrol_0000ABCD_Bp.Params),
+            "the variable IS the DTO — that is what makes the offsets the compiler's, not the author's");
+        composed.IsAutoManaged.Should().BeTrue("the editor owns it, so the author cannot rename it apart");
+        state.ExpressionTargetField.Should().Be(composed.Name,
+            "the hosting site must seed from the variable its own pick created");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Unpicking removes it again</b> — otherwise every pick-and-change leaves an orphan row the
+    /// author cannot delete, because auto-managed rows are not user-deletable.
+    /// </summary>
+    [Fact]
+    public void CE414_R2_UnpickingTheBlueprint_RemovesTheComposedVariable()
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var sel = new HsmStateSelection(state.StableId);
+
+        var facet = (StateFacet)d.GetFacet(sel)!;
+        facet.ActivityBlueprintName = "Patrol";
+        d.ApplyFacet(sel, facet);
+
+        var cleared = (StateFacet)d.GetFacet(sel)!;
+        cleared.ActivityBlueprintName = null;
+        d.ApplyFacet(sel, cleared);
+
+        hsm.BlackboardVariables.Should().BeEmpty();
+        state.ExpressionTargetField.Should().BeNull();
+    }
+
+    /// <summary>
+    /// ⚠ <b>An ordinary inspector edit must NOT churn a fresh variable.</b>
+    ///
+    /// <para>⛔ A facet apply round-trips EVERY field on every edit, so composing unconditionally would
+    /// add <c>bpActivityParams_2</c>, <c>_3</c>, … per keystroke. ⭐ The compose is gated on the pick
+    /// actually CHANGING, and this is the rail that keeps it so.</para>
+    /// </summary>
+    [Fact]
+    public void CE414_R3_ReapplyingTheSameFacet_DoesNotChurnVariables()
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var sel = new HsmStateSelection(state.StableId);
+
+        var facet = (StateFacet)d.GetFacet(sel)!;
+        facet.ActivityBlueprintName = "Patrol";
+        d.ApplyFacet(sel, facet);
+        string composedName = state.ExpressionTargetField!;
+
+        for (int i = 0; i < 3; i++)
+        {
+            var again = (StateFacet)d.GetFacet(sel)!;
+            again.Comment = $"edit {i}";
+            d.ApplyFacet(sel, again);
+        }
+
+        hsm.BlackboardVariables.Should().ContainSingle();
+        state.ExpressionTargetField.Should().Be(composedName, "the binding must survive unrelated edits");
+    }
+
+    /// <summary>
+    /// ⛔⛔ <b>Without an <c>IActionSchemaExporter</c> the pick composes NOTHING — and that is the
+    /// pre-<c>CE-414</c> behaviour, not a corruption.</b>
+    ///
+    /// <para>🔒 It is also why <c>AiFacetPickerBinder</c> must PASS the exporter it already holds: the
+    /// silent-default rule's checkable form. ⚠ A headless fixture legitimately has none.</para>
+    /// </summary>
+    [Fact]
+    public void CE414_R4_WithoutASchemaExporter_ThePickIsUnchanged()
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm);
+        var sel = new HsmStateSelection(state.StableId);
+
+        var facet = (StateFacet)d.GetFacet(sel)!;
+        facet.ActivityBlueprintName = "Patrol";
+        d.ApplyFacet(sel, facet);
+
+        state.ActivityBlueprintName.Should().Be("Patrol", "the pick itself still lands");
+        hsm.BlackboardVariables.Should().BeEmpty("nothing can resolve the Params type, so nothing is guessed");
+        state.ExpressionTargetField.Should().BeNull();
+    }
 }

@@ -18,19 +18,6 @@
   "Declarations": [
     {
       "Kind": "Parameter",
-      "Id": "d1600001-0000-0000-0000-000000000001",
-      "Name": "Open",
-      "Type": {
-        "TypeId": "System.Boolean",
-        "IsArray": false,
-        "GenericArgs": []
-      },
-      "DefaultValueJson": "false",
-      "Tooltip": "UNUSED by this graph. It exists so the parameter block MIRRORS the hosting HSM\u0027s blackboard from the seed offset: a state\u0027s window is shared with the guards on its outgoing transitions, and HsmGuardDemo reads a bool at the window start. Drop this and DestX/DestY shift by one slot.",
-      "Comment": null
-    },
-    {
-      "Kind": "Parameter",
       "Id": "d1600001-0001-0001-0001-000000000001",
       "Name": "DestX",
       "Type": {

@@ -98,8 +98,13 @@ public static class AiFacetPickerBinder
             services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at
             //   pick time (§11.1a's sequence), which is what makes a later rename healable.
+            // ⭐⭐⭐ CE-414 — AND THE SAME ActionSchema the drawers got two lines above. 🔒 That is the
+            //   checkable form of the silent-default rule: a production caller that HAS a dependency
+            //   must PASS it. Without it the blueprint pick cannot resolve the generated Params type,
+            //   so it composes no variable and the author is back to hand-mirroring a byte layout.
             services.HsmRegistrar?.NodeProperties.SetFacetDispatcher(
-                new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(hsmAsset, ctx, services.Catalog));
+                new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(
+                    hsmAsset, ctx, services.Catalog, services.ActionSchema));
         }
         else
         {

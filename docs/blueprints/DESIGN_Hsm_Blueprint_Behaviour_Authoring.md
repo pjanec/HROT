@@ -214,6 +214,30 @@ that HAS the catalog must pass it**, which is the forwarding rail in §9.
 format invention: `StateNodeDto.ExpressionTargetField` is already in the file format and already read
 by `HsmBridgeEmitCore.EmitStateParamBindings`.
 
+### 3.5 ✅ `CE-414` — **THE PICK COMPOSES THE VARIABLE; THE AUTHOR NEVER TYPES ONE** *(`2026-09-28`)*
+
+> ⚠⚠ **§3.4 IS NECESSARY AND WAS NOT SUFFICIENT, and this says why.** It gave the author a *picker* for
+> the seed binding. ⛔ It did not say **what they should pick**, and the honest answer — *one variable
+> whose TYPE is the hosted blueprint's generated `Params` struct* — is something the editor can produce
+> itself. ⭐ **Leaving it to the author is what produced a spacer parameter in a shipped asset.**
+
+🔒 **User, `2026-09-28`:** *"Actions and conditions have their param DTO. Blackboard variables are those
+dtos basically … those dto define the offsets."* ⭐ **Correct, and the BTree host has done exactly that
+since `E2`** — `BTreeCommandSink.ComposeAiPrimitiveAction` auto-creates one `IsAutoManaged` variable
+typed from the blueprint's `Params` and points `ExpressionTargetField` at it.
+📌 The shipped proof is `T33_ComposedParamBlueprint.btree.json`: **one** variable, `bpParams`, typed
+`Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp+Params`.
+
+| ⭐ the ruling | |
+|---|---|
+| ⭐⭐⭐ **picking a blueprint on a state (activity) or a transition (guard) COMPOSES its params variable** | `HsmFacetDispatcher.ComposeBlueprintParams`, gated on the pick actually CHANGING — ⛔ a facet apply round-trips every field on every edit, so an ungated compose would add a variable per keystroke |
+| ⭐⭐ **the variable's TYPE is the DTO** | ⇒ the seed offset is that one variable's offset and the field offsets come from the struct. **Nothing to check, because there is no byte window** |
+| ⭐ **unpick removes it; deleting the state or transition removes it** | only when `IsAutoManaged` — ⛔ a variable the author declared is never deleted by a node operation |
+| ⛔ **no exporter ⇒ no compose** | a headless fixture legitimately has none, and the pick then behaves exactly as it did before. 🔒 But a production host **has** one and must pass it — `AiFacetPickerBinder` now hands the dispatcher the same `IActionSchemaExporter` it already gave the drawers two lines above |
+
+📄 **The runtime half, the `CE-413` guard case and the two stated limits are
+[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) §28.6c.**
+
 ---
 
 ## 4. ⭐⭐ THE CLASSES — `classDiagram`

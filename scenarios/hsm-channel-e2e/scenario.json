@@ -17,7 +17,7 @@
               "taskId": "61e2e000-0000-0000-0000-000000000001",
               "executingEngine": "",
               "behaviorName": "HsmChannelE2E",
-              "behaviorParams": "{\"Open\": false, \"DestX\": 560.0, \"DestY\": 296.0, \"TargetNetworkId\": 1002}",
+              "behaviorParams": "{\"bpActivityParams\": {\"DestX\": 560.0, \"DestY\": 296.0}, \"bpActivityParams_2\": {\"TargetNetworkId\": 1002}, \"bpGuardParams\": {\"Open\": false}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",
@@ -179,7 +179,7 @@
               "taskId": "61e2e001-0000-0000-0000-000000000001",
               "executingEngine": "",
               "behaviorName": "HsmChannelE2E",
-              "behaviorParams": "{\"Open\": true, \"DestX\": 560.0, \"DestY\": 360.0, \"TargetNetworkId\": 1002}",
+              "behaviorParams": "{\"bpActivityParams\": {\"DestX\": 560.0, \"DestY\": 360.0}, \"bpActivityParams_2\": {\"TargetNetworkId\": 1002}, \"bpGuardParams\": {\"Open\": true}}",
               "triggers": [
                 {
                   "type": "BehaviorFinished",

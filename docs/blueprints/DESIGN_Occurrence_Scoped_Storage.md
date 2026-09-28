@@ -3805,6 +3805,76 @@ its only guard is `ThunkEmissionTests`. 🔴 **That is why an HSM emitter change
 is the same blind spot that let `BP-297` ship. ⭐ Worth a golden asset with HSM hosting; ⛔ filed as an
 observation here rather than smuggled into this slice.
 
+#### 28.6c ✅ `CE-414` / `CE-413` — **THE SEED IS KEYED BY HOSTING SITE, AND THE AUTHORING PATH COMPOSES A STRUCT-TYPED VARIABLE** *(`2026-09-28`)*
+
+> ⚠⚠ **SUPERSEDES §28.6b's row ③** *(`SeedParamsOffset(instance, writer)`, keyed `(machine, state)`)*
+> **and its "ONE field for all four action slots" reasoning is now HALF the story** — it was right about
+> the four action slots of one state hosting one blueprint, and it did not consider a state's activity
+> and the GUARD on its outgoing transition, which the kernel stamps identically.
+
+🔒 **User, `2026-09-28`, on being shown the byte-window workaround:** *"Actions and conditions have
+their param DTO. Blackboard variables are those dtos basically … those dto define the offsets. So what
+is the issue with the offsets you had to fix. Something feels weird here. You were fighting with what
+should not need no fighting."*
+
+⭐⭐⭐ **They were right, and the mechanism they describe was already SHIPPED — on the BTree side.**
+
+```mermaid
+graph TD
+    subgraph BTree["BTree host — shipped since E2"]
+        BN["Action node<br/>ExpressionTargetField"] -->|names| BV["ONE variable<br/>type = ParamDemo_…_Bp+Params"]
+        BC["BTreeCommandSink<br/>ComposeAiPrimitiveAction"] -.->|auto-creates on drop| BV
+    end
+    subgraph HSM["HSM host — CE-414"]
+        HS["State<br/>ExpressionTargetField"] -->|names| HV1["ONE variable<br/>type = HsmDriveActivity_…_Bp+Params"]
+        HT["Transition<br/>ExpressionTargetField"] -->|names| HV2["ONE variable<br/>type = HsmGuardDemo_…_Bp+Params"]
+        HF["HsmFacetDispatcher<br/>ComposeBlueprintParams"] -.->|auto-creates on pick| HV1
+        HF -.->|auto-creates on pick| HV2
+    end
+    BV --> SEED["seed = that variable's offset<br/>field offsets come from the DTO"]
+    HV1 --> SEED
+    HV2 --> SEED
+```
+
+*What the picture shows that the prose hid: the dotted edges are the COMPOSE step, and before `CE-414`
+the HSM box had none — which is the entire defect. Everything solid already existed on both sides.*
+
+| | |
+|---|---|
+| 🔴 **the defect, and it is an ABSENT STEP** | `HsmFacetDispatcher.ApplyStateFacet` wrote `ActivityBlueprintName`/`AssetId` and stopped. ⇒ the author declared SCALAR variables whose packed layout had to coincide, field for field and pad for pad, with the blueprint's generated `Params`. 📌 The evidence is in the repo's own asset: `HsmDriveActivity` carried a **leading `Open` parameter it never used**, whose tooltip said *"Drop this and DestX/DestY shift by one slot."* |
+| ⭐⭐⭐ **why one struct-typed variable ends it** | the seed offset is that ONE variable's offset and every field offset inside it comes from the DTO ⇒ **there is no declaration order left to get wrong, so there is nothing to check.** 📄 `DESIGN_Parameter_Model.md` §4 — *"the compiler owns the layout"* |
+| ⛔ **the REJECTED fix, which is what `CE-414` was originally filed as** | *"emit a compile-time name+type check at the window seam."* ⚠ It hardens a shape that should not exist |
+| 🔴 **`CE-413`: why the SITE became necessary** | `HsmKernelCore.EvaluateGuard:768` stamps a polled guard with its **SOURCE STATE**. ⇒ a state's activity blueprint and the guard on its outgoing transition arrive with the SAME `(machine, state)` and, before this, read one variable through two different `Params` types |
+| ⭐⭐ **and it needs NO kernel change** | the discriminator is the **hosted blueprint's asset Guid** — the same Guid the thunk already passes to `HsmOccurrence.KeyFor` for its slot. ⇒ the slot and its seed are addressed by one identity |
+
+**As built:**
+
+| part | where |
+|---|---|
+| **①** the key | `HsmParamBindings` → `(machineId, stateId, **siteId**)`; `StateWideSite` (`Guid.Empty`) is the state's own field **and the fallback** ⇒ purely additive |
+| **②** the table | `EmitStateParamBindings` walks `dto.States` *(site `Guid.Empty`)* **and** `dto.Transitions` *(site = `GuardBlueprintAssetId`)* |
+| **③** the consumer | `HsmOccurrence.SeedParamsOffset(instance, writer, childAssetId)`; `AiPrimitiveEmitter` passes `AssetId` |
+| **④** the compose | `HsmFacetDispatcher.ComposeBlueprintParams` on both pick sites; delete-side cleanup in `HsmCommandSink.RemoveAutoManagedTargetVariable` for **states as well as transitions** |
+| **⑤** one naming helper | `Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming` — `BTreeNodeCatalog` forwards to it *(ruling 9)* |
+| **⑥** the size resolver | `HsmJsonGenerator` now composes `GeneratedBlueprintSchemaCatalog.TryResolveParamsSize`, as `BTreeJsonGenerator:182` already did |
+
+⛔⛔ **⑥ is not housekeeping — without it the whole feature is silently inert.** 📐 A
+`{Blueprint}_{Id:X8}_Bp+Params` variable is invisible to a sibling generator, so `Pack` throws,
+`PackParams` **swallows the exception and returns EMPTY**, and the asset emits **no `ParseParams` and no
+bindings at all**. ⚠ No diagnostic; the symptom is a hosted blueprint whose params are always zero.
+
+⚠ **Two limits, stated because they are properties of the model and not oversights:**
+⛔ a transition guarded by a **C# METHOD** has no asset id, so it still reads the source state's field —
+registering it under `Guid.Empty` would overwrite the state's own binding; ⛔ a **GLOBAL transition** has
+no `SourceStableId` at all *(it is evaluated against whatever leaf is active)*, so there is no
+`(state, site)` pair to key it by, and its guard reads the ACTIVE state's binding.
+⚠ And the SAME blueprint asset bound twice at ONE state *(activity and timer, say)* still shares one
+entry — but it already shares one **occurrence slot**, whose key is the same
+`(machine, region, state, childAsset)` triple, so that is a pre-existing property of the storage model.
+
+⭐ **Rails:** `O7_R49`/`O7_R50` *(`HsmOccurrenceKeyTests`)* · three emission rails
+*(`HsmStateParamBindingEmissionTests`)* · `CE414_R1`–`R4` *(`HsmStateParamSeedAuthoringTests`)*.
+
 ### 28.7 ✅ `C1′` + `E7a` — **THE RESOLVE STAGE RUNS, AND IT SEES THE HOST** *(`2026-09-21`)*
 
 ⭐⭐⭐ **`IHostVariableAccess` has an implementation for the first time since it was declared on

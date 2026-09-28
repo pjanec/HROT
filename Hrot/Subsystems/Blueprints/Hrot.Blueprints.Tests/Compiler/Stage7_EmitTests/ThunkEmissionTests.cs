@@ -191,7 +191,13 @@ public sealed class ThunkEmissionTests
 
         // ⭐⭐⭐ E3b-0 (§28.6): and the seed offset is the STATE'S OWN BINDING, not a literal 0 —
         //    that is what lets two parallel regions seed from different variables.
-        Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer);", src);
+        // ⭐⭐⭐ CE-414 (§28.6c): …and it is keyed by the HOSTING SITE too, which is why AssetId is
+        //    passed. 🔴 Without it a state's activity blueprint and the GUARD on its outgoing
+        //    transition — which the kernel stamps with the SAME state — read one variable through two
+        //    different Params types. ⚠ AssetId is the same Guid KeyFor takes two lines above, so the
+        //    slot and its seed are addressed by ONE identity; a rail that let them drift apart is
+        //    exactly what this line pins.
+        Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);", src);
         // 🔴 P3-C: the anchor is the ROOT PARAMS SLOT now; the OFFSET is what this rail is about.
         Assert.Contains("ref __rootParams, (nint)__seedOffset", src);
         Assert.Contains("RootParamsAccess.RootRef(world, bridge->Self)", src);
