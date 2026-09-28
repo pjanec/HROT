@@ -83,6 +83,10 @@ public static class HillAssault2ReverseToBaseline_FF75553A_Bp
                     };
                 }
             }
+            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+            {
+                __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            }
             __ch_0.ActionInstanceId++;
         }
         ws.__phase = 1;

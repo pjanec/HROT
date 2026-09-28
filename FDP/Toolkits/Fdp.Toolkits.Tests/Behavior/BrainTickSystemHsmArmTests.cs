@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using Fdp.Core;
 using Fhsm.Kernel;
@@ -724,6 +726,85 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(loco1 - loco0, weap1 - weap0);
 
             world.Dispose();
+        }
+
+        // ── CE-403 — the channel-safety chain finally has a subscriber ──────────────────────
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE403_R1</c> — the two channel-writing HSM activities DECLARE their channels,
+        /// so <c>RequiredExitCleanups</c> is non-empty and the cleanup thunks exist.</b>
+        /// 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c> §4 <c>D-A2</c>.
+        ///
+        /// <para>🔴 <b>What this pins.</b> 📐 Measured `2026-09-28`: <c>[WritesChannel]</c> had
+        /// <b>TWO applications repo-wide and both were inside a unit test OF the attribute</b> —
+        /// zero in production — so this dictionary was <b>always empty</b> and the whole
+        /// <c>[WritesChannel]</c> → <c>RequiredExitCleanups</c> → <c>ValidateChannelSafety</c> chain
+        /// was generated, shipped and inert. <c>HsmTwoChannelRegionsDemo</c> leaked both channels on
+        /// state exit, unreported.</para>
+        ///
+        /// <para>⚠ <b>This rail asserts ADOPTION, not cleanup.</b> The cleanup does not yet HAPPEN —
+        /// that is <c>CE-388</c> / <c>D-B1</c>, because the chain has two further breaks this rail
+        /// deliberately does not paper over: <c>ValidateChannelSafety</c> has no production caller,
+        /// and its key shape is wrong (see <see cref="CE403_R2_TheCleanupTableIsKeyedOnTheSHORTName_NotTheFqn"/>).</para>
+        ///
+        /// <para>✅ <b>Red-proof:</b> remove either <c>[WritesChannel]</c> ⇒ the entry disappears.</para>
+        /// </summary>
+        [Fact]
+        public void CE403_R1_TheChannelWritingHsmActivitiesDeclareTheirChannels()
+        {
+            var map = RequiredExitCleanups();
+
+            Assert.Contains("Activity_DriveChannel", map.Keys);
+            Assert.Contains("Activity_FireChannel",  map.Keys);
+
+            // ⭐ and the cleanup each names is a real registered thunk, not a dangling string.
+            var registrar = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo).Assembly
+                .GetType("Hrot.AI.Behaviors.Generated.HsmActionRegistrar")!;
+            foreach (var cleanup in map.Values)
+                Assert.True(
+                    registrar.GetMethod(cleanup, BindingFlags.NonPublic | BindingFlags.Static) != null,
+                    $"'{cleanup}' is named by RequiredExitCleanups but no such thunk was emitted");
+        }
+
+        /// <summary>
+        /// ⛔⛔ <b><c>CE403_R2</c> — CHARACTERISATION: the cleanup table is keyed on the SHORT method
+        /// name, while an HSM asset names its activity by FQN.</b>
+        ///
+        /// <para>🔴 <b>This is break ③ of three</b>, and it is why populating the table changed
+        /// nothing: <c>HsmActionGenerator.cs:565</c> emits <c>m.Name</c>, so the key is
+        /// <c>"Activity_DriveChannel"</c> — but <c>HsmTwoChannelRegionsDemo.hsm.json</c> holds
+        /// <c>"Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel"</c> ⇒
+        /// <c>ValidateChannelSafety</c>'s <c>ContainsKey(state.ActivityAction)</c> would MISS even if
+        /// it were called (it is not — break ② — its only callers are its own unit tests).</para>
+        ///
+        /// <para>⭐⭐ <b>Why a rail rather than a fix.</b> <c>CE-388</c>/<c>D-B1</c> has the flattener
+        /// bind the cleanup by ID, and the generator registers it under
+        /// <c>HsmActionKey.ForExitCleanup(m.Name)</c> — the SHORT name. ⛔ A flattener that derives
+        /// the id from the FQN will compute a hash nothing is registered under and bind a
+        /// <b>non-existent action</b>, silently. 🔒 This rail is the coupling made explicit so that
+        /// mistake cannot be made quietly.</para>
+        /// </summary>
+        [Fact]
+        public void CE403_R2_TheCleanupTableIsKeyedOnTheSHORTName_NotTheFqn()
+        {
+            var keys = RequiredExitCleanups().Keys;
+
+            Assert.Contains("Activity_DriveChannel", keys);
+            Assert.DoesNotContain(
+                "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel", keys);
+        }
+
+        /// <summary>The REAL generated registrar's cleanup table, read from the game assembly.</summary>
+        private static IReadOnlyDictionary<string, string> RequiredExitCleanups()
+        {
+            var registrar = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo).Assembly
+                .GetType("Hrot.AI.Behaviors.Generated.HsmActionRegistrar")
+                ?? throw new InvalidOperationException("the generated HsmActionRegistrar is missing");
+
+            var field = registrar.GetField("RequiredExitCleanups", BindingFlags.Public | BindingFlags.Static)
+                ?? throw new InvalidOperationException("RequiredExitCleanups is missing from the registrar");
+
+            return (IReadOnlyDictionary<string, string>)field.GetValue(null)!;
         }
 
         [Fact]

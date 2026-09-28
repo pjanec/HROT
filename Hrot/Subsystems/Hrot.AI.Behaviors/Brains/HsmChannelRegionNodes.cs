@@ -38,8 +38,19 @@ namespace Hrot.AI.Behaviors.Brains
         public const ushort ActionIdDrive = 0x0D01;
         public const ushort ActionIdFire  = 0x0F01;
 
-        /// <summary>⭐ Region 0's activity: the MOVEMENT channel.</summary>
+        /// <summary>
+        /// ⭐ Region 0's activity: the MOVEMENT channel.
+        ///
+        /// <para>⭐⭐ <c>CE-403</c> — <c>[WritesChannel]</c> is what makes this state's exit CLEAN UP.
+        /// 📐 Measured `2026-09-28`: before this, the attribute had <b>zero production applications
+        /// repo-wide</b> (two, both inside a unit test OF the attribute), so
+        /// <c>HsmActionRegistrar.RequiredExitCleanups</c> was <b>always empty</b> and
+        /// <c>HsmGraphValidator.ValidateChannelSafety</c> never fired. ⛔ This thunk therefore
+        /// leaked its locomotion command on state exit, unreported — the mechanism had not failed,
+        /// it had never engaged. 📄 <c>Architect_Question_74_Blueprint_Channel_Lifecycle.md</c>.</para>
+        /// </summary>
         [HsmAction]
+        [Fbt.Kernel.WritesChannel(Fbt.Kernel.ChannelKind.Locomotion)]
         public static void Activity_DriveChannel(void* instance, void* context, HsmCommandWriter* writer)
         {
             var bridge = (HsmKernelBridge*)context;
@@ -51,8 +62,10 @@ namespace Hrot.AI.Behaviors.Brains
             loco.ActionInstanceId++;   // ⭐ the per-frame witness
         }
 
-        /// <summary>⭐ Region 1's activity: the WEAPON channel, concurrently.</summary>
+        /// <summary>⭐ Region 1's activity: the WEAPON channel, concurrently.
+        /// ⭐⭐ <c>CE-403</c> — see <see cref="Activity_DriveChannel"/> for why the attribute is here.</summary>
         [HsmAction]
+        [Fbt.Kernel.WritesChannel(Fbt.Kernel.ChannelKind.Weapon)]
         public static void Activity_FireChannel(void* instance, void* context, HsmCommandWriter* writer)
         {
             var bridge = (HsmKernelBridge*)context;

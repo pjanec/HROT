@@ -43,6 +43,28 @@ internal static class ChannelCommandLowering
             e.Outdent();
             e.WriteLine("}");
         }
+        // ⭐⭐⭐ CE-402 — CLAIM THE CHANNEL FOR THIS BEHAVIOUR, or arbitration wipes it next tick.
+        //
+        // 🔴 The defect this closes. ChannelArbitrationSystem.cs:44 clears any channel where
+        //    `ActiveAction != 0 && channel.BehaviorInstanceId != behavior.InstanceId`. Until this
+        //    line existed, the blueprint route wrote ActiveAction and the params and never claimed
+        //    the channel ⇒ the command was zeroed on the very next tick and NOTHING EVER MOVED.
+        //
+        // 📐 Measured 2026-09-28: every OTHER production channel writer stamps this explicitly —
+        //    CgfNodes.cs:297,345,381,458,570 · HillAttackTankNodes.cs:271,408,470 ·
+        //    EqsCombatNodes.cs:91 · HsmChannelRegionNodes.cs:50,63. The blueprint lowering was the
+        //    ONLY channel writer that did not, which is why it read as a blueprint-specific bug and
+        //    is in fact a missing half of the channel lifecycle (Q74 §0 ③).
+        //
+        // ⚠ Guarded like the channel itself: a minimal test entity may carry the channel and no
+        //   BehaviorState. Leaving BehaviorInstanceId at its previous value there is correct — with
+        //   no BehaviorState there is no arbitration query to match against either.
+        e.WriteLine($"if ({worldVar}.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine($"__ch_{n}.BehaviorInstanceId = {worldVar}.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;");
+        e.Outdent();
+        e.WriteLine("}");
         e.WriteLine($"__ch_{n}.ActionInstanceId++;");
         e.Outdent();
         e.WriteLine("}");

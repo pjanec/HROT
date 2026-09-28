@@ -63,6 +63,10 @@ public static class EnumDemo_235986DF_Bp
                     };
                 }
             }
+            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+            {
+                __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            }
             __ch_0.ActionInstanceId++;
         }
         return global::Fbt.NodeStatus.Success;

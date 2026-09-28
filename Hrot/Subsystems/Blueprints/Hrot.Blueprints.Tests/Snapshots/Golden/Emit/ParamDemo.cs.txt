@@ -55,6 +55,10 @@ public static class ParamDemo_CEFE162F_Bp
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
             __ch_0.ActiveAction = (ushort)99 /* DemoEnumAction */;
+            if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self))
+            {
+                __ch_0.BehaviorInstanceId = world.GetComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(self).InstanceId;
+            }
             __ch_0.ActionInstanceId++;
         }
         return global::Fbt.NodeStatus.Success;

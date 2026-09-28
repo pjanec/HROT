@@ -261,20 +261,42 @@ declaration"** — and it is why the unknown case below must be an error, not a 
 `HillAttackTankNodes.cs` (12) — **and not one declares it.**
 
 ⇒ 🔒 **The whole `[WritesChannel]` → `RequiredExitCleanups` → `ValidateChannelSafety` chain is
-BUILT, GENERATED, VALIDATED — and INERT.** ⭐ It is the *"a capability that looks built and does
-nothing"* shape this repo keeps filing, in its purest form: the generator emits the cleanup thunks,
-the validator consults the dictionary, and the dictionary is **always empty**.
+BUILT, GENERATED, VALIDATED — and INERT.**
+
+> #### 🔴🔴🔴 IT HAS **THREE** INDEPENDENT BREAKS — measured `2026-09-28` by APPLYING the retrofit
+>
+> ⭐ After marking the two `[HsmAction]` writers, `RequiredExitCleanups` is **non-empty for the first
+> time in this repo's history** and the `ExitCleanup_*` thunks are emitted and registered — **and
+> nothing about the build changes.** Chasing why found two more breaks:
+>
+> | # | the break | evidence |
+> |---|---|---|
+> | **①** | **zero adoption** | 2 applications repo-wide, both in a unit test OF the attribute *(now fixed for the 2 HSM writers)* |
+> | **②** | ⛔⛔ **`ValidateChannelSafety` has NO production caller** | its only callers are its own unit tests. The two real `HsmGraphValidator.Validate` sites are FastHSM's **demo and example apps** *(`Fhsm.Demo.Visual/MachineDefinitions.cs:156`, `Fhsm.Examples.Console/TrafficLightExample.cs:103`)*, and both use the **1-arg overload that does no channel safety** |
+> | **③** | ⛔⛔ **key-shape mismatch** | the dictionary is keyed on the **SHORT method name** (`HsmActionGenerator.cs:565` emits `m.Name` ⇒ `"Activity_DriveChannel"`), the asset holds the **FQN** (`"Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel"`) ⇒ `ContainsKey(state.ActivityAction)` misses even with ② fixed |
+>
+| ⭐⭐⭐ what this does to the decisions | |
+|---|---|
+| **`D-B1` is not the nicer half of the answer — it is the WHOLE of it** | ⛔ there is no validator to fall back on, and repairing the nag chain means fixing ② AND ③ for a mechanism that only warns. ⭐ The flattener binding an id is the only path that actually makes cleanup HAPPEN |
+| ⚠ **`D-D1` must be restated** | it says *"the validator then fires only on a conflict"* — ⛔ **there is no validator firing.** `D-D1` reduces to *"auto-bind for the C# route too"*; whether to wire the validator up at all is a separate, smaller question |
+| ⭐ **③ tells `D-B1` what to key on** | the generator registers the cleanup under `HsmActionKey.ForExitCleanup(m.Name)` — the **SHORT** name. ⛔ A flattener that derives it from the FQN will silently bind a non-existent id. **Rail this coupling explicitly** |
+
+⭐ It is the *"a capability that looks built and does nothing"* shape this repo keeps filing, in its
+purest form — three times over.
 
 | ⚠ what this does to the decisions | |
 |---|---|
 | ⛔ **`D-A2`'s fail-loud case is not rare — on day one it is the NORM** | every existing channel-writing node is undeclared ⇒ the first activity blueprint that calls one gets the diagnostic |
-| ⭐ **but the retrofit is SMALL and is a FIX, not a tax** | ~22 call sites across 4 files *(plus ~50 in `FDP/Examples`, out of scope)*. ⭐⭐ Those nodes **genuinely leak their channels on state exit today** — adding the attribute is not paperwork, it is closing a live defect |
-| ⭐⭐ **`D-A4` (runtime attribution) gains weight** | it needs **no** declaration, so zero adoption costs it nothing. ⚠ Still carries the orthogonal-region attribution problem and new per-state storage |
+| 🔴 **but the retrofit is TWO sites, not ~22 — CORRECTED ON MEASUREMENT `2026-09-28`, before applying** | 📐 **①** `BehaviorActionCatalog.MapHosting:196` maps **only `ActionHosting.Shared`** to `BehaviorActionHosts.Blueprint` ⇒ a plain `[BTreeAction]`/`[HsmAction]` is **not blueprint-callable**, so `D-A2` never needs to read it — and **zero** `[SharedAiAction]` in the repo writes a channel. **②** ⛔⛔ **the BTree route already has its own cleanup mechanism, `[BTreeDeactivator("<target>@<offset>")]`** *(`ai-btree-deactivator-1`; `HillAttackTankNodes` already uses it)* ⇒ marking the ~9 `[BTreeAction]` writers would be a **second producer for one slot**, the `R-132` violation this repo keeps filing. ✅ **Applied to the 2 `[HsmAction]` writers only** — which is exactly what `ValidateChannelSafety` governs, and they did leak. ⚠ *"~22"* was a count of channel WRITES, not of sites this mechanism governs |
+| ⚠ **`D-A4` (runtime attribution) gained weight, then LOST it again** | ⭐ zero adoption made it attractive — ⛔ but once ① showed the blueprint-callable C# surface has **no channel writers at all**, the declaration burden `D-A4` avoids is **currently empty**. ⇒ `D-A2` stands |
 | ⭐ **this deserves its own id whichever arm wins** | an inert validation chain is worth a row on its own — it will otherwise be "fixed" again by someone who assumes it works |
 
-⇒ ⭐⭐ **The lean SURVIVES but its cost is restated honestly: `D-A2` is "one member on
-`ActionSchemaEntry`" PLUS "retrofit ~22 attribute applications".** ⛔ The first draft of this
-section implied only the former.
+⇒ ⭐⭐ **The lean SURVIVES and its cost came DOWN, not up.** 📐 Measured before applying: the
+blueprint-callable C# surface (`ActionHosting.Shared` only) contains **no channel writers at all**,
+so `D-A2`'s declaration burden today is **zero**, and the retrofit that is genuinely owed is the
+**two `[HsmAction]` writers** the HSM validator governs. ⛔ *"Retrofit ~22 attribute applications"*
+was wrong — it counted channel WRITES, not sites this mechanism governs, and ~9 of them belong to
+`[BTreeDeactivator]`, a different and already-working producer.
 
 #### 🔴 `D-A2`'s UNKNOWN CASE — **a sub-decision, and the tempting answer is dangerous**
 
