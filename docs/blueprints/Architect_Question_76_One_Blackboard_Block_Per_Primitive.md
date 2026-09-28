@@ -291,11 +291,40 @@ scope arms go.
 ⚠ **Same sequencing as `A`:** `C` is only possible once `B` supplies keying from occurrence
 identity. ⇒ **not a standalone cut.**
 
-### D — add `IHostVariableAccess.TryWrite`? ⚖️ **LEAN: YES — the only new capability**
+### D — add `IHostVariableAccess.TryWrite`? ⚖️ **LEAN: YES — but it CONTRADICTS A DOCUMENTED RULE, and that must be argued, not skipped**
 
 📐 The seam is read-only today. The 58 `state` references need a host-owned region they can write.
 ⛔ **Rejected — let a child write the host's block directly:** the seam exists to keep a child from
 knowing the host's layout, and `TryWrite` preserves that.
+
+#### 🔴🔴 D.1 — **THE SEAM'S OWN HEADER FORBIDS THIS, IN TERMS**
+
+⚠⚠ **This lean was first written without reading `IHostVariableAccess`'s header — an `R-129` miss,
+and the intent was sitting in the file being extended.** 📐 Verbatim, `IHostVariableAccess.cs`:
+
+> ⛔ **READ-ONLY.** *A resolver never writes its host — **a write path here would be a second supply
+> mechanism.***
+
+🔒 That is **ruling 9** *(one supply mechanism)* applied to this seam, alongside a second stated
+rule — *"Resolve-once still holds. This reads the host at the CHILD'S ACTIVATION, not continuously
+— live binding stays out of the model."*
+
+⚖️ **The counter-argument, offered as an argument rather than an omission:**
+
+| the rule guards | does `TryWrite` breach it? |
+|---|---|
+| ⭐ **PARAMS SUPPLY** — how a params region gets its values at activation, which must have exactly one path | ⛔ **No, if `TryWrite` is restricted to `Role=State` regions.** Working state is not supplied; it is zero-init and mutated each tick by the primitive that owns it. A second *supply* path would be a child writing another region's **params** |
+| ⭐ **resolve-once / no live binding** | ⚠ **Partly yes, and this is the real cost.** A child writing a host region **every tick** is exactly the continuous coupling the header excludes. ⇒ if `D` is taken, the write must be **as unrestricted in time as an ordinary working-state write already is**, and the *"resolve-once"* rule must be restated as applying to **params only** |
+
+⇒ ⭐⭐ **`D` is therefore a DELIBERATE NARROWING of the header's rule, not a reading of it:**
+*"read-only for params, read-write for shared working state."* ⛔ **It must not be built until that
+narrowing is accepted**, because the header's rule is the one thing standing between this and a
+second supply mechanism. 📄 The header itself is also **factually stale** — see `CE-424`.
+
+⚠ **What would change the lean:** if the 4 `Behavior`-scoped uses can be re-expressed as the host
+*owning* the mutation *(children return values, the host writes)*, `TryWrite` is unnecessary and the
+header's rule survives intact. 📐 **Not yet measured** — it needs a read of the six
+`HillAssault2I_*` graphs' actual write patterns, which is a prerequisite of `B` rather than of `D`.
 
 ### E — does `Q75` depend on this, or the reverse? ⚖️ **LEAN: `Q75` DEPENDS ON THIS**
 
@@ -344,3 +373,31 @@ blackboard goldens move.
 | ⭐⭐ **the resolver writes anywhere** | a resolver that writes a working-state region has its bytes visible after commit, and **nothing** after a failed parse |
 | ⭐ **`PlatoonHillAttack2` still passes** | all 16 `HillAssault2*` proof suites green after the re-author — the acceptance test for §6 |
 | ⭐ **no scope remains** | `WorkingStateScope` has no references outside history |
+
+---
+
+## 9. 📌 PROVENANCE — **why the shared-state model was built, and what the user said about it the next day**
+
+> 🔒 **User, `2026-09-28`:** *"I am still wondering why the sharing concept was implemented at all -
+> not used, complex to implement, might have some reason"*
+
+⭐ **It had a reason, it was reviewed, and the complaint being made today was made 14 months ago —
+within 24 hours of it shipping.**
+
+| when | what |
+|---|---|
+| `2026-07-15` | Slices 1, 2a and 2b ship. 📄 `Blueprint_SharedState_GetShared_Design.md`, **architect-reviewed** *(`Q1`–`Q5` + `2b-Q1`–`Q4`)*. ⭐ The stated need is a **capability ceiling**, not a behaviour: *"a blueprint AiPrimitive generates one `TickCore` with **exactly one** `WorkingState` struct… a ceiling for two distinct needs"* — cross-node sharing, and one node reaching a second slot |
+| 🔴 **`2026-07-16`, the NEXT DAY** | 📄 **`Blueprint_Subsystem_Slice2_Candidates.md` §A11**, *"Raised by the user from hands-on Windows testing of the composed-blueprint + `GetShared`/`SetShared` authoring path"*, verbatim: *"all the variable and scope and default values and GetShared/SetShared and params vs working state, this is a lot to digest for a user … beyond the capability of an ordinary user (needs a programmer mindset). Without [visual documentation] the system is incomprehensible."* |
+| ⚠ **the response at the time** | **A11 — "Visual conceptual documentation for the shared-state / working-state model" `[HIGH | S]`**: a scope decision tree, a two-entity data-flow diagram, an end-to-end authoring flow. ⛔ **Triaged as a DOCUMENTATION gap, not as a design one** |
+| `2026-09-28` | The same complaint, in the same words, produces `R-150` and this document instead |
+
+⇒ ⭐⭐⭐ **The lesson worth keeping, and it is the general form of `R-150`:** the evidence that the
+model was over-built existed **one day** after it shipped, from the only person who would ever
+author with it. ⛔ It was answered with *"explain it better"*. 📐 The adoption measurement in §1.4 is
+what that answer cost: 14 months later the feature has **six duplicate assets and two demos**, and
+the six duplicates each shadow a clean twin that predates them.
+
+⚠ **Stated fairly, because the decision was not careless:** the ceiling was real *(one
+`WorkingState` per primitive genuinely is a limit)*, the design was architect-reviewed, and `Q4`
+gated the hazardous scope behind safeguards. ⛔ **What went wrong was not the build — it was
+treating an author's "this is incomprehensible" as a documentation request.**
