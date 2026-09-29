@@ -745,7 +745,7 @@ owning design describes a write use case at all. ⇒ `D` is **withdrawn, not par
 ### 12.6 ⏭ SLICE ORDER *(current, `2026-09-29`)*
 
 ✅ `CE-418` *(one layout authority — BUILT; ⚠ its inverse-edit red-proof is still owed)* →
-🔒 **`CE-436`** *(delete `PlatoonHillAttack2` + the 23 `HillAssault2I_*`; **keep the 60 twins**)* →
+✅ **`CE-436`** *(DONE — 28 files deleted, 60 twins kept; all three suites green)* →
 🔒 **`CE-435`** *(retire `Node`/`Entity` from the authoring surface)* → `CE-425` → `CE-429` →
 **`CE-426` + `CE-432` together** → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` →
 `CE-430` → `A` + `C`.

@@ -135,7 +135,7 @@ internal static class NodePinSchema
             MacroCallNode mc    => MacroCallPins(mc, asset),
             GetVariableNode gv  => GetVariablePins(gv, asset),
             SetVariableNode sv  => SetVariablePins(sv, ResolveVariableTypeId(sv.VariableId, asset)),
-            // GetParameter: pin-less assets (e.g. the integrated HillAssault2I_* blueprints) carry no
+            // GetParameter: pin-less assets carry no
             // authored pins, and the compiler bakes this node at lowering (no pin needed there). The
             // EDITOR still needs the "Value" out-pin projected so the node renders connected — reconstruct
             // it here, typed from the referenced Parameter (mirrors the authored shape in the twins).

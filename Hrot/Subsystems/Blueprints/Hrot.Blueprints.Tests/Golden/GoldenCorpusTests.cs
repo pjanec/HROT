@@ -38,7 +38,7 @@ public sealed class GoldenCorpusTests
     }
 
     /// <summary>
-    /// ⭐ <b>The whole corpus compiles.</b> ⚠ Three <c>HillAssault2I_*</c> assets fail <c>BP1602</c>
+    /// ⭐ <b>The whole corpus compiles.</b> ⚠ ⛔ CE-436 deleted the three <c>HillAssault2I_*</c> assets fail <c>BP1602</c>
     /// without the assembly preload — a null resolver makes Stage 0 reflect over <b>loaded</b>
     /// assemblies — so this is also the test that the preload is doing its job.
     /// </summary>
@@ -75,7 +75,11 @@ public sealed class GoldenCorpusTests
         //    the first AiPrimitives in the corpus hosted as `HsmAction` AND commanding a channel.
         //    Before them no HSM asset named a blueprint activity at all, so D-B1's auto-bind had
         //    no subject outside a test fixture — and the live run against them found CE-407.
-        Assert.Equal(50, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 50 → 44 (CE-436, 2026-09-29): the six HillAssault2I_* integrated blueprints were
+        //    DELETED with PlatoonHillAttack2 (user: "not needed"). ⚠ The sixty HillAssault2_*
+        //    TWINS are KEPT — the two families differ by ONE LETTER, so a sweep that matches
+        //    `HillAssault2` matches both.
+        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

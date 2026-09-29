@@ -285,7 +285,11 @@ public sealed class CorpusCanonicalisationTests
         //    the first AiPrimitives in the corpus hosted as `HsmAction` AND commanding a channel.
         //    Before them no HSM asset named a blueprint activity at all, so D-B1's auto-bind had
         //    no subject outside a test fixture — and the live run against them found CE-407.
-        Assert.Equal(50, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 50 → 44 (CE-436, 2026-09-29): the six HillAssault2I_* integrated blueprints were
+        //    DELETED with PlatoonHillAttack2 (user: "not needed"). ⚠ The sixty HillAssault2_*
+        //    TWINS are KEPT — the two families differ by ONE LETTER, so a sweep that matches
+        //    `HillAssault2` matches both.
+        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

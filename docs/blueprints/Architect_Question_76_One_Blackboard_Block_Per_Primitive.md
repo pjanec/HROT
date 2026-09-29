@@ -1520,6 +1520,14 @@ whole corpus, in a proof asset — ⛔ but **16 `HillAssault2*` proof files asse
 
 ### 12.14 ⛔⛔ §6 IS SUPERSEDED — **`PlatoonHillAttack2` GOES** *(user, `2026-09-29`)*
 
+> ✅✅ **DONE `2026-09-29` — `CE-436` executed.** 28 files deleted, the 60 twins untouched
+> *(`git ls-files | grep HillAssault2I_` ⇒ 0; `grep HillAssault2_` ⇒ 60)*. Generators **343/343**,
+> Blueprints **4038/0/18**, Editor **425/1**. 🔴 **The one-letter trap fired in GREP** — `HillAssault2I`
+> matches `HillAssault2IsSelfArrived` and two more SURVIVING twins ⇒ **only `HillAssault2I_` is safe**,
+> and the deletion was driven off filenames, never a text sweep. ⚠ Four stale citations re-pointed, and
+> **one was already wrong before the deletion** *(the `GetParameterNode` exclusion named an asset with
+> zero `GetParameter` nodes)*.
+
 > 🔒 **User, verbatim:** *"We can delete the blueprint based platoon hill attack 2 if it stands in
 > the way. Not needed."*
 

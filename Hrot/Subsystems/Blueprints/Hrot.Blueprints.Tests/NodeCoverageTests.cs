@@ -425,12 +425,19 @@ public sealed class NodeCoverageTests
                 "coverage fixtures author placeholder pin names (A/B/Result, Value) that do not match " +
                 "any real method signature, so Stage0's reflection/resolver legitimately produces " +
                 "different names. The real pin-less FunctionCall round-trip (real param names) is proven " +
-                "by FunctionCallSemanticResolveTests + the pin-less HillAssault2I_* proof blueprints.",
+                "by FunctionCallSemanticResolveTests. (CE-436 deleted the HillAssault2I_* proof " +
+                "blueprints this line also cited; FunctionCall survives in 20 other corpus assets, " +
+                "measured 2026-09-29, so the coverage is re-pointed, not lost.)",
             [typeof(GetParameterNode)] =
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
-                "being reconstructed. Proven by the stripped HillAssault2I_IsWaveCompleted blueprint " +
-                "(which reads a parameter) building green.",
+                "being reconstructed. Proven by HillAssault2_RequestAreaQuery, HillAssault2_HasTarget, " +
+                "HsmGuardDemo and OwnParamResolverDemo, the four surviving corpus assets carrying a " +
+                "GetParameter node (measured 2026-09-29). " +
+                "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
+                "was ALREADY WRONG before CE-436 deleted it: that asset had ZERO GetParameter nodes. " +
+                "The one integrated asset that did carry one was HillAssault2I_RequestAreaQuery, whose " +
+                "surviving twin is now cited first above.",
         };
 
     /// <summary>

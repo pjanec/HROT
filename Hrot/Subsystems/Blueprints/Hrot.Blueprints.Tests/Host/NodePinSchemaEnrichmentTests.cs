@@ -71,8 +71,8 @@ public sealed class NodePinSchemaEnrichmentTests
     // ── GetParameter editor projection (pin-less integrated blueprints) ──────────
 
     /// <summary>
-    /// Regression: a pin-less GetParameter node (as stored in the integrated HillAssault2I_*
-    /// blueprints) must still project its "Value" data-out pin in the EDITOR, typed from the
+    /// Regression: a pin-less GetParameter node (as stored by any asset authored without pin
+    /// metadata) must still project its "Value" data-out pin in the EDITOR, typed from the
     /// referenced parameter — otherwise the node renders with no output pin and its wire vanishes.
     /// (The compiler bakes this at lowering and needs no pin, which is why the proof tests pass
     /// while the editor projection was broken.)
