@@ -1086,14 +1086,85 @@ is only true once the shadow covers the whole block *(§12.3a)*. **The two must 
 | ⚠ **the authored DTO differs from `block.In`** *(no `Role=Input` variable, or a curated shape like `PlatoonHillAttack`'s geo lat/lon)* | the authored DTO as a **second** subject | ⛔ **must widen** — from *"exactly 1 input"* to *"the block, plus optionally the authored DTO"* |
 
 ⇒ ⭐⭐ **`CE-432` is NARROWER than first written**: the modify-in-place shape needs **no** signature
-change at all. What widens is only the **optional second subject**, for the case the user named —
-*"in case of custom resolver there does not even need to be any role=Input variable defined."*
-⛔ **Do not change the return shape.** 📄 `CE-432`.
+change at all. ⭐⭐⭐ **And §12.9f narrows it further still** — the second subject can be **INJECTED**
+the way `ref Params p` already is, so `BP1677` need not change in any measured case.
+⛔ **Do not change the return shape.** 📄 `CE-432`, and read §12.9f before building it.
 
 ⭐ **The convenience node is separate and optional** — a `Get All Blackboard Variables` /
 `Set Blackboard Variables` pair whose pin list is baked from the behaviour's variable table, so an
 author does not chain one `Get Parameter` per field. 📌 **The precedent is exact**:
 `GetAllParametersNode` exists for precisely this reason over `GetParameterNode`. 📄 `CE-433`.
+
+#### 12.9f ⭐⭐⭐ THE SUBJECT IS **INJECTED**, NOT DECLARED — **the user's proposal, and it costs almost nothing** *(`2026-09-29`)*
+
+> 🔒 **User:** *"can the blackboard dto be passed as ref param to the resolver (second param for its
+> construction graph)? that worl resolve everything"* · *"resolver graph does not declare anything i
+> guess."*
+
+⭐⭐ **Yes — and the second sentence is exactly half right, which is the useful part.** 📐 `BP1677` is
+**two different rules**, one per shape *(`V_ResolverPurity.cs:187-230`)*:
+
+| shape | what `BP1677` demands today |
+|---|---|
+| ① **Library, reusable** | ⛔ *"must declare **exactly one input and one output**… its input and output must be the **same type**"* ⇒ it **does** declare — in its **graph signature**, not as a node |
+| ② **an asset's OWN** | ⭐ *"must declare **no inputs and no outputs**… read with `Get Parameter`, write back with `Set Variable`"* ⇒ **declares nothing**, exactly as the user assumed |
+
+⇒ ⭐ *"a resolver graph does not declare anything"* is **true of ②, false of ①** — and ② is the shape
+a behaviour's own resolver should use *(§12.9b)*.
+
+#### 🔴 THE MEASUREMENT THAT MAKES THE PROPOSAL CHEAP
+
+📐 A **declared** graph input is emitted **by value**: `LibraryEmitter.cs:207` is
+`graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}")` — ⛔ **no `ref`, and no pin shape for
+one.** ⭐⭐ But the **trailing context arguments are INJECTED by the emitter**, never declared
+*(`world`, `self`, `host` — `:208-226`)* — and 🔴 **shape ② ALREADY INJECTS A `ref` SUBJECT**:
+`AiPrimitiveEmitter.EmitOwnResolverMethod:152` writes `ref Params p,` into the signature by hand.
+
+⇒ ⭐⭐⭐ **the user's `ref` parameter is not a new mechanism — it is the mechanism already in use,
+widened from `Params` to the block:**
+
+```csharp
+// shape ② — a behaviour's OWN resolver, TARGET
+public static void Resolve(
+    ref TBlock block,                 // ⭐ INJECTED, the whole blackboard — was `ref Params p`
+    in  TAuthored authored,           // ⭐ INJECTED, and ONLY when authored != block.In
+    EntityRepository world, Entity self)
+```
+
+#### ⭐⭐ WHAT THIS COSTS — **`BP1677` may not need to change at all**
+
+| | |
+|---|---|
+| ② **own** | ⭐ **`BP1677` UNCHANGED** — *"declare nothing"* is still right; the subject is injected, so there is nothing to declare |
+| ① **reusable** | ⭐ **`BP1677` UNCHANGED** — *"one in, one out, same type"* still holds; the declared type simply **becomes the block's** instead of the params'. ✅ And it still preserves the bake: the caller passes the **pre-seeded** block in and assigns the result back *(`__dto = Class.Graph(__dto, …)`)* |
+| ⚠ the **only** case that would widen it | a **reusable Library** resolver that also needs the authored DTO as a **second declared** subject ⇒ 2 declared inputs. 📐 **Unmeasured and probably hypothetical** — the one shipped resolver with a differing authored DTO, `PlatoonHillAttack`'s geo→Cartesian, is **curated C#, not a blueprint.** ⇒ **DEFER it**; do not widen a rule for a case nobody has |
+
+⇒ ⭐⭐⭐ **`CE-432` collapses from "widen the signature rule" to three re-pointings:**
+① `ContainerVarFor`/`ParamsVar` resolve against the block · ② the emitter injects `ref TBlock` where
+it injects `ref Params p` today · ③ the purity exemption widens *(next)*. ⛔ **No new pin shape, no
+`ref` graph inputs, no diagnostic change in the measured cases.**
+
+#### 12.9g ⛔⛔ SUPERSEDED — *"an own-asset resolver's OUTPUT **is** its parameters region"*
+
+> 🔒 **User, `2026-09-29`:** *"this is superseded by new requirement the resolver needs to access its
+> whole blackboard dto."*
+
+⭐ **Agreed, and it is recorded here because the sentence is load-bearing in CODE**, not only in
+prose: it is the stated justification for `V_ResolverPurity`'s single exemption
+*(`V_ResolverPurity.cs:141-148`)*, which lets a `SetVariable` through **iff** `TargetsAParameter`
+*(`:237`)*.
+
+| | today | under `B` |
+|---|---|---|
+| the resolver's subject | the **params region** | ⭐ **the whole block** |
+| the exemption's test | `TargetsAParameter(asset, sv)` | ⭐ **targets any field of the block** |
+| why a STATE write is refused today | ⛔ state lives in a **different slot**, which **outlives a failed parse** ⇒ genuine corruption *(`Q43` §4)* | ⭐ **the state IS the block, and the block is what is shadowed** ⇒ the reason evaporates |
+
+🔒 **AND THAT IS A HARD SEQUENCING CONSTRAINT, not a note.** ⛔⛔ **The reason evaporates only once
+the shadow covers the whole block.** ⇒ `CE-426` *(the widened shadow)* and `CE-432` *(the widened
+subject + exemption)* **must land in the same slice.** ⚠ Shipping the exemption first would let a
+resolver's state write survive a failed parse — **precisely the corruption the validator exists to
+prevent**, re-introduced by the validator's own relaxation.
 
 #### 12.9d ⚠ THE `host` ARGUMENT — **probably droppable, and NOT decided here**
 
