@@ -730,3 +730,15 @@ owning design describes a write use case at all. ⇒ `D` is **withdrawn, not par
 | ⭐⭐⭐ **the "blackboard as pins" node already ships** | `BreakStruct`/`MakeStruct`/`SetMembers` *(whole-struct, all pure)* and `GetParameter`/`GetAllParameters`/`SetVariable` *(by name)*. 🔴 **And an AiPrimitive's own `Construction` resolver already uses the second pair** — `EmitOwnResolverMethod:138` emits `(ref Params p, …)` and its header says the graph *"reads through `Get Parameter` and writes back through `Set Variable`"*. ⇒ **no new node KIND; only the SUBJECT widens.** `CE-433` is ergonomics only |
 | 🔴 **multiple params: the platform yes, the resolver no** | `LibraryEmitter` emits N inputs and `CSharpReturnType` handles N outputs, **but `BP1677` narrows a resolver to "one DTO in → the SAME DTO out"** and `EmitResolverEntry:387` bails on `Inputs.Count != 1`. The target is two DIFFERENT types ⇒ `CE-432` widens it |
 | ⭐ **two resolver shapes exist** | ① a **Library** asset's reusable graph *(declares its DTO)* · ② an **asset's own** graph *(implied subject — because an AiPrimitive's `Params` FQN embeds a hash)*. ⭐⭐ A BEHAVIOUR's generated types are named from the ASSET NAME, so both are open to it; ⚖️ lean ② for a behaviour's own resolver |
+
+### 12.5 ✅ BOOKKEEPING DONE *(`2026-09-29`)* — **what is now clear to build**
+
+| | |
+|---|---|
+| 🔒 **`R-152`** | one resolver per behaviour, **not per variable**; the resolver's job is CONVERSION. ⇒ `DESIGN_Per_Variable_Param_Resolver` (`E8c`) **WITHDRAWN**, `CE-419` **RESOLVED**, `CE-426` **unblocked** |
+| 📄 **`Q75`** | status rewritten: **SUBSUMED by `Q76` §12**. `S0`→`CE-418`, `S1`→`CE-425`'s HSM arm, `C`/`S2`→`CE-426`. ⛔ **Start no slice from `Q75`** |
+| 📄 **`Q76` §12.12** | the **two subjects** and the **editor flow**, with the classDiagram + sequenceDiagram §12.10 was missing |
+| ⛔ **the one dangerous edit** | `V_ResolverPurity`'s exemption **INVERTS** *(`Parameter` allowed → refused; `Variable` refused → allowed)*. Sound only with `CE-426`'s widened shadow ⇒ **`CE-426` + `CE-432` land together** |
+
+⇒ ⭐ **Nothing is left blocking `CE-418`, and nothing is left blocking the slice order in `Q76` §12.6.**
+

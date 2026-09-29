@@ -1346,3 +1346,119 @@ resolver"* — stands; §12.11 fixes what *"region"* means: ⭐ **the behaviour'
 a single variable.** 📌 And `E8c`'s own `D2` already leaned the same way from the other end — a
 whole-behaviour resolver and a per-variable ref *"genuinely compete for one region… making it
 unrepresentable beats arbitrating it."*
+
+---
+
+### 12.12 ⭐⭐⭐ THE TWO SUBJECTS — **and they map onto a vocabulary that already exists** *(measured `2026-09-29`)*
+
+> 🔒 **User:** *"Will the blueprint based resolver get 2 params? Is that supported in the blueprint
+> editor, will i be able to access the variables of both params as pins on param nodes?"*
+
+#### 12.12a 🔴 THE MEASUREMENT — **two subjects are already the compiler's model**
+
+📐 `IrOp_ReadVariable` / `IrOp_WriteVariable` carry a `VariableRef.Kind`, and `StatementEmitter:64,68`
+emits **`{ContainerVarFor(Kind)}.{field}`**, where `ContainerVarFor(kind) => kind == Parameter ?
+ParamsVar : StateVar` *(`EmissionContext:114`)*. 📐 And `DeclarationKind` has **exactly two** members —
+`Parameter` and `Variable`, *"the ONE state kind"* *(`R-01`/`R-02`)*.
+
+⇒ ⭐⭐⭐ **the blueprint vocabulary ALREADY has two subjects with two pin families.** The resolver's two
+params are not a new concept; they are **a re-pointing of the pair that ships**:
+
+| the resolver's subject | declaration kind | the nodes | direction |
+|---|---|---|---|
+| ⭐ **the authored behaviour DTO** | `Parameter` ⇒ `ParamsVar` → `authored` | `Get Parameter` · `Get All Parameters` | **read-only** *(`in`)* |
+| ⭐⭐ **the whole blackboard block** | `Variable` ⇒ `StateVar` → `block` | `Get Variable` · `Set Variable` | **read AND write** *(`ref`)* |
+
+⭐ **Answering the three questions directly:**
+
+| question | answer |
+|---|---|
+| *"will the resolver get 2 params?"* | ✅ **yes** — `(in TAuthored authored, ref TBlock block, world, self)`, **both INJECTED** by the emitter, neither declared as a graph pin |
+| *"is that supported in the blueprint editor?"* | ✅ **yes, and nothing new is needed.** The editor already edits two declaration lists per asset — **Parameters** and **Variables**. The resolver asset's two lists are simply **derived from the bound behaviour** *(`CE-434`)* rather than hand-authored |
+| *"can I access the variables of BOTH as pins on param nodes?"* | ✅ **authored: yes today** — `Get Parameter` per field, or `Get All Parameters` for every field at once. ⭐ **block: yes per field today** — `Get Variable` / `Set Variable`. ⛔ **No `Get All Variables` node exists** — that one convenience is `CE-433`, and `GetAllParametersNode` is its exact template |
+
+⇒ ⛔⛔ **NOT needed:** a two-input graph signature · a `ref` pin shape · a subject discriminator on the
+nodes · a new IR op · a new node kind. **`BP1677` is untouched.**
+
+#### 12.12b ⛔⛔ THE PURITY EXEMPTION EXACTLY INVERTS — **and that is the whole risk of this slice**
+
+📐 Today `V_ResolverPurity:141-148` lets a `SetVariable` through **iff `TargetsAParameter`**, because
+an own-resolver's subject is `ref Params p`. ⇒ under the mapping above the test **flips**:
+
+| `SetVariable` targets… | today | under `B` | why |
+|---|---|---|---|
+| a **`Parameter`** | ✅ allowed *(it is the return value)* | 🔴 **REFUSED** | the authored DTO is the resolver's **`in`** input — writing it is writing a copy that nobody reads |
+| a **`Variable`** | 🔴 refused *(state outlives a failed parse)* | ✅ **allowed** | the block **is** what the shadow holds ⇒ nothing escapes |
+
+🔒 **A ONE-LINE CHANGE THAT INVERTS A SAFETY RULE IS THE MOST DANGEROUS EDIT IN THIS PROGRAMME.**
+⛔⛔ It is only sound once `CE-426`'s shadow covers the whole block — **`CE-426` and `CE-432` land
+together**, and the rail that proves it is *"throw inside the resolver ⇒ the entity keeps its previous
+block, unmodified"* *(§12.7)*.
+
+#### 12.12c ⭐ The authoring surface
+
+```mermaid
+classDiagram
+    class BehaviourAsset {
+        <<EXISTS - btree.json / hsm.json>>
+        +Blackboard.Variables
+        +resolverRef  NEW
+        +authoredShapeHash  NEW
+    }
+    class ResolverAsset {
+        <<NEW - a blueprint asset>>
+        +behaviourRef  derived, read-only
+        +Declarations.Parameter  mirrors authored DTO
+        +Declarations.Variable   mirrors the block
+        +one Construction graph
+    }
+    class CuratedResolver {
+        <<EXISTS - BehaviorResolver attr>>
+        +BehaviorName  becomes OPTIONAL
+        +authored + block shapes
+    }
+    class ResolverPicker {
+        <<NEW - mirrors CE-386>>
+    }
+    class ResolverExporter {
+        <<NEW - mirrors ActionSchemaExporter>>
+    }
+    BehaviourAsset --> ResolverAsset : resolverRef
+    BehaviourAsset --> CuratedResolver : resolverRef
+    ResolverAsset ..> BehaviourAsset : derives both lists
+    ResolverPicker ..> ResolverExporter : lists shape-compatible C# resolvers
+    ResolverPicker ..> BehaviourAsset : writes resolverRef
+```
+
+> ⭐ **Caption.** Drawing it exposes the **two-way reference** — `BehaviourAsset` names the resolver
+> *(the user picks it)* and `ResolverAsset` names the behaviour *(so the generator can derive both
+> declaration lists)*. ⛔ That is why the back-reference is **derived and read-only**: written at
+> creation, repaired on rename, never hand-edited. Same shape the subtree authoring programme solved.
+
+```mermaid
+sequenceDiagram
+    participant Ed as "behaviour editor"
+    participant BA as "behaviour asset"
+    participant RA as "resolver asset"
+    participant Gen as "build-time generator"
+
+    Note over Ed,Gen: PICK an existing resolver
+    Ed->>Ed: list shape-compatible resolvers (exporter)
+    Ed->>BA: write resolverRef + authoredShapeHash
+
+    Note over Ed,Gen: CREATE a new one
+    Ed->>RA: mint asset, derive Parameters and Variables from BA
+    Ed->>BA: write resolverRef + authoredShapeHash
+
+    Note over Ed,Gen: THE AUTHORED PARAMS CHANGE
+    Ed->>BA: recompute the shape hash on load and on save
+    alt hash differs
+        Ed->>Ed: mark the pick INVALID - edit graph / pick another / clear
+    end
+    Gen->>Gen: BP1677 type check - the compile-time backstop
+```
+
+> ⚠ **Caption — what the picture shows that the table could not.** There are **two** invalidation
+> points, and only one is the editor's. The editor's hash check is the *ergonomic* one, and it can
+> miss; the generator's type check **cannot**, so a stale pick fails the build rather than shipping.
+> ⇒ ⛔ do not build the hash check as if it were the safety mechanism — it is the **convenience**.

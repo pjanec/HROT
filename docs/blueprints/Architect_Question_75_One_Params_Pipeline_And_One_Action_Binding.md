@@ -1,7 +1,18 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-28
-build-state: ⛔ DESIGN — REVISED 2026-09-28 BY A SECOND MEASUREMENT PASS, AND S1/S2 ARE BLOCKED.
+build-state: ⛔ DESIGN — SUBSUMED 2026-09-29 BY Q76 §12, WHICH IS APPROVED AND BUILDING.
+  ⭐⭐⭐ READ Q76 FIRST. Q76-B ("one blackboard block per running behaviour") was APPROVED by the
+  user on 2026-09-29 and Q76 §4-E already ruled that THIS document depends on it. As of that
+  approval:
+    · S0 (one layout authority) IS Q76's CE-418 — same fix, now tracked there. BUILD IT THERE.
+    · S1 (the HSM blackboard struct) IS the HSM arm of Q76's CE-425. BUILD IT THERE.
+    · C / S2 (one whole-behaviour BehaviorParams.FromJson replacing the two emitted lambdas) is
+      SUBSUMED by Q76's CE-426 — one bake→supply→resolve helper. CE-419 (three claimants on two
+      emit sites) is RESOLVED: E8c is WITHDRAWN by R-152 and CE-426 is the survivor.
+    · A / B / D still stand as this document's own decisions and are NOT re-litigated by Q76.
+  ⛔ DO NOT START ANY SLICE FROM THIS DOCUMENT. Its live work now has tracker rows under Q76 §12.6.
+  (Historic: DESIGN — REVISED 2026-09-28 BY A SECOND MEASUREMENT PASS, AND S1/S2 ARE BLOCKED.)
   ⚠⚠ This document WAS marked READY-TO-BUILD with all four decisions approved. The approval was
   explicitly ON TRUST — "approved, but just by trusting your judgement, not because i understand
   all the internals" — and it therefore never verified the mechanisms. ⛔ A second measurement
@@ -33,6 +44,9 @@ known-conflict: ⛔⛔ DESIGN_Per_Variable_Param_Resolver.md (E8c, build-state D
   supersedes two claims Claude made in chat on 2026-09-28 ("the curated path has a resolve stage"
   and "IsBlackboardEditorManaged is BTree-specific") — both were wrong; the refutations are in §2.
 related-designs:
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐⭐⭐ SUPERSEDES the storage
+    half of this document and OWNS the live slices. Its §12 is the approved design; §12.6 the
+    ordered slice list. S0→CE-418, S1→CE-425's HSM arm, C/S2→CE-426.
   - DESIGN_Per_Variable_Param_Resolver.md — ⭐⭐⭐ THE NEAREST NEIGHBOUR, and it was MISSING from this
     list until 2026-09-28. It owns the RESOLVE STEP at per-variable grain in the same two emitters
     this document's S2 would replace, and it owns how a params variable NAMES its resolver (R-149).
