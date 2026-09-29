@@ -922,7 +922,8 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 | # | id | slice | depends on |
 |---|---|---|---|
 | **1** | `CE-418` | 🔴 **one layout authority** — the struct carries `[FieldOffset]` from `Pack`. ⭐ Live defect, fix is identical either way | — |
-| **2** | `CE-425` | emit the two-part struct `{ Inputs In; State St; }`, **Input first and byte-identical**; `Q75`-`S1` is its HSM arm | 1 |
+| **2** | `CE-435` | 🔒 **retire `Scope=Node` and `Scope=Entity` from the AUTHORING surface** — 8 authored State variables in the whole corpus, 4 to re-home, **0 at Node**. ⭐ Moved here from slice 10 at the user's request so the refactor carries ONE scope, not three. ⛔ Authoring only; the key arms go with `A`+`C` | 1 |
+| **3** | `CE-425` | emit the two-part struct `{ Inputs In; State St; }`, **Input first and byte-identical**; `Q75`-`S1` is its HSM arm | 1 |
 | **3** | `CE-429` | size the block from the DTO, keep `InputBytes` separately ⇒ a behaviour with **no** `Role=Input` variable is legal | 2 |
 | **4** | `CE-426` | one **bake → supply → resolve** helper, called by the ingress and by the hosting thunk; shadow widened to the block | 2 |
 | **5** | `CE-427` | widen the seam to `ResolveBlock<TAuthored,TBlock>`; collapse the two resolver registries into one keyed by asset id | 4 |
@@ -1462,3 +1463,45 @@ sequenceDiagram
 > points, and only one is the editor's. The editor's hash check is the *ergonomic* one, and it can
 > miss; the generator's type check **cannot**, so a stale pick fails the build rather than shipping.
 > ⇒ ⛔ do not build the hash check as if it were the safety mechanism — it is the **convenience**.
+
+---
+
+### 12.13 🔒 SEQUENCING CORRECTION — **the two bad scopes go EARLY, not last** *(user, `2026-09-29`)*
+
+> 🔒 **User, verbatim:** *"I want to remove the entity scope and node scope on the blackboard
+> variables because they have issues and there is no real need for them. I want to avoid the need to
+> support these two as it might unnecessarily complicate the refactor."*
+
+⛔⛔ **The point is SEQUENCING, and the plan had it wrong.** Decision `C` was resolved *"remove,
+sequenced inside `B`"* and landed at slice **10** — the last. ⇒ every slice from `CE-425` to `CE-430`
+would have had to keep **three** scope values alive while rewriting the storage under them.
+⚠ **And it was not even a task:** `CE-422`/`CE-423` are FINDINGS marked *"dissolves if `B`"*, and the
+slice-table entry was the bare letters `A` + `C` with **no id**. ⇒ 📋 **`CE-435`, now slice 2.**
+
+📐 **The whole author-facing surface, measured over every `.btree.json` and `.hsm.json`:**
+
+| | count | where |
+|---|---|---|
+| `Role=Input` | 36 | scope is meaningless for them |
+| `Role=State` @ **`Behavior`** | **4** | `PlatoonHillAttack:State` · `T35:bpSharedWorkingState` · `HsmOrthogonalRegions:SharedCursor` · `HsmVariableShowcase:Cursor` |
+| `Role=State` @ **`Entity`** | **4** | `PlatoonHillAttack2:state` · `HillAssault2I_Smoke:state` · `T37:rally` · `HsmVariableShowcase:Ticks` |
+| `Role=State` @ **`Node`** | ⭐⭐⭐ **0** | not one authored use, explicit **or** implicit |
+
+⇒ ⭐ **Eight variables decide a three-valued author-facing option**, and the value that is **the
+default** has **zero** users. 🔒 That is `R-150` stated as arithmetic.
+
+#### ⭐⭐ Why it CAN move early — the split that makes it cheap
+
+| goes now *(`CE-435`)* | stays until `A`+`C` |
+|---|---|
+| the **author-facing option** — the dropdown, the schema's legal values, a loud validator | ⛔ **`OccurrenceSlotKey.Compute`'s arms.** 📌 `Node` is **not dead in the KEY function**: it keys node-bound working state for hosted AiPrimitives, the common case |
+| re-homing the **4** `Entity` variables to `Behavior` | the key scheme's collapse, which needs the block to exist |
+
+⇒ **one scope value survives** — `Behavior` — which `B` then dissolves into *"a named region of the
+block"*. **The refactor carries one concept instead of three.**
+
+⚠ **The one caution, named not discovered:** two of the four `Entity` variables are the cross-entity
+`state` of `PlatoonHillAttack2` and `HillAssault2I_Smoke`; re-homing them **changes their semantics**
+*(entity-global by name ⇒ per-behaviour)*. 📐 Safe for production — 1 cross-entity read exists in the
+whole corpus, in a proof asset — ⛔ but **16 `HillAssault2*` proof files assert on it** *(`R-137`)*, so
+`CE-435` must state, per proof file, whether it is re-pointed or retired with decision `A`.
