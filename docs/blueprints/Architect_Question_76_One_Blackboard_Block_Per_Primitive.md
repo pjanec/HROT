@@ -976,10 +976,42 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 
 📐 Enumerated with `search_graph` over every `*Node` class, then read:
 
-| style | nodes | read | write | pure? |
-|---|---|---|---|---|
-| ⭐ **whole-struct, by value** | `BreakStructNode` · `MakeStructNode` · `SetMembersNode` | `Break`: struct in ⇒ **one data-out pin per field** | `SetMembers`: struct in + wired member pins ⇒ the modified **copy** out; `MakeStruct`: field pins ⇒ struct | ✅ none is on `V_ResolverPurity`'s deny-list ⇒ **pure by declaration**, already legal in a resolver |
-| ⭐⭐ **implied subject, by name** | `GetParameterNode` · `GetAllParametersNode` · `SetVariableNode` | `GetParameter` lowers to `p.{Name}`; `GetAllParameters` explodes **the whole list** into one pin each | `SetVariable` writes back | ✅ `SetVariable` is deny-listed in general and **permitted in an own-resolver** — see below |
+> ⛔⛔ **CORRECTED `2026-09-29`, same day, after the user asked *"how to make them work on the slot
+> blackboard dto?"*** — the first draft of this table listed `BreakStruct`/`MakeStruct`/`SetMembers`
+> as an equivalent *style* for addressing the blackboard. 🔴 **They are not, and cannot be:** they
+> operate on a struct **value flowing on a data pin**, and **no node produces the blackboard as a
+> value**. ⇒ they are the tools for a **nested struct FIELD**, never for the block itself. The block
+> is addressed by the name-keyed pair, through `ScopeVarFor` — §12.9a-1.
+
+| style | nodes | what it addresses |
+|---|---|---|
+| ⭐⭐⭐ **the block — name-keyed, implied subject** | `GetParameterNode` · `GetAllParametersNode` · `SetVariableNode` | ⭐ **THE right tools.** They emit `{scopeVar}.{field}`, where `scopeVar` is a **parameter of the emitted method** — see §12.9a-1 |
+| ⭐ **a nested struct FIELD — by value** | `BreakStructNode` · `MakeStructNode` · `SetMembersNode` | a struct **value** on a data pin. ⛔ Cannot reach the block: nothing produces it as a value. ✅ All three are pure *(absent from the deny-list)*, so they are legal **inside** a resolver on a field |
+
+#### 12.9a-1 🔴🔴 HOW A NODE ADDRESSES THE SLOT — **it does not, and it must not**
+
+🔒 **The user's question:** *"how to make them work on the slot blackboard dto? or SetVariable — does
+it know what blackboard slot to operate on?"* ⇒ ⭐⭐⭐ **No. Slot addressing is the CALLER's job, and
+that is what keeps a resolver a pure static method.**
+
+📐 The whole mechanism is two lines of `EmissionContext`:
+
+```csharp
+ContainerVarFor(kind) => kind == VariableKind.Parameter ? ParamsVar : StateVar;   // :114
+ParamsVar             => Asset.Dispatch == AiPrimitive ? "p" : $"{StateVar}.Params";  // :133
+```
+
+`IrOp_WriteVariable(Target, Value)` emits `{ContainerVarFor(kind)}.{field} = value`, and
+`IrOp_ReadParam` emits `{ParamsVar}.{field}`. ⇒ **the node names a FIELD of an in-scope C# variable**;
+the emitted method receives that variable as `ref Params p` and the **thunk or the ingress** resolved
+the slot before calling. ⛔ A node that knew a slot key would be addressing storage from inside a pure
+function — precisely what the shadow-commit model forbids.
+
+⭐⭐⭐ **AND `Q76`-`B` SIMPLIFIES THIS FUNCTION RATHER THAN COMPLICATING IT.** 📌 **The one-struct world
+already ships for `Instance` dispatch** — its payload is `[Cursor 16][Params N][State M]`, one struct,
+and `ParamsVar` answers **`s.Params`** *(`:127`)*. ⇒ a behaviour under `B` takes the **same** arm:
+`ContainerVarFor` returns `block.In` or `block.St`, and `ParamsVar`/`StateVar` stop being two
+different objects. **No new addressing mechanism; one fewer.**
 
 🔴🔴 **AND THE SECOND STYLE IS ALREADY WIRED AS A RESOLVER.** `AiPrimitiveEmitter.EmitOwnResolverMethod:138-165`
 emits an asset's own `Construction` graph as:
@@ -1022,15 +1054,41 @@ reuses the `Get Parameter` / `Set Variable` authoring that already ships. ⚠ **
 lean:** if one resolver graph must serve several behaviours with different blackboards, ① is the only
 shape that can express it — but that needs a use case, and none is measured.
 
-#### 12.9c ⛔ THE ONE THING THAT MUST CHANGE — `BP1677`
+#### 12.9c ⛔⛔ THE RESOLVER MODIFIES; IT DOES NOT PRODUCE — **and the shipped shape already does**
 
-The target signature is **two different types**: `(in TInputs authored, ref TBlock block, …)`.
-⛔ `BP1677`'s rule is *"one DTO in → **the same** DTO out"*. ⇒ it must widen to:
+> 🔒 **User, `2026-09-29`:** *"resolver can not output authored blackboard. it must MODIFY what was
+> pre-seeded from editor defined defaults."*
 
-> **exactly one declared input — the authored params DTO — and an output of the BLOCK's type.**
+🔴🔴 **CORRECT, AND IT INVALIDATES THIS SECTION'S FIRST DRAFT**, which proposed
+`__block = Graph(__authored, …)`. ⛔ **That discards stage 1.** A block returned from the authored DTO
+alone carries **no baked defaults** — every `Role=State` default and every un-overlaid `Role=Input`
+default would be zeroed by the assignment. ⚠ The first draft was written from the *signature* rather
+than from the *pipeline*, one section after §12.3 spelled the pipeline out.
 
-and `EmitResolverEntry`'s lambda becomes `__block = Class.Graph(__authored, __world, __self)`.
-⭐ **Small and local**: one Stage-2 rule, one emitter lambda, one delegate. 📄 `CE-432`.
+⭐⭐⭐ **The shipped own-resolver shape is already right** —
+`AiPrimitiveEmitter.EmitOwnResolverMethod:138` emits **`(ref Params p, world, self, host)`**, and
+`V_ResolverPurity:141-148` states why the write is legal in the same breath:
+
+> *"An own-asset resolver's OUTPUT **is** its parameters region — the emitted method takes
+> `ref Params p` and the graph writes through it. ⇒ a `SetVariable` that targets a **PARAMETER** is
+> this graph's return value, not an escape from the ingress shadow. ⛔ A `SetVariable` targeting
+> **STATE** is still refused."*
+
+⇒ ⭐ **the target is that shape widened to the block: `(ref TBlock block, world, self, host)`.**
+⚠ Note the exemption's condition inverts under `B`: today it is *"parameter yes, state no"*, because
+state lives in a different slot that outlives a failed parse. **Under `B` the state IS the block**, so
+the exemption becomes *"any field of the block, because the block is what is shadowed"* — ⛔ and that
+is only true once the shadow covers the whole block *(§12.3a)*. **The two must land together.**
+
+| case | inputs the graph needs | `BP1677` today |
+|---|---|---|
+| ⭐⭐ **common — the authored DTO IS `block.In`** | ⭐ **NONE.** Stage 2 already copied the authored values into `block.In` *before* the resolver runs, so the graph reads `block.In.*` and writes `block.*` | ✅ **satisfied unchanged** — shape ② declares nothing |
+| ⚠ **the authored DTO differs from `block.In`** *(no `Role=Input` variable, or a curated shape like `PlatoonHillAttack`'s geo lat/lon)* | the authored DTO as a **second** subject | ⛔ **must widen** — from *"exactly 1 input"* to *"the block, plus optionally the authored DTO"* |
+
+⇒ ⭐⭐ **`CE-432` is NARROWER than first written**: the modify-in-place shape needs **no** signature
+change at all. What widens is only the **optional second subject**, for the case the user named —
+*"in case of custom resolver there does not even need to be any role=Input variable defined."*
+⛔ **Do not change the return shape.** 📄 `CE-432`.
 
 ⭐ **The convenience node is separate and optional** — a `Get All Blackboard Variables` /
 `Set Blackboard Variables` pair whose pin list is baked from the behaviour's variable table, so an
