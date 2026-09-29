@@ -627,6 +627,52 @@ block, so nothing relies on it.
 seam's two rules — **read-only** *("a write path would be a second supply mechanism")* and
 **resolve-once** — which `Q76` §D.1 argues with rather than ignores.
 
+### 7.9a 🔴 WHY `Role=Input` AND `Role=State` ARE IN SEPARATE SLOTS — **the reason is measurably OBSOLETE**
+
+📐 **The emitter says it itself**, `BTreeBlackboardPackHelper.Pack:146`:
+
+> *"State-role variables are working state that lives in the partitioned tier … so they are excluded
+> from param packing. Byte-identical for the existing corpus (all Input-role); **prevents a large
+> working-state struct (e.g. the 120-byte `HillAttackMutableState`) from overflowing the ≤100-byte
+> inline param budget.**"*
+
+⇒ ⭐⭐⭐ **The split exists to dodge a 100-byte budget.** 📐 That budget is **gone**:
+`MaxInlineBytes` is now **16096** *(`CE-307`, `2026-09-22`)*, and its own note explains the 100 *"was
+a buffer-overrun guard for params stored inline in `BrainBlackboard` beside tail registers; `O2`
+moved the registers out and `P3-C` moved params into their own slot, so nothing neighbours them."*
+
+⛔⛔ **161× more room, and the split was never revisited.** ⚠ Stated fairly: the exclusion was
+correct when written and is *still* byte-safe — it is the **justification** that expired, not the
+code. ⇒ **nothing else was found that the Input/State separation buys.**
+
+### 7.9b ⭐ WHAT THOSE "0…7 STATEFUL SLOTS" ACTUALLY ARE — **six children and one own**
+
+📐 `PlatoonHillAttack2`'s seven, read from its generated manifest:
+
+| # | what | evidence |
+|---|---|---|
+| **6** | ⭐ **its CHILDREN's working states** — `HillAssault2ICalculateSegments_…_Bp.WorkingState` etc., labelled *"CalculateSegments (integrated)"*, *"AreAllAtBaseline (twin, unchanged)"* | the manifest's `NodeLabel` and `WorkingStateType` |
+| **1** | ⭐ **the behaviour's OWN declared variable** — `HillAttackSharedState`, label `"state"`, `Role=State` | the only entry carrying an explicit `StatefulSlotRole.State` |
+
+⇒ ⭐⭐⭐ **A behaviour needs exactly ONE region for its own working state.** The other N are hosted
+primitives' state parked in the HOST's slot table — and a hosted primitive **already keeps its own
+params and state together in one block** *(§1)*. ⇒ **they belong in the child's block, not the
+host's**, which is the whole of `Q76`-`B`.
+
+### 7.9c ⚠ WHAT HAPPENS WHEN A CHILD STARTS — **two different mechanisms, often conflated**
+
+| host shape | at child start | measured at |
+|---|---|---|
+| ⭐ **a hosted AiPrimitive** *(a composed blueprint action/condition)* | 🔴 **A ONE-TIME SEED COPY.** Inside `if (freshlyAttached)`: the child's own `Params` region is filled by copying the host's **root params bytes at the bound offset** — `*__params = Unsafe.As<byte,Params>(ref AddByteOffset(ref __rootParams, seedOffset))` — then the per-asset resolver runs, then the working state is default-initialised | `AiPrimitiveEmitter.EmitParamSeed:464` |
+| ⭐ **a hosted SUBTREE** *(a whole child BTree/HSM behaviour)* | ⛔ **NO COPY AT ALL** — *"the child reads the HOST ENTITY's root params region"*; a host with no params hands the child a **scratch byte** rather than throwing | `HostedSubtree.cs:82,97` |
+
+⚠ **Why the seed exists at all, in its own words:** *"E3a SEED (§28.4): the bytes this thunk read
+LIVE before params moved into the slot. **Copying them makes the move byte-identical at the first
+dispatch.**"* ⇒ ⭐ it is partly a **compatibility artefact of `P3`** *(params moving into their own
+slot)*, kept because it also gives each occurrence its **own** copy — *"each occurrence gets its own
+copy, seeded from the same authored variable"* *(§1)*. ⭐⭐ **Under `Q76`-`B` the seed is the natural
+shape and the subtree's direct read is the odd one out**, not the reverse.
+
 ### 7.9 The findings this baseline produced
 
 | id | one line | waits for `Q76`? |
