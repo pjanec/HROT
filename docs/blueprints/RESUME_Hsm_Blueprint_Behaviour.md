@@ -12,11 +12,11 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §10** — the `2026-09-28` storage-simplification programme (`Q76`),
-  PARKED BY THE USER AND AWAITING ONE DECISION. It supersedes §9 as the live question: `Q75` now
-  DEPENDS on it. ⛔ Read §10 before §9. §9.6 (the second measurement pass that reopened `Q75`) is
-  still true and is the reason `Q75` is blocked; §9.3's "start at S1" remains SUPERSEDED.
-  ⚠ NOTHING IS IN FLIGHT AND NOTHING IS TO BE STARTED — including `Q75`'s `S0`.
+current-answer: ⭐⭐⭐ **START AT §11** — the `2026-09-29` resumption state. §10 is the programme
+  summary it builds on; read §11 first, then §10, then §9 only for `Q75`'s history. The live
+  question is `Q76` (storage simplification), PARKED awaiting ONE decision, and `Q75` now DEPENDS
+  on it. ⚠ NOTHING IS IN FLIGHT AND NOTHING IS TO BE STARTED — including `Q75`'s `S0`.
+  🔒 The user's next step is stated: *"continue analyzing and verifying before implementation."*
   ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
   §8 only for §8.3's traps and §8.4's measured end-to-end result.
   (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
@@ -588,3 +588,90 @@ unimplemented; it shipped)*.
 went back from `READY-TO-BUILD` to `DESIGN` on `2026-09-28` *(§9.6)*, and `Q76` §4-`E` rules that
 **`Q75` DEPENDS on `Q76`**: `Q75`'s `S0` is `Q76`'s first step, and its `S1`/`S2` assume one answer
 to *"where is this variable"*. ⛔ **Do not resume `Q75` at `S1`.**
+
+---
+
+## 11. ⭐⭐⭐ RESUMPTION — **`2026-09-29`, written before a compaction**
+
+> 🔒 **User:** *"pls write resumption document and let me compact before we continue analyzing and
+> verifying before implementation."*
+> ⇒ ⭐⭐ **The next phase is ANALYSIS AND VERIFICATION, not building.** ⛔ Nothing is authorised.
+
+### 11.0 📐 STATE, verifiable in three commands
+
+| | |
+|---|---|
+| branch | **`behaviors`**, pushed |
+| working tree | clean |
+| ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: `RootParamsBytes` always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
+| built this session | ⛔ **NOTHING.** Documents and tracker rows only |
+
+```bash
+git log --oneline -14 behaviors   # the whole session is docs
+git stash list                    # must still show the RootParamsBytes probe
+git status --short                # must be empty
+```
+
+### 11.1 ⭐ WHAT THIS SESSION DID — **measured, then recorded; no code**
+
+⭐ It began as *"revise `Q75`, measure rather than rushing"* and became a storage-model
+investigation, because the measurements kept contradicting the design record.
+
+| | |
+|---|---|
+| 📄 **`Q75`** | went **back** from `READY-TO-BUILD` to `DESIGN` *(§9.6)*. Its `C` is reopened; `S1`/`S2` are blocked |
+| 📄 **`Q76`** *(NEW)* | [`Architect_Question_76_One_Blackboard_Block_Per_Primitive.md`](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md) — one contiguous block per running AI primitive. **`A` and `C` RESOLVED (remove); `B`, `D`, `E` are unapproved leans.** §10 is the way back in, **§11 is the fully designed `S-SUB` slice** |
+| 📄 **the baseline** | [`EXPLAINER_Where_Parameters_And_State_Live.md` §7](EXPLAINER_Where_Parameters_And_State_Live.md) — **the as-measured storage picture**, written at the user's request as the basis for further decisions |
+| 🔒 **`R-150`** | *complexity an author must understand is a cost; an unadopted capability is not a neutral one* |
+| 📋 **filed** | `CE-418` `CE-420` `CE-421` `CE-422` `CE-423` `CE-424` |
+
+### 11.2 ⛔⛔ THE ONE THING THAT DOES NOT WAIT
+
+🔴 **`CE-418` — two offset authorities, and they disagree.** `Pack` derives alignment from **size**
+*(`Math.Min(size,8)`)*; the CLR aligns by **type**. 📐 Runtime-probed: **3 of 15 generated
+behaviours, 9 of 31 manifest fields.** ⛔ **Live** in StructEdit's typed params editor *(reads AND
+writes)* and the ReplayBrowser predicate compiler, while the ImGui render uses the manifest ⇒ **two
+panels disagree about one entity.** ⭐ It blocks `Q75`, and **its fix is identical whether or not
+`Q76`-`B` is adopted.** ⚠ Still not authorised — but it is what to propose first.
+
+### 11.3 ⏭ THE OPEN DECISION, AND ITS SHAPE
+
+> **Adopt `Q76`-`B` — one contiguous block per running AI primitive, root and children alike?**
+
+⭐ `A` *(retire cross-entity shared memory)* and `C` *(retire `WorkingStateScope`)* are decided
+**REMOVE** — ⛔ **but both are sequenced INSIDE `B` and are INERT without it.** ⇒ **one decision.**
+⭐ **`S-SUB` (`Q76` §11) is the natural pilot** — its BTree arm needs neither `S1` nor the scope work.
+
+### 11.4 ⛔⛔ THE TRAPS — **measured; do NOT re-derive**
+
+| # | |
+|---|---|
+| **①** | ⛔ **I corrected myself FIVE times this session**, each time after the user pushed: the lazy/eager claim, the per-variable framing, and `Entity` scope **three times**. ⇒ ⭐⭐ **do not trust a summary of this area — including §7's — without the file:line it cites.** §7 carries them |
+| **②** | ⭐ **`Entity` scope is cross-ENTITY coordination by name**, not cross-behaviour persistence and not host/subtree sharing. Its key folds **the variable name and nothing else** |
+| **③** | ⭐ **The declared blackboard is EAGER** — `ProvisionStatefulSlots` at ingress. Only a **hosted occurrence** is lazy, and **identity forces it, not allocation** |
+| **④** | ⭐ **Parse runs BEFORE provisioning** *(parse → commit → provision)*, which is why a resolver cannot write working state today |
+| **⑤** | ⭐ **The two hosting paths disagree on freshness** — a subtree **aliases** the host's params every tick; an AiPrimitive holds a **snapshot**. 📄 `S-SUB` fixes it and §11.4 there names it as a behaviour change |
+| **⑥** | ⛔ **`tracker-counts.py --check` counts `BP-` rows ONLY** — it verified none of `CE-418`…`CE-424`. Known gap, `CE-073`. ⚠ Do not report it as if it gated them |
+| **⑦** | ⭐ **`PlatoonHillAttack2` is KEPT** *(`Q76` §6)* — the six `HillAssault2I_*` graphs are deletable duplicates, but the tree is the only 7-primitive composition demonstrator |
+| **⑧** | ⛔ **`IHostVariableAccess`'s header forbids a write path** *("a second supply mechanism")*. `Q76` §D.1 argues the narrowing; ⚠ **it is an argument, not a settled point** |
+
+### 11.5 ⏭ WHAT "ANALYSING AND VERIFYING" SHOULD COVER NEXT
+
+⭐ The user's stated next phase. The open measurements, in the order they matter:
+
+| | |
+|---|---|
+| **1** | 🔴 **the six `HillAssault2I_*` graphs' WRITE patterns** — can the host own the mutation *(children return values, host writes)*? ⇒ **decides `Q76`-`D`**, and if yes `TryWrite` is unnecessary and `IHostVariableAccess`'s rule survives intact |
+| **2** | ⚠ **whether anything writes a root param at RUNTIME** other than StructEdit ⇒ sizes trap ⑤'s real-world impact |
+| **3** | ⚠ **`CE-418`'s blast radius on the goldens** — 17 BTree `*.Blackboard.g.cs` move under `S0`; confirm nothing else keys on those offsets |
+| **4** | ⭐ **the `E5`/`E6` suites** — the regression net for `S-SUB`; confirm they cover HSM-hosts-BTree and BTree-hosts-BTree before touching either |
+
+### 11.6 🔒 STANDING CONSTRAINTS
+
+⭐ Push only to **`behaviors`** *(`git push -u origin behaviors`, retry network errors 2/4/8/16 s)* ·
+⛔ **never commit `stash@{0}`** · ⭐ questions in plain chat text, **never** the question widget ·
+⭐ docs and task ids as **GitHub blob links on `behaviors`**, and **gloss every id on first mention**
+*(the user reads on mobile)* · ⭐ run builds/tests/searches **in the background** · ⛔ no model
+identifier in commits or repo artefacts · ⛔ **do not create a PR** unless asked ·
+⚠ **cross-lane STOP-and-report:** `Hrot/Runner/Hrot.SystemTests/`, `Hrot.IG.Tests`,
+`FDP/Engine/Fdp.Core`.

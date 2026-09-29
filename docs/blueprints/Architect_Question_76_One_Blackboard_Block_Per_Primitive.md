@@ -416,6 +416,9 @@ treating an author's "this is incomprehensible" as a documentation request.**
 > ⇒ ⛔ **This is NOT a stalled batch and NOT a backlog item.** It is a decision left open on
 > purpose, with everything needed to take it already measured. **Nothing expires.**
 
+⭐ **§11 is a fully designed slice** — `S-SUB`, the subtree unification — ready to cost but **not
+authorised**. It is the cheapest part of `B` and the natural pilot.
+
 ### 10.1 ⭐ The ONE question to answer on return
 
 > **Do we adopt `B` — one contiguous blackboard block per running AI primitive, root and children
@@ -457,3 +460,99 @@ and `E` are subordinate to it. ⛔ **There is no second question to prepare.**
 ⇒ ⭐⭐⭐ **`CE-418` is the one that does not wait.** It is a live defect in two user-facing surfaces
 *(StructEdit's typed params editor and the replay predicate compiler)*, it blocks `Q75`, and its fix
 is identical under both outcomes. ⛔ **Everything else can sit.**
+
+---
+
+## 11. ⭐⭐⭐ SLICE `S-SUB` — **a hosted SUB-BEHAVIOUR gets its own block, seeded once** *(designed `2026-09-29`)*
+
+> 🔒 **User, `2026-09-29`:** *"I want to unify all that for sure, so same concept work for any
+> sub-behavior. The subtree sharing hosts memory looks like relic from time what we had one single
+> blackboard slot per entity. no longer true. I need each behavior having its own allocated slot.
+> and resolving behavior params (that are stored in host blackboard as variable) exactly once at
+> starting the sub-behavior, by calling resolver if exists or auto-copying the params to
+> sub-behavior's blackboard."*
+
+⭐⭐⭐ **This is `B` applied to hosted SUBTREES, and it is the cheapest part of `B` because the target
+already ships.** ⛔ It is **not** a new mechanism: the hosted-**AiPrimitive** path already does
+exactly what the user describes. `S-SUB` converts the subtree path to it.
+
+### 11.1 🔴 The gap, measured
+
+| | hosted **AiPrimitive** *(the target, ships today)* | hosted **SUBTREE** *(the relic)* |
+|---|---|---|
+| the child's params | ⭐ **its own region**, inside its own occurrence slot | ⛔ **none** — `TickFromContext` aliases `ref childBb` onto the **host's** root params region |
+| when | ⭐ **seeded ONCE** at `freshlyAttached`, then the per-asset resolver runs, then working state is default-init'd *(`AiPrimitiveEmitter.EmitParamSeed:464`)* | ⛔ **re-resolved EVERY TICK** — `RootParamsAccess.TryGetRootBytes` per tick, a linear scan of attached slots |
+| the slot holds | `[cursor][Params][WorkingState]` | ⛔ **the cursor ONLY** — `TreeStatePayloadSize => sizeof(BehaviorTreeState)` *(`HostedSubtree.cs:33` → `BTreeHostedSites.cs:189`)* |
+| which host variable feeds it | ⭐ a **per-site** binding — `SeedParamsOffset(instance, writer, AssetId)` *(`CE-414`)* | 🔴 **NOTHING SAYS** — it gets the host's *whole* region |
+| freshness | snapshot | live alias |
+
+📐 **The sizing is the tell that this is a relic:** the subtree slot is sized for a **cursor and
+nothing else** — which is what you build when the params have nowhere else to live. `P3` gave params
+their own slot and this path was never revisited.
+
+### 11.2 The sequence — **what changes**
+
+```mermaid
+sequenceDiagram
+    participant Host as "host behaviour"
+    participant Sub as "hosted subtree"
+    participant Slot as "the child's occurrence slot"
+    participant Res as "resolver, if registered"
+
+    Note over Host,Slot: TODAY - every tick
+    Host->>Slot: TryGetRootBytes(world, self)  (linear scan)
+    Slot-->>Host: pointer to the HOST's root params region
+    Host->>Sub: Tick(ref childBb = the host's region, ref cursor)
+    Note over Sub: the child READS THE HOST's bytes, live
+
+    Note over Host,Res: TARGET - once, at first attach
+    Host->>Slot: attach [cursor][Params][WorkingState]
+    Host->>Slot: seed Params from the BOUND host variable
+    Host->>Res: TryRun(childAssetId, ref params, world, self, host)
+    Host->>Slot: InitDefaultWorkingState
+    Note over Host,Sub: every tick after - Tick(ref child's OWN params, ref cursor).<br/>No scan, no aliasing.
+```
+
+> ⭐ **Caption — what the picture shows that the table could not.** The per-tick arrow **disappears
+> entirely**: the scan exists only because the child has nowhere of its own to read from. ⛔ And the
+> `Res` arrow **cannot** exist today — there is no point in a subtree's life at which a resolver
+> could run, because nothing is ever "started" for it.
+
+### 11.3 ⭐ The seven pieces, and where each lands
+
+| # | piece | file(s) | note |
+|---|---|---|---|
+| **①** | the slot payload becomes `[cursor][Params][WorkingState]` | `HostedSubtree.cs:33` | drop `TreeStatePayloadSize`'s cursor-only assumption |
+| **②** | size it from the CHILD's definition | `BTreeHostedSites.cs:189` · the ingress demand | `+ RootParamsBytes(childDef)`; `TryGetHostedOccurrenceDemand` already feeds tier selection |
+| **③** | 🔴 **a per-site params binding** | the subtree hosting DTO, both emitters, the picker | ⛔ **the real work.** ⭐ **Template: `CE-414`** did exactly this for AiPrimitives one week earlier — compose step, auto-managed variable, per-site seed key |
+| **④** | seed + resolve at first attach | `HostedSubtree` | ⭐ reuse `EmitParamSeed`'s body verbatim |
+| **⑤** | tick reads the child's own region | `HostedSubtree.TickFromContext` · `OccurrenceSubtreeHost.cs:49` · `BrainTickSystem.TickHostedChildren` | ⭐ **deletes** the per-tick scan |
+| **⑥** | the child's blackboard TYPE | BTree child ✅ `{Asset}_Blackboard` · **HSM child ⛔ none** | 🔴 **depends on `Q75`-`S1`** — HSM children only |
+| **⑦** | authoring binds a params variable | the subtree picker | mirrors the AiPrimitive compose |
+
+⭐ **Surface: under ten production files.** ⚠ The emitters are `HsmBridgeEmitCore.CollectHostedSubtrees`
+and the BTree hosted-slot arm.
+
+### 11.4 ⛔⛔ TWO BEHAVIOUR CHANGES — **named here so they are not DISCOVERED**
+
+| | |
+|---|---|
+| 🔴 **a subtree stops seeing host param changes live** | it takes a snapshot at start. ⭐ This MATCHES the AiPrimitive path and the stated rule *(`IHostVariableAccess`: "live binding stays out of the model")*. ⚠ **It is still a semantic change**: anything that writes a param at runtime — **StructEdit's typed editor does** — stops reaching a running subtree |
+| ⚠ **a subtree hosted on a NO-PARAMS host** | today it is handed a **scratch byte** *(the `WanderMilitary` shape, `HostedSubtree.cs:82`)*; it would get its own **defaulted** params region. ⭐ Better, ⛔ but different |
+
+### 11.5 ⚠ Dependencies and ordering
+
+⭐ **`S0` *(`CE-418`, one layout authority)* → `S1` *(HSM blackboard struct)* → `S-SUB`.**
+⚠ Only piece ⑥ needs `S1`, and **only for HSM children** ⇒ 📌 **the BTree arm of `S-SUB` could go
+first**, which also makes it the natural pilot for `B`.
+
+### 11.6 Rails `S-SUB` owes
+
+| | |
+|---|---|
+| ⭐⭐⭐ **seeded once, not per tick** | a host whose params are mutated AFTER the child starts: the child keeps its seeded values. ⛔ **Red-proves on today's tree**, where it sees the change |
+| ⭐⭐ **the resolver runs, exactly once** | a subtree whose child asset declares a resolver: it fires on attach and not on subsequent ticks |
+| ⭐⭐ **per-site binding** | one host, the SAME child asset at two sites, two different bound variables ⇒ two different seeded values. ⛔ **Not expressible today at all** |
+| ⭐ **the scan is gone** | `TickFromContext` no longer calls `TryGetRootBytes` |
+| ⭐ **no-params host** | a child hosted by a params-less behaviour gets its defaults, not a scratch byte |
+| ⭐ **`E5`/`E6` still pass** | the existing HSM-hosts-BTree and BTree-hosts-BTree suites are the regression net |
