@@ -706,6 +706,15 @@ is legal)* → `CE-426` *(one bake→supply→resolve helper; closes `CE-420` fo
 `CE-428` *(bind a blueprint `Construction` graph as a resolver)* → `CE-430` *(the one hand-written
 behaviour)* → `A` + `C`.
 
+### 12.2a ⛔ `Q76`-`D` IS WITHDRAWN *(`2026-09-29`)*
+
+🔒 The user asked *"why would resolver write the host's blackboard? Is any use case described in its
+owning design?"* — 📐 **measured: no, on every count.** The seam is **resolve-time** *(the host
+accessor is built only as an argument to `EmitParamSeed`, inside `if (freshlyAttached)`; the tick
+path receives none)* while the need it was invented for — `SetShared` — is **tick-time**; and no
+owning design describes a write use case at all. ⇒ `D` is **withdrawn, not parked** — 📄 `Q76`
+§12.9e. ⚠ Whether the READ seam survives the per-site binding is `Q76` §12.9d and is **not** decided.
+
 ### 12.3 ⭐⭐ The three findings §12 added, which §11 did not know
 
 | | |
@@ -713,3 +722,11 @@ behaviour)* → `A` + `C`.
 | **①** | ⭐⭐⭐ **A blueprint-authored resolver already ships and is bound to NOTHING.** `GraphKind.Construction` is authorable, purity-checked, compiled and published in `BlueprintDefinition.Resolvers` — and that index is read by **no production code**, only 3 test files *(measured `2026-09-29`)*. ⇒ the user's *"not exactly sure how if the resolver is for non-blueprint behavior"* has a clean answer: the graph lives in a **Library** asset, so it was never tied to the behaviour's kind. `CE-428` is one binding |
 | **②** | ⭐⭐ **The editor must NOT emit the struct.** `BlackboardDtoEmitter` has **0** production callers; the build-time generator is the sole producer and should stay so *(`R-132`)* |
 | **③** | ⚠ **`Q76` §12.1 supersedes §11.3 ①** on the subtree payload: `[cursor][one blackboard struct]` — **two** regions, served unchanged by the shipping `OccurrenceWorkingState.ResolveOrAttach<,>` with the cursor at the base |
+
+### 12.4 ⭐⭐ THE RESOLVER-GRAPH MEASUREMENT *(`2026-09-29`)* — 📄 `Q76` §12.9
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the "blackboard as pins" node already ships** | `BreakStruct`/`MakeStruct`/`SetMembers` *(whole-struct, all pure)* and `GetParameter`/`GetAllParameters`/`SetVariable` *(by name)*. 🔴 **And an AiPrimitive's own `Construction` resolver already uses the second pair** — `EmitOwnResolverMethod:138` emits `(ref Params p, …)` and its header says the graph *"reads through `Get Parameter` and writes back through `Set Variable`"*. ⇒ **no new node KIND; only the SUBJECT widens.** `CE-433` is ergonomics only |
+| 🔴 **multiple params: the platform yes, the resolver no** | `LibraryEmitter` emits N inputs and `CSharpReturnType` handles N outputs, **but `BP1677` narrows a resolver to "one DTO in → the SAME DTO out"** and `EmitResolverEntry:387` bails on `Inputs.Count != 1`. The target is two DIFFERENT types ⇒ `CE-432` widens it |
+| ⭐ **two resolver shapes exist** | ① a **Library** asset's reusable graph *(declares its DTO)* · ② an **asset's own** graph *(implied subject — because an AiPrimitive's `Params` FQN embeds a hash)*. ⭐⭐ A BEHAVIOUR's generated types are named from the ASSET NAME, so both are open to it; ⚖️ lean ② for a behaviour's own resolver |

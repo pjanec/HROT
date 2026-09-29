@@ -311,7 +311,22 @@ scope arms go.
 ⚠ **Same sequencing as `A`:** `C` is only possible once `B` supplies keying from occurrence
 identity. ⇒ **not a standalone cut.**
 
-### D — add `IHostVariableAccess.TryWrite`? ⚖️ **LEAN: YES — but it CONTRADICTS A DOCUMENTED RULE, and that must be argued, not skipped**
+### D — add `IHostVariableAccess.TryWrite`? ⛔⛔ **WITHDRAWN `2026-09-29` — IT WAS ON THE WRONG SEAM**
+
+> 🔒 **User:** *"why would resolver write the host's blackboard? still the relic from time subtree
+> could not have own slot? Is any use case described in its owning design?"*
+
+📐 **Measured, and the answer is no on every count** — 📄 **§12.9e carries it.** In short: the seam is
+**resolve-time** *(the host accessor is constructed only as an argument to `EmitParamSeed`, inside
+`if (freshlyAttached)`; the tick path `TickCore(ref p, ref ws, self, world, time)` receives none)*
+while the need it was invented for — `SetShared` — is **tick-time**; and **no owning design describes
+a write use case at all**. ⛔ `D` is WITHDRAWN. ⚠ The read seam is untouched and keeps its documented
+use case *(`DESIGN_Parameter_Model` §3.4)*; whether even THAT survives the per-site binding is §12.9d,
+and is not decided.
+
+#### ⛔ HISTORY — the withdrawn lean, kept because `D.1` is the lesson
+
+### ~~D — add `IHostVariableAccess.TryWrite`?~~ ⚖️ **LEAN WAS: YES — but it CONTRADICTS A DOCUMENTED RULE, and that must be argued, not skipped**
 
 📐 The seam is read-only today. The 58 `state` references need a host-owned region they can write.
 ⛔ **Rejected — let a child write the host's block directly:** the seam exists to keep a child from
@@ -911,9 +926,11 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 | **4** | `CE-426` | one **bake → supply → resolve** helper, called by the ingress and by the hosting thunk; shadow widened to the block | 2 |
 | **5** | `CE-427` | widen the seam to `ResolveBlock<TAuthored,TBlock>`; collapse the two resolver registries into one keyed by asset id | 4 |
 | **6** | `CE-431` | **`S-SUB`** *(§11)* — a hosted subtree gets its own block, seeded once. ⭐ **the pilot**: its BTree arm needs neither `S1` nor the scope work | 4 |
-| **7** | `CE-428` | bind a blueprint `Construction` graph as a behaviour's resolver — asset field, editor picker, registrar lookup | 5 |
-| **8** | `CE-430` | fold `HillAttackMutableState` back into `PlatoonHillAttackBlackboard`; retire `StatefulAction`'s manifest/scope arguments | 4 |
-| **9** | `A` + `C` | retire cross-entity shared memory and `WorkingStateScope` — now unblocked | 6, 8 |
+| **7** | `CE-432` | widen `BP1677` from "one DTO in → the SAME DTO out" to "authored DTO in → the BLOCK out" — one Stage-2 rule, one emitter lambda | 5 |
+| **8** | `CE-428` | bind a blueprint `Construction` graph as a behaviour's resolver — asset field, editor picker, registrar lookup | 7 |
+| **8a** | `CE-433` | ⭐ OPTIONAL ergonomics — a `Get All / Set Blackboard Variables` pin pair baked from the variable table. ⛔ The capability already ships *(§12.9a)*; this is the `GetAllParameters`-style wrapper | 7 |
+| **9** | `CE-430` | fold `HillAttackMutableState` back into `PlatoonHillAttackBlackboard`; retire `StatefulAction`'s manifest/scope arguments | 4 |
+| **10** | `A` + `C` | retire cross-entity shared memory and `WorkingStateScope` — now unblocked | 6, 8 |
 
 ⭐ **`CE-420`** *(an authored default on a `Role=State` variable is silently dropped)* **closes inside
 `CE-426`** — the bake stage covers the whole DTO.
@@ -942,3 +959,115 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 | **`D`** | `IHostVariableAccess.TryWrite` — a resolver writing its **HOST's** variables. ⛔ Distinct from ③ above; `D.1`'s argument stands. The measurement that decides it is the six `HillAssault2I_*` graphs' write patterns |
 | ⚠ **the subtree freshness change** | a subtree stops seeing host param changes live *(§11.4)*. ⭐ Correct, matches the AiPrimitive path and the stated rule — ⛔ still a behaviour change |
 | ⚠ **`V_ResolverPurity`'s two gaps** | a CLR-method `FunctionCallNode` is allowed and unanalysable. ⭐ Unchanged by this design, but a resolver that writes more makes the gap worth re-reading before `CE-428` |
+
+---
+
+### 12.9 ⭐⭐⭐ THE RESOLVER GRAPH — **what already exists, and the one signature that must widen** *(measured `2026-09-29`)*
+
+> 🔒 **User, `2026-09-29`:** *"no host accessor needed i guess; resolver works just between the
+> behavior dto and its blackboard dto"* · *"we will need a blueprint node that can access its
+> blackboard DTO (access the variable within that DTO as pins), both reading and writing"* · *"the
+> construction graph based resolver might need to get the behavior param dto as its own input param
+> and would need to use the blueprint node i mentioned above to write into behavior's dto (or it
+> could take the behavior dto as another param if supported - but i don't think multiple params are
+> supported, that is for you to check)"*
+
+#### 12.9a ⭐⭐ THE NODE ALREADY EXISTS — **twice, in two different styles**
+
+📐 Enumerated with `search_graph` over every `*Node` class, then read:
+
+| style | nodes | read | write | pure? |
+|---|---|---|---|---|
+| ⭐ **whole-struct, by value** | `BreakStructNode` · `MakeStructNode` · `SetMembersNode` | `Break`: struct in ⇒ **one data-out pin per field** | `SetMembers`: struct in + wired member pins ⇒ the modified **copy** out; `MakeStruct`: field pins ⇒ struct | ✅ none is on `V_ResolverPurity`'s deny-list ⇒ **pure by declaration**, already legal in a resolver |
+| ⭐⭐ **implied subject, by name** | `GetParameterNode` · `GetAllParametersNode` · `SetVariableNode` | `GetParameter` lowers to `p.{Name}`; `GetAllParameters` explodes **the whole list** into one pin each | `SetVariable` writes back | ✅ `SetVariable` is deny-listed in general and **permitted in an own-resolver** — see below |
+
+🔴🔴 **AND THE SECOND STYLE IS ALREADY WIRED AS A RESOLVER.** `AiPrimitiveEmitter.EmitOwnResolverMethod:138-165`
+emits an asset's own `Construction` graph as:
+
+```csharp
+public static NodeStatus Resolve(ref Params p, EntityRepository world, Entity self, IHostVariableAccess host)
+```
+
+and its own header states the authoring shape verbatim: *"the subject is IMPLIED, `BP1677` requires
+the graph to declare nothing, and **the graph reads through `Get Parameter` and writes back through
+`Set Variable`** — which `V_ResolverPurity` permits here precisely because **that write IS the return
+value**."*
+
+⇒ ⭐⭐⭐ **the requested capability — the DTO's variables as pins, read and write — is SHIPPED for an
+AiPrimitive's own params.** ⛔ **No new node KIND is needed.** What `Q76`-`B` changes is only the
+**subject**: `ref Params p` becomes `ref TBlock`, and the pin list comes from the behaviour's
+blackboard variable table instead of the AiPrimitive's `Parameters` list.
+
+#### 12.9b 🔴 MULTIPLE PARAMS — **the user's guess is correct, and precisely so**
+
+| level | supported? |
+|---|---|
+| the **platform** | ✅ **yes.** `LibraryEmitter.cs:207` emits one C# parameter per `graph.Inputs` entry, and `CSharpReturnType` handles **0 ⇒ `void` · 1 ⇒ that type · N ⇒ an unnamed `ValueTuple`**. ⭐ Struct-typed graph inputs are measured to work *(`LibraryEmitter.cs:32`, `2026-09-21`: §8.1's "R3 — struct/DTO-typed graph inputs, Hard (architectural)" is **STALE**)* |
+| the **resolver arm** | ⛔ **NO — narrowed to exactly one, deliberately.** `BP1677` = *"a resolver graph is not (one DTO in → **the same DTO out**)"*, and `CSharpEmitter.EmitResolverEntry:387` returns early on `graph.Inputs.Count != 1`, emitting `__dto = Class.Graph(__dto, world, self, host)` |
+
+📐 **And there are already TWO resolver-graph shapes**, `V_ResolverPurity.cs:87-95`:
+
+| | shape | declares its DTO? | why |
+|---|---|---|---|
+| **①** | a **Library** asset's `Construction` graph — a **reusable** resolver something else names | ✅ yes — one in, one out, **same type** | it must be nameable by another asset |
+| **②** | an **asset's own** `Construction` graph — refines **this** asset's params | ⛔ no, the subject is implied | 🔴 measured: an AiPrimitive's params struct is GENERATED and its FQN **embeds the BlueprintId hash**, so no authored `TypeId` could name it |
+
+⭐⭐ **A BEHAVIOUR is not in ②'s bind.** A behaviour's generated types are named from the ASSET NAME
+*(`T09_BlackboardManaged_Blackboard`, `PlatoonHillAttack2_…BrainBlackboard`)*, **not** from a hash ⇒
+both shapes are technically available to it.
+
+⚖️ **LEAN: use shape ② — the implied subject — for a behaviour's OWN resolver**, and keep ① for a
+*reusable* resolver shared across behaviours. ⭐ The author then never types a generated FQN, and it
+reuses the `Get Parameter` / `Set Variable` authoring that already ships. ⚠ **What would change the
+lean:** if one resolver graph must serve several behaviours with different blackboards, ① is the only
+shape that can express it — but that needs a use case, and none is measured.
+
+#### 12.9c ⛔ THE ONE THING THAT MUST CHANGE — `BP1677`
+
+The target signature is **two different types**: `(in TInputs authored, ref TBlock block, …)`.
+⛔ `BP1677`'s rule is *"one DTO in → **the same** DTO out"*. ⇒ it must widen to:
+
+> **exactly one declared input — the authored params DTO — and an output of the BLOCK's type.**
+
+and `EmitResolverEntry`'s lambda becomes `__block = Class.Graph(__authored, __world, __self)`.
+⭐ **Small and local**: one Stage-2 rule, one emitter lambda, one delegate. 📄 `CE-432`.
+
+⭐ **The convenience node is separate and optional** — a `Get All Blackboard Variables` /
+`Set Blackboard Variables` pair whose pin list is baked from the behaviour's variable table, so an
+author does not chain one `Get Parameter` per field. 📌 **The precedent is exact**:
+`GetAllParametersNode` exists for precisely this reason over `GetParameterNode`. 📄 `CE-433`.
+
+#### 12.9d ⚠ THE `host` ARGUMENT — **probably droppable, and NOT decided here**
+
+🔒 The user: *"no host accessor needed i guess; resolver works just between the behavior dto and its
+blackboard dto."* ⭐ **That is consistent with the withdrawal of `D`** *(§12.9e)* and with the
+pipeline: under §12.3 a hosted child's authored params arrive as **stage 2's supply from a BOUND host
+variable**, so the child no longer needs to *reach* into its host to be configured.
+
+⚠ **But the two are not identical, and the difference is the whole question:** the binding supplies
+**ONE** variable, chosen at the hosting site; `IHostVariableAccess.TryRead` reads **ANY** host
+variable by name. ⇒ **the binding subsumes the seam only if one variable per site suffices.**
+📐 **Not yet measured**, and it is cheap to measure: the one shipped implementation is
+`HsmHostVariableAccess`, reached only from `EmitParamSeed`'s resolve call.
+⛔ **Do not drop the argument on this section's authority** — removing it is a breaking change to
+every resolver signature, and the seam's own header warns that churning the delegate twice is the
+avoidable cost. ⭐ If it goes, it goes in `CE-427`'s one signature change, not separately.
+
+#### 12.9e ✅ DECISION `D` IS WITHDRAWN — **it was on the wrong seam**
+
+> 🔒 **User, `2026-09-29`:** *"why would resolver write the host's blackboard? still the relic from
+> time subtree could not have own slot? Is any use case described in its owning design?"*
+
+📐 **Answered, measured:**
+
+| | |
+|---|---|
+| ⭐ **where `D` came from** | ⛔ **not** the subtree relic — from decision `A`. The six `HillAssault2I_*` graphs write a shared `state` region *(58 refs)*, and §0 re-expresses that as *"a named region of the host's block, which children may read and write"*. `TryWrite` was the proposed write path. ⚠ Putting it in the same document as the aliasing relic made it read as one problem; **they are two** |
+| 🔴 **the seam is RESOLVE-time; the need is TICK-time** | `AiPrimitiveEmitter.cs:717` constructs `HsmHostVariableAccess.For(…)` **only** as an argument to `EmitParamSeed`, inside `if (freshlyAttached)`. The tick path is `TickCore(ref p, ref ws, self, world, time)` — **it receives no host accessor at all**. `SetShared` writes happen every tick ⇒ **a resolve-time seam cannot carry a tick-time capability** |
+| 📄 **a WRITE use case in any owning design?** | ⛔ **None.** `DESIGN_Parameter_Model.md` §3.4 *(the owning design, user ruling `2026-08-16` "use that interface for host context")* describes only the READ case — a child's params computed from its host's variables, *"not a new supply mechanism… the one thing it lacks is **addressing**"* — and states the prohibition in the same words as the header. The only child→host write in the corpus is `SetShared`, in the design `A` retires |
+
+⇒ ⭐⭐ **`D` is WITHDRAWN as written**, not parked. ⚠ `D.1`'s self-criticism stands and is the lesson:
+the lean was formed, then the rule was narrowed to fit it, when the measurement said the seam was
+wrong. ⛔ **If child→host coordination is still wanted after `A`, it is a TICK-time question** and
+belongs with the messaging alternative — 🔒 the user's own framing: *"if commander wants something
+from subordinate, it sends command to it; if subordinate needs to tell something back, it reports."*
