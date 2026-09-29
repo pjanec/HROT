@@ -15,6 +15,12 @@ related-designs:
   - DESIGN_Behavior_Self_Registration.md — owns WHERE a curated resolver is declared (the attribute).
     ⛔ It does NOT own whether the overlay wins; §338 here does.
   - Behavior_Architecture_Implementation_Plan.md — the sequencing history.
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐⭐⭐ owns WHERE the resolved
+    values LIVE (one blackboard block per running behaviour, APPROVED 2026-09-29) and WIDENS the
+    resolver's reach from the params region to the whole block. Its §12.3 keeps THIS document's
+    bake→overlay→resolve ORDER unchanged and adds a third stage-2 supplier (a hosted child reads
+    a variable of its HOST's block). Its §12.4 binds Q43's Construction-graph resolver, which is
+    compiled and published here but read by nothing in production.
 -->
 
 # Behavior Parameters & the Resolver — Detailed Design

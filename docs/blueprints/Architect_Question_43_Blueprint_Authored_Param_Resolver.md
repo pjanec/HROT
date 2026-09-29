@@ -18,6 +18,12 @@ known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.3 rules a reuse
   `global::Ns.Struct` compiles and marshals today. Q43-B2 wins; 8.3's avoidance is stale.
   This is Q41-C3' promoted to its own question, as Q41 said it should be.
 related-designs:
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐ owns the BINDING this
+    document's Construction graph still lacks. Measured 2026-09-29: the graph is authorable,
+    purity-checked, compiled and published in BlueprintDefinition.Resolvers, and that index is
+    read by NOTHING in production (3 test files only). Q76 §12.4/§12.4a is the binding, and
+    §12.3a records that widening the resolver to the whole block RAISES the value of
+    V_ResolverPurity rather than lowering it.
   - Behavior_Parameter_Resolver_Detailed_Design.md - owns this feature as gap G2 and
     decomposes it into R1-R5/E1-E6; R1+R2 (the LibraryFunctionDelegate seam) shipped
     2026-07-14 and this question's inventory missed them.

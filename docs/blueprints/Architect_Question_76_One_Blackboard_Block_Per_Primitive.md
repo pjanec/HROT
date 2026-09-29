@@ -1,20 +1,19 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-28
-build-state: DESIGN — NOTHING BUILT, AND NOTHING IS TO BE STARTED (user, 2026-09-28: "yes, record
-  both, do not start anything" · "not approved, i want it recorded so i can return to it any time").
-  A and C are RESOLVED (remove, both sequenced inside B); B, D and E carry leans and are NOT
-  approved. ⛔ A resolved decision is not a licence to build: no slice of this document, including
-  Q75's S0, has been authorised.
-  ⛔⛔ AND A AND C ARE INERT ON THEIR OWN — read this before treating them as work in hand. Both
-  resolve to "remove, sequenced inside B", and B is undecided. If B is never taken, NEITHER removal
-  happens: A standalone is ~200 lines and PARKS under the user's own rule, and C is impossible
-  because scope can only go once occurrence identity supplies the keying. ⇒ the two resolutions are
-  real decisions hanging off an open premise, not a backlog. §10 is the way back in.
-current-answer: §0 is the proposal in one paragraph and §1 the measurements that justify it.
-  §4 carries the decisions — A and C are RESOLVED with the measurement each was decided on; B, D, E
-  are leans. §5 is what is DELETED and §6 what is KEPT-BUT-RE-EXPRESSED — read both before quoting
-  a deletion. §7 is why this is cheap (nothing here is persisted).
+updated: 2026-09-29
+build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbatim: "whatever leads to
+  this single-blackboard-slot-per-running-behavior is authorized"). ⇒ A and C, which resolved to
+  "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
+  covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
+  block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
+  ⛔ NOTHING IS BUILT YET. §12.6 is the ordered slice list; CE-418 is slice 1 and is a live defect
+  whose fix is identical either way.
+current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
+  parameters reach it (bake → supply → resolve). §12.6 is the ordered slice list and §12.7 the rails.
+  §11 is the S-SUB slice, still valid but ⚠ §12.1 SUPERSEDES its §11.3 ① on the payload shape
+  ([cursor][one blackboard struct], two regions, not three). §0/§1 are the proposal and the
+  measurements; §4 the decisions; §5 DELETED and §6 KEPT-BUT-RE-EXPRESSED — read both before
+  quoting a deletion. §7 is why this is cheap (nothing here is persisted).
 decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will the removal simplify
   the code dramatically? if not, let's park it. if yes, let's remove it." Each resolution therefore
   carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
@@ -40,6 +39,12 @@ related-designs:
     S1/S2 assume one answer to "where is this variable".
   - Architect_Question_39_Merge_Variables_And_Working_State.md — ruled "two names, one concept" for
     Variable/WorkingState. This is the storage half of that ruling.
+  - Behavior_Parameter_Resolver_Detailed_Design.md — owns the RESOLVER's model and the
+    bake/overlay/resolve pipeline this keeps unchanged; §10 owns "a curated resolver outranks a
+    generated one". §12 widens its reach to the whole block and adds a stage-2 supplier.
+  - Architect_Question_43_Blueprint_Authored_Param_Resolver.md — owns the BLUEPRINT-authored
+    resolver (GraphKind.Construction, V_ResolverPurity, BlueprintDefinition.Resolvers). ⛔ It does
+    NOT own the binding to a behaviour, which does not exist; §12.4 is that binding.
 -->
 # Architect Question 76 — ONE blackboard block per running AI primitive
 
@@ -253,12 +258,21 @@ references a home** ⇒ **do NOT cut `A` standalone**; it lands inside `B` or no
 🔒 **`R-137` is satisfied** — the capability is removed by an explicit user decision against a
 measurement, not silently lost to a refactor. 📄 `R-150` is the general form.
 
-### B — one block per running primitive? ⚖️ **LEAN: YES**
+### B — one block per running primitive? ✅✅ **APPROVED `2026-09-29`**
+
+> 🔒 **User, verbatim:** *"whatever leads to this single-blackboard-slot-per-running-behavior is
+> authorized"* · *"brain state was never part of the blackboard so it is ok to be in another slot."*
 
 ⭐ It is already the model for hosted children and for the root params table; only the root's
 *split* deviates. ⭐ Slot count falls, so the tier budget *(`MaxSlots` 12/16/16/16)* improves.
 ⚠ **Cost:** one `StructureHash` per block instead of per region ⇒ a hot reload that changes any
 variable invalidates that primitive's whole state. Acceptable — reload reprovisions anyway.
+
+⭐⭐⭐ **THE APPROVAL CARRIES A SCOPE AND FOUR REQUIREMENTS — 📄 §12 is the design, and it is where
+the work starts.** The scope: **the brain state stays in its own slot** and is not part of the
+blackboard. The requirements: bake editor-saved defaults · overlay the behaviour parameters *(for a
+sub-behaviour, a variable of the HOST's block)* · a custom resolver may write **the whole block** ·
+`Role=Input` becomes **optional**. ⛔ **`D` is NOT approved by this** — §12.0 ③.
 
 ### C — retire `WorkingStateScope`? ✅ **RESOLVED `2026-09-28`: REMOVE, SEQUENCED INSIDE `B`**
 
@@ -556,3 +570,375 @@ first**, which also makes it the natural pilot for `B`.
 | ⭐ **the scan is gone** | `TickFromContext` no longer calls `TryGetRootBytes` |
 | ⭐ **no-params host** | a child hosted by a params-less behaviour gets its defaults, not a scratch byte |
 | ⭐ **`E5`/`E6` still pass** | the existing HSM-hosts-BTree and BTree-hosts-BTree suites are the regression net |
+
+---
+
+## 12. ⭐⭐⭐ THE BLOCK'S DTO — **who defines it, and how parameters reach it** *(APPROVED `2026-09-29`)*
+
+> 🔒 **User, `2026-09-29` — THE AUTHORISATION, verbatim:** *"brain state was never part of the
+> blackboard so it is ok to be in another slot. whatever leads to this
+> single-blackboard-slot-per-running-behavior is authorized. Note: must support the pre-seeding the
+> params from editor saved defaults and overriding from the behavior parameters (which in case of
+> sub-behavior are stored in hosting behavior blackboard) and using custom resolver that can access
+> (write) the whole (now single) blackboard DTO; default resolver would just copy the behavior params
+> to the blackboard INPUT role part; custom resolver can do whatever; in case of custom resolver
+> there noes not even need to be any role=Input variable defined (but can be); custom resolver could
+> be c# hardcoded or defined as a blueprint (not exactly sure how if the resolver is for non-blueprint
+> behavior)"*
+
+### 12.0 ⭐ What that message SETTLED
+
+| # | settled | consequence |
+|---|---|---|
+| **①** | ⭐⭐⭐ **`B` is APPROVED** — one blackboard block per running behaviour, root and child alike | `A` and `C`, which were "remove, sequenced inside `B`", stop being inert |
+| **②** | ⭐ **the BRAIN STATE is NOT part of the blackboard** and stays in its own slot | ⭐⭐ this is the *simplifying* answer: a BTree cursor is `sizeof(BehaviorTreeState)` but an HSM instance is `HsmInstanceManager.SelectTier(blob)` — **64/128/256 chosen at RUNTIME from the blob** *(`RootHsmAccess.cs:46`)*. A runtime-width region cannot be a field of a compile-time struct ⇒ folding it in would have forced a byte-level escape hatch into the one thing we are making typed |
+| **③** | ⭐⭐ **the supply pipeline has THREE stages and the resolver owns the WHOLE block** | §12.3. The resolver's reach widens from the params region to the block; `Role=Input` becomes **optional** |
+
+⚠ **What it did NOT settle: decision `D`.** `D` is `IHostVariableAccess.TryWrite` — a resolver writing
+**its HOST's** variables. The authorisation grants a resolver write access to **its OWN** block. ⛔ Do
+not read ③ as resolving `D`; it stays a lean, and its counter-argument in `D.1` is untouched.
+
+---
+
+### 12.1 ⭐ The block, and the two slot shapes
+
+```mermaid
+graph LR
+    subgraph root["ROOT behaviour — 2 slots"]
+        RB["brain state slot<br/>BTree cursor, or HSM instance<br/>RUNTIME width"]
+        RK["blackboard slot<br/>Inputs then State<br/>COMPILE-TIME struct"]
+    end
+    subgraph child["HOSTED child — 1 slot"]
+        CK["cursor then blackboard<br/>one payload, one key"]
+    end
+    root -.->|"same DTO, same pipeline"| child
+```
+
+> ⭐ **Caption — what the picture shows that prose hid.** The root needs **two** slots and the child
+> **one**, and that is not an inconsistency: the child's brain state is a fixed-width cursor so it
+> rides in the same payload, while the root's may be a runtime-width HSM instance so it cannot.
+> ⛔ **The BLACKBOARD is one block in both** — which is the whole claim. The asymmetry is in the brain
+> state, where the user has now placed it deliberately.
+
+📐 **Both shapes are already served by one shipping allocator** — `OccurrenceWorkingState.cs:109-158`,
+`ResolveOrAttach<TParams, TWorkingState>`, generic over two `unmanaged` types, **state at BASE and
+params AFTER** *(§28.3a — load-bearing: every existing reader decodes at the base)*:
+
+| | call |
+|---|---|
+| root blackboard slot | `ResolveOrAttach<TBlackboard>` — the existing one-region overload |
+| child slot | `ResolveOrAttach<TBlackboard, BehaviorTreeState>` ⇒ **cursor at base, blackboard after** |
+
+⭐⭐ **The cursor lands at the base by construction**, so every reader that decodes a hosted subtree's
+`BehaviorTreeState` today stays correct without being touched. ⚠ **This supersedes §11.3 ①'s spelling**
+`[cursor][Params][WorkingState]`: that reads as three regions needing a new helper. It is **two** —
+`[cursor][one blackboard struct]` — and the shipping generic covers it unchanged.
+
+---
+
+### 12.2 ⭐⭐⭐ WHO DEFINES THE DTO
+
+```mermaid
+classDiagram
+    class BehaviorDefinition {
+        <<EXISTS - BehaviorRegistry.cs:135>>
+        +Type JsonParamsDtoType
+        +Type BlackboardLayoutType
+        +ManagedBlackboardVariable[] ManagedBlackboardVariables
+        +StatefulSlotInfo[] StatefulWorkingSlots
+        +ParseParamsDelegate ParseParams
+    }
+    class Asset_Inputs {
+        <<NEW - Role Input fields>>
+        the PUBLIC authored contract
+    }
+    class Asset_State {
+        <<NEW - Role State fields>>
+        engine internal
+    }
+    class Asset_Blackboard {
+        <<NEW - the BLOCK>>
+        +Asset_Inputs In
+        +Asset_State St
+    }
+    class BTreeJsonGenerator {
+        <<EXISTS - emits Blackboard.g.cs>>
+    }
+    class HsmBridgeEmitCore {
+        <<EXISTS - emits NO struct today>>
+    }
+    class HandWrittenBlackboard {
+        <<EXISTS - PlatoonHillAttackBlackboard>>
+        +Params
+    }
+    Asset_Blackboard *-- Asset_Inputs
+    Asset_Blackboard *-- Asset_State
+    BTreeJsonGenerator ..> Asset_Blackboard : emits
+    HsmBridgeEmitCore ..> Asset_Blackboard : MUST emit - Q75 S1
+    BehaviorDefinition --> Asset_Inputs : JsonParamsDtoType
+    BehaviorDefinition --> Asset_Blackboard : BlackboardLayoutType
+    HandWrittenBlackboard ..|> Asset_Blackboard : same role, authored by hand
+```
+
+> ⭐ **Caption.** Drawing it forces the answer to *"who defines the DTO"*: **nobody new.**
+> `BehaviorDefinition` already carries both members and both type lists; the only new types are the
+> two halves of a struct the generator already emits half of.
+
+#### The three authoring routes — one emitted shape
+
+| route | who authors the table | who emits the struct | status |
+|---|---|---|---|
+| **BTree JSON asset** | the editor — `.btree.json` `Blackboard.Variables[]` *(name, type, role, scope, `DefaultValueJson`)* | ⭐ the **build-time generator** — `BTreeJsonGenerator.cs:270-287` → `{Asset}.Blackboard.g.cs` | ✅ ships, **Input only** |
+| **HSM JSON asset** | the editor — `.hsm.json`, same table | 🔴 **nobody.** `HsmBridgeEmitCore.cs:178-181` states it: *"the HSM generator emits NO blackboard struct… there is no type to name"* | ⛔ `Q75`-`S1` |
+| **hand-written C#** | the author | the author | ✅ the concept already exists — `TBlackboard` of `BTreeBuilder<TBlackboard, BTreeContext>` |
+
+⛔⛔ **The editor does NOT emit the struct, and must not start.** `BlackboardDtoEmitter`
+*(`Hrot.Editor.AiShared/Blackboard/BlackboardDtoEmitter.cs:73`)* writes a `{Asset}.Blackboard.cs`
+companion and has **zero production callers** — measured `2026-09-29` with `scripts/find.sh`: only its
+own test class, plus `BlackboardTypeHelper.cs:14` reusing its `TypeAliases` map. ⇒ ⭐ it is a dormant
+second producer for one slot *(`R-132`)*; leave it dormant.
+
+#### 12.2a ⭐⭐⭐ WHY `Role=Input` FIRST — **the Input region stays byte-identical**
+
+Every offset in `ManagedBlackboardVariables` is relative to the params base. Emitting the `Inputs`
+sub-struct **first, at offset 0, with its internal layout unchanged** means:
+
+| ⭐ | |
+|---|---|
+| ⭐⭐⭐ **nothing that reads params today moves** | StructEdit's typed editor, `RootParamsProjection`, the ReplayBrowser predicate compiler, the debug API — all keep their offsets |
+| ⭐⭐ **the default resolver is one `memcpy`** | `block.In = supplied` — the Input region is a contiguous prefix by construction, so *"copy the behaviour params to the INPUT role part"* needs no offset table |
+| ⭐ **the goldens move additively** | the State fields append; the Input prefix is unchanged bytes |
+
+#### 12.2b ⚠ THE TWO MEMBERS FINALLY DIVERGE — **and that is what they were split for**
+
+📐 Measured: today a generated behaviour sets **both** members to the same type, and a rail asserts it —
+`AGeneratedBehaviourAdvertisesItsManifestTests.cs:83` `Assert.Same(def.JsonParamsDtoType,
+def.BlackboardLayoutType)`; its curated twin asserts `NotEqual`
+*(`ABehaviourAdvertisesItsRealParametersTests.cs:183`)*. Under this design a generated behaviour
+becomes `JsonParamsDtoType = Asset_Inputs` and `BlackboardLayoutType = Asset_Blackboard` ⇒ ⭐ **the
+generated route starts behaving like the curated one**, which is exactly the separation `CE-235` made
+after `CE-224` published an engine-internal layout as a wire contract.
+⛔ **That rail must be updated, not deleted** — flip `Assert.Same` to "the layout's first field is the
+published contract". ⚠ Naming it here so it is a planned change and not a surprise red.
+
+---
+
+### 12.3 ⭐⭐⭐ HOW PARAMETERS REACH THE BLOCK — **bake → supply → resolve, exactly once**
+
+```mermaid
+sequenceDiagram
+    participant Start as "start of a behaviour"
+    participant Shadow as "the block (shadow, then committed)"
+    participant Src as "authored params"
+    participant Res as "resolver"
+
+    Note over Start,Res: STAGE 1 - BAKE
+    Start->>Shadow: write every variable's editor-saved default
+    Note right of Shadow: Inputs AND State - closes CE-420
+
+    Note over Start,Res: STAGE 2 - SUPPLY
+    alt root behaviour
+        Src->>Start: the assignment's JSON intent
+    else hosted sub-behaviour
+        Src->>Start: bytes of the BOUND variable in the HOST's block
+    end
+
+    Note over Start,Res: STAGE 3 - RESOLVE
+    alt no resolver registered (the common case)
+        Start->>Shadow: block.In = supplied   (one memcpy)
+    else custom resolver - C# or blueprint
+        Start->>Res: (in supplied, ref whole block, world, self, host)
+        Res->>Shadow: writes anywhere in the block
+    end
+    Start->>Shadow: commit, then attach the slot
+    Note over Shadow: never runs again for this occurrence
+```
+
+> ⭐ **Caption — what the picture shows that the table could not.** The **only** thing that differs
+> between a root and a child is the arrow in stage 2: *where the authored params come from.* Stage 1
+> and stage 3 are byte-identical for both. ⇒ that is what makes "one pipeline" a real claim rather
+> than a slogan, and it is why the helper can be **one** implementation called from two places.
+
+| stage | what it does | where it exists today |
+|---|---|---|
+| **1 BAKE** | write every variable's `DefaultValueJson` | ✅ emitted — `BTreeBridgeEmitCore.EmitParseParamsLocal` step 1. ⛔ **only for PACKED variables, i.e. `Role=Input`** ⇒ a `Role=State` default is silently dropped *(`CE-420`)*. ⭐ Extending the bake to the whole DTO **closes `CE-420` for free** |
+| **2 SUPPLY** | overlay the authored params | ✅ root: JSON overlay, same emitter, step 2 · ✅ child (AiPrimitive): the per-site seed copy, `AiPrimitiveEmitter.EmitParamSeed:464` · 🔴 child (subtree): **does not exist** — it aliases the host instead *(§11)* |
+| **3 RESOLVE** | default `memcpy`, or the custom resolver | ✅ hosted: `HostedParamResolvers.TryRun(AssetId, ref params, world, self, host)` · ✅ root: `BehaviorDefinition.ParseParams` · ⛔ both are scoped to the **params region**, not the block |
+
+🔒 **The ORDER is a standing ruling, not a choice** — `DESIGN_Parameter_Model.md` §3.2: *"defaults are
+baked, scenario JSON overlays them, runtime wins."* This design adds a third supplier to stage 2 (the
+host variable) and widens stage 3's reach; **it does not reorder the stages.**
+
+#### 12.3a ⛔ The shadow must grow to the whole block
+
+📌 A resolver runs inside `BehaviorIngressSystem`'s **shadow parse**: parsed into a stack copy,
+committed only on success, so *"a parse failure leaves the entity 100% on its old behaviour"*
+*(`Q43` §4)*. ⇒ ⭐ if the resolver may write the whole block, **the shadow must be the whole block.**
+🔒 The user anticipated this on `2026-09-28`: *"we can size the shadow to the full blackboard."*
+⚠ And it **raises** the value of `V_ResolverPurity`, which exists precisely because a side effect
+escapes the shadow — a resolver that can write more is a resolver whose purity matters more.
+
+#### 12.3b ⭐ `Role=Input` becomes OPTIONAL — **and that changes the sizing rule**
+
+🔒 *"in case of custom resolver there does not even need to be any role=Input variable defined."*
+📐 Today `RootParamsAccess.RootParamsBytes:265` sizes the region as the **manifest extent** —
+`max(ByteOffset + sizeof)` over the packed variables — falling back to `Marshal.SizeOf(BlackboardLayoutType)`
+and then to `0`. ⛔ With no `Role=Input` variable the manifest is empty ⇒ **0 bytes**, and the block
+would not be allocated at all. ⇒ ⭐ **the size must come from the DTO** (`sizeof(TBlackboard)`), with
+the manifest extent kept as the separate `InputBytes` the stage-2 copy needs. `CE-429`.
+
+⭐ **This shape is not new — it is what a CURATED behaviour already is.** `PlatoonHillAttack` takes
+geographic lat/lon in its authored DTO and its resolver writes Cartesian metres plus a resolved
+`Entity` into a layout that shares almost no field with it. ⇒ 🔒 **the "custom resolver can do
+whatever" case is the SHIPPED curated case, and the generated case is the degenerate one where the
+authored DTO equals the Input region and the resolver is a memcpy.** That is the unification.
+
+---
+
+### 12.4 ⭐⭐⭐ THE RESOLVER — **one seam, two authoring routes**
+
+```mermaid
+graph TD
+    subgraph author["authoring"]
+        CS["C# method<br/>BehaviorResolver attribute"]
+        BP["blueprint Construction graph<br/>in a LIBRARY asset"]
+    end
+    subgraph compile["build time"]
+        REG["curated registrar<br/>RegisterResolver by NAME"]
+        LIB["LibraryEmitter<br/>static Resolve(inputs, world, self, host)"]
+        IDX["BlueprintDefinition.Resolvers<br/>name to BlueprintResolverEntry"]
+    end
+    subgraph run["runtime"]
+        ONE["BlockResolvers<br/>ONE registry, keyed by asset id"]
+        PIPE["the supply pipeline, stage 3"]
+    end
+    CS --> REG --> ONE
+    BP --> LIB --> IDX
+    IDX -. "🔴 NOTHING READS THIS" .-> ONE
+    ONE --> PIPE
+
+    classDef dead stroke:#c00,color:#c00
+    class IDX dead
+```
+
+> 🔴 **Caption — the dead edge is the finding.** Every box exists and ships. The **dotted red edge does
+> not**: `BlueprintDefinition.Resolvers` is populated by the compiler and, measured `2026-09-29`, read
+> by **nothing in production** — its only consumers are three test files
+> *(`BlueprintAuthoredResolver_InvokeTests`, `ResolverWorldReachTests`, `OwnParamResolverTests`)*.
+> ⇒ ⭐⭐ **a blueprint-authored resolver is built, purity-checked and PROVEN INVOCABLE, and cannot be
+> attached to any behaviour.** That is one binding, not a feature.
+
+#### 12.4a ⭐⭐⭐ "How would a BLUEPRINT resolver work for a NON-blueprint behaviour?"
+
+🔒 The user's stated uncertainty. **Answer: the question dissolves — a `Construction` graph is not part
+of the behaviour.** It lives in a **Library** blueprint asset, is emitted as a plain static method
+`static TOut Name(inputs…, EntityRepository world, Entity self, IHostVariableAccess host)`
+*(`LibraryEmitter.cs:196-236`)*, and is published by graph NAME. ⇒ ⭐ **nothing about it requires the
+consumer to be a blueprint.** A BTree or HSM asset references it exactly as a curated C# resolver is
+referenced today — by name, at registration.
+
+📐 **What already exists, measured:**
+
+| | |
+|---|---|
+| the graph kind | ✅ `GraphKind.Construction`, authorable in the editor as **"Construction Script"** *(`BlueprintGraphModel.cs:141`)* |
+| purity | ✅ enforced — `V_ResolverPurity`, a deny-list plus a completeness rail *(`Q43-C1`)*, with two honestly-documented gaps |
+| emission | ✅ `LibraryEmitter.cs:40` — deliberately the **same** emit as a Function graph; the KIND is what makes it a resolver, never a naming convention *(`Q43-A3`)* |
+| publication | ✅ `BlueprintDefinition.Resolvers` — `Dictionary<string, BlueprintResolverEntry>`, `CSharpEmitter.cs:283,395` |
+| ⛔ **binding to a behaviour** | 🔴 **MISSING.** `CE-428` |
+
+⭐ **The binding, in three parts:** ① the behaviour asset gains a resolver reference
+*(library asset id + graph name)* · ② the editor gains a picker over `Construction` graphs *(the
+`ActionSchemaExporter` pattern the action/guard pickers already use, `CE-386`)* · ③ the generated
+registrar resolves `BlueprintDefinition.Resolvers[graphName].As<TDto>()` and binds it.
+🔒 **`R-149` already governs the collision case** — two explicit bindings for one params region
+**throw**, they do not race.
+
+#### 12.4b ⭐ Two registries collapse into one
+
+| today | keyed by | for |
+|---|---|---|
+| `BehaviorDefinition.ParseParams` + `BehaviorRegistry.RegisterResolver(name, …)` | behaviour **NAME** | the root |
+| `HostedParamResolvers.Register(assetId, …)` | asset **GUID** | a hosted child |
+
+⇒ ⭐⭐ **One registry keyed by ASSET ID**, invoked at block creation for root and child alike — because
+under `B` those are the same event. ⚠ `RegisterResolver`'s by-name overlay stays as the **curated
+binding surface** *(a curated artefact outranks a generated one — `R-132`, and §10 of
+`Behavior_Parameter_Resolver_Detailed_Design`)*; only the *lookup at run time* unifies.
+
+#### 12.4c The seam, widened
+
+```csharp
+// today — FDP/Toolkits/Fdp.Toolkits/Behavior/BehaviorParams.cs:18
+delegate void ResolveParams<TDto>(ref TDto dto, EntityRepository w, Entity s, IHostVariableAccess? h)
+    where TDto : unmanaged;
+
+// target — two types: what was AUTHORED, and the BLOCK it writes
+delegate void ResolveBlock<TAuthored, TBlock>(
+    in TAuthored authored, ref TBlock block, EntityRepository w, Entity s, IHostVariableAccess? h)
+    where TAuthored : unmanaged where TBlock : unmanaged;
+```
+
+⭐ The one-type form is the special case `TAuthored == TBlock.In`; the default resolver is
+`block.In = authored`.
+
+---
+
+### 12.5 📐 EXISTS vs MISSING — **the honest ledger**
+
+| piece | state |
+|---|---|
+| a generic one-block allocator | ✅ `OccurrenceWorkingState.ResolveOrAttach<,>` — generic, unmanaged, alignment-correct, tier-aware |
+| a per-asset resolver invoked once at attach | ✅ `HostedParamResolvers.TryRun`, inside `if (freshlyAttached)` |
+| seed-from-a-bound-host-variable | ✅ for AiPrimitives — `EmitParamSeed` + per-site `SeedParamsOffset` *(`CE-414`)* |
+| bake-then-overlay | ✅ `EmitParseParamsLocal`, and the order is a ruling |
+| blueprint-authored resolver | ✅ authorable, pure, compiled, published — 🔴 **bound to nothing** |
+| tier sizing from a declared demand | ✅ `HostedOccurrenceDemand.Of`, one rounding shared with the attach |
+| **a struct containing State fields** | 🔴 **0 of 15** generated blackboard structs have one *(swept `2026-09-29`; `Pack:146` excludes `Role=State`)* |
+| **an HSM blackboard struct** | 🔴 none, for any asset |
+| **a subtree's own block** | 🔴 none — it aliases the host, per tick |
+| **one layout authority** | 🔴 two, and they disagree — `CE-418` |
+
+---
+
+### 12.6 ⏭ THE SLICES — **ordered, and each independently shippable**
+
+| # | id | slice | depends on |
+|---|---|---|---|
+| **1** | `CE-418` | 🔴 **one layout authority** — the struct carries `[FieldOffset]` from `Pack`. ⭐ Live defect, fix is identical either way | — |
+| **2** | `CE-425` | emit the two-part struct `{ Inputs In; State St; }`, **Input first and byte-identical**; `Q75`-`S1` is its HSM arm | 1 |
+| **3** | `CE-429` | size the block from the DTO, keep `InputBytes` separately ⇒ a behaviour with **no** `Role=Input` variable is legal | 2 |
+| **4** | `CE-426` | one **bake → supply → resolve** helper, called by the ingress and by the hosting thunk; shadow widened to the block | 2 |
+| **5** | `CE-427` | widen the seam to `ResolveBlock<TAuthored,TBlock>`; collapse the two resolver registries into one keyed by asset id | 4 |
+| **6** | `CE-431` | **`S-SUB`** *(§11)* — a hosted subtree gets its own block, seeded once. ⭐ **the pilot**: its BTree arm needs neither `S1` nor the scope work | 4 |
+| **7** | `CE-428` | bind a blueprint `Construction` graph as a behaviour's resolver — asset field, editor picker, registrar lookup | 5 |
+| **8** | `CE-430` | fold `HillAttackMutableState` back into `PlatoonHillAttackBlackboard`; retire `StatefulAction`'s manifest/scope arguments | 4 |
+| **9** | `A` + `C` | retire cross-entity shared memory and `WorkingStateScope` — now unblocked | 6, 8 |
+
+⭐ **`CE-420`** *(an authored default on a `Role=State` variable is silently dropped)* **closes inside
+`CE-426`** — the bake stage covers the whole DTO.
+
+---
+
+### 12.7 Rails §12 owes
+
+| | |
+|---|---|
+| ⭐⭐⭐ **the Input region is byte-identical** | the generated `Inputs` sub-struct's field offsets equal today's manifest offsets for every one of the 15 assets. ⛔ Assert on the ARTEFACT, not on a re-computation |
+| ⭐⭐⭐ **a `Role=State` default survives** | author a default on a State variable; read it back at first tick. ⛔ **Red-proves on today's tree** *(`CE-420`)* |
+| ⭐⭐⭐ **no `Role=Input` variable + a custom resolver** | the block is allocated, the resolver runs, the values land. ⛔ **Not expressible today at all** |
+| ⭐⭐ **resolve runs exactly once** | mutate the source after start; the block keeps its resolved values |
+| ⭐⭐ **a blueprint resolver drives a BTree behaviour** | a `Construction` graph in a Library asset, bound to a JSON BTree asset, writes its block. ⛔ **The binding does not exist today** |
+| ⭐⭐ **a failed resolve leaves the old behaviour intact** | throw inside the resolver ⇒ the entity keeps its previous block, unmodified. ⭐ This is the shadow's whole purpose and the block is now what is shadowed |
+| ⭐ **the two definition members diverge** | `JsonParamsDtoType != BlackboardLayoutType` for a generated asset, and the published schema is the **Inputs** half only |
+| ⭐ **`E5`/`E6` still pass** | the HSM-hosts-BTree and BTree-hosts-BTree suites are the regression net |
+
+---
+
+### 12.8 ⚠ OPEN — **not settled by the authorisation**
+
+| | |
+|---|---|
+| **`D`** | `IHostVariableAccess.TryWrite` — a resolver writing its **HOST's** variables. ⛔ Distinct from ③ above; `D.1`'s argument stands. The measurement that decides it is the six `HillAssault2I_*` graphs' write patterns |
+| ⚠ **the subtree freshness change** | a subtree stops seeing host param changes live *(§11.4)*. ⭐ Correct, matches the AiPrimitive path and the stated rule — ⛔ still a behaviour change |
+| ⚠ **`V_ResolverPurity`'s two gaps** | a CLR-method `FunctionCallNode` is allowed and unanalysable. ⭐ Unchanged by this design, but a resolver that writes more makes the gap worth re-reading before `CE-428` |

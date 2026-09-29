@@ -4,7 +4,7 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ENTITY BEHAVIOUR, WITH BLUEPRINT ACTIONS AND GUARDS**. ⚠ A STATE doc, not canon: every
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-28
+updated: 2026-09-29
 build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE, and the
   RUNTIME is PROVED END TO END live (§8.4): the demo scenario drives to a seeded destination and
   destroys a target. Built: CE-402/403/388(D-A2,D-B1,D-D1,D-F)/404(D-E WITHDRAWN)/405/406/407/
@@ -12,11 +12,12 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §11** — the `2026-09-29` resumption state. §10 is the programme
-  summary it builds on; read §11 first, then §10, then §9 only for `Q75`'s history. The live
-  question is `Q76` (storage simplification), PARKED awaiting ONE decision, and `Q75` now DEPENDS
-  on it. ⚠ NOTHING IS IN FLIGHT AND NOTHING IS TO BE STARTED — including `Q75`'s `S0`.
-  🔒 The user's next step is stated: *"continue analyzing and verifying before implementation."*
+current-answer: ⭐⭐⭐ **START AT §12** — `Q76`-`B` is **APPROVED** (`2026-09-29`) and the design is
+  `Q76` §12. §12 here is the handle; the OWNING document is
+  Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12, whose §12.6 is the ordered slice
+  list. §11 is the previous day's resumption state and its §11.3 "the open decision" is now CLOSED;
+  §10 is the programme summary. ⚠ NOTHING IS BUILT YET — slice 1 is `CE-418`.
+  ⛔ `Q76`-`D` (IHostVariableAccess.TryWrite) is NOT covered by the authorisation.
   ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
   §8 only for §8.3's traps and §8.4's measured end-to-end result.
   (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
@@ -675,3 +676,40 @@ panels disagree about one entity.** ⭐ It blocks `Q75`, and **its fix is identi
 identifier in commits or repo artefacts · ⛔ **do not create a PR** unless asked ·
 ⚠ **cross-lane STOP-and-report:** `Hrot/Runner/Hrot.SystemTests/`, `Hrot.IG.Tests`,
 `FDP/Engine/Fdp.Core`.
+
+---
+
+## 12. ✅✅ **APPROVED — ONE BLACKBOARD BLOCK PER RUNNING BEHAVIOUR** *(`2026-09-29`)*
+
+> 🔒 **User, verbatim:** *"whatever leads to this single-blackboard-slot-per-running-behavior is
+> authorized"* · *"brain state was never part of the blackboard so it is ok to be in another slot."*
+
+📄 **THE DESIGN IS [`Q76` §12](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md)** — who
+defines the block's DTO, and how parameters reach it. ⛔ Do not re-derive it; this section is the
+handle, not the content.
+
+### 12.1 ⭐ What changed from §11
+
+| | |
+|---|---|
+| §11.3's "the single open decision" | ✅ **CLOSED — `B` approved.** `A` *(retire cross-entity shared memory)* and `C` *(retire `WorkingStateScope`)* stop being inert |
+| the brain state | ⭐ **scoped OUT of the blackboard by the user** — it keeps its own slot. `Q76` §12.0 ② records why that is the *simplifying* answer: an HSM instance's width is a RUNTIME value from the blob |
+| ⛔ `Q76`-`D` | **still NOT approved.** The grant is a resolver writing its OWN block; `D` is writing its HOST's. `Q76` §12.0's warning and §D.1 both stand |
+| build-state | ⭐ `Q76` is now **READY-TO-BUILD**. ⛔ **nothing is built** |
+
+### 12.2 ⏭ The slices, in order — 📄 `Q76` §12.6 carries the detail
+
+`CE-418` *(one layout authority — still slice 1, still a live defect)* → `CE-425` *(emit the two-part
+struct, Input first and byte-identical)* → `CE-429` *(size from the DTO, so no `Role=Input` variable
+is legal)* → `CE-426` *(one bake→supply→resolve helper; closes `CE-420` for free)* → `CE-427`
+*(widen the seam to the whole block, one resolver registry)* → `CE-431` *(`S-SUB`, the pilot)* →
+`CE-428` *(bind a blueprint `Construction` graph as a resolver)* → `CE-430` *(the one hand-written
+behaviour)* → `A` + `C`.
+
+### 12.3 ⭐⭐ The three findings §12 added, which §11 did not know
+
+| | |
+|---|---|
+| **①** | ⭐⭐⭐ **A blueprint-authored resolver already ships and is bound to NOTHING.** `GraphKind.Construction` is authorable, purity-checked, compiled and published in `BlueprintDefinition.Resolvers` — and that index is read by **no production code**, only 3 test files *(measured `2026-09-29`)*. ⇒ the user's *"not exactly sure how if the resolver is for non-blueprint behavior"* has a clean answer: the graph lives in a **Library** asset, so it was never tied to the behaviour's kind. `CE-428` is one binding |
+| **②** | ⭐⭐ **The editor must NOT emit the struct.** `BlackboardDtoEmitter` has **0** production callers; the build-time generator is the sole producer and should stay so *(`R-132`)* |
+| **③** | ⚠ **`Q76` §12.1 supersedes §11.3 ①** on the subtree payload: `[cursor][one blackboard struct]` — **two** regions, served unchanged by the shipping `OccurrenceWorkingState.ResolveOrAttach<,>` with the cursor at the base |
