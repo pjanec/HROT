@@ -53,6 +53,20 @@ public static class HostedParamResolvers
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-432</c> — registers a resolve stage over the asset's WHOLE block (parameters AND
+    /// state). The generated own-asset resolver of an AiPrimitive registers this shape.
+    /// ⚠ Same table as <see cref="Register{TParams}"/>: an asset names ONE resolver, whichever shape it
+    /// was authored in.
+    /// </summary>
+    public static void Register<TParams, TState>(Guid assetId, ResolveBlock<TParams, TState> resolver)
+        where TParams : unmanaged
+        where TState : unmanaged
+    {
+        if (resolver is null) throw new ArgumentNullException(nameof(resolver));
+        _byAsset[assetId] = resolver;
+    }
+
+    /// <summary>
     /// ⭐⭐ Runs the asset's resolve stage over <paramref name="parameters"/>, if one is registered.
     ///
     /// <para>⛔ <b>Returns <c>false</c> when there is no resolver, and that is the COMMON case</b> —
@@ -63,6 +77,9 @@ public static class HostedParamResolvers
     /// <para>⛔⛔ <b>A registered resolver of the WRONG type THROWS.</b> It can only come from a
     /// registration that named one asset and handed a resolver for another's <c>Params</c> — a build-
     /// time authoring error, and reinterpreting the bytes would corrupt the occurrence silently.</para>
+    ///
+    /// <para>⭐ <c>CE-426</c>: the resolver runs on a SHADOW copy and the result is committed only when
+    /// it returns — see <see cref="TryRun{TParams, TState}"/>.</para>
     /// </summary>
     public static bool TryRun<TParams>(
         Guid assetId, ref TParams parameters, Fdp.Core.EntityRepository world, Fdp.Core.Entity self,
@@ -78,7 +95,57 @@ public static class HostedParamResolvers
                 "The registration named the wrong asset, or the wrong Params type — running it would " +
                 "reinterpret this occurrence's bytes as another asset's layout.");
 
-        resolver(ref parameters, world, self, host);
+        TParams shadow = parameters;
+        resolver(ref shadow, world, self, host);
+        parameters = shadow;
+        return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-426</c> + <c>CE-432</c> — <b>the RESOLVE stage over the occurrence's whole block, in
+    /// a shadow.</b> 📄 <c>Q76</c> §12.3 / §12.12b.
+    ///
+    /// <para>⭐⭐ <b>The shadow is what makes a state-writing resolver safe.</b> The resolver runs on
+    /// COPIES of both regions and they are committed only when it returns. ⛔ If it throws, the
+    /// occurrence keeps its baked-and-supplied block untouched — never a half-resolved mix — which is
+    /// the guarantee <c>V_ResolverPurity</c>'s widened exemption depends on: a <c>SetVariable</c> on
+    /// state is legal in a resolver ONLY because nothing it writes escapes this copy.</para>
+    ///
+    /// <para>⭐ Accepts either shape from the one table: a <see cref="ResolveBlock{TParams, TState}"/>
+    /// gets both subjects; a hand-written <see cref="ResolveParams{TDto}"/> gets the parameters alone
+    /// and the state passes through unchanged. ⛔ Anything else is a wrong-typed registration and throws,
+    /// naming both shapes.</para>
+    /// </summary>
+    public static bool TryRun<TParams, TState>(
+        Guid assetId, ref TParams parameters, ref TState state,
+        Fdp.Core.EntityRepository world, Fdp.Core.Entity self, IHostVariableAccess? host)
+        where TParams : unmanaged
+        where TState : unmanaged
+    {
+        if (!_byAsset.TryGetValue(assetId, out object? stored)) return false;
+
+        TParams shadowParams = parameters;
+        TState  shadowState  = state;
+
+        switch (stored)
+        {
+            case ResolveBlock<TParams, TState> block:
+                block(ref shadowParams, ref shadowState, world, self, host);
+                break;
+            case ResolveParams<TParams> paramsOnly:
+                paramsOnly(ref shadowParams, world, self, host);
+                break;
+            default:
+                throw new InvalidOperationException(
+                    $"A parameter resolver is registered for asset {assetId}, but it is a " +
+                    $"{stored.GetType().Name} rather than a ResolveBlock<{typeof(TParams).Name}, " +
+                    $"{typeof(TState).Name}> or a ResolveParams<{typeof(TParams).Name}>. The registration " +
+                    "named the wrong asset, or the wrong Params/state type — running it would reinterpret " +
+                    "this occurrence's bytes as another asset's layout.");
+        }
+
+        parameters = shadowParams;   // ⭐ commit — reached only when the resolver returned
+        state      = shadowState;
         return true;
     }
 

@@ -113,7 +113,9 @@ internal static class AiPrimitiveEmitter
         => asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>E8a</c> — emits the own-asset resolver, shaped as <c>ResolveParams&lt;Params&gt;</c>.</b>
+    /// ⭐⭐⭐ <b><c>E8a</c> → <c>CE-432</c> — emits the own-asset resolver, shaped as
+    /// <c>ResolveBlock&lt;Params, WorkingState&gt;</c>: the occurrence's whole block, both halves by ref.</b>
+    /// ⛔ It was <c>ResolveParams&lt;Params&gt;</c> — parameters only — until <c>CE-432</c>.
     ///
     /// <para>
     /// ⭐⭐ <b>The signature is the universal currency EXACTLY</b>, so the registrar registers it by
@@ -151,6 +153,11 @@ internal static class AiPrimitiveEmitter
 
         e.WriteLine($"public static {returnType} {graph.Name}(");
         e.WriteLine("    ref Params p,");
+        // ⭐⭐⭐ CE-432 — the subject is the occurrence's WHOLE block: its state too, by ref. `ws` is
+        //   the name EmissionContext.StateVar already answers for AiPrimitive dispatch, so a graph's
+        //   Get/Set Variable on a state declaration resolves against this argument with no new arm —
+        //   exactly as `p` does for parameters (Q76 §12.12a).
+        e.WriteLine("    ref WorkingState ws,");
         e.WriteLine("    global::Fdp.Core.EntityRepository world,");
         e.WriteLine("    global::Fdp.Core.Entity self,");
         e.WriteLine("    global::Fdp.Toolkit.Behavior.IHostVariableAccess host)");
@@ -486,8 +493,12 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
         e.WriteLine($"        ref __rootParams, (nint){offsetExpr}));");
-        EmitHostedResolve(e, hostExpr);
+        // ⭐⭐⭐ CE-426 — STAGE ORDER: bake → supply → resolve. The state's defaults are BAKED before the
+        //   resolver runs, so a resolver MODIFIES a pre-seeded block (Q76 §12.9c). ⛔ This line used to
+        //   run AFTER the resolve — harmless while a resolver could write parameters only, and it would
+        //   have silently wiped every state value a CE-432 resolver writes.
         e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
+        EmitHostedResolve(e, hostExpr);
         e.Outdent();
         e.WriteLine("}");
     }
@@ -515,8 +526,9 @@ internal static class AiPrimitiveEmitter
     private static void EmitHostedResolve(CSharpEmitter e, string hostExpr)
     {
         e.WriteLine("// C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.");
+        // ⭐ CE-426/CE-432: over the WHOLE block, in the seam's shadow — committed only if it returns.
         e.WriteLine("global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(");
-        e.WriteLine($"    AssetId, ref *__params, {WorldExprOf(hostExpr)}, {SelfExprOf(hostExpr)}, {hostExpr});");
+        e.WriteLine($"    AssetId, ref *__params, ref ws, {WorldExprOf(hostExpr)}, {SelfExprOf(hostExpr)}, {hostExpr});");
     }
 
     /// <summary>The repository expression that goes with a given host expression.</summary>

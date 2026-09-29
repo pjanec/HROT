@@ -56,6 +56,7 @@ public static class OwnParamResolverDemo_225C1D48_Bp
     
     public static global::Fbt.NodeStatus ResolveOwnParams(
         ref Params p,
+        ref WorkingState ws,
         global::Fdp.Core.EntityRepository world,
         global::Fdp.Core.Entity self,
         global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
@@ -64,6 +65,8 @@ public static class OwnParamResolverDemo_225C1D48_Bp
         var __t1 = 0.2777778f;
         var __t2 = __t0 * __t1;
         p.SpeedMps = __t2;
+        var __t3 = 1;
+        ws.Ticks = __t3;
         return global::Fbt.NodeStatus.Success;
         
     }
@@ -88,10 +91,10 @@ public static class OwnParamResolverDemo_225C1D48_Bp
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref __rootParams, (nint)0));
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
             // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
             global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
-                AssetId, ref *__params, ctx.World, ctx.Self, null);
-            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
+                AssetId, ref *__params, ref ws, ctx.World, ctx.Self, null);
         }
         ref var p = ref *__params;
         return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
@@ -119,9 +122,9 @@ public static class BlueprintRegistrar_OwnParamResolverDemo_225C1D48_Bp
             },
         });
         actionRegistry.Register("Hrot.AI.Behaviors.Generated.OwnParamResolverDemo_225C1D48_Bp.BTreeTick@0", OwnParamResolverDemo_225C1D48_Bp.BTreeTick);
-        global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<OwnParamResolverDemo_225C1D48_Bp.Params>(
+        global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<OwnParamResolverDemo_225C1D48_Bp.Params, OwnParamResolverDemo_225C1D48_Bp.WorkingState>(
             OwnParamResolverDemo_225C1D48_Bp.AssetId,
-            static (ref OwnParamResolverDemo_225C1D48_Bp.Params __p, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self, global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>
-                OwnParamResolverDemo_225C1D48_Bp.ResolveOwnParams(ref __p, __world, __self, __host));
+            static (ref OwnParamResolverDemo_225C1D48_Bp.Params __p, ref OwnParamResolverDemo_225C1D48_Bp.WorkingState __ws, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self, global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>
+                OwnParamResolverDemo_225C1D48_Bp.ResolveOwnParams(ref __p, ref __ws, __world, __self, __host));
     }
 }

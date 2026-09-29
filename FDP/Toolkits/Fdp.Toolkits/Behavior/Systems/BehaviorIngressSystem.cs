@@ -128,37 +128,23 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 if (def.ParseParams != null)
                 {
-                    // ⭐⭐ SEED THE SHADOW FROM THE CURRENT ROOT SLOT, exactly as the blackboard copy
-                    //   did. It is the PREVIOUS behaviour's region — BehaviorState still names it,
-                    //   this line runs before the transition is committed — which is what makes a
-                    //   partial parse (an emitted parser writes only the variables the JSON mentions)
-                    //   behave as it always has.
-                    // ⛔ And ZERO it when there is none: the buffer is REUSED across events and across
+                    // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
+                    //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
+                    //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
+                    //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
+                    //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
+                    //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
+                    // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
+                    //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
+                    //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
+                    //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
+                    //   without reading that row. Both are gone.
+                    // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
+                    //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
+                    //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
+                    // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
                     //   frames, so a stale event's bytes would otherwise leak into this one.
-                    // ⚠ The length comes from the PREVIOUS slot's own guard, never from the NEW
-                    //   behaviour's extent — the two differ, and using the new one overreads the old
-                    //   slot into whatever occurrence follows it. ⭐ Clamping to the shadow's width is
-                    //   then CORRECT TRUNCATION, not a cap: a wider previous region cannot carry over
-                    //   into a narrower new one, because those bytes are not part of the new table.
-                    fixed (byte* dst = shadow)
-                    {
-                        shadow.Clear();
-                        if (RootParamsAccess.TryGetRootBytes(repo, evt.Entity, out byte* prev, out int prevLen)
-                            && prevLen > 0)
-                        {
-                            // ⭐⭐ CE-437 — the region is the WHOLE BLOCK now, State half included, and the
-                            //   State half must keep the semantics its side slot had: KEPT when the SAME
-                            //   behaviour is re-assigned (ProvisionStatefulSlots keeps an identical slot),
-                            //   ZEROED when the behaviour CHANGES (the old slot was detached and a fresh one
-                            //   attached). ⇒ across a change only the Input part carries, exactly the bytes
-                            //   that carried before the block existed.
-                            int carryLimit = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash == behaviorId
-                                ? shadow.Length
-                                : Math.Min(shadow.Length, RootParamsAccess.InputBytes(def));
-                            int copy = Math.Min(prevLen, carryLimit);
-                            Buffer.MemoryCopy(prev, dst, shadow.Length, copy);
-                        }
-                    }
+                    shadow.Clear();
 
                     // Attempt parse on the shadow.
                     bool parseOk;

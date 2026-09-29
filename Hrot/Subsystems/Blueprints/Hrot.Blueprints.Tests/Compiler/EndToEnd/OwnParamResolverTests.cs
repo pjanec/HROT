@@ -39,6 +39,7 @@ public sealed class OwnParamResolverTests
 
         Assert.Contains("ResolveOwnParams(", src);
         Assert.Contains("ref Params p,", src);
+        Assert.Contains("ref WorkingState ws,", src);   // ⭐ CE-432: the whole block, state included
         Assert.Contains("global::Fdp.Toolkit.Behavior.IHostVariableAccess host)", src);
 
         // ⭐ reads its own parameter and writes the refined value back INTO the params region —
@@ -48,8 +49,34 @@ public sealed class OwnParamResolverTests
 
         // ⭐⭐⭐ producer and consumer on ONE key ⇒ no binding.
         Assert.Contains("HostedParamResolvers.Register<", src);
+        Assert.Contains(".WorkingState>(", src);        // ⭐ CE-432: registered as ResolveBlock<Params, WorkingState>
         Assert.Contains(".AssetId,", src);
         Assert.Contains("HostedParamResolvers.TryRun(", src);
+        Assert.Contains("ref *__params, ref ws,", src); // ⭐ CE-426: the seam resolves the whole block
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-426</c> — <b>BAKE → SUPPLY → RESOLVE, in that order, at the occurrence's activation.</b>
+    /// 📄 <c>Q76</c> §12.3. The working state's defaults are baked BEFORE the resolver runs, so it
+    /// MODIFIES a pre-seeded block (§12.9c).
+    ///
+    /// <para>⚠ Inverse-edit red-proof: move <c>InitDefaultWorkingState</c> back after
+    /// <c>EmitHostedResolve</c> in <c>AiPrimitiveEmitter.EmitParamSeed</c> — the order it had until
+    /// <c>CE-426</c> — and the index assertion fails. ⛔ In that order every state value a resolver
+    /// wrote was wiped one line later.</para>
+    /// </summary>
+    [Fact]
+    public void TheSeedBakesTheStateBeforeTheResolverRuns()
+    {
+        var src = Emit(GoldenCorpus.Load("OwnParamResolverDemo"));
+
+        int supply  = src.IndexOf("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(", StringComparison.Ordinal);
+        int bake    = src.IndexOf("InitDefaultWorkingState((WorkingState*)", StringComparison.Ordinal);
+        int resolve = src.IndexOf("HostedParamResolvers.TryRun(", StringComparison.Ordinal);
+
+        Assert.True(supply >= 0 && bake >= 0 && resolve >= 0, "the seed must emit all three stages");
+        Assert.True(supply < resolve && bake < resolve,
+            $"the resolver must run AFTER the supply and the state bake (supply {supply}, bake {bake}, resolve {resolve})");
     }
 
     /// <summary>
@@ -152,19 +179,29 @@ public sealed class OwnParamResolverTests
     // ── BP1675 — the ONE purity exemption ────────────────────────────────────
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The exemption is narrow, and the negative half is what proves it.</b> A
-    /// <c>SetVariable</c> targeting a PARAMETER is the resolver's output; one targeting STATE is still
-    /// a side effect that would outlive a failed parse, and is still refused.
+    /// ⭐⭐⭐ <c>CE-432</c> — <b>an own resolver may write its WHOLE block — and nothing outside it.</b>
+    ///
+    /// <para>⛔⛔ <b>This rail FLIPPED, deliberately.</b> It was <c>AnOwnResolver_MayWriteAParameter_ButNotState</c>:
+    /// a state write was refused because state lived outside what the resolve owned and survived a
+    /// failed parse. 🔒 <c>R-151</c> ③ — <i>"a custom resolver may write the whole block"</i> — and
+    /// <c>CE-426</c> now runs the resolver on SHADOW copies of params AND state, committed only when it
+    /// returns ⇒ the state write can no longer escape. ⚠ The two changes landed in ONE commit
+    /// (<c>Q76</c> §12.12b: shipping the exemption first would re-introduce the corruption).</para>
+    ///
+    /// <para>⭐ <b>The negative half still proves the exemption is narrow:</b> a write to a name that is
+    /// NOT one of the asset's declarations is refused, and so is a state write on a non-AiPrimitive
+    /// asset — no shadowed resolve stands behind it.</para>
     /// </summary>
     [Fact]
-    public void AnOwnResolver_MayWriteAParameter_ButNotState()
+    public void AnOwnResolver_MayWriteItsWholeBlock_ButNothingOutsideIt()
     {
         // ✅ the real corpus asset writes SpeedMps, a PARAMETER — and compiles.
         Assert.DoesNotContain(Validate(GoldenCorpus.Load("OwnParamResolverDemo")),
             d => d.Code == DiagnosticCodes.BP1675);
 
-        // ⛔ the same node shape, targeting a VARIABLE, is refused.
-        var asset = BlueprintAssetBuilder
+        // ✅ CE-432: the same node shape targeting a STATE variable is now legal, and it emits a write
+        //    through the injected `ws`.
+        var writesState = BlueprintAssetBuilder
             .AiPrimitive("WritesState")
             .WithIntent(AiPrimitiveIntent.Action)
             .WithHostings(AiPrimitiveHosting.BTreeAction)
@@ -174,8 +211,33 @@ public sealed class OwnParamResolverTests
             .WithGraph("Resolve", GraphKind.Construction, g =>
                 g.Entry().SetVariable("Ticks", "1").Return())
             .Build();
+        Assert.DoesNotContain(Validate(writesState), d => d.Code == DiagnosticCodes.BP1675);
+        // ⚠ The builder's SetVariable is UNWIRED (it ignores its value argument), so it validates but
+        //   emits nothing — the EMISSION is proven on the corpus demo, whose resolver really writes Ticks.
+        Assert.Contains("ws.Ticks = ", Emit(GoldenCorpus.Load("OwnParamResolverDemo")));
 
-        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
+        // ⛔ a write to a name that is none of this asset's declarations — outside the block.
+        var writesElsewhere = BlueprintAssetBuilder
+            .AiPrimitive("WritesElsewhere")
+            .WithIntent(AiPrimitiveIntent.Action)
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithParameter("Speed", typeof(float))
+            .WithGraph("Main", g => g.Entry().Return())
+            .WithGraph("Resolve", GraphKind.Construction, g =>
+                g.Entry().SetVariable("NotDeclaredHere", "1").Return())
+            .Build();
+        Assert.Contains(Validate(writesElsewhere), d => d.Code == DiagnosticCodes.BP1675);
+
+        // ⛔ a state write on an INSTANCE asset — it has no shadowed resolve behind it.
+        var instanceWritesState = BlueprintAssetBuilder
+            .Instance("InstanceWritesState")
+            .WithParameter("Speed", typeof(float))
+            .WithVariable("Ticks", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Return())
+            .WithGraph("Resolve", GraphKind.Construction, g =>
+                g.Entry().SetVariable("Ticks", "1").Return())
+            .Build();
+        Assert.Contains(Validate(instanceWritesState), d => d.Code == DiagnosticCodes.BP1675);
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────
@@ -195,6 +257,54 @@ public sealed class OwnParamResolverTests
         var sink = new DiagnosticSink();
         Stage2_Validate.Run(asset, new ValidationContext(sink, GoldenCorpus.Options()));
         return sink.All;
+    }
+}
+
+/// <summary>
+/// ⭐⭐⭐ <c>CE-432</c> — <b>the real own-resolver RUNS over its whole block through the widened seam.</b>
+/// The emission rails prove the text; this compiles and loads <c>OwnParamResolverDemo</c>, lets its
+/// generated registrar register the resolver, and runs it through
+/// <c>HostedParamResolvers.TryRun&lt;Params, WorkingState&gt;</c> — the exact call the emitted seed makes.
+/// </summary>
+public sealed class OwnParamResolverRuntimeTests : IDisposable
+{
+    private readonly BlueprintTestFixture _fixture = new();
+
+    public void Dispose()
+    {
+        HostedParamResolvers.ClearAll();
+        _fixture.Dispose();
+    }
+
+    [Fact]
+    public void TheDemoResolver_WritesItsParameterAndItsState_ThroughTheSeam()
+    {
+        GoldenCorpus.EnsureBehaviorAssemblyLoaded();
+        var asm = _fixture.CompileAndLoad(GoldenCorpus.Load("OwnParamResolverDemo"));
+
+        Type cls = asm.GetTypes().Single(t => t.GetNestedType("Params") != null
+                                           && t.GetNestedType("WorkingState") != null
+                                           && t.Name.StartsWith("OwnParamResolverDemo", StringComparison.Ordinal));
+        Type pT = cls.GetNestedType("Params")!;
+        Type sT = cls.GetNestedType("WorkingState")!;
+        var assetId = (Guid)cls.GetField("AssetId")!.GetValue(null)!;
+
+        object p = Activator.CreateInstance(pT)!;
+        pT.GetField("SpeedKph")!.SetValue(p, 36f);
+        object st = Activator.CreateInstance(sT)!;
+
+        var tryRun = typeof(HostedParamResolvers).GetMethods()
+            .Single(m => m.Name == nameof(HostedParamResolvers.TryRun) && m.GetGenericArguments().Length == 2)
+            .MakeGenericMethod(pT, sT);
+        object?[] args = { assetId, p, st, _fixture.World, _fixture.CreateEntity(), null };
+
+        Assert.True((bool)tryRun.Invoke(null, args)!,
+            "the generated registrar must register the demo's own resolver under its AssetId");
+
+        // ⭐ the parameter it has always refined…
+        Assert.Equal(36f * 0.2777778f, (float)pT.GetField("SpeedMps")!.GetValue(args[1])!, 4);
+        // ⭐⭐ …and, since CE-432, its STATE — refused by V_ResolverPurity before this slice.
+        Assert.Equal(1, (int)sT.GetField("Ticks")!.GetValue(args[2])!);
     }
 }
 

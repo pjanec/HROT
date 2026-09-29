@@ -470,13 +470,15 @@ internal sealed class CSharpEmitter
             // ⚠ A LAMBDA, not a method group: the emitted resolver returns the graph vocabulary's
             //    NodeStatus (every Return node carries one) and a resolver has no status, so the
             //    value is discarded HERE rather than by teaching the shared terminator emitter about
-            //    resolvers. ⭐ The lambda is still exactly ResolveParams<Params>.
-            WriteLine($"global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<{className}.Params>(");
+            //    resolvers. ⭐ The lambda is exactly ResolveBlock<Params, WorkingState> (CE-432).
+            // ⭐⭐ CE-432: the BLOCK shape — parameters AND working state, both by ref (ResolveBlock).
+            WriteLine($"global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<{className}.Params, {className}.WorkingState>(");
             WriteLine($"    {className}.AssetId,");
-            WriteLine($"    static (ref {className}.Params __p, global::Fdp.Core.EntityRepository __world, " +
+            WriteLine($"    static (ref {className}.Params __p, ref {className}.WorkingState __ws, " +
+                      "global::Fdp.Core.EntityRepository __world, " +
                       "global::Fdp.Core.Entity __self, " +
                       "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
-            WriteLine($"        {className}.{ownResolver.Name}(ref __p, __world, __self, __host));");
+            WriteLine($"        {className}.{ownResolver.Name}(ref __p, ref __ws, __world, __self, __host));");
         }
 
         // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,

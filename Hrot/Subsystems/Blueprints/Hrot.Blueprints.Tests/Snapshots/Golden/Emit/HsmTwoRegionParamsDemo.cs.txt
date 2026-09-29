@@ -84,10 +84,10 @@ public static class HsmTwoRegionParamsDemo_1434647B_Bp
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref __rootParams, (nint)__seedOffset));
+            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
             // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
             global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
-                AssetId, ref *__params, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen));
-            InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
+                AssetId, ref *__params, ref ws, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen));
         }
         ref var p = ref *__params;
         TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);

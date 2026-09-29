@@ -20,6 +20,20 @@ namespace Fdp.Toolkit.Behavior
         where TDto : unmanaged;
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-432</c> — the RESOLVE stage over an occurrence's WHOLE block: its parameters AND
+    /// its state (<c>R-151</c> requirement ③, <i>"a custom resolver may write the whole block"</i>).
+    ///
+    /// <para>⭐ Both subjects are INJECTED by reference, exactly as <see cref="ResolveParams{TDto}"/>
+    /// injects its one (<c>Q76</c> §12.9f). The state arrives already BAKED with its defaults and the
+    /// parameters already SUPPLIED, so a resolver MODIFIES a pre-seeded block and never produces one
+    /// from nothing (§12.9c).</para>
+    /// </summary>
+    public delegate void ResolveBlock<TParams, TState>(
+        ref TParams parameters, ref TState state, EntityRepository world, Entity self, IHostVariableAccess? host)
+        where TParams : unmanaged
+        where TState : unmanaged;
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>G1</c> — deserialize and resolve, split apart and composed back into ONE delegate.</b>
     ///
     /// <para>

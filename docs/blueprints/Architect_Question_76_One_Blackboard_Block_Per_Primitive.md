@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429 are BUILT (§12.15–§12.17). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432 are BUILT (§12.15–§12.18). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -1715,6 +1715,8 @@ sequenceDiagram
     Thunk->>Thunk: ref ws = ref blk.St.variable, then call the node
 ```
 
+> ⛔⛔ **SUPERSEDED by §12.18a the same day** — the note box's carry rule is the gate `CE-421`'s ruling (`R-153`) rejects; every assign now starts from an empty block. Kept below as history.
+>
 > ⭐ **Caption.** The note box is the one semantic decision: the State half keeps **exactly** the
 > lifetime its side slot had — kept on a same-behaviour re-assign (`ProvisionStatefulSlots` kept an
 > identical slot), zeroed on a change (the slot was detached and re-attached). ⭐ The thunk keys on
@@ -1739,3 +1741,77 @@ repo** (swept `2026-09-29`).
 ⏭ **Not in this slice:** the HSM arm (`Q75`-`S1`, the HSM generator still emits no struct) · baking a
 `Role=State` default into the block (`CE-420`, closes in `CE-426`) · `T37:rally` stays `Entity` on its
 side slot until decision `A`.
+
+---
+
+### 12.18 ✅ `CE-426` + `CE-432` AS BUILT — **one pipeline, and the resolver's subject is the whole block** *(`2026-09-29`)*
+
+```mermaid
+sequenceDiagram
+    participant Ing as "BehaviorIngressSystem (root)"
+    participant Parse as "generated ParseParams"
+    participant Seed as "AiPrimitive seed (hosted)"
+    participant HPR as "HostedParamResolvers.TryRun"
+    participant Res as "own resolver"
+    Note over Ing,Parse: ROOT
+    Ing->>Ing: STAGE 0 - shadow.Clear() on EVERY assign (CE-421)
+    Ing->>Parse: parse(json, shadow = the whole block)
+    Parse->>Parse: STAGE 1 bake Input defaults, then State defaults into St (CE-420)
+    Parse->>Parse: STAGE 2 overlay the JSON
+    Parse-->>Ing: ok, or throw
+    Ing->>Ing: commit the shadow only on ok
+    Note over Seed,Res: HOSTED - at the occurrence's activation
+    Seed->>Seed: STAGE 2 supply params from the host
+    Seed->>Seed: STAGE 1 bake state - InitDefaultWorkingState, now BEFORE resolve
+    Seed->>HPR: TryRun(ref params, ref state)
+    HPR->>HPR: copy both into a shadow
+    HPR->>Res: Resolve(ref p, ref ws, world, self, host)
+    Res-->>HPR: returns, or throws
+    HPR->>HPR: commit both only if it returned
+```
+
+> ⭐ **Caption — what the picture shows that the prose would not.** There are **two shadows**, one per
+> entry point, and **both now cover the whole block**. That is the precondition §12.12b named for
+> relaxing the purity rule — so the relaxation and the shadow landed in ONE commit. ⭐ And the hosted
+> lane's stage 1 moved: `InitDefaultWorkingState` used to run *after* the resolver, which was harmless
+> while a resolver could only write parameters and would have wiped every state value a `CE-432`
+> resolver wrote.
+
+#### 12.18a 🔒 THE RE-ASSIGN RULE — **your `CE-421` ruling, and my `CE-437` got it wrong**
+
+> 🔒 **User, `2026-09-28` (recorded in `CE-421`):** *"why would re-assigning the same behaviour deserve special handling, this happens rarely (certainly not every tick or two)."*
+
+⇒ ⭐⭐ **every assign starts the whole block from empty** → bake → overlay → resolve. An unmentioned
+variable lands on its **authored default** — predictable, inspectable, identical on first assign and
+re-assign. ⛔⛔ **`CE-437` (same day, earlier) had kept the whole block on a same-behaviour re-assign**
+— precisely the gate this ruling rejected. The ruling lived in a tracker row and was not read before
+building. ⇒ recorded now as ledger row `R-153`, so it is found by `RULE ZERO`'s first read.
+📐 **Measured before deleting the carry-over:** every production publisher of `AssignBehaviorEvent`
+sends a COMPLETE parameter set — the mission adapter (via tactical-intent resolution) and the three
+maneuver mappers; the adapter's own header says a restart must *"force the BTree parameters to cleanly
+re-initialize"*. ⇒ nothing relied on a partial re-assign.
+
+#### 12.18b ⚠ The purity rule — **§12.12b's prediction refined for the shape that ships**
+
+| resolver shape | `SetVariable` target | before | now | why |
+|---|---|---|---|---|
+| ② an AiPrimitive's OWN resolver | a **Parameter** | ✅ | ✅ | `p` is `ref` and IS the block's input part — writing it is writing the block |
+| ② an AiPrimitive's OWN resolver | a **state Variable** | ⛔ | ✅ | `ws` is now `ref` and inside `TryRun`'s shadow |
+| ② any OTHER dispatch *(e.g. `Instance`)* | a state Variable | ⛔ | ⛔ | no shadowed resolve stands behind it |
+| any | a name that is none of its declarations · shared memory · a component · a collection | ⛔ | ⛔ | outside the block — outlives a failed resolve |
+| ③ a BEHAVIOUR's resolver asset *(`CE-428`, not built)* | a Parameter | — | ⛔ *(planned)* | there the parameters mirror a separate **`in`** authored DTO; §12.12b's inversion applies **there** |
+
+⭐ **The rule, stated once:** *a `SetVariable` is legal iff it targets the resolver's `ref` subject.*
+§12.12b's "Parameter ⇒ REFUSED" is the shape-③ instance of it, not a shape-② rule.
+
+| decision | the alternative rejected, in one line |
+|---|---|
+| ⭐ **the shadow lives inside `TryRun`**, not in each caller | ⛔ a per-call-site shadow — `CE-427`'s root arm would have to re-implement it |
+| ⭐ **one table, two shapes** (`ResolveBlock<P,S>` and hand-written `ResolveParams<P>`) | ⛔ a second registry — two resolver registries for one concept is exactly what `CE-427` collapses |
+| ⭐ **the demo's resolver now writes `Ticks`** — the end-to-end proof is the shipped asset | ⛔ a builder-made fixture — its `SetVariable` is unwired and emits nothing |
+
+⏭ **Not in this slice, named:** the ROOT behaviour's resolve stage through the same seam — today a
+curated resolver still REPLACES the generated parse wholesale; routing it through `TryRun` after
+bake+overlay is `CE-427`'s registry collapse. · a hosted subtree's supply (`CE-431`). · the HSM arm
+(`Q75`-`S1`). · a `ListWrite` on a state list variable is still refused in a resolver — the same
+argument would admit it; not measured, not needed by any asset.

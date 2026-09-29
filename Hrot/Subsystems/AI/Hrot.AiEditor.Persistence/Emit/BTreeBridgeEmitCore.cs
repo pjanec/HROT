@@ -452,11 +452,14 @@ public static class BTreeBridgeEmitCore
         //   parse that supplies nothing. ⚠ Stage 1 (bake) of the State half's defaults is CE-426's.
         if (!hasParseParams && EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
         {
-            sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to parse, but it must be allocated.");
+            sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
             sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
             sb.AppendLine($"{pad2}unsafe");
             sb.AppendLine($"{pad2}{{");
-            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ }};");
+            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            EmitStateDefaultBake(sb, dto, packedFields, pad2 + Indent + Indent);
+            sb.AppendLine($"{pad2}{Indent}}};");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
         }
@@ -751,6 +754,44 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {callExpr};");
         sb.AppendLine($"{pad2}{Indent}{Indent}}}");
         sb.AppendLine($"{pad2}{Indent}}});");
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-426</c> — <b>STAGE 1, the State half: bake every <c>Role=State, Scope=Behavior</c>
+    /// variable's authored default into the block.</b> ⭐ This CLOSES <c>CE-420</c>: before it the bake
+    /// list was built from the packed (Input) fields only, so a State default the editor offered and
+    /// saved was dropped with no diagnostic and the runtime read zero.
+    ///
+    /// <para>⭐ Written through the TYPED block — <c>((Block*)memory)->St.name</c> — because the State
+    /// half is laid out by the CLR (<c>CE-437</c>) and no manifest states its offsets. ⚠ The width guard
+    /// is the parse's own <c>capacity</c>: the ingress shadow is sized from the block
+    /// (<c>RootParamsBytes</c>), so a narrower buffer means a stale layout and is refused, never
+    /// overrun.</para>
+    ///
+    /// <para>⚠ Runs on EVERY assign, a re-assign included — <c>CE-421</c>'s ruling: the shadow starts
+    /// empty and an unmentioned variable lands on its authored default.</para>
+    /// </summary>
+    private static void EmitStateDefaultBake(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields, string pad)
+    {
+        if (!EmitsBlock(dto, packedFields)) return;
+
+        var withDefaults = new List<BlackboardVariableDto>();
+        foreach (var v in BTreeEmitCore.BlockStateVariables(dto))
+            if (!string.IsNullOrWhiteSpace(v.DefaultValueJson)) withDefaults.Add(v);
+        if (withDefaults.Count == 0) return;
+
+        string blockFqn = BTreeEmitCore.BlockStructFqn(dto);
+        sb.AppendLine($"{pad}// Step 1b — CE-426/CE-420: the State half's authored defaults, into the block.");
+        sb.AppendLine($"{pad}if (capacity < global::System.Runtime.CompilerServices.Unsafe.SizeOf<{blockFqn}>())");
+        sb.AppendLine($"{pad}{Indent}throw new global::System.InvalidOperationException(\"CE-426: the parse buffer is narrower than {BTreeEmitCore.BlockStructName(dto)} — a stale layout; refusing to bake the State half past its end.\");");
+        foreach (var v in withDefaults)
+        {
+            string typeFqn = DtoTypeToGlobal(v.Type!.TypeId);
+            string escaped = EscapeCSharpStringLiteral(v.DefaultValueJson!);
+            sb.AppendLine($"{pad}(({blockFqn}*)memory)->St.{v.Name} = global::System.Text.Json.JsonSerializer.Deserialize<{typeFqn}>(\"{escaped}\", __paramJsonOpts);");
+        }
     }
 
     /// <summary>
@@ -1416,6 +1457,8 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
             sb.AppendLine($"{pad4}}}");
         }
+
+        EmitStateDefaultBake(sb, dto, packedFields, pad4);
 
         // ── step 2: overlay from the incoming json ───────────────────────────────
         sb.AppendLine();

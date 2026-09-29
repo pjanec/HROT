@@ -452,6 +452,65 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
     }
 
+    // ── TEST 3 — CE-420 / CE-426 ──────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-420</c>, closed by <c>CE-426</c> — <b>an authored default on a <c>Role=State</c>
+    /// variable reaches the block.</b> 🔒 User, <c>2026-09-28</c>: <i>"working state zero init - isn't
+    /// that wrong, no editor saved defaults here?"</i> ⛔ Before this the bake list held the packed
+    /// (Input) fields only, so the default the editor offered and saved was dropped with no diagnostic.
+    ///
+    /// <para>⭐ And the second half is <c>CE-421</c>'s ruling: a RE-assign starts the block from empty
+    /// again, so a mutated State returns to its AUTHORED DEFAULT — not to zero, and not to the value
+    /// the previous assign left.</para>
+    ///
+    /// <para>⚠ Inverse-edit red-proof: delete the <c>EmitStateDefaultBake</c> call in
+    /// <c>EmitParseParamsLocal</c> and both reads return 0.</para>
+    /// </summary>
+    [Fact]
+    public void Assign_BakesAnAuthoredStateDefault_IntoTheBlock_AndReassignRestoresIt()
+    {
+        WeakReference<AssemblyLoadContext>[] weakRefs;
+        StateDefault_Body(out weakRefs);
+        AwaitAlcCollection(weakRefs);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void StateDefault_Body(out WeakReference<AssemblyLoadContext>[] weakRefs)
+    {
+        var assetId = new Guid("b3000003-0000-0000-0000-000000000000");
+        const string assetName = "S3StateDefault";
+        var n1 = new Guid("b3300003-0000-0000-0000-000000000001");
+
+        var stateVar = StateVar("shared", WorkingStateScope.Behavior);
+        stateVar.DefaultValueJson = "{\"Cursor\":7}";
+
+        var dto = BuildAsset(
+            assetId, assetName,
+            new[] { ParamVar(ParamVarName), stateVar },
+            new[] { (n1, "Action_shared", "shared") });
+
+        var (def, alc) = BuildDefFromDto(dto);
+
+        var world = CreateWorld();
+        Fdp.Core.Entity entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+
+        AssignBehavior(world, entity, assetName);
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(7, "CE-420: the authored State default is BAKED into the block at assign");
+
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor = 99;
+        AssignBehavior(world, entity, assetName);
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(7, "CE-421: a re-assign starts from empty and re-bakes — the authored default, not 99, not 0");
+
+        world.Dispose();
+        alc.Unload();
+        weakRefs = new[] { new WeakReference<AssemblyLoadContext>(alc) };
+    }
+
     // ── ALC GC helper (copied from T20) ───────────────────────────────────────────
 
     private static void AwaitAlcCollection(WeakReference<AssemblyLoadContext>[] refs)

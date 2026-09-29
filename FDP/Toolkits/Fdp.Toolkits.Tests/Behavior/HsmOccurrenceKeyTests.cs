@@ -1384,6 +1384,103 @@ public sealed unsafe class HsmOccurrenceKeyTests
         finally { HostedParamResolvers.ClearAll(); }
     }
 
+    private struct DemoState { public int Ticks; public int Other; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-432</c> — <b>a block resolver writes BOTH halves, and both are committed.</b>
+    /// 🔒 <c>R-151</c> ③: <i>"a custom resolver may write the whole block"</i>. The state arrives
+    /// pre-baked and the resolver MODIFIES it (<c>Q76</c> §12.9c).
+    /// </summary>
+    [Fact]
+    public void CE432_ABlockResolverWritesParamsAndStateAndBothCommit()
+    {
+        HostedParamResolvers.ClearAll();
+        try
+        {
+            HostedParamResolvers.Register<DemoParams, DemoState>(Child,
+                static (ref DemoParams p, ref DemoState s, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) =>
+                {
+                    p.Threshold = 42;
+                    s.Ticks    += 5;          // ⭐ MODIFIES the baked value, never produces one
+                });
+
+            var p = new DemoParams { Threshold = 1 };
+            var s = new DemoState  { Ticks = 10, Other = 7 };
+            Assert.True(HostedParamResolvers.TryRun(Child, ref p, ref s, null!, default, null));
+
+            Assert.Equal(42, p.Threshold);
+            Assert.Equal(15, s.Ticks);
+            Assert.Equal(7,  s.Other);        // untouched fields survive the shadow round-trip
+        }
+        finally { HostedParamResolvers.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-426</c> — <b>a resolver that THROWS leaves the block exactly as it was.</b>
+    /// 📄 <c>Q76</c> §12.7: <i>"a failed resolve leaves the old behaviour intact"</i>. This is the
+    /// guarantee <c>V_ResolverPurity</c>'s widened exemption rests on: a state write is legal ONLY
+    /// because nothing the resolver writes escapes the shadow.
+    ///
+    /// <para>⚠ Inverse-edit red-proof: run the resolver on <c>ref parameters, ref state</c> directly
+    /// instead of on the shadow copies in <c>HostedParamResolvers.TryRun</c> and both assertions fail
+    /// with the half-written values.</para>
+    /// </summary>
+    [Fact]
+    public void CE426_AThrowingResolverLeavesTheBlockUntouched()
+    {
+        HostedParamResolvers.ClearAll();
+        try
+        {
+            HostedParamResolvers.Register<DemoParams, DemoState>(Child,
+                static (ref DemoParams p, ref DemoState s, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) =>
+                {
+                    p.Threshold = 99;
+                    s.Ticks     = 99;
+                    throw new InvalidOperationException("resolver failed half-way");
+                });
+
+            var p = new DemoParams { Threshold = 1 };
+            var s = new DemoState  { Ticks = 10 };
+            Assert.Throws<InvalidOperationException>(
+                () => HostedParamResolvers.TryRun(Child, ref p, ref s, null!, default, null));
+
+            Assert.Equal(1,  p.Threshold);
+            Assert.Equal(10, s.Ticks);
+        }
+        finally { HostedParamResolvers.ClearAll(); }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-432</c> — <b>ONE table, two authoring shapes.</b> A hand-written
+    /// <see cref="ResolveParams{TDto}"/> still runs through the block call — on the parameters alone,
+    /// the state passing through untouched — so rail ㊱'s hand-authored resolvers keep working. ⛔ And a
+    /// wrong-typed registration still throws, now naming both shapes.
+    /// </summary>
+    [Fact]
+    public void CE432_TheBlockCallRunsAParamsOnlyResolverAndRefusesAWrongType()
+    {
+        HostedParamResolvers.ClearAll();
+        try
+        {
+            HostedParamResolvers.Register<DemoParams>(Child,
+                static (ref DemoParams p, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) => p.Threshold = 3);
+
+            var p = default(DemoParams);
+            var s = new DemoState { Ticks = 4 };
+            Assert.True(HostedParamResolvers.TryRun(Child, ref p, ref s, null!, default, null));
+            Assert.Equal(3, p.Threshold);
+            Assert.Equal(4, s.Ticks);
+
+            HostedParamResolvers.Register<WideParams, DemoState>(Child,
+                static (ref WideParams w, ref DemoState _, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) => w.A = 1);
+            var ex = Assert.Throws<InvalidOperationException>(
+                () => HostedParamResolvers.TryRun(Child, ref p, ref s, null!, default, null));
+            Assert.Contains("ResolveBlock", ex.Message);
+            Assert.Contains("ResolveParams", ex.Message);
+        }
+        finally { HostedParamResolvers.ClearAll(); }
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>Rail ㊱ — A HAND-AUTHORED RESOLVER'S OUTPUT REACHES TWO REGIONS AS TWO DIFFERENT
     /// VALUES.</b> 📄 user question, <c>2026-09-21</c>: <i>"it must work also with hand authored action

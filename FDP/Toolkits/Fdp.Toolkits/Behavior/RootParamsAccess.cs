@@ -308,8 +308,9 @@ public static unsafe class RootParamsAccess
 
     /// <summary>
     /// ⭐ <c>CE-429</c> — how many bytes of the block are the <b>Role=Input</b> part: the region a
-    /// behaviour's parameters describe, and the part that may carry over from a DIFFERENT behaviour's
-    /// region on reassignment. ⭐ A declared manifest — even an EMPTY one — is the authority: a
+    /// behaviour's parameters describe and a curated resolver writes (<c>BehaviorRegistry</c>'s overlay
+    /// rule). ⚠ It is NOT a carry-over width any more — <c>CE-426</c> deleted the carry-over
+    /// (<c>R-153</c>). ⭐ A declared manifest — even an EMPTY one — is the authority: a
     /// generated behaviour with no <c>Role=Input</c> variable declares an empty manifest and so has 0
     /// Input bytes. ⚠ With no manifest at all (a curated behaviour) the whole layout type is the
     /// parameters, exactly as before.

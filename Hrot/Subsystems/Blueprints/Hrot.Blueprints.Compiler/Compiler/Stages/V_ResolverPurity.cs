@@ -137,19 +137,37 @@ internal sealed class V_ResolverPurity : IValidator
             {
                 if (!SideEffectingNodeTypes.Contains(node.GetType())) continue;
 
-                // ⭐⭐⭐ THE ONE EXEMPTION, and it is not a loosening.
+                // ⭐⭐⭐ THE ONE EXEMPTION — WIDENED BY CE-432 (2026-09-29), and still not a loosening.
                 //
-                // An own-asset resolver's OUTPUT *is* its parameters region — the emitted method
-                // takes `ref Params p` and the graph writes through it. ⇒ a SetVariable that targets
-                // a PARAMETER is this graph's return value, not an escape from the ingress shadow.
-                // ⛔ A SetVariable targeting STATE is still refused, and so is every other denied
-                // node, because those genuinely outlive a failed parse (Q43 §4).
-                if (!isLibrary && node is SetVariableNode sv && TargetsAParameter(asset, sv))
+                // An own-asset resolver's subject is its occurrence's WHOLE BLOCK: the emitted method
+                // takes `ref Params p` AND `ref WorkingState ws` (R-151 ③, "a custom resolver may
+                // write the whole block"), and HostedParamResolvers.TryRun runs it on SHADOW copies of
+                // both, committed only when it returns (CE-426). ⇒ a SetVariable that targets ANY of
+                // this asset's own declarations — a parameter or a state variable — writes the block
+                // that is being resolved, and nothing it writes can outlive a failed resolve.
+                //
+                // ⛔⛔ HISTORY — this used to be "PARAMETER yes, STATE no", because state then lived in a
+                //   region the resolve did not own and a state write outlived a failed parse. That
+                //   reason is gone ONLY because the shadow now covers the state too; the two changes
+                //   (CE-426, CE-432) landed in ONE commit on purpose (Q76 §12.12b).
+                // ⚠ Q76 §12.12b predicted the PARAMETER half would flip to REFUSED. That holds for a
+                //   BEHAVIOUR's resolver asset (shape ③, CE-428), whose parameters mirror a separate
+                //   `in` authored DTO. Here (shape ②) the parameters ARE the block's input part — `p`
+                //   is `ref` — so writing them is writing the block. §12.18 records the refinement.
+                // ⛔ Every OTHER denied node is still refused: those write outside the block (shared
+                //   memory, components, collections) and genuinely outlive a failed resolve (Q43 §4).
+                // ⚠ The STATE half of the exemption is AiPrimitive-only: that is the dispatch whose
+                //   own resolver is registered with HostedParamResolvers and run in its shadow. Any
+                //   other dispatch keeps the original parameters-only rule.
+                if (!isLibrary && node is SetVariableNode sv
+                    && (TargetsDeclaration(ParamsOf(asset), sv)
+                        || (asset.Dispatch == BlueprintDispatchKind.AiPrimitive
+                            && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), sv))))
                     continue;
 
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1675,
                     $"Resolver graph '{graph.Name}' contains a '{node.GetType().Name}', which has an "
-                    + "effect outside the parameters it returns. A resolver runs inside the behaviour "
+                    + "effect outside the block it resolves. A resolver runs inside the behaviour "
                     + "ingress's shadow parse: anything it writes elsewhere survives even when the "
                     + "parse fails, leaving the entity half-switched. Compute the value and return it "
                     + "through the graph's output instead.",
@@ -230,19 +248,19 @@ internal sealed class V_ResolverPurity : IValidator
     }
 
     /// <summary>
-    /// Does this <c>SetVariable</c> target one of the asset's PARAMETERS (rather than its state)?
+    /// ⭐ <c>CE-432</c> — does this <c>SetVariable</c> target one of <paramref name="declarations"/>?
+    /// ⛔ An unresolvable target matches nothing and stays refused.
     /// ⚠ Matches by id first and name second, mirroring <c>Stage5_Schedule.FindVariableIndex</c> — if
     /// the two disagreed, a write the validator allowed could land somewhere else entirely.
     /// </summary>
-    private static bool TargetsAParameter(BlueprintAsset asset, SetVariableNode node)
+    private static bool TargetsDeclaration(IEnumerable<BlueprintDeclaration> declarations, SetVariableNode node)
     {
         if (string.IsNullOrEmpty(node.VariableId)) return false;
 
         if (Guid.TryParse(node.VariableId, out var id))
-            return ParamsOf(asset).Any(p => p.Id == id);
+            return declarations.Any(d => d.Id == id);
 
-        return ParamsOf(asset)
-            .Any(p => string.Equals(p.Name, node.VariableId, StringComparison.Ordinal));
+        return declarations.Any(d => string.Equals(d.Name, node.VariableId, StringComparison.Ordinal));
     }
 
     /// <summary>

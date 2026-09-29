@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4b** (CE-425, CE-437 + CE-429 built; next is CE-426 + CE-432) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4c** (CE-425, CE-437 + CE-429, CE-426 + CE-432 built; next is CE-427) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -808,6 +808,10 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ The block **is** the root region now: `BlackboardLayoutType = {Asset}_Block`, the root slot is sized from it, and a `Role=State, Scope=Behavior` variable lives in `St` — reached by generated thunks through `RootParamsAccess.TryGetBlockFor`, keyed by the thunk's **own** behaviour. The State half keeps its side slot's lifetime *(kept on same-behaviour re-assign, zeroed on change)*. 🔴 **Found by the build:** a curated resolver overlay demoted the block to its params type — fixed in `BehaviorRegistry.ApplyResolverOverlay`. ⚠ Editor panels, Replay Browser and the diagnostics dump now show `In.X` / `St.Y`. ⏭ Remaining order: **`CE-426` + `CE-432`** → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`; the HSM arm (`Q75`-`S1`) is still open. 📄 [`Q76` §12.17](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
+### 13.4c ✅ `CE-426` + `CE-432` BUILT *(same evening, one commit)* — ⭐ **NEXT IS `CE-427`**
+
+⭐ **One pipeline, both entry points shadowed over the whole block:** every assign starts from an EMPTY shadow → bakes Input AND State defaults *(closes `CE-420`)* → overlays JSON; the hosted seed bakes state BEFORE resolving *(it was after)*; `HostedParamResolvers.TryRun<P,S>` resolves params AND state on shadow copies, committed only if it returns. ⭐ **The own resolver's subject is the whole block:** `(ref Params p, ref WorkingState ws, …)`, registered as `ResolveBlock<P,S>`; `V_ResolverPurity` lets it `SetVariable` any own declaration *(state arm AiPrimitive-only)*. `OwnParamResolverDemo` now writes its State `Ticks` and a runtime rail runs it through the seam. 🔴 **I built a same-behaviour carry gate in `CE-437` that your `CE-421` ruling had rejected** — reverted here, ruling now ledger row **`R-153`**. ⏭ `CE-427` *(widen the ROOT resolve to the same seam, collapse the two resolver registries)* → `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.18](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 
 | # | |
@@ -822,6 +826,7 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 | **⑧** | ⛔ **My own process failure, recorded so it is not repeated:** I lost ~10 minutes to a red-proof that never ran — a `grep` filter hid the compile error, and I polled in `until` loops instead of reading the output when the completion notice arrived. ⭐ **Read the task output on notification; never filter a first run** |
 | **⑨** | 🔴 **A base-commit WORKTREE build used the NEW source generator** — the shared compiler server (`VBCSCompiler`) kept the analyzer it had loaded for the main tree, so the old tree compiled generated code calling a method it did not have. ⭐ **Build a comparison worktree with `-p:UseSharedCompilation=false`** |
 | **⑩** | ⚠ **Two `Fdp.Toolkits.Tests` pitfalls:** the test namespace is `Fdp.Toolkit.Behavior.Tests` *(a `Fdp.Toolkit.Tests.Behavior` filter matches nothing new and prints a confident old count)*; and a `build … \| grep && test --no-build` chain runs a STALE binary when the build fails — ⭐ read the `Error(s)` count before trusting the pass line |
+| **⑪** | 🔴🔴 **USER RULINGS ALSO LIVE IN TRACKER ROWS, not only in `RULINGS.md`.** `CE-421`'s *"re-assign is not special"* was a user ruling recorded only in its row; `CE-437` built the opposite. ⭐ **Before changing a mechanism, `grep` the tracker for the mechanism's own name** *(here: "seed", "carry-over", "shadow")* — and when a ruling is found there, give it a ledger row (`RULE ZERO` obligation 2) |
 
 ### 13.6 🔒 STANDING CONSTRAINTS
 

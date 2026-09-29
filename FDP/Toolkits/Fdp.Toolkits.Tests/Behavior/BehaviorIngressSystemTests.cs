@@ -527,7 +527,12 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <b>Switching WIDE → NARROW truncates the carry-over at the NEW region's width.</b>
+        /// ⭐⭐⭐ <b>Switching WIDE → NARROW carries NOTHING over</b> — <c>CE-421</c>'s ruling, built by
+        /// <c>CE-426</c>. ⛔⛔ <b>HISTORY:</b> this rail pinned the carry-over it now forbids — it was
+        /// <c>…ClampsTheCarryOverToTheNewWidth</c>, and the paragraphs below describe that old contract.
+        /// ⚠ The width half still matters: the new region is exactly 16 bytes.
+        ///
+        /// <para>⛔ <b>SUPERSEDED — the original rationale:</b></para>
         ///
         /// <para>⛔⛔ This is the line the cap was hiding. The seed copies the PREVIOUS behaviour's slot
         /// into the parse shadow so a partial parse behaves as it always has; the clamp used to be the
@@ -539,7 +544,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// ⛔ not that it is zero, which a broken implementation could also produce.</para>
         /// </summary>
         [Fact]
-        public void BehaviorIngress_SwitchingFromWideToNarrow_ClampsTheCarryOverToTheNewWidth()
+        public void BehaviorIngress_SwitchingFromWideToNarrow_CarriesNothingOver()
         {
             var (world, sys, registry) = CreateFixture();
 
@@ -575,9 +580,12 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(16, len);
 
             Assert.Equal(0xC7, root[0]);
-            // ⭐ Bytes 1..15 carried over from the wide region's head — the partial-parse contract.
+            // ⭐⭐ CE-421 (user ruling, 2026-09-28) — NOTHING carries over. The shadow starts EMPTY, so
+            //   the bytes the narrow parser did not write are its own zero defaults, never the wide
+            //   behaviour's head. ⛔ This loop asserted the OPPOSITE — "bytes 1..15 carried over,
+            //   the partial-parse contract" — until CE-426 deleted the carry-over.
             for (int i = 1; i < 16; i++)
-                Assert.Equal(Pattern(i), root[i]);
+                Assert.Equal(0, root[i]);
 
             world.Dispose();
         }
@@ -638,17 +646,21 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
-        /// ⭐⭐⭐ <c>CE-437</c> — <b>the State half keeps its side slot's semantics.</b> Re-assigning the
-        /// SAME behaviour keeps it (an identical side slot was kept); switching to a DIFFERENT one
-        /// zeroes it (the side slot was detached and a fresh one attached) — while the Input part
-        /// carries exactly as before.
+        /// ⭐⭐⭐ <c>CE-426</c> + <c>CE-421</c> — <b>EVERY assign starts the whole block from empty</b>, a
+        /// re-assign of the SAME behaviour included. 🔒 User, <c>2026-09-28</c>: <i>"why would
+        /// re-assigning the same behaviour deserve special handling"</i>.
         ///
-        /// <para>⚠ Inverse-edit red-proof: drop the <c>carryLimit</c> clamp in
-        /// <c>BehaviorIngressSystem</c> and the "different behaviour" half fails — the wide
-        /// behaviour's pattern lands in <c>St</c>.</para>
+        /// <para>⛔⛔ <b>CORRECTED, and the correction is mine.</b> <c>CE-437</c> first shipped this rail
+        /// as <c>…TheStateHalfIsKeptOnReassignAndZeroedOnChange</c> — it kept the State on a
+        /// same-behaviour re-assign, which is exactly the gate <c>CE-421</c>'s ruling had already
+        /// rejected. The row was not read before building.</para>
+        ///
+        /// <para>⚠ Inverse-edit red-proof: restore a seed from the previous root slot in
+        /// <c>BehaviorIngressSystem</c> and both halves fail — the State survives, the wide pattern
+        /// lands in the Inputs.</para>
         /// </summary>
         [Fact]
-        public void BehaviorIngress_TheStateHalfIsKeptOnReassignAndZeroedOnChange()
+        public void BehaviorIngress_EveryAssignStartsTheWholeBlockFromEmpty()
         {
             var (world, sys, registry) = CreateFixture();
             RegisterBlock(registry, 0x0C_E4_37_02, "BlockKeep");
@@ -657,23 +669,61 @@ namespace Fdp.Toolkit.Behavior.Tests
             var e = world.CreateEntity();
             world.AddComponent(e, new BehaviorState());
 
-            // ① same behaviour, re-assigned: State survives.
+            // ① same behaviour, re-assigned: the State half is NOT kept.
             Assign(world, sys, e, "BlockKeep");
             Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out _));
             ((Block24*)root)->St.A = 0x1122334455667788;
             Assign(world, sys, e, "BlockKeep");
             Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out root, out _));
-            Assert.Equal(0x1122334455667788, ((Block24*)root)->St.A);
+            Assert.Equal(0, ((Block24*)root)->St.A);
 
-            // ② a different behaviour first, then this one: State is zero, Inputs carry.
+            // ② a different behaviour first: nothing of it carries in either.
             Assign(world, sys, e, "BlockKeep_Wide");
             Assign(world, sys, e, "BlockKeep");
             Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out root, out int len));
             Assert.Equal(24, len);
             Assert.Equal(0xB1, root[0]);
-            for (int i = 1; i < 8; i++)  Assert.Equal(Pattern(i), root[i]);   // Input part carried
-            for (int i = 8; i < 24; i++) Assert.Equal(0, root[i]);            // State half fresh
+            for (int i = 1; i < 24; i++) Assert.Equal(0, root[i]);
 
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-426</c> — <b>a FAILED parse leaves the previous block untouched, State half
+        /// included.</b> 📄 <c>Q76</c> §12.7 row 6 / <c>Q43</c> §4. ⭐ The shadow is the whole block
+        /// (<c>CE-437</c>), so a parse that writes the State half and then throws changes nothing.
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_AFailedParseLeavesThePreviousBlockUntouched()
+        {
+            var (world, sys, registry) = CreateFixture();
+            registry.Register(0x0C_E4_26_01, "BlockFails", new BehaviorDefinition
+            {
+                Name                       = "BlockFails",
+                BrainTier                  = BehaviorConstants.BrainTierBTree,
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Block24),
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    ((Block24*)mem)->In   = 7;
+                    ((Block24*)mem)->St.A = 7;
+                    if (json == "fail") throw new InvalidOperationException("parse failed half-way");
+                },
+            });
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            Assign(world, sys, e, "BlockFails");
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out _));
+            ((Block24*)root)->St.A = 1234;
+
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "BlockFails", JsonParams = "fail" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out root, out _));
+            Assert.Equal(7,    ((Block24*)root)->In);
+            Assert.Equal(1234, ((Block24*)root)->St.A);
             world.Dispose();
         }
 
