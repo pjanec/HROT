@@ -1,8 +1,25 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
-current-answer: §1, the storage map. The rest explains and evidences it.
-known-rot: none as of 2026-09-22.
+updated: 2026-09-29
+current-answer: ⭐ §7 — the AS-MEASURED BASELINE (2026-09-28), which is the current, complete
+  picture and the one to read first. §1's storage map is still correct but PARTIAL: it does not
+  show that the ROOT is split across 3+ slots while a hosted child is one, nor the two key
+  schemes, nor that two offset authorities disagree. §2-§6 remain the evidence behind §1.
+known-rot: ⚠ §3's row 3 says of working state "reset at activation; Scope decides sharing" — that
+  clause is TRUE OF ONE SCOPE OF THREE; §7.3 has the measured table, and DESIGN_Parameter_Model.md
+  §3.1 carries the same correction. ⚠ §4's "one region, two layout authorities" is about WHO
+  DECLARES the shape (compiler vs human); §7.4 is a DIFFERENT and newer finding about two
+  authorities for the byte OFFSETS, which measurably disagree on 3 of 15 behaviours.
+known-conflict: none. ⛔ This document records how storage IS. How it is meant to BECOME is
+  Architect_Question_76_One_Blackboard_Block_Per_Primitive.md, which is PARKED awaiting one
+  decision; where they differ, this one is the present tense and Q76 is the future one.
+related-designs:
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — the proposed simplification this
+    baseline was measured for (one contiguous block per running primitive). Its §10 is the open
+    decision; §1.4 and §4 reuse the measurements in §7 here.
+  - DESIGN_Parameter_Model.md — owns the three data shapes and the bake/overlay/resolve order.
+  - DESIGN_Occurrence_Scoped_Storage.md — owns the slot model; its O3 row is the unfinished key
+    unification §7.2 measures.
 -->
 # Where parameters and state actually live — all hosts, one picture
 
@@ -480,6 +497,147 @@ preemption is defined against)*, ✅ **yes as NESTED sub-behaviours.**
 ⇒ ⭐⭐⭐ **The unification that covers all hosts while still allowing hardcoded DTOs is: one params
 region, one `{Input, State}` role model, and the compiler owning the layout — with a hand-written
 `[BlackboardDtoStruct]` remaining legal as a declaration's *type*.** Most of it is designed already.
+
+---
+
+## 7. ⭐⭐⭐ AS-MEASURED BASELINE — **the whole storage picture, measured `2026-09-28`** *(added `2026-09-29`)*
+
+> 🔒 **Why this section exists.** The user asked for a baseline to decide from, after a session in
+> which four of my own descriptions of this area were corrected. ⛔ **Everything below is measured,
+> not inferred**, and each row says how. ⚠ **It is a SNAPSHOT of how it IS** — 📄 how it is MEANT to
+> become is [`Architect_Question_76`](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md),
+> which is PARKED awaiting one decision.
+
+⭐ **Method:** a runtime probe over the built `Hrot.AI.Behaviors.dll` *(layout offsets — no static
+tool answers "what does the CLR do with this struct")* · a parse of every `.btree.json`, `.hsm.json`
+and `.bp.json` in the repo · `search_code` + grep over the emitters, `BehaviorIngressSystem`,
+`OccurrenceSlotKey`, `BlueprintSharedState` · `check_index_coverage` on 11 cited paths
+*(`no_recorded_issue`)*.
+
+### 7.1 What ONE behaviour owns at runtime
+
+```mermaid
+graph TD
+    subgraph store["the entity's ONE tier component - BlueprintBlackboard 256/1024/4096/16384"]
+        RP["root params slot<br/>ALL Role=Input variables, packed<br/>exactly 1"]
+        RS["root brain state<br/>BTree tree state / HSM instance<br/>1"]
+        SW["stateful working slots<br/>Role=State vars + per-node state<br/>0 to 7 measured"]
+        HO["hosted occurrence slots<br/>a child's cursor+Params+State TOGETHER<br/>0 to N, at first tick"]
+    end
+    ING[BehaviorIngressSystem] -->|at activation| RP
+    ING -->|at activation| RS
+    ING -->|at activation| SW
+    THUNK[the hosting thunk] -->|at first tick| HO
+
+    classDef odd stroke:#c00,color:#c00
+    class RP,RS,SW odd
+```
+
+> 🔴 **Caption — what the picture shows that the table could not.** The three red boxes are **one
+> behaviour split across three or more slots**, while the blue box — a *hosted child* — keeps params
+> and state **together in one**. ⇒ **the root does not follow the model the children follow**, and
+> the root's split is the NEWER work *(`P3`, `CE-302`, `CE-319`)*.
+
+📐 **Measured slot counts** *(generated corpus)*: `PlatoonHillAttack2` **7** stateful slots ·
+`T39` 3 · `T20`/`T35`/`T37`/`HsmVariableShowcase`/`HillAssault2I_Smoke` 2 · most others 0–1.
+
+### 7.2 TWO key schemes for one concept
+
+| scheme | keys on | used for |
+|---|---|---|
+| **scope-based** — `OccurrenceSlotKey.Compute` | `Node`: `FNV(assetId ++ nodeVisualId)` · `Behavior`: `FNV(assetId ++ variableId)` · `Entity`: **`FNV(variableId)` only** | per-node and declared working state |
+| **occurrence** — `ComputeNested` | `(assetId, hostPath)`, folded recursively | hosted children |
+
+⭐ The key **function** is unified — one implementation, thin forwarders. ⛔ The **model** is not;
+📄 `DESIGN_Occurrence_Scoped_Storage` `O3` is that job, and its own note reads *"No behaviour changes
+yet."*
+
+### 7.3 The three `WorkingStateScope` values, as BUILT
+
+| scope | declared users | what it actually does |
+|---|---|---|
+| **`Node` = 0** ⚠ **the DEFAULT** | **0** | 🔴 a standalone `Role=State` variable here is **silently skipped** — `BTreeBridgeEmitCore:1055` requires `Behavior` or `Entity`. No slot, no diagnostic. ⭐ `Node` is NOT dead: it keys **node-bound** working state, the common case. 📄 `CE-423` |
+| **`Behavior` = 1** | 4 | ✅ the only one that behaves as documented |
+| **`Entity` = 2** | 4 | ⭐ **cross-ENTITY coordination by name** — the key excludes `assetId` *"so an owner and a member entity agree"* *(`F6`, `BlueprintSharedState.cs:22-26`)*. ⛔ **Detached on every behaviour switch** *(`DetachStatefulSlots:979` has no scope filter)*, so it does not outlive an assignment. 📄 `CE-422` |
+
+### 7.4 TWO offset authorities — **and they already disagree**
+
+| authority | rule |
+|---|---|
+| the manifest — `ManagedBlackboardVariable.ByteOffset` | `BTreeBlackboardPackHelper.Pack:136`, **alignment = `Math.Min(size, 8)`** ⇒ derived from SIZE |
+| the struct — `JsonParamsDtoType` / `BlackboardLayoutType` | the CLR's `Sequential` layout ⇒ alignment of the **TYPE** |
+
+📐 **`Vector3` is 12 bytes aligned 4** *(probed)*, so `Pack` puts it on 8 and the CLR on 4. An empty
+generated `Params` is **0** to `Pack` and **1 byte** to the CLR.
+
+```
+15 generated behaviours carry BOTH   ·   3 disagree   ·   9 of 31 manifest fields
+T09_BlackboardManaged   HomePosition  manifest 8  struct 4      PatrolLoops 20/16   IsAlerted 24/20
+T39_TwoDistinctPrimitives  bpParamsB  8/4    bpParamsC 16/12
+PlatoonHillAttack2      4 of its 7 fields
+```
+
+⛔⛔ **LIVE, not latent:** StructEdit's *"Active Parameters"* **reads and writes** at the struct's
+offsets and the replay predicate compiler binds against them, while `RootParamsProjection` uses the
+manifest — **the two panels disagree about one entity**. ⭐ Sizing is safe: `RootParamsBytes:269`
+prefers the manifest. 📄 **`CE-418` — the one finding that waits for nothing.**
+
+### 7.5 Eager or lazy? — **the declared blackboard is EAGER**
+
+| region | when |
+|---|---|
+| root params · root brain state · **all declared `Role=State` slots** | ⭐ **eagerly, at activation** — `BehaviorIngressSystem:215` `ProvisionStatefulSlots` |
+| a **hosted occurrence's** slot | **lazily, at its first tick** — `HsmOccurrence.ResolveOrAttach` |
+
+⭐⭐ **What forces the lazy one is IDENTITY, not allocation:** its key is
+`(machine, region, state, childAsset)`, so which occurrences exist is unknown until the kernel
+activates states. ⭐ The **space** is still reserved eagerly — the hosted-occurrence demand feeds
+tier selection at ingress. ⇒ ⛔ **nothing forces lazy allocation of the declared blackboard.**
+
+### 7.6 The activation order — **and the carry-over in it**
+
+```
+copy the PREVIOUS behaviour's root params bytes into a stack shadow   <- CE-421
+bake authored defaults  ->  overlay the intent JSON  ->  (resolver)
+if the parse failed: stop, the entity stays wholly on its old behaviour
+commit  ->  detach the previous behaviour's slots  ->  ProvisionStatefulSlots  ->  attach root params
+```
+
+⭐ **Parse runs BEFORE provisioning**, which is why a resolver cannot write working state — at that
+instant no slot for the new behaviour exists. ⚠ **`CE-421`:** the shadow seed is not gated on
+*same behaviour*, so a variable with no default that the JSON does not mention inherits the previous
+behaviour's bytes at that offset. ⭐ Every production `JsonParams` producer sends a **complete**
+block, so nothing relies on it.
+
+### 7.7 Shared state — **what is actually used**
+
+| | |
+|---|---|
+| assets using `GetShared`/`SetShared` | **8** *(38 reads, 23 writes)* |
+| distinct shared variables in existence | **2** — `state` (58 refs) · `rally` (3) |
+| cross-entity reads | 🔴 **1**, in the asset whose description says it exists to prove the pin compiles |
+| reads of another primitive's own working state | ⛔ **0, and not expressible** — `SharedTypeId` is by definition a hand-written struct, *"NOT a generated `_Bp+WorkingState`"* |
+| production behaviours using any of it | ⛔ **0** — the six `state` users are `PlatoonHillAttack2`'s graphs, and **each shadows a clean twin that predates it** |
+
+### 7.8 `IHostVariableAccess`, as built
+
+⭐ **`E7a` SHIPPED on the HSM path** — `HsmHostVariableAccess.cs:31` implements it and
+`AiPrimitiveEmitter.cs:717` passes it. ⛔ **Its own header still says *"DECLARED, NOT IMPLEMENTED"***
+— 📄 `CE-424`. ⚠ The Instance path genuinely still passes `null`. 🔒 The header also carries the
+seam's two rules — **read-only** *("a write path would be a second supply mechanism")* and
+**resolve-once** — which `Q76` §D.1 argues with rather than ignores.
+
+### 7.9 The findings this baseline produced
+
+| id | one line | waits for `Q76`? |
+|---|---|---|
+| `CE-418` | two offset authorities disagree; live in StructEdit + replay predicates | ⛔ **no — fix first** |
+| `CE-420` | an authored default on a `Role=State` variable is silently dropped | yes |
+| `CE-421` | the shadow carries the previous behaviour's bytes across a switch | no, independent |
+| `CE-422` | `Entity` scope: name-only key, detached on switch, 1 real consumer | ⭐ **dissolves if `B`** |
+| `CE-423` | a standalone `Scope=Node` variable is silently skipped — and `Node` is the default | ⭐ **dissolves if `B`** |
+| `CE-424` | the seam header claims it is unimplemented; it shipped | no, two sentences |
+
 
 ---
 
