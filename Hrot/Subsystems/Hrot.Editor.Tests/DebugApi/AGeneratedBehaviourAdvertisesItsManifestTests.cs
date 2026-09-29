@@ -129,10 +129,14 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     /// and nothing caught it: <b>the manifest's own tests assert names and round-tripping, never an
     /// offset against the struct.</b> ⇒ this test is that missing assertion.</para>
     ///
-    /// <para>⚠ <b>Inverse-edit red-proof:</b> change <c>BTreeEmitCore</c>'s emission back to
-    /// <c>LayoutKind.Sequential</c> (drop the <c>[FieldOffset]</c> lines) and this fails on
-    /// <c>T09_BlackboardManaged.HomePosition</c> — manifest 8, struct 4 — plus
-    /// <c>T39_TwoDistinctPrimitives</c> and <c>PlatoonHillAttack2</c>.</para>
+    /// <para>✅ <b>Inverse-edit red-proof — RUN <c>2026-09-29</c>:</b> with <c>BTreeEmitCore</c>'s
+    /// emission put back to <c>LayoutKind.Sequential</c> (the <c>[FieldOffset]</c> lines dropped) this
+    /// FAILED with 5 disagreements on 2 behaviours — <c>T09_BlackboardManaged</c>
+    /// <c>HomePosition</c> 8/4 · <c>PatrolLoops</c> 20/16 · <c>IsAlerted</c> 24/20, and
+    /// <c>T39_TwoDistinctPrimitives</c> <c>bpParamsB</c> 8/4 · <c>bpParamsC</c> 16/12 — and passed 7/7
+    /// with the fix restored. ⚠ The original probe's third behaviour, <c>PlatoonHillAttack2</c>, was
+    /// deleted by <c>CE-436</c>. ⛔ The first attempt used an <c>if (false)</c> toggle, which raises
+    /// <c>CS0162</c> under warnings-as-errors and so never produced a test host — do the edit textually.</para>
     /// </summary>
     [Fact]
     public void TheStructsOffsetsAreExactlyTheManifestsOffsets()
@@ -169,6 +173,77 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
         Assert.True(disagreements.Count == 0,
             "The emitted struct and the manifest must state ONE layout (CE-418). Disagreements:\n  "
             + string.Join("\n  ", disagreements));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-425</c> — <b>every generated behaviour emits ONE BLOCK, and its Inputs half IS the
+    /// published params struct, at offset 0.</b> 📄 <c>Q76</c> §12.2a / §12.7 row 1: <i>"the Input region
+    /// is byte-identical — assert on the ARTEFACT, not on a re-computation."</i>
+    ///
+    /// <para>⭐ Asserting that <c>In</c> is the SAME <see cref="Type"/> as <c>BlackboardLayoutType</c> is
+    /// stronger than comparing offsets field by field: one type cannot have two layouts, so every
+    /// manifest offset <see cref="TheStructsOffsetsAreExactlyTheManifestsOffsets"/> pins holds inside
+    /// the block unchanged.</para>
+    ///
+    /// <para>⭐ The State half is cross-checked against the REGISTRAR, which is an independent producer:
+    /// every <c>St</c> field's type must be one the definition already provisions as a
+    /// <c>Scope=Behavior</c> stateful slot. ⇒ the block describes the state the runtime really keeps,
+    /// not a guess.</para>
+    ///
+    /// <para>⚠ <b>Inverse-edit red-proof:</b> emit <c>St</c> before <c>In</c> (swap the two
+    /// <c>FieldOffset</c> values in <c>BTreeEmitCore.EmitBlockStructs</c>) and the offset-0 assertion
+    /// fails for <c>T35_SharedWorkingState</c> and <c>PlatoonHillAttack</c>; skip the block emission
+    /// and the lookup fails for every behaviour.</para>
+    /// </summary>
+    [Fact]
+    public void EveryGeneratedBehaviourHasOneBlockWhoseInputsAreItsParamsStructAtOffsetZero()
+    {
+        BehaviorRegistry registry = LoadProductionRegistry();
+
+        var generated = registry.GetRegisteredNames()
+            .Select(n => Definition(registry, n))
+            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 }
+                     && d.BlackboardLayoutType is not null
+                     && ReferenceEquals(d.JsonParamsDtoType, d.BlackboardLayoutType))
+            .ToArray();
+
+        Assert.NotEmpty(generated);   // anti-vacuity
+
+        int withState = 0;
+        var problems = new System.Collections.Generic.List<string>();
+
+        foreach (BehaviorDefinition def in generated)
+        {
+            Type layout = def.BlackboardLayoutType!;
+            Type? block = layout.Assembly.GetType(layout.Namespace + "." + def.Name + "_Block");
+            if (block is null) { problems.Add($"{def.Name}: no {def.Name}_Block emitted"); continue; }
+
+            var inField = block.GetField("In");
+            if (inField is null || inField.FieldType != layout)
+                problems.Add($"{def.Name}: block.In is {inField?.FieldType.Name ?? "missing"}, not {layout.Name}");
+            else if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "In") != 0)
+                problems.Add($"{def.Name}: block.In is not at offset 0");
+
+            var stField = block.GetField("St");
+            if (stField is null) continue;
+            withState++;
+
+            var provisioned = (def.StatefulWorkingSlots ?? Array.Empty<StatefulSlotInfo>())
+                .Where(s => s.Scope == (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)
+                .Select(s => s.WorkingStateType)
+                .ToHashSet();
+
+            foreach (var f in stField.FieldType.GetFields())
+                if (!provisioned.Contains(f.FieldType))
+                    problems.Add($"{def.Name}: St.{f.Name} ({f.FieldType.Name}) is not a Behavior-scoped slot the registrar provisions");
+
+            int inBytes = System.Runtime.InteropServices.Marshal.SizeOf(layout);
+            if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St") < inBytes)
+                problems.Add($"{def.Name}: block.St overlaps block.In");
+        }
+
+        Assert.True(problems.Count == 0, "CE-425 block shape:\n  " + string.Join("\n  ", problems));
+        Assert.True(withState > 0, "anti-vacuity: at least one generated behaviour carries Behavior-scoped State");
     }
 
     /// <summary>

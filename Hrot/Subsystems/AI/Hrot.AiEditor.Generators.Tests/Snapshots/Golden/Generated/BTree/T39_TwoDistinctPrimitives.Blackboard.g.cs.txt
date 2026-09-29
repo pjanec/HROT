@@ -15,3 +15,11 @@ public struct T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackbo
     [FieldOffset(16)]
     public global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params bpParamsC;
 }
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit, Size = 24)]
+public struct T39_TwoDistinctPrimitives_Block
+{
+    [FieldOffset(0)]
+    public T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackboard In;
+}

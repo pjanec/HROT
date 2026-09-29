@@ -178,7 +178,103 @@ public static class BTreeEmitCore
         }
 
         sb.AppendLine("}");
+
+        EmitBlockStructs(sb, dto, sizeResolver, structName, fields.Count > 0, packedBytes);
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-425</c> — the behaviour's ONE BLOCK <i>(<c>R-151</c>, <c>Q76</c> §12.2)</i>:
+    /// <c>{Asset}_Block { In; St; }</c>, where <c>In</c> is the Inputs struct emitted above —
+    /// ⭐⭐⭐ <b>the SAME type, at offset 0</b>, so the Input region is byte-identical by
+    /// construction and every manifest offset stays valid (§12.2a).
+    ///
+    /// <para>
+    /// ⛔⛔ <b>ADDITIVE ONLY — nothing consumes the block yet, and that is deliberate.</b>
+    /// <c>BlackboardLayoutType</c> keeps naming the Inputs struct. 📐 Measured: the root params slot
+    /// is sized from the MANIFEST extent (<c>RootParamsAccess.RootParamsBytes</c>), while
+    /// <c>BrainDiagnosticsTranslator</c> does <c>PtrToStructure(ptr, BlackboardLayoutType)</c> and
+    /// StructEdit writes at the layout type's offsets. ⇒ pointing the layout type at a block wider
+    /// than the slot would READ and WRITE past the region. The flip therefore lands together with
+    /// sizing the slot from the block (<c>CE-429</c>) and with moving the Behavior-scoped State
+    /// readers off their side slots — see the <c>CE-425</c> row.
+    /// </para>
+    /// <para>
+    /// ⚠ A half with no fields is OMITTED rather than emitted empty: an empty C# struct is one byte,
+    /// so an empty <c>St</c> would change the block's size for nothing.
+    /// </para>
+    /// </summary>
+    private static void EmitBlockStructs(
+        StringBuilder sb,
+        BehaviorTreeAssetDto dto,
+        SizeResolverDelegate? sizeResolver,
+        string inputsStructName,
+        bool hasInputs,
+        int inputBytes)
+    {
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> stateFields;
+        int stateBytes, stateAlign;
+        try
+        {
+            stateFields = BTreeBlackboardPackHelper.PackBehaviorState(
+                dto.Blackboard.Variables, sizeResolver, out stateBytes, out stateAlign);
+        }
+        catch (NotSupportedException ex)
+        {
+            // ⛔ Never cost the Inputs struct: a State type nobody can size skips the BLOCK only.
+            // ⚠ But say so IN THE ARTEFACT — a silently absent block is the silent-default pattern.
+            //   📐 Measured 2026-09-29: PlatoonHillAttack's HillAttackMutableState carries `fixed`
+            //   buffers, which StructSizeResolver.GetTypeSize cannot size (CE-437 owns the fix).
+            sb.AppendLine();
+            sb.AppendLine("// CE-425: no block emitted — " + ex.Message);
+            return;
+        }
+
+        string prefix    = SanitizeIdentifier(dto.Name);
+        string blockName = prefix + "_Block";
+        string stateName = prefix + "_BlockState";
+        bool   hasState  = stateFields.Count > 0;
+
+        if (hasState)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"/// <summary>CE-425: the Role=State, Scope=Behavior half of <see cref=\"{blockName}\"/>.</summary>");
+            sb.AppendLine($"[StructLayout(LayoutKind.Explicit, Size = {stateBytes})]");
+            sb.AppendLine($"public struct {stateName}");
+            sb.AppendLine("{");
+            foreach (var f in stateFields)
+            {
+                if (f.TypeId == "System.Boolean" || f.TypeId == "bool")
+                    sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
+                sb.AppendLine($"{Indent}[FieldOffset({f.ByteOffset})]");
+                sb.AppendLine($"{Indent}public {ToCsTypeName(f.TypeId)} {f.Name};");
+            }
+            sb.AppendLine("}");
+        }
+
+        int stateOffset = inputBytes;
+        if (stateAlign > 0 && stateOffset % stateAlign != 0)
+            stateOffset += stateAlign - (stateOffset % stateAlign);
+        int blockBytes = hasState ? stateOffset + stateBytes : inputBytes;
+
+        sb.AppendLine();
+        sb.AppendLine($"/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>");
+        sb.AppendLine(hasInputs || hasState
+            ? $"[StructLayout(LayoutKind.Explicit, Size = {blockBytes})]"
+            : "[StructLayout(LayoutKind.Sequential)]");
+        sb.AppendLine($"public struct {blockName}");
+        sb.AppendLine("{");
+        if (hasInputs)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset(0)]");
+            sb.AppendLine($"{Indent}public {inputsStructName} In;");
+        }
+        if (hasState)
+        {
+            sb.AppendLine($"{Indent}[FieldOffset({(hasInputs ? stateOffset : 0)})]");
+            sb.AppendLine($"{Indent}public {stateName} St;");
+        }
+        sb.AppendLine("}");
     }
 
     /// <summary>

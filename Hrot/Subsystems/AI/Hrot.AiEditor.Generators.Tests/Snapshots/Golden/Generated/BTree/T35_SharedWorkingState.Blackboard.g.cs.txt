@@ -15,3 +15,21 @@ public struct T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard
     [FieldOffset(8)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParamsControl;
 }
+
+/// <summary>CE-425: the Role=State, Scope=Behavior half of <see cref="T35_SharedWorkingState_Block"/>.</summary>
+[StructLayout(LayoutKind.Explicit, Size = 4)]
+public struct T35_SharedWorkingState_BlockState
+{
+    [FieldOffset(0)]
+    public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState bpSharedWorkingState;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit, Size = 16)]
+public struct T35_SharedWorkingState_Block
+{
+    [FieldOffset(0)]
+    public T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard In;
+    [FieldOffset(12)]
+    public T35_SharedWorkingState_BlockState St;
+}

@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13** — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a** (CE-425 built; next is CE-437 + CE-429) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -796,9 +796,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 | # | debt |
 |---|---|
-| **①** | 🔴 **`CE-418`'s inverse-edit red-proof never ran.** ⛔ Forcing the emitter back with `if (false)` raises **`CS0162` unreachable code** under warnings-as-errors ⇒ the build failed, no test host was produced, and the runs reported nothing. ⭐ **Use a compile-clean toggle** *(an `internal static bool`, or `#if`)*. ⚠ The rail is green but **unproven against the defect** |
+| **①** | ✅ **PAID `2026-09-29` evening** — reverted textually, rail FAILED on 5 fields of 2 behaviours, 7/7 with the fix restored *(see the `CE-418` row)*. ⛔ HISTORY: 🔴 **`CE-418`'s inverse-edit red-proof never ran.** ⛔ Forcing the emitter back with `if (false)` raises **`CS0162` unreachable code** under warnings-as-errors ⇒ the build failed, no test host was produced, and the runs reported nothing. ⭐ **Use a compile-clean toggle** *(an `internal static bool`, or `#if`)*. ⚠ The rail is green but **unproven against the defect** |
 | **②** | ⚠ **`CE-425`/`CE-429` owe an end-to-end TIER-PROMOTION case in the new block shape.** `PlatoonHillAttack2` was the only asset above 4 slots *(9)* and the only one pushing the ladder past its first rung. ⛔ **Do NOT mint a synthetic 9-slot asset** — under `B` that shape stops existing |
 | **③** | ⚠ **`CE-426` + `CE-432` MUST land together.** `V_ResolverPurity`'s exemption **inverts** *(`Parameter` allowed→refused, `Variable` refused→allowed)*, and that is sound **only** once the shadow covers the whole block. ⛔ Shipping the exemption first re-introduces the corruption the validator exists to prevent |
+
+### 13.4a ✅ `CE-425` BUILT *(same evening, after the resumption above)* — ⭐ **NEXT IS `CE-437` + `CE-429` TOGETHER**
+
+⭐ The block is **emitted, additively** — `{Asset}_BlockState` + `{Asset}_Block { In; St; }`, `In` being the existing params type at offset 0. ⛔⛔ **`BlackboardLayoutType` was NOT flipped**: the root slot is sized from the manifest extent while `BrainDiagnosticsTranslator` and StructEdit read/write at the layout type's offsets ⇒ a wider type overruns the slot. 🔴 **§12.6 was missing a slice** — nothing moved a GENERATED behaviour's `Behavior`-scoped State off its side slot ⇒ filed **`CE-437`**, which must land with `CE-429`. 🔴 `PlatoonHillAttack` gets **no** block — `fixed` buffers are unsizable by `StructSizeResolver` *(written into the artefact, owned by `CE-437`)*. 📄 [`Q76` §12.16](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md) carries the as-built diagram and the revised order.
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 

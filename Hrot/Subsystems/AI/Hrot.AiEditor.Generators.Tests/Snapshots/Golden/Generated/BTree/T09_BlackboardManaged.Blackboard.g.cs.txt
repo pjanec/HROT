@@ -18,3 +18,11 @@ public struct T09_BlackboardManaged_Blackboard
     [FieldOffset(24)]
     public bool IsAlerted;
 }
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit, Size = 25)]
+public struct T09_BlackboardManaged_Block
+{
+    [FieldOffset(0)]
+    public T09_BlackboardManaged_Blackboard In;
+}

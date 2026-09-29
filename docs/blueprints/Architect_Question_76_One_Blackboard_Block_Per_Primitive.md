@@ -6,8 +6,8 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  ⛔ NOTHING IS BUILT YET. §12.6 is the ordered slice list; CE-418 is slice 1 and is a live defect
-  whose fix is identical either way.
+  BUILDING — CE-418, CE-436, CE-435, CE-425 are BUILT (§12.15, §12.16). ⚠ §12.6's order is REVISED by
+  §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
   requirements** and SUPERSEDES §12.9b's shape-② lean (a behaviour asset has no graph container). §12.6 is the ordered slice list and §12.7 the rails.
@@ -928,6 +928,8 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 
 ### 12.6 ⏭ THE SLICES — **ordered, and each independently shippable**
 
+> ⚠ **Revised by §12.16 (`2026-09-29`):** slices 1–4 are built; a slice this table never named — **`CE-437`**, moving a generated behaviour's `Behavior`-scoped State into the block and flipping `BlackboardLayoutType` — was filed and lands **together with `CE-429`**.
+
 | # | id | slice | depends on |
 |---|---|---|---|
 | **1** | `CE-418` | 🔴 **one layout authority** — the struct carries `[FieldOffset]` from `Pack`. ⭐ Live defect, fix is identical either way | — |
@@ -1601,3 +1603,49 @@ refactor carries one scope.** A legacy asset keeps its value in JSON until `A` r
 📐 **Gates:** generators **343/343** · BTree.Editor **636** · Hsm.Editor **619** · Persistence **147**
 · AiShared **2095/1 skip**. ⭐ Golden diff **3 files / 3 lines** — `Ticks`'s scope plus two
 persistence hashes, nothing else.
+
+---
+
+### 12.16 ✅ `CE-425` AS BUILT — **the block is EMITTED; the flip is NOT, and a slice was missing** *(`2026-09-29`)*
+
+```mermaid
+classDiagram
+    class Asset_Inputs {
+        <<EXISTS - Asset_Suffix, unchanged>>
+        Role Input fields, Explicit, Pack offsets
+    }
+    class Asset_BlockState {
+        <<NEW - only when a Behavior-scoped State var exists>>
+        Role State, Scope Behavior fields
+    }
+    class Asset_Block {
+        <<NEW - emitted, consumed by NOTHING yet>>
+        +Asset_Inputs In at 0
+        +Asset_BlockState St
+    }
+    class BehaviorDefinition {
+        <<EXISTS>>
+        +Type JsonParamsDtoType
+        +Type BlackboardLayoutType
+    }
+    Asset_Block *-- Asset_Inputs
+    Asset_Block *-- Asset_BlockState
+    BehaviorDefinition --> Asset_Inputs : JsonParamsDtoType
+    BehaviorDefinition --> Asset_Inputs : BlackboardLayoutType UNCHANGED
+    BehaviorDefinition ..> Asset_Block : flips in CE-437 + CE-429
+```
+
+> ⭐ **Caption.** What the picture shows that §12.2's did not: the arrow to `Asset_Block` is **dashed**.
+> §12.2 drew `BlackboardLayoutType → Asset_Blackboard` as if `CE-425` made it; ⛔ it cannot, safely, on
+> its own — see below. ⭐ The `In` field **is the existing params type**, so the Input region is
+> byte-identical **by construction**, not by a re-computed offset table.
+
+| | |
+|---|---|
+| ✅ **built** | `BTreeEmitCore.EmitBlockStructs` appends `{Asset}_BlockState` + `{Asset}_Block` to every `*.Blackboard.g.cs`; `BTreeBlackboardPackHelper.PackBehaviorState` packs the State half by the SAME alignment rule *(one layout authority, `CE-418`)*. ⚠ An empty half is **omitted**, never emitted empty — an empty C# struct is one byte and would resize the block for nothing. ⛔ A State type no resolver can size skips the BLOCK only, never the Inputs struct |
+| ⛔⛔ **NOT built, deliberately** | the flip of `BlackboardLayoutType`. 📐 The root slot is sized from the **manifest extent** *(`RootParamsAccess.RootParamsBytes`)*; `BrainDiagnosticsTranslator.cs:108` does `PtrToStructure(ptr, BlackboardLayoutType)` and StructEdit **writes** at the layout type's offsets ⇒ a layout type wider than the slot **reads and writes past the region**. ⇒ the flip rides with `CE-429` *(size from the block)* |
+| 🔴 **the MISSING slice — filed `CE-437`** | §12.6 has slices that EMIT the State half, SIZE the slot and ROUTE the supply — ⛔ **none moves a GENERATED behaviour's State off its side slot or re-points its readers** *(`CE-430` covers only the hand-written hill attack)*. Surface: **2** BTree assets *(`T35:bpSharedWorkingState`, `PlatoonHillAttack:State`)* + **3** HSM variables after `Q75`-`S1` |
+| 🔴 **measured gap — `PlatoonHillAttack` gets NO block** | its `HillAttackMutableState` has `fixed` buffers and `StructSizeResolver.GetTypeSize` returns `-1` for them. ⭐ The skip is written into the artefact *(`// CE-425: no block emitted — …`)*, never silent. ⚠ Fixing it needs (size, **alignment**) pairs — a `fixed byte[8]` is 8 bytes aligned 1, the `CE-418` trap again — and the resolver is shared with blueprint Params sizing. Owned by `CE-437` |
+| ⏭ **not yet** | the HSM arm *(`Q75`-`S1`)* — the HSM generator still emits no struct at all |
+
+⭐ **Revised order:** ~~`CE-425`~~ ✅ → **`CE-437` + `CE-429` together** → `CE-426` + `CE-432` together → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`.

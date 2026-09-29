@@ -11,3 +11,11 @@ public struct T37_SharedStateManifestProvisioning_FdpToolkitBehaviorComponentsBr
     [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Generated.SharedStateRallyDemo_3CBD7255_Bp.Params bpParams;
 }
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit, Size = 0)]
+public struct T37_SharedStateManifestProvisioning_Block
+{
+    [FieldOffset(0)]
+    public T37_SharedStateManifestProvisioning_FdpToolkitBehaviorComponentsBrainBlackboard In;
+}
