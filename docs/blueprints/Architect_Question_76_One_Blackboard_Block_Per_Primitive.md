@@ -9,7 +9,8 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   ⛔ NOTHING IS BUILT YET. §12.6 is the ordered slice list; CE-418 is slice 1 and is a live defect
   whose fix is identical either way.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
-  parameters reach it (bake → supply → resolve). §12.6 is the ordered slice list and §12.7 the rails.
+  parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
+  requirements** and SUPERSEDES §12.9b's shape-② lean (a behaviour asset has no graph container). §12.6 is the ordered slice list and §12.7 the rails.
   §11 is the S-SUB slice, still valid but ⚠ §12.1 SUPERSEDES its §11.3 ① on the payload shape
   ([cursor][one blackboard struct], two regions, not three). §0/§1 are the proposal and the
   measurements; §4 the decisions; §5 DELETED and §6 KEPT-BUT-RE-EXPRESSED — read both before
@@ -928,6 +929,7 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 | **6** | `CE-431` | **`S-SUB`** *(§11)* — a hosted subtree gets its own block, seeded once. ⭐ **the pilot**: its BTree arm needs neither `S1` nor the scope work | 4 |
 | **7** | `CE-432` | widen `BP1677` from "one DTO in → the SAME DTO out" to "authored DTO in → the BLOCK out" — one Stage-2 rule, one emitter lambda | 5 |
 | **8** | `CE-428` | bind a blueprint `Construction` graph as a behaviour's resolver — asset field, editor picker, registrar lookup | 7 |
+| **8b** | `CE-434` | the behaviour picks or CREATES its resolver *(a dedicated resolver asset)*, and the editor invalidates the pick when the authored params change — 📄 §12.10 | 8 |
 | **8a** | `CE-433` | ⭐ OPTIONAL ergonomics — a `Get All / Set Blackboard Variables` pin pair baked from the variable table. ⛔ The capability already ships *(§12.9a)*; this is the `GetAllParameters`-style wrapper | 7 |
 | **9** | `CE-430` | fold `HillAttackMutableState` back into `PlatoonHillAttackBlackboard`; retire `StatefulAction`'s manifest/scope arguments | 4 |
 | **10** | `A` + `C` | retire cross-entity shared memory and `WorkingStateScope` — now unblocked | 6, 8 |
@@ -1048,8 +1050,15 @@ blackboard variable table instead of the AiPrimitive's `Parameters` list.
 *(`T09_BlackboardManaged_Blackboard`, `PlatoonHillAttack2_…BrainBlackboard`)*, **not** from a hash ⇒
 both shapes are technically available to it.
 
-⚖️ **LEAN: use shape ② — the implied subject — for a behaviour's OWN resolver**, and keep ① for a
-*reusable* resolver shared across behaviours. ⭐ The author then never types a generated FQN, and it
+⛔⛔ **SUPERSEDED THE SAME DAY BY §12.10a — READ THAT FIRST.** 📐 A behaviour asset has **no graph
+container at all** *(`BehaviorTreeAssetDto` and its HSM twin carry no `Graphs` member)*, so shape ②
+is **unavailable to a behaviour**: it requires the asset to BE a blueprint asset. ⇒ the answer is
+**shape ③, a dedicated resolver ASSET with an asset-level subject and an injected `ref`** — ②'s
+ergonomics, ①'s file layout. ⚠ The reasoning below is kept because its comparison of ① and ② is
+still correct and still decides how ③ is shaped.
+
+⚖️ ~~**LEAN: use shape ② — the implied subject — for a behaviour's OWN resolver**, and keep ① for a
+*reusable* resolver shared across behaviours.~~ ⭐ The author then never types a generated FQN, and it
 reuses the `Get Parameter` / `Set Variable` authoring that already ships. ⚠ **What would change the
 lean:** if one resolver graph must serve several behaviours with different blackboards, ① is the only
 shape that can express it — but that needs a use case, and none is measured.
@@ -1200,3 +1209,98 @@ the lean was formed, then the rule was narrowed to fit it, when the measurement 
 wrong. ⛔ **If child→host coordination is still wanted after `A`, it is a TICK-time question** and
 belongs with the messaging alternative — 🔒 the user's own framing: *"if commander wants something
 from subordinate, it sends command to it; if subordinate needs to tell something back, it reports."*
+
+---
+
+### 12.10 ⭐⭐⭐ THE SOLUTION AGAINST THE FIVE REQUIREMENTS *(`2026-09-29`)*
+
+> 🔒 **User's five requirements, verbatim:** ① *"resolver reads authored behavior dto and outputs
+> nothing because it must be possible to read and write the variable of 'its' complete blackboard dto
+> (preferably passed as second argument)"* · ② *"resolver must be implementable as a blueprint
+> graph"* · ③ *"resolver must be assignable to edited behavior - picked from picker (hardcoded c#
+> ones with matching parameters) or it must be creatable from that behavior (new blueprint graph
+> taking the parameters - input and blackboard DTOs)"* · ④ *"The editor needs to check that if we
+> change the authored parameter for the behavior, we need to update also the resolver (we invalidate
+> the resolver selection if no longer matching, and we allow to edit its parameters or select another
+> one...)"* · ⑤ *"Basically reusing a resolver for multiple behaviors is a rare case and i am not sure
+> if we need to support it at all"*
+
+#### 12.10a 🔴🔴 THE MEASUREMENT THAT RESHAPES THE ANSWER — **a behaviour asset has NO graph container**
+
+📐 `BehaviorTreeAssetDto` *(and its HSM twin)* carries `Blackboard.Variables`, nodes and canvas —
+**and no `Graphs` member at all** *(grepped: zero `Graphs` references under `…Persistence/BTree/` and
+`…Persistence/Hsm/`)*. ⇒ ⛔⛔ **shape ② — "an asset's OWN `Construction` graph" — is UNAVAILABLE to a
+behaviour**, because it requires the asset to *be* a blueprint asset.
+
+⚠⚠ **This falsifies §12.9b's lean** *("use shape ② for a behaviour's own resolver")*, committed
+earlier the same day. ⭐ A behaviour's resolver graph must live in a **separate blueprint asset** —
+which is mechanically shape ①, but should not inherit ①'s pin-declared signature.
+
+#### 12.10b ⭐⭐⭐ SHAPE ③ — **the DEDICATED RESOLVER ASSET**
+
+A blueprint asset holding **exactly one `Construction` graph**, whose subject is declared **at asset
+level** and **injected** by the emitter — ②'s ergonomics with ①'s file layout:
+
+```csharp
+// emitted for a dedicated resolver asset — NOTHING is declared as a graph pin
+public static void Resolve(
+    in  TAuthored authored,     // ⭐ the authored behaviour DTO   — injected, read-only
+    ref TBlock    block,        // ⭐ the WHOLE blackboard         — injected, read/write  (req ①)
+    EntityRepository world, Entity self)
+```
+
+| in the graph | lowers to | already exists? |
+|---|---|---|
+| `Get Parameter` | `authored.{field}` | ✅ `IrOp_ReadParam` |
+| `Set Variable` | `block.{field} = v` | ✅ `IrOp_WriteVariable` via `ContainerVarFor` |
+| `Break`/`Make`/`SetMembers` | on a **nested struct field** | ✅ pure, already legal |
+
+⭐ **No output, no return type** — requirement ① exactly, and it is what makes the pre-seeded bake
+survive *(§12.9c)*. ⚠ `BP1677` gains a **third arm**, identical in spirit to ②'s: *"a dedicated
+resolver asset's graph declares no inputs and no outputs; its subjects are its asset-level
+declarations."*
+
+#### 12.10c ⚠ THE BINDING DIRECTION IS BACKWARDS TODAY — **and `R-149` is on the user's side**
+
+📐 `[BehaviorResolver("BehaviourName")]` *(with optional `ParamsType`)* is **resolver → behaviour**:
+the C# method names the behaviour it resolves, harvested at build by `CuratedBehaviorGenerator`.
+⛔ Requirement ③ wants **behaviour → resolver** — the behaviour asset picks. 🔒 **And that is what
+`R-149` actually rules:** *"a params region NAMES its resolver."*
+
+⭐⭐ **Both directions can coexist safely, and the guard already ships:**
+`BehaviorRegistry.RegisterResolver:536` **throws** on two explicit bindings for one region — *"two
+CURATED bindings have no tie-break… the silent last-writer-wins this line used to be would pick one
+by source order"* ⇒ a collision is a **startup error, not a race.**
+
+⭐ **Consequence for the picker:** a resolver meant to be *picked* should declare its **shapes**
+*(authored DTO + block type)* and **omit** `BehaviorName`; one that keeps `BehaviorName` is
+**self-binding** and must not appear in the picker. ⇒ `BehaviorName` becomes optional, and its
+presence is the discriminator.
+
+#### 12.10d 📋 THE FIVE REQUIREMENTS, ANSWERED
+
+| # | requirement | answer | exists? |
+|---|---|---|---|
+| **①** | authored DTO in, **no output**, read/write the whole block as the 2nd argument | ⭐ shape ③'s injected signature. The `ref` subject is **the mechanism already in use** — `EmitOwnResolverMethod:152` writes `ref Params p,` by hand today | ⭐ widen the injected type; **no new pin shape, no `ref` graph inputs** |
+| **②** | implementable as a blueprint graph | ⭐ `GraphKind.Construction` — authorable *("Construction Script")*, purity-checked by `V_ResolverPurity`, compiled by `LibraryEmitter`, published in `BlueprintDefinition.Resolvers` | ✅ **ships** — 🔴 and is **read by no production code**. `CE-428` is the binding |
+| **③** | assignable: **pick** a curated C# one with matching params, **or create** a new graph from the behaviour | ⭐ a `resolverRef` on the behaviour asset + a picker. **Precedent is exact:** `ActionSchemaExporter` feeds the action/guard pickers *(`CE-386`)*; a resolver exporter mirrors it. **Create** = the editor mints a dedicated resolver asset *(§12.10b)*, auto-named after the behaviour, and binds it | ⛔ **new**: the asset field, the exporter, the picker, the create command |
+| **④** | changing the authored params **invalidates** the resolver; offer edit / re-pick | ⭐ store the resolver ref **with a hash of the authored DTO's shape**; recompute on load and save, and on mismatch mark the selection invalid with three actions *(edit the graph · pick another · clear)*. ⭐⭐ **Compile-time backstop already exists** — `BP1677`'s type check fails the build when a declared subject no longer matches, so an editor miss is **caught, never silent** | ⛔ **new** — but the pattern is the subtree programme's heal rule + `StructureHash` |
+| **⑤** | reuse across behaviours is rare — support it at all? | ⚖️ **LEAN: do not build for it.** Shape ③ gives it **for free** when two behaviours share a blackboard type *(point both at the same asset)*; nothing prevents it and nothing special supports it. ⭐ Keep shape ① as-is because it **already ships** — ⛔ do not extend it | ✅ no work |
+
+#### 12.10e ⚖️ THE ONE JUDGEMENT CALL IN HERE
+
+**Where does a dedicated resolver asset name its subject?** Two options:
+
+| | |
+|---|---|
+| ⚖️ **LEAN — it names the BEHAVIOUR asset** | the generator derives both `TAuthored` and `TBlock` from it. ⭐ One reference, and the editor can offer *"create resolver"* with nothing to fill in |
+| ⛔ rejected — it names the two TYPES | ⚠ the author would type two generated FQNs, and the two could drift apart from the behaviour independently ⇒ two producers for one relationship *(`R-132`)* |
+
+⚠ **What would change the lean:** if a resolver must be authorable **before** its behaviour exists.
+📐 Not measured, and the editor's create-from-behaviour flow *(requirement ③)* makes it unlikely.
+
+⛔⛔ **AND IT CREATES A TWO-WAY REFERENCE** — the behaviour names the resolver *(req ③)* and the
+resolver names the behaviour. ⚠ That is a **heal-rule obligation**, not a blocker: the subtree
+authoring programme already solved the same shape *(a host names a child asset; the child does not
+name the host)*. ⇒ ⭐ **the resolver's reference is DERIVED and read-only in the editor** — written
+when the asset is created, repaired if the behaviour is renamed, never hand-edited.
