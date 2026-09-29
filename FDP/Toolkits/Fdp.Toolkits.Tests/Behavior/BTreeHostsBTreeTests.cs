@@ -167,8 +167,10 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
 
             foreach (var slot in plan.Slots)
             {
+                // ⭐ CE-431: [cursor][start word][block], sized from the CHILD — what ingress provisions.
+                HostedChildren.TryGetDefinition(slot.SlotKey, out var childDef);
                 Assert.True(BlueprintBlackboardPartitions.TryAttach(
-                    mem, slot.SlotKey, HostedSubtree.TreeStatePayloadSize,
+                    mem, slot.SlotKey, HostedSubtree.SlotPayloadSizeFor(childDef),
                     structureHash: 0, OccurrenceKind.BTree, out _),
                     "the planned hosted slot must attach — HostedSubtree.Tick THROWS without it");
             }
@@ -630,5 +632,203 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         var ex = Assert.Throws<InvalidOperationException>(
             () => HostedChildren.Require(plan.Entries[0].TreeStateSlotKey));
         Assert.Contains(ChildName, ex.Message);
+    }
+
+    // ══ CE-431 — a hosted child gets ITS OWN block, seeded at each START ═══════════════════════════
+    //  📄 Architect_Question_76 §11.6 (the rails S-SUB owes) / §11.7 (as designed to build).
+    //  ⭐ Driven through the REAL ingress and BrainTickSystem, like E6_R8: the slot is sized from the
+    //     CHILD's definition by ingress (HostedSubtree.EffectiveSlots), so a hand attach cannot stand in.
+
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct Ce431HostBlock  { public long A; public long B; }
+    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    private struct Ce431ChildBlock { public long In; public long St; }
+
+    private static readonly System.Collections.Generic.List<long> _seen = new();
+    private static bool _childBbWasTheRoot;
+    private static bool _completeChild;
+    private const long ChildDefault = 7;
+
+    private static NodeStatus RecordIn(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p)
+    {
+        ref var blk = ref Unsafe.As<byte, Ce431ChildBlock>(ref BehaviorBlock.Require(ref bb));
+        _seen.Add(blk.In);
+        if (RootParamsAccess.TryGetRootBytes(ctx.World, ctx.Self, out byte* root))
+            _childBbWasTheRoot |= Unsafe.AreSame(ref bb, ref Unsafe.AsRef<byte>(root));
+        return NodeStatus.Success;
+    }
+
+    private static NodeStatus RunUntilReleased(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int p)
+        => _completeChild ? NodeStatus.Success : NodeStatus.Running;
+
+    private static readonly Guid SiteA = new("06000000-0000-0000-0000-0000000431a0");
+    private static readonly Guid SiteB = new("06000000-0000-0000-0000-0000000431b0");
+
+    /// <summary>Registers host + child exactly as generated registrars do, assigns, and returns the entity.</summary>
+    private static Entity AssignCe431Host(
+        EntityRepository world, BehaviorRegistry beh, bool hostHasBlock,
+        System.Collections.Generic.IReadOnlyDictionary<Guid, HostedSubtree.SiteBinding>? bindings,
+        bool twoSites = false, bool curatedChild = false)
+    {
+        const int HostId = 0x6431;
+        var hb = new BTreeBuilder<byte, BTreeContext>();
+        hb.Sequence(seq =>
+        {
+            seq.Subtree(ChildName, visualId: SiteA);
+            if (twoSites) seq.Subtree(ChildName, visualId: SiteB);
+        });
+        var hostBlob = hb.Compile(HostName);
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName, bindings: bindings);
+
+        var host = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance };
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name                 = HostName,
+            BrainTier            = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter     = host,
+            StatefulWorkingSlots = plan.Slots,
+            BlackboardLayoutType = hostHasBlock ? typeof(Ce431HostBlock) : null,
+            ParseParams          = hostHasBlock ? (string j, byte* m, int c, EntityRepository w, Entity e, IHostVariableAccess? h) => { } : null,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var cb = new BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq => seq.Action(RecordIn).Action(RunUntilReleased));
+        var child = new Interpreter<byte, BTreeContext>(cb.Compile(ChildName), cb.GetRegistry());
+        beh.Register(ChildName, new BehaviorDefinition
+        {
+            Name                       = ChildName,
+            BrainTier                  = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter           = child,
+            BlackboardLayoutType       = typeof(Ce431ChildBlock),
+            ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+            BakeDefaults               = (byte* m, int c) => ((Ce431ChildBlock*)m)->In = ChildDefault,
+        });
+        if (curatedChild)
+            beh.RegisterResolver(ChildName, (string j, byte* m, int c, EntityRepository w, Entity e, IHostVariableAccess? h) => { }, typeof(long));
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        RootStateAccess.EnsureRootState(world, entity);
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+        return entity;
+    }
+
+    private static ref Ce431HostBlock HostBlock(EntityRepository world, Entity e)
+        => ref Unsafe.As<byte, Ce431HostBlock>(ref RootParamsAccess.RootRef(world, e));
+
+    private static void ResetCe431() { _seen.Clear(); _childBbWasTheRoot = false; _completeChild = false; }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-431</c> §11.6 ① + ④ — seeded at the START, not live; and the child's <c>bb</c> is its OWN
+    /// block.</b> The host mutates the bound variable while the child runs: the running child keeps its
+    /// seeded value; the NEXT start sees the new one.
+    /// <para>⛔ Red on the old tree: the child read the host's root block live (<c>TickFromContext</c>), so
+    /// <c>_childBbWasTheRoot</c> was true and the mid-run write was visible.</para>
+    /// </summary>
+    [Fact]
+    public void CE431_R1_AChildIsSeededAtItsStart_NotLive_FromItsOwnBlock()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) });
+
+        HostBlock(world, e).B = 42;
+        var brain = new BrainTickSystem(beh);
+        brain.Execute(world, 0.016f);                 // start: seeds In = 42, child parks Running
+        HostBlock(world, e).B = 99;                   // host changes the bound variable mid-run
+        brain.Execute(world, 0.016f);                 // still the same run — RecordIn does not re-enter
+        _completeChild = true;
+        brain.Execute(world, 0.016f);                 // completes ⇒ next entry is a fresh start
+        _completeChild = false;
+        brain.Execute(world, 0.016f);                 // fresh start: re-seeds In = 99
+
+        Assert.Equal(new long[] { 42, 99 }, _seen);
+        Assert.False(_childBbWasTheRoot, "the child must tick against its OWN block, never the host's root region");
+    }
+
+    /// <summary>⭐⭐ <b>§11.6 ③ — per-SITE binding:</b> the same child at two sites, bound to two host variables.
+    /// ⛔ Not expressible before CE-431 at all — both sites read the one host region.</summary>
+    [Fact]
+    public void CE431_R2_TheSameChildAtTwoSites_SeedsFromTwoDifferentVariables()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        _completeChild = true;                        // both children finish, so the sequence reaches site B
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(0, 8), [SiteB] = new(8, 8) },
+            twoSites: true);
+
+        HostBlock(world, e).A = 11;
+        HostBlock(world, e).B = 22;
+        new BrainTickSystem(beh).Execute(world, 0.016f);
+
+        Assert.Equal(new long[] { 11, 22 }, _seen);
+    }
+
+    /// <summary>⭐ <b>§11.6 ⑤ — a no-params host:</b> the child starts from its OWN authored default, not a scratch byte.</summary>
+    [Fact]
+    public void CE431_R3_AnUnboundChildOnANoParamsHost_StartsFromItsDefaults()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        AssignCe431Host(world, beh, hostHasBlock: false, bindings: null);
+
+        new BrainTickSystem(beh).Execute(world, 0.016f);
+
+        Assert.Equal(new long[] { ChildDefault }, _seen);
+    }
+
+    /// <summary>⛔ A hosted child with a CURATED resolver fails LOUDLY at start (§11.7c) — its JSON parse
+    /// would silently ignore the host's bytes. The byte-supplied arm is <c>CE-438</c>.</summary>
+    [Fact]
+    public void CE431_R4_AHostedChildWithACuratedResolver_ThrowsAtStart()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
+            curatedChild: true);
+
+        var brain = new BrainTickSystem(beh);
+        var ctx = new BTreeContext { Self = e, World = world };
+        var ex = Assert.Throws<NotSupportedException>(() =>
+            HostedSubtree.TickHosted(ref RootParamsAccess.RootRef(world, e), ref ctx,
+                BTreeHostedSites.PlanFor(BuildCe431Blob(), HostName).Entries[0].TreeStateSlotKey,
+                new HostedSubtree.SiteBinding(8, 8)));
+        Assert.Contains("CE-438", ex.Message);
+    }
+
+    private static BehaviorTreeBlob BuildCe431Blob()
+    {
+        var hb = new BTreeBuilder<byte, BTreeContext>();
+        hb.Sequence(seq => seq.Subtree(ChildName, visualId: SiteA));
+        return hb.Compile(HostName);
+    }
+
+    /// <summary>⛔ A bound variable whose width is not the child's Input region THROWS — never a partial copy.</summary>
+    [Fact]
+    public void CE431_R5_ABindingOfTheWrongWidth_Throws()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(0, 16) });
+
+        var ex = Assert.ThrowsAny<InvalidOperationException>(() => new BrainTickSystem(beh).Execute(world, 0.016f));
+        Assert.Contains("CE-431", ex.ToString());
     }
 }

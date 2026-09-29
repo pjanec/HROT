@@ -35,7 +35,9 @@ public static class HsmHostedSubtrees
     /// <param name="ChildName">The child behaviour's REGISTRY name (<c>Q36-B</c> = A).</param>
     /// <param name="TreeStateSlotKey">The child's own <c>BehaviorTreeState</c> slot, from
     /// <c>OccurrenceSlotKey.ComputeTreeStateKey(host, site, child)</c>.</param>
-    public readonly record struct Entry(ushort StateIndex, string ChildName, int TreeStateSlotKey);
+    /// <param name="Binding">⭐ <c>CE-431</c> — which bytes of the host's block seed the child; <c>default</c> = unbound.</param>
+    public readonly record struct Entry(ushort StateIndex, string ChildName, int TreeStateSlotKey,
+                                        HostedSubtree.SiteBinding Binding = default);
 
     // machineId (the blob's StructureHash) -> the hosting states of that machine.
     private static readonly Dictionary<uint, Entry[]> _byMachine = new();
@@ -57,9 +59,11 @@ public static class HsmHostedSubtrees
     /// <c>(state StableId, child registry name, tree-state slot key)</c> triples, baked by the
     /// generated HSM registrar from each state's <c>SubtreeName</c> and <c>SubtreeAssetId</c>.
     /// </param>
+    /// <param name="bindings">⭐ <c>CE-431</c> — per-state seed bindings keyed by the state's StableId; absent = unbound.</param>
     public static void Register(
         HsmDefinitionBlob blob,
-        IReadOnlyList<(Guid StableId, string ChildName, int TreeStateSlotKey)> entries)
+        IReadOnlyList<(Guid StableId, string ChildName, int TreeStateSlotKey)> entries,
+        IReadOnlyDictionary<Guid, HostedSubtree.SiteBinding>? bindings = null)
     {
         if (blob is null)    throw new ArgumentNullException(nameof(blob));
         if (entries is null) throw new ArgumentNullException(nameof(entries));
@@ -78,7 +82,8 @@ public static class HsmHostedSubtrees
             var (stableId, childName, slotKey) = entries[i];
             if (string.IsNullOrEmpty(childName)) continue;
             if (!indexByStableId.TryGetValue(stableId, out ushort stateIndex)) continue;
-            resolved.Add(new Entry(stateIndex, childName, slotKey));
+            var binding = bindings != null && bindings.TryGetValue(stableId, out var b) ? b : default;
+            resolved.Add(new Entry(stateIndex, childName, slotKey, binding));
         }
 
         if (resolved.Count == 0) return;

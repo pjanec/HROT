@@ -124,7 +124,9 @@ namespace Probe
             // 🔴 P3-C: the anchor moved from BrainBlackboard to the ROOT PARAMS SLOT. ⭐ The claim this
         //   rail makes — ONE spelling across the two emitters — is unchanged, so the pattern
         //   follows the expression rather than the rail being deleted.
-        @"ref Unsafe\.AddByteOffset\(ref global::Fdp\.Toolkit\.Behavior\.RootParamsAccess\.RootRef\([^)]*\), \((nint|IntPtr)\)\d+\)",
+        //   ⭐ CE-431: and moved again, to the thunk's OWN block (`bb`, through BehaviorBlock.Require) — so a
+        //   hosted subtree reads its own block. Same claim, same rail.
+        @"ref Unsafe\.AddByteOffset\(ref global::Fdp\.Toolkit\.Behavior\.BehaviorBlock\.Require\(ref bb\), \((nint|IntPtr)\)\d+\)",
             RegexOptions.Compiled);
 
         private static IReadOnlyList<string> ParamsProjections(string source) =>

@@ -17,6 +17,9 @@ namespace Fdp.Toolkit.Behavior;
 /// <para>⭐ <b>Stateless and shared.</b> Every site's identity arrives in the call, so there is
 /// nothing per-host to keep; <see cref="Instance"/> is handed to every interpreter that can host.</para>
 ///
+/// <para>⭐ <c>CE-431</c>: the host's <c>blackboard</c> is passed through as the SUPPLY source; the child
+/// ticks against its own block (<see cref="HostedSubtree.TickHosted"/>).</para>
+///
 /// <para>⚠⚠ <b>ONLY the <c>byte</c> blackboard is hosted, and that is not a limitation to route
 /// around.</b> Since <c>P4</c> the brain's root params region IS a byte region and
 /// <c>HostedChildren</c> stores <c>Interpreter&lt;byte, BTreeContext&gt;</c>. A differently-typed
@@ -37,16 +40,16 @@ public sealed class OccurrenceSubtreeHost : ISubtreeHost<byte, BTreeContext>
         //    A host that silently does nothing reads as "the subtree just fails", which is the exact
         //    silent miss this programme keeps paying for. If this throws, the host's registrar did
         //    not call BTreeHostedSites.Bind for this blob.
-        if (!BTreeHostedSites.TryGetKey(blob, nodeIndex, out int key))
+        if (!BTreeHostedSites.TryGetSite(blob, nodeIndex, out int key, out var binding))
             throw new InvalidOperationException(
                 $"BTree node {nodeIndex} of '{blob?.TreeName}' is a hosting site with no registered " +
                 "slot key. Its registrar must call BTreeHostedSites.Bind(beh, blob, plan) with the " +
                 "plan whose Slots it also put on the BehaviorDefinition.");
 
-        // ⚠ The blackboard argument is deliberately IGNORED: the child reads the ENTITY's root params
-        //   region, resolved inside TickFromContext, not the host tree's own projection. That is the
-        //   single spelling of the rule (CE-362) and the HSM arm reaches the same one.
-        return HostedSubtree.TickFromContext(ref context, key);
+        // ⭐⭐ CE-431 — the blackboard argument IS the HOST's block (the bb the host itself was ticked
+        //   with). The child gets its OWN block, seeded from this site's bound host variable at each
+        //   start. ⛔ It used to be ignored and the child read the entity's root region live (CE-362).
+        return HostedSubtree.TickHosted(ref blackboard, ref context, key, binding);
     }
 
     /// <inheritdoc/>

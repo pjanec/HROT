@@ -529,7 +529,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("                (ref " + tb + " bb, ref " + stateType + " st, ref " + tc + " ctx, int _) =>");
                     sb.AppendLine("                {");
                     sb.AppendLine("                    ref var p = ref Unsafe.As<byte, " + valueType + ">(");
-                    sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", 0) + ");");
+                    sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", 0) + ");");
                     sb.AppendLine("                    return global::" + m.FullQualifiedMethodName + "(ref p, ref st, ref ctx);");
                     sb.AppendLine("                });");
                 }
@@ -568,7 +568,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState _, ref " + tc + " ctx, int _) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", entry.Offset) + ");");
+                sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", entry.Offset) + ");");
                 if (entry.IsCondition)
                     sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
                 else
@@ -581,7 +581,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
                 sb.AppendLine("                {");
                 sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.At("ctx.World", "ctx.Self", entry.Offset) + ");");
+                sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", entry.Offset) + ");");
                 sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
                 EmitChannelClear(sb, entry.WritesChannels, "                    ");
                 sb.AppendLine("                    return status;");

@@ -434,7 +434,10 @@ public static class BTreeBridgeEmitCore
         {
             sb.AppendLine($"{pad2}// E6 — this asset hosts a sub-tree: plan its sites, then bind after Register.");
             sb.AppendLine($"{pad2}var __hosted = global::Fdp.Toolkit.Behavior.BTreeHostedSites.PlanFor(");
-            sb.AppendLine($"{pad2}{Indent}blob, \"{name}\", new global::System.Guid(\"{dto.AssetId:D}\"));");
+            string? bindings = EmitSiteBindings(dto, packedFields);
+            sb.AppendLine(bindings is null
+                ? $"{pad2}{Indent}blob, \"{name}\", new global::System.Guid(\"{dto.AssetId:D}\"));"
+                : $"{pad2}{Indent}blob, \"{name}\", new global::System.Guid(\"{dto.AssetId:D}\"), {bindings});");
             sb.AppendLine($"{pad2}interpreter.SubtreeHost = global::Fdp.Toolkit.Behavior.OccurrenceSubtreeHost.Instance;");
             sb.AppendLine();
         }
@@ -580,7 +583,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
@@ -635,7 +638,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
+            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
@@ -734,7 +737,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}{Indent}{{");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
         // ⭐⭐⭐ A2b (PLAN_Occurrence_Storage_Build) — ONE seam call, not a hand-emitted tier ladder.
         //   📐 This used to emit the 16384 → 4096 → 1024 chain inline: three HasComponent/GetComponentRW/
         //      fixed arms plus a no-tier fallthrough, MULTIPLIED INTO EVERY GENERATED ASSEMBLY. A fourth
@@ -798,9 +801,9 @@ public static class BTreeBridgeEmitCore
     /// condition and deactivator thunks (it was three hand-copied blocks).
     ///
     /// <para>⭐ A <c>Role=State, Scope=Behavior</c> variable lives in the behaviour's BLOCK now
-    /// (<c>R-151</c>): the thunk reaches it as <c>ref block->St.name</c> through
-    /// <c>RootParamsAccess.TryGetBlockFor</c>, keyed by THIS behaviour's own name — ⛔ never the active
-    /// one, which in a hosted subtree is the HOST (see that method). Every other slot — a node-bound
+    /// (<c>R-151</c>): the thunk reaches it as <c>block.St.name</c> projected from its own <c>bb</c>
+    /// (<c>CE-431</c> — the root block for a root, the child's OWN block for a hosted subtree; it was
+    /// <c>TryGetBlockFor</c> keyed by the behaviour's name, which cannot tell two sites of one child apart). Every other slot — a node-bound
     /// working state, an <c>Entity</c>-scoped variable — keeps its keyed side slot, unchanged.</para>
     /// </summary>
     private static void AppendWorkingStateResolve(
@@ -811,15 +814,9 @@ public static class BTreeBridgeEmitCore
         if (TryGetBlockStateVariable(dto, packedFields, slotKey, out string? varName))
         {
             string blockFqn = BTreeEmitCore.BlockStructFqn(dto);
-            string name     = dto.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
-            sb.AppendLine($"{pad}// CE-437: '{varName}' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).");
-            sb.AppendLine($"{pad}if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<{blockFqn}>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), out {blockFqn}* __blk))");
-            sb.AppendLine($"{pad}{{");
-            sb.AppendLine($"{pad}{Indent}global::System.Diagnostics.Debug.Assert(false,");
-            sb.AppendLine($"{pad}{Indent}{Indent}\"CE-437: {diagPrefix} stateful {what}variable '{varName}' — no block for behaviour '{name}' on this entity (not assigned, or ticked as a hosted subtree: CE-431)\");");
-            sb.AppendLine($"{pad}{Indent}{failStatement}");
-            sb.AppendLine($"{pad}}}");
-            sb.AppendLine($"{pad}ref var ws = ref __blk->St.{varName};");
+            sb.AppendLine($"{pad}// CE-437/CE-431: '{varName}' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,");
+            sb.AppendLine($"{pad}//   which is the bb it was ticked with — the root block, or a hosted child's own block.");
+            sb.AppendLine($"{pad}ref var ws = ref Unsafe.As<byte, {blockFqn}>({BlackboardParamsExpression.BlockBase("bb")}).St.{varName};");
             return;
         }
 
@@ -886,7 +883,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}{Indent}{{");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", offset)});");
+        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
         // ⭐⭐⭐ A2b (PLAN_Occurrence_Storage_Build) — ONE seam call, not a hand-emitted tier ladder.
         //   📐 This used to emit the 16384 → 4096 → 1024 chain inline: three HasComponent/GetComponentRW/
         //      fixed arms plus a no-tier fallthrough, MULTIPLIED INTO EVERY GENERATED ASSEMBLY. A fourth
@@ -1269,6 +1266,40 @@ public static class BTreeBridgeEmitCore
     /// resolved-or-not asset id to be a site; a bare empty payload is an unfinished authoring state,
     /// not a hosting site.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — the per-SITE seed bindings, as a dictionary expression keyed by each hosting
+    /// node's VisualId (the site id <c>BTreeHostedSites.PlanFor</c> computes), or <c>null</c> when no
+    /// site binds a variable (⇒ the emitted call and every golden stay unchanged).
+    /// ⛔ A <c>ParamsVariable</c> naming no packed variable emits a registration-time THROW — never a
+    /// silently unbound site.
+    /// </summary>
+    private static string? EmitSiteBindings(
+        BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+    {
+        var parts = new List<string>();
+        foreach (var node in dto.Nodes ?? new List<BTreeNodeDto>())
+        {
+            if (node is not BTreeSubtreeNodeDto st || st.Subtree is null) continue;
+            string? v = st.Subtree.ParamsVariable;
+            if (string.IsNullOrWhiteSpace(v)) continue;
+
+            BTreeBlackboardPackHelper.PackedField? f = null;
+            if (packedFields != null)
+                foreach (var pf in packedFields)
+                    if (pf.Name == v) { f = pf; break; }
+
+            if (f is null)
+                return "((global::System.Collections.Generic.IReadOnlyDictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding>?)null ?? throw new global::System.InvalidOperationException(\"CE-431: subtree site " + st.VisualId.ToString("D")
+                     + " binds params variable '" + v!.Replace("\"", "") + "', which is not a Role=Input variable of '"
+                     + dto.Name.Replace("\"", "") + "'.\"))";
+
+            parts.Add("[new global::System.Guid(\"" + st.VisualId.ToString("D") + "\")] = new(" + f.ByteOffset + ", " + f.ByteSize + ")");
+        }
+        if (parts.Count == 0) return null;
+        return "new global::System.Collections.Generic.Dictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding> { "
+             + string.Join(", ", parts) + " }";
+    }
+
     private static int CountSubtreeNodes(BehaviorTreeAssetDto dto)
     {
         if (dto?.Nodes == null) return 0;
@@ -1775,7 +1806,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}{{");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Project Params from BrainBlackboard (Slice-1 pattern).");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", d.DtoByteOffset)});");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", d.DtoByteOffset)});");
                 // ⭐ A2b — the THIRD emitted ladder, and the one my own A2 census MISSED because it is
                 //   PARAMETERISED PER TIER (three calls to one helper) rather than written out inline.
                 //   ⚠ Same collapse, same seam; the deactivator returns void, so a miss just returns.
@@ -1795,7 +1826,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}unsafe");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{{");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {d.DtoTypeFqn}>(");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.At("ctx.World", "ctx.Self", d.DtoByteOffset)});");
+                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", d.DtoByteOffset)});");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref st, ref ctx);");
                 sb.AppendLine($"{pad2}{Indent}{Indent}}}");
                 sb.AppendLine($"{pad2}{Indent}}});");

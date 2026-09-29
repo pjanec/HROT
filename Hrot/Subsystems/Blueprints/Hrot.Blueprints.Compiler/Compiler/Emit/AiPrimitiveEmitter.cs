@@ -469,7 +469,8 @@ internal static class AiPrimitiveEmitter
     /// slot, because this seed only runs when the slot is created.</para>
     /// </summary>
     private static void EmitParamSeed(
-        CSharpEmitter e, string offsetExpr, string hostExpr, string worldExpr, string selfExpr)
+        CSharpEmitter e, string offsetExpr, string hostExpr, string worldExpr, string selfExpr,
+        string? blockExpr = null)
     {
         e.WriteLine("if (freshlyAttached)");
         e.WriteLine("{");
@@ -489,7 +490,12 @@ internal static class AiPrimitiveEmitter
         // ⚠ Declared INSIDE the freshlyAttached arm on purpose: the anchor THROWS when the entity has
         //   no root params slot, and a thunk on an entity that legitimately has none must not pay that
         //   on every dispatch — only on the one that would actually read the seed.
-        e.WriteLine($"ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef({worldExpr}, {selfExpr});");
+        // ⭐ CE-431: a BTree thunk seeds from the block it was TICKED with (its `bb`) — the root block for a
+        //   root, a hosted subtree's OWN block for a child. ⚠ The HSM thunk has no bb and an HSM is always
+        //   a root, so it keeps the root anchor.
+        e.WriteLine(blockExpr is null
+            ? $"ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef({worldExpr}, {selfExpr});"
+            : $"ref byte __rootParams = ref {blockExpr};");
         e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
         e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
         e.WriteLine($"        ref __rootParams, (nint){offsetExpr}));");
@@ -596,7 +602,8 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
         // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
         //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
-        EmitParamSeed(e, "0", "null", "ctx.World", "ctx.Self");   // standalone: no host variables
+        EmitParamSeed(e, "0", "null", "ctx.World", "ctx.Self",   // standalone: no host variables
+                      "global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
     }

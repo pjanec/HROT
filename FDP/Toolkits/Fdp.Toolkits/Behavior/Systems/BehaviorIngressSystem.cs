@@ -207,7 +207,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
                     // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                     _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    ProvisionStatefulSlots(repo, evt.Entity, def.StatefulWorkingSlots, KindOf(def),
+                    // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
+                    ProvisionStatefulSlots(repo, evt.Entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots), KindOf(def),
                                            hosted, RootParamsCost(def), RootBrainStateCost(def));
                 }
                 else

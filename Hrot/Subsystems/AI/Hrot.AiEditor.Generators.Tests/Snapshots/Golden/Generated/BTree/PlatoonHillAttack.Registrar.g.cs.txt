@@ -43,7 +43,7 @@ public static class PlatoonHillAttackRegistrar
                 unsafe
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref dto, ref st, ref ctx);
                 }
             });
@@ -57,15 +57,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -76,15 +71,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -95,15 +85,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -114,15 +99,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -133,15 +113,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -152,15 +127,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return Fbt.NodeStatus.Failure;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -173,15 +143,10 @@ public static class PlatoonHillAttackRegistrar
                 {
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
-                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
-                    {
-                        global::System.Diagnostics.Debug.Assert(false,
-                            "CE-437: S3-G stateful deactivator variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
-                        return;
-                    }
-                    ref var ws = ref __blk->St.State;
+                        ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
+                    // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
+                    //   which is the bb it was ticked with — the root block, or a hosted child's own block.
+                    ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
                     global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
                 }
             });

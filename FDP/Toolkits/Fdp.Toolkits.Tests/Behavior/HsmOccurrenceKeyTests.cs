@@ -2357,7 +2357,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
             byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
             Assert.True(store != null);
             Assert.True(BlueprintBlackboardPartitions.TryAttach(
-                store, SlotKey, HostedSubtree.TreeStatePayloadSize,
+                store, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
                 structureHash: 0, OccurrenceKind.BTree, out _));
 
             var system = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry);
@@ -2437,7 +2437,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
             BlueprintTierTable.EnsureAtLeast(world, entity, BlueprintTierTable.Select(1024, requiredSlots: 4));
             byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
             Assert.True(BlueprintBlackboardPartitions.TryAttach(
-                store, SlotKey, HostedSubtree.TreeStatePayloadSize,
+                store, SlotKey, HostedSubtree.SlotPayloadSizeFor(HostedChildren.TryGetDefinition(SlotKey, out var __cd) ? __cd : null),   // CE-431: [cursor][start][block]
                 structureHash: 0, OccurrenceKind.BTree, out _));
 
             // ⭐ Dirty the child's cursor by hand — as if it had been left mid-tree by an earlier entry.

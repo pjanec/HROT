@@ -56,6 +56,36 @@ namespace Fdp.Toolkit.Behavior.Shared
             "ref Unsafe.AddByteOffset(" + Base(worldExpr, selfExpr) + ", (nint)" + byteOffset + ")";
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-431</c> — <b>the field at <paramref name="byteOffset"/> inside the RUNNING
+        /// BEHAVIOUR's block</b>, projected from the thunk's own <c>ref byte</c> blackboard argument.
+        ///
+        /// <para>🔴 <see cref="At"/> projects from the ENTITY's root block, which is right for a root
+        /// behaviour and WRONG for a hosted subtree: the child read its host's bytes whatever it was
+        /// ticked with. ⭐ The interpreter threads <c>bb</c> by <c>ref</c>, the root tick passes the root
+        /// block as <c>bb</c> and a hosted child is ticked with its OWN block ⇒ this is the same bytes
+        /// for a root and the right bytes for a child.</para>
+        ///
+        /// <para>⛔ <c>BehaviorBlock.Require</c> throws when <c>bb</c> is the "no block" sentinel, so a
+        /// projection on a params-less behaviour fails loudly — as <c>RootRef</c> did — instead of
+        /// reading the stack.</para>
+        ///
+        /// <para>⚠ <b>Only a <c>byte</c> blackboard is a block.</b> A hand-written tree with a TYPED
+        /// blackboard struct is not ticked through the brain system, so its <c>bb</c> is not the block;
+        /// there the root projection is kept, unchanged.</para>
+        /// </summary>
+        internal static string AtBlock(string bbExpr, string bbType, string worldExpr, string selfExpr, int byteOffset) =>
+            IsByteBlackboard(bbType)
+                ? "ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref " + bbExpr + "), (nint)" + byteOffset + ")"
+                : At(worldExpr, selfExpr, byteOffset);
+
+        /// <summary>⭐ The block base itself — <c>ref byte</c> — for a whole-block struct projection.</summary>
+        internal static string BlockBase(string bbExpr) =>
+            "ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref " + bbExpr + ")";
+
+        private static bool IsByteBlackboard(string bbType) =>
+            bbType == "byte" || bbType == "global::System.Byte" || bbType == "System.Byte";
+
+        /// <summary>
         /// ⭐ The same, with the offset given as an EXPRESSION rather than a constant — the seed paths,
         /// where <c>E3b-0</c>'s per-state offset is only known at dispatch.
         /// </summary>

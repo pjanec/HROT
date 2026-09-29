@@ -44,6 +44,7 @@ public static class HostedChildren
         public required BehaviorRegistry Registry;
         public required string ChildName;
         public Interpreter<byte, BTreeContext>? Resolved;
+        public BehaviorDefinition? ResolvedDefinition;   // CE-431: the child's block comes from its definition
     }
 
     // tree-state slot key -> what the host asked for, and the interpreter once it exists.
@@ -129,7 +130,30 @@ public static class HostedChildren
         if (def.BTreeInterpreter is not { } interpreter) return null;   // an HSM child cannot be hosted this way
 
         binding.Resolved = interpreter;
+        binding.ResolvedDefinition = def;
         return interpreter;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — the CHILD's definition, which is what sizes and seeds its block.
+    /// ⚠ Same lazy resolve as <see cref="TryGet"/>, same reason (<c>CE-377</c>).
+    /// </summary>
+    public static bool TryGetDefinition(int treeStateSlotKey, out BehaviorDefinition definition)
+    {
+        definition = null!;
+        if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding)) return false;
+        if (Resolve(binding) is null) return false;
+        definition = binding.ResolvedDefinition!;
+        return true;
+    }
+
+    /// <summary>⭐ The registry a slot's child resolves through — for the curated-resolver check.</summary>
+    internal static bool TryGetRegistry(int treeStateSlotKey, out BehaviorRegistry registry, out string childName)
+    {
+        registry = null!; childName = null!;
+        if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding)) return false;
+        registry = binding.Registry; childName = binding.ChildName;
+        return true;
     }
 
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>

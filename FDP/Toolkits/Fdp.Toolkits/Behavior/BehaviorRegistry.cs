@@ -674,6 +674,13 @@ namespace Fdp.Toolkit.Behavior
         /// Used by <see cref="Systems.BehaviorIngressSystem"/> to map event names
         /// to IDs without calling <c>string.GetHashCode()</c>.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-431</c> — does a CURATED resolver own this behaviour's supply? A hosted child is supplied
+        /// BYTES, and a curated resolver is a JSON parse, so the child pipeline refuses it loudly
+        /// (<c>Q76</c> §11.7c) rather than running a parse that would ignore the bytes.
+        /// </summary>
+        public bool HasCuratedResolver(string name) => name != null && _resolversByName.ContainsKey(name);
+
         public bool TryGetId(string name, out int id)
             => _nameToId.TryGetValue(name, out id);
 

@@ -143,7 +143,7 @@ public static class HillAssault2IsAreaQueryResolved_1D3BBCAF_Bp
         {
             // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
             //   slot. Copying them makes the move byte-identical at the first dispatch.
-            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self);
+            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb);
             *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref __rootParams, (nint)0));

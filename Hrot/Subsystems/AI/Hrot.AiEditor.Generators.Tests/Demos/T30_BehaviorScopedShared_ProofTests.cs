@@ -344,7 +344,8 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         // The stateful thunks must project the partition tier (BlueprintBlackboard*), never the
         // Blackboard1024 heavy component or an Unsafe.As<Blackboard1024, …> reinterpret.
         // ⭐ CE-437: the shared state is projected from the behaviour's BLOCK, found by its own identity.
-        all.Should().Contain("RootParamsAccess.TryGetBlockFor<", "stateful thunks project the block's St half");
+        // ⭐ CE-431: …from the block the thunk was TICKED with (its bb), so a hosted child reads its own.
+        all.Should().Contain("BehaviorBlock.Require(ref bb)).St.", "stateful thunks project the block's St half from their own bb");
         all.Should().Contain(StateTypeId.Replace('+', '.'),
             "working state is projected as HillAttackMutableState from the slot");
 

@@ -258,8 +258,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   A behaviour that declares no parameters has NO root slot — ingress attaches one only
             //   when rootBytes > 0 — so RootRef would THROW. ⚠ Asking "did the lookup fail?" cannot
             //   tell "this behaviour has no params" from "the slot should exist and does not".
-            byte __noParamsScratch = 0;
-            ref byte blackboard = ref __noParamsScratch;
+            // ⭐ CE-431: "no block" is the shared SENTINEL, never a stack byte — thunks now project from
+            //   bb, and BehaviorBlock.Require turns a projection from the sentinel into a loud failure.
+            ref byte blackboard = ref BehaviorBlock.None;
             if (RootParamsAccess.RootParamsBytes(def) > 0)
                 blackboard = ref RootParamsAccess.RootRef(repo, entity);
 
@@ -517,10 +518,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ The child's blackboard, resolved once for all hosted children on this entity.
             //   ⛔ Same predicate as the BTree arm: a behaviour with no params has NO root slot, so
             //      RootRef would throw — "did the lookup fail?" cannot tell that from a real miss.
-            byte __noParamsScratch = 0;
-            ref byte childBb = ref __noParamsScratch;
+            // ⭐ CE-431: this is the HOST's block — the SUPPLY source for a bound site. Each child ticks
+            //   against its OWN block inside TickHosted. ⛔ It used to BE the child's blackboard.
+            ref byte hostBlock = ref BehaviorBlock.None;
             if (RootParamsAccess.RootParamsBytes(def) > 0)
-                childBb = ref RootParamsAccess.RootRef(repo, entity);
+                hostBlock = ref RootParamsAccess.RootRef(repo, entity);
 
             var context = new BTreeContext
             {
@@ -553,12 +555,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // ⚠ A missing binding is SKIPPED here rather than thrown on: the HSM arm's documented
                 //   policy is to skip where the BTree arm throws (§31.16.2, a measured asymmetry), and
                 //   this runs inside a frame loop over every entity.
-                if (!HostedChildren.TryGet(entry.TreeStateSlotKey, out var childInterpreter)) continue;
+                if (!HostedChildren.TryGet(entry.TreeStateSlotKey, out _)) continue;
 
                 // ⭐⭐ The status is DISCARDED, and that is settled: Q33 §1.5.4 rules a hosted subtree
                 //   NON-BLOCKING — it does not gate its host state's transitions, and completion is
                 //   raised through the child's own actions.
-                HostedSubtree.Tick(childInterpreter, ref childBb, ref context, entry.TreeStateSlotKey);
+                HostedSubtree.TickHosted(ref hostBlock, ref context, entry.TreeStateSlotKey, entry.Binding);
             }
         }
 

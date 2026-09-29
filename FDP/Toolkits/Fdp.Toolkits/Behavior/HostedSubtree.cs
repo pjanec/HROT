@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using Fbt;
 using Fbt.Runtime;
@@ -29,8 +30,87 @@ namespace Fdp.Toolkit.Behavior;
 /// </summary>
 public static unsafe class HostedSubtree
 {
-    /// <summary>Payload bytes one hosted occurrence's tree state costs. ⚠ §19.4's sizing term.</summary>
+    /// <summary>Payload bytes one hosted occurrence's CURSOR costs. ⚠ §19.4's sizing term — the base of the slot.</summary>
     public static int TreeStatePayloadSize => sizeof(BehaviorTreeState);
+
+    /// <summary>
+    /// ⭐ <c>CE-431</c> — the START WORD's offset in a hosted child's slot, right after the cursor.
+    /// <c>0</c> = the next tick is a fresh START (run the pipeline); <c>1</c> = running.
+    /// </summary>
+    public static int StartWordOffset => sizeof(BehaviorTreeState);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — where the child's own blackboard BLOCK begins in its slot:
+    /// <c>[cursor][start word][block]</c>, 8-aligned. ⭐ The cursor stays at the BASE, so every existing
+    /// cursor reader is correct by construction (<c>Q76</c> §12.1).
+    /// </summary>
+    public static int BlockOffset => (sizeof(BehaviorTreeState) + sizeof(int) + 7) & ~7;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — which bytes of the HOST's block seed this site's child, baked by the host's
+    /// registrar. <see cref="Length"/> must equal the child's <c>RootParamsAccess.InputBytes</c>.
+    /// ⭐ <c>default</c> is UNBOUND: the child starts from its own authored defaults.
+    /// </summary>
+    public readonly record struct SiteBinding(int HostOffset, int Length)
+    {
+        /// <summary>⭐ The unbound site.</summary>
+        public static SiteBinding Unbound => default;
+        /// <summary><c>true</c> when a host variable feeds this site.</summary>
+        public bool IsBound => Length > 0;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-431</c> — a hosted child's full slot size: <c>[cursor][start word][block]</c>, the block
+    /// sized from the CHILD's definition. ⚠ A child with no block still gets the start word.
+    /// </summary>
+    public static int SlotPayloadSizeFor(BehaviorDefinition? childDef)
+    {
+        int block = childDef is null ? 0 : RootParamsAccess.RootParamsBytes(childDef);
+        return block > 0 ? BlockOffset + block : BlockOffset;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-431</c> — the manifest as INGRESS must provision it: every hosted tree-state slot
+    /// resized to <see cref="SlotPayloadSizeFor"/> its child, and its hash folded with the child's block
+    /// type and size so a hot-reloaded child whose block changed is re-attached rather than reused.
+    ///
+    /// <para>⛔⛔ <b>Why here and not in the emitted manifest.</b> The host's manifest is built at
+    /// registration, and registrars run in an arbitrary order — the child may not exist yet
+    /// (<c>CE-377</c>); a hand-written host has no emitter at all. ⭐ By ingress every registrar has run,
+    /// and nothing after ingress may grow the store (a structural change inside a tick).</para>
+    ///
+    /// <para>⚠ Returns the SAME list when it hosts nothing — the common case allocates nothing.</para>
+    /// </summary>
+    public static IReadOnlyList<StatefulSlotInfo> EffectiveSlots(IReadOnlyList<StatefulSlotInfo> slots)
+    {
+        if (slots is null) return slots!;
+        StatefulSlotInfo[]? copy = null;
+        for (int i = 0; i < slots.Count; i++)
+        {
+            var s = slots[i];
+            if (!IsTreeStateSlot(s)) continue;
+
+            HostedChildren.TryGetDefinition(s.SlotKey, out var childDef);
+            int size = SlotPayloadSizeFor(childDef);
+            uint hash = s.StructureHash;
+            unchecked
+            {
+                hash = (hash ^ (uint)size) * 16777619u;
+                if (childDef?.BlackboardLayoutType is { } t)
+                    hash = (hash ^ (uint)t.FullName!.GetHashCode()) * 16777619u;
+            }
+            copy ??= ToArray(slots);
+            copy[i] = s with { PayloadSize = size, StructureHash = hash };
+        }
+        return copy ?? slots;
+    }
+
+    private static StatefulSlotInfo[] ToArray(IReadOnlyList<StatefulSlotInfo> slots)
+    {
+        var a = new StatefulSlotInfo[slots.Count];
+        for (int i = 0; i < a.Length; i++) a[i] = slots[i];
+        return a;
+    }
 
     /// <summary>
     /// ⭐⭐ Ticks <paramref name="child"/> against ITS OWN <see cref="BehaviorTreeState"/>, resolved
@@ -70,34 +150,100 @@ public static unsafe class HostedSubtree
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-362</c> — the hosting call with NO arguments but the context and the key.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §33.
+    /// ⭐⭐⭐ <b><c>CE-431</c> — THE hosting call: the child ticks against ITS OWN block, seeded at its
+    /// start.</b> 📄 <c>Architect_Question_76</c> §11.7. Both hosts reach it: a BTree node through
+    /// <c>OccurrenceSubtreeHost</c> and an HSM state through <c>BrainTickSystem.TickHostedChildren</c>.
     ///
-    /// <para>⭐⭐ <b>This is the ONE spelling of "which blackboard does the child get?"</b> Both hosts
-    /// reach it: an HSM state through <c>BrainTickSystem.TickHostedChildren</c>, and a BTree node
-    /// through <c>OccurrenceSubtreeHost</c>. ⛔ A second copy of these four lines for the BTree arm is
-    /// exactly what ruling 9 forbids, and it is how the two would drift on a question — <i>"what does
-    /// a child of a no-params behaviour read?"</i> — that has one right answer.</para>
+    /// <para>🔴 <b>What it replaces — <c>TickFromContext</c> (<c>CE-362</c>).</b> That handed every child
+    /// the ENTITY's root params region, re-probed every tick: a child read its host's bytes LIVE and
+    /// had nowhere of its own. 🔒 User, <c>2026-09-29</c>: <i>"I need each behavior having its own
+    /// allocated slot, and resolving behavior params (that are stored in host blackboard as variable)
+    /// exactly once at starting the sub-behavior."</i></para>
     ///
-    /// <para>⭐ <b>The child reads the HOST ENTITY's root params region.</b> ⚠ A behaviour with no
-    /// params has NO root slot, so the child is handed a scratch byte rather than a throw: that is
-    /// the <c>WanderMilitary</c> shape and it is legitimate. ⛔ <c>RootRef</c> would throw, and
-    /// <i>"did the lookup fail?"</i> cannot be told from a real miss.</para>
-    ///
-    /// <para>⭐ <b><c>TryGetRootBytes</c> is deliberately the def-free probe</b> — it answers the
-    /// guard from the STORE, so a caller needs no <c>BehaviorDefinition</c>. That is what lets a
-    /// generated thunk or a kernel dispatch reach this without carrying one.</para>
+    /// <para>⭐⭐ <b><paramref name="hostBlock"/> is the HOST's block</b> — the <c>bb</c> the host was
+    /// itself ticked with — so a child of a child seeds from its PARENT, never from the entity's root.
+    /// ⭐ A fresh START runs the pipeline (<see cref="StartChild"/>); completion and abandonment clear the
+    /// start word so the NEXT entry is a fresh start again.</para>
     /// </summary>
-    public static NodeStatus TickFromContext(ref BTreeContext ctx, int treeStateSlotKey)
+    public static NodeStatus TickHosted(ref byte hostBlock, ref BTreeContext ctx, int treeStateSlotKey, SiteBinding binding)
     {
         var child = HostedChildren.Require(treeStateSlotKey);
+        HostedChildren.TryGetDefinition(treeStateSlotKey, out var childDef);
 
-        byte scratch = 0;
-        ref byte childBb = ref scratch;
-        if (RootParamsAccess.TryGetRootBytes(ctx.World, ctx.Self, out byte* root))
-            childBb = ref Unsafe.AsRef<byte>(root);
+        byte* payload = ResolvePayload(ref ctx, treeStateSlotKey, out int payloadSize);
+        int blockBytes = childDef is null ? 0 : RootParamsAccess.RootParamsBytes(childDef);
+        int needed = SlotPayloadSizeFor(childDef);
+        if (payloadSize < needed)
+            throw new InvalidOperationException(
+                $"CE-431: hosted slot {treeStateSlotKey} for child '{childDef?.Name}' holds {payloadSize} bytes " +
+                $"but [cursor][start][block] needs {needed}. It was provisioned from the raw manifest — " +
+                "BehaviorIngressSystem must provision HostedSubtree.EffectiveSlots.");
 
-        return Tick(child, ref childBb, ref ctx, treeStateSlotKey);
+        ref var cursor = ref Unsafe.AsRef<BehaviorTreeState>(payload);
+        ref int start  = ref Unsafe.AsRef<int>(payload + StartWordOffset);
+        ref byte block = ref blockBytes > 0 ? ref Unsafe.AsRef<byte>(payload + BlockOffset) : ref BehaviorBlock.None;
+
+        if (start == 0)
+        {
+            StartChild(treeStateSlotKey, childDef, payload + BlockOffset, blockBytes, ref hostBlock, binding);
+            start = 1;
+        }
+
+        var status = child.Tick(ref block, ref cursor, ref ctx);
+
+        // ⭐ D4, HALF ONE + CE-431 — completed ⇒ the next entry is a fresh START.
+        if (status != NodeStatus.Running)
+        {
+            cursor = default;
+            start  = 0;
+        }
+        return status;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-431</c> — <b>the child's supply pipeline, run at every START</b>: clear → bake → supply →
+    /// resolve. 📄 <c>Q76</c> §12.3; the same ORDER <c>DESIGN_Parameter_Model.md</c> §3.2 rules for the
+    /// root, and the same "every start from empty" <c>R-153</c> rules for a re-assign.
+    ///
+    /// <para>⭐ Stage 2 copies the BOUND host variable's bytes into the child's Input region — the
+    /// default resolver of §12.3, one <c>memcpy</c>. ⛔ A width mismatch THROWS: it can only mean the
+    /// host's variable is not the child's Input struct.</para>
+    ///
+    /// <para>⛔ <b>A CURATED resolver throws here</b> (§11.7c): a curated resolver is a JSON parse and a
+    /// hosted child is supplied BYTES; running the parse would silently ignore them. The byte-supplied
+    /// arm is a follow-up, not a guess.</para>
+    /// </summary>
+    private static void StartChild(
+        int treeStateSlotKey, BehaviorDefinition? childDef, byte* block, int blockBytes,
+        ref byte hostBlock, SiteBinding binding)
+    {
+        if (childDef is not null
+            && HostedChildren.TryGetRegistry(treeStateSlotKey, out var registry, out var childName)
+            && registry.HasCuratedResolver(childName))
+            throw new NotSupportedException(
+                $"CE-431: hosted child '{childName}' has a curated [BehaviorResolver]. A curated resolver " +
+                "parses JSON and a hosted child is supplied host BYTES — the byte-supplied resolver arm is " +
+                "not built yet (tracked as CE-438). Host it through a generated behaviour, or root-assign it.");
+
+        if (blockBytes > 0)
+        {
+            new Span<byte>(block, blockBytes).Clear();          // stage 0 — from empty (R-153)
+            childDef!.BakeDefaults?.Invoke(block, blockBytes);  // stage 1 — the child's authored defaults
+        }
+
+        if (!binding.IsBound) return;                           // unbound ⇒ defaults only
+
+        int inputBytes = RootParamsAccess.InputBytes(childDef!);
+        if (binding.Length != inputBytes || blockBytes < inputBytes)
+            throw new InvalidOperationException(
+                $"CE-431: the host variable bound to child '{childDef?.Name}' is {binding.Length} bytes but the " +
+                $"child's Input region is {inputBytes}. The bound variable must be the child's Input struct.");
+        if (!BehaviorBlock.Has(ref hostBlock))
+            throw new InvalidOperationException(
+                $"CE-431: child '{childDef?.Name}' is bound to a host variable, but its host has no blackboard block.");
+
+        byte* src = (byte*)Unsafe.AsPointer(ref Unsafe.AddByteOffset(ref hostBlock, (nint)binding.HostOffset));
+        Buffer.MemoryCopy(src, block, blockBytes, binding.Length);   // stage 2 — supply
     }
 
     /// <summary>
@@ -135,8 +281,15 @@ public static unsafe class HostedSubtree
         byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
         if (store == null) return;   // ⚠ torn down already — nothing to reset, and not an error
 
-        if (BlueprintBlackboardPartitions.TryGetSlotOffset(store, treeStateSlotKey, out int payloadOffset))
-            Unsafe.AsRef<BehaviorTreeState>(store + payloadOffset) = default;
+        if (BlueprintBlackboardPartitions.TryGetSlotIndex(store, treeStateSlotKey, out int index))
+        {
+            ref var entry = ref BlueprintBlackboardPartitions.GetSlot(store, index);
+            byte* payload = store + entry.PayloadOffset;
+            Unsafe.AsRef<BehaviorTreeState>(payload) = default;
+            // ⭐ CE-431 — an abandoned child's next entry is a fresh START.
+            if (entry.PayloadSize >= StartWordOffset + sizeof(int))
+                Unsafe.AsRef<int>(payload + StartWordOffset) = 0;
+        }
     }
 
     /// <summary>
@@ -163,6 +316,10 @@ public static unsafe class HostedSubtree
     /// and never cached.</para>
     /// </summary>
     private static ref BehaviorTreeState ResolveState(ref BTreeContext ctx, int treeStateSlotKey)
+        => ref Unsafe.AsRef<BehaviorTreeState>(ResolvePayload(ref ctx, treeStateSlotKey, out _));
+
+    /// <summary>The hosted slot's payload base and its allocated size. ⛔ Throws on a missing slot — §19.6 ⑤.</summary>
+    private static byte* ResolvePayload(ref BTreeContext ctx, int treeStateSlotKey, out int payloadSize)
     {
         byte* store = OccurrenceStoreAccess.TryGetStore(ctx.World, ctx.Self, out _);
 
@@ -172,13 +329,15 @@ public static unsafe class HostedSubtree
                 $"{treeStateSlotKey} cannot be resolved. The hosting site's slot must be declared in " +
                 "the behaviour's stateful manifest so BehaviorIngressSystem provisions it.");
 
-        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, treeStateSlotKey, out int payloadOffset))
+        if (!BlueprintBlackboardPartitions.TryGetSlotIndex(store, treeStateSlotKey, out int slotIndex))
             throw new InvalidOperationException(
                 $"Entity {ctx.Self} has an occurrence store but no slot {treeStateSlotKey} for the " +
                 "hosted subtree's BehaviorTreeState. Either the manifest does not declare it, or the " +
                 "hosting site computed a different key than the one registered — see " +
                 "OccurrenceSlots.TreeStateKeyFor.");
 
-        return ref Unsafe.AsRef<BehaviorTreeState>(store + payloadOffset);
+        ref var entry = ref BlueprintBlackboardPartitions.GetSlot(store, slotIndex);
+        payloadSize = entry.PayloadSize;
+        return store + entry.PayloadOffset;
     }
 }

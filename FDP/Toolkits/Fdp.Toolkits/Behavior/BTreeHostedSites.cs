@@ -27,15 +27,17 @@ public static class BTreeHostedSites
     /// <param name="NodeIndex">The node's index in <c>blob.Nodes</c> — what the interpreter speaks in.</param>
     /// <param name="ChildName">The child behaviour's REGISTRY name.</param>
     /// <param name="TreeStateSlotKey">From <c>OccurrenceSlotKey.ComputeTreeStateKey(host, site, child)</c>.</param>
-    public readonly record struct Entry(int NodeIndex, string ChildName, int TreeStateSlotKey);
+    /// <param name="Binding">⭐ <c>CE-431</c> — which bytes of the host's block seed the child; <c>default</c> = unbound.</param>
+    public readonly record struct Entry(int NodeIndex, string ChildName, int TreeStateSlotKey,
+                                        HostedSubtree.SiteBinding Binding = default);
 
     /// <summary>The result of walking one blob: what to declare, and what to bind.</summary>
     /// <param name="Slots">Stateful manifest entries — one per hosting node. ⛔ These MUST reach the
     /// <c>BehaviorDefinition</c>, or <see cref="HostedSubtree.Tick"/> throws on the undeclared slot.</param>
     public readonly record struct Plan(IReadOnlyList<Entry> Entries, IReadOnlyList<StatefulSlotInfo> Slots);
 
-    // blob StructureHash -> nodeIndex -> slot key. Mirrors HsmHostedSubtrees._byMachine.
-    private static readonly Dictionary<int, Dictionary<int, int>> _byStructureHash = new();
+    // blob StructureHash -> nodeIndex -> (slot key, site binding). Mirrors HsmHostedSubtrees._byMachine.
+    private static readonly Dictionary<int, Dictionary<int, (int Key, HostedSubtree.SiteBinding Binding)>> _byStructureHash = new();
 
     /// <summary>
     /// ⭐⭐ <b>Derives a stable asset identity from a NAME.</b>
@@ -58,7 +60,11 @@ public static class BTreeHostedSites
     /// <param name="hostName">The host behaviour's registry name; the identity fallback.</param>
     /// <param name="hostAssetId">The host's editor asset id when it has one; <c>null</c> for a
     /// hand-written tree, which derives from <paramref name="hostName"/>.</param>
-    public static Plan PlanFor(BehaviorTreeBlob blob, string hostName, Guid? hostAssetId = null)
+    /// <param name="bindings">⭐ <c>CE-431</c> — per-SITE seed bindings, keyed by the site's stable id (the
+    /// node's visual id), baked by the host's registrar. A site absent from it is UNBOUND and its child
+    /// starts from its own defaults.</param>
+    public static Plan PlanFor(BehaviorTreeBlob blob, string hostName, Guid? hostAssetId = null,
+                               IReadOnlyDictionary<Guid, HostedSubtree.SiteBinding>? bindings = null)
     {
         if (blob is null) throw new ArgumentNullException(nameof(blob));
 
@@ -95,7 +101,8 @@ public static class BTreeHostedSites
             //   collision means a duplicated visual id — malformed input, not a co-scoped share.
             if (!seen.Add(key)) continue;
 
-            entries.Add(new Entry(i, childName.Trim(), key));
+            var binding = bindings != null && bindings.TryGetValue(siteId, out var b) ? b : default;
+            entries.Add(new Entry(i, childName.Trim(), key, binding));
             slots.Add(TreeStateSlot(key, childName.Trim()));
         }
 
@@ -121,10 +128,10 @@ public static class BTreeHostedSites
         if (blob     is null) throw new ArgumentNullException(nameof(blob));
         if (plan.Entries is null || plan.Entries.Count == 0) return;
 
-        var map = new Dictionary<int, int>(plan.Entries.Count);
+        var map = new Dictionary<int, (int, HostedSubtree.SiteBinding)>(plan.Entries.Count);
         foreach (var e in plan.Entries)
         {
-            map[e.NodeIndex] = e.TreeStateSlotKey;
+            map[e.NodeIndex] = (e.TreeStateSlotKey, e.Binding);
             HostedChildren.Register(registry, e.TreeStateSlotKey, e.ChildName);
         }
 
@@ -135,11 +142,18 @@ public static class BTreeHostedSites
 
     /// <summary>⭐ The slot key for a hosting node, or <c>false</c> when this node hosts nothing.</summary>
     public static bool TryGetKey(BehaviorTreeBlob blob, int nodeIndex, out int treeStateSlotKey)
+        => TryGetSite(blob, nodeIndex, out treeStateSlotKey, out _);
+
+    /// <summary>⭐ <c>CE-431</c> — the slot key AND the site's seed binding for a hosting node.</summary>
+    public static bool TryGetSite(BehaviorTreeBlob blob, int nodeIndex, out int treeStateSlotKey,
+                                  out HostedSubtree.SiteBinding binding)
     {
-        treeStateSlotKey = 0;
-        return blob is not null
-            && _byStructureHash.TryGetValue(blob.StructureHash, out var map)
-            && map.TryGetValue(nodeIndex, out treeStateSlotKey);
+        treeStateSlotKey = 0; binding = default;
+        if (blob is null
+            || !_byStructureHash.TryGetValue(blob.StructureHash, out var map)
+            || !map.TryGetValue(nodeIndex, out var site)) return false;
+        (treeStateSlotKey, binding) = site;
+        return true;
     }
 
     /// <summary>

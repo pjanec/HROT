@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427 are BUILT (§12.15–§12.19). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431 are BUILT (§11.7, §12.15–§12.19). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -595,6 +595,157 @@ first**, which also makes it the natural pilot for `B`.
 | ⭐ **the scan is gone** | `TickFromContext` no longer calls `TryGetRootBytes` |
 | ⭐ **no-params host** | a child hosted by a params-less behaviour gets its defaults, not a scratch byte |
 | ⭐ **`E5`/`E6` still pass** | the existing HSM-hosts-BTree and BTree-hosts-BTree suites are the regression net |
+
+### 11.7 ⭐⭐⭐ `CE-431` BUILD DESIGN — **measured `2026-09-29`, after `CE-437`/`CE-426`/`CE-427` moved the ground** *(BTree children; the only kind that exists)*
+
+#### 11.7a INVENTORY *(`search_graph` over the indexed repo, `has_more:false` on each)*
+
+| query | total | what it found |
+|---|---|---|
+| `.*HostedSubtree.*` | 19 | `HostedSubtree` (the hosting call), `HsmHostedSubtrees`, `HsmBridgeEmitCore.CollectHostedSubtrees/EmitHostedSubtrees`, editor `GetHostedSubtreeAssetIds` ×4, `HostedSubtreeCursorTests` |
+| `.*SubtreeHost.*` | 22 | `OccurrenceSubtreeHost` (the BTree arm), kernel `ISubtreeHost`, `SubtreeHostingAnalyzer`, `BTreeHostsBTreeTests` |
+| `.*HostedSite.*` | 3 | `BTreeHostedSites` only |
+| `.*TickHostedChildren.*` | 1 | `BrainTickSystem.TickHostedChildren` (the HSM arm) |
+| production `Interpreter.Tick(ref …)` callers *(grep)* | **2** | `BrainTickSystem.cs:297` (root) · `HostedSubtree.cs:59` (child) |
+| `RootParamsAccess.RootRef` emit sites *(grep)* | 10 | `BlackboardParamsExpression.Base` ← `BTreeBridgeEmitCore` ×6, `BTreeActionGenerator` ×3, `HsmActionGenerator` ×2; plus `AiPrimitiveEmitter.EmitParamSeed:492` |
+| hosted children in the shipped corpus *(grep `SubtreeName` over `*.json`)* | **1** | `SampleScout`, hosted by `T07_Subtree`, `CombatShowcase`, `BTreeRenderShowcase`. ⚠ No HSM asset hosts anything outside tests |
+
+#### 11.7b CLAIM TABLE
+
+| the build rests on | code — how it IS | design basis — how it was MEANT |
+|---|---|---|
+| 🔴 **a generated thunk ignores its `bb` and reads the ENTITY's root block** | ✅ `BlackboardParamsExpression.cs:49` — `RootRef(ctx.World, ctx.Self)`; every golden thunk, e.g. `T10_MultiAction.Registrar.g.cs:47` | ⛔ §11.3 ⑤ assumed *"tick reads the child's own region"* is a change to `TickFromContext` alone — **it is not**: the thunks would still read the host |
+| the interpreter threads `bb` by `ref`, never copied | ✅ `Interpreter.cs:79–753` — every frame takes `ref TBlackboard bb`; no local copy | ✅ `OccurrenceSubtreeHost.cs` header: *"the child reads the ENTITY's root params region"* — the thing being changed |
+| the root tick already passes the root block as `bb` | ✅ `BrainTickSystem.cs:264` | ✅ `P4-②` comment: *"the dispatch blackboard IS the root slot base"* (`AiPrimitiveEmitter.cs:544`) |
+| the BTree host's `ISubtreeHost.Tick` receives the HOST's block as `blackboard` | ✅ `OccurrenceSubtreeHost.cs:44` — *"deliberately IGNORED"* | ✅ §12.3 stage 2: *"bytes of the BOUND variable in the HOST's block"* |
+| a manifest slot's size is baked at registration, before the child is registered | ✅ `BTreeHostedSites.TreeStateSlot` — `sizeof(BehaviorTreeState)`; `HostedChildren` resolves lazily (`CE-377`) | ⛔ searched `docs/`+`.dev/`: no record sizes a hosted slot from a lazily-resolved child |
+| nothing can grow the store mid-tick | ✅ `BehaviorIngressSystem` `RootHsmCost` remarks — *"a structural change inside a tick"* | ✅ `DESIGN_Occurrence_Scoped_Storage` §31 |
+| a curated resolver is a JSON parse; a hosted child is supplied BYTES | ✅ `BehaviorRegistry.RegisterResolver(name, ParseParamsDelegate)` | ⚠ §12.3 draws stage 3 as one seam; `R-154` keys it by NAME — **the byte-supplied arm of a curated resolver is not designed anywhere** ⇒ deferred, and it fails LOUDLY |
+
+#### 11.7c THE DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐⭐ **every BTree thunk projects from its `bb`**, through one helper `BehaviorBlock.Require(ref bb)` | ⛔ a "current block" field on `BTreeContext` — a second channel for what the kernel already threads; `O4` kept `BTreeContext` field-free on purpose · ⛔ keep `RootRef` + look up by the thunk's behaviour hash (`CE-437`'s `TryGetBlockFor`) — two sites of the SAME child share one hash, so it cannot tell them apart |
+| ⭐⭐ **"no block" is a shared SENTINEL byte**, and `Require` throws on it | ⛔ a stack scratch byte — a thunk projecting at an offset would then read and WRITE the stack silently, where `RootRef` used to throw |
+| ⭐⭐ **the child's slot is `[cursor][start word][block]`** — the cursor stays at the BASE, so every existing cursor reader is unchanged | ⛔ a second slot for the block — two keys per site to keep in step; §12.1 already rules one payload per child |
+| ⭐⭐ **ingress sizes the slot from the CHILD's definition** (`HostedSubtree.EffectiveSlots`), and the size + child block type fold into the slot's hash so a hot-reloaded child re-attaches | ⛔ bake the size into the host's manifest — the child may not be registered yet (`CE-377`) and a hand-written host has no emitter |
+| ⭐⭐⭐ **the pipeline runs at every START of the child** (clear → bake → supply → resolve), keyed off an explicit start word the completion/abandon paths clear | ⛔ once per ATTACH — the slot is attached at the HOST's assignment, so a child entered twice would reuse its first run's params; §11's quote is *"at starting the sub-behavior"* and `R-153` says a start is a start · ⛔ infer "fresh" from a zero cursor — a single-leaf tree running at node 0 is indistinguishable |
+| ⭐⭐ **the binding is `(hostOffset, length)` per SITE**, baked by the HOST's registrar; `length` must equal the child's `InputBytes` or the seed THROWS | ⛔ bind by variable NAME at run time — the host's layout is fixed at emit time and a name lookup per start buys nothing |
+| ⭐ **unbound site ⇒ the child starts from its own defaults** | ⛔ copy the host's whole block — that IS today's alias, just snapshotted |
+| ⚠ **a child whose behaviour carries a CURATED resolver THROWS at start**, naming the follow-up row | ⛔ serialise the host variable to JSON and call `ParseParams` — a generated child's overlay is keyed by VARIABLE name, not the struct's shape, so it would silently ignore the bytes |
+
+```mermaid
+classDiagram
+    class HostedSubtree {
+      <<EXISTS - FDP/Toolkits/Behavior>>
+      +Tick(child, ref childBb, ref ctx, key)
+      +TickFromContext(ref ctx, key) REMOVED
+      +TickHosted(ref hostBlock, ref ctx, key) NEW
+      +Reset(world, self, key)
+      +EffectiveSlots(slots) NEW
+      +BlockOffset NEW
+    }
+    class BehaviorBlock {
+      <<NEW - FDP/Toolkits/Behavior>>
+      +ref byte None
+      +Require(ref bb) ref byte
+    }
+    class HostedChildStart {
+      <<NEW - the child pipeline>>
+      +Run(childDef, block, hostBlock, binding)
+    }
+    class HostedSiteBinding {
+      <<NEW record struct>>
+      +int HostOffset
+      +int Length
+    }
+    class BTreeHostedSites {
+      <<EXISTS>>
+      +PlanFor(blob, host, assetId, bindings) WIDENED
+      +TryGetEntry(blob, node) NEW
+    }
+    class HsmHostedSubtrees {
+      <<EXISTS>>
+      +Register(blob, entries with binding) WIDENED
+    }
+    class OccurrenceSubtreeHost {
+      <<EXISTS>>
+      +Tick(ref hostBlock, ...) reads the host block now
+    }
+    class BehaviorIngressSystem {
+      <<EXISTS>>
+      provisions EffectiveSlots
+    }
+    class BlackboardParamsExpression {
+      <<EXISTS - shared emitter text>>
+      +AtBlock(bbExpr, offset) NEW
+    }
+    OccurrenceSubtreeHost --> HostedSubtree
+    HostedSubtree --> HostedChildStart : on a fresh start
+    HostedChildStart --> HostedSiteBinding
+    BTreeHostedSites --> HostedSiteBinding
+    HsmHostedSubtrees --> HostedSiteBinding
+    BehaviorIngressSystem --> HostedSubtree : EffectiveSlots
+    BlackboardParamsExpression ..> BehaviorBlock : emitted Require(ref bb)
+```
+
+> ⭐ **Caption — what the picture shows that prose hid.** `BehaviorBlock` is the ONE new runtime type
+> every generated thunk touches, and `HostedChildStart` is reached from exactly one place. ⛔ There is
+> no second registry: the binding rides on the two site tables that already exist.
+
+```mermaid
+sequenceDiagram
+    participant Host as "host tick (BTree node or HSM state)"
+    participant HS as "HostedSubtree"
+    participant Slot as "child slot [cursor][start][block]"
+    participant Start as "HostedChildStart"
+    participant Child as "child interpreter"
+    Host->>HS: TickHosted(ref hostBlock, ctx, key)
+    HS->>Slot: resolve by key
+    alt start word is 0 - a fresh start
+        HS->>Start: Run(childDef, block, hostBlock, binding)
+        Start->>Slot: clear block, BakeDefaults
+        Start->>Slot: copy host bytes [HostOffset, Length) to block In
+        Start->>Start: curated resolver? throw (deferred)
+        Start->>Slot: start word = 1
+    end
+    HS->>Child: Tick(ref block, ref cursor, ctx)
+    Child-->>HS: status
+    alt status is not Running
+        HS->>Slot: cursor = default, start word = 0
+    end
+    Note over HS,Slot: an abandon (Reset) also clears the start word
+```
+
+> ⭐ **Caption.** The supply arrow reads the **host's block**, which the host already holds — so a
+> subtree hosted by a subtree seeds from its PARENT, not from the entity's root, by construction.
+
+```mermaid
+graph TD
+    ING["BehaviorIngressSystem<br/>Input phase"] -->|"provisions EffectiveSlots"| STORE["occurrence store"]
+    BTS["BrainTickSystem.TickBTree<br/>every frame"] -->|"root block as bb"| ROOT["root interpreter"]
+    ROOT -->|"Subtree node"| OSH["OccurrenceSubtreeHost.Tick"]
+    BTS2["BrainTickSystem.TickHostedChildren<br/>every frame, HSM hosts"] --> HS["HostedSubtree.TickHosted"]
+    OSH --> HS
+    HS --> CHILD["child interpreter<br/>bb = its OWN block"]
+    CHILD -->|"nested Subtree node"| OSH
+```
+
+> ⭐ **Caption — who calls it each frame.** Both hosting paths already run every frame under
+> `BrainTickSystem`, on every host family that ticks a brain; nothing here is reached only by a
+> network module. The recursion edge `CHILD → OSH` is why reading `bb` (rather than the root) matters.
+
+✅ **AS BUILT `2026-09-29`** — matches the diagrams above, with one naming deviation: the pipeline is a
+private `HostedSubtree.StartChild`, not a separate `HostedChildStart` class (one caller; a class would be a
+second place to read). The HSM host's registrar emits **no** bindings yet (the runtime accepts them) →
+`CE-439`; a curated resolver on a hosted child → `CE-438`. Rails: `BTreeHostsBTreeTests.CE431_R1`–`R5`.
+
+⚠ **Behaviour changes, restated from §11.4 with what the build adds:** a child no longer sees host
+params live · a child on a no-params host starts from its defaults · ⭐ **a child now re-seeds on every
+start**, so a host that rewrites the bound variable between two entries hands the second run the new
+value — that is the point of a binding · ⛔ a hosted child with a curated resolver fails at start
+(follow-up row).
 
 ---
 

@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4d** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427 built; next is CE-431) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4e** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431 built; next is CE-428) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -812,9 +812,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ **One pipeline, both entry points shadowed over the whole block:** every assign starts from an EMPTY shadow → bakes Input AND State defaults *(closes `CE-420`)* → overlays JSON; the hosted seed bakes state BEFORE resolving *(it was after)*; `HostedParamResolvers.TryRun<P,S>` resolves params AND state on shadow copies, committed only if it returns. ⭐ **The own resolver's subject is the whole block:** `(ref Params p, ref WorkingState ws, …)`, registered as `ResolveOccurrence<P,S>`; `V_ResolverPurity` lets it `SetVariable` any own declaration *(state arm AiPrimitive-only)*. `OwnParamResolverDemo` now writes its State `Ticks` and a runtime rail runs it through the seam. 🔴 **I built a same-behaviour carry gate in `CE-437` that your `CE-421` ruling had rejected** — reverted here, ruling now ledger row **`R-153`**. ⏭ `CE-427` *(widen the ROOT resolve to the same seam, collapse the two resolver registries)* → `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.18](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4d ✅ `CE-427` BUILT — ⭐ **NEXT IS `CE-431`**
+### 13.4d ✅ `CE-427` BUILT
 
 ⭐ **A curated resolver now replaces the SUPPLY, never the BAKE:** every generated registrar exports stage 1 as `BehaviorDefinition.BakeDefaults` *(a static local `__BakeDefaults`)*, and `BehaviorRegistry.ApplyResolverOverlay` composes `bake → curated` instead of overwriting the parse. ⭐ **The typed root seam exists:** `ResolveBlock<TAuthored,TBlock>(in TAuthored, ref TBlock, …)` + `BehaviorParams.FromBlockResolver`, accepted by the curated generator as its third `[BehaviorResolver]` shape. The hosted `ResolveBlock<P,S>` was Roslyn-renamed to `ResolveOccurrence<P,S>`. ⚠ **Premise that failed:** the row said *"unify the lookup on asset id"* — 3 of 5 curated resolvers belong to hand-written behaviours with **no asset id**, so behaviours stay keyed by NAME and hosted AiPrimitives by asset id (lean, awaiting the user's nod). ⏭ `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.19](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
+### 13.4e ✅ `CE-431` BUILT — ⭐ **NEXT IS `CE-428`**
+
+⭐ **A hosted subtree now has its own block**: slot `[cursor][start word][block]`, sized by ingress from the CHILD's definition (`HostedSubtree.EffectiveSlots`); at every START the child is cleared → baked → seeded from its site's bound host variable (`SiteBinding`, baked from `BTreeSubtreePayloadDto.ParamsVariable`). 🔴 **The load-bearing finding:** every generated thunk projected from the ENTITY's root (`RootRef`) and ignored `bb` — so all BTree thunks now project from `bb` via `BehaviorBlock.Require` (a sentinel keeps "no block" loud). 🔒 **`R-154` recorded** (your approval: resolvers by behaviour NAME). ⏭ `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`; filed **`CE-438`** (curated resolver on a hosted child — throws today) and **`CE-439`** (editor authoring of the binding + HSM-host emission). 📄 [`Q76` §11.7](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 

@@ -233,6 +233,14 @@ public sealed class BTreeSubtreePayloadDto
     public Guid SubtreeAssetId { get; set; }
     public string SubtreeName { get; set; } = string.Empty;
     public bool IsResolved { get; set; }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-431</c> — the HOST blackboard variable whose bytes seed the child's Input region at each
+    /// start (<c>Q76</c> §11.7). ⚠ Its type must be the child's Input struct. <c>null</c> = unbound: the
+    /// child starts from its own authored defaults.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ParamsVariable { get; set; }
 }
 
 // ── Polymorphic node types (§5.3 "[JsonPolymorphic kind]") ───────────────────
