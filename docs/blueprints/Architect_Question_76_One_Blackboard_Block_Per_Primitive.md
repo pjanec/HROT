@@ -1884,6 +1884,8 @@ sequenceDiagram
 | ⭐⭐ **the run-time lookup stays keyed by NAME for behaviours** | ⛔ unify on asset id (the row's wording) — 3 of 5 curated resolvers (`MoveToLocation`, `FireAtTarget`, `FollowRoute`) belong to hand-written behaviours that **have no asset id**, and `Behavior_Parameter_Resolver_Detailed_Design` §3.1/§3.3 keys by behaviour name |
 | ⭐ **no shipped curated resolver migrated to the typed shape** | ⛔ migrating `MoveToLocation` would change its JSON options (`CgfNodes` vs `DefaultRelaxed`) — a behaviour change nobody asked for |
 
+> 🔒 **User, `2026-09-29`, APPROVING the lean below:** *"approved, go ahead with CE-431. hand written behaviors have no assets, they are just code."* ⇒ ledger row `R-154`.
+
 ⚠ **Premise that failed, reported rather than silently worked around:** the row's *"the run-time lookup
 unifies on asset id"* is not buildable for hand-written behaviours (no asset). The two tables do not
 duplicate a concept: one keys **behaviours** by name (`R-132`), the other keys **hosted AiPrimitive
