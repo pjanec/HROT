@@ -378,7 +378,16 @@ assume a single answer to *"where is this variable"*. ⇒ **build `S0` here, the
 | `WorkingStateScope` and its three key arms | see §1.3 | decision `C` |
 | `BlueprintSharedState` + `IrOp_ReadShared`/`IrOp_WriteShared` | — | re-expressed, §6 |
 
-## 6. ⭐⭐ KEPT, RE-EXPRESSED — **and this is the part that must not be read as a deletion**
+## 6. ⛔⛔ SUPERSEDED `2026-09-29` BY §12.14 — `PlatoonHillAttack2` IS DELETED (`CE-436`)
+
+> 🔒 **User:** *"We can delete the blueprint based platoon hill attack 2 if it stands in the way.
+> Not needed."* ⇒ 📐 measured: it does. **Read §12.14, not this section, on what is kept.**
+> ⭐ What survives from below: the **60 `HillAssault2_*` twins** are KEPT — they use no `GetShared`
+> and carry the per-node proof coverage. ⚠ The two families differ by ONE LETTER.
+
+### ⛔ HISTORY — the KEEP argument, superseded
+
+## 6a. ⭐⭐ KEPT, RE-EXPRESSED — **and this is the part that must not be read as a deletion**
 
 | | |
 |---|---|
@@ -922,12 +931,13 @@ delegate void ResolveBlock<TAuthored, TBlock>(
 | # | id | slice | depends on |
 |---|---|---|---|
 | **1** | `CE-418` | 🔴 **one layout authority** — the struct carries `[FieldOffset]` from `Pack`. ⭐ Live defect, fix is identical either way | — |
-| **2** | `CE-435` | 🔒 **retire `Scope=Node` and `Scope=Entity` from the AUTHORING surface** — 8 authored State variables in the whole corpus, 4 to re-home, **0 at Node**. ⭐ Moved here from slice 10 at the user's request so the refactor carries ONE scope, not three. ⛔ Authoring only; the key arms go with `A`+`C` | 1 |
-| **3** | `CE-425` | emit the two-part struct `{ Inputs In; State St; }`, **Input first and byte-identical**; `Q75`-`S1` is its HSM arm | 1 |
+| **2** | `CE-436` | 🔒 **delete `PlatoonHillAttack2` + the six `HillAssault2I_*` graphs** *(~28 files; the 60 `HillAssault2_*` twins STAY)*. ⭐ Removes 2 of 4 `Entity` variables, all 58 shared-`state` refs, and the only 9-slot asset ⇒ halves `CE-435` and most of `A` | 1 |
+| **3** | `CE-435` | 🔒 **retire `Scope=Node` and `Scope=Entity` from the AUTHORING surface** — 8 authored State variables in the whole corpus, 4 to re-home, **0 at Node**. ⭐ Moved here from slice 10 at the user's request so the refactor carries ONE scope, not three. ⛔ Authoring only; the key arms go with `A`+`C` | 1 |
+| **4** | `CE-425` | emit the two-part struct `{ Inputs In; State St; }`, **Input first and byte-identical**; `Q75`-`S1` is its HSM arm | 1 |
 | **3** | `CE-429` | size the block from the DTO, keep `InputBytes` separately ⇒ a behaviour with **no** `Role=Input` variable is legal | 2 |
 | **4** | `CE-426` | one **bake → supply → resolve** helper, called by the ingress and by the hosting thunk; shadow widened to the block | 2 |
 | **5** | `CE-427` | widen the seam to `ResolveBlock<TAuthored,TBlock>`; collapse the two resolver registries into one keyed by asset id | 4 |
-| **6** | `CE-431` | **`S-SUB`** *(§11)* — a hosted subtree gets its own block, seeded once. ⭐ **the pilot**: its BTree arm needs neither `S1` nor the scope work | 4 |
+| **7** | `CE-431` | **`S-SUB`** *(§11)* — a hosted subtree gets its own block, seeded once. ⭐ **the pilot**: its BTree arm needs neither `S1` nor the scope work | 4 |
 | **7** | `CE-432` | widen `BP1677` from "one DTO in → the SAME DTO out" to "authored DTO in → the BLOCK out" — one Stage-2 rule, one emitter lambda | 5 |
 | **8** | `CE-428` | bind a blueprint `Construction` graph as a behaviour's resolver — asset field, editor picker, registrar lookup | 7 |
 | **8b** | `CE-434` | the behaviour picks or CREATES its resolver *(a dedicated resolver asset)*, and the editor invalidates the pick when the authored params change — 📄 §12.10 | 8 |
@@ -1505,3 +1515,47 @@ block"*. **The refactor carries one concept instead of three.**
 *(entity-global by name ⇒ per-behaviour)*. 📐 Safe for production — 1 cross-entity read exists in the
 whole corpus, in a proof asset — ⛔ but **16 `HillAssault2*` proof files assert on it** *(`R-137`)*, so
 `CE-435` must state, per proof file, whether it is re-pointed or retired with decision `A`.
+
+---
+
+### 12.14 ⛔⛔ §6 IS SUPERSEDED — **`PlatoonHillAttack2` GOES** *(user, `2026-09-29`)*
+
+> 🔒 **User, verbatim:** *"We can delete the blueprint based platoon hill attack 2 if it stands in
+> the way. Not needed."*
+
+⚠ **§6 says KEEP** — *"the only end-to-end evidence that the blueprint route can express a complex
+behaviour"*. 📐 **Measured against the offer, and it does stand in the way.** 📋 **`CE-436`, slice 2.**
+
+#### ⭐⭐⭐ TWO FAMILIES, AND ONLY ONE IS IN THE WAY
+
+| family | files | uses shared `state`? | verdict |
+|---|---|---|---|
+| `HillAssault2I_*` — the **integrated** graphs | **23** | ✅ yes — this is where the 58 refs live | 🔴 **DELETE** |
+| `PlatoonHillAttack2` — the tree that composes them | **5** | — | 🔴 **DELETE** |
+| `HillAssault2_*` — **the twins** | **60** | ⛔ **no `GetShared` at all** | ⭐⭐ **KEEP** — the per-node proof coverage, and nothing about them obstructs anything |
+
+⇒ **~28 files go, 60 stay.** ⚠ The two families differ by **one letter**; a sweep that matches
+`HillAssault2` matches both. **That is the trap in this slice.**
+
+#### 📐 What the removal buys
+
+| | |
+|---|---|
+| **2 of the 4 `Entity` variables** | ⇒ **`CE-435`'s entire named caution evaporates.** The survivors — `T37:rally`, `HsmVariableShowcase:Ticks` — re-home to `Behavior` with no semantic question and no proof-file audit |
+| **all 58 shared-`state` references** | the bulk of decision `A`'s surface |
+| 🔴 **the only asset above 4 slots** | **9**, against a next-highest of **4** — the single largest consumer of the multi-slot model `B` dismantles |
+| production impact | ✅ **none.** All three non-test source hits are COMMENTS: `BlueprintTierLadder.cs:62`, `Nodes.cs:837` *(a different type)*, `NodePinSchema.cs:138` |
+
+#### ⚠⚠ THE ONE THING IT UNIQUELY COVERS — **and why NO replacement should be built**
+
+📐 `BlueprintTierLadder.cs:62` names it as the tier-promotion case: *"PlatoonHillAttack2 holds 8 slots
+(9 after `O4`'s root) at 320 B and is promoted to…"*. It is the **only** corpus asset whose declared
+demand actually promotes the tier end to end. ⭐ The tier FUNCTION keeps unit coverage either way —
+`OccurrenceStoreAccessTests:303` drives `SelectTierForPayload` with synthetic payloads.
+
+⛔⛔ **Do not mint a synthetic 9-slot replacement.** 🔒 **Under `B` a behaviour has ONE block and each
+child owns its own, so "9 stateful slots" stops being a shape the system can produce** ⇒ that
+coverage is coverage of **a model being deleted**, and re-creating it would pin the thing we are
+removing. ⭐⭐ **Instead `CE-425`/`CE-429` owe an end-to-end tier-promotion case in the NEW shape** — a
+block large enough to promote. 🔒 That is `R-137` *(a unification may not cost a capability)*
+**honoured by re-homing the coverage, not waived.**

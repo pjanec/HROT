@@ -653,7 +653,7 @@ panels disagree about one entity.** ⭐ It blocks `Q75`, and **its fix is identi
 | **④** | ⭐ **Parse runs BEFORE provisioning** *(parse → commit → provision)*, which is why a resolver cannot write working state today |
 | **⑤** | ⭐ **The two hosting paths disagree on freshness** — a subtree **aliases** the host's params every tick; an AiPrimitive holds a **snapshot**. 📄 `S-SUB` fixes it and §11.4 there names it as a behaviour change |
 | **⑥** | ⛔ **`tracker-counts.py --check` counts `BP-` rows ONLY** — it verified none of `CE-418`…`CE-424`. Known gap, `CE-073`. ⚠ Do not report it as if it gated them |
-| **⑦** | ⭐ **`PlatoonHillAttack2` is KEPT** *(`Q76` §6)* — the six `HillAssault2I_*` graphs are deletable duplicates, but the tree is the only 7-primitive composition demonstrator |
+| **⑦** | ⛔⛔ **SUPERSEDED `2026-09-29` — `PlatoonHillAttack2` IS DELETED** *(`CE-436`, user: "not needed")*. ⚠ What is KEPT is the **60 `HillAssault2_*` TWINS** *(no `GetShared`)*; what goes is the **23 `HillAssault2I_*`** + the 5 tree files. **They differ by one letter — a sweep on `HillAssault2` matches both.** 📄 `Q76` §12.14. ~~Was: `PlatoonHillAttack2` is KEPT *(`Q76` §6)* — the six `HillAssault2I_*` graphs are deletable duplicates, but the tree is the only 7-primitive composition demonstrator~~ |
 | **⑧** | ⛔ **`IHostVariableAccess`'s header forbids a write path** *("a second supply mechanism")*. `Q76` §D.1 argues the narrowing; ⚠ **it is an argument, not a settled point** |
 
 ### 11.5 ⏭ WHAT "ANALYSING AND VERIFYING" SHOULD COVER NEXT
@@ -741,4 +741,17 @@ owning design describes a write use case at all. ⇒ `D` is **withdrawn, not par
 | ⛔ **the one dangerous edit** | `V_ResolverPurity`'s exemption **INVERTS** *(`Parameter` allowed → refused; `Variable` refused → allowed)*. Sound only with `CE-426`'s widened shadow ⇒ **`CE-426` + `CE-432` land together** |
 
 ⇒ ⭐ **Nothing is left blocking `CE-418`, and nothing is left blocking the slice order in `Q76` §12.6.**
+
+### 12.6 ⏭ SLICE ORDER *(current, `2026-09-29`)*
+
+✅ `CE-418` *(one layout authority — BUILT; ⚠ its inverse-edit red-proof is still owed)* →
+🔒 **`CE-436`** *(delete `PlatoonHillAttack2` + the 23 `HillAssault2I_*`; **keep the 60 twins**)* →
+🔒 **`CE-435`** *(retire `Node`/`Entity` from the authoring surface)* → `CE-425` → `CE-429` →
+**`CE-426` + `CE-432` together** → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` →
+`CE-430` → `A` + `C`.
+
+⭐⭐ **The first two are the user's own sequencing instruction** — *"I want to avoid the need to
+support these two as it might unnecessarily complicate the refactor"* — and `CE-436` halves
+`CE-435`'s input. ⛔ Neither existed as a task before `2026-09-29`; both were decision letters at
+slice 10.
 
