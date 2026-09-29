@@ -1567,3 +1567,37 @@ coverage is coverage of **a model being deleted**, and re-creating it would pin 
 removing. ⭐⭐ **Instead `CE-425`/`CE-429` owe an end-to-end tier-promotion case in the NEW shape** — a
 block large enough to promote. 🔒 That is `R-137` *(a unification may not cost a capability)*
 **honoured by re-homing the coverage, not waived.**
+
+---
+
+### 12.15 ✅ `CE-435` AS BUILT — **and a measured correction to §12.13** *(`2026-09-29`)*
+
+✅ **The authoring surface is one scope.** Both Scope dropdowns became a static label *(no choice at
+all, which beats a one-item combo)*; `BehaviorTreeAsset`/`HsmAsset.UpdateVariableRole` now **force
+`Scope = Behavior` whenever Role becomes `State`**; `HsmVariableShowcase:Ticks` re-homed; the enum
+documents what is authorable. ⭐⭐ **`CE-423` is no longer reachable through the UI** — before this,
+flipping a variable to `State` left it at the default `Node`, whose standalone slot both emitters
+silently skip, so **two clicks produced a variable with no storage and no diagnostic.**
+
+#### 🔴🔴 THE CORRECTION — **`Entity` scope and `GetShared` are ONE feature**
+
+⚠ **§12.13 said "re-home the 4 `Entity` variables". That was too glib**, and the measurement that
+shows why was never taken until the attempt failed:
+
+| | |
+|---|---|
+| what was tried | `T37:rally` re-homed `Entity` → `Behavior` |
+| what broke | the slot key moved from `FNV("rally")` to `FNV(assetId ++ "rally")`, and 🔴 **`BlueprintSharedState.TryGetShared` computes the ENTITY key at runtime** ⇒ `GetShared` could no longer find its own slot |
+| who caught it | `T37_…_ProofTests.StandaloneRallyVariable_EmitsManifestEntry_MatchingBlueprintSharedStateExpectedHash`, which asserts `SlotKey == 970386679` |
+| the resolution | ⭐ **`rally` STAYS at `Entity`**, with the reason written into the asset's own comment. It is now the **LAST** Entity-scoped variable in the repo |
+
+⇒ 🔒 **`CE-422` and decision `A` are ONE removal, not two.** Any variable read through `GetShared` is
+pinned to the Entity key by the accessor itself; the scope value cannot go until the accessor does.
+
+⭐ **The slice's GOAL is unaffected:** nothing can AUTHOR `Node` or `Entity` any more, so **the
+refactor carries one scope.** A legacy asset keeps its value in JSON until `A` retires the feature.
+
+📐 **Corpus now:** `Behavior` **5** · `Entity` **1** *(blocked on `A`)* · `Node` **0**.
+📐 **Gates:** generators **343/343** · BTree.Editor **636** · Hsm.Editor **619** · Persistence **147**
+· AiShared **2095/1 skip**. ⭐ Golden diff **3 files / 3 lines** — `Ticks`'s scope plus two
+persistence hashes, nothing else.

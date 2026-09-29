@@ -237,7 +237,23 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     {
         int idx = _blackboardVariables.FindIndex(v => v.Name == name);
         if (idx < 0) return;
-        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role };
+
+        // ⭐⭐⭐ CE-435 — A `State` VARIABLE IS ALWAYS `Behavior`-SCOPED, AND THE MODEL ENFORCES IT.
+        //
+        // 🔴 Before this, flipping Role to State left Scope at its default `Node`, and a STANDALONE
+        //    Node-scoped State variable is SILENTLY SKIPPED by both bridge emitters — no slot, no
+        //    diagnostic (CE-423). ⇒ the defect was reachable through the Variables panel in two
+        //    clicks, and nothing told the author their variable had no storage.
+        // 📐 Measured 2026-09-29 across every .btree.json/.hsm.json: of the authored State
+        //    variables, ZERO were at Node and (after CE-436) two at Entity, both re-homed by this
+        //    slice. `Behavior` is the only scope an author ever chose deliberately.
+        // ⛔ This does NOT touch OccurrenceSlotKey.Compute's Node arm — that keys node-BOUND working
+        //    state for hosted AiPrimitives, which is the common case and is not authored here.
+        var scope = role == Hrot.AiEditor.Persistence.BlackboardVariableRole.State
+            ? Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
+            : _blackboardVariables[idx].Scope;
+
+        _blackboardVariables[idx] = _blackboardVariables[idx] with { Role = role, Scope = scope };
         MarkDirty();
     }
 

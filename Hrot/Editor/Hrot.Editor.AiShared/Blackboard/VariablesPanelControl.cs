@@ -552,20 +552,20 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
-                    {
-                        ImGui.SetNextItemWidth(-1f);
-                        int scopeIdx = (int)row.Scope;
-                        if (ImGui.Combo($"##scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
-                        {
-                            var newScope = (WorkingStateScope)scopeIdx;
-                            schema.UpdateVariableScope(row.Name, newScope);
-                        }
-                    }
-                    else
-                    {
-                        ImGui.TextUnformatted(row.Scope.ToString());
-                    }
+                    // ⭐⭐⭐ CE-435 — THE SCOPE DROPDOWN IS GONE; `Behavior` IS THE ONLY SCOPE.
+                    //
+                    // 🔒 User, 2026-09-29: "I want to remove the entity scope and node scope on the
+                    //    blackboard variables because they have issues and there is no real need for
+                    //    them. I want to avoid the need to support these two as it might unnecessarily
+                    //    complicate the refactor."
+                    // 📐 Measured over the whole corpus: of the authored `State` variables, ZERO were
+                    //    at `Node` and two at `Entity` (both re-homed by this slice). A three-valued
+                    //    dropdown decided SIX variables, and its DEFAULT — `Node` — was the value that
+                    //    silently provisions nothing (CE-423).
+                    // ⭐ The model now forces `Behavior` whenever Role becomes `State`
+                    //    (BehaviorTreeAsset/HsmAsset.UpdateVariableRole), so this cell has nothing
+                    //    left to choose and says so instead of offering a one-item combo.
+                    ImGui.TextUnformatted(row.Scope.ToString());
                 }
                 else
                 {
@@ -648,20 +648,7 @@ public sealed class VariablesPanelControl
                 ImGui.TableNextColumn();
                 if (row.ShowScopeSelector)
                 {
-                    if (!schema.IsReadOnly && schema.SupportsRoleScopeEditing)
-                    {
-                        ImGui.SetNextItemWidth(-1f);
-                        int scopeIdx = (int)row.Scope;
-                        if (ImGui.Combo($"##no_scope_{rowIdx}", ref scopeIdx, "Node\0Behavior\0Entity\0\0"))
-                        {
-                            var newScope = (WorkingStateScope)scopeIdx;
-                            schema.UpdateVariableScope(row.Name, newScope);
-                        }
-                    }
-                    else
-                    {
-                        ImGui.TextUnformatted(row.Scope.ToString());
-                    }
+                    ImGui.TextUnformatted(row.Scope.ToString());   // CE-435 — see above
                 }
                 else
                 {

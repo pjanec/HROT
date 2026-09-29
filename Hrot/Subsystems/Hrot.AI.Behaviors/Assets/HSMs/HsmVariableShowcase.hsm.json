@@ -185,10 +185,10 @@
           "IsArray": false,
           "FixedLength": null
         },
-        "Comment": "E0 seed: Role=State at Entity scope — the wider-sharing arm of the same filter.",
+        "Comment": "CE-435 (2026-09-29): re-homed Entity -> Behavior; Entity scope is no longer authorable. E0 seed: Role=State, Behavior scope.",
         "IsAutoManaged": false,
         "Role": "State",
-        "Scope": "Entity"
+        "Scope": "Behavior"
       }
     ]
   }

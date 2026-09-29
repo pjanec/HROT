@@ -746,7 +746,7 @@ owning design describes a write use case at all. ⇒ `D` is **withdrawn, not par
 
 ✅ `CE-418` *(one layout authority — BUILT; ⚠ its inverse-edit red-proof is still owed)* →
 ✅ **`CE-436`** *(DONE — 28 files deleted, 60 twins kept; all three suites green)* →
-🔒 **`CE-435`** *(retire `Node`/`Entity` from the authoring surface)* → `CE-425` → `CE-429` →
+✅ **`CE-435`** *(DONE — authoring offers ONE scope; ⚠ `Entity` survives in **1** legacy asset because `GetShared` is hardwired to the Entity key ⇒ `CE-422` + decision `A` are ONE removal)* → `CE-425` → `CE-429` →
 **`CE-426` + `CE-432` together** → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` →
 `CE-430` → `A` + `C`.
 
