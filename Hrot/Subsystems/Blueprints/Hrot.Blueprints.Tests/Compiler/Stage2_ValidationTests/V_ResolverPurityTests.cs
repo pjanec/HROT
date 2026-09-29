@@ -87,6 +87,27 @@ public sealed class V_ResolverPurityTests
         Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
     }
 
+    /// <summary>
+    /// ⛔ <c>CE-433</c> — <c>Set Variables</c> takes <c>Set Variable</c>'s rule, not a looser one: a plain
+    /// Library resolver (no behaviour subject) owns no block, so the node is BP1675 like any other write.
+    /// ⚠ Inverse-edit red-proof: drop <c>SetVariablesNode</c> from the deny-list and this passes silently.
+    /// </summary>
+    [Fact]
+    public void CE433_SetVariables_InAPlainLibraryResolver_EmitsBP1675()
+    {
+        var asset = ResolverAsset(g => g.Nodes.Add(new SetVariablesNode { Id = Guid.NewGuid() }));
+        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
+    }
+
+    /// <summary>⭐ <c>CE-433</c> — in a behaviour-resolver subject, <c>Set Variables</c> writes its block: legal.</summary>
+    [Fact]
+    public void CE433_SetVariables_InABehaviourResolver_IsLegal()
+    {
+        var asset = SubjectAsset(g => g.Entry().Return());
+        asset.Graphs.Single().Nodes.Add(new SetVariablesNode { Id = Guid.NewGuid() });
+        Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
+    }
+
     [Fact]
     public void APureResolver_EmitsNoPurityDiagnostic()
     {
@@ -253,7 +274,7 @@ public sealed class V_ResolverPurityTests
         //   — a copy-with-changes into a new temp, never a write to anything the caller owns.
 
         // ── reads of state the resolver is entitled to see ───────────────
-        "GetAllParametersNode", "GetParameterNode", "GetVariableNode", "GetSharedNode",
+        "GetAllParametersNode", "GetAllVariablesNode", "GetParameterNode", "GetVariableNode", "GetSharedNode",
         "GetComponentNode", "ComponentContainsNode", "ComponentFindNode", "ComponentForEachNode",
         "ComponentItemCountNode", "ComponentItemGetNode",
         "ReadEqsResultNode", "ReadRankedResultNode",

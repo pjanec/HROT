@@ -262,6 +262,89 @@ public sealed class OwnParamResolverTests
     }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-433</c> — <b>the whole-blackboard pair addresses the SAME block the per-field nodes do.</b>
+    /// The shipped <c>T40Resolver</c>, with its <c>Get Variable</c> swapped for <c>Get All Variables</c> and its
+    /// <c>Set Variable</c> for <c>Set Variables</c> (pin-less, the editor-save form, so Stage 0 derives the pins).
+    /// ⭐ It must emit the identical reads/writes — <c>block.In.Speed</c> read, <c>block.St.Doubled</c> written —
+    /// and ⛔ the UNWIRED <c>Speed</c> pin on <c>Set Variables</c> must write NOTHING. It must also pass
+    /// <c>V_ResolverPurity</c>: a subject's Variables ARE its block. 📄 <c>Q76</c> §12.22.
+    /// </summary>
+    [Fact]
+    public void CE433_TheWholeBlackboardPair_ReadsAndWritesTheResolversBlock()
+    {
+        var asset = WithWholeBlackboardPair(GoldenCorpus.Load("T40Resolver"));
+
+        Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
+        var src = Emit(asset);
+        Assert.Contains("block.In.Speed", src);
+        Assert.Contains("block.St.Doubled = ", src);
+        Assert.DoesNotContain("block.In.Speed = ", src);   // unwired ⇒ untouched
+    }
+
+    /// <summary>
+    /// ⛔ <c>CE-433</c> — a stored pin that names no variable (the author deleted/renamed it away) is the
+    /// dangling reference <c>BP1670</c> already names, instead of an <c>Unresolved</c> reaching the emitter.
+    /// </summary>
+    [Fact]
+    public void CE433_AStalePinName_IsBP1670()
+    {
+        var asset = GoldenCorpus.Load("T40Resolver");
+        var graph = asset.Graphs.Single();
+        var node  = new GetAllVariablesNode { Id = Guid.NewGuid() };
+        node.Pins.Add(new Pin
+        {
+            Id = Guid.NewGuid(), Name = "Ghost", Direction = "Out",
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Single" },
+        });
+        graph.Nodes.Add(node);
+        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1670 && d.NodeId == node.Id);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> — the one pin-set answer excludes fixed-capacity lists (they keep the <c>List*</c>
+    /// nodes, <c>BP1506</c>) and never offers a Parameter.
+    /// </summary>
+    [Fact]
+    public void CE433_PinnedVariables_AreTheNonListVariablesOnly()
+    {
+        var asset = new BlueprintAsset
+        {
+            Parameters   = { new ParameterDecl { Id = Guid.NewGuid(), Name = "P", Type = new BlueprintTypeRef { TypeId = "System.Single" } } },
+            WorkingState =
+            {
+                new VariableDecl { Id = Guid.NewGuid(), Name = "A",    Type = new BlueprintTypeRef { TypeId = "System.Single" } },
+                new VariableDecl { Id = Guid.NewGuid(), Name = "List", Type = new BlueprintTypeRef { TypeId = "System.Int32", Capacity = 4 } },
+                new VariableDecl { Id = Guid.NewGuid(), Name = "B",    Type = new BlueprintTypeRef { TypeId = "System.Int32" } },
+            },
+        };
+        Assert.Equal(new[] { "A", "B" }, GetAllVariablesNode.PinnedVariablesOf(asset).Select(v => v.Name));
+    }
+
+    /// <summary>
+    /// <c>T40Resolver</c> with <c>Get Variable(Speed)</c> → <c>Get All Variables</c> and
+    /// <c>Set Variable(Doubled)</c> → <c>Set Variables</c>, same node ids, pin-less, links re-keyed to the
+    /// deterministic pin ids Stage 0 will mint.
+    /// </summary>
+    private static BlueprintAsset WithWholeBlackboardPair(BlueprintAsset asset)
+    {
+        var graph = asset.Graphs.Single();
+        var get = graph.Nodes.OfType<GetVariableNode>().Single();
+        var set = graph.Nodes.OfType<SetVariableNode>().Single();
+        var gav = new GetAllVariablesNode { Id = get.Id, EditorMetadata = get.EditorMetadata };
+        var svs = new SetVariablesNode    { Id = set.Id, EditorMetadata = set.EditorMetadata };
+        graph.Nodes[graph.Nodes.IndexOf(get)] = gav;
+        graph.Nodes[graph.Nodes.IndexOf(set)] = svs;
+
+        foreach (var l in graph.Links)
+        {
+            if (l.FromNodeId == get.Id) l.FromPinId = DeterministicIds.PinId(get.Id, "Speed", "Out");
+            if (l.ToNodeId == set.Id && l.ToPinId == DeterministicIds.PinId(set.Id, "Value", "In"))
+                l.ToPinId = DeterministicIds.PinId(set.Id, "Doubled", "In");
+        }
+        return asset;
+    }
+
+    /// <summary>
     /// ⛔⛔ <c>CE-428</c> — <b>the compiler's working copy of the asset must carry EVERY public settable property.</b>
     /// <c>BlueprintCompiler.Compile</c> rebuilds the asset field by field; 📌 measured: the new
     /// <c>ResolverSubject</c> was not on that list, so a resolver asset compiled as a plain Library (BP1011) while

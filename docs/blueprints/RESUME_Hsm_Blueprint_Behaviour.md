@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4g** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434 built; next is CE-433) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4h** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433 built; next is CE-430) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -824,9 +824,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ **A behaviour binds a blueprint RESOLVER ASSET (shape ③):** a Library `.bp.json` with a `ResolverSubject` (the behaviour it refines, its two types, which variables are State); its Variables mirror the block and compile to `block.In.x` / `block.St.y`; emitted as `ResolveBehavior(in authored, ref block, world, self, host)`. The behaviour names it (`BehaviorTreeAssetDto.Resolver`); its registrar calls it as stage 3 inside `ParseParams` and publishes it as `BehaviorDefinition.ResolveStage`, which a hosted child's start also runs. Demo pair `T40_BehaviorResolverAsset` + `T40Resolver`. 🔴 Found: the compiler's field-by-field asset copy (trap ⑫). ⏭ `CE-434` (editor pick/create/invalidate) → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.20](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4g ✅ `CE-434` BUILT *(overnight — model, service, validator; ⛔ no UI wiring)* — ⭐ **NEXT IS `CE-433`**
+### 13.4g ✅ `CE-434` BUILT *(overnight — model, service, validator; ⛔ no UI wiring)* 
 
 ⭐ `BehaviorResolverShape` (Persistence) derives a resolver's subject from a behaviour through the emitter's own namers and hashes it; `BehaviorResolverAuthoring` (AiComposition) creates / re-derives (keeping surviving variable ids) / binds / clears; `BTreeValidator` warns `ResolverOutOfDate` when the recorded hash no longer matches. Proven against the shipped T40 pair. ⏭ `CE-433` → `CE-430` → `A` + `C`; the UI wiring for CE-434 is an open follow-up. 📄 [`Q76` §12.21](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
+### 13.4h ✅ `CE-433` BUILT *(overnight)* — ⭐ **NEXT IS `CE-430`**
+
+⭐ `Get All Variables` / `Set Variables`: the whole blackboard as pins, over ONE pin-set answer (`GetAllVariablesNode.PinnedVariablesOf` — non-list Variables). Both lower to the per-field IR ops, so every subject is inherited; an unwired `Set Variables` pin writes nothing; `Set Variables` shares `Set Variable`'s purity exemption; a stale pin name is `BP1670`. ⚠ Two known limitations (pin ids key on name: rename drops links; a variable named `In` collides with the exec pin). ⏭ `CE-430` → `A` + `C`. 📄 [`Q76` §12.22](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 
@@ -834,7 +838,7 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 |---|---|
 | **①** | 🔴 **`Entity` scope and `GetShared` are ONE feature.** `BlueprintSharedState.TryGetShared` computes the **Entity** key *(`FNV(variableId)`, no assetId)* at runtime, so an Entity variable read through `GetShared` **cannot be re-homed** — proved by `T37:rally`, reverted. ⇒ `CE-422` + decision `A` are **one** removal |
 | **②** | 🔴 **The one-letter trap, and it fires in GREP:** `HillAssault2I` also matches `HillAssault2I`sSelfArrived / `…I`sWaveCompleted / `…I`sAreaQueryResolved — **surviving twins**. ⛔ Only `HillAssault2I_` with the underscore is safe |
-| **③** | ⭐ **The resolver's two subjects already exist in the vocabulary:** `ContainerVarFor(kind)` is `Parameter ? ParamsVar : StateVar` ⇒ `Get Parameter` reads the authored DTO, `Get Variable`/`Set Variable` reach the block. **No new node kind, no `ref` pins, `BP1677` untouched.** Only a `Get All Variables` twin is missing *(`CE-433`)* |
+| **③** | ⭐ **The resolver's two subjects already exist in the vocabulary:** `ContainerVarFor(kind)` is `Parameter ? ParamsVar : StateVar` ⇒ `Get Parameter` reads the authored DTO, `Get Variable`/`Set Variable` reach the block. **No new node kind, no `ref` pins, `BP1677` untouched.** The `Get All Variables` twin is now BUILT *(`CE-433`, §13.4h)* |
 | **④** | ⛔ **A behaviour asset has NO graph container** ⇒ its resolver graph needs a **dedicated blueprint asset** *(shape ③, `Q76` §12.10b)*. `Q76` §12.9b's shape-② lean is superseded |
 | **⑤** | ⚠ **`Hrot.Editor.Tests` is NOT a leaf project** — ~40 projects and two source generators per invocation, **minutes**, not the 8 s the fast path assumes. ⭐ Iterate on `Hrot.AiEditor.Generators.Tests` *(~50 s)* and touch the editor suite once |
 | **⑥** | ⚠ **Golden regeneration switches differ per suite:** `AI_REGENERATE_SNAPSHOTS=1` for `Hrot.AiEditor.Generators.Tests`, **`BLUEPRINT_REGENERATE_SNAPSHOTS=1`** for `Hrot.Blueprints.Tests` |

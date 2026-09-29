@@ -46,6 +46,11 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // pin set from asset.Parameters, so no static shape here.
         GetAllParametersNode => Array.Empty<PinSchema>(),   // pure data-Out(s), one per asset.Parameters entry
 
+        // CE-433: the blackboard twins. Dynamic -- Stage0_Rehydrate.EnrichAllVariablesPins adds one
+        // data pin per non-list Variable; Set keeps this exec skeleton and appends its data-ins.
+        GetAllVariablesNode => Array.Empty<PinSchema>(),
+        SetVariablesNode    => new[] { ExecIn(), ExecOut() },
+
         // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
         // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
         // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally

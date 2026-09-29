@@ -1253,6 +1253,23 @@ internal sealed class GraphScheduler
     {
         switch (node)
         {
+            // CE-433: Set Variables -- one IrOp_WriteVariable per WIRED data-in, in pin (= declaration)
+            // order. ⭐ An unwired pin writes nothing: the variable keeps its value (SetMembers precedent).
+            case SetVariablesNode svs:
+            {
+                foreach (var pin in svs.Pins.Where(p => !p.IsExec && p.Direction == "In").ToList())
+                {
+                    if (!_graph.Links.Any(l => l.ToNodeId == svs.Id && l.ToPinId == pin.Id)) continue;
+                    var val = ResolveDataPin(svs.Id, pin.Id, stmts);
+                    stmts.Add(new IrStatement
+                    {
+                        Operation = new IrOp_WriteVariable(FindPinnedVariableRef(pin.Name), val),
+                        Debug     = DebugOf(node),
+                    });
+                }
+                break;
+            }
+
             case SetVariableNode sv:
             {
                 int localIdx = FindLocalIndex(sv.VariableId);
@@ -2640,6 +2657,22 @@ internal sealed class GraphScheduler
                     ResultValue = result,
                     Operation   = new IrOp_ReadParam(gapIdx),
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gap.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // CE-433: Get All Variables -- one out-pin per pinned Variable. The GetAllParameters shape
+            // retargeted at the block's state: the requested pin's NAME resolves to the same
+            // VariableRef a GetVariableNode would carry, so ContainerFor routes it for every subject.
+            case GetAllVariablesNode gav:
+            {
+                var gavPin = gav.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Id == sourcePinId);
+                result = AllocValue(pinType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ReadVariable(FindPinnedVariableRef(gavPin?.Name)),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gav.Id, PinId = sourcePinId },
                 });
                 break;
             }
@@ -4628,6 +4661,23 @@ internal sealed class GraphScheduler
             if (locals[i].Id == guid) return i;
 
         return -1;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> — a Get All Variables / Set Variables pin NAME to its <see cref="VariableRef"/>.
+    /// ⚠ The index is relative to the FULL <c>Variable</c> list (what <c>EmissionContext</c> indexes),
+    /// not to the pinned subset; only a pinned (non-list) variable matches. ⛔ No parameter fallback —
+    /// these pins never name one. A miss is <see cref="VariableRef.Unresolved"/>, which <c>BP1670</c>
+    /// refuses at Stage 2 before it can reach the emitter.
+    /// </summary>
+    private VariableRef FindPinnedVariableRef(string? name)
+    {
+        if (string.IsNullOrEmpty(name)) return VariableRef.Unresolved;
+        var variables = _typed.Asset.Declarations.Of(DeclarationKind.Variable).ToList();
+        for (int i = 0; i < variables.Count; i++)
+            if (variables[i].Name == name && GetAllVariablesNode.IsPinned(variables[i]))
+                return new(VariableKind.Variable, i);
+        return VariableRef.Unresolved;
     }
 
     /// <summary>

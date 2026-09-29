@@ -600,6 +600,7 @@ public sealed class NodeCoverageTests
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetParameter", new[] { BuildGetParameterMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetAllParameters", new[] { BuildGetAllParametersMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
+        yield return ("Inline/GetAllVariablesSetVariables", new[] { BuildGetAllVariablesSetVariablesMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/Compare", new[] { BuildCompareMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BinaryOp", new[] { BuildBinaryOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/BooleanOp", new[] { BuildBooleanOpMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -1880,6 +1881,76 @@ public sealed class NodeCoverageTests
             },
             Parameters   = { paramA, paramB },
             WorkingState = { floatVar, intVar },
+            Graphs       = { graph },
+        };
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> -- the blackboard twins, one fixture: EventEntry -&gt; SetVariables -&gt; Return,
+    /// where SetVariables' <c>FloatOut</c>/<c>IntOut</c> data-ins are fed by TWO out-pins of ONE
+    /// GetAllVariablesNode (<c>FloatA</c>, <c>IntB</c>), and SetVariables' own <c>FloatA</c>/<c>IntB</c>
+    /// pins stay UNWIRED (they must write nothing). Mirrors <see cref="BuildGetAllParametersMinimalAsset"/>,
+    /// retargeted from Parameters to the block's Variables, through the full Roslyn+ALC pipeline.
+    /// </summary>
+    private static BlueprintAsset BuildGetAllVariablesSetVariablesMinimalAsset()
+    {
+        VariableDecl Var(string name, string type) => new()
+        {
+            Id = Guid.NewGuid(), Name = name, Type = new BlueprintTypeRef { TypeId = type },
+        };
+        var floatA = Var("FloatA", "System.Single");
+        var intB   = Var("IntB",   "System.Int32");
+        var fOut   = Var("FloatOut", "System.Single");
+        var iOut   = Var("IntOut",   "System.Int32");
+
+        var gavA = DataPin("FloatA", "Out", "System.Single");
+        var gavB = DataPin("IntB",   "Out", "System.Int32");
+        var gav  = new GetAllVariablesNode { Id = Guid.NewGuid() };
+        gav.Pins.AddRange(new[] { gavA, gavB });
+
+        var svIn   = ExecPin("In",  "In");
+        var svOut  = ExecPin("Out", "Out");
+        var svA    = DataPin("FloatA",   "In", "System.Single");
+        var svB    = DataPin("IntB",     "In", "System.Int32");
+        var svFOut = DataPin("FloatOut", "In", "System.Single");
+        var svIOut = DataPin("IntOut",   "In", "System.Int32");
+        var sv = new SetVariablesNode { Id = Guid.NewGuid() };
+        sv.Pins.AddRange(new[] { svIn, svOut, svA, svB, svFOut, svIOut });
+
+        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
+        var entryOut = ExecPin("ExecOut", "Out");
+        entry.Pins.Add(entryOut);
+
+        var ret   = new ReturnNode { Id = Guid.NewGuid() };
+        var retIn = ExecPin("ExecIn", "In");
+        ret.Pins.Add(retIn);
+
+        var graph = new Graph
+        {
+            Id    = Guid.NewGuid(),
+            Name  = "Main",
+            Kind  = GraphKind.Function,
+            Nodes = { entry, gav, sv, ret },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = sv.Id,  ToPinId = svIn.Id },
+                new Link { FromNodeId = sv.Id,    FromPinId = svOut.Id,    ToNodeId = ret.Id, ToPinId = retIn.Id },
+                new Link { FromNodeId = gav.Id,   FromPinId = gavA.Id,     ToNodeId = sv.Id,  ToPinId = svFOut.Id },
+                new Link { FromNodeId = gav.Id,   FromPinId = gavB.Id,     ToNodeId = sv.Id,  ToPinId = svIOut.Id },
+            },
+        };
+
+        return new BlueprintAsset
+        {
+            AssetId      = Guid.NewGuid(),
+            Name         = "GetAllVariablesSetVariablesCoverage",
+            Dispatch     = BlueprintDispatchKind.AiPrimitive,
+            Primitive    = new AiPrimitiveDecl
+            {
+                Intent   = AiPrimitiveIntent.Action,
+                Hostings = { AiPrimitiveHosting.BTreeAction },
+            },
+            WorkingState = { floatA, intB, fOut, iOut },
             Graphs       = { graph },
         };
     }

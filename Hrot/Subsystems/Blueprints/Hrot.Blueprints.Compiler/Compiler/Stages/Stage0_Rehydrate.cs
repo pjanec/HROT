@@ -123,6 +123,15 @@ internal static class Stage0_Rehydrate
                 EnrichGetAllParametersPins(pins, asset, staticShapes);
                 break;
 
+            case GetAllVariablesNode:
+                pins.Clear();
+                EnrichAllVariablesPins(pins, asset, "Out");
+                break;
+
+            case SetVariablesNode:
+                EnrichAllVariablesPins(pins, asset, "In");   // after the static ExecIn/ExecOut
+                break;
+
             case ReturnNode:
                 // BP-131/H3: `asset` is threaded in because the Success pin is AiPrimitive-only and
                 // Dispatch lives on the ASSET, not the graph. The editor's twin already had it in
@@ -302,6 +311,17 @@ internal static class Stage0_Rehydrate
             var typeId = GetTypeId(p.Type);
             pins.Add(MakePin(p.Name, "Out", isExec: false, typeId: typeId));
         }
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> — the blackboard twins: one data pin per
+    /// <see cref="GetAllVariablesNode.PinnedVariablesOf"/> entry, in <paramref name="direction"/>
+    /// (<c>Out</c> for Get, <c>In</c> for Set). Mirrors <see cref="EnrichGetAllParametersPins"/>.
+    /// </summary>
+    private static void EnrichAllVariablesPins(List<Pin> pins, BlueprintAsset asset, string direction)
+    {
+        foreach (var v in GetAllVariablesNode.PinnedVariablesOf(asset))
+            pins.Add(MakePin(v.Name, direction, isExec: false, typeId: GetTypeId(v.Type)));
     }
 
     private static void EnrichReturnPins(
@@ -1432,6 +1452,7 @@ internal static class Stage0_Rehydrate
         GetVariableNode       => false,
         GetParameterNode      => false,
         GetAllParametersNode  => false,
+        GetAllVariablesNode   => false,
         GetSharedNode         => false,
         GetComponentNode      => false,
         CompareNode           => false,

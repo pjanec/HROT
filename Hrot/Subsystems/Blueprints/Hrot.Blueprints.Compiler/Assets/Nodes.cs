@@ -11,6 +11,8 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(GetParameterNode),        "GetParameter")]
 [JsonDerivedType(typeof(GetAllParametersNode),     "GetAllParameters")]
 [JsonDerivedType(typeof(SetVariableNode),         "SetVariable")]
+[JsonDerivedType(typeof(GetAllVariablesNode),     "GetAllVariables")]
+[JsonDerivedType(typeof(SetVariablesNode),        "SetVariables")]
 [JsonDerivedType(typeof(LiteralNode),             "Literal")]
 [JsonDerivedType(typeof(EventEntryNode),          "EventEntry")]
 [JsonDerivedType(typeof(ReturnNode),              "Return")]
@@ -223,6 +225,43 @@ public sealed class GetParameterNode : Node
 /// how EventEntryNode's data-out pins are matched by name against <c>Graph.Inputs</c>).
 /// </summary>
 public sealed class GetAllParametersNode : Node { }
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — reads the WHOLE blackboard at once: one data-OUT pin per declared
+/// <see cref="DeclarationKind.Variable"/> (name, type), instead of chaining one
+/// <see cref="GetVariableNode"/> per field. The <see cref="GetAllParametersNode"/> twin for the
+/// block's STATE half. Pure; each pin lowers to the same <c>IrOp_ReadVariable</c> a
+/// <see cref="GetVariableNode"/> does, resolved by the pin's NAME — so the subject routing
+/// (<c>EmissionContext.ContainerFor</c>) is inherited for every dispatch.
+/// ⚠ Fixed-list variables (<c>Type.Capacity &gt; 0</c>) get no pin: a list is read through the
+/// <c>List*</c> nodes, never as a whole value on a pin (<c>BP1506</c>). 📄 Q76 §12.22.
+/// </summary>
+public sealed class GetAllVariablesNode : Node
+{
+    /// <summary>
+    /// ⭐⭐ The ONE answer to <i>"which variables get a pin?"</i> on this node and on
+    /// <see cref="SetVariablesNode"/> — every declared <see cref="DeclarationKind.Variable"/> that is
+    /// not a fixed-capacity list, in declaration order. ⛔ Stage 0, Stage 5, the <c>BP1670</c> rail and
+    /// the editor's pin projection all read it, so the four cannot drift (<c>R-132</c>).
+    /// </summary>
+    public static IEnumerable<BlueprintDeclaration> PinnedVariablesOf(BlueprintAsset? asset)
+        => asset is null
+            ? Enumerable.Empty<BlueprintDeclaration>()
+            : asset.Declarations.Of(DeclarationKind.Variable).Where(IsPinned);
+
+    /// <summary>The per-declaration half of <see cref="PinnedVariablesOf"/>: not a fixed-capacity list.</summary>
+    public static bool IsPinned(BlueprintDeclaration variable) => variable.Type is not { Capacity: > 0 };
+}
+
+/// <summary>
+/// ⭐ <c>CE-433</c> — writes the blackboard's variables from one node: exec in/out plus one data-IN
+/// pin per declared <see cref="DeclarationKind.Variable"/> (same set and order as
+/// <see cref="GetAllVariablesNode"/>). ⭐⭐ An UNWIRED pin leaves its variable UNTOUCHED — the node
+/// lowers to one <c>IrOp_WriteVariable</c> per WIRED pin, in declaration order (the
+/// <see cref="SetMembersNode"/> precedent). Side-effecting exactly as <see cref="SetVariableNode"/>
+/// is, and shares its resolver-purity exemption. 📄 Q76 §12.22.
+/// </summary>
+public sealed class SetVariablesNode : Node { }
 
 public sealed class LiteralNode : Node
 {

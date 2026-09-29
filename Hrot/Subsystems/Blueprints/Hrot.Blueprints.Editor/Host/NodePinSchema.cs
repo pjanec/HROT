@@ -144,6 +144,10 @@ internal static class NodePinSchema
             // one "Value"-style data-out pin per asset Parameter directly from asset.Parameters
             // (mirrors EventEntryNodePins projecting one data-out per Graph.Inputs entry).
             GetAllParametersNode => GetAllParametersPins(asset),
+            // CE-433: the blackboard twins -- the SAME variable set the compiler pins
+            // (GetAllVariablesNode.PinnedVariablesOf), so the canvas and Stage0 cannot disagree.
+            GetAllVariablesNode  => AllVariablesPins(asset, "Out", withExec: false),
+            SetVariablesNode     => AllVariablesPins(asset, "In",  withExec: true),
             GetSharedNode gsn   => GetSharedPins(gsn),
             SetSharedNode ssn   => SetSharedPins(ssn),
             GetComponentNode gcn => GetComponentPins(gcn),
@@ -964,6 +968,26 @@ internal static class NodePinSchema
                 return decl.Type.TypeId;
         }
         return "System.Object";
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-433</c> (editor projection): one data pin per
+    /// <see cref="GetAllVariablesNode.PinnedVariablesOf"/> entry, behind Set's exec In/Out.
+    /// </summary>
+    private static IReadOnlyList<Pin> AllVariablesPins(BlueprintAsset? asset, string direction, bool withExec)
+    {
+        var pins = new List<Pin>();
+        if (withExec)
+        {
+            pins.Add(MakeExec("In",  "In"));
+            pins.Add(MakeExec("Out", "Out"));
+        }
+        foreach (var v in GetAllVariablesNode.PinnedVariablesOf(asset))
+        {
+            var typeId = string.IsNullOrEmpty(v.Type?.TypeId) ? "System.Object" : v.Type.TypeId;
+            pins.Add(MakeData(v.Name, direction, typeId));
+        }
+        return pins;
     }
 
     private static IReadOnlyList<Pin> SetVariablePins(SetVariableNode sv, string typeId)

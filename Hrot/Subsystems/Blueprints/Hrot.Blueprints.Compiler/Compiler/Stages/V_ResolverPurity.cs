@@ -49,6 +49,7 @@ internal sealed class V_ResolverPurity : IValidator
     {
         // ── writes that outlive the shadow parse ──────────────────────────────
         typeof(SetVariableNode),          // writes asset-scope state
+        typeof(SetVariablesNode),         // CE-433: the same writes, many at once — same exemption below
         typeof(SetSharedNode),            // writes the cross-entity shared region
         typeof(SetComponentNode),         // writes a component on an entity
         typeof(CollectionWriteNode),      // mutates a component collection
@@ -168,6 +169,13 @@ internal sealed class V_ResolverPurity : IValidator
                 //   result, never an escape. (It declares no Parameters: the authored DTO is `in`.)
                 if (isSubject && node is SetVariableNode subjectWrite
                     && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
+                    continue;
+
+                // ⭐ CE-433 — Set Variables writes ONLY pinned Variables (its pins are derived from them, and
+                //   BP1670 refuses a pin that names anything else), so it takes the Variable half of both
+                //   exemptions: a behaviour-resolver subject, or an AiPrimitive's own resolver.
+                if (node is SetVariablesNode
+                    && (isSubject || (!isLibrary && asset.Dispatch == BlueprintDispatchKind.AiPrimitive)))
                     continue;
 
                 if (!isLibrary && node is SetVariableNode sv

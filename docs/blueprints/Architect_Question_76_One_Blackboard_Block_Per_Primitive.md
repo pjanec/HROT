@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434 are BUILT (§11.7, §12.15–§12.21). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433 are BUILT (§11.7, §12.15–§12.22). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2285,3 +2285,119 @@ exactly (`BehaviorResolverAuthoringTests`). ⛔ **Not built:** a window/menu tha
 `BehaviorResolverAuthoring` — no editor host runs in this environment to verify one, so it is a
 visual-check follow-up rather than an unverified UI.
 
+
+### 12.22 ⭐⭐⭐ `CE-433` BUILD DESIGN — **the whole blackboard as pins: `Get All Variables` / `Set Variables`** *(`2026-09-29`, overnight)*
+
+🔒 **Frame:** §12.9a (the capability ships per field; this is the all-fields-at-once convenience) ·
+§12.12a (`Get Variable`/`Set Variable` already address the block per field, through `ContainerFor`) ·
+the user's ask, verbatim: *"a blueprint node that can access its blackboard DTO (access the variable
+within that DTO as pins), both reading and writing"*. ⛔ **No node addresses a slot** (§12.9a-1) — both
+nodes lower to the SAME IR ops `Get/Set Variable` lower to, so every subject (AiPrimitive `ws`, a
+behaviour resolver's `block.St`/`block.In`) is inherited, not re-implemented.
+
+#### 12.22a INVENTORY *(`search_graph` CLI + grep, `2026-09-29`)*
+
+| query | result |
+|---|---|
+| `search_graph name_pattern=".*(GetAll\|SetAll\|Blackboard.*Node\|Variables?Node\|SetMembers).*" label=Class` | **6** — `GetAllParametersNode` (the precedent) · `GetVariableNode` · `SetVariableNode` · `SetMembersNode` · `IrOp_SetMembers` · a test class. ⛔ **No existing all-variables node** |
+| grep `GetAllParametersNode` (production) | **7 sites** to mirror: `Nodes.cs` (type + JSON discriminator) · `BuiltInNodeRegistry` (static skeleton) · `Stage0_Rehydrate` (enricher + exec-fallback table) · `Stage5_Schedule` (per-pin lowering) · `NodePinSchema` (editor projection) · `BlueprintNodeModel` (title + category) · `BlueprintNodePaletteEntries` |
+| grep `SetVariableNode` in validators | `V_ResolverPurity` (deny-list + the subject/AiPrimitive exemption) · `V_VariableReferenceRules` (`BP1670` dangling ref) · `Stage2_Validate` `BP2063`/`BP1506` (single-variable, list-value rules) |
+| rails that partition the vocabulary | `V_ResolverPurityTests` (every node kind is either denied or in `KnownPureNodeTypes`) · `NodeCoverageTests` (per-kind full-pipeline fixture) |
+
+#### 12.22b DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **two node kinds**: `GetAllVariablesNode` (pure, one data-out per variable) · `SetVariablesNode` (exec in/out + one data-in per variable) | ⛔ one node with both directions — a pure read and a statement write schedule differently; the precedent pair `GetVariable`/`SetVariable` is already split |
+| ⭐⭐ **pins are `DeclarationKind.Variable` only, in declaration order** — the block's state; parameters keep `Get All Parameters` | ⛔ fold parameters in — in a behaviour resolver the parameters ARE the `in` authored DTO and not writable, so one list would offer write pins that must be refused |
+| ⭐ **fixed-list variables (`Type.Capacity > 0`) are excluded** | ⛔ include them — a list is read/written through `List*` nodes, and `BP1506` exists precisely because a whole-list value on a pin is unsafe |
+| ⭐⭐ **`Set Variables`: an UNWIRED pin leaves its variable untouched** — one `IrOp_WriteVariable` per WIRED pin, in declaration order | ⛔ write `default` for unwired pins — `SetMembersNode`'s precedent, and a node that silently zeroes fields the author never touched is a trap |
+| ⭐ **lowering reuses `IrOp_ReadVariable` / `IrOp_WriteVariable`** — the pin NAME resolves to `VariableRef(Variable, i)` exactly as `GetAllParameters` resolves by name | ⛔ a new IR op — `ContainerFor` already routes a `VariableRef` to the right subject for every dispatch (CE-428) |
+| ⭐ **purity: `SetVariablesNode` is on the deny-list with `SetVariable`'s exemption** (a behaviour-resolver subject, or an AiPrimitive's own resolver) | ⛔ call it pure — it writes asset state outside any resolver exactly as `SetVariable` does |
+| ⭐ **a stored pin whose name matches no eligible variable is `BP1670`** (dangling variable reference) | ⛔ a new code — it is the same defect `BP1670` names, reached through a pin name instead of a `VariableId` |
+
+⚠ **Known limitation, shared with `Get All Parameters`:** a pin's id is `DeterministicIds.PinId(node, name, dir)`,
+so renaming a variable re-mints its pin and drops a link wired to the old name. ⭐ Stated, not fixed here.
+
+```mermaid
+classDiagram
+    class GetAllVariablesNode {
+      <<NEW - pure>>
+      one data-out per Variable
+    }
+    class SetVariablesNode {
+      <<NEW - statement>>
+      ExecIn ExecOut
+      one data-in per Variable
+    }
+    class GetAllParametersNode {
+      <<EXISTS - the precedent>>
+      one data-out per Parameter
+    }
+    class GetVariableNode {
+      <<EXISTS>>
+    }
+    class SetVariableNode {
+      <<EXISTS>>
+    }
+    class IrOp_ReadVariable {
+      <<EXISTS>>
+      VariableRef
+    }
+    class IrOp_WriteVariable {
+      <<EXISTS>>
+      VariableRef value
+    }
+    class EmissionContext {
+      <<EXISTS>>
+      +ContainerFor(VariableRef)
+    }
+    class V_ResolverPurity {
+      <<EXISTS>>
+      deny-list + subject exemption
+    }
+    class V_VariableReferenceRules {
+      <<EXISTS - BP1670>>
+    }
+    GetAllVariablesNode ..> IrOp_ReadVariable : lowers to, per pin
+    GetVariableNode ..> IrOp_ReadVariable
+    SetVariablesNode ..> IrOp_WriteVariable : lowers to, per wired pin
+    SetVariableNode ..> IrOp_WriteVariable
+    IrOp_ReadVariable ..> EmissionContext
+    IrOp_WriteVariable ..> EmissionContext
+    V_ResolverPurity ..> SetVariablesNode : denied unless subject
+    V_VariableReferenceRules ..> GetAllVariablesNode : pin names resolve
+    GetAllVariablesNode .. GetAllParametersNode : mirrors
+```
+
+> ⭐ **Caption.** The two new boxes have no emitter of their own — every arrow out of them lands on an
+> op that `Get/Set Variable` already use, so the subject routing (`ContainerFor`) is inherited, not copied.
+
+```mermaid
+sequenceDiagram
+    participant S0 as "Stage0 Rehydrate"
+    participant S2 as "Stage2 Validate"
+    participant S5 as "Stage5 Schedule"
+    participant EM as "StatementEmitter"
+    S0->>S0: pin-less node - one pin per non-list Variable
+    S2->>S2: BP1670 per pin name that resolves to nothing
+    S2->>S2: BP1675 SetVariables outside a subject
+    S5->>S5: Get - requested pin name to VariableRef, IrOp_ReadVariable
+    S5->>S5: Set - each WIRED data-in to IrOp_WriteVariable, in order
+    EM->>EM: ContainerFor(ref).field - ws.X or block.St.X
+```
+
+> ⭐ **Caption.** Nothing after Stage 5 knows the pair exists — which is why the emitted C# is identical to
+> chaining one `Get/Set Variable` per field.
+
+#### 12.22c ✅ AS BUILT `2026-09-29` — as designed, plus one measured limitation
+
+The class and sequence diagrams hold. ⭐ Proof that the pair addresses the SAME block: the shipped
+`T40Resolver`, rewritten onto `Get All Variables` + `Set Variables` (pin-less, so Stage 0 derives the pins),
+emits `block.In.Speed` and `block.St.Doubled = ` and — with its `Speed` pin unwired — **no**
+`block.In.Speed = ` (`OwnParamResolverTests.CE433_*`). Full Roslyn compile of both kinds:
+`NodeCoverageTests` `Inline/GetAllVariablesSetVariables`. Purity: `V_ResolverPurityTests.CE433_*`.
+⚠ **A second limitation, measured while building:** `Set Variables`' exec pins are named `In`/`Out`
+(`BuiltInNodeRegistry`), and `DeterministicIds.PinId` keys on (name, direction) — so a variable literally
+named `In` would collide with the exec-in pin. Not refused today; filed as a known limitation alongside the
+rename one above rather than widening the slice.

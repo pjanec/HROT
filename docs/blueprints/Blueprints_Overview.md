@@ -81,7 +81,8 @@ removed from the palette. Per-node, per-axis detail lives in the (dated)
 `Return` ✅, `Branch` ✅, `Sequence` ✅.
 
 **Variables / parameters** — `GetVariable` ✅, `SetVariable` ✅, `GetParameter` ✅ (host data-in
-contract), `GetAllParameters` ✅.
+contract), `GetAllParameters` ✅, `GetAllVariables` / `SetVariables` ✅ (the whole blackboard as pins —
+`CE-433`, Q76 §12.22; an unwired `SetVariables` pin leaves its variable untouched).
 
 **Shared & component state** (entity-scoped, foreign structs) — `GetShared` ✅, `SetShared` ✅ (both
 support **per-field pins** — see §6), `GetComponent` ✅ (read a field off an ECS component).

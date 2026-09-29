@@ -719,7 +719,7 @@ The single source of truth for "what pins does this node kind have, right now, g
 asset/graph/catalog context." Resolution order: asset-authored pins (test builders) → literal
 inline-editor special case → `NodeKindRegistry` descriptor → dynamic per-kind computation
 (`EventEntryNode`, `ReturnNode`, `FunctionCallNode` CLR-vs-graph-call dispatch, `GetVariableNode`/
-`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetSharedNode`/`SetSharedNode`,
+`SetVariableNode`, `GetParameterNode`, `GetAllParametersNode`, `GetAllVariablesNode`/`SetVariablesNode`, `GetSharedNode`/`SetSharedNode`,
 `MakeStructNode`/`BreakStructNode`/`SetMembersNode`, `ChannelCommandNode` channel-vs-non-channel
 dispatch, `PublishEventNode`, `CallCustomEventNode`, `CallPeerBlueprintNode`) → static
 `BuiltInNodeRegistry` fallback. Every branch's doc comment cites the exact compiler stage
