@@ -12,24 +12,11 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §12** — `Q76`-`B` is **APPROVED** (`2026-09-29`) and the design is
-  `Q76` §12. §12 here is the handle; the OWNING document is
-  Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12, whose §12.6 is the ordered slice
-  list. §11 is the previous day's resumption state and its §11.3 "the open decision" is now CLOSED;
-  §10 is the programme summary. ⚠ NOTHING IS BUILT YET — slice 1 is `CE-418`.
-  ⛔ `Q76`-`D` (IHostVariableAccess.TryWrite) is NOT covered by the authorisation.
-  ⚠ §8 is the CHANNEL-LIFECYCLE programme: COMPLETE, and its CE-413/CE-414 are BUILT (§9.1); read
-  §8 only for §8.3's traps and §8.4's measured end-to-end result.
-  (Historic: **START AT §8** — the CHANNEL-LIFECYCLE programme (`Q74`), which is where the
-  work now is. §1-§7 are the HSM+blueprint AUTHORING programme and it is COMPLETE (all nine §9
-  acceptance rails closed, §7.2a). §8.0 is the verifiable state, §8.2 what is left, §8.3 the traps
-  that must not be re-derived, §8.4 the editor end-to-end check the user originally asked for.
-  ⛔ The OWNING design is Architect_Question_74_Blueprint_Channel_Lifecycle.md and its §9 is the
-  AS-BUILT: where §4 and §9 disagree, §9 wins.
-  (Historic: START AT §0 (three commands), then §7.2a and §7.3.) ⛔ §2 is now
-  HISTORY — it describes Stage 2 before it was built; read §2 only for the measurements, never for
-  what to do. §3 is the corrections that must not be re-inherited. §4 the standing constraints.
-  §5 the gate baselines. §6 what is open and NOT ours.
+current-answer: ⭐⭐⭐ **START AT §13** — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+  and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
+  (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
+  the same day — read them only for history. ⛔ The OWNING design is
+  Architect_Question_76_One_Blackboard_Block_Per_Primitive.md §12; its §12.6 is the slice order.
 stale-below: ⛔ §2 ("STAGE 2 — the three items") is DONE. Its measurements are still true; its
   instructions are spent. §2.4's "not built, not filed" is FIXED.
 known-rot: ⚠ §2.2 said `CE-386` was "SMALLER than the design says". ⛔ HALF WRONG — the plumbing was
@@ -754,4 +741,85 @@ owning design describes a write use case at all. ⇒ `D` is **withdrawn, not par
 support these two as it might unnecessarily complicate the refactor"* — and `CE-436` halves
 `CE-435`'s input. ⛔ Neither existed as a task before `2026-09-29`; both were decision letters at
 slice 10.
+
+---
+
+## 13. ⭐⭐⭐ RESUMPTION — **`2026-09-29` evening, written before a compaction**
+
+> 🔒 **The session that produced it:** `Q76`-`B` went from PARKED to **APPROVED**, the design was
+> finished, and the **first three slices were BUILT**. ⭐ This supersedes §11 and §12 as the entry
+> point; §11 is the previous day's state and its §11.3 *"the open decision"* is CLOSED.
+
+### 13.0 📐 STATE, verifiable in four commands
+
+| | |
+|---|---|
+| branch | **`behaviors`** @ `edc2e9cf3`, **pushed** *(0 unpushed)* |
+| working tree | **clean** |
+| ⛔⛔ **the stash** | `stash@{0}` = *"EXPERIMENT: `RootParamsBytes` always 100 — probe only"*. 🔒 **A DIAGNOSTIC THAT MUST NEVER BE COMMITTED.** Leave it stashed |
+| built this session | ⭐ **`CE-418`, `CE-436`, `CE-435`** — plus the whole `Q76` §12 design record |
+
+```bash
+git log --oneline -18 behaviors     # docs first, then the three built slices
+git status --short                  # must be empty
+git stash list                      # must still show the RootParamsBytes probe
+git rev-list --count origin/behaviors..behaviors   # must be 0
+```
+
+### 13.1 ✅ WHAT WAS DECIDED — **two rulings, and they are canon**
+
+| | |
+|---|---|
+| 🔒 **`R-151`** | **one blackboard block per running behaviour**, and the **brain state is NOT part of it** *(it keeps its own slot: an HSM instance's width is a RUNTIME value from the blob, so it cannot be a field of a compile-time struct)*. Carries four requirements: bake defaults · overlay the behaviour params *(for a child, a variable of the HOST's block)* · a custom resolver may write the **whole block** · `Role=Input` is **optional** |
+| 🔒 **`R-152`** | **one resolver per behaviour, NOT per variable**; the resolver's job is **conversion**. ⇒ `DESIGN_Per_Variable_Param_Resolver` (`E8c`) **WITHDRAWN**, `CE-419` **RESOLVED** |
+| ⛔ **withdrawn** | `Q76`-`D` *(`IHostVariableAccess.TryWrite`)* — it was on the wrong seam *(resolve-time seam, tick-time need)* and no owning design ever described a write use case |
+
+### 13.2 ✅ WHAT WAS BUILT — three slices, all pushed
+
+| slice | result |
+|---|---|
+| ✅ **`CE-418`** — one layout authority | the emitted struct is `[StructLayout(Explicit, Size=N)]` with `[FieldOffset]` from `Pack` ⇒ **the struct IS the manifest**. Golden diff **15 files / +46 / −15**, census exactly `15 Sequential removed · 15 Explicit added · 31 FieldOffset added`. ⛔ **Its inverse-edit red-proof is STILL OWED** — see 13.4 |
+| ✅ **`CE-436`** — delete `PlatoonHillAttack2` | 28 files gone, **60 `HillAssault2_*` twins KEPT**. Generators 343/343, Blueprints 4038/0/18, Editor 425/1 |
+| ✅ **`CE-435`** — one authorable scope | dropdowns → static label; `UpdateVariableRole` forces `Behavior` on `State` ⇒ **`CE-423` unreachable through the UI**. 5 suites green |
+
+### 13.3 ⏭ NEXT — **`CE-425`**, and start with the debt
+
+📄 **The slice order lives in [`Q76` §12.6](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).**
+⭐ **`CE-425`** *(emit the two-part struct `{ Inputs In; State St; }`, **Input first and
+byte-identical**)* → `CE-429` → **`CE-426` + `CE-432` TOGETHER** → `CE-427` → `CE-431` → `CE-428` →
+`CE-434` → `CE-433` → `CE-430` → `A` + `C`.
+
+⭐⭐ **Do `CE-418`'s red-proof at the START of `CE-425`** — that slice rebuilds the same emitter, so
+the cost is near zero, and doing it alone costs a ~40-project rebuild.
+
+### 13.4 ⛔⛔ THE THREE DEBTS — **each already written into its own row**
+
+| # | debt |
+|---|---|
+| **①** | 🔴 **`CE-418`'s inverse-edit red-proof never ran.** ⛔ Forcing the emitter back with `if (false)` raises **`CS0162` unreachable code** under warnings-as-errors ⇒ the build failed, no test host was produced, and the runs reported nothing. ⭐ **Use a compile-clean toggle** *(an `internal static bool`, or `#if`)*. ⚠ The rail is green but **unproven against the defect** |
+| **②** | ⚠ **`CE-425`/`CE-429` owe an end-to-end TIER-PROMOTION case in the new block shape.** `PlatoonHillAttack2` was the only asset above 4 slots *(9)* and the only one pushing the ladder past its first rung. ⛔ **Do NOT mint a synthetic 9-slot asset** — under `B` that shape stops existing |
+| **③** | ⚠ **`CE-426` + `CE-432` MUST land together.** `V_ResolverPurity`'s exemption **inverts** *(`Parameter` allowed→refused, `Variable` refused→allowed)*, and that is sound **only** once the shadow covers the whole block. ⛔ Shipping the exemption first re-introduces the corruption the validator exists to prevent |
+
+### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
+
+| # | |
+|---|---|
+| **①** | 🔴 **`Entity` scope and `GetShared` are ONE feature.** `BlueprintSharedState.TryGetShared` computes the **Entity** key *(`FNV(variableId)`, no assetId)* at runtime, so an Entity variable read through `GetShared` **cannot be re-homed** — proved by `T37:rally`, reverted. ⇒ `CE-422` + decision `A` are **one** removal |
+| **②** | 🔴 **The one-letter trap, and it fires in GREP:** `HillAssault2I` also matches `HillAssault2I`sSelfArrived / `…I`sWaveCompleted / `…I`sAreaQueryResolved — **surviving twins**. ⛔ Only `HillAssault2I_` with the underscore is safe |
+| **③** | ⭐ **The resolver's two subjects already exist in the vocabulary:** `ContainerVarFor(kind)` is `Parameter ? ParamsVar : StateVar` ⇒ `Get Parameter` reads the authored DTO, `Get Variable`/`Set Variable` reach the block. **No new node kind, no `ref` pins, `BP1677` untouched.** Only a `Get All Variables` twin is missing *(`CE-433`)* |
+| **④** | ⛔ **A behaviour asset has NO graph container** ⇒ its resolver graph needs a **dedicated blueprint asset** *(shape ③, `Q76` §12.10b)*. `Q76` §12.9b's shape-② lean is superseded |
+| **⑤** | ⚠ **`Hrot.Editor.Tests` is NOT a leaf project** — ~40 projects and two source generators per invocation, **minutes**, not the 8 s the fast path assumes. ⭐ Iterate on `Hrot.AiEditor.Generators.Tests` *(~50 s)* and touch the editor suite once |
+| **⑥** | ⚠ **Golden regeneration switches differ per suite:** `AI_REGENERATE_SNAPSHOTS=1` for `Hrot.AiEditor.Generators.Tests`, **`BLUEPRINT_REGENERATE_SNAPSHOTS=1`** for `Hrot.Blueprints.Tests` |
+| **⑦** | ⚠ **Hard corpus counts are tripwires, not noise.** Three moved this session *(26→24, 50→44 ×2)*; each was **renamed or commented**, never silently bumped |
+| **⑧** | ⛔ **My own process failure, recorded so it is not repeated:** I lost ~10 minutes to a red-proof that never ran — a `grep` filter hid the compile error, and I polled in `until` loops instead of reading the output when the completion notice arrived. ⭐ **Read the task output on notification; never filter a first run** |
+
+### 13.6 🔒 STANDING CONSTRAINTS
+
+⭐ Push only to **`behaviors`** *(`git push -u origin behaviors`, retry network errors 2/4/8/16 s)* ·
+⛔ **never commit `stash@{0}`** · ⭐ questions in plain chat text, **never** the question widget ·
+⭐ docs and task ids as **GitHub blob links on `behaviors`**, and **gloss every id on first mention**
+*(the user reads on mobile)* · ⭐ run builds/tests/searches **in the background** · ⛔ no model
+identifier in commits or repo artefacts · ⛔ **do not create a PR** unless asked ·
+⚠ **cross-lane STOP-and-report:** `Hrot/Runner/Hrot.SystemTests/`, `Hrot.IG.Tests`,
+`FDP/Engine/Fdp.Core`.
 
