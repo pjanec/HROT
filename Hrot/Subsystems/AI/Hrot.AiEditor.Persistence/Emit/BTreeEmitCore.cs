@@ -106,9 +106,10 @@ public static class BTreeEmitCore
             return null;
 
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> fields;
+        int packedBytes;
         try
         {
-            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out _);
+            fields = BTreeBlackboardPackHelper.Pack(dto.Blackboard.Variables, sizeResolver, out packedBytes);
         }
         catch (NotSupportedException)
         {
@@ -127,7 +128,38 @@ public static class BTreeEmitCore
         sb.AppendLine();
         sb.AppendLine($"namespace {targetNs};");
         sb.AppendLine();
-        sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
+        // ⭐⭐⭐ CE-418 — ONE LAYOUT AUTHORITY. The struct BECOMES the manifest.
+        //
+        // 🔴 What this fixes, measured 2026-09-28 by a runtime probe over the built
+        //    Hrot.AI.Behaviors.dll: a generated behaviour stated its params layout TWICE — this
+        //    struct (laid out by the CLR from LayoutKind.Sequential) and
+        //    ManagedBlackboardVariables[i].ByteOffset (computed by Pack). They DISAGREED on
+        //    3 of 15 behaviours and 9 of 31 fields, because Pack derives alignment from SIZE
+        //    (Math.Min(size, AlignmentCap)) while the CLR aligns by TYPE: Vector3 is 12 bytes
+        //    aligned 4, so Pack puts it on 8 and the CLR on 4.
+        //
+        // ⛔⛔ It was LIVE, not latent: StructEdit's "Active Parameters" READS AND WRITES at the
+        //    struct's offsets (BlackboardReflection → RootParamsViewProvider) and the ReplayBrowser
+        //    predicate compiler binds property paths against it, while RootParamsProjection takes
+        //    the manifest arm ⇒ two panels disagreed about one entity and an edit in one landed on
+        //    the wrong byte. Sizing was unaffected (RootParamsBytes prefers the manifest), which is
+        //    why nothing crashed — it silently showed and wrote wrong numbers.
+        //
+        // ⭐ The fix emits Pack's offsets EXPLICITLY, so there is nothing left for the CLR to
+        //    decide and NO RUNTIME BYTE MOVES — the manifest was always the authority the runtime
+        //    used. Every Pack offset is legally aligned for Explicit layout: Pack's alignment is
+        //    min(size, 8) and a type's true alignment is <= min(size, 8) for every type in
+        //    KnownSizes and every blittable struct DTO, so Pack is never LESS aligned than the CLR
+        //    requires.
+        //
+        // ⚠ The zero-field case keeps Sequential. Variables that are all Role=State pack to
+        //    nothing, and `Size = 0` on an Explicit struct is not the same statement as "this
+        //    struct is empty" — leaving it Sequential keeps today's behaviour byte-identical and
+        //    there are no offsets to be authoritative about.
+        if (fields.Count > 0)
+            sb.AppendLine($"[StructLayout(LayoutKind.Explicit, Size = {packedBytes})]");
+        else
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
         sb.AppendLine($"public struct {structName}");
         sb.AppendLine("{");
 
@@ -139,6 +171,8 @@ public static class BTreeEmitCore
             {
                 sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
             }
+            // CE-418: the offset is Pack's, not the CLR's.
+            sb.AppendLine($"{Indent}[FieldOffset({f.ByteOffset})]");
             string csTypeName = ToCsTypeName(f.TypeId);
             sb.AppendLine($"{Indent}public {csTypeName} {f.Name};");
         }

@@ -113,6 +113,65 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-418</c> — <b>ONE LAYOUT AUTHORITY: the struct's offsets ARE the manifest's.</b>
+    ///
+    /// <para>🔴 <b>The defect this pins.</b> A generated behaviour stated its params layout TWICE —
+    /// the manifest, bin-packed by <c>BTreeBlackboardPackHelper.Pack</c>, and the emitted struct, laid
+    /// out by the CLR. 📐 Measured <c>2026-09-28</c> by a runtime probe over the built
+    /// <c>Hrot.AI.Behaviors.dll</c>: <b>3 of 15 behaviours and 9 of 31 fields DISAGREED</b>, because
+    /// <c>Pack</c> derives alignment from SIZE (<c>Math.Min(size, 8)</c>) while the CLR aligns by
+    /// TYPE — <c>Vector3</c> is 12 bytes aligned 4, so <c>Pack</c> put it on 8 and the CLR on 4.</para>
+    ///
+    /// <para>⛔⛔ It was LIVE: StructEdit's "Active Parameters" READS AND WRITES at the struct's
+    /// offsets and the ReplayBrowser predicate compiler binds against them, while
+    /// <c>RootParamsProjection</c> uses the manifest ⇒ two panels disagreed about one entity. Sizing
+    /// was safe (<c>RootParamsBytes</c> prefers the manifest), which is exactly why nothing crashed
+    /// and nothing caught it: <b>the manifest's own tests assert names and round-tripping, never an
+    /// offset against the struct.</b> ⇒ this test is that missing assertion.</para>
+    ///
+    /// <para>⚠ <b>Inverse-edit red-proof:</b> change <c>BTreeEmitCore</c>'s emission back to
+    /// <c>LayoutKind.Sequential</c> (drop the <c>[FieldOffset]</c> lines) and this fails on
+    /// <c>T09_BlackboardManaged.HomePosition</c> — manifest 8, struct 4 — plus
+    /// <c>T39_TwoDistinctPrimitives</c> and <c>PlatoonHillAttack2</c>.</para>
+    /// </summary>
+    [Fact]
+    public void TheStructsOffsetsAreExactlyTheManifestsOffsets()
+    {
+        BehaviorRegistry registry = LoadProductionRegistry();
+
+        var generated = registry.GetRegisteredNames()
+            .Select(n => Definition(registry, n))
+            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 } && d.BlackboardLayoutType is not null)
+            .ToArray();
+
+        Assert.NotEmpty(generated);   // anti-vacuity: the probe measured 15 such behaviours
+
+        var disagreements = new System.Collections.Generic.List<string>();
+
+        foreach (BehaviorDefinition def in generated)
+        {
+            foreach (ManagedBlackboardVariable v in def.ManagedBlackboardVariables!)
+            {
+                // ⚠ A field the struct does not carry is a DIFFERENT defect (name drift), and
+                //   TheAdvertisedNamesAreExactlyTheManifestEntries owns it. Skip rather than
+                //   throw, so a name failure is reported by the test that explains it.
+                if (def.BlackboardLayoutType!.GetField(v.Name) is null) continue;
+
+                int structOffset = (int)System.Runtime.InteropServices.Marshal
+                    .OffsetOf(def.BlackboardLayoutType!, v.Name);
+
+                if (structOffset != v.ByteOffset)
+                    disagreements.Add(
+                        $"{def.Name}.{v.Name}: manifest {v.ByteOffset}, struct {structOffset}");
+            }
+        }
+
+        Assert.True(disagreements.Count == 0,
+            "The emitted struct and the manifest must state ONE layout (CE-418). Disagreements:\n  "
+            + string.Join("\n  ", disagreements));
+    }
+
+    /// <summary>
     /// ⚠ THE HSM ARM, and it is a MEASURED exception rather than an oversight. The HSM generator emits no
     /// blackboard struct at all — <c>BTreeEmitCore.EmitBlackboardStructSource</c> has exactly one caller
     /// (<c>BTreeJsonGenerator</c>), and no <c>*.Blackboard.g.cs</c> is produced for any HSM asset — so

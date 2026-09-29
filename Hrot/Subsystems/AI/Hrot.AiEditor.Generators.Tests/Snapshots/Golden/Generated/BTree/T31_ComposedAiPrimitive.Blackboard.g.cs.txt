@@ -5,8 +5,9 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 4)]
 public struct T31_ComposedAiPrimitive_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParams;
 }

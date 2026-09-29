@@ -1385,8 +1385,13 @@ namespace Stub
         var structSource = result.GeneratedTrees
             .First(t => t.FilePath.EndsWith("ManagedWaitTree.Blackboard.g.cs"))
             .ToString();
-        structSource.Should().Contain("[StructLayout(LayoutKind.Sequential)]",
-            "struct source must carry [StructLayout(Sequential)]");
+        // ⭐ CE-418: the struct is the SINGLE layout authority now — Explicit, sized by Pack, with
+        //   Pack's offsets stamped per field. Sequential would hand the CLR a second opinion, which
+        //   is the defect this replaced (3 of 15 behaviours disagreed with their own manifest).
+        structSource.Should().Contain("[StructLayout(LayoutKind.Explicit, Size = 4)]",
+            "struct source must carry Explicit layout sized by Pack (CE-418)");
+        structSource.Should().Contain("[FieldOffset(0)]",
+            "every field must carry Pack's offset explicitly (CE-418)");
         structSource.Should().Contain("ManagedWaitTreeBlackboard",
             "struct source must use the TypeName from the DTO");
         structSource.Should().Contain("public int Counter;",

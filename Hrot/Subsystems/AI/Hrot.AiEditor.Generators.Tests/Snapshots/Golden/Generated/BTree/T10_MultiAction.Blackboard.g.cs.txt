@@ -5,9 +5,11 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 16)]
 public struct T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams counter;
+    [FieldOffset(8)]
     public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoAccumParams accum;
 }

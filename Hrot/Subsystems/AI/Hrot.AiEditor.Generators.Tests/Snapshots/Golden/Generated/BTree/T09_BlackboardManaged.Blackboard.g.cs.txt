@@ -5,12 +5,16 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 25)]
 public struct T09_BlackboardManaged_Blackboard
 {
+    [FieldOffset(0)]
     public float AttackRange;
+    [FieldOffset(8)]
     public global::System.Numerics.Vector3 HomePosition;
+    [FieldOffset(20)]
     public int PatrolLoops;
     [MarshalAs(UnmanagedType.I1)]
+    [FieldOffset(24)]
     public bool IsAlerted;
 }

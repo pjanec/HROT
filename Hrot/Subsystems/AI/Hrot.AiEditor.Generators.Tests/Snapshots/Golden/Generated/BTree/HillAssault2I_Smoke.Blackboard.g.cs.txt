@@ -5,8 +5,9 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 20)]
 public struct HillAssault2I_Smoke_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Generated.HillAssault2ICalculateSegments_C870810D_Bp.Params bpParams;
 }

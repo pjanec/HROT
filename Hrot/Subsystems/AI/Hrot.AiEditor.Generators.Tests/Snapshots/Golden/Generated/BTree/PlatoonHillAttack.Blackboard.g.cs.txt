@@ -5,8 +5,9 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 56)]
 public struct PlatoonHillAttack_Blackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Params;
 }

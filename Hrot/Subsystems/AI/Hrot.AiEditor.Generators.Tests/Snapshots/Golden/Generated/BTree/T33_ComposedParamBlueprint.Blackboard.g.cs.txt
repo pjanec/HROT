@@ -5,8 +5,9 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 8)]
 public struct T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params bpParams;
 }

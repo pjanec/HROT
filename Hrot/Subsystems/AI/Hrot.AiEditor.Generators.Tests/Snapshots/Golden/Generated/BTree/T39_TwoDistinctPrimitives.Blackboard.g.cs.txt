@@ -5,10 +5,13 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 24)]
 public struct T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params bpParamsA;
+    [FieldOffset(8)]
     public global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodesB.Params bpParamsB;
+    [FieldOffset(16)]
     public global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.Params bpParamsC;
 }

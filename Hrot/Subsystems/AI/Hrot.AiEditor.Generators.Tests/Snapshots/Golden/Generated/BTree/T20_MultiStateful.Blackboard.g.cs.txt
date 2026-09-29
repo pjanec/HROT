@@ -5,10 +5,13 @@ using System.Runtime.InteropServices;
 
 namespace Hrot.AI.Behaviors.Trees;
 
-[StructLayout(LayoutKind.Sequential)]
+[StructLayout(LayoutKind.Explicit, Size = 16)]
 public struct T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard
 {
+    [FieldOffset(0)]
     public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams cursorA;
+    [FieldOffset(4)]
     public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorParams cursorB;
+    [FieldOffset(8)]
     public global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams counter;
 }
