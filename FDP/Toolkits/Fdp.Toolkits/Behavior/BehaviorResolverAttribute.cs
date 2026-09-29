@@ -18,7 +18,14 @@ namespace Fdp.Toolkit.Behavior
     /// format, every key hit <c>default: break</c>, the params region stayed zeros, and the platoon
     /// drove to <c>(0,0)</c> with no exception and every rail green.</para>
     ///
-    /// <para>⭐⭐ <b>Two method shapes are accepted</b>, and the generator wraps the short one:</para>
+    /// <para>⭐⭐ <b>Three method shapes are accepted</b> (the third since <c>CE-427</c>), and the
+    /// generator wraps the two that are not the 6-param delegate:</para>
+    /// <para>⭐ <b>typed block</b> — <c>(in TAuthored authored, ref TBlock block, EntityRepository world,
+    /// Entity self, IHostVariableAccess? host)</c> — <see cref="ResolveBlock{TAuthored, TBlock}"/>. The
+    /// generator adapts it with <see cref="BehaviorParams.FromBlockResolver{TAuthored, TBlock}"/>: the JSON
+    /// is deserialized into <c>TAuthored</c>, the block arrives already BAKED, and the resolver converts and
+    /// modifies it in place. ⭐ The recommended shape for a new resolver — no <c>byte*</c>, no manual
+    /// deserialize.</para>
     /// <list type="bullet">
     ///   <item><b>6-param</b> — <c>(string json, byte* memory, int capacity, EntityRepository world,
     ///         Entity self, IHostVariableAccess? host)</c>: bound directly as a

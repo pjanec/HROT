@@ -71,12 +71,19 @@ public static class T33_ComposedParamBlueprintRegistrar
 
         // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
+            {
+            }
+            __bakeDefaults = __BakeDefaults;
             __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
             {
-                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
 
                 // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
                 // variable's deserializer (DEBT-AIB-021 names this shape).
@@ -119,6 +126,7 @@ public static class T33_ComposedParamBlueprintRegistrar
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T33_ComposedParamBlueprint_FdpToolkitBehaviorComponentsBrainBlackboard),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T33_ComposedParamBlueprint_Block),
             ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(658677001, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>(), unchecked(3623356001u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Generated.ParamDemo_CEFE162F_Bp.WorkingState), "ParamDemo"),

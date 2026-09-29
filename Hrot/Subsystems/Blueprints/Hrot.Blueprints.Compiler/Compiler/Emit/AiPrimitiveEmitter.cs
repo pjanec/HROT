@@ -114,7 +114,7 @@ internal static class AiPrimitiveEmitter
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>E8a</c> → <c>CE-432</c> — emits the own-asset resolver, shaped as
-    /// <c>ResolveBlock&lt;Params, WorkingState&gt;</c>: the occurrence's whole block, both halves by ref.</b>
+    /// <c>ResolveOccurrence&lt;Params, WorkingState&gt;</c>: the occurrence's whole block, both halves by ref.</b>
     /// ⛔ It was <c>ResolveParams&lt;Params&gt;</c> — parameters only — until <c>CE-432</c>.
     ///
     /// <para>

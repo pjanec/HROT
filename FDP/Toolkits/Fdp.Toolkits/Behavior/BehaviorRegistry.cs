@@ -41,6 +41,13 @@ namespace Fdp.Toolkit.Behavior
     public unsafe delegate void ParseParamsDelegate(
         string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host);
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-427</c> — <b>STAGE 1 alone: bake every authored default into the block.</b>
+    /// 📄 <c>Q76</c> §12.3. A generated behaviour's <c>ParseParams</c> is bake + overlay; this is the bake
+    /// half by itself, so a CURATED resolver that replaces the overlay does not also drop the bake.
+    /// </summary>
+    public unsafe delegate void BakeDefaultsDelegate(byte* memory, int capacity);
+
     /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
@@ -177,6 +184,17 @@ namespace Fdp.Toolkit.Behavior
         /// </para>
         /// </summary>
         public ParseParamsDelegate? ParseParams { get; set; }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-427</c> — the behaviour's <b>stage 1</b> on its own: every authored default,
+        /// Input AND State, baked into the block. Emitted by the generated registrar beside
+        /// <see cref="ParseParams"/> (which calls it first). ⭐ It exists so that when a curated
+        /// resolver takes over the SUPPLY stage (<c>R-132</c>), <c>ApplyResolverOverlay</c> still runs the
+        /// bake before it — the order <c>DESIGN_Parameter_Model.md</c> §3.2 rules: <i>"defaults are baked,
+        /// scenario JSON overlays them, runtime wins"</i>. <c>null</c> for a hand-written behaviour, which
+        /// has no authored defaults to bake.
+        /// </summary>
+        public BakeDefaultsDelegate? BakeDefaults { get; init; }
 
         /// <summary>
         /// ⭐⭐⭐ <b>THE PUBLIC CONTRACT.</b> The <b>authored JSON DTO</b> — the shape a scenario, the
@@ -601,10 +619,24 @@ namespace Fdp.Toolkit.Behavior
         /// — quietly shadowing every curated resolver whose behavior also has a generated registrar.
         /// </para>
         /// </summary>
-        private static void ApplyResolverOverlay(
+        private static unsafe void ApplyResolverOverlay(
             BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? BlackboardLayoutType) overlay)
         {
-            def.ParseParams = overlay.Resolver;
+            // ⭐⭐⭐ CE-427 — BAKE → the curated resolver, never the curated resolver alone. A curated
+            //   resolver REPLACES the generated SUPPLY (its authored JSON shape differs — §10, R-132),
+            //   but it must not replace STAGE 1: without the bake, a State default the editor saved is
+            //   dropped for exactly the behaviours that have a curated resolver (CE-420 by another door).
+            //   ⭐ Idempotent: composed from def.BakeDefaults and the RAW overlay each time, so a second
+            //   application (hot reload) rebuilds the same pair rather than nesting.
+            var bake = def.BakeDefaults;
+            var curated = overlay.Resolver;
+            def.ParseParams = bake == null
+                ? curated
+                : (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    bake(memory, capacity);
+                    curated(json, memory, capacity, world, self, host);
+                };
             if (overlay.BlackboardLayoutType == null) return;
 
             // ⭐⭐⭐ CE-437 (2026-09-29) — A RESOLVER'S TYPE DESCRIBES WHAT IT WRITES, NOT THE WHOLE BLOCK.

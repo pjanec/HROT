@@ -41,9 +41,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void BehaviorDefinition_CarriesExactlyOneParameterSupplyDelegate()
         {
+            // ⭐ CE-427: a SUPPLY path is a delegate that consumes the authored JSON. BakeDefaults is a
+            //   delegate too, but it takes no JSON — it is the BAKE stage the supply path runs over
+            //   (§3.2 "defaults are baked, scenario JSON overlays them"), never a second way to supply.
             var delegateMembers = typeof(BehaviorDefinition)
                 .GetProperties(BindingFlags.Public | BindingFlags.Instance)
                 .Where(p => typeof(Delegate).IsAssignableFrom(p.PropertyType))
+                .Where(p => p.PropertyType.GetMethod("Invoke")!.GetParameters()
+                              .Any(a => a.ParameterType == typeof(string)))
                 .Select(p => p.Name)
                 .ToList();
 

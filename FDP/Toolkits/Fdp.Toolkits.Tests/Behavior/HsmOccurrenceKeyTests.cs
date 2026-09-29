@@ -1475,7 +1475,7 @@ public sealed unsafe class HsmOccurrenceKeyTests
                 static (ref WideParams w, ref DemoState _, Fdp.Core.EntityRepository _, Fdp.Core.Entity _, IHostVariableAccess? _) => w.A = 1);
             var ex = Assert.Throws<InvalidOperationException>(
                 () => HostedParamResolvers.TryRun(Child, ref p, ref s, null!, default, null));
-            Assert.Contains("ResolveBlock", ex.Message);
+            Assert.Contains("ResolveOccurrence", ex.Message);
             Assert.Contains("ResolveParams", ex.Message);
         }
         finally { HostedParamResolvers.ClearAll(); }

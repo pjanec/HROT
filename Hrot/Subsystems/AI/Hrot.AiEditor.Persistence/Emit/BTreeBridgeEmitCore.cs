@@ -453,13 +453,9 @@ public static class BTreeBridgeEmitCore
         if (!hasParseParams && EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
         {
             sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
-            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
-            sb.AppendLine($"{pad2}unsafe");
-            sb.AppendLine($"{pad2}{{");
-            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
-            sb.AppendLine($"{pad2}{Indent}{{");
-            EmitStateDefaultBake(sb, dto, packedFields, pad2 + Indent + Indent);
-            sb.AppendLine($"{pad2}{Indent}}};");
+            EmitBakeDefaultsFunction(sb, dto, packedFields,
+                System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
+            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => __BakeDefaults(memory, capacity);");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
         }
@@ -511,7 +507,10 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
         }
         if (hasParseParams)
+        {
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
+            sb.AppendLine($"{pad2}{Indent}BakeDefaults = __bakeDefaults,");   // CE-427: stage 1 on its own
+        }
         if (isManaged)
             EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
         else if (hostsSubtrees)
@@ -1440,25 +1439,11 @@ public static class BTreeBridgeEmitCore
 
         sb.AppendLine($"{pad2}// 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).");
         sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
-        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
-        sb.AppendLine($"{pad2}unsafe");
-        sb.AppendLine($"{pad2}{{");
+        EmitBakeDefaultsFunction(sb, dto, packedFields, defaults, pad2);
         sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
         sb.AppendLine($"{pad3}{{");
-
-        // ── step 1: bake the defaults ────────────────────────────────────────────
-        sb.AppendLine($"{pad4}// Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.");
-        foreach (var (field, defaultJson) in defaults)
-        {
-            string dtoTypeFqn = DtoTypeToGlobal(field.TypeId);
-            string escaped    = EscapeCSharpStringLiteral(defaultJson);
-            sb.AppendLine($"{pad4}{{");
-            sb.AppendLine($"{pad5}var __v = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(\"{escaped}\", __paramJsonOpts);");
-            sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
-            sb.AppendLine($"{pad4}}}");
-        }
-
-        EmitStateDefaultBake(sb, dto, packedFields, pad4);
+        sb.AppendLine($"{pad4}// Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).");
+        sb.AppendLine($"{pad4}__BakeDefaults(memory, capacity);");
 
         // ── step 2: overlay from the incoming json ───────────────────────────────
         sb.AppendLine();
@@ -1497,6 +1482,44 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine();
 
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-427</c> — emits STAGE 1 as a static local function <c>__BakeDefaults</c> (every
+    /// Input default at its packed offset, then the State half's defaults), declares
+    /// <c>__bakeDefaults</c> / <c>__parseParams</c>, and OPENS the <c>unsafe</c> block the caller's
+    /// parse lambda goes in (the caller closes it). ⭐ The registrar publishes the function as
+    /// <c>BehaviorDefinition.BakeDefaults</c>, so a curated resolver that replaces the SUPPLY still
+    /// gets the bake composed in front of it (<c>BehaviorRegistry.ApplyResolverOverlay</c>).
+    /// </summary>
+    private static void EmitBakeDefaultsFunction(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        IReadOnlyList<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)> defaults,
+        string pad2)
+    {
+        string pad3 = pad2 + Indent;
+        string pad4 = pad3 + Indent;
+        string pad5 = pad4 + Indent;
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;");
+        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
+        sb.AppendLine($"{pad2}unsafe");
+        sb.AppendLine($"{pad2}{{");
+        sb.AppendLine($"{pad3}// Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.");
+        sb.AppendLine($"{pad3}static void __BakeDefaults(byte* memory, int capacity)");
+        sb.AppendLine($"{pad3}{{");
+        foreach (var (field, defaultJson) in defaults)
+        {
+            string dtoTypeFqn = DtoTypeToGlobal(field.TypeId);
+            string escaped    = EscapeCSharpStringLiteral(defaultJson);
+            sb.AppendLine($"{pad4}{{");
+            sb.AppendLine($"{pad5}var __v = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(\"{escaped}\", __paramJsonOpts);");
+            sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
+            sb.AppendLine($"{pad4}}}");
+        }
+        EmitStateDefaultBake(sb, dto, packedFields, pad4);
+        sb.AppendLine($"{pad3}}}");
+        sb.AppendLine($"{pad3}__bakeDefaults = __BakeDefaults;");
     }
 
     /// <summary>

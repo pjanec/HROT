@@ -483,6 +483,62 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Throws<System.InvalidOperationException>(() => r3.RegisterResolver("Blk", curated, typeof(Ce437WideParams)));
         }
 
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-427</c> — <b>a curated resolver takes over the SUPPLY stage, never the BAKE.</b>
+        /// A generated definition that carries <see cref="BehaviorDefinition.BakeDefaults"/> keeps its
+        /// authored defaults under a curated overlay: the composed parse bakes, then runs the curated
+        /// resolver — and the generated overlay is NOT run. 📄 <c>DESIGN_Parameter_Model.md</c> §3.2.
+        ///
+        /// <para>⭐ Both registration orders. ⚠ Composition reads the STORED overlay, never the current
+        /// <c>ParseParams</c>, so it cannot stack; a second <c>RegisterResolver</c> in one scan throws anyway
+        /// (<c>R-149</c>).</para>
+        /// <para>⚠ Inverse-edit red-proof: restore <c>def.ParseParams = overlay.Resolver</c> in
+        /// <c>ApplyResolverOverlay</c> and the baked State byte stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_RunsTheGeneratedBake_ThenTheCuratedResolver()
+        {
+            var calls = new System.Collections.Generic.List<string>();
+            BehaviorDefinition Generated() => new()
+            {
+                Name                 = "Bk",
+                BrainTier            = BehaviorConstants.BrainTierBTree,
+                BlackboardLayoutType = typeof(Ce437Block),
+                BakeDefaults = (byte* mem, int capacity) => { calls.Add("bake"); ((Ce437Block*)mem)->StA = 42; },
+                ParseParams  = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => calls.Add("generated"),
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
+                => { calls.Add("curated"); ((Ce437Block*)mem)->In = 5; };
+
+            foreach (bool resolverFirst in new[] { false, true })
+            {
+                calls.Clear();
+                var r = new BehaviorRegistry();
+                if (resolverFirst) { r.RegisterResolver("Bk", curated, typeof(long)); r.Register("Bk", Generated()); }
+                else               { r.Register("Bk", Generated()); r.RegisterResolver("Bk", curated, typeof(long)); }
+
+                Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Bk"), out var d));
+                var block = default(Ce437Block);
+                d!.ParseParams!("{}", (byte*)&block, sizeof(Ce437Block), null!, default, null);
+
+                Assert.Equal(new[] { "bake", "curated" }, calls);
+                Assert.Equal(42, block.StA);
+                Assert.Equal(5, block.In);
+            }
+        }
+
+        /// <summary>⭐ No bake (a hand-written behaviour) ⇒ the curated resolver IS the parse, unwrapped.</summary>
+        [Fact]
+        public void RegisterResolver_WithoutABake_InstallsTheCuratedResolverItself()
+        {
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { };
+            var r = new BehaviorRegistry();
+            r.Register("Hw", new BehaviorDefinition { Name = "Hw", BrainTier = BehaviorConstants.BrainTierBTree });
+            r.RegisterResolver("Hw", curated, typeof(long));
+            Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Hw"), out var d));
+            Assert.Same(curated, d!.ParseParams);
+        }
+
         // ── Test 11 — name-based Register overload derives id from name ─────
         /// <summary>
         /// The name-based <see cref="BehaviorRegistry.Register(string, BehaviorDefinition)"/>

@@ -58,7 +58,7 @@ public static class HostedParamResolvers
     /// ⚠ Same table as <see cref="Register{TParams}"/>: an asset names ONE resolver, whichever shape it
     /// was authored in.
     /// </summary>
-    public static void Register<TParams, TState>(Guid assetId, ResolveBlock<TParams, TState> resolver)
+    public static void Register<TParams, TState>(Guid assetId, ResolveOccurrence<TParams, TState> resolver)
         where TParams : unmanaged
         where TState : unmanaged
     {
@@ -111,7 +111,7 @@ public static class HostedParamResolvers
     /// the guarantee <c>V_ResolverPurity</c>'s widened exemption depends on: a <c>SetVariable</c> on
     /// state is legal in a resolver ONLY because nothing it writes escapes this copy.</para>
     ///
-    /// <para>⭐ Accepts either shape from the one table: a <see cref="ResolveBlock{TParams, TState}"/>
+    /// <para>⭐ Accepts either shape from the one table: a <see cref="ResolveOccurrence{TParams, TState}"/>
     /// gets both subjects; a hand-written <see cref="ResolveParams{TDto}"/> gets the parameters alone
     /// and the state passes through unchanged. ⛔ Anything else is a wrong-typed registration and throws,
     /// naming both shapes.</para>
@@ -129,7 +129,7 @@ public static class HostedParamResolvers
 
         switch (stored)
         {
-            case ResolveBlock<TParams, TState> block:
+            case ResolveOccurrence<TParams, TState> block:
                 block(ref shadowParams, ref shadowState, world, self, host);
                 break;
             case ResolveParams<TParams> paramsOnly:
@@ -138,7 +138,7 @@ public static class HostedParamResolvers
             default:
                 throw new InvalidOperationException(
                     $"A parameter resolver is registered for asset {assetId}, but it is a " +
-                    $"{stored.GetType().Name} rather than a ResolveBlock<{typeof(TParams).Name}, " +
+                    $"{stored.GetType().Name} rather than a ResolveOccurrence<{typeof(TParams).Name}, " +
                     $"{typeof(TState).Name}> or a ResolveParams<{typeof(TParams).Name}>. The registration " +
                     "named the wrong asset, or the wrong Params/state type — running it would reinterpret " +
                     "this occurrence's bytes as another asset's layout.");

@@ -49,7 +49,7 @@ public sealed class OwnParamResolverTests
 
         // ⭐⭐⭐ producer and consumer on ONE key ⇒ no binding.
         Assert.Contains("HostedParamResolvers.Register<", src);
-        Assert.Contains(".WorkingState>(", src);        // ⭐ CE-432: registered as ResolveBlock<Params, WorkingState>
+        Assert.Contains(".WorkingState>(", src);        // ⭐ CE-432: registered as ResolveOccurrence<Params, WorkingState>
         Assert.Contains(".AssetId,", src);
         Assert.Contains("HostedParamResolvers.TryRun(", src);
         Assert.Contains("ref *__params, ref ws,", src); // ⭐ CE-426: the seam resolves the whole block

@@ -470,8 +470,8 @@ internal sealed class CSharpEmitter
             // ⚠ A LAMBDA, not a method group: the emitted resolver returns the graph vocabulary's
             //    NodeStatus (every Return node carries one) and a resolver has no status, so the
             //    value is discarded HERE rather than by teaching the shared terminator emitter about
-            //    resolvers. ⭐ The lambda is exactly ResolveBlock<Params, WorkingState> (CE-432).
-            // ⭐⭐ CE-432: the BLOCK shape — parameters AND working state, both by ref (ResolveBlock).
+            //    resolvers. ⭐ The lambda is exactly ResolveOccurrence<Params, WorkingState> (CE-432).
+            // ⭐⭐ CE-432: the BLOCK shape — parameters AND working state, both by ref (ResolveOccurrence).
             WriteLine($"global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<{className}.Params, {className}.WorkingState>(");
             WriteLine($"    {className}.AssetId,");
             WriteLine($"    static (ref {className}.Params __p, ref {className}.WorkingState __ws, " +

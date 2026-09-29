@@ -20,6 +20,29 @@ namespace Fdp.Toolkit.Behavior
         where TDto : unmanaged;
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-427</c> — <b>the ROOT behaviour's resolve stage over its whole block.</b> 📄 <c>Q76</c>
+    /// §12.4c, <c>Behavior_Parameter_Resolver_Detailed_Design</c> §3.3's logical signature
+    /// <i>"resolve(in TAuthored authored, ref TUsable usable, …)"</i>.
+    ///
+    /// <para>⭐ <paramref name="authored"/> is the scenario's JSON deserialized into the behaviour's
+    /// AUTHORED shape — read-only, <c>in</c>. <paramref name="block"/> arrives already BAKED with every
+    /// default (<c>CE-426</c>), so the resolver CONVERTS and MODIFIES (<c>R-152</c>: <i>"Resolves does
+    /// conversion if needed"</i>) and may write any field of the block, State included (<c>R-151</c> ③).</para>
+    ///
+    /// <para>⚠ Not to be confused with <see cref="ResolveOccurrence{TParams, TState}"/>, the HOSTED
+    /// blueprint primitive's shape, whose parameters ARE its input part and so are passed by <c>ref</c>.</para>
+    /// </summary>
+    /// <para>⚠ <typeparamref name="TAuthored"/> is deliberately UNCONSTRAINED — refines <c>Q76</c> §12.4c,
+    /// which wrote <c>unmanaged</c>. 📐 The two shipped two-shape authored DTOs
+    /// (<c>PlatoonHillAttackParamsJsonDto</c>, <c>MoveToLocationParamsJsonDto</c>) are CLASSES: they are
+    /// JSON contracts carrying geographic points, never stored in a slot. Only the BLOCK is memory, so
+    /// only <typeparamref name="TBlock"/> must be unmanaged. With an empty payload a class-typed
+    /// <paramref name="authored"/> is <c>null</c> — the resolver decides what an absent intent means.</para>
+    public delegate void ResolveBlock<TAuthored, TBlock>(
+        in TAuthored authored, ref TBlock block, EntityRepository world, Entity self, IHostVariableAccess? host)
+        where TBlock : unmanaged;
+
+    /// <summary>
     /// ⭐⭐⭐ <c>CE-432</c> — the RESOLVE stage over an occurrence's WHOLE block: its parameters AND
     /// its state (<c>R-151</c> requirement ③, <i>"a custom resolver may write the whole block"</i>).
     ///
@@ -28,7 +51,7 @@ namespace Fdp.Toolkit.Behavior
     /// parameters already SUPPLIED, so a resolver MODIFIES a pre-seeded block and never produces one
     /// from nothing (§12.9c).</para>
     /// </summary>
-    public delegate void ResolveBlock<TParams, TState>(
+    public delegate void ResolveOccurrence<TParams, TState>(
         ref TParams parameters, ref TState state, EntityRepository world, Entity self, IHostVariableAccess? host)
         where TParams : unmanaged
         where TState : unmanaged;
@@ -99,6 +122,38 @@ namespace Fdp.Toolkit.Behavior
                 resolve?.Invoke(ref dto, world, self, host);
 
                 Unsafe.Write(memory, dto);
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-427</c> — <b>SUPPLY + RESOLVE for a typed block resolver</b>, as the one
+        /// <see cref="ParseParamsDelegate"/> the ingress already calls (ruling 9 — still ONE supply
+        /// mechanism). Deserializes the JSON into <typeparamref name="TAuthored"/> and hands it, with the
+        /// ALREADY-BAKED block, to <paramref name="resolve"/>.
+        ///
+        /// <para>⛔ It does NOT bake and does NOT clear: the memory it is given is the ingress shadow the
+        /// bake just wrote (<c>BehaviorRegistry.ApplyResolverOverlay</c> composes the bake in front of it).
+        /// Clearing here would discard every default — the draft-1 mistake <c>Q76</c> §12.9c records.</para>
+        ///
+        /// <para>⚠ The width guard is the parse's own <c>capacity</c>: a buffer narrower than
+        /// <typeparamref name="TBlock"/> is a stale layout and is refused, never overrun.</para>
+        /// </summary>
+        public static unsafe ParseParamsDelegate FromBlockResolver<TAuthored, TBlock>(ResolveBlock<TAuthored, TBlock> resolve)
+            where TBlock : unmanaged
+        {
+            if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+            return (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            {
+                if (capacity < sizeof(TBlock))
+                    throw new InvalidOperationException(
+                        $"CE-427: the parse buffer is {capacity} bytes but the resolver's block " +
+                        $"'{typeof(TBlock).Name}' needs {sizeof(TBlock)} — a stale layout; refusing to overrun it.");
+
+                TAuthored authored = string.IsNullOrWhiteSpace(json)
+                    ? default!
+                    : JsonSerializer.Deserialize<TAuthored>(json, JsonOptions)!;
+
+                resolve(in authored, ref Unsafe.AsRef<TBlock>(memory), world, self, host);
             };
         }
     }

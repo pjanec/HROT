@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432 are BUILT (§12.15–§12.18). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427 are BUILT (§12.15–§12.19). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -1807,7 +1807,7 @@ re-initialize"*. ⇒ nothing relied on a partial re-assign.
 | decision | the alternative rejected, in one line |
 |---|---|
 | ⭐ **the shadow lives inside `TryRun`**, not in each caller | ⛔ a per-call-site shadow — `CE-427`'s root arm would have to re-implement it |
-| ⭐ **one table, two shapes** (`ResolveBlock<P,S>` and hand-written `ResolveParams<P>`) | ⛔ a second registry — two resolver registries for one concept is exactly what `CE-427` collapses |
+| ⭐ **one table, two shapes** (`ResolveOccurrence<P,S>` and hand-written `ResolveParams<P>`) | ⛔ a second registry — two resolver registries for one concept is exactly what `CE-427` collapses |
 | ⭐ **the demo's resolver now writes `Ticks`** — the end-to-end proof is the shipped asset | ⛔ a builder-made fixture — its `SetVariable` is unwired and emits nothing |
 
 ⏭ **Not in this slice, named:** the ROOT behaviour's resolve stage through the same seam — today a
@@ -1815,3 +1815,80 @@ curated resolver still REPLACES the generated parse wholesale; routing it throug
 bake+overlay is `CE-427`'s registry collapse. · a hosted subtree's supply (`CE-431`). · the HSM arm
 (`Q75`-`S1`). · a `ListWrite` on a state list variable is still refused in a resolver — the same
 argument would admit it; not measured, not needed by any asset.
+
+### 12.19 ✅ `CE-427` AS BUILT — **a curated resolver replaces the SUPPLY, never the BAKE; the typed block seam exists** *(`2026-09-29`)*
+
+```mermaid
+classDiagram
+    class BehaviorDefinition {
+      +ParseParamsDelegate ParseParams
+      +BakeDefaultsDelegate BakeDefaults
+      +Type BlackboardLayoutType
+    }
+    class BehaviorRegistry {
+      +RegisterResolver(name, ParseParamsDelegate, Type)
+      -ApplyResolverOverlay(def, overlay)
+    }
+    class BehaviorParams {
+      +FromJson~TDto~(ResolveParams)
+      +FromBlockResolver~TAuthored,TBlock~(ResolveBlock)
+    }
+    class HostedParamResolvers {
+      +Register~P~(assetId, ResolveParams)
+      +Register~P,S~(assetId, ResolveOccurrence)
+      +TryRun~P,S~(assetId, ref p, ref s)
+    }
+    class CuratedBehaviorGenerator {
+      shape 1 ResolveParams
+      shape 2 six-param ParseParams
+      shape 3 in TAuthored, ref TBlock
+    }
+    BehaviorRegistry --> BehaviorDefinition : composes bake then curated
+    CuratedBehaviorGenerator ..> BehaviorParams : shape 3 via FromBlockResolver
+    CuratedBehaviorGenerator ..> BehaviorRegistry : RegisterResolver by NAME
+    note for HostedParamResolvers "keyed by ASSET id - AiPrimitive blueprints only"
+```
+
+> ⭐ **Caption — what the picture shows that the prose would not.** There are still **two tables**,
+> and they are keyed differently on purpose: the behaviour table by **name**, the hosted-blueprint
+> table by **asset id**. The only new edge is `BehaviorRegistry → BehaviorDefinition.BakeDefaults`:
+> the overlay no longer overwrites the parse, it **composes** the generated bake in front of the
+> curated resolver.
+
+```mermaid
+sequenceDiagram
+    participant Ing as "BehaviorIngressSystem"
+    participant Comp as "composed ParseParams"
+    participant Bake as "generated __BakeDefaults"
+    participant Cur as "curated resolver"
+    Ing->>Ing: STAGE 0 shadow.Clear()
+    Ing->>Comp: parse(json, shadow)
+    Comp->>Bake: STAGE 1 Input + State defaults
+    Comp->>Cur: STAGES 2+3 supply + resolve (the curated resolver owns both)
+    Cur-->>Comp: ok, or throw
+    Comp-->>Ing: ok, or throw
+    Ing->>Ing: commit only on ok
+```
+
+> ⭐ **Caption.** Before `CE-427` the curated resolver ran on an **unbaked** block: a generated
+> asset's authored State defaults (`CE-420`) silently vanished the moment a curated resolver was
+> bound to the same name. Now stage 1 survives the overlay, and the generated JSON overlay does
+> **not** run — the curated resolver owns supply.
+
+| decision | the alternative rejected, in one line |
+|---|---|
+| ⭐ **bake exported as its own delegate** (`BehaviorDefinition.BakeDefaults`, a static local function in the registrar) | ⛔ keep the generated parse and run the curated one after it — the generated overlay would then double-supply the same JSON |
+| ⭐ **typed shape `ResolveBlock<TAuthored,TBlock>(in TAuthored, ref TBlock, …)` + `FromBlockResolver`** as the curated generator's third shape | ⛔ widen `ResolveParams<TDto>` in place — it would break the shipped `FromJson` resolvers for nothing |
+| ⭐ **`TAuthored` unconstrained** | ⛔ `unmanaged` — the authored DTOs are classes (`[BehaviorContract]`) |
+| ⭐ **the hosted `ResolveBlock<P,S>` renamed `ResolveOccurrence`** (Roslyn rename) | ⛔ two delegates named `ResolveBlock` with different arities and meanings |
+| ⭐⭐ **the run-time lookup stays keyed by NAME for behaviours** | ⛔ unify on asset id (the row's wording) — 3 of 5 curated resolvers (`MoveToLocation`, `FireAtTarget`, `FollowRoute`) belong to hand-written behaviours that **have no asset id**, and `Behavior_Parameter_Resolver_Detailed_Design` §3.1/§3.3 keys by behaviour name |
+| ⭐ **no shipped curated resolver migrated to the typed shape** | ⛔ migrating `MoveToLocation` would change its JSON options (`CgfNodes` vs `DefaultRelaxed`) — a behaviour change nobody asked for |
+
+⚠ **Premise that failed, reported rather than silently worked around:** the row's *"the run-time lookup
+unifies on asset id"* is not buildable for hand-written behaviours (no asset). The two tables do not
+duplicate a concept: one keys **behaviours** by name (`R-132`), the other keys **hosted AiPrimitive
+blueprints** by asset id. ⭐ A hosted **subtree**'s resolve (`CE-431`) will use the name table.
+
+⏭ **Not in this slice, named:** `CE-428` (bind a blueprint `Construction` graph as a resolver — the
+typed seam is now its target shape) · `CE-431` (hosted subtree supply) · the HSM arm (`Q75`-`S1`).
+

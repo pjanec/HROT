@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor InvalidResolver = new DiagnosticDescriptor(
             id: "BEH001",
             title: "Invalid BehaviorResolver method",
-            messageFormat: "Method '{0}' annotated with [BehaviorResolver] must be static and take either (string, byte*, int) or the full 6-parameter ParseParamsDelegate shape",
+            messageFormat: "Method '{0}' annotated with [BehaviorResolver] must be static and take (string, byte*, int), the full 6-parameter ParseParamsDelegate shape, or the typed block shape (in TAuthored, ref TBlock, EntityRepository, Entity, IHostVariableAccess?)",
             category: "BehaviorSourceGen",
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -128,7 +128,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             // Two accepted shapes. The 3-param one is wrapped; the hand-written registrar spelled
             // that wrapper out by hand, twice.
             int argc = symbol.Parameters.Length;
-            bool valid = symbol.IsStatic && (argc == 3 || argc == 6);
+            // ⭐⭐ CE-427 — a THIRD shape: the typed block resolver
+            //   (in TAuthored authored, ref TBlock block, EntityRepository, Entity, IHostVariableAccess?).
+            //   Recognised by the ref-kinds of its first two parameters, never by a name.
+            bool isBlock = argc == 5
+                && symbol.Parameters[0].RefKind == RefKind.In
+                && symbol.Parameters[1].RefKind == RefKind.Ref;
+            bool valid = symbol.IsStatic && (argc == 3 || argc == 6 || isBlock);
 
             return new CuratedResolver
             {
@@ -138,6 +144,8 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 ParamCount  = argc,
                 ParamsType  = paramsType,
                 IsValid     = valid,
+                AuthoredType = isBlock ? symbol.Parameters[0].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
+                BlockType    = isBlock ? symbol.Parameters[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null,
             };
         }
 
@@ -273,7 +281,15 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         ? ", typeof(global::" + r.ParamsType + ")"
                         : "";
 
-                    if (r.ParamCount == 6)
+                    if (r.BlockType != null)
+                    {
+                        // CE-427: SUPPLY + RESOLVE through BehaviorParams.FromBlockResolver; the registry
+                        // composes the behaviour's BAKE in front of it (ApplyResolverOverlay).
+                        sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ",");
+                        sb.AppendLine("                global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolver<" + r.AuthoredType + ", " + r.BlockType + ">(");
+                        sb.AppendLine("                    global::" + r.MethodRef + ")" + tail + ");");
+                    }
+                    else if (r.ParamCount == 6)
                     {
                         sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ", global::" + r.MethodRef + tail + ");");
                     }
@@ -320,6 +336,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string MethodRef { get; set; } = "";
         public string MethodName { get; set; } = "";
         public int ParamCount { get; set; }
+        /// <summary>CE-427: the typed block resolver's authored type (FQN), or null for the byte-level shapes.</summary>
+        public string? AuthoredType { get; set; }
+        /// <summary>CE-427: the typed block resolver's block type (FQN), or null for the byte-level shapes.</summary>
+        public string? BlockType { get; set; }
         public string? ParamsType { get; set; }
         public bool IsValid { get; set; }
     }
