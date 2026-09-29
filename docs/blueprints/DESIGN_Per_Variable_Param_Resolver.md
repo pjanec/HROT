@@ -1,7 +1,11 @@
 <!--STATUS
-state: LIVE
+state: WITHDRAWN
 updated: 2026-09-28
-build-state: DESIGN
+superseded-by: Architect_Question_76_One_Blackboard_Block_Per_Primitive.md (§12.3 the pipeline, §12.11 the ruling)
+build-state: ⛔⛔ WITHDRAWN 2026-09-29 BY USER RULING R-152 — "per variable resolver is NOT
+  wanted nor possible. Resolves does conversion if needed." D1/D2/D3 are NEVER BUILT. D4's
+  measurement (ManagedBlackboardVariable needs the TypeId) survives as a FINDING and is folded into
+  Q76 CE-425. ⛔ Do not resume this document; its problem is solved elsewhere.
 current-answer: section 4. D1-a (with its MANDATORY clause four), D2 and D3 are leans awaiting
   approval; D4 is DECIDED (yes, a 4th+5th member - PackedField is unreachable from FDP/Toolkits);
   D5 is NOT a decision but an enforcement obligation of R-149. Section 1 is the INVENTORY;

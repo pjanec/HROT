@@ -1304,3 +1304,45 @@ resolver names the behaviour. ⚠ That is a **heal-rule obligation**, not a bloc
 authoring programme already solved the same shape *(a host names a child asset; the child does not
 name the host)*. ⇒ ⭐ **the resolver's reference is DERIVED and read-only in the editor** — written
 when the asset is created, repaired if the behaviour is renamed, never hand-edited.
+
+---
+
+### 12.11 ✅✅ RULED — **ONE RESOLVER PER BEHAVIOUR, NOT PER VARIABLE** *(`2026-09-29`; decided `2026-09-28`)*
+
+> 🔒 **User, `2026-09-28`, verbatim:** *"the resolver is one and fills whatever blackboard variable
+> needs to be filled. we can hardly have multiple construction scripts per blueprint so one per
+> variable seems impossible."*
+> 🔒 **User, `2026-09-29`, verbatim:** *"We already decided that per variable resolver is NOT wanted
+> nor possible. Resolves does conversion if needed."*
+
+⛔⛔ **RECORDED LATE, AND THAT COST SOMETHING.** The decision was taken on `2026-09-28` **in
+conversation and written nowhere** — 📐 grepped `2026-09-29`: neither quote appears anywhere under
+`docs/`. ⇒ `CE-419` kept reading as an **open three-way grain question** for a day, and the user had
+to answer the same question twice. 🔒 That is `RULE ZERO` obligation 2 *(every ruling discovered gets
+a row IMMEDIATELY)* missed on a ruling the user had already given.
+
+#### What it settles
+
+| | |
+|---|---|
+| ⛔ **`DESIGN_Per_Variable_Param_Resolver.md` (`E8c`) is WITHDRAWN** | its `D1`/`D2`/`D3` are never built |
+| ✅ **`CE-419` is RESOLVED** | the three claimants on `EmitParseParamsLocal` + its HSM mirror collapse to one: §12.3's pipeline |
+| ✅ **`CE-426` is UNBLOCKED** | |
+| ⭐ **the resolver's JOB is CONVERSION** | *"resolves does conversion if needed"* — not supply, not selection |
+
+#### ⭐⭐ Why it costs nothing — **§12.3 dissolves `E8c`'s motivating measurement**
+
+📐 `E8c`'s problem statement: *"a behaviour's params can be authored and overridden, but never
+REFINED… which is why a behaviour with one geo variable must hand-write the parse for **all** of
+them."* ⭐ **That is true only because a curated resolver today REPLACES the whole `__parseParams`.**
+
+⇒ 🔴 **§12.3 changes exactly that.** Bake and overlay stay **generated, for every variable, always**;
+the resolver is a **third stage that refines the block IN PLACE**. ⭐⭐ So a behaviour with one geo
+variable fixes **that one field** and the rest are already correct. **The granularity `E8c` wanted
+was a workaround for a pipeline shape this design removes.**
+
+⚠ **This SHARPENS `R-149`, it does not replace it.** `R-149` — *"a params region NAMES its
+resolver"* — stands; §12.11 fixes what *"region"* means: ⭐ **the behaviour's whole blackboard, never
+a single variable.** 📌 And `E8c`'s own `D2` already leaned the same way from the other end — a
+whole-behaviour resolver and a per-variable ref *"genuinely compete for one region… making it
+unrepresentable beats arbitrating it."*
