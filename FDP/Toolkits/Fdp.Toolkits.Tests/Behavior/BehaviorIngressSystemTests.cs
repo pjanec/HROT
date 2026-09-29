@@ -581,5 +581,160 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
-    }
+    
+        // ══ CE-437 + CE-429 — THE ROOT REGION IS THE BEHAVIOUR'S WHOLE BLOCK ════════════════
+        //  ⭐ A generated behaviour's layout is {Asset}_Block = [Inputs][State]; the manifest states
+        //     only the Input extent. These rails pin the three runtime consequences with a hand-built
+        //     definition of that exact shape — 8 Input bytes, 16 State bytes, a 24-byte block.
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+        private struct BlockState16 { public long A; public long B; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
+        private struct Block24
+        {
+            [System.Runtime.InteropServices.FieldOffset(0)] public long In;
+            [System.Runtime.InteropServices.FieldOffset(8)] public BlockState16 St;
+        }
+
+        private static void RegisterBlock(BehaviorRegistry registry, int id, string name) =>
+            registry.Register(id, name, new BehaviorDefinition
+            {
+                Name                       = name,
+                BrainTier                  = BehaviorConstants.BrainTierBTree,
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Block24),
+                // ⚠ A PARTIAL parse — writes byte 0 only — so every other byte shows what CARRIED.
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                {
+                    mem[0] = 0xB1;
+                },
+            });
+
+        private static void Assign(EntityRepository world, BehaviorIngressSystem sys, Entity e, string name)
+        {
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = name, JsonParams = "" });
+            world.Bus.SwapBuffers();
+            sys.Execute(world, 0.016f);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-429</c> — <b>the root slot is sized to the BLOCK, not to the manifest extent.</b>
+        /// ⛔ Before it, this definition got 8 bytes and its State half did not exist.
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_SizesTheRootSlotToTheWholeBlock()
+        {
+            var (world, sys, registry) = CreateFixture();
+            RegisterBlock(registry, 0x0C_E4_37_01, "BlockSized");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            Assign(world, sys, e, "BlockSized");
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _, out int len));
+            Assert.Equal(24, len);
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-437</c> — <b>the State half keeps its side slot's semantics.</b> Re-assigning the
+        /// SAME behaviour keeps it (an identical side slot was kept); switching to a DIFFERENT one
+        /// zeroes it (the side slot was detached and a fresh one attached) — while the Input part
+        /// carries exactly as before.
+        ///
+        /// <para>⚠ Inverse-edit red-proof: drop the <c>carryLimit</c> clamp in
+        /// <c>BehaviorIngressSystem</c> and the "different behaviour" half fails — the wide
+        /// behaviour's pattern lands in <c>St</c>.</para>
+        /// </summary>
+        [Fact]
+        public void BehaviorIngress_TheStateHalfIsKeptOnReassignAndZeroedOnChange()
+        {
+            var (world, sys, registry) = CreateFixture();
+            RegisterBlock(registry, 0x0C_E4_37_02, "BlockKeep");
+            RegisterWide(registry, 0x0C_E4_37_03, "BlockKeep_Wide");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+
+            // ① same behaviour, re-assigned: State survives.
+            Assign(world, sys, e, "BlockKeep");
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out _));
+            ((Block24*)root)->St.A = 0x1122334455667788;
+            Assign(world, sys, e, "BlockKeep");
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out root, out _));
+            Assert.Equal(0x1122334455667788, ((Block24*)root)->St.A);
+
+            // ② a different behaviour first, then this one: State is zero, Inputs carry.
+            Assign(world, sys, e, "BlockKeep_Wide");
+            Assign(world, sys, e, "BlockKeep");
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out root, out int len));
+            Assert.Equal(24, len);
+            Assert.Equal(0xB1, root[0]);
+            for (int i = 1; i < 8; i++)  Assert.Equal(Pattern(i), root[i]);   // Input part carried
+            for (int i = 8; i < 24; i++) Assert.Equal(0, root[i]);            // State half fresh
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-437</c> — <b>a thunk finds its block by its OWN behaviour, never the active one.</b>
+        /// A hosted subtree runs under its HOST's active hash; keyed on the child's own hash it finds no
+        /// slot and fails, instead of writing its State into the host's bytes. ⚠ And a slot narrower
+        /// than the requested type is refused rather than overread.
+        /// </summary>
+        [Fact]
+        public void RootParamsAccess_TryGetBlockFor_IsKeyedByTheBehavioursOwnIdentity()
+        {
+            var (world, sys, registry) = CreateFixture();
+            const int id = 0x0C_E4_37_04;
+            RegisterBlock(registry, id, "BlockOwn");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            Assign(world, sys, e, "BlockOwn");
+
+            Assert.True(RootParamsAccess.TryGetBlockFor<Block24>(world, e, id, out Block24* blk));
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root, out _));
+            Assert.True(root == (byte*)blk, "the block IS the root region");
+
+            Assert.False(RootParamsAccess.TryGetBlockFor<Block24>(world, e, id + 1, out _),
+                "another behaviour's identity (a hosted child under this host) must find nothing");
+            Assert.False(RootParamsAccess.TryGetBlockFor<WideParams>(world, e, id, out _),
+                "a type wider than the slot must be refused, not overread");
+
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-429</c> — the two numbers the region used to conflate. ⭐ An EMPTY manifest is still an
+        /// authority: a behaviour with no <c>Role=Input</c> variable has 0 Input bytes but a real block.
+        /// </summary>
+        [Fact]
+        public void RootParamsAccess_SeparatesTheBlockFromItsInputBytes()
+        {
+            var withInputs = new BehaviorDefinition
+            {
+                Name                       = "WithInputs",
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Block24),
+            };
+            Assert.Equal(24, RootParamsAccess.RootParamsBytes(withInputs));
+            Assert.Equal(8,  RootParamsAccess.InputBytes(withInputs));
+
+            var stateOnly = new BehaviorDefinition
+            {
+                Name                       = "StateOnly",
+                ManagedBlackboardVariables = System.Array.Empty<ManagedBlackboardVariable>(),
+                BlackboardLayoutType       = typeof(BlockState16),
+            };
+            Assert.Equal(16, RootParamsAccess.RootParamsBytes(stateOnly));
+            Assert.Equal(0,  RootParamsAccess.InputBytes(stateOnly));
+
+            // ⚠ A curated behaviour declares no manifest: its whole layout is its parameters.
+            var curated = new BehaviorDefinition { Name = "Curated", BlackboardLayoutType = typeof(NarrowParams) };
+            Assert.Equal(16, RootParamsAccess.RootParamsBytes(curated));
+            Assert.Equal(16, RootParamsAccess.InputBytes(curated));
+        }
+}
 }

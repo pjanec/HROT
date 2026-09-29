@@ -174,7 +174,7 @@ public static class T20_MultiStatefulRegistrar
                 new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 8),
             },
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard),
-            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T20_MultiStateful_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T20_MultiStateful_Block),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {

@@ -296,9 +296,11 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, shared);
 
-        def.StatefulWorkingSlots.Should().NotBeNull();
-        def.StatefulWorkingSlots!.Count.Should().Be(1, "two co-bound Behavior nodes share one slot");
-        def.StatefulWorkingSlots[0].SlotKey.Should().Be(behaviorKey);
+        // ⭐⭐ CE-437: the shared Behavior-scoped variable lives in the behaviour's BLOCK (St.shared),
+        //   so the manifest declares NO side slot for it — one home, not two.
+        (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>())
+            .Should().NotContain(s => s.SlotKey == behaviorKey,
+                "CE-437: a Behavior-scoped State variable is block-resident, not a side slot");
 
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
@@ -309,8 +311,8 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
         // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY. A bare count also counts the two
         //   ROOT slots (root params, root cursor), which is why this read "1" and found 3.
         RootParamsTestHarness.AssertAuthoredSlotsAre(
-            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
-            "two co-bound Behavior nodes provision exactly the ONE shared slot the manifest names");
+            world, entity, (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>()).Select(s => s.SlotKey),
+            "CE-437: two co-bound Behavior nodes provision NO side slot — their state is in the block");
 
         // One tick: A then B advance the SAME cursor (0→1→2).
         var ctx = new BTreeContext { Self = entity, World = world };
@@ -320,9 +322,10 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
             def.BTreeInterpreter!.Tick(ref bb, ref state, ref ctx);
         }
 
-        ReadCursor(world, entity, behaviorKey).Should().Be(2,
-            "node A (0→1) then node B (1→2) mutate the SAME shared slot in one tick; " +
-            "independent per-node slots would give Cursor=1 each");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, shared).Cursor
+            .Should().Be(2,
+            "node A (0→1) then node B (1→2) mutate the SAME shared variable in one tick; " +
+            "independent per-node locations would give Cursor=1 each (CE-437: it is St.shared in the block)");
 
         world.Dispose();
         alc.Unload();

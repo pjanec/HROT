@@ -12,4 +12,19 @@ public struct PlatoonHillAttack_Blackboard
     public global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Params;
 }
 
-// CE-425: no block emitted — BTreeBlackboardPackHelper: unknown type 'Hrot.AI.Behaviors.Brains.HillAttackMutableState' for State variable 'State'.
+/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref="PlatoonHillAttack_Block"/>.</summary>
+[StructLayout(LayoutKind.Sequential)]
+public struct PlatoonHillAttack_BlockState
+{
+    public global::Hrot.AI.Behaviors.Brains.HillAttackMutableState State;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct PlatoonHillAttack_Block
+{
+    [FieldOffset(0)]
+    public PlatoonHillAttack_Blackboard In;
+    [FieldOffset(56)]
+    public PlatoonHillAttack_BlockState St;
+}

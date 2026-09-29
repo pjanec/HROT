@@ -159,4 +159,28 @@ internal static unsafe class RootParamsTestHarness
                 $"  NOTE: the two ROOT slots (root params, root cursor) are expected by construction; " +
                 "an unexpected key here is a NEW slot someone added — name it, do not widen a count.");
     }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-437</c> — read a <c>Role=State, Scope=Behavior</c> variable from where it lives now:
+    /// the behaviour's BLOCK (<c>def.BlackboardLayoutType</c>), at <c>St.{varName}</c>. Offsets come
+    /// from the compiled block type by reflection, so this works for a DTO compiled in a test ALC.
+    /// ⭐ Also asserts the root slot is wide enough for the whole block (<c>CE-429</c>).
+    /// </summary>
+    internal static ref T ReadBlockState<T>(EntityRepository world, Entity entity, BehaviorDefinition def, string varName)
+        where T : unmanaged
+    {
+        var block = def.BlackboardLayoutType
+            ?? throw new System.InvalidOperationException($"{def.Name} declares no BlackboardLayoutType");
+        var st = block.GetField("St")
+            ?? throw new System.InvalidOperationException($"{block.Name} has no St half — '{varName}' is not block-resident");
+        int offset = (int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St")
+                   + (int)System.Runtime.InteropServices.Marshal.OffsetOf(st.FieldType, varName);
+
+        if (!RootParamsAccess.TryGetRootBytes(world, entity, out byte* root, out int length))
+            throw new System.InvalidOperationException("entity has no root block");
+        if (length < System.Runtime.InteropServices.Marshal.SizeOf(block))
+            throw new System.InvalidOperationException($"root slot {length} B is narrower than {block.Name} (CE-429)");
+
+        return ref System.Runtime.CompilerServices.Unsafe.AsRef<T>(root + offset);
+    }
 }

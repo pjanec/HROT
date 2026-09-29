@@ -605,8 +605,35 @@ namespace Fdp.Toolkit.Behavior
             BehaviorDefinition def, (ParseParamsDelegate Resolver, Type? BlackboardLayoutType) overlay)
         {
             def.ParseParams = overlay.Resolver;
-            if (overlay.BlackboardLayoutType != null)
-                def.BlackboardLayoutType = overlay.BlackboardLayoutType;
+            if (overlay.BlackboardLayoutType == null) return;
+
+            // ⭐⭐⭐ CE-437 (2026-09-29) — A RESOLVER'S TYPE DESCRIBES WHAT IT WRITES, NOT THE WHOLE BLOCK.
+            //   A generated behaviour's layout is its BLOCK — [Inputs][State] — and a curated resolver
+            //   writes its params type at offset 0, i.e. into the Input region. 🔴 Replacing the layout
+            //   with the resolver's type DEMOTED the block: PlatoonHillAttack's root slot shrank to its
+            //   56-byte params and its State half — HillAttackMutableState — had nowhere to live
+            //   (caught by the SimHost HillAttackIntegrationTests, "no block for behaviour").
+            // ⇒ when the resolver's type FITS the Input region, the block stays the layout.
+            // ⛔ When it does not fit AND the layout carries bytes beyond the Inputs (a State half),
+            //   the two would overlap — refuse loudly rather than let a parse overwrite the State.
+            //   Without a State half the old rule stands: the wider curated type becomes the layout.
+            if (def.BlackboardLayoutType != null
+                && def.BlackboardLayoutType != overlay.BlackboardLayoutType
+                && def.ManagedBlackboardVariables != null)
+            {
+                int inputRegion = RootParamsAccess.InputBytes(def);
+                int resolverWrites = System.Runtime.InteropServices.Marshal.SizeOf(overlay.BlackboardLayoutType);
+                if (resolverWrites <= inputRegion) return;
+
+                int layoutBytes = System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
+                if (layoutBytes > inputRegion)
+                    throw new InvalidOperationException(
+                        $"Behavior '{def.Name}': its curated resolver writes '{overlay.BlackboardLayoutType.Name}' "
+                        + $"({resolverWrites} bytes) but the generated block '{def.BlackboardLayoutType.Name}' holds only "
+                        + $"{inputRegion} Input bytes before its State half. The resolver would overwrite the State. "
+                        + "Make the authored Role=Input variables match the resolver's params type (CE-437).");
+            }
+            def.BlackboardLayoutType = overlay.BlackboardLayoutType;
         }
 
         /// <summary>

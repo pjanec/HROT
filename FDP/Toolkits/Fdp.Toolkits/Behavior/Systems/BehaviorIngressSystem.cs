@@ -146,7 +146,16 @@ namespace Fdp.Toolkit.Behavior.Systems
                         if (RootParamsAccess.TryGetRootBytes(repo, evt.Entity, out byte* prev, out int prevLen)
                             && prevLen > 0)
                         {
-                            int copy = Math.Min(prevLen, shadow.Length);
+                            // ⭐⭐ CE-437 — the region is the WHOLE BLOCK now, State half included, and the
+                            //   State half must keep the semantics its side slot had: KEPT when the SAME
+                            //   behaviour is re-assigned (ProvisionStatefulSlots keeps an identical slot),
+                            //   ZEROED when the behaviour CHANGES (the old slot was detached and a fresh one
+                            //   attached). ⇒ across a change only the Input part carries, exactly the bytes
+                            //   that carried before the block existed.
+                            int carryLimit = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash == behaviorId
+                                ? shadow.Length
+                                : Math.Min(shadow.Length, RootParamsAccess.InputBytes(def));
+                            int copy = Math.Min(prevLen, carryLimit);
                             Buffer.MemoryCopy(prev, dst, shadow.Length, copy);
                         }
                     }

@@ -252,36 +252,31 @@ public static unsafe class RootParamsAccess
     }
 
     /// <summary>
-    /// ⭐⭐ <b>How many bytes this behaviour's root params region occupies.</b>
+    /// ⭐⭐ <b>How many bytes this behaviour's root region occupies — its whole BLOCK.</b>
     ///
-    /// <para>⭐ The EXTENT of the packed variable table — <c>max(ByteOffset + sizeof(Type))</c> over
-    /// the manifest — not <c>MaxBehaviorParamByteSize</c>. ⛔ Allocating the full 100 bytes for every
-    /// entity would waste most of a slot on the 256 tier, where the whole payload is 176 bytes.</para>
+    /// <para>⭐⭐⭐ <c>CE-429</c> (<c>2026-09-29</c>, <c>R-151</c>): the region is the behaviour's ONE
+    /// blackboard block — <c>Role=Input</c> AND <c>Role=State</c> — so it is sized as
+    /// <c>max(</c><see cref="InputBytes"/><c>, sizeof(BlackboardLayoutType))</c>. For a generated
+    /// behaviour the layout type is <c>{Asset}_Block</c>, which is at least the Input extent and adds
+    /// the State half. ⛔ Before this it was the Input extent alone, which is why a behaviour with no
+    /// <c>Role=Input</c> variable got NO region at all (<c>Q76</c> §12.3b).</para>
     ///
-    /// <para>⚠ Falls back to the curated <c>BlackboardLayoutType</c>'s size when there is no manifest
-    /// — that is the shape a hand-registered behaviour has. ⛔ Returns 0 when neither exists, which
-    /// correctly means "this behaviour has no params" rather than "allocate something just in case".</para>
+    /// <para>⚠ <b>max, not "prefer one"</b>: a curated resolver overlay can pair a JSON manifest with
+    /// a wider hand-written layout type (<c>HullDownAttackRun</c>). Allocating the larger of the two
+    /// is never wrong — every reader reads within one of them.</para>
+    ///
+    /// <para>⛔ Returns 0 when neither exists, which correctly means "this behaviour has no params"
+    /// rather than "allocate something just in case".</para>
     /// </summary>
     public static int RootParamsBytes(BehaviorDefinition def)
     {
         if (def is null) return 0;
 
-        var manifest = def.ManagedBlackboardVariables;
-        if (manifest != null && manifest.Count > 0)
-        {
-            int extent = 0;
-            for (int i = 0; i < manifest.Count; i++)
-            {
-                var v = manifest[i];
-                if (v.Type == null) continue;
-                int end = v.ByteOffset + System.Runtime.InteropServices.Marshal.SizeOf(v.Type);
-                if (end > extent) extent = end;
-            }
-            return extent;
-        }
-
-        if (def.BlackboardLayoutType != null)
-            return System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType);
+        int inputs = ManifestExtent(def.ManagedBlackboardVariables);
+        int layout = def.BlackboardLayoutType != null
+            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
+            : 0;
+        if (inputs > 0 || layout > 0) return Math.Max(inputs, layout);
 
         // ⭐⭐⭐ CE-328 (2026-09-23) — THE 100-BYTE FALLBACK IS GONE; THIS SHAPE IS NOW REFUSED.
         //
@@ -309,5 +304,70 @@ public static unsafe class RootParamsAccess
                 + "struct or a manifest. (CE-328)");
 
         return 0;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-429</c> — how many bytes of the block are the <b>Role=Input</b> part: the region a
+    /// behaviour's parameters describe, and the part that may carry over from a DIFFERENT behaviour's
+    /// region on reassignment. ⭐ A declared manifest — even an EMPTY one — is the authority: a
+    /// generated behaviour with no <c>Role=Input</c> variable declares an empty manifest and so has 0
+    /// Input bytes. ⚠ With no manifest at all (a curated behaviour) the whole layout type is the
+    /// parameters, exactly as before.
+    /// </summary>
+    public static int InputBytes(BehaviorDefinition def)
+    {
+        if (def is null) return 0;
+        if (def.ManagedBlackboardVariables != null) return ManifestExtent(def.ManagedBlackboardVariables);
+        return def.BlackboardLayoutType != null
+            ? System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType)
+            : 0;
+    }
+
+    private static int ManifestExtent(System.Collections.Generic.IReadOnlyList<ManagedBlackboardVariable>? manifest)
+    {
+        if (manifest == null) return 0;
+        int extent = 0;
+        for (int i = 0; i < manifest.Count; i++)
+        {
+            var v = manifest[i];
+            if (v.Type == null) continue;
+            int end = v.ByteOffset + System.Runtime.InteropServices.Marshal.SizeOf(v.Type);
+            if (end > extent) extent = end;
+        }
+        return extent;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-437</c> — <b>THIS behaviour's block, found by ITS OWN identity</b>, not by whatever
+    /// behaviour is currently active on the entity.
+    ///
+    /// <para>⭐ Generated tick thunks reach a <c>Role=State, Scope=Behavior</c> variable through this —
+    /// it lives in the block's <c>St</c> half now, not in a side slot. ⛔⛔ <b>Why not
+    /// <see cref="TryGetRoot{T}"/>:</b> that one keys on <c>BehaviorState.ActiveBehaviorHash</c>, and a
+    /// behaviour ticked as a HOSTED subtree runs under its HOST's hash — so it would hand back the
+    /// host's block and the child would write its state into the host's bytes. Keyed on the thunk's
+    /// own behaviour, the hosted case finds no slot and FAILS instead (a hosted subtree gets its own
+    /// block in <c>CE-431</c>).</para>
+    ///
+    /// <para>⚠ The slot's guard is its byte count, so a slot narrower than <typeparamref name="T"/>
+    /// — a stale layout — is refused rather than overread.</para>
+    /// </summary>
+    public static bool TryGetBlockFor<T>(EntityRepository world, Entity self, int behaviourHash, out T* ptr)
+        where T : unmanaged
+    {
+        ptr = null;
+
+        int key = KeyForBehaviour(behaviourHash);
+        if (key == 0) return false;
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, self, out _);
+        if (store == null) return false;
+
+        if (!BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int offset, out uint guard))
+            return false;
+        if (unchecked((int)guard) < sizeof(T)) return false;
+
+        ptr = (T*)(store + offset);
+        return true;
     }
 }

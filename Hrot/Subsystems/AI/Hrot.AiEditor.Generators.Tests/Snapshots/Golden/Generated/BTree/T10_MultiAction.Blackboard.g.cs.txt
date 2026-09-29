@@ -15,7 +15,7 @@ public struct T10_MultiAction_FdpToolkitBehaviorComponentsBrainBlackboard
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
-[StructLayout(LayoutKind.Explicit, Size = 16)]
+[StructLayout(LayoutKind.Explicit)]
 public struct T10_MultiAction_Block
 {
     [FieldOffset(0)]

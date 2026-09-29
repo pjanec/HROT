@@ -13,7 +13,7 @@ public struct HullDownAttackRun_Blackboard
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
-[StructLayout(LayoutKind.Explicit, Size = 56)]
+[StructLayout(LayoutKind.Explicit)]
 public struct HullDownAttackRun_Block
 {
     [FieldOffset(0)]

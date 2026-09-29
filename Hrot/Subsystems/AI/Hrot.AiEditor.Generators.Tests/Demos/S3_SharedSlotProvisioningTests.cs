@@ -342,15 +342,15 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         var (def, alc) = BuildDefFromDto(dto);
 
-        // Manifest: three co-bound Behavior nodes ⇒ ONE entry.
-        def.StatefulWorkingSlots.Should().NotBeNull("Behavior-scoped stateful asset must carry a slot manifest");
-        def.StatefulWorkingSlots!.Count.Should().Be(1,
-            "three nodes binding one Behavior-scoped variable dedup to a single manifest entry");
-
+        // ⭐⭐ CE-437 — three co-bound Behavior nodes still share ONE location, but that location is
+        //   the behaviour's BLOCK (St.sharedCursor), not a side slot ⇒ the manifest declares none.
+        //   ⛔ This used to assert one deduped manifest entry under the Behavior-scope key.
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, sharedVar);
-        def.StatefulWorkingSlots[0].SlotKey.Should().Be(behaviorKey,
-            "the single entry's key must be the Behavior-scope key FNV-1a(assetId, variableId)");
+        (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>())
+            .Should().BeEmpty("CE-437: the only stateful variable is block-resident");
+        def.BlackboardLayoutType!.GetField("St")!.FieldType.GetField(sharedVar)
+            .Should().NotBeNull("CE-437: the shared variable is a field of the block's State half");
 
         // Provisioning: one shared slot.
         var world = CreateWorld();
@@ -363,10 +363,12 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY — a count also counts the two ROOT
         //   slots (root params, root cursor), which is why this read "1" and found 3.
         RootParamsTestHarness.AssertAuthoredSlotsAre(
-            world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
-            "one deduped manifest entry ⇒ exactly the one authored slot the manifest names");
-        TrySlotOffset(world, entity, behaviorKey).Should().BeTrue(
-            "the shared Behavior slot must be attached under its scope-aware key");
+            world, entity, System.Array.Empty<int>(),
+            "CE-437: no authored side slot — the shared state is in the root block");
+        TrySlotOffset(world, entity, behaviorKey).Should().BeFalse(
+            "CE-437: nothing is attached under the old Behavior-scope key — one home");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, sharedVar).Cursor
+            .Should().Be(0, "the block is allocated wide enough to hold the shared state, and starts zeroed");
 
         world.Dispose();
         alc.Unload();
@@ -418,10 +420,11 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
 
         var (def, alc) = BuildDefFromDto(dto);
 
-        // Two distinct Node keys + one shared Behavior key (the two "shared" nodes dedup).
+        // ⭐ CE-437: two distinct Node keys stay side slots; the shared Behavior variable is in the block.
+        //   ⛔ This used to be 3 entries (the shared one dedup'd to a third side slot).
         def.StatefulWorkingSlots.Should().NotBeNull("mixed stateful asset must carry a slot manifest");
-        def.StatefulWorkingSlots!.Count.Should().Be(3,
-            "two Node-scoped nodes (distinct keys) + one shared Behavior key (two bindings dedup) ⇒ 3 entries");
+        def.StatefulWorkingSlots!.Count.Should().Be(2,
+            "two Node-scoped nodes (distinct keys) ⇒ 2 entries; the shared Behavior variable is block-resident");
 
         var world = CreateWorld();
         Fdp.Core.Entity entity = world.CreateEntity();
@@ -435,13 +438,14 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
         //   helper — a count here silently absorbed them.
         RootParamsTestHarness.AssertAuthoredSlotsAre(
             world, entity, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
-            "two Node-scoped slots + one shared Behavior slot, exactly as the manifest names them");
+            "two Node-scoped slots exactly as the manifest names them (CE-437: the shared one is in the block)");
 
-        // The shared Behavior slot must exist under its scope-aware key.
         int behaviorKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, "shared");
-        TrySlotOffset(world, entity, behaviorKey).Should().BeTrue(
-            "the shared Behavior slot must be attached under its scope-aware key");
+        TrySlotOffset(world, entity, behaviorKey).Should().BeFalse(
+            "CE-437: the shared variable has no side slot");
+        RootParamsTestHarness.ReadBlockState<DemoCounterNodes.DemoCursorState>(world, entity, def, "shared").Cursor
+            .Should().Be(0, "CE-437: the block holds the shared state");
 
         world.Dispose();
         alc.Unload();

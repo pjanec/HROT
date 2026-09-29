@@ -58,17 +58,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -80,17 +77,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -102,17 +96,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -124,17 +115,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -146,17 +134,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -168,17 +153,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1299152117 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1299152117");
+                            "CE-437: S2-1 stateful variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
                 }
             });
@@ -192,17 +174,14 @@ public static class PlatoonHillAttackRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1299152117;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("PlatoonHillAttack"), out global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S3-G: stateful deactivator slot 1299152117 missing from the entity's occurrence store"
-                                : "S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot 1299152117");
+                            "CE-437: S3-G stateful deactivator variable 'State' — no block for behaviour 'PlatoonHillAttack' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(__wsPtr);
+                    ref var ws = ref __blk->St.State;
                     global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Deactivate_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx, pi);
                 }
             });
@@ -261,12 +240,8 @@ public static class PlatoonHillAttackRegistrar
                 new("Params", typeof(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams), 0),
             },
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Blackboard),
-            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block),
             ParseParams  = __parseParams,
-            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
-            {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1299152117, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>(), unchecked(3620883506u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>()), typeof(global::Hrot.AI.Behaviors.Brains.HillAttackMutableState), "CalculateSegments", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
-            },
         });
     }
 }

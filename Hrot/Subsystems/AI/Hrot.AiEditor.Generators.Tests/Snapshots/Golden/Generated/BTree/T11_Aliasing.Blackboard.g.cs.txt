@@ -13,7 +13,7 @@ public struct T11_Aliasing_Blackboard
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
-[StructLayout(LayoutKind.Explicit, Size = 8)]
+[StructLayout(LayoutKind.Explicit)]
 public struct T11_Aliasing_Block
 {
     [FieldOffset(0)]

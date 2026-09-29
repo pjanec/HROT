@@ -446,6 +446,21 @@ public static class BTreeBridgeEmitCore
         if (isManaged && packedFields != null)
             hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
 
+        // ⭐⭐ CE-429 — ingress allocates the root block only for a behaviour with a ParseParams
+        //   (BehaviorIngressSystem: `def.ParseParams != null`). A block with a State half and no
+        //   Role=Input variable has nothing to parse, but it must still be ALLOCATED ⇒ it declares a
+        //   parse that supplies nothing. ⚠ Stage 1 (bake) of the State half's defaults is CE-426's.
+        if (!hasParseParams && EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to parse, but it must be allocated.");
+            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
+            sb.AppendLine($"{pad2}unsafe");
+            sb.AppendLine($"{pad2}{{");
+            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ }};");
+            sb.AppendLine($"{pad2}}}");
+            hasParseParams = true;
+        }
+
         // 4b. Register definition
         sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
         sb.AppendLine($"{pad2}beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), \"{name}\", new BehaviorDefinition");
@@ -473,14 +488,29 @@ public static class BTreeBridgeEmitCore
             // ⚠ Guarded by `packedFields.Count > 0` because that is the exact condition under which
             //   BTreeEmitCore.EmitBlackboardStructSource emits the struct at all; naming it otherwise
             //   would emit a reference to a type that does not exist.
+            //
+            // ⭐⭐⭐ CE-437 + CE-429 (2026-09-29) — THE TWO MEMBERS DIVERGE, AS CE-235 SPLIT THEM TO.
+            //   JsonParamsDtoType stays the Inputs struct (the PUBLIC authored contract);
+            //   BlackboardLayoutType becomes {Asset}_Block — Inputs at offset 0 plus the State half —
+            //   and RootParamsAccess.RootParamsBytes sizes the root slot from it. 📄 Q76 §12.2b.
             string bbStructFqn = BTreeEmitCore.BlackboardStructFqn(dto);
             sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
-            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({bbStructFqn}),");
+            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
+        }
+        else if (EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            // ⭐⭐ CE-429 — R-151 requirement ④: a behaviour may declare NO Role=Input variable.
+            //   It still owns a block (its State half), so it names the block as its layout and
+            //   declares an EMPTY manifest — which RootParamsAccess.InputBytes reads as "0 Input
+            //   bytes", so nothing carries into the State half across a behaviour change.
+            //   ⛔ No JsonParamsDtoType: there is no authored contract to publish.
+            sb.AppendLine($"{pad2}{Indent}ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
+            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
         }
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
         if (isManaged)
-            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees);
+            EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
         else if (hostsSubtrees)
             // ⚠ A NON-managed asset emits no authored slot array at all, so a hosting one would get
             //   no manifest and HostedSubtree.Tick would throw. The hosted slots stand alone here.
@@ -677,7 +707,7 @@ public static class BTreeBridgeEmitCore
             string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
             string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
             string methodRef  = GlobalMethodRef(methodFqn);
-            AppendReusableStatefulThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+            AppendReusableStatefulThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 $"{methodRef}(ref dto, ref ws, ref st, ref ctx)");
         }
     }
@@ -691,7 +721,8 @@ public static class BTreeBridgeEmitCore
     /// between them is <paramref name="callExpr"/>.
     /// </summary>
     private static void AppendReusableStatefulThunk(
-        StringBuilder sb, string pad2, string bbShort, string ctxShort,
+        StringBuilder sb, BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        string pad2, string bbShort, string ctxShort,
         string key, string dtoTypeFqn, int offset, int slotKey, string wsTypeFqn, string callExpr)
     {
         sb.AppendLine($"{pad2}actionRegistry.Register(\"{key}\",");
@@ -715,21 +746,80 @@ public static class BTreeBridgeEmitCore
         //      The HasStore probe that tells them apart sits INSIDE Debug.Assert's argument, and
         //      Debug.Assert is [Conditional("DEBUG")] — so a Release build evaluates neither the
         //      probe nor the strings, and the hot path is strictly cheaper than the old ladder.
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Resolve this occurrence's WorkingState across every tier, in one call (A2b).");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false,");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}? \"S2-1: stateful slot {slotKey} missing from the entity's occurrence store\"");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}: \"S2-1: entity has no BlueprintBlackboard* tier component for stateful slot {slotKey}\");");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(__wsPtr);");
+        AppendWorkingStateResolve(sb, pad2 + Indent + Indent + Indent, dto, packedFields, slotKey, wsTypeFqn,
+            "S2-1", "", "return Fbt.NodeStatus.Failure;");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {callExpr};");
         sb.AppendLine($"{pad2}{Indent}{Indent}}}");
         sb.AppendLine($"{pad2}{Indent}}});");
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-437</c> — the ONE emission of "find this node's WorkingState", shared by the action,
+    /// condition and deactivator thunks (it was three hand-copied blocks).
+    ///
+    /// <para>⭐ A <c>Role=State, Scope=Behavior</c> variable lives in the behaviour's BLOCK now
+    /// (<c>R-151</c>): the thunk reaches it as <c>ref block->St.name</c> through
+    /// <c>RootParamsAccess.TryGetBlockFor</c>, keyed by THIS behaviour's own name — ⛔ never the active
+    /// one, which in a hosted subtree is the HOST (see that method). Every other slot — a node-bound
+    /// working state, an <c>Entity</c>-scoped variable — keeps its keyed side slot, unchanged.</para>
+    /// </summary>
+    private static void AppendWorkingStateResolve(
+        StringBuilder sb, string pad, BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        int slotKey, string wsTypeFqn, string diagPrefix, string what, string failStatement)
+    {
+        if (TryGetBlockStateVariable(dto, packedFields, slotKey, out string? varName))
+        {
+            string blockFqn = BTreeEmitCore.BlockStructFqn(dto);
+            string name     = dto.Name.Replace("\\", "\\\\").Replace("\"", "\\\"");
+            sb.AppendLine($"{pad}// CE-437: '{varName}' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).");
+            sb.AppendLine($"{pad}if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<{blockFqn}>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{name}\"), out {blockFqn}* __blk))");
+            sb.AppendLine($"{pad}{{");
+            sb.AppendLine($"{pad}{Indent}global::System.Diagnostics.Debug.Assert(false,");
+            sb.AppendLine($"{pad}{Indent}{Indent}\"CE-437: {diagPrefix} stateful {what}variable '{varName}' — no block for behaviour '{name}' on this entity (not assigned, or ticked as a hosted subtree: CE-431)\");");
+            sb.AppendLine($"{pad}{Indent}{failStatement}");
+            sb.AppendLine($"{pad}}}");
+            sb.AppendLine($"{pad}ref var ws = ref __blk->St.{varName};");
+            return;
+        }
+
+        sb.AppendLine($"{pad}// Resolve this occurrence's WorkingState across every tier, in one call (A2b).");
+        sb.AppendLine($"{pad}const int __slotKey = {slotKey};");
+        sb.AppendLine($"{pad}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))");
+        sb.AppendLine($"{pad}{{");
+        sb.AppendLine($"{pad}{Indent}global::System.Diagnostics.Debug.Assert(false,");
+        sb.AppendLine($"{pad}{Indent}{Indent}global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)");
+        sb.AppendLine($"{pad}{Indent}{Indent}{Indent}? \"{diagPrefix}: stateful {what}slot {slotKey} missing from the entity's occurrence store\"");
+        sb.AppendLine($"{pad}{Indent}{Indent}{Indent}: \"{diagPrefix}: entity has no BlueprintBlackboard* tier component for stateful {what}slot {slotKey}\");");
+        sb.AppendLine($"{pad}{Indent}{failStatement}");
+        sb.AppendLine($"{pad}}}");
+        sb.AppendLine($"{pad}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(__wsPtr);");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-437</c> — does <paramref name="slotKey"/> name a variable that lives in the block's
+    /// <c>St</c> half? True only when the block is emitted (a managed blackboard whose Inputs packed —
+    /// the same condition <c>BTreeEmitCore.EmitBlackboardStructSource</c> emits under) and the key is
+    /// the <c>Scope=Behavior</c> key of one of <c>BTreeEmitCore.BlockStateVariables</c>.
+    /// </summary>
+    internal static bool TryGetBlockStateVariable(
+        BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        int slotKey, out string? varName)
+    {
+        varName = null;
+        if (!EmitsBlock(dto, packedFields)) return false;
+        foreach (var v in BTreeEmitCore.BlockStateVariables(dto))
+        {
+            if (ComputeStatefulSlotKey(dto.AssetId, WorkingStateScope.Behavior, Guid.Empty, v.Name) != slotKey) continue;
+            varName = v.Name;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>⭐ <c>CE-437</c> — the block exists exactly when the blackboard struct does.</summary>
+    internal static bool EmitsBlock(BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        => dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0 && packedFields != null;
 
     /// <summary>
     /// Condition-side sibling of <see cref="AppendReusableStatefulThunk"/>: emits one
@@ -745,7 +835,8 @@ public static class BTreeBridgeEmitCore
     /// bool/branch parameter on the action helper — so the validated action path stays byte-identical.
     /// </summary>
     private static void AppendReusableStatefulConditionThunk(
-        StringBuilder sb, string pad2, string bbShort, string ctxShort,
+        StringBuilder sb, BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        string pad2, string bbShort, string ctxShort,
         string key, string dtoTypeFqn, int offset, int slotKey, string wsTypeFqn, string callExpr)
     {
         sb.AppendLine($"{pad2}actionRegistry.RegisterCondition(\"{key}\",");
@@ -769,17 +860,8 @@ public static class BTreeBridgeEmitCore
         //      The HasStore probe that tells them apart sits INSIDE Debug.Assert's argument, and
         //      Debug.Assert is [Conditional("DEBUG")] — so a Release build evaluates neither the
         //      probe nor the strings, and the hot path is strictly cheaper than the old ladder.
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Resolve this occurrence's WorkingState across every tier, in one call (A2b).");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey};");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false,");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}? \"E2: stateful condition slot {slotKey} missing from the entity's occurrence store\"");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}: \"E2: entity has no BlueprintBlackboard* tier component for stateful condition slot {slotKey}\");");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}return Fbt.NodeStatus.Failure;");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-        sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{wsTypeFqn}>(__wsPtr);");
+        AppendWorkingStateResolve(sb, pad2 + Indent + Indent + Indent, dto, packedFields, slotKey, wsTypeFqn,
+            "E2", "condition ", "return Fbt.NodeStatus.Failure;");
         sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {callExpr} ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;");
         sb.AppendLine($"{pad2}{Indent}{Indent}}}");
         sb.AppendLine($"{pad2}{Indent}}});");
@@ -861,7 +943,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
-            AppendReusableStatefulThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+            AppendReusableStatefulThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime)");
         }
     }
@@ -941,7 +1023,7 @@ public static class BTreeBridgeEmitCore
                 sb.AppendLine($"{pad2}{Indent}{Indent}\") != predicted {predictedSize} bytes baked at offset {offset}. \" +");
                 sb.AppendLine($"{pad2}{Indent}{Indent}\"Rebuild the behavior blackboard layout so predicted and reflected sizes agree.\");");
             }
-            AppendReusableStatefulConditionThunk(sb, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
+            AppendReusableStatefulConditionThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
                 $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == Fbt.NodeStatus.Success");
         }
     }
@@ -958,7 +1040,8 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     private static void EmitStatefulWorkingSlotsArray(
         StringBuilder sb, BehaviorTreeAssetDto dto, string pad,
-        bool appendHostedSlots = false)
+        bool appendHostedSlots,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? blockPackedFields)
     {
         // Collect unique stateful entries (deduped by SlotKey).
         var slotsBySeen = new Dictionary<int, (int SlotKey, string WsTypeId, string NodeLabel, int Role, int Scope)>();
@@ -1016,6 +1099,8 @@ public static class BTreeBridgeEmitCore
             string? scopeVar = string.IsNullOrEmpty(workingStateTargetField) ? targetField : workingStateTargetField;
             int slotKey = ResolveStatefulSlotKey(dto, scopeVar, visualId);
             if (slotsBySeen.ContainsKey(slotKey)) continue;
+            // ⭐ CE-437: a Behavior-scoped State variable lives in the block, not in a side slot.
+            if (TryGetBlockStateVariable(dto, blockPackedFields, slotKey, out _)) continue;
 
             string wsTypeId = string.IsNullOrEmpty(wsTypeIdRaw)
                 ? DeriveWorkingStateTypeFromMethod(methodFqn)
@@ -1056,6 +1141,7 @@ public static class BTreeBridgeEmitCore
 
                 int standaloneSlotKey = ComputeStatefulSlotKey(dto.AssetId, v.Scope, Guid.Empty, v.Name);
                 if (slotsBySeen.ContainsKey(standaloneSlotKey)) continue; // node-bound (e.g. T35) — already seen above.
+                if (TryGetBlockStateVariable(dto, blockPackedFields, standaloneSlotKey, out _)) continue; // CE-437: in the block.
 
                 string standaloneWsTypeId = v.Type?.TypeId ?? string.Empty;
                 if (string.IsNullOrEmpty(standaloneWsTypeId)) continue;
@@ -1627,17 +1713,8 @@ public static class BTreeBridgeEmitCore
                 // ⭐ A2b — the THIRD emitted ladder, and the one my own A2 census MISSED because it is
                 //   PARAMETERISED PER TIER (three calls to one helper) rather than written out inline.
                 //   ⚠ Same collapse, same seam; the deactivator returns void, so a miss just returns.
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}// Resolve this occurrence's WorkingState across every tier, in one call (A2b).");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}const int __slotKey = {slotKey.Value};");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{{");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}global::System.Diagnostics.Debug.Assert(false,");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}? \"S3-G: stateful deactivator slot {slotKey.Value} missing from the entity's occurrence store\"");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{Indent}{Indent}: \"S3-G: entity has no BlueprintBlackboard* tier component for stateful deactivator slot {slotKey.Value}\");");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}return;");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}}}");
-                sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var ws = ref Unsafe.AsRef<{d.WorkingStateTypeFqn}>(__wsPtr);");
+                AppendWorkingStateResolve(sb, pad2 + Indent + Indent + Indent, dto, packedFields, slotKey.Value, d.WorkingStateTypeFqn ?? string.Empty,
+                    "S3-G", "deactivator ", "return;");
                 sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{methodRef}(ref dto, ref ws, ref st, ref ctx, pi);");
                 sb.AppendLine($"{pad2}{Indent}{Indent}}}");
                 sb.AppendLine($"{pad2}{Indent}}});");

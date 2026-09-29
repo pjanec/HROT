@@ -68,20 +68,35 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-235</c> — the generator NAMES the emitted struct as the authored contract, and names
-    /// the same type as the layout. Both, and equal: for a generated asset there is one shape.
+    /// ⭐ A generated behaviour's layout is its <c>{Asset}_Block</c> and the block's <c>In</c> field is
+    /// the published params struct — the shape <c>CE-437</c> emits. Everything that must only look at
+    /// the Inputs half filters on this, rather than on the two members being the same type.
+    /// </summary>
+    private static bool IsGeneratedBlock(BehaviorDefinition d)
+        => d.JsonParamsDtoType is not null
+        && d.BlackboardLayoutType?.GetField("In")?.FieldType == d.JsonParamsDtoType;
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-235</c> → <c>CE-437</c> — the generator names the emitted Inputs struct as the
+    /// authored contract and the BLOCK as the layout. ⛔⛔ <b>This used to assert the two were the SAME
+    /// type</b> — true while the struct held Inputs only. 📄 <c>Q76</c> §12.2b named this flip in
+    /// advance: <i>"flip <c>Assert.Same</c> to 'the layout's first field is the published contract'"</i>
+    /// — the separation <c>CE-235</c> made so an engine-internal layout is never a wire contract.
     ///
-    /// <para>⚠ Inverse-edit red-proof: remove either emitted line and this fails on the null.</para>
+    /// <para>⚠ Inverse-edit red-proof: emit <c>BlackboardLayoutType = typeof(Inputs)</c> again and the
+    /// name assertion fails with <c>T09_BlackboardManaged_Blackboard</c>.</para>
     /// </summary>
     [Fact]
-    public void AGeneratedBehaviourNamesItsEmittedStructAsBothShapes()
+    public void AGeneratedBehaviourPublishesItsInputsAndLaysOutItsBlock()
     {
         BehaviorDefinition def = Definition(LoadProductionRegistry(), "T09_BlackboardManaged");
 
         Assert.NotNull(def.JsonParamsDtoType);
         Assert.NotNull(def.BlackboardLayoutType);
-        Assert.Same(def.JsonParamsDtoType, def.BlackboardLayoutType);
         Assert.Equal("T09_BlackboardManaged_Blackboard", def.JsonParamsDtoType!.Name);
+        Assert.Equal("T09_BlackboardManaged_Block", def.BlackboardLayoutType!.Name);
+        Assert.Same(def.JsonParamsDtoType, def.BlackboardLayoutType.GetField("In")!.FieldType);
+        Assert.Equal(0, (int)System.Runtime.InteropServices.Marshal.OffsetOf(def.BlackboardLayoutType, "In"));
     }
 
     /// <summary>
@@ -97,9 +112,7 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
 
         var generated = registry.GetRegisteredNames()
             .Select(n => Definition(registry, n))
-            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 }
-                     && d.JsonParamsDtoType is not null
-                     && ReferenceEquals(d.JsonParamsDtoType, d.BlackboardLayoutType))
+            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 } && IsGeneratedBlock(d))
             .ToArray();
 
         Assert.NotEmpty(generated);   // anti-vacuity
@@ -145,7 +158,7 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
 
         var generated = registry.GetRegisteredNames()
             .Select(n => Definition(registry, n))
-            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 } && d.BlackboardLayoutType is not null)
+            .Where(d => d.ManagedBlackboardVariables is { Count: > 0 } && IsGeneratedBlock(d))
             .ToArray();
 
         Assert.NotEmpty(generated);   // anti-vacuity: the probe measured 15 such behaviours
@@ -159,10 +172,12 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
                 // ⚠ A field the struct does not carry is a DIFFERENT defect (name drift), and
                 //   TheAdvertisedNamesAreExactlyTheManifestEntries owns it. Skip rather than
                 //   throw, so a name failure is reported by the test that explains it.
-                if (def.BlackboardLayoutType!.GetField(v.Name) is null) continue;
+                // ⚠ CE-437: the Inputs struct is the block's `In` at offset 0, so its offsets ARE the
+                //   block's — compare against it, not the block (which has no field named v.Name).
+                if (def.JsonParamsDtoType!.GetField(v.Name) is null) continue;
 
                 int structOffset = (int)System.Runtime.InteropServices.Marshal
-                    .OffsetOf(def.BlackboardLayoutType!, v.Name);
+                    .OffsetOf(def.JsonParamsDtoType!, v.Name);
 
                 if (structOffset != v.ByteOffset)
                     disagreements.Add(
@@ -180,20 +195,20 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     /// published params struct, at offset 0.</b> 📄 <c>Q76</c> §12.2a / §12.7 row 1: <i>"the Input region
     /// is byte-identical — assert on the ARTEFACT, not on a re-computation."</i>
     ///
-    /// <para>⭐ Asserting that <c>In</c> is the SAME <see cref="Type"/> as <c>BlackboardLayoutType</c> is
+    /// <para>⭐ Asserting that <c>In</c> is the SAME <see cref="Type"/> as <c>JsonParamsDtoType</c> is
     /// stronger than comparing offsets field by field: one type cannot have two layouts, so every
     /// manifest offset <see cref="TheStructsOffsetsAreExactlyTheManifestsOffsets"/> pins holds inside
     /// the block unchanged.</para>
     ///
-    /// <para>⭐ The State half is cross-checked against the REGISTRAR, which is an independent producer:
-    /// every <c>St</c> field's type must be one the definition already provisions as a
-    /// <c>Scope=Behavior</c> stateful slot. ⇒ the block describes the state the runtime really keeps,
-    /// not a guess.</para>
+    /// <para>⭐⭐ <c>CE-437</c> + <c>CE-429</c>: the State in <c>St</c> has ONE home — the definition
+    /// provisions no <c>Scope=Behavior</c> side slot any more — and the root slot is sized to hold the
+    /// whole block. Both would be silent if wrong: a leftover side slot is storage nobody reads, and an
+    /// undersized root slot makes <c>TryGetBlockFor</c> refuse and every stateful node fail.</para>
     ///
-    /// <para>⚠ <b>Inverse-edit red-proof:</b> emit <c>St</c> before <c>In</c> (swap the two
-    /// <c>FieldOffset</c> values in <c>BTreeEmitCore.EmitBlockStructs</c>) and the offset-0 assertion
-    /// fails for <c>T35_SharedWorkingState</c> and <c>PlatoonHillAttack</c>; skip the block emission
-    /// and the lookup fails for every behaviour.</para>
+    /// <para>⚠ <b>Inverse-edit red-proof:</b> drop the <c>TryGetBlockStateVariable</c> skip in
+    /// <c>EmitStatefulWorkingSlotsArray</c> and the side-slot assertion fails for
+    /// <c>T35_SharedWorkingState</c> and <c>PlatoonHillAttack</c>; size the root from the manifest extent
+    /// alone and the width assertion fails for both.</para>
     /// </summary>
     [Fact]
     public void EveryGeneratedBehaviourHasOneBlockWhoseInputsAreItsParamsStructAtOffsetZero()
@@ -203,8 +218,9 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
         var generated = registry.GetRegisteredNames()
             .Select(n => Definition(registry, n))
             .Where(d => d.ManagedBlackboardVariables is { Count: > 0 }
+                     && d.JsonParamsDtoType is not null
                      && d.BlackboardLayoutType is not null
-                     && ReferenceEquals(d.JsonParamsDtoType, d.BlackboardLayoutType))
+                     && d.BlackboardLayoutType.Name.EndsWith("_Block", StringComparison.Ordinal))
             .ToArray();
 
         Assert.NotEmpty(generated);   // anti-vacuity
@@ -214,9 +230,8 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
 
         foreach (BehaviorDefinition def in generated)
         {
-            Type layout = def.BlackboardLayoutType!;
-            Type? block = layout.Assembly.GetType(layout.Namespace + "." + def.Name + "_Block");
-            if (block is null) { problems.Add($"{def.Name}: no {def.Name}_Block emitted"); continue; }
+            Type layout = def.JsonParamsDtoType!;       // the published Inputs struct
+            Type block  = def.BlackboardLayoutType!;    // CE-437: the layout IS the block
 
             var inField = block.GetField("In");
             if (inField is null || inField.FieldType != layout)
@@ -228,14 +243,17 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
             if (stField is null) continue;
             withState++;
 
-            var provisioned = (def.StatefulWorkingSlots ?? Array.Empty<StatefulSlotInfo>())
+            // ⭐ CE-437: a variable in St must NOT also have a Behavior-scoped side slot — one home.
+            var sideSlots = (def.StatefulWorkingSlots ?? Array.Empty<StatefulSlotInfo>())
                 .Where(s => s.Scope == (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)
-                .Select(s => s.WorkingStateType)
-                .ToHashSet();
+                .ToArray();
+            if (sideSlots.Length > 0)
+                problems.Add($"{def.Name}: still provisions {sideSlots.Length} Behavior-scoped side slot(s) although its State lives in the block");
 
-            foreach (var f in stField.FieldType.GetFields())
-                if (!provisioned.Contains(f.FieldType))
-                    problems.Add($"{def.Name}: St.{f.Name} ({f.FieldType.Name}) is not a Behavior-scoped slot the registrar provisions");
+            // ⭐ CE-429: the root slot is sized from the block, so the State half is allocated.
+            int rootBytes = RootParamsAccess.RootParamsBytes(def);
+            if (rootBytes < System.Runtime.InteropServices.Marshal.SizeOf(block))
+                problems.Add($"{def.Name}: root slot {rootBytes} B is narrower than the block");
 
             int inBytes = System.Runtime.InteropServices.Marshal.SizeOf(layout);
             if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St") < inBytes)

@@ -129,14 +129,34 @@ public sealed class T35_SharedWorkingState_ProofTests : IDisposable
             Tick().Should().Be(NodeStatus.Running,
                 $"tick {tick} of 3 — RunsNeeded=100 keeps every composed node Running");
 
-            ReadSlotTicks(world, entity, SharedSlotKey).Should().Be(2 * tick,
-                $"tick {tick}: SharedA and SharedB both increment the SAME shared slot each tick " +
-                "(2 increments/tick) -- proves they resolve to ONE partition slot, not two independent ones");
+            ReadSharedTicksFromTheBlock(world, entity, id).Should().Be(2 * tick,
+                $"tick {tick}: SharedA and SharedB both increment the SAME shared variable each tick " +
+                "(2 increments/tick) -- proves they resolve to ONE storage location, not two independent ones");
 
             ReadSlotTicks(world, entity, ControlSlotKey).Should().Be(tick,
                 $"tick {tick}: the Node-scoped control increments only its OWN slot (1 increment/tick) — " +
                 "stays isolated from the shared slot even though it runs in the same Parallel");
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-437</c> — the shared <c>Role=State, Scope=Behavior</c> variable lives in the
+    /// behaviour's BLOCK now (<c>R-151</c>), as <c>St.bpSharedWorkingState</c>. ⛔ This used to read a
+    /// side slot keyed <see cref="SharedSlotKey"/>; the claim is unchanged — two nodes, one location —
+    /// and so is the Node-scoped control, which keeps its own slot. ⭐ The one-home half is asserted
+    /// too: no side slot survives under the old key.
+    /// </summary>
+    private static unsafe int ReadSharedTicksFromTheBlock(EntityRepository world, Entity entity, int behaviourId)
+    {
+        RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block>(
+                world, entity, behaviourId, out var blk)
+            .Should().BeTrue("CE-437: T35's block must be allocated and at least as wide as its type");
+
+        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        BlueprintBlackboardPartitions.TryGetSlotOffset(mem, SharedSlotKey, out _)
+            .Should().BeFalse("CE-437: the shared variable has ONE home — the block — and no side slot");
+
+        return blk->St.bpSharedWorkingState.Ticks;
     }
 
     private static unsafe int ReadSlotTicks(EntityRepository world, Entity entity, int slotKey)

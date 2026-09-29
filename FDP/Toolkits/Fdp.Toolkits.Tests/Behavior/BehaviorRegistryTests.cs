@@ -438,6 +438,51 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(typeof(int), d2.BlackboardLayoutType);
         }
 
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit, Size = 24)]
+        private struct Ce437Block { [System.Runtime.InteropServices.FieldOffset(0)] public long In; [System.Runtime.InteropServices.FieldOffset(8)] public long StA; }
+
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, Size = 16)]
+        private struct Ce437WideParams { public long A; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-437</c> — <b>a curated resolver overlay must not DEMOTE a generated block.</b>
+        /// The resolver's type is what it WRITES — the Input region at offset 0 — not the whole block.
+        /// 🔴 Found live: <c>PlatoonHillAttack</c>'s overlay replaced its block with its 56-byte params
+        /// struct, the root slot shrank, and its <c>HillAttackMutableState</c> had nowhere to live.
+        /// ⭐ Both orders, as the rail above. ⛔ And an overlay WIDER than the Input region of a block
+        /// that has a State half is refused — the parse would overwrite the State.
+        /// </summary>
+        [Fact]
+        public void RegisterResolver_KeepsAGeneratedBlock_WhenItsTypeFitsTheInputRegion()
+        {
+            static BehaviorDefinition Generated() => new()
+            {
+                Name                       = "Blk",
+                BrainTier                  = BehaviorConstants.BrainTierBTree,
+                ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
+                BlackboardLayoutType       = typeof(Ce437Block),
+                ParseParams = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+            };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { };
+
+            var r1 = new BehaviorRegistry();
+            r1.Register("Blk", Generated());
+            r1.RegisterResolver("Blk", curated, typeof(long));
+            Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d1));
+            Assert.Equal(typeof(Ce437Block), d1!.BlackboardLayoutType);
+            Assert.Same(curated, d1.ParseParams);
+
+            var r2 = new BehaviorRegistry();
+            r2.RegisterResolver("Blk", curated, typeof(long));
+            r2.Register("Blk", Generated());
+            Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Blk"), out var d2));
+            Assert.Equal(typeof(Ce437Block), d2!.BlackboardLayoutType);
+
+            var r3 = new BehaviorRegistry();
+            r3.Register("Blk", Generated());
+            Assert.Throws<System.InvalidOperationException>(() => r3.RegisterResolver("Blk", curated, typeof(Ce437WideParams)));
+        }
+
         // ── Test 11 — name-based Register overload derives id from name ─────
         /// <summary>
         /// The name-based <see cref="BehaviorRegistry.Register(string, BehaviorDefinition)"/>

@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425 are BUILT (§12.15, §12.16). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429 are BUILT (§12.15–§12.17). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -1649,3 +1649,93 @@ classDiagram
 | ⏭ **not yet** | the HSM arm *(`Q75`-`S1`)* — the HSM generator still emits no struct at all |
 
 ⭐ **Revised order:** ~~`CE-425`~~ ✅ → **`CE-437` + `CE-429` together** → `CE-426` + `CE-432` together → `CE-427` → `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`.
+
+---
+
+### 12.17 ✅ `CE-437` + `CE-429` AS BUILT — **the block is the root region; `Behavior` State lives in it** *(`2026-09-29`)*
+
+```mermaid
+classDiagram
+    class BehaviorDefinition {
+        <<EXISTS>>
+        +Type JsonParamsDtoType  : Asset_Blackboard - Inputs
+        +Type BlackboardLayoutType : Asset_Block - FLIPPED
+        +ManagedBlackboardVariable[] ManagedBlackboardVariables : Input extent, may be EMPTY
+        +StatefulSlotInfo[] StatefulWorkingSlots : NO Behavior-scoped entries
+    }
+    class Asset_Block {
+        <<generated - Explicit>>
+        +Asset_Blackboard In at 0
+        +Asset_BlockState St at align8 of Input bytes
+    }
+    class Asset_BlockState {
+        <<generated - Sequential, CLR laid out>>
+        Role State, Scope Behavior fields
+    }
+    class RootParamsAccess {
+        <<EXISTS - widened>>
+        +RootParamsBytes(def) max of Input extent and sizeof layout
+        +InputBytes(def) NEW - manifest extent, or whole layout if no manifest
+        +TryGetBlockFor~T~(world, self, behaviourHash) NEW
+    }
+    class BehaviorIngressSystem {
+        <<EXISTS - one rule changed>>
+        seed carry: same behaviour = whole block, change = InputBytes only
+    }
+    class BTreeBridgeEmitCore {
+        <<EXISTS>>
+        +AppendWorkingStateResolve() NEW - one emission for action, condition, deactivator
+    }
+    Asset_Block *-- Asset_BlockState
+    BehaviorDefinition --> Asset_Block : BlackboardLayoutType
+    BTreeBridgeEmitCore ..> RootParamsAccess : emitted thunks call TryGetBlockFor
+    BehaviorIngressSystem ..> RootParamsAccess : RootParamsBytes, InputBytes
+```
+
+> ⭐ **Caption.** The arrow §12.16 drew dashed is now solid. ⭐ What the picture shows that prose
+> would blur: **the State half is `Sequential`**, not `Explicit` like the Inputs. ⇒ `CE-418`'s rule
+> ("the struct IS the manifest") applies only where a manifest exists — the State offsets are stated
+> nowhere and read only by typed field access, so the CLR may lay them out. That is what dissolved the
+> `fixed`-buffer blocker §12.16 recorded: `PlatoonHillAttack` now HAS a block.
+
+```mermaid
+sequenceDiagram
+    participant Bus as AssignBehaviorEvent
+    participant Ing as BehaviorIngressSystem
+    participant RPA as RootParamsAccess
+    participant Thunk as generated stateful thunk
+    Bus->>Ing: assign behaviour B
+    Ing->>RPA: RootParamsBytes(B) = sizeof(B_Block)
+    Ing->>Ing: seed shadow from previous root slot
+    Note over Ing: same behaviour: carry whole block, State kept<br/>behaviour changed: carry InputBytes only, State zero
+    Ing->>Ing: ParseParams(shadow) writes Inputs only
+    Ing->>RPA: ResolveOrAttachRoot(B, sizeof block), commit
+    Thunk->>RPA: TryGetBlockFor of B_Block, keyed by hash of B
+    RPA-->>Thunk: block pointer, or false if slot absent or narrower
+    Thunk->>Thunk: ref ws = ref blk.St.variable, then call the node
+```
+
+> ⭐ **Caption.** The note box is the one semantic decision: the State half keeps **exactly** the
+> lifetime its side slot had — kept on a same-behaviour re-assign (`ProvisionStatefulSlots` kept an
+> identical slot), zeroed on a change (the slot was detached and re-attached). ⭐ The thunk keys on
+> **its own** behaviour, never the active one: a hosted subtree runs under its HOST's hash, so the
+> active-keyed lookup would hand it the host's block. Keyed on its own identity it finds nothing and
+> fails loudly — `CE-431` gives it a block of its own.
+
+| decision | why — and the alternative rejected in one line |
+|---|---|
+| ⭐ **`RootParamsBytes` = `max(Input extent, sizeof(layout))`** | a curated overlay can pair a JSON manifest with a wider hand-written layout (`HullDownAttackRun`). ⛔ *"prefer the layout"* — under-allocates if a manifest ever outgrows it |
+| ⭐ **an EMPTY manifest is an authority** (`InputBytes` = 0) | a behaviour with no `Role=Input` variable declares `ManagedBlackboardVariables = []` ⇒ nothing carries into its State across a change. ⛔ *"no manifest ⇒ whole layout"* — would carry another behaviour's bytes into `St` |
+| ⭐ **an input-less block gets a parse that supplies nothing** | ingress allocates the root region only for a behaviour with a `ParseParams`. ⛔ *"allocate whenever a layout type exists"* — widens to CURATED behaviours, which declare a layout without a parse |
+| 🔴 **a curated resolver overlay no longer DEMOTES the block** — *found by the build, not the design* | `BehaviorRegistry.ApplyResolverOverlay` replaced `BlackboardLayoutType` with the resolver's params type. For `PlatoonHillAttack` that shrank the root slot to its 56-byte params and the State half had nowhere to live — ⭐ caught by the SimHost `HillAttackIntegrationTests`, whose thunks hit the new loud *"no block for behaviour"* guard. ⇒ the resolver's type describes what it WRITES (the Input region), so when it fits the Input region the block stays the layout; wider **and** the block has a State half ⇒ registration throws rather than let the parse overwrite State. ⛔ *"let the overlay win as before"* — silently loses the State half |
+| ⭐ **`BehaviorHash.FromName` is called in the thunk** | ⛔ baking the hash as a constant would put a second copy of the FNV in the emitter — `R-132`, a silent-divergence risk for one hash per stateful tick |
+
+⚠ **Behaviour changes a user can see:** the Active Parameters panel, the Replay Browser's slot
+picker and `BrainDiagnosticsTranslator`'s dump all read `BlackboardLayoutType` generically, so they now
+show the block **nested** — `In.X` and `St.Y` — and the state becomes visible in them. A Replay
+Browser predicate saved against a root-param path `X` must now say `In.X`; **none is persisted in the
+repo** (swept `2026-09-29`).
+
+⏭ **Not in this slice:** the HSM arm (`Q75`-`S1`, the HSM generator still emits no struct) · baking a
+`Role=State` default into the block (`CE-420`, closes in `CE-426`) · `T37:rally` stays `Entity` on its
+side slot until decision `A`.

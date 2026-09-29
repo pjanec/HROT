@@ -1443,11 +1443,16 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorConstants.BrainTierBTree, def.BrainTier);
             Assert.NotNull(def.BTreeInterpreter);
 
-            // S3-G: the Blackboard1024 HeavyDtoType hack is gone; working state is a partition slot.
+            // S3-G: the Blackboard1024 HeavyDtoType hack is gone.
             Assert.Null(def.HeavyDtoType);
-            Assert.NotNull(def.StatefulWorkingSlots);
-            Assert.Single(def.StatefulWorkingSlots);
-            Assert.Equal(typeof(HillAttackMutableState), def.StatefulWorkingSlots[0].WorkingStateType);
+            // ⭐⭐ CE-437: the working state lives in the behaviour's BLOCK (St.State), not in a
+            //   Behavior-scoped partition slot — one home. ⛔ This asserted a single side-slot entry.
+            //   ⚠ And the curated resolver overlay must NOT demote the block to its params type.
+            Assert.Equal("PlatoonHillAttack_Block", def.BlackboardLayoutType!.Name);
+            Assert.Equal(typeof(HillAttackMutableState),
+                def.BlackboardLayoutType.GetField("St")!.FieldType.GetField("State")!.FieldType);
+            Assert.DoesNotContain(def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>(),
+                s => s.WorkingStateType == typeof(HillAttackMutableState));
         }
 
         /// <summary>SC-HA013-3: Assigning PlatoonHillAttack via AssignBehaviorEvent updates

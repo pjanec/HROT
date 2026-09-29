@@ -152,19 +152,14 @@ namespace Hrot.SimHost.Tests
         private static unsafe ref HillAttackMutableState GetHeavyState(
             EntityRepository repo, Entity entity)
         {
-            // S3-G: working state now lives in the Behavior-scoped BlueprintBlackboard* partition slot
-            // (provisioned by BehaviorIngressSystem when PlatoonHillAttack is assigned), NOT Blackboard1024.
-            int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
-                new Guid("1a000000-0000-0000-0000-0000000000dd"),
-                StatefulSlotScope.Behavior, Guid.Empty, "State");
-
-            // ⭐ B4 — design §17.7. This was the three-arm ladder, and its ELSE branch assumed
-            //   1024 was the floor. O3b's 256 tier made that assumption false, so a small store
-            //   threw here. The seam probes the whole ladder, largest-first, and always has.
-            byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
-
-            BlueprintBlackboardPartitions.TryGetSlotOffset(mem, slotKey, out int off);
-            return ref Unsafe.AsRef<HillAttackMutableState>(mem + off);
+            // ⭐⭐ CE-437 (2026-09-29): the Behavior-scoped State now lives in PlatoonHillAttack's BLOCK
+            //   (St.State, R-151), not in a side slot keyed FNV(assetId, "State"). ⛔ S3-G's partition slot,
+            //   read here before, is no longer provisioned. Found by the behaviour's OWN identity, exactly
+            //   as the generated thunks find it.
+            if (!RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(
+                    repo, entity, BehaviorHash.FromName("PlatoonHillAttack"), out var blk))
+                throw new InvalidOperationException("PlatoonHillAttack's block is not allocated (CE-437/CE-429)");
+            return ref blk->St.State;
         }
 
         private static unsafe void AddRoster(EntityRepository repo, Entity commander,

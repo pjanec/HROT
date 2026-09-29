@@ -104,7 +104,7 @@ public static class T11_AliasingRegistrar
                 new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 0),
             },
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T11_Aliasing_Blackboard),
-            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T11_Aliasing_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T11_Aliasing_Block),
             ParseParams  = __parseParams,
         });
     }

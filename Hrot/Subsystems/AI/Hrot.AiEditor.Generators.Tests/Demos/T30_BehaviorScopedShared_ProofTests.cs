@@ -243,33 +243,17 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
     //   two ROOT ones, so "expected 1, found 3" read as a product defect for two slices.
     //   RootParamsTestHarness.AssertAuthoredSlotsAre asserts WHICH keys are attached instead.
 
-    private static unsafe T ReadState<T>(EntityRepository world, Entity entity, int slotKey,
+    // ⭐⭐ CE-437: the shared Role=State, Scope=Behavior variable lives in the behaviour's BLOCK
+    //   (St.{StateVarName}), not a side slot. ⛔ These two helpers used to resolve a slot keyed
+    //   FNV(assetId, variable); the claims they serve — one location, shared by both nodes — are
+    //   unchanged, and HillAttackMutableState's `fixed` buffers ride inside the block.
+    private static T ReadState<T>(EntityRepository world, Entity entity, BehaviorDefinition def,
         Func<HillAttackMutableState, T> project)
-    {
-        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
-        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
-        //   production uses — it resolves whichever tier was actually chosen.
-        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
-        BlueprintBlackboardPartitions.TryGetSlotOffset(m, slotKey, out int off)
-            .Should().BeTrue("shared slot must exist");
-        return project(Unsafe.AsRef<HillAttackMutableState>(m + off));
-    }
+        => project(RootParamsTestHarness.ReadBlockState<HillAttackMutableState>(world, entity, def, StateVarName));
 
-    private static unsafe void MutateState(EntityRepository world, Entity entity, int slotKey,
+    private static void MutateState(EntityRepository world, Entity entity, BehaviorDefinition def,
         RefAction mutate)
-    {
-        // ⭐ B4: hard-coded the 1024 tier. With a 256 tier the ingress seats these entities
-        //   there, and GetComponentRW<...1024> throws. OccurrenceStoreAccess is the seam
-        //   production uses — it resolves whichever tier was actually chosen.
-        byte* m = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        (m != null).Should().BeTrue("entity must carry a blueprint blackboard tier");
-        {
-            BlueprintBlackboardPartitions.TryGetSlotOffset(m, slotKey, out int off)
-                .Should().BeTrue("shared slot must exist");
-            mutate(ref Unsafe.AsRef<HillAttackMutableState>(m + off));
-        }
-    }
+        => mutate(ref RootParamsTestHarness.ReadBlockState<HillAttackMutableState>(world, entity, def, StateVarName));
 
     private delegate void RefAction(ref HillAttackMutableState s);
 
@@ -290,10 +274,11 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         int slotKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
             assetId, WorkingStateScope.Behavior, Guid.Empty, StateVarName);
 
-        def.StatefulWorkingSlots.Should().NotBeNull();
-        def.StatefulWorkingSlots!.Count.Should().Be(1, "two co-bound Behavior nodes share one slot");
-        def.StatefulWorkingSlots[0].SlotKey.Should().Be(slotKey);
-        def.StatefulWorkingSlots[0].WorkingStateType.Should().Be(typeof(HillAttackMutableState));
+        // ⭐⭐ CE-437: one shared LOCATION still — but it is the block's St half, so no side slot.
+        (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>())
+            .Should().NotContain(x => x.SlotKey == slotKey, "CE-437: the shared state is block-resident");
+        def.BlackboardLayoutType!.GetField("St")!.FieldType.GetField(StateVarName)!.FieldType
+            .Should().Be(typeof(HillAttackMutableState));
         def.HeavyDtoType.Should().BeNull("Blackboard1024 HeavyDtoType hack is gone");
 
         var world = CreateWorld();
@@ -305,11 +290,11 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         // ⭐ CE-376: assert WHICH slots are attached, not HOW MANY — a count also counts the two ROOT
         //   slots (root params, root cursor), which is why this read "1" and found 3.
         RootParamsTestHarness.AssertAuthoredSlotsAre(
-            world, commander, def.StatefulWorkingSlots!.Select(s => s.SlotKey),
-            "two co-bound Behavior nodes provision exactly the ONE shared slot the manifest names");
+            world, commander, (def.StatefulWorkingSlots ?? System.Array.Empty<StatefulSlotInfo>()).Select(s => s.SlotKey),
+            "CE-437: exactly the slots the manifest names — the shared state is in the root block, not among them");
 
         // Pre-seed a sentinel so we can prove Action_CalculateSegments writes THIS slot, not a fresh one.
-        MutateState(world, commander, slotKey, (ref HillAttackMutableState s) => s.TotalSlots = 99);
+        MutateState(world, commander, def, (ref HillAttackMutableState s) => s.TotalSlots = 99);
 
         var ctx = new BTreeContext { Self = commander, World = world };
         {
@@ -320,15 +305,15 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
 
         // Action_CalculateSegments (node 1) computed TotalSlots=3 into the shared slot (overwrote 99),
         // and Condition_IsWaveCompleted (node 2) then read ActiveAttackerCount==0 from the SAME slot.
-        ReadState(world, commander, slotKey, s => s.TotalSlots).Should().Be(3,
+        ReadState(world, commander, def, s => s.TotalSlots).Should().Be(3,
             "CalculateSegments wrote TotalSlots into the shared slot (90 m / 30 m = 3), replacing the sentinel");
-        ReadState(world, commander, slotKey, s => (int)s.ActiveAttackerCount).Should().Be(0,
+        ReadState(world, commander, def, s => (int)s.ActiveAttackerCount).Should().Be(0,
             "CalculateSegments zeroed the tracker in the same slot IsWaveCompleted reads");
 
         // Storage-level cross-node proof: distinct nodes re-project the SAME slot, so a bitmask written
         // through one projection (as DispatchWave would) is visible through another (as IsWaveCompleted would).
-        MutateState(world, commander, slotKey, (ref HillAttackMutableState s) => s.WaveUsedSlotsMask = 0b1011);
-        ReadState(world, commander, slotKey, s => (int)s.WaveUsedSlotsMask).Should().Be(0b1011,
+        MutateState(world, commander, def, (ref HillAttackMutableState s) => s.WaveUsedSlotsMask = 0b1011);
+        ReadState(world, commander, def, s => (int)s.WaveUsedSlotsMask).Should().Be(0b1011,
             "a bitmask written to the shared slot by one node is read back by another over the same slot");
 
         world.Dispose();
@@ -358,7 +343,8 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
 
         // The stateful thunks must project the partition tier (BlueprintBlackboard*), never the
         // Blackboard1024 heavy component or an Unsafe.As<Blackboard1024, …> reinterpret.
-        all.Should().Contain("BlueprintBlackboard", "stateful thunks project the partition tier");
+        // ⭐ CE-437: the shared state is projected from the behaviour's BLOCK, found by its own identity.
+        all.Should().Contain("RootParamsAccess.TryGetBlockFor<", "stateful thunks project the block's St half");
         all.Should().Contain(StateTypeId.Replace('+', '.'),
             "working state is projected as HillAttackMutableState from the slot");
 
@@ -368,7 +354,7 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
         all.Should().NotContain("GetComponentRW<global::Fdp.Toolkit.Behavior.Components.Blackboard1024>",
             "the GetComponentRW<Blackboard1024>() hack must be gone");
         all.Should().NotContain("Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.HillAttackMutableState>",
-            "working state is projected from the slot pointer (Unsafe.AsRef), not reinterpreted over a component");
+            "working state is a typed field of the block, not reinterpreted over a component");
     }
 
     // ── TEST 3: HAJSON-B — the deactivator's node is baked resource-owning ─────────

@@ -17,7 +17,7 @@ public struct T39_TwoDistinctPrimitives_FdpToolkitBehaviorComponentsBrainBlackbo
 }
 
 /// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
-[StructLayout(LayoutKind.Explicit, Size = 24)]
+[StructLayout(LayoutKind.Explicit)]
 public struct T39_TwoDistinctPrimitives_Block
 {
     [FieldOffset(0)]

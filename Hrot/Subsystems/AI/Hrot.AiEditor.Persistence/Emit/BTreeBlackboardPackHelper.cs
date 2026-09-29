@@ -173,58 +173,6 @@ public static class BTreeBlackboardPackHelper
     }
 
     /// <summary>
-    /// ⭐ <c>CE-425</c> — packs the <b>State half</b> of the behaviour's block: the
-    /// <c>Role=State</c> variables at <c>Scope=Behavior</c>, in declaration order, with the SAME
-    /// alignment rule as <see cref="Pack(IReadOnlyList{BlackboardVariableDto}, Func{string, int?}?, out int)"/>
-    /// so the two halves are laid out by one authority (<c>CE-418</c>).
-    ///
-    /// <para>
-    /// ⛔ <c>Scope=Entity</c> is excluded on purpose: <c>BlueprintSharedState.TryGetShared</c> computes
-    /// the ENTITY key at runtime, so an Entity variable must keep its own slot until decision
-    /// <c>A</c> retires <c>GetShared</c> (<c>Q76</c> §12.15). <c>Scope=Node</c> is excluded because it
-    /// is not authorable (<c>CE-435</c>) and both bridge emitters skip it.
-    /// </para>
-    /// <para>
-    /// <paramref name="maxAlignment"/> is the struct's own alignment under the same rule — the
-    /// block places the State half on it. Throws <see cref="NotSupportedException"/> for a type no
-    /// resolver can size.
-    /// </para>
-    /// </summary>
-    public static IReadOnlyList<PackedField> PackBehaviorState(
-        IReadOnlyList<BlackboardVariableDto> variables,
-        Func<string, int?>? extraSizeResolver,
-        out int totalBytes,
-        out int maxAlignment)
-    {
-        if (variables == null) throw new ArgumentNullException(nameof(variables));
-
-        var result = new List<PackedField>();
-        int offset = 0;
-        maxAlignment = 1;
-
-        foreach (var v in variables)
-        {
-            if (v.Role != BlackboardVariableRole.State || v.Scope != WorkingStateScope.Behavior) continue;
-
-            string typeId = v.Type?.TypeId ?? string.Empty;
-            if (!TryResolveSize(typeId, extraSizeResolver, out int size))
-                throw new NotSupportedException(
-                    $"BTreeBlackboardPackHelper: unknown type '{typeId}' for State variable '{v.Name}'.");
-
-            int alignment = Math.Min(size, AlignmentCap);
-            if (alignment > maxAlignment) maxAlignment = alignment;
-            if (alignment > 0 && offset % alignment != 0)
-                offset += alignment - (offset % alignment);
-
-            result.Add(new PackedField(v.Name, typeId, offset, size));
-            offset += size;
-        }
-
-        totalBytes = offset;
-        return result;
-    }
-
-    /// <summary>
     /// Returns whether packing <paramref name="variables"/> would overflow the 100-byte inline budget.
     /// Does NOT throw for unknown types — returns false + sets <paramref name="unknownTypeId"/>.
     /// </summary>

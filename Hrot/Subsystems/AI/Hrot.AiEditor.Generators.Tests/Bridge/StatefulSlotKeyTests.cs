@@ -275,8 +275,9 @@ public sealed class StatefulSlotKeyTests
     // ── S3-7: manifest carries role/scope ─────────────────────────────────────────
 
     /// <summary>
-    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a Behavior-scoped State variable
-    /// must carry the authored Role (State=1) and Scope (Behavior=1) as the trailing ctor args, so
+    /// S3-7: the emitted StatefulWorkingSlots manifest entry for a side-slot State variable
+    /// must carry the authored Role (State=1) and Scope (here Entity=2 — ⚠ <c>CE-437</c> moved every
+    /// Behavior-scoped one into the block, where it has no manifest entry) as the trailing ctor args, so
     /// the live inspector can group/label by scope. (Node/Input assets stay byte-identical — the
     /// args are omitted when default — which is why only the non-default case is asserted here.)
     /// </summary>
@@ -310,12 +311,15 @@ public sealed class StatefulSlotKeyTests
                         Type = new BlackboardTypeRefDto { TypeId = ParamsTypeId },
                         Role = BlackboardVariableRole.Input,
                     },
+                    // ⚠ CE-437: ENTITY scope, not Behavior. A Behavior-scoped State variable is now
+                    //   block-resident and has no manifest entry at all, so it cannot carry this
+                    //   metadata; Entity scope is the one that still rides a side slot.
                     new BlackboardVariableDto
                     {
                         Name  = "shared",
                         Type  = new BlackboardTypeRefDto { TypeId = StateTypeId },
                         Role  = BlackboardVariableRole.State,
-                        Scope = WorkingStateScope.Behavior,
+                        Scope = WorkingStateScope.Entity,
                     }
                 }
             },
@@ -342,7 +346,7 @@ public sealed class StatefulSlotKeyTests
         // Role=State(1), Scope=Behavior(1) appended after the NodeLabel string, as named enum casts
         // (clarity-only change — same bytes, self-documenting source text) rather than raw ints.
         bridgeSrc.Should().Contain(
-            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior)",
-            "the StatefulSlotInfo for a Behavior-scoped State variable must carry Role=State, Scope=Behavior as named enum casts");
+            "\"AdvanceShared\", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Entity)",
+            "the StatefulSlotInfo for a side-slot State variable must carry its Role and Scope as named enum casts");
     }
 }

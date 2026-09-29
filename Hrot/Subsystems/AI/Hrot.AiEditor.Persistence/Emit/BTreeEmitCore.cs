@@ -179,88 +179,90 @@ public static class BTreeEmitCore
 
         sb.AppendLine("}");
 
-        EmitBlockStructs(sb, dto, sizeResolver, structName, fields.Count > 0, packedBytes);
+        EmitBlockStructs(sb, dto, structName, fields.Count > 0, packedBytes);
         return sb.ToString();
     }
 
+    /// <summary>⭐ <c>CE-425</c> — the block's type name: <c>{Asset}_Block</c>.</summary>
+    internal static string BlockStructName(BehaviorTreeAssetDto dto) => SanitizeIdentifier(dto.Name) + "_Block";
+
+    /// <summary>The <c>global::</c>-qualified block type, for emission into generated code.</summary>
+    internal static string BlockStructFqn(BehaviorTreeAssetDto dto)
+        => "global::" + BlackboardStructNamespace(dto) + "." + BlockStructName(dto);
+
     /// <summary>
-    /// ⭐⭐ <c>CE-425</c> — the behaviour's ONE BLOCK <i>(<c>R-151</c>, <c>Q76</c> §12.2)</i>:
+    /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half:
+    /// <c>Role=State</c> at <c>Scope=Behavior</c>, in declaration order.
+    /// ⛔ <c>Scope=Entity</c> stays on its own slot — <c>BlueprintSharedState.TryGetShared</c> computes
+    /// the ENTITY key at runtime, so it cannot move until decision <c>A</c> (<c>Q76</c> §12.15).
+    /// ⛔ <c>Scope=Node</c> is not authorable (<c>CE-435</c>) and both bridge emitters skip it.
+    /// </summary>
+    internal static List<BlackboardVariableDto> BlockStateVariables(BehaviorTreeAssetDto dto)
+    {
+        var result = new List<BlackboardVariableDto>();
+        if (dto.Blackboard?.Variables == null) return result;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Role == BlackboardVariableRole.State && v.Scope == WorkingStateScope.Behavior
+                && !string.IsNullOrEmpty(v.Type?.TypeId))
+                result.Add(v);
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-425</c> / <c>CE-437</c> — the behaviour's ONE BLOCK <i>(<c>R-151</c>, <c>Q76</c> §12.2)</i>:
     /// <c>{Asset}_Block { In; St; }</c>, where <c>In</c> is the Inputs struct emitted above —
     /// ⭐⭐⭐ <b>the SAME type, at offset 0</b>, so the Input region is byte-identical by
-    /// construction and every manifest offset stays valid (§12.2a).
+    /// construction and every manifest offset stays valid (§12.2a). Since <c>CE-437</c> it IS the
+    /// behaviour's <c>BlackboardLayoutType</c> and the root slot is sized from it (<c>CE-429</c>).
     ///
-    /// <para>
-    /// ⛔⛔ <b>ADDITIVE ONLY — nothing consumes the block yet, and that is deliberate.</b>
-    /// <c>BlackboardLayoutType</c> keeps naming the Inputs struct. 📐 Measured: the root params slot
-    /// is sized from the MANIFEST extent (<c>RootParamsAccess.RootParamsBytes</c>), while
-    /// <c>BrainDiagnosticsTranslator</c> does <c>PtrToStructure(ptr, BlackboardLayoutType)</c> and
-    /// StructEdit writes at the layout type's offsets. ⇒ pointing the layout type at a block wider
-    /// than the slot would READ and WRITE past the region. The flip therefore lands together with
-    /// sizing the slot from the block (<c>CE-429</c>) and with moving the Behavior-scoped State
-    /// readers off their side slots — see the <c>CE-425</c> row.
-    /// </para>
-    /// <para>
-    /// ⚠ A half with no fields is OMITTED rather than emitted empty: an empty C# struct is one byte,
-    /// so an empty <c>St</c> would change the block's size for nothing.
-    /// </para>
+    /// <para>⭐⭐ <b>The State half is <c>Sequential</c> — the CLR lays it out, and that is correct
+    /// here where it was wrong for the Inputs.</b> <c>CE-418</c> needed <c>Pack</c>'s offsets because a
+    /// MANIFEST states the Input offsets and something reads by it. Nothing states the State offsets:
+    /// they are reached only by typed field access (<c>ref block.St.name</c>). ⇒ no generate-time size
+    /// is needed, which is what lets a state type with <c>fixed</c> buffers (<c>HillAttackMutableState</c>,
+    /// unsizable by <c>StructSizeResolver</c>) have a block at all.</para>
+    ///
+    /// <para>⭐ <c>St</c> sits at the Input bytes rounded up to 8 — the largest alignment any field can
+    /// need — so it never overlaps <c>In</c> whatever the CLR rounds <c>In</c>'s size to.</para>
+    ///
+    /// <para>⚠ A half with no fields is OMITTED rather than emitted empty: an empty C# struct is one
+    /// byte, so an empty <c>St</c> would change the block's size for nothing.</para>
     /// </summary>
     private static void EmitBlockStructs(
         StringBuilder sb,
         BehaviorTreeAssetDto dto,
-        SizeResolverDelegate? sizeResolver,
         string inputsStructName,
         bool hasInputs,
         int inputBytes)
     {
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> stateFields;
-        int stateBytes, stateAlign;
-        try
-        {
-            stateFields = BTreeBlackboardPackHelper.PackBehaviorState(
-                dto.Blackboard.Variables, sizeResolver, out stateBytes, out stateAlign);
-        }
-        catch (NotSupportedException ex)
-        {
-            // ⛔ Never cost the Inputs struct: a State type nobody can size skips the BLOCK only.
-            // ⚠ But say so IN THE ARTEFACT — a silently absent block is the silent-default pattern.
-            //   📐 Measured 2026-09-29: PlatoonHillAttack's HillAttackMutableState carries `fixed`
-            //   buffers, which StructSizeResolver.GetTypeSize cannot size (CE-437 owns the fix).
-            sb.AppendLine();
-            sb.AppendLine("// CE-425: no block emitted — " + ex.Message);
-            return;
-        }
-
-        string prefix    = SanitizeIdentifier(dto.Name);
-        string blockName = prefix + "_Block";
-        string stateName = prefix + "_BlockState";
-        bool   hasState  = stateFields.Count > 0;
+        var stateVars = BlockStateVariables(dto);
+        string blockName = BlockStructName(dto);
+        string stateName = SanitizeIdentifier(dto.Name) + "_BlockState";
+        bool   hasState  = stateVars.Count > 0;
 
         if (hasState)
         {
             sb.AppendLine();
-            sb.AppendLine($"/// <summary>CE-425: the Role=State, Scope=Behavior half of <see cref=\"{blockName}\"/>.</summary>");
-            sb.AppendLine($"[StructLayout(LayoutKind.Explicit, Size = {stateBytes})]");
+            sb.AppendLine($"/// <summary>CE-437: the Role=State, Scope=Behavior half of <see cref=\"{blockName}\"/>.</summary>");
+            sb.AppendLine("[StructLayout(LayoutKind.Sequential)]");
             sb.AppendLine($"public struct {stateName}");
             sb.AppendLine("{");
-            foreach (var f in stateFields)
+            foreach (var v in stateVars)
             {
-                if (f.TypeId == "System.Boolean" || f.TypeId == "bool")
+                string typeId = v.Type!.TypeId;
+                if (typeId == "System.Boolean" || typeId == "bool")
                     sb.AppendLine($"{Indent}[MarshalAs(UnmanagedType.I1)]");
-                sb.AppendLine($"{Indent}[FieldOffset({f.ByteOffset})]");
-                sb.AppendLine($"{Indent}public {ToCsTypeName(f.TypeId)} {f.Name};");
+                sb.AppendLine($"{Indent}public {ToCsTypeName(typeId)} {v.Name};");
             }
             sb.AppendLine("}");
         }
 
-        int stateOffset = inputBytes;
-        if (stateAlign > 0 && stateOffset % stateAlign != 0)
-            stateOffset += stateAlign - (stateOffset % stateAlign);
-        int blockBytes = hasState ? stateOffset + stateBytes : inputBytes;
+        int stateOffset = hasInputs ? (inputBytes + 7) & ~7 : 0;
 
         sb.AppendLine();
-        sb.AppendLine($"/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>");
+        sb.AppendLine("/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>");
         sb.AppendLine(hasInputs || hasState
-            ? $"[StructLayout(LayoutKind.Explicit, Size = {blockBytes})]"
+            ? "[StructLayout(LayoutKind.Explicit)]"
             : "[StructLayout(LayoutKind.Sequential)]");
         sb.AppendLine($"public struct {blockName}");
         sb.AppendLine("{");
@@ -271,7 +273,7 @@ public static class BTreeEmitCore
         }
         if (hasState)
         {
-            sb.AppendLine($"{Indent}[FieldOffset({(hasInputs ? stateOffset : 0)})]");
+            sb.AppendLine($"{Indent}[FieldOffset({stateOffset})]");
             sb.AppendLine($"{Indent}public {stateName} St;");
         }
         sb.AppendLine("}");

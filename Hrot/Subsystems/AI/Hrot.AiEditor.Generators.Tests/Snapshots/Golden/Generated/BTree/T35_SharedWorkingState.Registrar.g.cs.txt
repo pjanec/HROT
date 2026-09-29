@@ -52,17 +52,14 @@ public static class T35_SharedWorkingStateRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)0));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1452493810;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'bpSharedWorkingState' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T35_SharedWorkingState"), out global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1452493810 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1452493810");
+                            "CE-437: S2-1 stateful variable 'bpSharedWorkingState' — no block for behaviour 'T35_SharedWorkingState' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(__wsPtr);
+                    ref var ws = ref __blk->St.bpSharedWorkingState;
                     return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
                 }
             });
@@ -80,17 +77,14 @@ public static class T35_SharedWorkingStateRegistrar
                     // Project Params from BrainBlackboard (Slice-1 pattern).
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(ctx.World, ctx.Self), (nint)4));
-                    // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
-                    const int __slotKey = 1452493810;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    // CE-437: 'bpSharedWorkingState' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's block (R-151).
+                    if (!global::Fdp.Toolkit.Behavior.RootParamsAccess.TryGetBlockFor<global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block>(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.BehaviorHash.FromName("T35_SharedWorkingState"), out global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block* __blk))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
-                            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)
-                                ? "S2-1: stateful slot 1452493810 missing from the entity's occurrence store"
-                                : "S2-1: entity has no BlueprintBlackboard* tier component for stateful slot 1452493810");
+                            "CE-437: S2-1 stateful variable 'bpSharedWorkingState' — no block for behaviour 'T35_SharedWorkingState' on this entity (not assigned, or ticked as a hosted subtree: CE-431)");
                         return Fbt.NodeStatus.Failure;
                     }
-                    ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(__wsPtr);
+                    ref var ws = ref __blk->St.bpSharedWorkingState;
                     return global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore(ref dto, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
                 }
             });
@@ -200,11 +194,10 @@ public static class T35_SharedWorkingStateRegistrar
                 new("bpParamsControl", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 8),
             },
             JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard),
-            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_FdpToolkitBehaviorComponentsBrainBlackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block),
             ParseParams  = __parseParams,
             StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
             {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(1452493810, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitive_SharedA", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
                 new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(935647214, global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>(), unchecked(2735364350u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState>()), typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.WorkingState), "ComposedAiPrimitive_Control"),
             },
         });
