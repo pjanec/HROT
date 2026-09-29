@@ -242,6 +242,48 @@ public sealed class OwnParamResolverTests
 
     // ── helpers ──────────────────────────────────────────────────────────────
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-428</c> — shape ③: the shipped BEHAVIOUR resolver asset <c>T40Resolver</c> compiles to the
+    /// injected signature and writes the behaviour's block through its two halves. 📄 <c>Q76</c> §12.20.
+    /// <para>⚠ Read from the corpus FILE through <c>BlueprintJsonServices</c> — the generator's own read path —
+    /// so a <c>ResolverSubject</c> lost in (de)serialisation reds here rather than as a build-time BP1011.</para>
+    /// </summary>
+    [Fact]
+    public void CE428_ABehaviourResolverAsset_EmitsTheInjectedBlockSignature()
+    {
+        var asset = GoldenCorpus.Load("T40Resolver");
+        Assert.NotNull(asset.ResolverSubject);
+        Assert.Equal(new[] { "Doubled" }, asset.ResolverSubject!.StateVariables);
+
+        var src = Emit(asset);
+        Assert.Contains("public static void ResolveBehavior(in global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Blackboard authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block,", src);
+        Assert.Contains("block.In.Speed", src);          // a Variable NOT in StateVariables ⇒ the In half
+        Assert.Contains("block.St.Doubled = ", src);     // a Variable in StateVariables ⇒ the St half
+    }
+
+    /// <summary>
+    /// ⛔⛔ <c>CE-428</c> — <b>the compiler's working copy of the asset must carry EVERY public settable property.</b>
+    /// <c>BlueprintCompiler.Compile</c> rebuilds the asset field by field; 📌 measured: the new
+    /// <c>ResolverSubject</c> was not on that list, so a resolver asset compiled as a plain Library (BP1011) while
+    /// every Stage-2-only rail stayed green. ⭐ Reflection, so the NEXT new property reds here too.
+    /// </summary>
+    [Fact]
+    public void TheCompilersAssetCopy_CarriesEveryPublicProperty()
+    {
+        string root = AppContext.BaseDirectory;
+        while (root != null && !System.IO.File.Exists(System.IO.Path.Combine(root, "IOS-IG-SimHost.sln")))
+            root = System.IO.Path.GetDirectoryName(root)!;
+        var src = System.IO.File.ReadAllText(System.IO.Path.Combine(root!,
+            "Hrot", "Subsystems", "Blueprints", "Hrot.Blueprints.Compiler", "Compiler", "BlueprintCompiler.cs"));
+        var copied = System.Text.RegularExpressions.Regex.Matches(src, @"^\s+(\w+)\s+=\s+asset\.", System.Text.RegularExpressions.RegexOptions.Multiline)
+            .Select(m => m.Groups[1].Value).ToHashSet();
+        var missing = typeof(BlueprintAsset).GetProperties()
+            .Where(p => p.CanWrite && p.SetMethod!.IsPublic && p.Name != "Graphs")
+            .Where(p => p.Name is not ("Parameters" or "WorkingState" or "Variables"))   // views over the store, copied via DeclarationStore
+            .Select(p => p.Name).Where(n => !copied.Contains(n)).ToList();
+        Assert.True(missing.Count == 0, "BlueprintCompiler's asset copy drops: " + string.Join(", ", missing));
+    }
+
     private static string Emit(BlueprintAsset asset)
     {
         GoldenCorpus.EnsureBehaviorAssemblyLoaded();

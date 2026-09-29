@@ -79,7 +79,9 @@ public sealed class GoldenCorpusTests
         //    DELETED with PlatoonHillAttack2 (user: "not needed"). ⚠ The sixty HillAssault2_*
         //    TWINS are KEPT — the two families differ by ONE LETTER, so a sweep that matches
         //    `HillAssault2` matches both.
-        Assert.Equal(44, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 44 → 45 (CE-428, 2026-09-29): `T40Resolver` — the FIRST behaviour RESOLVER asset (shape ③, a Library
+        //    with a ResolverSubject). Before it no .bp.json could be bound to a behaviour at all (Q76 §12.20).
+        Assert.Equal(45, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4e** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431 built; next is CE-428) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4f** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428 built; next is CE-434) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -816,9 +816,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ **A curated resolver now replaces the SUPPLY, never the BAKE:** every generated registrar exports stage 1 as `BehaviorDefinition.BakeDefaults` *(a static local `__BakeDefaults`)*, and `BehaviorRegistry.ApplyResolverOverlay` composes `bake → curated` instead of overwriting the parse. ⭐ **The typed root seam exists:** `ResolveBlock<TAuthored,TBlock>(in TAuthored, ref TBlock, …)` + `BehaviorParams.FromBlockResolver`, accepted by the curated generator as its third `[BehaviorResolver]` shape. The hosted `ResolveBlock<P,S>` was Roslyn-renamed to `ResolveOccurrence<P,S>`. ⚠ **Premise that failed:** the row said *"unify the lookup on asset id"* — 3 of 5 curated resolvers belong to hand-written behaviours with **no asset id**, so behaviours stay keyed by NAME and hosted AiPrimitives by asset id (lean, awaiting the user's nod). ⏭ `CE-431` → `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.19](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4e ✅ `CE-431` BUILT — ⭐ **NEXT IS `CE-428`**
+### 13.4e ✅ `CE-431` BUILT
 
 ⭐ **A hosted subtree now has its own block**: slot `[cursor][start word][block]`, sized by ingress from the CHILD's definition (`HostedSubtree.EffectiveSlots`); at every START the child is cleared → baked → seeded from its site's bound host variable (`SiteBinding`, baked from `BTreeSubtreePayloadDto.ParamsVariable`). 🔴 **The load-bearing finding:** every generated thunk projected from the ENTITY's root (`RootRef`) and ignored `bb` — so all BTree thunks now project from `bb` via `BehaviorBlock.Require` (a sentinel keeps "no block" loud). 🔒 **`R-154` recorded** (your approval: resolvers by behaviour NAME). ⏭ `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`; filed **`CE-438`** (curated resolver on a hosted child — throws today) and **`CE-439`** (editor authoring of the binding + HSM-host emission). 📄 [`Q76` §11.7](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
+### 13.4f ✅ `CE-428` BUILT *(overnight)* — ⭐ **NEXT IS `CE-434`**
+
+⭐ **A behaviour binds a blueprint RESOLVER ASSET (shape ③):** a Library `.bp.json` with a `ResolverSubject` (the behaviour it refines, its two types, which variables are State); its Variables mirror the block and compile to `block.In.x` / `block.St.y`; emitted as `ResolveBehavior(in authored, ref block, world, self, host)`. The behaviour names it (`BehaviorTreeAssetDto.Resolver`); its registrar calls it as stage 3 inside `ParseParams` and publishes it as `BehaviorDefinition.ResolveStage`, which a hosted child's start also runs. Demo pair `T40_BehaviorResolverAsset` + `T40Resolver`. 🔴 Found: the compiler's field-by-field asset copy (trap ⑫). ⏭ `CE-434` (editor pick/create/invalidate) → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.20](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 
@@ -835,6 +839,8 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 | **⑨** | 🔴 **A base-commit WORKTREE build used the NEW source generator** — the shared compiler server (`VBCSCompiler`) kept the analyzer it had loaded for the main tree, so the old tree compiled generated code calling a method it did not have. ⭐ **Build a comparison worktree with `-p:UseSharedCompilation=false`** |
 | **⑩** | ⚠ **Two `Fdp.Toolkits.Tests` pitfalls:** the test namespace is `Fdp.Toolkit.Behavior.Tests` *(a `Fdp.Toolkit.Tests.Behavior` filter matches nothing new and prints a confident old count)*; and a `build … \| grep && test --no-build` chain runs a STALE binary when the build fails — ⭐ read the `Error(s)` count before trusting the pass line |
 | **⑪** | 🔴🔴 **USER RULINGS ALSO LIVE IN TRACKER ROWS, not only in `RULINGS.md`.** `CE-421`'s *"re-assign is not special"* was a user ruling recorded only in its row; `CE-437` built the opposite. ⭐ **Before changing a mechanism, `grep` the tracker for the mechanism's own name** *(here: "seed", "carry-over", "shadow")* — and when a ruling is found there, give it a ledger row (`RULE ZERO` obligation 2) |
+| **⑫** | 🔴 **`BlueprintCompiler.Compile` rebuilds the asset FIELD BY FIELD** *(`BlueprintCompiler.cs:60`)* — a new `BlueprintAsset` property that is not added there is silently dropped for every real compile, while Stage-2-only rails (which call `Stage2_Validate.Run` directly) stay green. 📌 Cost `CE-428` two builds. ⭐ Rail: `OwnParamResolverTests.TheCompilersAssetCopy_CarriesEveryPublicProperty` |
+| **⑬** | ⚠ **A pin id is `SHA-256("pin:{nodeId:N}:{name}:{dir}")` stamped v5** *(`DeterministicIds.PinId`)*; exec pins are `ExecIn`/`ExecOut`, data pins `Value`, `A`/`B`/`Result`. ⭐ That is how a `.bp.json` demo is authored by hand without the editor |
 
 ### 13.6 🔒 STANDING CONSTRAINTS
 

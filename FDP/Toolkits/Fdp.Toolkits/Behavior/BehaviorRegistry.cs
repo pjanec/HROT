@@ -48,6 +48,13 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public unsafe delegate void BakeDefaultsDelegate(byte* memory, int capacity);
 
+    /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — STAGE 3 alone: refine the whole block in place, after bake and supply.
+    /// 📄 <c>Q76</c> §12.20. ⚠ Takes no JSON — it is not a supply path (<c>ParameterSupplyRailsTests</c>).
+    /// </summary>
+    public unsafe delegate void ResolveStageDelegate(
+        byte* block, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host);
+
     /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
 
@@ -195,6 +202,18 @@ namespace Fdp.Toolkit.Behavior
         /// has no authored defaults to bake.
         /// </summary>
         public BakeDefaultsDelegate? BakeDefaults { get; init; }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-428</c> — the behaviour's bound RESOLVE stage (a blueprint resolver asset, shape ③):
+        /// run by its own generated <see cref="ParseParams"/> after the overlay, and by
+        /// <c>HostedSubtree.StartChild</c> after the supply — one stage, both callers (<c>Q76</c> §12.3).
+        /// <para>⛔ A behaviour that carries one may NOT also get a curated <c>[BehaviorResolver]</c>: two
+        /// explicit bindings for one region THROW (<c>R-149</c>). <see cref="ResolverName"/> names it for the message.</para>
+        /// </summary>
+        public ResolveStageDelegate? ResolveStage { get; init; }
+
+        /// <summary>⭐ <c>CE-428</c> — the bound resolver asset's name, for diagnostics; <c>null</c> when none.</summary>
+        public string? ResolverName { get; init; }
 
         /// <summary>
         /// ⭐⭐⭐ <b>THE PUBLIC CONTRACT.</b> The <b>authored JSON DTO</b> — the shape a scenario, the
@@ -628,6 +647,13 @@ namespace Fdp.Toolkit.Behavior
             //   dropped for exactly the behaviours that have a curated resolver (CE-420 by another door).
             //   ⭐ Idempotent: composed from def.BakeDefaults and the RAW overlay each time, so a second
             //   application (hot reload) rebuilds the same pair rather than nesting.
+            // ⛔⛔ CE-428 / R-149 — the behaviour already NAMES a resolver asset; a curated one on top would be
+            //   two explicit bindings for one region, and whichever ran would be a race, not a precedence.
+            if (def.ResolveStage != null)
+                throw new InvalidOperationException(
+                    $"Behaviour '{def.Name}' names resolver asset '{def.ResolverName}' AND has a curated " +
+                    "[BehaviorResolver]. A region names exactly one resolver (R-149) — remove one of them.");
+
             var bake = def.BakeDefaults;
             var curated = overlay.Resolver;
             def.ParseParams = bake == null

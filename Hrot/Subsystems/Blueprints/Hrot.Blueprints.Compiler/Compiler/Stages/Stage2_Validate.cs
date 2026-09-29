@@ -121,7 +121,18 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 // Parameters or WorkingState was quietly legal for no stated reason.
                 // ⚠ Measured over all 58 shipped assets: the 3 Library assets declare NOTHING, so this
                 // widening refuses nothing that ships.
-                if (asset.Declarations.Count > 0)
+                // ⭐ CE-428: a BEHAVIOUR RESOLVER asset (ResolverSubject set) declares the behaviour block's
+                //   fields as its Variables — that is its subject, not asset-scope state (Q76 §12.20).
+                //   ⛔ Parameters stay refused: the authored DTO is injected, never declared.
+                if (asset.ResolverSubject is not null)
+                {
+                    if (asset.Declarations.Of(DeclarationKind.Parameter).Any())
+                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
+                            "A behaviour resolver asset declares the behaviour block's fields as Variables; "
+                            + "it must not declare Parameters (the authored DTO is injected as 'authored').",
+                            asset.AssetId));
+                }
+                else if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
                         "Library asset must not declare asset-scope variables "
                         + "(parameters, working state or variables).", asset.AssetId));

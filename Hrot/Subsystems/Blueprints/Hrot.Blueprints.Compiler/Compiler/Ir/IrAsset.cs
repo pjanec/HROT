@@ -28,6 +28,8 @@ public sealed record IrAsset
     public int BlueprintId { get; init; }
     public ulong StructureHash { get; init; }
     public BlueprintDispatchKind Dispatch { get; init; }
+    /// <summary>⭐ <c>CE-428</c> — set only on a behaviour resolver asset (<c>Q76</c> §12.20).</summary>
+    public Hrot.Blueprints.Core.Assets.ResolverSubjectDecl? ResolverSubject { get; init; }
 
     /// <summary>
     /// BP-82 / Q25-C2 — how many <c>GraphKind.Macro</c> graphs the SOURCE asset declared.

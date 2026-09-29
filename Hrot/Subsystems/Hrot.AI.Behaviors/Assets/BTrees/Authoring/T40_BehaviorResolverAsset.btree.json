@@ -1,0 +1,122 @@
+{
+	"$meta": {
+		"docType": "Hrot.BTree",
+		"schemaVersion": 1
+	},
+	"AssetId": "bb000040-0000-0000-0000-000000000000",
+	"Name": "T40_BehaviorResolverAsset",
+	"TargetNamespace": "Hrot.AI.Behaviors.Trees",
+	"BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+	"ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+	"Nodes": [
+		{
+			"kind": "Root",
+			"VisualId": "c4010000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"c4020000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Root",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 0,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Sequence",
+			"VisualId": "c4020000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [
+				"c4030000-0000-0000-0000-000000000001",
+				"c4040000-0000-0000-0000-000000000001"
+			],
+			"DisplayLabel": "Sequence",
+			"EditorMetadata": {
+				"X": 200,
+				"Y": 130,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "c4030000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(1s)",
+			"EditorMetadata": {
+				"X": 100,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 1.0
+			}
+		},
+		{
+			"kind": "Wait",
+			"VisualId": "c4040000-0000-0000-0000-000000000001",
+			"ChildVisualIds": [],
+			"DisplayLabel": "Wait(2s)",
+			"EditorMetadata": {
+				"X": 300,
+				"Y": 260,
+				"Comment": null,
+				"Collapsed": false,
+				"Color": null
+			},
+			"Wait": {
+				"Duration": 2.0
+			}
+		}
+	],
+	"Pills": [],
+	"Canvas": {
+		"PanX": 0,
+		"PanY": 0,
+		"Zoom": 1
+	},
+	"SubtreeSyncBindings": {},
+	"Suppressions": {
+		"Conflict": [],
+		"Unused": []
+	},
+	"Blackboard": {
+		"Managed": true,
+		"TypeName": "",
+		"HeavyDtoType": null,
+		"Variables": [
+			{
+				"Name": "Speed",
+				"Type": {
+					"TypeId": "float",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"DefaultValueJson": "3",
+				"Comment": "Role=Input - the authored parameter",
+				"IsAutoManaged": false
+			},
+			{
+				"Name": "Doubled",
+				"Type": {
+					"TypeId": "float",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"DefaultValueJson": null,
+				"Comment": "Role=State - written by the resolver asset T40Resolver",
+				"IsAutoManaged": false,
+				"Role": "State",
+				"Scope": "Behavior"
+			}
+		]
+	},
+	"Resolver": {
+		"AssetId": "00000428-0000-0000-0000-000000000001",
+		"Name": "T40Resolver"
+	}
+}

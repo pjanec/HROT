@@ -1,0 +1,185 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000428-0000-0000-0000-000000000001",
+  "Name": "T40Resolver",
+  "Dispatch": "Library",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "ResolverSubject": {
+    "BehaviorName": "T40_BehaviorResolverAsset",
+    "AuthoredTypeId": "Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Blackboard",
+    "BlockTypeId": "Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block",
+    "StateVariables": [
+      "Doubled"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "d4280001-0001-0001-0001-000000000001",
+      "Name": "Speed",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "d4280002-0002-0002-0002-000000000002",
+      "Name": "Doubled",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000428-0000-0000-0000-000000000001",
+      "Name": "ResolveT40",
+      "Kind": "Construction",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000428-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetVariable",
+          "VariableId": "d4280001-0001-0001-0001-000000000001",
+          "Id": "20000428-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 400,
+            "Comment": "reads block.In.Speed (already supplied from the scenario JSON)"
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Single",
+          "ValueJson": "2.0f",
+          "Id": "20000428-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 520,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "20000428-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 440,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "d4280002-0002-0002-0002-000000000002",
+          "Id": "20000428-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 680,
+            "Y": 200,
+            "Comment": "writes block.St.Doubled - the behaviour\u0027s STATE half"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000428-0000-0000-0000-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1000,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000428-0000-0000-0000-000000000001",
+          "FromPinId": "fe84e0c3-55de-e65a-858c-6d2c49601a66",
+          "ToNodeId": "20000428-0000-0000-0000-000000000005",
+          "ToPinId": "d00ac7c1-0990-2150-a9cf-bc785671ec98"
+        },
+        {
+          "FromNodeId": "20000428-0000-0000-0000-000000000005",
+          "FromPinId": "f52b6f4b-0641-8156-bbd8-73274c89e285",
+          "ToNodeId": "20000428-0000-0000-0000-000000000006",
+          "ToPinId": "219130df-73dd-795b-b632-20c204a39e58"
+        },
+        {
+          "FromNodeId": "20000428-0000-0000-0000-000000000002",
+          "FromPinId": "06b05fbb-0619-1050-b7b5-0ba02a4c72b7",
+          "ToNodeId": "20000428-0000-0000-0000-000000000004",
+          "ToPinId": "440e0570-58a3-0e5f-84cd-d705f7f4141e"
+        },
+        {
+          "FromNodeId": "20000428-0000-0000-0000-000000000003",
+          "FromPinId": "5c55ce12-23e4-1859-bd09-aa662d0a231c",
+          "ToNodeId": "20000428-0000-0000-0000-000000000004",
+          "ToPinId": "bdfeae40-fd57-565d-ba9c-438c5ae39e7b"
+        },
+        {
+          "FromNodeId": "20000428-0000-0000-0000-000000000004",
+          "FromPinId": "d94582a4-524d-c252-8b3b-fffa0330c6f7",
+          "ToNodeId": "20000428-0000-0000-0000-000000000005",
+          "ToPinId": "c56a4a22-f9ed-7251-9785-0e1196c065aa"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CE-428 / Q76 shape 3 - a BEHAVIOUR RESOLVER asset. It names behaviour T40_BehaviorResolverAsset (ResolverSubject) and its Variables mirror that behaviour\u0027s block: Speed lives in block.In, Doubled in block.St. The one Construction graph declares nothing - the authored DTO (in) and the whole block (ref) are injected - and it runs as stage 3, after the behaviour\u0027s own bake and JSON overlay: Doubled = Speed * 2.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

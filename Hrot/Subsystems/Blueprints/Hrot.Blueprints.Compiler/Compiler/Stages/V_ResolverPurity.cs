@@ -102,7 +102,10 @@ internal sealed class V_ResolverPurity : IValidator
             if (graph.Kind != GraphKind.Construction) continue;
 
             bool isLibrary = asset.Dispatch == BlueprintDispatchKind.Library;
-            if (!isLibrary) ownResolverGraphs.Add(graph);
+            // ⭐⭐ CE-428 — ③ a BEHAVIOUR RESOLVER asset (Library + ResolverSubject): ONE region (the
+            //   behaviour's block), so it counts as an own-resolver for BP1676's "one per region".
+            bool isSubject = isLibrary && asset.ResolverSubject is not null;
+            if (!isLibrary || isSubject) ownResolverGraphs.Add(graph);
 
             // ── BP1676 — there must be something for this graph to resolve ────────
             //
@@ -129,8 +132,9 @@ internal sealed class V_ResolverPurity : IValidator
             }
 
             // ── BP1677 — the signature, which differs by KIND ─────────────────────
-            if (isLibrary) ValidateReusableSignature(asset, graph, ctx);
-            else           ValidateOwnResolverSignature(asset, graph, ctx);
+            if (isSubject)      ValidateSubjectSignature(asset, graph, ctx);
+            else if (isLibrary) ValidateReusableSignature(asset, graph, ctx);
+            else                ValidateOwnResolverSignature(asset, graph, ctx);
 
             // ── BP1675 — purity ───────────────────────────────────────────────────
             foreach (var node in graph.Nodes)
@@ -159,6 +163,13 @@ internal sealed class V_ResolverPurity : IValidator
                 // ⚠ The STATE half of the exemption is AiPrimitive-only: that is the dispatch whose
                 //   own resolver is registered with HostedParamResolvers and run in its shadow. Any
                 //   other dispatch keeps the original parameters-only rule.
+                // ⭐⭐ CE-428 — ③: its Variables ARE the behaviour's block (the injected `ref TBlock`), and the
+                //   root resolve runs inside the ingress shadow — so a write to ANY of them is the resolver's
+                //   result, never an escape. (It declares no Parameters: the authored DTO is `in`.)
+                if (isSubject && node is SetVariableNode subjectWrite
+                    && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
+                    continue;
+
                 if (!isLibrary && node is SetVariableNode sv
                     && (TargetsDeclaration(ParamsOf(asset), sv)
                         || (asset.Dispatch == BlueprintDispatchKind.AiPrimitive
@@ -181,6 +192,16 @@ internal sealed class V_ResolverPurity : IValidator
         // asset's own parameters are ONE region, so two Construction graphs on it would be exactly
         // the competition the selection model exists to make unrepresentable.
         // ⚠ A LIBRARY may carry many — they are separate reusable resolvers, each named separately.
+        // ⭐ CE-428 — a behaviour resolver asset exists to hold ONE resolver; none is a resolver nothing runs.
+        if (asset.ResolverSubject is not null && asset.Dispatch == BlueprintDispatchKind.Library
+            && ownResolverGraphs.Count == 0)
+        {
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
+                $"This asset is a resolver for behaviour '{asset.ResolverSubject.BehaviorName}' but holds no "
+                + "Construction graph, so there is nothing to run. Add exactly one.",
+                asset.AssetId));
+        }
+
         if (ownResolverGraphs.Count > 1)
         {
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
@@ -223,6 +244,22 @@ internal sealed class V_ResolverPurity : IValidator
                 + "given, so its input and output must be the same type.",
                 asset.AssetId, graph.Id));
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — <b>③ a BEHAVIOUR RESOLVER asset</b>: like ②, it declares NOTHING — both subjects
+    /// are injected (<c>in authored</c>, <c>ref block</c>) from its <c>ResolverSubject</c>. 📄 <c>Q76</c> §12.10b.
+    /// </summary>
+    private static void ValidateSubjectSignature(BlueprintAsset asset, Graph graph, ValidationContext ctx)
+    {
+        if (graph.Inputs.Count == 0 && graph.Outputs.Count == 0) return;
+
+        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
+            $"Resolver graph '{graph.Name}' refines behaviour '{asset.ResolverSubject!.BehaviorName}''s block, "
+            + $"so it must declare no inputs and no outputs; it declares {graph.Inputs.Count} input(s) and "
+            + $"{graph.Outputs.Count} output(s). Read and write the block with Get/Set Variable on the "
+            + "asset's Variables — the block and the authored DTO are injected.",
+            asset.AssetId, graph.Id));
     }
 
     /// <summary>

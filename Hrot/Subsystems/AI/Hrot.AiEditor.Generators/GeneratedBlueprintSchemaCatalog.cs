@@ -250,41 +250,12 @@ internal static class GeneratedBlueprintSchemaCatalog
 
     // ── Mirrors of Hrot.Blueprints.Core.Compiler helpers (kept in sync manually — see class remarks) ──
 
-    /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.Emit.Sanitizer.SanitizeName</c>.</summary>
+    // ⭐ CE-428: the two compiler mirrors live in ONE place now — Persistence's BlueprintClassNaming.
     private static string SanitizeName(string name)
-    {
-        var sb = new System.Text.StringBuilder();
-        bool capitalizeNext = true;
-        foreach (char c in name)
-        {
-            if (char.IsLetterOrDigit(c))
-            {
-                sb.Append(capitalizeNext ? char.ToUpperInvariant(c) : c);
-                capitalizeNext = false;
-            }
-            else
-            {
-                capitalizeNext = true;
-            }
-        }
-        return sb.Length > 0 ? sb.ToString() : "UnknownBlueprint";
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.SanitizeName(name);
 
-    /// <summary>Mirrors <c>Hrot.Blueprints.Core.Compiler.BlueprintIdHash.Compute</c> (FNV-1a 32-bit over <c>Guid.ToByteArray()</c>).</summary>
     private static int ComputeBlueprintId(Guid assetId)
-    {
-        const uint offsetBasis = 2166136261u;
-        const uint fnvPrime    = 16777619u;
-
-        byte[] bytes = assetId.ToByteArray();
-        uint hash = offsetBasis;
-        foreach (byte b in bytes)
-        {
-            hash ^= b;
-            hash *= fnvPrime;
-        }
-        return unchecked((int)hash);
-    }
+        => global::Hrot.AiEditor.Persistence.Emit.BlueprintClassNaming.ComputeBlueprintId(assetId);
 
     private static bool TryGetPropCI(JsonElement el, string name, out JsonElement value)
     {

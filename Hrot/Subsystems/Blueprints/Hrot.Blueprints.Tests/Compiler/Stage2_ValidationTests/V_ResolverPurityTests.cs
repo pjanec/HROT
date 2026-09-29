@@ -154,6 +154,62 @@ public sealed class V_ResolverPurityTests
     /// below — ⛔ never a widening of the rail.
     /// </para>
     /// </summary>
+    // ---- CE-428 — shape ③, a BEHAVIOUR RESOLVER asset ----------------------------------------------
+    //  📄 Architect_Question_76 §12.20. A Library asset with a ResolverSubject: its Variables are the
+    //  behaviour's BLOCK, both subjects are injected, and a write to the block is its result.
+
+    private static BlueprintAsset SubjectAsset(Action<GraphBuilder> body, bool withParameter = false)
+    {
+        var b = BlueprintAssetBuilder.Library("BehResolver")
+            .WithVariable("Speed", typeof(float))
+            .WithVariable("Doubled", typeof(float))
+            .WithGraph("Resolve", GraphKind.Construction, body);
+        if (withParameter) b = b.WithParameter("Nope", typeof(float));
+        var asset = b.Build();
+        asset.ResolverSubject = new ResolverSubjectDecl
+        {
+            BehaviorName   = "SomeBehaviour",
+            AuthoredTypeId = "Demo.SomeBehaviour_In",
+            BlockTypeId    = "Demo.SomeBehaviour_Block",
+            StateVariables = { "Doubled" },
+        };
+        return asset;
+    }
+
+    /// <summary>⭐⭐ <c>CE-428</c> — a behaviour resolver may <c>SetVariable</c> its block (the injected <c>ref</c>
+    /// subject, shadowed by the ingress) — no BP1675, and it may declare Variables despite being a Library (no BP1011).
+    /// <para>⚠ Inverse-edit red-proof: drop the <c>isSubject</c> exemption in <c>V_ResolverPurity</c> and this reds with BP1675.</para></summary>
+    [Fact]
+    public void CE428_ABehaviourResolver_MayWriteItsBlock()
+    {
+        var diags = Validate(SubjectAsset(g => g.Entry().SetVariable("Doubled", "1").Return()));
+        Assert.DoesNotContain(diags, d => d.Code is "BP1675" or "BP1011" or "BP1677" or "BP1676");
+    }
+
+    /// <summary>⛔ <c>CE-428</c> — the injected subjects are NOT declared: a graph input is BP1677.</summary>
+    [Fact]
+    public void CE428_ABehaviourResolverGraph_ThatDeclaresAnInput_EmitsBP1677()
+    {
+        var diags = Validate(SubjectAsset(g => { g.WithInput("Dto", Dto); g.Entry().Return(); }));
+        Assert.Contains(diags, d => d.Code == "BP1677");
+    }
+
+    /// <summary>⛔ <c>CE-428</c> — the authored DTO is injected `in`; a declared Parameter is refused (BP1011).</summary>
+    [Fact]
+    public void CE428_ABehaviourResolver_DeclaringAParameter_EmitsBP1011()
+    {
+        var diags = Validate(SubjectAsset(g => g.Entry().Return(), withParameter: true));
+        Assert.Contains(diags, d => d.Code == "BP1011");
+    }
+
+    /// <summary>⛔ <c>CE-428</c> — a write OUTSIDE the block (to a name that is no declared variable) stays refused.</summary>
+    [Fact]
+    public void CE428_ABehaviourResolver_WritingOutsideItsBlock_StillEmitsBP1675()
+    {
+        var diags = Validate(SubjectAsset(g => g.Entry().SetVariable("NotABlockField", "1").Return()));
+        Assert.Contains(diags, d => d.Code == "BP1675");
+    }
+
     [Fact]
     public void EveryNodeKind_IsClassifiedAsPureOrSideEffecting()
     {

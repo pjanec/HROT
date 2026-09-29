@@ -185,7 +185,8 @@ public static unsafe class HostedSubtree
 
         if (start == 0)
         {
-            StartChild(treeStateSlotKey, childDef, payload + BlockOffset, blockBytes, ref hostBlock, binding);
+            StartChild(treeStateSlotKey, childDef, payload + BlockOffset, blockBytes, ref hostBlock, binding,
+                       ctx.World, ctx.Self);
             start = 1;
         }
 
@@ -215,7 +216,7 @@ public static unsafe class HostedSubtree
     /// </summary>
     private static void StartChild(
         int treeStateSlotKey, BehaviorDefinition? childDef, byte* block, int blockBytes,
-        ref byte hostBlock, SiteBinding binding)
+        ref byte hostBlock, SiteBinding binding, EntityRepository ctxWorld, Entity ctxSelf)
     {
         if (childDef is not null
             && HostedChildren.TryGetRegistry(treeStateSlotKey, out var registry, out var childName)
@@ -231,16 +232,27 @@ public static unsafe class HostedSubtree
             childDef!.BakeDefaults?.Invoke(block, blockBytes);  // stage 1 — the child's authored defaults
         }
 
-        if (!binding.IsBound) return;                           // unbound ⇒ defaults only
+        if (binding.IsBound) Supply(childDef!, block, blockBytes, ref hostBlock, binding);
 
-        int inputBytes = RootParamsAccess.InputBytes(childDef!);
+        // ⭐ CE-428 — stage 3: the child's bound resolver asset refines its own block, exactly as its root
+        //   ParseParams does after the overlay. ⚠ No shadow here: a throw leaves the start word 0, so the
+        //   child never ticks on a half-resolved block and the next tick re-runs the pipeline from empty.
+        if (blockBytes > 0 && childDef!.ResolveStage is { } resolve)
+            resolve(block, blockBytes, ctxWorld, ctxSelf, null);
+    }
+
+    private static void Supply(BehaviorDefinition childDef, byte* block, int blockBytes,
+                               ref byte hostBlock, SiteBinding binding)
+    {
+
+        int inputBytes = RootParamsAccess.InputBytes(childDef);
         if (binding.Length != inputBytes || blockBytes < inputBytes)
             throw new InvalidOperationException(
-                $"CE-431: the host variable bound to child '{childDef?.Name}' is {binding.Length} bytes but the " +
+                $"CE-431: the host variable bound to child '{childDef.Name}' is {binding.Length} bytes but the " +
                 $"child's Input region is {inputBytes}. The bound variable must be the child's Input struct.");
         if (!BehaviorBlock.Has(ref hostBlock))
             throw new InvalidOperationException(
-                $"CE-431: child '{childDef?.Name}' is bound to a host variable, but its host has no blackboard block.");
+                $"CE-431: child '{childDef.Name}' is bound to a host variable, but its host has no blackboard block.");
 
         byte* src = (byte*)Unsafe.AsPointer(ref Unsafe.AddByteOffset(ref hostBlock, (nint)binding.HostOffset));
         Buffer.MemoryCopy(src, block, blockBytes, binding.Length);   // stage 2 — supply

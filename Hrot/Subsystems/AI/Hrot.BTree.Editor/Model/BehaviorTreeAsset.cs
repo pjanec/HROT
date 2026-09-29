@@ -94,6 +94,8 @@ public sealed class BTreeSubtreePayload
     public string SubtreeName = string.Empty;
     /// <summary>False if the referenced asset is absent from the catalog.</summary>
     public bool IsResolved;
+    /// <summary>⭐ <c>CE-431</c> — the host variable that seeds this site's child; <c>null</c> = unbound. Round-trips.</summary>
+    public string? ParamsVariable;
 }
 
 // ── BTreeEditorPill ───────────────────────────────────────────────────────────
@@ -233,6 +235,12 @@ public sealed class BTreeEditorNode
 /// </summary>
 public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
 {
+    /// <summary>
+    /// ⭐ <c>CE-428</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20), or <c>null</c>. ⚠ Must round-trip
+    /// through <c>BehaviorTreeAssetMapper</c>: an editor save that dropped it would silently unbind the resolver.
+    /// </summary>
+    public (System.Guid AssetId, string Name)? Resolver { get; set; }
+
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();
     private readonly List<BTreeEditorPill> _pills  = new();

@@ -43,6 +43,18 @@ internal static class LibraryEmitter
             e.WriteLine();
         }
 
+        // ⭐⭐ CE-428 — a BEHAVIOUR RESOLVER asset (shape ③) also exposes its one graph under a FIXED name,
+        //   so the behaviour's registrar can call it knowing only this class (Q76 §12.20). ⚠ V_ResolverPurity
+        //   guarantees exactly one Construction graph here.
+        if (asset.ResolverSubject is { } subject
+            && asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction) is { } only)
+        {
+            e.WriteLine("/// <summary>CE-428: the behaviour-resolver entry point — stage 3 of the supply pipeline.</summary>");
+            e.WriteLine($"public static void ResolveBehavior({SubjectParams(subject)})");
+            e.WriteLine($"    => {only.Name}(in authored, ref block, world, self, host);");
+            e.WriteLine();
+        }
+
         e.Outdent();
         e.WriteLine("}");
     }
@@ -204,6 +216,20 @@ internal static class LibraryEmitter
         bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
         var returnType = CSharpReturnType(graph, hasStatusReturn);
 
+        // ⭐⭐ CE-428 — a behaviour resolver's subjects are INJECTED, never declared: the authored DTO by
+        //   `in`, the WHOLE block by `ref` (Q76 §12.10b). Its graph declares no inputs (V_ResolverPurity).
+        if (asset.ResolverSubject is { } subject)
+        {
+            e.WriteLine($"public static {returnType} {graph.Name}({SubjectParams(subject)})");
+            e.WriteLine("{");
+            e.Indent();
+            EmitGraphBody(e, asset, graph);
+            e.Outdent();
+            e.WriteLine("}");
+            e.Ctx.CurrentGraph = null;
+            return;
+        }
+
         var parts = graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}").ToList();
         parts.Add("global::Fdp.Core.EntityRepository world");
         parts.Add("global::Fdp.Core.Entity self");
@@ -235,6 +261,16 @@ internal static class LibraryEmitter
         e.WriteLine("}");
         e.Ctx.CurrentGraph = null;
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-428</c> — the injected subject parameters: <c>in TAuthored authored, ref TBlock block</c>, then
+    /// the same trailing context a resolver always takes. ⚠ <c>host</c> unannotated, as above.
+    /// </summary>
+    private static string SubjectParams(Hrot.Blueprints.Core.Assets.ResolverSubjectDecl subject)
+        => $"in global::{subject.AuthoredTypeId.Replace('+', '.')} authored, "
+         + $"ref global::{subject.BlockTypeId.Replace('+', '.')} block, "
+         + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, "
+         + "global::Fdp.Toolkit.Behavior.IHostVariableAccess host";
 
     /// <summary>Emits the block-by-block body for a graph. Sets CurrentGraph on context.</summary>
     internal static void EmitGraphBody(CSharpEmitter e, IrAsset asset, IrGraph graph)

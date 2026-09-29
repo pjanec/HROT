@@ -458,7 +458,9 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
             EmitBakeDefaultsFunction(sb, dto, packedFields,
                 System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
-            sb.AppendLine($"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => __BakeDefaults(memory, capacity);");
+            sb.AppendLine(HasResolver(dto)
+                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ __BakeDefaults(memory, capacity); __ResolveStage(memory, capacity, world, self, host); }};"
+                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => __BakeDefaults(memory, capacity);");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
         }
@@ -513,6 +515,16 @@ public static class BTreeBridgeEmitCore
         {
             sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
             sb.AppendLine($"{pad2}{Indent}BakeDefaults = __bakeDefaults,");   // CE-427: stage 1 on its own
+            if (HasResolver(dto))
+            {
+                sb.AppendLine($"{pad2}{Indent}ResolveStage = __resolveStage,");   // CE-428: stage 3 on its own
+                sb.AppendLine($"{pad2}{Indent}ResolverName = \"{EscapeCSharpStringLiteral(dto.Resolver!.Name)}\",");
+            }
+        }
+        else if (HasResolver(dto))
+        {
+            // ⛔ CE-428 — a resolver refines a BLOCK; a behaviour with no managed variables has none. Loud, at compile.
+            sb.AppendLine($"#error CE-428: behaviour '{dto.Name}' names resolver asset '{dto.Resolver!.Name}' but declares no managed blackboard variables, so it has no block to resolve.");
         }
         if (isManaged)
             EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
@@ -1508,6 +1520,13 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad5}}}");
         sb.AppendLine($"{pad4}}}");
 
+        if (HasResolver(dto))
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{pad4}// Step 3 — CE-428: the bound resolver refines the block (inside the ingress shadow).");
+            sb.AppendLine($"{pad4}__ResolveStage(memory, capacity, world, self, host);");
+        }
+
         sb.AppendLine($"{pad3}}};");
         sb.AppendLine($"{pad2}}}");
         sb.AppendLine();
@@ -1533,6 +1552,8 @@ public static class BTreeBridgeEmitCore
         string pad4 = pad3 + Indent;
         string pad5 = pad4 + Indent;
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;");
+        if (HasResolver(dto))
+            sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ResolveStageDelegate? __resolveStage;");
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
         sb.AppendLine($"{pad2}unsafe");
         sb.AppendLine($"{pad2}{{");
@@ -1551,7 +1572,29 @@ public static class BTreeBridgeEmitCore
         EmitStateDefaultBake(sb, dto, packedFields, pad4);
         sb.AppendLine($"{pad3}}}");
         sb.AppendLine($"{pad3}__bakeDefaults = __BakeDefaults;");
+
+        if (HasResolver(dto))
+        {
+            // ⭐⭐ CE-428 — STAGE 3: the bound blueprint resolver asset refines the WHOLE block in place, after
+            //   bake + supply (Q76 §12.3 / §12.20). A static call — the C# compile checks TAuthored/TBlock.
+            string blockFqn = BTreeEmitCore.BlockStructFqn(dto);
+            string cls = BlueprintClassNaming.ClassFqn(dto.Resolver!.AssetId, dto.Resolver.Name);
+            sb.AppendLine($"{pad3}// Step 3 — CE-428: resolve, via resolver asset '{EscapeCSharpStringLiteral(dto.Resolver.Name)}'.");
+            sb.AppendLine($"{pad3}static void __ResolveStage(byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+            sb.AppendLine($"{pad3}{{");
+            sb.AppendLine($"{pad4}if (capacity < sizeof({blockFqn}))");
+            sb.AppendLine($"{pad4}{Indent}throw new global::System.InvalidOperationException(\"CE-428: the parse buffer is narrower than {EscapeCSharpStringLiteral(dto.Name)}'s block — a stale layout.\");");
+            sb.AppendLine($"{pad4}ref var __blk = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory);");
+            sb.AppendLine($"{pad4}var __authored = __blk.In;   // the authored DTO IS block.In once supplied (Q76 §12.9c)");
+            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref __blk, world, self, host);");
+            sb.AppendLine($"{pad3}}}");
+            sb.AppendLine($"{pad3}__resolveStage = __ResolveStage;");
+        }
     }
+
+    /// <summary>⭐ <c>CE-428</c> — does this behaviour name a resolver asset?</summary>
+    private static bool HasResolver(BehaviorTreeAssetDto dto)
+        => dto.Resolver is { } r && r.AssetId != Guid.Empty;
 
     /// <summary>
     /// Escapes a string for use inside a C# double-quoted string literal.

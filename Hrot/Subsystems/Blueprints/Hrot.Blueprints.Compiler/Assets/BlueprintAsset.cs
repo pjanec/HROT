@@ -13,6 +13,18 @@ public sealed class BlueprintAsset
     public AiPrimitiveDecl? Primitive { get; set; }
 
     /// <summary>
+    /// ⭐⭐⭐ <c>CE-428</c> — present only on a <b>behaviour resolver asset</b> (<c>Q76</c> §12.10b, "shape ③"):
+    /// a <see cref="BlueprintDispatchKind.Library"/> asset whose single <c>Construction</c> graph refines
+    /// ONE behaviour's blackboard block. ⭐ Its Variables mirror the block's fields; the emitter injects
+    /// <c>(in TAuthored authored, ref TBlock block, world, self, host)</c>. ⚠ Derived by the editor from
+    /// the behaviour it names (<c>CE-434</c>) — never hand-maintained against the behaviour.
+    /// <para>⚠ Written only when present: an optional, rare field — emitting <c>null</c> would rewrite all 61 shipped
+    /// <c>.bp.json</c> files at their next canonicalisation for no information (measured).</para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public ResolverSubjectDecl? ResolverSubject { get; set; }
+
+    /// <summary>
     /// ⭐⭐ <b>U-12 / D4 — THE STORE.</b> One list of tagged declarations. <c>Parameters</c>,
     /// <c>WorkingState</c> and <c>Variables</c> below are <b>windows onto it</b>, not storage.
     ///
@@ -142,6 +154,25 @@ public enum BlueprintDispatchKind { Library, AiPrimitive, Instance }
 /// though 256 is the smallest tier (<c>O3b</c> / task <c>B4</c>, 2026-09-20).
 /// </summary>
 public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384, Force256 }
+
+/// <summary>
+/// ⭐⭐ <c>CE-428</c> — what a behaviour resolver asset refines: the behaviour (by registry NAME, <c>R-154</c>)
+/// and the two generated types the injected subjects take. 📄 <c>Q76</c> §12.20.
+/// </summary>
+public sealed class ResolverSubjectDecl
+{
+    /// <summary>The behaviour this resolver serves — its registry name.</summary>
+    public string BehaviorName { get; set; } = "";
+    /// <summary>FQN of the authored DTO (the behaviour's <c>JsonParamsDtoType</c> — its <c>In</c> struct).</summary>
+    public string AuthoredTypeId { get; set; } = "";
+    /// <summary>FQN of the behaviour's block (<c>{Asset}_Block</c>).</summary>
+    public string BlockTypeId { get; set; } = "";
+    /// <summary>
+    /// Names of the declared Variables that live in the block's <c>St</c> half; every other Variable is a
+    /// field of <c>In</c>. ⭐ The block's two halves, stated rather than inferred.
+    /// </summary>
+    public List<string> StateVariables { get; set; } = new();
+}
 
 public sealed class AiPrimitiveDecl
 {

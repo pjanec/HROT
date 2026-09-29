@@ -645,6 +645,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     private struct Ce431ChildBlock { public long In; public long St; }
 
     private static readonly System.Collections.Generic.List<long> _seen = new();
+    private static readonly System.Collections.Generic.List<long> _seenSt = new();
     private static bool _childBbWasTheRoot;
     private static bool _completeChild;
     private const long ChildDefault = 7;
@@ -653,6 +654,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     {
         ref var blk = ref Unsafe.As<byte, Ce431ChildBlock>(ref BehaviorBlock.Require(ref bb));
         _seen.Add(blk.In);
+        _seenSt.Add(blk.St);
         if (RootParamsAccess.TryGetRootBytes(ctx.World, ctx.Self, out byte* root))
             _childBbWasTheRoot |= Unsafe.AreSame(ref bb, ref Unsafe.AsRef<byte>(root));
         return NodeStatus.Success;
@@ -668,7 +670,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     private static Entity AssignCe431Host(
         EntityRepository world, BehaviorRegistry beh, bool hostHasBlock,
         System.Collections.Generic.IReadOnlyDictionary<Guid, HostedSubtree.SiteBinding>? bindings,
-        bool twoSites = false, bool curatedChild = false)
+        bool twoSites = false, bool curatedChild = false, ResolveStageDelegate? childResolve = null)
     {
         const int HostId = 0x6431;
         var hb = new BTreeBuilder<byte, BTreeContext>();
@@ -703,6 +705,8 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
             BlackboardLayoutType       = typeof(Ce431ChildBlock),
             ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
             BakeDefaults               = (byte* m, int c) => ((Ce431ChildBlock*)m)->In = ChildDefault,
+            ResolveStage               = childResolve,
+            ResolverName               = childResolve is null ? null : "ChildResolver",
         });
         if (curatedChild)
             beh.RegisterResolver(ChildName, (string j, byte* m, int c, EntityRepository w, Entity e, IHostVariableAccess? h) => { }, typeof(long));
@@ -719,7 +723,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     private static ref Ce431HostBlock HostBlock(EntityRepository world, Entity e)
         => ref Unsafe.As<byte, Ce431HostBlock>(ref RootParamsAccess.RootRef(world, e));
 
-    private static void ResetCe431() { _seen.Clear(); _childBbWasTheRoot = false; _completeChild = false; }
+    private static void ResetCe431() { _seenSt.Clear(); _seen.Clear(); _childBbWasTheRoot = false; _completeChild = false; }
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-431</c> §11.6 ① + ④ — seeded at the START, not live; and the child's <c>bb</c> is its OWN
@@ -815,6 +819,30 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         var hb = new BTreeBuilder<byte, BTreeContext>();
         hb.Sequence(seq => seq.Subtree(ChildName, visualId: SiteA));
         return hb.Compile(HostName);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — a hosted child's bound RESOLVE stage runs at its start, AFTER the supply: the child's
+    /// state half is computed from the value its host supplied. 📄 <c>Q76</c> §12.3 (stage 3, both callers).
+    /// <para>⚠ Inverse-edit red-proof: drop the <c>ResolveStage</c> call in <c>HostedSubtree.StartChild</c> and St reads 0.</para>
+    /// </summary>
+    [Fact]
+    public void CE428_AHostedChildsResolveStage_RunsAfterTheSupply()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
+            childResolve: (byte* blk, int cap, EntityRepository w, Entity s, IHostVariableAccess? h)
+                => ((Ce431ChildBlock*)blk)->St = ((Ce431ChildBlock*)blk)->In * 2);
+
+        HostBlock(world, e).B = 21;
+        new BrainTickSystem(beh).Execute(world, 0.016f);
+
+        Assert.Equal(new long[] { 21 }, _seen);
+        Assert.Equal(new long[] { 42 }, _seenSt);
     }
 
     /// <summary>⛔ A bound variable whose width is not the child's Input region THROWS — never a partial copy.</summary>

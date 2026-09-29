@@ -115,6 +115,20 @@ internal sealed class EmissionContext
         => kind == VariableKind.Parameter ? ParamsVar : StateVar;
 
     /// <summary>
+    /// ⭐⭐ <c>CE-428</c> — the container of ONE reference. For a behaviour resolver asset a Variable is a
+    /// field of the injected block, in its <c>In</c> or <c>St</c> half (<c>ResolverSubject.StateVariables</c>);
+    /// every other asset answers <see cref="ContainerVarFor"/> exactly as before.
+    /// </summary>
+    public string ContainerFor(VariableRef target)
+    {
+        var subject = Asset.ResolverSubject;
+        if (subject is null || target.Kind == VariableKind.Parameter)
+            return ContainerVarFor(target.Kind);
+        string name = VarFieldName(target);
+        return subject.StateVariables.Contains(name) ? "block.St" : "block.In";
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ Batch 70 / <c>DESIGN_Parameter_Model.md</c> §3.3 — <b>the expression that names the params
     /// region, per dispatch kind.</b>
     ///

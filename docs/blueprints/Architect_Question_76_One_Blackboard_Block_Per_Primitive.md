@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431 are BUILT (§11.7, §12.15–§12.19). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428 are BUILT (§11.7, §12.15–§12.20). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2044,4 +2044,141 @@ blueprints** by asset id. ⭐ A hosted **subtree**'s resolve (`CE-431`) will use
 
 ⏭ **Not in this slice, named:** `CE-428` (bind a blueprint `Construction` graph as a resolver — the
 typed seam is now its target shape) · `CE-431` (hosted subtree supply) · the HSM arm (`Q75`-`S1`).
+
+### 12.20 ⭐⭐⭐ `CE-428` BUILD DESIGN — **a behaviour binds a blueprint resolver asset (shape ③)** *(`2026-09-29`, overnight run)*
+
+🔒 **Frame:** §12.10b (shape ③, the dedicated resolver asset) · §12.10e (it names the BEHAVIOUR) ·
+§12.9c (it MODIFIES a pre-seeded block) · §12.12b (the purity rule for a block write) · `R-149`
+(a region names ONE resolver; two explicit bindings throw) · `R-154` (behaviours keyed by NAME).
+⛔ **Not in this slice:** the editor picker / create / invalidation (`CE-434`), the whole-block pins
+node (`CE-433`), the HSM arm (no block yet — `Q75`-`S1`).
+
+#### 12.20a INVENTORY *(`search_graph` + grep, `2026-09-29`)*
+
+| query | result |
+|---|---|
+| `.*ResolverPurity.*` Class | 1 — `V_ResolverPurity` (BP1676 / BP1677, the only resolver rules) |
+| `.*EmissionContext.*` Class | 1 — `ContainerVarFor(kind)` / `ParamsVar` / `StateVar`; container used at exactly **2** sites (`StatementEmitter.cs:64,68`) |
+| `BlueprintDispatchKind` Enum | **2** (compiler + `Fdp.Toolkits` mirror, 356 in-edges) ⇒ ⛔ no new dispatch member |
+| blueprint class naming `{San}_{Id:X8}_Bp` | emitted by 5 compiler sites; mirrored ONCE outside the compiler, privately, in `GeneratedBlueprintSchemaCatalog` (`Sanitize` + FNV-1a over `Guid.ToByteArray`) |
+| Library declares variables | ⛔ refused — `Stage2_Validate.cs:126` (*"measured over all 58 shipped assets: the 3 Library assets declare NOTHING"*) |
+| generated blueprint namespace | fixed `Hrot.AI.Behaviors.Generated` (`LibraryEmitter.cs:11`) |
+
+#### 12.20b CLAIM TABLE
+
+| the build rests on | code | design basis |
+|---|---|---|
+| both generators emit into ONE compilation, so a behaviour registrar may call a blueprint class by FQN and the C# compile is the type backstop | ✅ `GeneratedBlueprintSchemaCatalog` header: *"SIBLING generators… outputs merged for the final emit"* | ✅ §12.12c caption: *"the generator's type check cannot miss"* |
+| in the generated case the authored DTO **is** `block.In`, already supplied before the resolver runs | ✅ `EmitParseParamsLocal` step 2 overlays into the block at offset 0; `JsonParamsDtoType` = the `In` struct | ✅ §12.9c: *"the graph needs NONE… reads `block.In.*` and writes `block.*`"* |
+| declaring BOTH the authored fields and the block fields would collide by name | ✅ `V_DeclarationNameUniqueness` (`Stage2_Validate.cs:235`) | ⚠ §12.12a draws two lists — true only when the shapes DIFFER, which §12.9f defers |
+| a root resolve runs inside the ingress shadow | ✅ ingress parses into the shadow and commits on success (`CE-426`) | ✅ §12.3a |
+| a hosted child's start does NOT call `ParseParams` | ✅ `HostedSubtree.StartChild` (`CE-431`) | ✅ §12.3: stage 3 is the same for root and child |
+
+#### 12.20c DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **a resolver asset is a LIBRARY asset with a `ResolverSubject`** `{ BehaviorName, AuthoredTypeId, BlockTypeId, StateVariables[] }` | ⛔ a fourth `BlueprintDispatchKind` — 356 in-edges and a runtime mirror for what is one asset-level fact |
+| ⭐⭐ **it declares VARIABLES only** — the block's fields, by name; `StateVariables` says which live under `block.St`, the rest under `block.In` | ⛔ Parameters mirroring the authored DTO too — they collide by name with `In`'s fields, and in every generated behaviour they are the same bytes |
+| ⭐ **emitted as `Graph(in TAuthored authored, ref TBlock block, world, self, host)`** + a fixed-name forwarder `ResolveBehavior(…)` | ⛔ make the behaviour side learn the graph's name — one more field to drift |
+| ⭐ **`Get`/`Set Variable` → `block.In.x` / `block.St.y`** through a name-aware `ContainerFor(ref)`; `ContainerVarFor(kind)` untouched for every other asset | ⛔ struct-typed `In`/`St` variables + Break/SetMembers — the compiler has no member list for a GENERATED behaviour type |
+| ⭐⭐ **purity: a `SetVariable` on ANY declared variable is legal** in a resolver-subject graph (the block is what the shadow holds); everything on the deny-list stays refused | ⛔ keep "Parameter only" — under `B` that is exactly inverted (§12.12b) |
+| ⭐⭐ **the behaviour names the resolver** (`BehaviorTreeAssetDto.Resolver = { AssetId, Name }`) and its registrar emits `BehaviorDefinition.ResolveBlock`, a stage-3 delegate called by its OWN `ParseParams` after the overlay **and** by `HostedSubtree.StartChild` after the supply | ⛔ bind through `BehaviorRegistry.RegisterResolver` — that REPLACES supply (curated semantics, `CE-427`); ⛔ runtime lookup in `BlueprintDefinition.Resolvers` — a string table where the compile can check types |
+| ⭐ **`R-149`: a behaviour that names a resolver asset AND gets a curated `[BehaviorResolver]` THROWS** at registration | ⛔ let one win — a race, not a precedence rule |
+| ⭐ **one class-naming helper** (`BlueprintClassNaming`, `Hrot.AiEditor.Persistence`) used by the BTree emitter AND the schema catalog | ⛔ a third private copy of `Sanitize` + FNV |
+
+```mermaid
+classDiagram
+    class BlueprintAsset {
+      <<EXISTS - Hrot.Blueprints.Compiler>>
+      +Dispatch Library
+      +ResolverSubject NEW
+    }
+    class ResolverSubjectDecl {
+      <<NEW>>
+      +BehaviorName
+      +AuthoredTypeId
+      +BlockTypeId
+      +StateVariables
+    }
+    class V_ResolverPurity {
+      <<EXISTS>>
+      third arm: subject graph declares nothing
+      SetVariable on a block variable is legal
+    }
+    class EmissionContext {
+      <<EXISTS>>
+      +ContainerFor(ref) NEW
+    }
+    class LibraryEmitter {
+      <<EXISTS>>
+      +EmitResolverGraph widened
+      +ResolveBehavior forwarder NEW
+    }
+    class BehaviorTreeAssetDto {
+      <<EXISTS - Persistence>>
+      +Resolver NEW
+    }
+    class BTreeBridgeEmitCore {
+      <<EXISTS>>
+      emits __ResolveBlock and ResolveBlock
+    }
+    class BlueprintClassNaming {
+      <<NEW - Persistence>>
+      +ClassFqn(assetId, name)
+    }
+    class BehaviorDefinition {
+      <<EXISTS - Fdp.Toolkits>>
+      +ResolveBlock NEW
+    }
+    class HostedSubtree {
+      <<EXISTS>>
+      StartChild calls ResolveBlock
+    }
+    BlueprintAsset *-- ResolverSubjectDecl
+    V_ResolverPurity ..> ResolverSubjectDecl
+    LibraryEmitter ..> EmissionContext
+    BTreeBridgeEmitCore ..> BlueprintClassNaming
+    BTreeBridgeEmitCore ..> BehaviorTreeAssetDto
+    BTreeBridgeEmitCore ..> BehaviorDefinition : emits ResolveBlock
+    HostedSubtree --> BehaviorDefinition
+```
+
+> ⭐ **Caption.** The two assets never meet at run time: the binding is a **static call** the behaviour
+> registrar emits, so the C# compiler checks `TAuthored`/`TBlock` against the behaviour's real types.
+> ⛔ There is no resolver registry in this picture — that is the point.
+
+```mermaid
+sequenceDiagram
+    participant Ing as "ingress (root) or StartChild (hosted)"
+    participant Parse as "behaviour ParseParams"
+    participant RB as "BehaviorDefinition.ResolveBlock"
+    participant Res as "ResolverBp.ResolveBehavior"
+    Ing->>Parse: root only - parse(json, shadow)
+    Parse->>Parse: 1 bake, 2 overlay JSON
+    Parse->>RB: 3 resolve
+    Note over Ing,RB: hosted child - clear, bake, copy host bytes, then RB directly
+    RB->>Res: (in block.In copy, ref block, world, self, host)
+    Res-->>RB: returns, or throws
+    RB-->>Ing: a throw abandons the shadow (root) or the start (child)
+```
+
+```mermaid
+graph TD
+    BPJ["resolver .bp.json"] -->|"BlueprintIncrementalGenerator"| BPC["Hrot.AI.Behaviors.Generated.X_Bp<br/>ResolveBehavior"]
+    BTJ["behaviour .btree.json<br/>Resolver = X"] -->|"BTreeJsonGenerator"| REG["behaviour registrar<br/>ResolveBlock = static call to X_Bp"]
+    REG -.->|"same compilation - C# type check"| BPC
+    ING["BehaviorIngressSystem<br/>Input phase, every assign"] --> REG
+    HS["HostedSubtree.StartChild<br/>every hosted start"] --> REG
+```
+
+> ⭐ **Caption — who calls it.** Both callers already run on every host family that ticks a brain;
+> the dotted edge is the compile-time link, never a runtime lookup.
+
+#### 12.20d ✅ AS BUILT `2026-09-29` — matches the diagrams above, with two measured additions
+
+| | |
+|---|---|
+| 🔴 **`BlueprintCompiler.Compile` copies the asset field by field** (`:60`) | the new `ResolverSubject` was silently dropped for every real compile ⇒ the resolver compiled as a plain Library (BP1011) while Stage-2-only rails stayed green. ⭐ Fixed, and `OwnParamResolverTests.TheCompilersAssetCopy_CarriesEveryPublicProperty` now reds for the NEXT property too |
+| ⚠ **the authored TypeId is the behaviour's `JsonParamsDtoType`**, whose suffix depends on the asset's `BlackboardTypeName` | `T40` emits `T40_BehaviorResolverAsset_Blackboard`, not the `…_FdpToolkitBehaviorComponentsBrainBlackboard` spelling `T35` has ⇒ ⭐ the editor must DERIVE it (`CE-434`), never guess; ✅ a wrong one is a C# compile error, never silent |
 

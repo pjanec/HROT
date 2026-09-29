@@ -73,6 +73,7 @@ internal static class Stage5_Schedule
             BlueprintId   = BlueprintIdHash.Compute(asset.AssetId),
             StructureHash = 0,  // assigned in Stage 6 after layout finalization
             Dispatch      = asset.Dispatch,
+            ResolverSubject = asset.ResolverSubject,
             // BP-82: macro graphs are skipped above, so the count is the only trace of them left for
             // lowering to see (BP5001 must not call a macro library "empty").
             DeclaredMacroCount = asset.Graphs.Count(g => g.Kind == GraphKind.Macro),
