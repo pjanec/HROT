@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4f** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428 built; next is CE-434) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4g** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434 built; next is CE-433) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -820,9 +820,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ **A hosted subtree now has its own block**: slot `[cursor][start word][block]`, sized by ingress from the CHILD's definition (`HostedSubtree.EffectiveSlots`); at every START the child is cleared → baked → seeded from its site's bound host variable (`SiteBinding`, baked from `BTreeSubtreePayloadDto.ParamsVariable`). 🔴 **The load-bearing finding:** every generated thunk projected from the ENTITY's root (`RootRef`) and ignored `bb` — so all BTree thunks now project from `bb` via `BehaviorBlock.Require` (a sentinel keeps "no block" loud). 🔒 **`R-154` recorded** (your approval: resolvers by behaviour NAME). ⏭ `CE-428` → `CE-434` → `CE-433` → `CE-430` → `A` + `C`; filed **`CE-438`** (curated resolver on a hosted child — throws today) and **`CE-439`** (editor authoring of the binding + HSM-host emission). 📄 [`Q76` §11.7](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4f ✅ `CE-428` BUILT *(overnight)* — ⭐ **NEXT IS `CE-434`**
+### 13.4f ✅ `CE-428` BUILT *(overnight)*
 
 ⭐ **A behaviour binds a blueprint RESOLVER ASSET (shape ③):** a Library `.bp.json` with a `ResolverSubject` (the behaviour it refines, its two types, which variables are State); its Variables mirror the block and compile to `block.In.x` / `block.St.y`; emitted as `ResolveBehavior(in authored, ref block, world, self, host)`. The behaviour names it (`BehaviorTreeAssetDto.Resolver`); its registrar calls it as stage 3 inside `ParseParams` and publishes it as `BehaviorDefinition.ResolveStage`, which a hosted child's start also runs. Demo pair `T40_BehaviorResolverAsset` + `T40Resolver`. 🔴 Found: the compiler's field-by-field asset copy (trap ⑫). ⏭ `CE-434` (editor pick/create/invalidate) → `CE-433` → `CE-430` → `A` + `C`. 📄 [`Q76` §12.20](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
+### 13.4g ✅ `CE-434` BUILT *(overnight — model, service, validator; ⛔ no UI wiring)* — ⭐ **NEXT IS `CE-433`**
+
+⭐ `BehaviorResolverShape` (Persistence) derives a resolver's subject from a behaviour through the emitter's own namers and hashes it; `BehaviorResolverAuthoring` (AiComposition) creates / re-derives (keeping surviving variable ids) / binds / clears; `BTreeValidator` warns `ResolverOutOfDate` when the recorded hash no longer matches. Proven against the shipped T40 pair. ⏭ `CE-433` → `CE-430` → `A` + `C`; the UI wiring for CE-434 is an open follow-up. 📄 [`Q76` §12.21](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 

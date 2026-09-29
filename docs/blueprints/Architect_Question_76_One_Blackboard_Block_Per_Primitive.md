@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428 are BUILT (§11.7, §12.15–§12.20). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434 are BUILT (§11.7, §12.15–§12.21). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2181,4 +2181,107 @@ graph TD
 |---|---|
 | 🔴 **`BlueprintCompiler.Compile` copies the asset field by field** (`:60`) | the new `ResolverSubject` was silently dropped for every real compile ⇒ the resolver compiled as a plain Library (BP1011) while Stage-2-only rails stayed green. ⭐ Fixed, and `OwnParamResolverTests.TheCompilersAssetCopy_CarriesEveryPublicProperty` now reds for the NEXT property too |
 | ⚠ **the authored TypeId is the behaviour's `JsonParamsDtoType`**, whose suffix depends on the asset's `BlackboardTypeName` | `T40` emits `T40_BehaviorResolverAsset_Blackboard`, not the `…_FdpToolkitBehaviorComponentsBrainBlackboard` spelling `T35` has ⇒ ⭐ the editor must DERIVE it (`CE-434`), never guess; ✅ a wrong one is a C# compile error, never silent |
+
+### 12.21 ⭐⭐⭐ `CE-434` BUILD DESIGN — **the editor derives, binds and invalidates a behaviour's resolver** *(`2026-09-29`, overnight)*
+
+🔒 **Frame:** §12.10d ③ + ④ (pick **or create**; invalidate when the authored params change) · §12.10e
+(the resolver asset names the BEHAVIOUR; its back-reference is derived, never hand-edited) · §12.12c
+(the editor's hash check is the CONVENIENCE; the C# compile is the SAFETY). ⛔ **Not in this slice:**
+picking a curated C# resolver (§12.10c's "`BehaviorName` becomes optional" — no C# resolver exists in
+that shape yet), the pins node (`CE-433`), HSM behaviours (no block).
+
+#### 12.21a INVENTORY *(`search_graph`, `2026-09-29`)*
+
+| query | result |
+|---|---|
+| `.*BTreeValidator.*` Class | 1 — `BTreeValidator` (the editor's per-asset rule set) |
+| `.*NewAsset.*` Class | `BTreeNewAssetService`, **`BlueprintNewAssetService`** (Library template), `HsmNewAssetService`, `NewAssetDialog`, `NewAssetLauncher` |
+| `.*PickerBinder.*` / `.*SchemaExporter.*` | `AiFacetPickerBinder` (in `Hrot.Editor.AiComposition` — the ONLY project that references BTree editor AND blueprint editor) · `ActionSchemaExporter` |
+| block type naming | ONE producer each: `BTreeEmitCore.BlackboardStructName` (the `In` type — suffix from `Blackboard.TypeName`, not fixed) and `BlockStructName` — both `internal` to Persistence |
+| which variable lives where | `In` = every `Role≠State` variable (`BTreeBlackboardPackHelper:152`); `St` = `Role=State ∧ Scope=Behavior` (`BTreeEmitCore.BlockStateVariables:200`) |
+
+#### 12.21b DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **one public shape facade in Persistence** — `BehaviorResolverShape.Of(dto)` → `AuthoredTypeId`, `BlockTypeId`, the block's variables (name, CLR type id, which half), and a **`ShapeHash`** — forwarding to the existing internal namers | ⛔ the editor re-deriving the names — §12.20d measured that the `In` suffix varies by asset; a second copy is how they drift (`R-132`) |
+| ⭐⭐ **the hash covers exactly what the resolver asset's declarations are derived from**: namespace, `Blackboard.TypeName`, and each block variable's (name, type, half) in order | ⛔ hash the whole asset — every node move would invalidate the pick |
+| ⭐ **`BTreeResolverRefDto.ShapeHash`** stored with the pick; the model carries it (`BTreeResolverRef`) | ⛔ recompute-only — nothing to compare against |
+| ⭐ **`BTreeValidator` warns** when the stored hash differs from the current one, naming the three remedies (re-derive · pick another · clear) | ⛔ an ERROR — the compile is the safety; the editor check is advice (§12.12c) |
+| ⭐⭐ **`BehaviorResolverAuthoring`** (in `Hrot.Editor.AiComposition`): `Create` mints the resolver `BlueprintAsset` (Library + `ResolverSubject` + mirrored Variables + one `Construction` graph); `Rederive` re-mirrors an existing one **keeping each surviving variable's id** (so graph nodes keep their bindings); `Candidates` lists resolver assets whose subject names this behaviour; `Bind`/`Clear` write the ref + hash | ⛔ let the author type the subject — §12.10e: the back-reference is DERIVED |
+
+```mermaid
+classDiagram
+    class BehaviorResolverShape {
+      <<NEW - Persistence, public>>
+      +Of(BehaviorTreeAssetDto) Shape
+      +AuthoredTypeId
+      +BlockTypeId
+      +Variables name type isState
+      +ShapeHash
+    }
+    class BTreeEmitCore {
+      <<EXISTS - internal namers>>
+      +BlackboardStructName
+      +BlockStructName
+      +BlockStateVariables
+    }
+    class BehaviorResolverAuthoring {
+      <<NEW - AiComposition>>
+      +Create(behaviour) BlueprintAsset
+      +Rederive(resolver, behaviour)
+      +Candidates(assets, behaviour)
+      +Bind(model, resolver)
+      +Clear(model)
+    }
+    class BehaviorTreeAsset {
+      <<EXISTS - BTree editor model>>
+      +Resolver BTreeResolverRef
+    }
+    class BTreeValidator {
+      <<EXISTS>>
+      stale-resolver warning NEW
+    }
+    class BlueprintAsset {
+      <<EXISTS>>
+      +ResolverSubject
+    }
+    BehaviorResolverShape ..> BTreeEmitCore : forwards
+    BehaviorResolverAuthoring ..> BehaviorResolverShape
+    BehaviorResolverAuthoring --> BlueprintAsset : creates / re-derives
+    BehaviorResolverAuthoring --> BehaviorTreeAsset : writes Resolver + hash
+    BTreeValidator ..> BehaviorResolverShape : recompute hash
+```
+
+> ⭐ **Caption.** Everything that NAMES a generated type goes through `BehaviorResolverShape`, which
+> forwards to the emitter's own namers — so the editor cannot derive a name the generator will not emit.
+
+```mermaid
+sequenceDiagram
+    participant Ed as "editor action"
+    participant Au as "BehaviorResolverAuthoring"
+    participant Sh as "BehaviorResolverShape"
+    participant BA as "behaviour model"
+    participant RA as "resolver BlueprintAsset"
+    Ed->>Au: Create(behaviour)
+    Au->>Sh: Of(behaviour dto)
+    Au->>RA: Library + ResolverSubject + Variables + Construction graph
+    Au->>BA: Resolver = (id, name, ShapeHash)
+    Note over Ed,RA: later - the behaviour's blackboard changes
+    Ed->>Sh: Of(behaviour dto).ShapeHash
+    alt hash differs from the stored one
+        Ed->>Ed: BTreeValidator warning - re-derive / pick another / clear
+        Ed->>Au: Rederive(resolver, behaviour)
+        Au->>RA: re-mirror Variables, keep surviving ids
+        Au->>BA: store the new hash
+    end
+```
+
+#### 12.21c ✅ AS BUILT `2026-09-29` — as designed; ⛔ the UI wiring is not in the slice
+
+The five pieces match the class diagram. ⭐ Proof that the editor derives names the generator emits:
+deriving from the shipped `T40_BehaviorResolverAsset` reproduces the shipped `T40Resolver`'s subject
+exactly (`BehaviorResolverAuthoringTests`). ⛔ **Not built:** a window/menu that calls
+`BehaviorResolverAuthoring` — no editor host runs in this environment to verify one, so it is a
+visual-check follow-up rather than an unverified UI.
 

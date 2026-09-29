@@ -237,6 +237,13 @@ public sealed class BTreeResolverRefDto
 {
     public Guid AssetId { get; set; }
     public string Name { get; set; } = string.Empty;
+
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — <c>BehaviorResolverShape.ShapeHash</c> when the resolver was picked or derived. A
+    /// different current hash means the behaviour's block changed since: the editor warns (the C# compile is
+    /// the backstop). <c>0</c> = never recorded.
+    /// </summary>
+    public uint ShapeHash { get; set; }
 }
 
 public sealed class BTreeSubtreePayloadDto

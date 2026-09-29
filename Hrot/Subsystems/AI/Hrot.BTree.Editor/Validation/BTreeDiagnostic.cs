@@ -39,6 +39,13 @@ public enum BTreeDiagnosticCode
     /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.16.
     /// </summary>
     SubtreeAssetCycle,
+
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — the behaviour's bound resolver was derived for a DIFFERENT block shape than the one the
+    /// behaviour has now (a variable renamed, retyped, added or removed). ⚠ A WARNING: the C# compile is the
+    /// safety net (§12.12c); this is the early, ergonomic notice. 📄 <c>Q76</c> §12.21.
+    /// </summary>
+    ResolverOutOfDate,
 }
 
 /// <summary>

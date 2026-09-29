@@ -86,6 +86,9 @@ public sealed class BTreeWaitPayload
     public float Duration;
 }
 
+/// <summary>⭐ <c>CE-428</c>/<c>CE-434</c> — the behaviour's bound resolver asset and the block shape it was derived for.</summary>
+public sealed record BTreeResolverRef(Guid AssetId, string Name, uint ShapeHash);
+
 /// <summary>Payload for Subtree leaf nodes.</summary>
 public sealed class BTreeSubtreePayload
 {
@@ -239,7 +242,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// ⭐ <c>CE-428</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20), or <c>null</c>. ⚠ Must round-trip
     /// through <c>BehaviorTreeAssetMapper</c>: an editor save that dropped it would silently unbind the resolver.
     /// </summary>
-    public (System.Guid AssetId, string Name)? Resolver { get; set; }
+    public BTreeResolverRef? Resolver { get; set; }
 
     private bool _isDirty;
     private readonly List<BTreeEditorNode> _nodes = new();

@@ -38,6 +38,7 @@ public sealed class BTreeValidator
         CheckCycles(asset, diagnostics);
         CheckOrphanedNodes(asset, diagnostics);
         CheckNestedDecorators(asset, diagnostics);
+        CheckResolverShape(asset, diagnostics);
         if (catalog != null)
         {
             CheckDanglingBlueprintReferences(asset, catalog, diagnostics);
@@ -69,6 +70,25 @@ public sealed class BTreeValidator
     /// <para>⚠ The walk is shared with <c>HsmValidator</c> so the two cannot drift into two answers for
     /// one question (ruling 9).</para>
     /// </summary>
+    /// <summary>
+    /// ⭐ <c>CE-434</c> — a bound resolver whose recorded shape hash no longer matches the behaviour's block.
+    /// 📄 <c>Q76</c> §12.21. ⚠ A hash of <c>0</c> was never recorded (a hand-authored ref) — nothing to compare.
+    /// </summary>
+    private static void CheckResolverShape(BehaviorTreeAsset asset, List<BTreeDiagnostic> out_)
+    {
+        if (asset.Resolver is not { ShapeHash: not 0 } r) return;
+        uint now = Hrot.AiEditor.Persistence.Emit.BehaviorResolverShape
+            .Of(global::Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(asset)).ShapeHash;
+        if (now == r.ShapeHash) return;
+
+        out_.Add(new BTreeDiagnostic(
+            Guid.Empty,
+            BTreeDiagnosticSeverity.Warning,
+            BTreeDiagnosticCode.ResolverOutOfDate,
+            $"Resolver '{r.Name}' was derived for a different blackboard than this behaviour now has. "
+            + "Re-derive it, pick another resolver, or clear the binding."));
+    }
+
     private static void CheckSubtreeAssetCycles(
         BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
     {
