@@ -666,6 +666,44 @@ host's**, which is the whole of `Q76`-`B`.
 | ⭐ **a hosted AiPrimitive** *(a composed blueprint action/condition)* | 🔴 **A ONE-TIME SEED COPY.** Inside `if (freshlyAttached)`: the child's own `Params` region is filled by copying the host's **root params bytes at the bound offset** — `*__params = Unsafe.As<byte,Params>(ref AddByteOffset(ref __rootParams, seedOffset))` — then the per-asset resolver runs, then the working state is default-initialised | `AiPrimitiveEmitter.EmitParamSeed:464` |
 | ⭐ **a hosted SUBTREE** *(a whole child BTree/HSM behaviour)* | ⛔ **NO COPY AT ALL** — *"the child reads the HOST ENTITY's root params region"*; a host with no params hands the child a **scratch byte** rather than throwing | `HostedSubtree.cs:82,97` |
 
+#### ⚠ And the subtree's read is EVERY TICK, and ALIASED — not a start-time arrangement
+
+📐 `HostedSubtree.TickFromContext` **is** the per-tick hosting call, and it re-runs the lookup each
+time:
+
+```csharp
+byte scratch = 0;
+ref byte childBb = ref scratch;
+if (RootParamsAccess.TryGetRootBytes(ctx.World, ctx.Self, out byte* root))
+    childBb = ref Unsafe.AsRef<byte>(root);          // the child's blackboard IS the host's region
+return Tick(child, ref childBb, ref ctx, treeStateSlotKey);
+```
+
+⇒ ⭐ **the child has no blackboard of its own to copy into** — it is handed a `ref` onto the host's.
+Its only private storage is the `BehaviorTreeState` cursor, keyed by `treeStateSlotKey`, and 📐 the
+slot is sized for **exactly that** — `TreeStatePayloadSize => sizeof(BehaviorTreeState)`
+*(`HostedSubtree.cs:33`, consumed at `BTreeHostedSites.cs:189`)*.
+⭐ **Re-resolving per tick is deliberate, not laziness:** a cached pointer would dangle when the tier
+is promoted to a larger one or a slot is detached — the same reason `BlueprintSharedState` is
+by-value. ⚠ The cost is a linear scan of the entity's attached slots *(≤16)* per hosted subtree per
+tick.
+
+🔴🔴 **THE CONSEQUENCE — the two hosting paths have OPPOSITE FRESHNESS SEMANTICS:**
+
+| | the child's params | if the host's params change later |
+|---|---|---|
+| **hosted subtree** | **aliased**, re-resolved every tick | ⭐ the child **sees it immediately** |
+| **hosted AiPrimitive** | a **private copy**, seeded once | ⛔ the child **never sees it** — it holds a snapshot |
+
+⛔ One question — *"what params does my child get?"* — two answers. ⚠ And `IHostVariableAccess`'s
+header states the intended rule: *"Resolve-once still holds… **live binding stays out of the
+model**"* — ⇒ **the subtree path is the one that does not match it.**
+⭐ **Honest caveat:** root params are written once at activation, so this rarely bites today; it
+would the moment anything writes a param at runtime — **StructEdit's typed editor does exactly
+that.** ⚠⚠ **And `Q76`-`B` CHANGES this**: giving a subtree its own block moves it from live-alias
+to snapshot. ⛔ That is a **behaviour change, not a pure refactor**, and it must be named in the
+slice rather than discovered.
+
 ⚠ **Why the seed exists at all, in its own words:** *"E3a SEED (§28.4): the bytes this thunk read
 LIVE before params moved into the slot. **Copying them makes the move byte-identical at the first
 dispatch.**"* ⇒ ⭐ it is partly a **compatibility artefact of `P3`** *(params moving into their own
