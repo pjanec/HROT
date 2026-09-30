@@ -6,8 +6,13 @@ build-state: ⭐ A and C are READY-TO-BUILD. ⚠ B is buildable ONLY WITH §7.3b
   Carries the INVENTORY (§1), a classDiagram (§3), two sequenceDiagrams (§4, §5) and a
   module-relationship graph TD (§6). Every decision here is RULED in Architect_Question_72 — including
   §7.3a's adapter, which the 2026-09-19 review forced and which AQ-72 now carries as Q72-M.
-updated: 2026-09-19 (REVISED TWICE after the backend session's reviews — round 1: six corrections;
-  round 2: §7.3b's author-subtraction, the BaseFolder predicate, the merged AUTH/BRAIN box)
+updated: 2026-09-30 (§7.3a's as-built limit CORRECTED: the BaseFolder seam has ZERO production readers,
+  not "one of three" — prior wording in §HISTORY round 4. Earlier, 2026-09-20:
+  REVISED after review ROUND 4 — the first driven by the codebase-memory GRAPH, which
+  found the six-contributors-over-four-kinds enumeration grep had missed. §1.2 is NEW; §7.3a gains the
+  AGGREGATION RULE and an AS-BUILT block. Earlier: round 1 six corrections; round 2 §7.3b's
+  author-subtraction, the BaseFolder predicate, the merged AUTH/BRAIN box)
+owner: the BACKEND lane (`backend`) owns this design as of 2026-09-20 (user ruling).
 current-answer: §2 is the model in one table (the three forms, the two directions) — ⭐ read its
   restore-at-unpack paragraph, it is what makes the one-predicate claim TRUE. §3-§6 are the structure.
   §7 is the WHY the diagrams cannot carry; ⭐ §7.3a is RULED and carries the whole LoadPart->AssetKind
@@ -61,10 +66,31 @@ that shape the STRUCTURE:
 | ② | `FileManifestEntry` = `SourceUnc` + `RelativeDest` + `DocType` — ⛔ **no length, no mtime**. ⭐ It is the **node→NAS** DTO (`SerializeLocal`'s result payload); NAS→node uses `NodeDistributionTarget` | the freshness manifest needs **two fields on a wire DTO** — ⛔ but in increment **C** (publish), **not** A: see §8 |
 | ③ | ⛔ **nothing enumerates a NAS asset tree** for any `AssetKind`; the only asset-ish reader is a ledger dir | the **NAS half is entirely new code** |
 | ④ | ✅ `File.Copy` **preserves** the source mtime *(measured)* | a timestamp is a **cluster-wide identity**; both skips share one predicate |
-| ⑤ | ✅ `IAssetCatalogContributor.BaseFolder` gives the per-kind dir; ⛔ `IEditableAsset` carries no timestamp | the publish probe is a **stat-only walk**, not a cached read. ⚠ `BaseFolder` is `null` for scenarios |
+| ⑤ | ✅ `IAssetCatalogContributor.BaseFolder` gives the dir; ⛔ `IEditableAsset` carries no timestamp | the publish probe is a **stat-only walk**, not a cached read. ⚠ `BaseFolder` is `null` for scenarios. ⛔⛔ **CORRECTED `2026-09-20` — it is PER-CONTRIBUTOR, not "the per-kind dir": `Hsm` and `BTree` each have TWO** *(§1.2)* |
 | ⑥ | ✅ `PullToNasAsync` + consensus aggregators exist (node→NAS); ✅ `PrefetchScenarioAsync` (NAS→node) | **both directions exist**; this adds recursion, partitioning and the skip |
 | ⑦ | ✅ `ITkbStorageStrategy` + `ZipTkbProvider` + `RawDirectoryTkbProvider` | the FS-agnostic seam exists **for TKB only** |
 | ⑧ | ✅ `RoleLoadRequirements` (BUILT) declares which role loads which part | ⭐ the **source** of the needs tokens (`Q72-L`) |
+
+### 1.2 ⛔⛔ THE `BaseFolder` ENUMERATION — **measured `2026-09-20` with the graph, and it corrects §1 ⑤**
+
+⚠ **Rounds 1–3 were grep-only** *(§1's own coverage note)*. ⭐ A `search_graph` enumeration, corroborated by
+grep, returns **SIX production contributors over FOUR kinds** — ⛔ not one per kind:
+
+| contributor | `Kind` | `BaseFolder` |
+|---|---|---|
+| `BlueprintAssetContributor` | Blueprint | ✅ the scanned root |
+| ⛔ `BTreeAssetContributor` | BTree | ⛔ **`null`** — assembly-backed (`LoadFrom(asm)`), no override |
+| `BTreeJsonAssetContributor` | BTree | ✅ the scanned root |
+| ⛔ `HsmAssetContributor` | Hsm | ⛔ **`null`** — assembly-backed, no override |
+| `HsmJsonAssetContributor` | Hsm | ✅ the scanned root |
+| `ScenarioCatalogContributor` | Scenario | ⛔ `null` (`:82`) — ✅ confirms the scenario row |
+
+📐 `BaseFolder` is a **default interface member returning `null`** (`IAssetCatalogContributor.cs:20`), and
+both members of each AI pair are registered together — `EditorSubsystem.cs:1190-1191` / `:1232-1233`, CGF
+the same pair at `CgfSubsystem.cs:323-324`.
+
+⇒ 🔴 **§7.3a's predicate is written as if a kind had ONE contributor. For `Hsm` and `BTree` it has two,
+and they disagree.** ⭐ The design therefore owes an **AGGREGATION RULE**, stated below.
 
 ### 1.1 What `DESIGN_Artifact_Staging` already BUILT — ⛔ not re-decided here
 
@@ -368,10 +394,68 @@ and that was WRONG** *(see `## ⛔ HISTORY`)*. 📐 `AssetRoots.AssetsRelative` 
 **three** kinds and **throws `ArgumentOutOfRangeException`** for `Blackboard`, `Utility` and `Scenario`:
 *"AssetKind.{kind} has no Assets root."* ⇒ ⭐ **there is nothing on disk to sync for those kinds.**
 
-⭐⭐⭐ **So the rule is stated as a PREDICATE, not a list** — *"a kind is syncable iff its contributor has a
-`BaseFolder`"*. 🔒 That is **zero maintenance**: a kind gaining a root becomes syncable with no edit here,
-and it is the **same** property `C2`'s probe already walks (§1 ⑤). ⛔ A hand-written list of three would
-rot the first time a fourth kind gains a root.
+⭐⭐⭐ **So the rule is stated as a PREDICATE, not a list** — *"a kind is syncable iff **ANY** of its
+contributors has a non-null `BaseFolder`"*. 🔒 That is **zero maintenance**: a kind gaining a root becomes
+syncable with no edit here, and it is the **same** property `C2`'s probe already walks (§1 ⑤). ⛔ A
+hand-written list of three would rot the first time a fourth kind gains a root.
+
+#### ⛔⛔ THE AGGREGATION RULE — **`ANY`, and it is not a detail** *(added `2026-09-20`, §1.2)*
+
+📐 §1.2 measures that `Hsm` and `BTree` each have **two** contributors, one file-backed and one
+assembly-backed, and the assembly-backed one answers **`null`**. ⇒ ⛔ *"its contributor"* is **under-determined
+as written** and the three readings diverge:
+
+| reading | result | verdict |
+|---|---|---|
+| ⭐ **`ANY` non-null wins** | Blueprint ✅ · BTree ✅ · Hsm ✅ | ✅ **THE RULE** — it is the only one that matches the intent *(the kinds with files on disk)* |
+| ⛔ `ALL` must be non-null | BTree ✗ · Hsm ✗ | ⛔ **silently cancels the feature for two of the three kinds** |
+| ⛔⛔ **first registered wins** | depends on `EditorSubsystem.cs:1190` vs `:1232` ordering | 🔴 **a RACE, not a precedence rule — `R-132`.** ⛔ Never |
+
+⇒ ⭐⭐ **`B1` rails `ANY` explicitly**, with a two-contributor fixture for one kind — ⛔ a single-contributor
+fixture passes all three readings and proves nothing.
+
+#### ✅ AS-BUILT `2026-09-20` — **`BaseFolder` now MEANS what this section reads it to mean**
+
+⚠⚠ **It did not, when this predicate was written.** 📐 `BaseFolder` returned `AssetRoots.AssetsFor(Kind)`
+(`ConfiguredRoot ?? AppContext.BaseDirectory` — ⛔ **no source walk-up**) while the composition roots build
+the contributors from `ResolveAssetsRoot(...)` (`ConfiguredRoot` → **walk-up** → output dir). ⇒ on any host
+with a source tree and no configured root the property named the **bin dir** while the contributor
+enumerated the **source tree** — ⛔ **silently**, since `ReportBase` warns only when *neither* arm answered.
+📌 The divergence was already visible downstream as the `"../"`-recovery branch in `AssetRelPath.RelPath`.
+
+📌 **And the near-miss is instructive: an existing rail already guards the OTHER arm.**
+`TheDeployedNodeFindsItsAssetsTests.EveryRootMemberAgreesWithTheConfiguredRoot` asserts
+`AssetsFor(kind) == ResolveAssetsRoot(kind, …)` — ⭐ but **only with `ConfiguredRoot` SET**, where the two
+arms coincide by construction. Its own comment says ruling 67's batch *"shipped it wrong"* once for exactly
+this reason. ⇒ ⚠ **the configured arm was railed; the WALK-UP arm never was**, and that is the gap F2 sat in.
+
+✅ **FIXED** — the three file-backed contributors now return **the root they actually scan**
+*(`BlueprintAssetContributor` its ctor argument; the two JSON contributors the `rootDirectory` last given to
+`Discover`, falling back to `AssetsFor(Kind)` only when driven by an explicit `jsonPaths` list, which has no
+single base folder)*. ⭐ **Railed** — `AssetRelPathTests.Contributor_BaseFolder_IsTheRootItActuallyScans`,
+which **replaced a vacuous rail that asserted a test double against itself** and was green throughout.
+
+⛔⛔ **AND THE LIMIT, STATED — the fix reaches the CONTRIBUTOR path only, and TODAY THAT PATH HAS NO
+PRODUCTION READER.** 📐 **Re-measured `2026-09-30`** *(`grep -rn "\.BaseFolder" --include=*.cs Hrot/ FDP/
+Stride/ | grep -v Tests`)*: **every non-test hit is a doc comment or the KIND-KEYED
+`AssetBrowserPanel.BaseFolderFor`** — `AssetPickerSource.cs:59` and `AssetPickerLauncher.cs:56` both
+*default* to it, `AssetFolderDerivation` documents it, and `EditorSubsystem.cs:3946` re-implements it as a
+lambda. ⇒ ⭐⭐⭐ **`IAssetCatalogContributor.BaseFolder` is read by NOTHING in production.**
+
+⚠⚠ **An earlier version of this paragraph said *"three producers, two of which bypass the contributor"* —
+that implied ONE used it. ⛔ Measured false: none do.** *(The `## ⛔ HISTORY` table carries the superseded
+wording.)*
+
+| ⇒ what that changes, and what it does not | |
+|---|---|
+| ⭐⭐⭐ **the seam is ORPHANED, not merely duplicated** | 📌 **the seam law's own shape** — *"a shared X already exists and is under-adopted"*. ⛔ The interesting fact is not that a duplicate exists; it is that **the declared seam has zero adopters while the kind-keyed duplicate does all the work** |
+| ⭐⭐ **the F2 fix is therefore ZERO-RISK today** | nothing reads the property ⇒ no production behaviour changed. ⭐ It makes the seam CORRECT **before** its first real consumer — 🔒 which is `C2`'s probe, and `C2` is not built |
+| ⚠ **but the bin-dir answer is still what the EDITOR uses** | the asset-browser tree and the Save-As `KnownSubfolders` go through the kind-keyed path ⇒ ⛔ **`AssetRelPath`'s `"../"` recovery is STILL LOAD-BEARING — do NOT delete it as dead code on the strength of F2** |
+| 🔒 **and it is a UI-surface call, not an asset-management one** | `R-132` *(two producers for one slot)* + ruling 9 ⇒ **ROUTE, do not delete.** ⛔ Out of scope here; recorded so nobody reads this section as *"the whole editor now agrees"* |
+
+⭐ **The consequence this design must carry:** when `C2` is built it becomes the **first** reader of the
+seam, so ⛔ **`C2` may not assume the editor agrees with it** — the browser can still be showing a tree
+derived from a different root until the routing in `F12` is done.
 
 ⚠ **What would flip the one-liner into a table:** a behaviour asset only SOME brain hosts need. ⭐ The
 adapter is where it would go — **a widening, not a redesign** (📄 `Q72-M`).
@@ -571,3 +655,9 @@ against source by the coordinator** before being folded in. ⛔ **None of these 
 |---|---|
 | §7.3b: *"the rule is not vacuous — `Hrot.SimHost` carries `NodeRole.Brain` (`NodeBootstrapper.cs:223/256`)"* | 🔴 **those are `if (role.HasFlag(Brain))` GUARDS, not a declaration.** `SimHostApp.DefaultRole` = `MuscleGround\|Perception\|NavigationSolver` (`:182-183`), CLI fallback `MuscleGround\|Perception` (`:255`), and `SimHostNodeBootstrapper.cs:415` treats `Brain` as *"this run is the CGF"*. ⇒ **every Brain host today IS an authoring host**, so the subtraction as written delivered to **nobody** and cancelled the feature silently. ⭐ Fixed by clauses ② (configured) + ③ (add-only) |
 | §7.3b: *"a node is never a sync target for a kind it authors"*, **unbounded over kinds** | ⛔ the editor authors **scenarios** (`EditorSubsystem.cs:3915`) and is `NodeRole.Brain` ⇒ it would subtract `LoadPart.ScenarioEntities` from itself and `ScenarioLoadStep.cs:122` throws *"No scenario file found"*. ⭐ Now bounded: **never a `LoadPart`-derived kind** |
+
+### ⛔ Round 4 — `2026-09-30`, on §7.3a's own as-built block
+
+| ⛔ the original text | 📐 what measured it false |
+|---|---|
+| §7.3a's limit paragraph: *"there are **three** producers of 'the base folder for a kind', and **two of them** bypass the contributor entirely"* | ⛔ **"two of three" implied ONE reader used the contributor. Measured `2026-09-30`: NONE do.** `grep -rn "\.BaseFolder" --include=*.cs Hrot/ FDP/ Stride/ \| grep -v Tests` returns only doc comments and the kind-keyed `AssetBrowserPanel.BaseFolderFor`; `AssetPickerSource.cs:59` and `AssetPickerLauncher.cs:56` default to it, `EditorSubsystem.cs:3946` re-implements it. ⇒ ⭐ `IAssetCatalogContributor.BaseFolder` has **zero production readers** — the seam is **ORPHANED**, which is the seam law's shape, and it is why the F2 fix carries **no** runtime risk |
