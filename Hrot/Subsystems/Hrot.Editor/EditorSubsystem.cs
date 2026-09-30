@@ -4881,6 +4881,8 @@ namespace Hrot.Editor
                 new Hrot.Editor.AiShared.Windows.CgfEditorShellToolbar.HostServices(
                     OpenAsset:     () => assetPickerLauncher?.Open(AssetKindFilter.All),
                     NewAsset:      () => newAssetLauncher?.Open(),
+                    // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
+                    NewProduct:    newAssetLauncher != null ? p => newAssetLauncher.Open(p) : null,
                     // ⭐⭐ PHASE 2 SLICE ① — was the SECOND of this host's two kind-switches, and it fell
                     //    through in SILENCE for any other kind. ⛔ The shared policy reports instead.
                     CompileReload: () => ReloadActiveAiDocument(

@@ -76,14 +76,23 @@ public sealed class NewAssetLauncher
     /// On pick → <c>showNewAssetDialog(kind, recipe)</c>.
     /// Cancel → nothing.
     /// </summary>
-    public void Open()
+    public void Open() => OpenCore(product: null);
+
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4) — File / New Behavior… · New Action… · New Condition…: the SAME tree, rooted at
+    /// <paramref name="product"/> (technology is the first level), routed through the SAME
+    /// <c>showNewAssetDialog</c> ⇒ ⛔ no second creation path. Picking the not-creatable C# row does nothing.
+    /// </summary>
+    public void Open(AuthoringProduct product) => OpenCore(product);
+
+    private void OpenCore(AuthoringProduct? product)
     {
-        var source = new RecipePickerSource(_services, _describe, _recipeCategory);
+        var source = new RecipePickerSource(_services, _describe, _recipeCategory, product);
 
         var request = new PickerRequest
         {
-            ContextKey = "assets.new",
-            Title = "New Asset",
+            ContextKey = product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
+            Title = source.Title,
             Layout = PickerLayout.Tree,
             SelectionMode = PickerSelectionMode.Single,
             ItemsProvider = () => source.BuildEntries("", null),

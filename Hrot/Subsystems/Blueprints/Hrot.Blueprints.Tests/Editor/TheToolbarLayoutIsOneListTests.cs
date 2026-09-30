@@ -216,6 +216,41 @@ public sealed class TheToolbarLayoutIsOneListTests
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-460</c> (E4) — the product-first New items sit right after New Asset…, are MENU-ONLY,
+    /// and invoke the host's launcher with their product.</b> ⛔ No toolbar entry: the toolbar ids are the
+    /// SAME set with or without <c>NewProduct</c>. 🔴 Red-proof: drop <c>MenuOnly: true</c> from a slot ⇒ its
+    /// id appears in the emitted toolbar list.
+    /// </summary>
+    [Fact]
+    public void CE460_New_behavior_action_condition_are_file_items_and_not_buttons()
+    {
+        var calls = new List<Hrot.Editor.AiShared.Recipes.AuthoringProduct>();
+        var shell = new ShellEditorCommands();
+        var menu  = new GlobalMenuRegistry();
+        RegisterAll(shell, Hrot.Editor.AiShared.Documents.ShellSaveCommands.SaveId);
+
+        var wm = new WindowManager(new Fdp.Presentation.Icons.IconAtlas(IntPtr.Zero, 512, 512));
+        var emitted = CgfEditorShellToolbar.RegisterCommonCore(
+            shell, wm.MainToolbar, new NullIcons(),
+            new CgfEditorShellToolbar.HostServices(
+                OpenAsset: () => { }, NewAsset: () => { }, NewProduct: calls.Add),
+            menu);
+
+        Assert.Equal(
+            new[] { "Open Asset…", "New Asset…", "New Behavior…", "New Action…", "New Condition…", "Save" },
+            menu.Root.Children["File"].Children.Keys.ToArray());
+
+        Assert.DoesNotContain(CgfEditorShellToolbar.NewBehaviorId,  emitted);
+        Assert.DoesNotContain(CgfEditorShellToolbar.NewActionId,    emitted);
+        Assert.DoesNotContain(CgfEditorShellToolbar.NewConditionId, emitted);
+
+        shell.Invoke(CgfEditorShellToolbar.NewConditionId);
+        shell.Invoke(CgfEditorShellToolbar.NewBehaviorId);
+        Assert.Equal(new[] { Hrot.Editor.AiShared.Recipes.AuthoringProduct.Condition,
+                             Hrot.Editor.AiShared.Recipes.AuthoringProduct.Behavior }, calls);
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>UXI-05</c> — THE DERIVATION, on the MENU.</b> The subset rule is the SAME predicate the
     /// toolbar uses: no handler ⇒ no descriptor ⇒ no menu item.
     ///

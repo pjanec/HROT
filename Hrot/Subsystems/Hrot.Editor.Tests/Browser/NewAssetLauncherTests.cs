@@ -192,4 +192,69 @@ public sealed class NewAssetLauncherTests
 
         Assert.False(dialogCalled, "showNewAssetDialog should not be called on cancel.");
     }
+
+    // ── CE-460 (E4): product-first entries, over the REAL per-kind services ─────────────────────────
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-460</c> — File / New Behavior… opens the SAME launcher rooted at Behavior, over the
+    /// PRODUCTION services: BTree and HSM each keep a folder (Empty + Starter), the blueprint's one
+    /// Behavior template collapses to a leaf named "Blueprint", and picking it routes through the SAME
+    /// dialog as New Asset. ⛔ An Instance or Library blueprint must NOT be offered as a behaviour.
+    /// 🔴 Red-proof: return <c>null</c> from <c>BlueprintNewAssetService.ProductOf</c> for Behavior ⇒ no
+    /// "Blueprint" leaf.
+    /// </summary>
+    [Fact]
+    public void CE460_New_behavior_lists_every_technology_and_routes_through_the_one_dialog()
+    {
+        var services = new Dictionary<AssetKind, INewAssetService>
+        {
+            [AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+            [AssetKind.BTree]     = new Hrot.BTree.Editor.BTreeNewAssetService(),
+            [AssetKind.Hsm]       = new Hrot.Hsm.Editor.HsmNewAssetService(),
+        };
+
+        var picker = new FakeOpenPicker();
+        (AssetKind Kind, IEditableAsset Recipe)? dialog = null;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (k, r) => dialog = (k, r));
+
+        launcher.Open(AuthoringProduct.Behavior);
+
+        Assert.Equal("New Behavior", picker.CapturedRequest!.Title);
+        Assert.Equal("assets.new.behavior", picker.CapturedRequest.ContextKey);
+        var entries = picker.CapturedRequest.ItemsProvider().ToList();
+
+        Assert.Equal(2, entries.Count(e => e.Category == "BTree"));
+        Assert.Equal(2, entries.Count(e => e.Category == "Hsm"));
+        var bp = Assert.Single(entries, e => e.Tag is RecipeChoice { Kind: AssetKind.Blueprint });
+        Assert.Equal("Blueprint", bp.Name);
+        Assert.Equal("Behavior", ((RecipeChoice)bp.Tag!).Recipe.Name);
+        Assert.DoesNotContain(entries, e => e.Tag is RecipeChoice rc
+            && rc.Kind == AssetKind.Blueprint && rc.Recipe.Name is "Empty" or "Function Library");
+
+        picker.InvokeHandler(ConfirmResult(bp));
+        Assert.Equal(AssetKind.Blueprint, dialog!.Value.Kind);
+        Assert.Same(((RecipeChoice)bp.Tag!).Recipe, dialog.Value.Recipe);
+    }
+
+    /// <summary>
+    /// ⭐ D5 — the C# row is shown and picking it creates NOTHING.
+    /// </summary>
+    [Fact]
+    public void CE460_Picking_the_csharp_row_creates_nothing()
+    {
+        var services = new Dictionary<AssetKind, INewAssetService>
+        {
+            [AssetKind.Blueprint] = new Hrot.Blueprints.Editor.BlueprintNewAssetService(),
+        };
+        var picker = new FakeOpenPicker();
+        bool dialogCalled = false;
+        var launcher = new NewAssetLauncher(picker.OpenPicker, services, (_, _) => dialogCalled = true);
+
+        launcher.Open(AuthoringProduct.Condition);
+
+        var cs = Assert.Single(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is NotCreatableChoice);
+        picker.InvokeHandler(ConfirmResult(cs));
+
+        Assert.False(dialogCalled);
+    }
 }

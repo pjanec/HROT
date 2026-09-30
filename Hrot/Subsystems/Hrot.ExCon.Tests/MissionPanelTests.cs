@@ -635,13 +635,14 @@ public class MissionPanelTests
     public void DrawContent_CallsGetAvailableBehaviors_WithSelectedEntityId()
     {
         var (panel, missionSvc, pickSvc) = CreateSut(selectedEntityId: 42);
-        missionSvc.Setup(s => s.GetAvailableBehaviors(42L))
-            .Returns(new List<string> { "Ambush" }.AsReadOnly());
+        // ⭐ CE-462 — the panel reads the LABELLED list (name + technology), still once per frame.
+        missionSvc.Setup(s => s.GetAvailableBehaviorChoices(42L))
+            .Returns(new List<Hrot.UI.Common.Facades.BehaviorChoice> { new("Ambush", "BTree") }.AsReadOnly());
 
         // DrawContent calls GetAvailableBehaviors before the ImGui guard.
         panel.DrawContent(missionSvc.Object, pickSvc.Object);
 
-        missionSvc.Verify(s => s.GetAvailableBehaviors(42L), Times.Once);
+        missionSvc.Verify(s => s.GetAvailableBehaviorChoices(42L), Times.Once);
     }
 
     /// <summary>
@@ -652,13 +653,13 @@ public class MissionPanelTests
     public void DrawContent_NoSelection_StillCallsGetAvailableBehaviors()
     {
         var (panel, missionSvc, pickSvc) = CreateSut(selectedEntityId: 0);
-        missionSvc.Setup(s => s.GetAvailableBehaviors(0L))
-            .Returns(Array.Empty<string>());
+        missionSvc.Setup(s => s.GetAvailableBehaviorChoices(0L))
+            .Returns(Array.Empty<Hrot.UI.Common.Facades.BehaviorChoice>());
 
         panel.DrawContent(missionSvc.Object, pickSvc.Object);
 
         // Even with no selection the service is called to get behaviors for entity 0.
-        missionSvc.Verify(s => s.GetAvailableBehaviors(0L), Times.Once);
+        missionSvc.Verify(s => s.GetAvailableBehaviorChoices(0L), Times.Once);
     }
 
     // ── FireAtTarget param helpers ────────────────────────────────────────────

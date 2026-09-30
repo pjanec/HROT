@@ -1,7 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-20
-current-answer: ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (c)" block is the live state
+updated: 2026-09-30
+current-answer: ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is IN FLIGHT: handoff
+  batches/HANDOFF_E4_Product_First_Authoring.md dispatched at dba2233c4; detail design
+  DESIGN_Product_First_Authoring.md. CE-460 (File / New Behavior… · Action… · Condition…, the blueprint
+  Behavior template) and CE-462 (technology labels: behaviour picker + HSM action/guard combos) built;
+  CE-461 (blueprint Action/Condition templates) BLOCKED on design §6 D7 — the compiler's intent→hostings
+  table is private and exposing it is a behaviours-lane compiler change; awaiting the user. CE-459 (C#
+  as an authoring technology) filed as a design slice, not started. Q73 still awaits the user (lean A).
+  Everything below is the prior state:
+  ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (c)" block is the live state
   (CE-306 closed §2.7.7 deviation ③, and THREE of the five UXI-11 residuals were measured and struck —
   the list had rotted). Below it "SESSION 2026-09-21 (b)"
   (CE-302 AND CE-303 built; RuntimeInspectorWindow is DELETED on the user's "let it dissolve" ruling).

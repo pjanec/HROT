@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: BUILDING (CE-460 and CE-462 in this batch; CE-461 blocked on D7, see §6)
+build-state: BUILT for CE-460 and CE-462 (2026-09-30); CE-461 BLOCKED on D7, see §6
 current-answer: §3 (classes), §4 (sequence), §5 (modules), §6 (decisions). §1 is the inventory the design is drawn from.
 stale-below: nothing.
 known-rot: none.
@@ -185,7 +185,7 @@ one dependency that does not exist yet — the compiler's intent table is privat
 | | decision | rejected |
 |---|---|---|
 | D1 | one tree picker; product-rooted path `Technology[/Sub]`; a technology folder holding ONE recipe collapses to a leaf named by the technology | a new picker — duplicates `NewAssetLauncher` · product as a third path level under New Asset — New Asset is unchanged by ruling |
-| D2 | the technology is the picker's first level; default = leaf ORDER (BTree first under Behaviour, Blueprint first under Action/Condition) | a separate second dialog — one more click for no information |
-| D4 | `GetAvailableBehaviorChoices` beside `GetAvailableBehaviors`, **default interface member** returning unlabelled names; production derives names FROM choices | changing the return type — 3 production impls + ~8 test doubles + Moq setups for a label |
+| D2 | the technology is the picker's first level. ⚠ **As built, there is no pre-selected default**: the tree widget (`PickerTreeBuilder`, ExtDeps) sorts folders by name and has no initial-selection input, so a "default technology" would need a vendored-widget change for one highlighted row. The collapse rule already makes a one-recipe technology a single click | a separate second dialog — one more click for no information · an ExtDeps change for a highlight |
+| D4 | `GetAvailableBehaviorChoices` beside `GetAvailableBehaviors`, **default interface member** returning unlabelled names; `ScenarioMissionService` derives names FROM choices. ⚠ The label is the **runtime** technology (`BrainTier`): a curated C# behaviour that runs as a BTree reads "BTree". ⚠ ExCon's own `MissionEditorService` is not overridden, so the ExCon host shows names unlabelled — its list comes over its own contract | changing the return type — 3 production impls + ~8 test doubles + Moq setups for a label |
 | D5 | the C# row is shown, not creatable; its description points at CE-459 | hiding it — the menu would lie about what exists |
 | D7 | ⛔ **CE-461 STOPS here.** The recipe must READ `Stage2_Validate`'s table; it is `private` in the compiler, which §5 of the handoff fences to the behaviours lane | copying the two arrays into the editor — two implementations of one rule (ruling 9) |

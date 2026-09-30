@@ -330,7 +330,7 @@ public class MissionPanelDrawPendingTests
         BuildServices(long entityId = 55)
     {
         var svc = new Mock<Hrot.UI.Common.Facades.IMissionEditorService>();
-        svc.Setup(s => s.GetAvailableBehaviors(entityId)).Returns(Array.Empty<string>());
+        svc.Setup(s => s.GetAvailableBehaviorChoices(entityId)).Returns(Array.Empty<Hrot.UI.Common.Facades.BehaviorChoice>());
         svc.Setup(s => s.GetMissionSnapshot(entityId)).Returns(((Hrot.Core.Mission.MissionPlan?)null, 0L));
         var pick = new Mock<Hrot.UI.Common.Facades.IMapPickService>();
         return (svc, pick);
@@ -356,8 +356,9 @@ public class MissionPanelDrawPendingTests
             ImGui.DestroyContext(ctx);
         }
 
-        svc.Verify(s => s.GetAvailableBehaviors(55), Times.AtLeastOnce,
-            "Draw() must call GetAvailableBehaviors each frame for the selected entity.");
+        // ⭐ CE-462 — the labelled list (name + technology) is what the panel reads each frame now.
+        svc.Verify(s => s.GetAvailableBehaviorChoices(55), Times.AtLeastOnce,
+            "Draw() must read the available behaviours each frame for the selected entity.");
     }
 
     [Fact]
@@ -400,6 +401,6 @@ public class MissionPanelDrawPendingTests
             ImGui.DestroyContext(ctx);
         }
 
-        svc.Verify(s => s.GetAvailableBehaviors(0), Times.AtLeastOnce);
+        svc.Verify(s => s.GetAvailableBehaviorChoices(0), Times.AtLeastOnce);
     }
 }

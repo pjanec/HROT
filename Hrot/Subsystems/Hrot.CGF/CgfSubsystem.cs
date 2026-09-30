@@ -2804,6 +2804,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 NewAsset:             _newAssetLauncher != null
                     ? (Action)(() => _newAssetLauncher.Open())
                     : null,
+                // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
+                NewProduct:           _newAssetLauncher != null
+                    ? p => _newAssetLauncher.Open(p)
+                    : null,
                 CompileReload:        () => ReloadActiveAiDocument(),
                 CompileReloadEnabled: () => _aiDocumentManager?.Active != null));
             // ⭐⭐⭐ UXI-05 item ④ — CGF's File menu, emitted from the SAME table as its toolbar.

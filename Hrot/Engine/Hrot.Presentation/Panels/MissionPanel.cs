@@ -476,7 +476,8 @@ public sealed class MissionPanel : IPickInteractionContext
         _framePickService = pick;
 
         // Refresh behavior list before any ImGui calls so tests can verify without a render ctx.
-        var behaviors = service.GetAvailableBehaviors(_selectedEntityId);
+        // ⭐ CE-462 — the choices carry the technology label; the stored value is still the name.
+        var behaviors = service.GetAvailableBehaviorChoices(_selectedEntityId);
 
         PollCommitCompletion();
         PollPickCompletion();
@@ -514,9 +515,9 @@ public sealed class MissionPanel : IPickInteractionContext
                 {
                     for (int b = 0; b < behaviors.Count; b++)
                     {
-                        bool selected = task.BehaviorId == behaviors[b];
-                        if (ImGui.Selectable(behaviors[b], selected))
-                            HandleEditBehaviorId(i, behaviors[b]);
+                        bool selected = task.BehaviorId == behaviors[b].Name;
+                        if (ImGui.Selectable($"{behaviors[b].Label}##{behaviors[b].Name}", selected))
+                            HandleEditBehaviorId(i, behaviors[b].Name);
                         if (selected) ImGui.SetItemDefaultFocus();
                     }
                     ImGui.EndCombo();

@@ -25,7 +25,8 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// that is why this is a table and not a bool.
     ///
     /// AiPrimitive is deliberately NOT offered here: an AiPrimitive asset needs a
-    /// Primitive declaration and hostings that this flow does not populate.
+    /// Primitive declaration and hostings that this flow does not populate. ⛔ CE-461 adds the Action /
+    /// Condition rows once the compiler's intent→hostings table is readable (design §6 D7).
     ///
     /// <para>
     /// BP-103 — <c>SeedGraphName</c> is the one starter Function graph every blank-template
@@ -52,6 +53,13 @@ public sealed class BlueprintNewAssetService : INewAssetService
             BlueprintDispatchKind.Library,
             "A shared library of pure Functions, callable from any other blueprint. Compiles to static methods, so its graphs cannot contain latent nodes such as Delay.",
             SeedGraphName: "NewFunction"),
+        // ⭐ CE-460 (E4 ②) — a blueprint BEHAVIOUR (Q77 §5.9): the brain ticks its "Tick" graph each frame
+        //   and a Return finishes it. "Tick" for the same reason as the Instance row — the emitter selects
+        //   the tick graph by name. Listed under File / New Behavior… AND under New Asset / Blueprint.
+        new("Behavior",
+            BlueprintDispatchKind.Behavior,
+            "A behaviour an entity runs, implemented as a blueprint: its Tick graph runs every frame until a Return node finishes it. May contain latent nodes such as Delay.",
+            SeedGraphName: "Tick"),
     };
 
     private readonly NewFromRecipeService _newFromRecipeService = new();
@@ -121,6 +129,29 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// <inheritdoc />
     public bool IsBlankTemplate(IEditableAsset recipe)
         => TryGetBlankTemplateRow(recipe, out _);
+
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4) — a blueprint's product is read off the ASSET, so a blank template and a
+    /// content recipe from disk answer the same way: <c>Dispatch=Behavior</c> ⇒ Behavior; an AiPrimitive ⇒
+    /// its declared intent. ⛔ Instance and Library blueprints are none of the three and stay New-Asset-only.
+    /// </summary>
+    public AuthoringProduct? ProductOf(IEditableAsset recipe)
+    {
+        if (recipe is not BlueprintEditableAssetAdapter { Asset: { } asset })
+            return null;
+
+        return asset.Dispatch switch
+        {
+            BlueprintDispatchKind.Behavior => AuthoringProduct.Behavior,
+            BlueprintDispatchKind.AiPrimitive => asset.Primitive?.Intent switch
+            {
+                AiPrimitiveIntent.Action    => AuthoringProduct.Action,
+                AiPrimitiveIntent.Condition => AuthoringProduct.Condition,
+                _                           => null,
+            },
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// Returns true (and the matching <see cref="BlankTemplateRow"/>) when <paramref name="recipe"/>

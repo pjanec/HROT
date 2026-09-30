@@ -60,13 +60,21 @@ namespace Hrot.UI.Common.Adapters
 
         /// <inheritdoc/>
         public IReadOnlyList<string> GetAvailableBehaviors(long entityId)
+            => GetAvailableBehaviorChoices(entityId).Select(c => c.Name).ToList();
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// ⭐ <c>CE-462</c> — the ONE list: names come from here, so the label and the name can never
+        /// disagree. The technology is the definition's <see cref="BehaviorDefinition.BrainTier"/>.
+        /// </remarks>
+        public IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(long entityId)
         {
             var entity = FindEntityByNetworkId(entityId);
             if (entity.IsNull || !_repo.IsAlive(entity))
-                return Array.Empty<string>();
+                return Array.Empty<BehaviorChoice>();
 
             if (!_repo.HasComponent<TkbIdentity>(entity))
-                return Array.Empty<string>();
+                return Array.Empty<BehaviorChoice>();
 
             long tkbType = _repo.GetComponent<TkbIdentity>(entity).TkbType;
             var catalog  = BehaviorCatalog.GetValidBehaviors(tkbType);
@@ -77,7 +85,25 @@ namespace Hrot.UI.Common.Adapters
             // Append editor-authored BTree behaviors not already in the curated list.
             AppendEditorBTreeBehaviors(_registry, result);
 
-            return result;
+            return result.Select(n => new BehaviorChoice(n, TechnologyOf(_registry, n))).ToList();
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-462</c> — the label of a registered behaviour's brain tier, or <see langword="null"/> when
+        /// the name has no definition. ⚠ This is the RUNTIME technology: a curated behaviour written in C# that
+        /// compiles to a BTree reads "BTree" — which is what runs it.
+        /// </summary>
+        internal static string? TechnologyOf(BehaviorRegistry registry, string name)
+        {
+            if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def))
+                return null;
+            return def.BrainTier switch
+            {
+                BehaviorConstants.BrainTierBTree     => "BTree",
+                BehaviorConstants.BrainTierHsm       => "HSM",
+                BehaviorConstants.BrainTierBlueprint => "Blueprint",
+                _                                    => null,
+            };
         }
 
         /// <summary>
