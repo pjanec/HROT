@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-09-22
 updated-2: 2026-09-30 — §P added: THE PARAMETER CONTRACT BY KIND (user ruling R-155). ⭐ READ §P FIRST.
 current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once at start, resolver REPLACES the copy;
-  action/condition: live host reference, no copy, no resolver), its as-built table §P.5 and open item §P.6.
+  action/condition: live host reference, no copy, no resolver), its as-built table §P.5, §P.6 (IHostVariableAccess retired, user 2026-09-30) and §P.7 (a blueprint's authored params; two points open).
   The rest of the document is authoritative for parameters and storage where §P does not override it.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
@@ -21,7 +21,7 @@ known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a,
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
 known-rot: (2026-09-30, §P) §1's Scope row: Entity is REMOVED (CE-441) and Scope is not authorable (CE-435) —
-  Node = a blueprint node's private memory, Behavior = the shared block copy. §3.4's host accessor is OPEN (§P.6).
+  Node = a blueprint node's private memory, Behavior = the shared block copy. §3.4's host accessor is RETIRED (§P.6, user 2026-09-30).
   §0 row 2 "a blueprint has params only when Dispatch == AiPrimitive" predates §3.3's Instance params.
 known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
   CE-441 (Entity removed) — two remain, neither authorable.
@@ -182,13 +182,17 @@ sequenceDiagram
 | no action-level resolver anywhere | ⛔ `HostedParamResolvers` + `IHostVariableAccess` ship | `CE-445` |
 | blueprint as a behaviour | ⛔ | `CE-446` = `O9` / [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) |
 
-### P.6 ⚠ One open decision — the host accessor (`IHostVariableAccess`)
+### P.6 ✅ DECIDED `2026-09-30` — retire the host accessor (`IHostVariableAccess`)
+
+🔒 **User, `2026-09-30`:** *"Retire it."* ⇒ `CE-445` removes the interface, `HsmHostVariableAccess`, the
+`HsmParamBindings` name map and the `host` parameter on every resolver signature. This reverses §3.4's `2026-08-16` ruling;
+the history below is kept as the reason.
+
 
 §3.4 below (user ruling `2026-08-16`) gave a HOSTED unit's resolver read-only, name-keyed access to its host's
 variables. ⛔ Its only consumers were action-level resolvers, which §P.4 retires; behaviour resolvers pass `null`
 today. ⭐ **Lean: retire it** — a sub-behaviour's input is exactly its bound host variable, and a child needing more
-of its host should get a bigger bound struct, not a side door. ⚠ **Not decided** — it reverses a user ruling, so it
-waits for the user; `CE-445` is written to stop before removing it.
+of its host should get a bigger bound struct, not a side door. ⭐ Decided as above.
 
 📐 **Measured `2026-09-30` — how it works today, and that it is never fed.** The one implementation,
 `HsmHostVariableAccess`, exists only for a blueprint activity/guard inside an HSM. It looks a name up in
@@ -201,6 +205,15 @@ and no emitter or registrar. Its doc comment says it is *"emitted from the same 
 false. ⇒ in production every read returns `false`. And no blueprint node or curated resolver reads through
 it: blueprint resolver graphs have no host-read node, and curated resolvers are root-only, so they get
 `null`. ⇒ retiring it removes plumbing that is neither fed nor read.
+
+### P.7 ⚠ A blueprint's authored params — no JSON, a typed struct, and two open points *(`2026-09-30`)*
+
+| question | as built (measured) | target |
+|---|---|---|
+| who parses the intent JSON | ✅ **generated C#, never the blueprint.** The registrar's `ParseParams` walks the JSON object by key and deserialises each variable with `System.Text.Json` (`BTreeBridgeEmitCore.cs:1497`); unknown keys are ignored, a missing key keeps its baked default | unchanged — a blueprint never sees JSON |
+| what a blueprint resolver receives | the authored DTO is injected as a C# parameter, `in TAuthored authored` (`LibraryEmitter.cs:270`) — ⛔ **but no graph node reads it.** The T40 demo's `GetVariable Speed` reads `block.In.Speed`, i.e. the copy (`EmissionContext.ContainerFor`) | a node exposes `authored`, one output pin per field (`CE-443`). ⚠ open: a dedicated read-only *Behaviour Params* node (lean — one node, no struct plumbing for the author, `R-150`) vs the Entry node carrying one struct pin into the existing `BreakStructNode` |
+| a field ABSENT from the JSON | keeps the editor default (overlay by name) | the source DTO is pre-filled with the authored defaults, then overlaid — so a resolver sees the default, never a zeroed field |
+| a **nullable** field (`float?`) | ⛔ **not designed.** No `Nullable` handling in the blueprint core, compiler, editor pin types or the generators' size resolver (grep, `2026-09-30`); the pack helper's known-type table has no entry for it | ⚠ open. Lean: **refuse it** with a clear validator error and express *"not given"* as the baked default, or an explicit `bool HasX` field where the resolver must tell the two apart. Params stay blittable, and `R-150` weighs against a nullable pin kind |
 
 ---
 
