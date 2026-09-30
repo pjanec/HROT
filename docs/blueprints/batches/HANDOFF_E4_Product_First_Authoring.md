@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE — DRAFT FOR DISCUSSION (not dispatched; the user tunes it in the UI lane first)
-updated: 2026-09-30
+updated: 2026-09-30 (tuned in the UI lane: §2 intent→hostings rows, ③ rewritten on two user rulings, D1 picker shape, D7 added)
 current-answer: the whole file — a FRAME handoff (goal, fences, decisions with leans, acceptance). The UI lane designs the
   details (inventory, UML, seams) in its own docs/ design as step 1.
 stale-below: nothing.
@@ -39,6 +39,8 @@ Once tuned, stamp `Dispatched at <sha>`. From then on, the scope is frozen at th
 | action / condition pickers | ✅ **already merge technologies** — they read one list from `ActionSchemaExporter` | `Hrot.Editor.AiShared/Blackboard/ActionSchemaExporter.cs` |
 | behaviour assignment picker | ✅ **lists BTree + HSM + Blueprint** (built by the behaviours lane, `CE-446` E4 first slice); ⛔ names only — no technology label | `Hrot/Engine/Hrot.Presentation/Adapters/ScenarioMissionService.cs` (`AppendEditorBTreeBehaviors`; the name is now too narrow, and a rename should go through Roslyn) |
 | its contract | `IReadOnlyList<string> GetAvailableBehaviors(long entityId)`. Production implementations: `ScenarioMissionService` (Presentation) and `MissionEditorService` + `ExConMissionShim` (ExCon); 3 test doubles | `Hrot/Subsystems/Hrot.ExCon/Services/IMissionEditorService.cs:18` |
+| **intent → hostings** | ✅ **one table, in the compiler**: `ActionHostings = {BTreeAction, HsmAction}` · `ConditionHostings = {BTreeCondition, HsmGuard}`, enforced by **BP1022/BP1023**; `BlueprintCall` is in neither ⇒ intent-neutral. ⚠ the arrays are `private` | `Hrot.Blueprints.Compiler/Compiler/Stages/Stage2_Validate.cs:102-105, :154-166` |
+| multi-hosting | ✅ a primitive has ONE intent and a LIST of hostings; the emitter writes **one thunk per hosting** around the same graph. Shipped: `MoveAndFireCombo.bp.json` = `[BTreeAction, HsmAction]` | `BlueprintAsset.cs` (`AiPrimitiveDecl`) · `AiPrimitiveEmitter.cs:~295-320` |
 | a blueprint BEHAVIOUR | ✅ runtime + compiler built: `BlueprintDispatchKind.Behavior`, a `Tick` graph whose `Return` finishes it, its own resolver (Construction graph), hot reload. Shipped example: `Hrot.AI.Behaviors/Assets/Blueprints/BlueprintBehaviourDemo.bp.json` | Q77 §5.9–§5.12 |
 
 ## 3. The items
@@ -47,7 +49,7 @@ Once tuned, stamp `Dispatched at <sha>`. From then on, the scope is frozen at th
 |---|---|---|
 | **①** | **New Behaviour… / New Action… / New Condition…** entries, **added beside** New Asset (which stays unchanged) | one entry per PRODUCT; step 2 is the technology choice (D2) |
 | **②** | New Behaviour → **BTree / HSM / Blueprint**. Blueprint needs a new blank-template row: `Dispatch = Behavior`, seed graph `Tick` | ⭐ reuse `BlueprintNewAssetService`'s table and the existing BTree/HSM services — ⛔ no second creation path |
-| **③** | New Action / New Condition → **Blueprint** (an AiPrimitive blueprint preset for the hosting: action → `BTreeAction`; condition → `BTreeCondition` and/or `HsmGuard`) or **C#** | the AiPrimitive row is the real work: it must populate the Primitive declaration + hosting the current comment says the flow cannot. Measure what a minimal valid AiPrimitive needs (the compiler's validators say) before designing it |
+| **③** | New Action / New Condition → **Blueprint** (an AiPrimitive recipe) or **C#**. 🔒 **User, 2026-09-30:** *"actions should be usable for btrees/hsms and blueprint behaviors"* · *"same for blueprint conditions (usable as btree conditions AND hsm guards)"* ⇒ ⭐ **the recipe declares EVERY hosting valid for its intent** — Action → `[BTreeAction, HsmAction]`, Condition → `[BTreeCondition, HsmGuard]` (+ `BlueprintCall`, intent-neutral) — and **the host is NOT a picker level**; narrowing is an asset property (Details). ⛔ An earlier draft of this row said *"action → `BTreeAction`"*: it mirrored shipped USAGE (all but one primitive is single-hosted BTree), not the model | the AiPrimitive row is the real work: it must populate the Primitive declaration + hosting the current comment says the flow cannot. Measure what a minimal valid AiPrimitive needs (the compiler's validators say) before designing it |
 | **④** | **Technology label** in every picker (behaviour / action / condition) | action/condition: the exporter already knows the source — add the label. Behaviour: D4 |
 | **⑤** | a newly authored item **appears without a restart** (UXR-41) | check it end to end: author → compile/reload → it shows in the picker → assign → it runs |
 
@@ -55,11 +57,12 @@ Once tuned, stamp `Dispatched at <sha>`. From then on, the scope is frozen at th
 
 | | question | lean | why / what would change it |
 |---|---|---|---|
-| **D1** | where do the entries live? | in the same place as New Asset (`NewAssetLauncher`), grouped by product above the technology kinds | one launcher, one discoverability point; changes if the UI lane finds a better product-level home (e.g. the Behaviours perspective) |
+| **D1** | where do the entries live? | ⭐ **ONE tree picker, the one New Asset already uses** — measured: it is a Tree `PickerRequest` whose path is `Kind/Sub/recipe` (`RecipePickerSource.cs:150`) and `PickerTreeBuilder.cs:43` splits on `/` to any depth ⇒ product-first is just a different PATH: `Behaviour/BTree`, `Behaviour/Blueprint`, `Action/Blueprint`, `Condition/Blueprint`, `…/C#` (disabled). The menu items *New Behaviour… / New Action… / New Condition…* each open THAT tree rooted at their product; *New Asset…* keeps the technology-first path. ⚠ **Single-recipe folders collapse to a leaf.** ⚠ `RecipePickerSource` hard-builds `Kind/Sub` today — **that is the one real seam change** | one launcher, one discoverability point; changes if the UI lane finds a better product-level home (e.g. the Behaviours perspective) |
 | **D2** | how is the technology chosen? | a second step in the same dialog, with plain-language descriptions and a default (Behaviour → BTree; Action/Condition → Blueprint) | fewest clicks; the default serves the author who doesn't care |
 | **D3** | UXR-40 says *"not which of three technologies"* — the user now says *"technology is a secondary choice"* | **product first, technology second, with a default** — satisfies both: nobody must understand the technologies to start | the user ruling is newer and narrower; ⚠ confirm with the user, and note the reconciliation in UX_Requirements |
 | **D4** | behaviour label: how does the picker learn the technology? | change the contract to return `(Name, Technology)` — a small record — across the 3 production implementations + 3 test doubles | ⛔ a parallel "technology of name X" call is a second lookup to keep in sync; `BehaviorDefinition.BrainTier` already holds the answer |
 | **D5** | "C#" for New Action / Condition | show it, disabled, with one line on where hand-written actions live — so the menu tells the truth about what exists | changes if the user prefers not to show what the editor cannot create |
+| **D7** | where does the recipe get the intent→hostings table? | ⭐ **read the compiler's** (`Stage2_Validate` `ActionHostings`/`ConditionHostings`) — ⛔ a second copy in the editor is two implementations of one rule | ⚠ they are `private`: exposing them is a compiler change ⇒ **per §5's fence, the behaviours lane makes it**. Changes only if that lane prefers a different home for the table |
 | **D6** | affinity (which entity types may use a behaviour) | ⛔ **out of scope** — UXD-03 / Q25-C are OPEN; the list stays ungated, as today | — |
 
 ## 5. Fences
