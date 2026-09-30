@@ -481,6 +481,31 @@
           }
         },
         {
+          "kind": "Literal",
+          "TypeId": "global::Fdp.Core.ForceId",
+          "ValueJson": "global::Fdp.Core.ForceId.Hostile",
+          "Id": "2c520c13-79b9-5da2-87b2-a2f3a2a5fe89",
+          "Pins": [
+            {
+              "Id": "4012e794-8b97-5433-af57-e12c00e96bff",
+              "Name": "Value",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Core.ForceId",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 1120,
+            "Y": 800,
+            "Comment": null
+          }
+        },
+        {
           "kind": "FunctionCall",
           "TargetTypeId": "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
           "MethodName": "Request",
@@ -519,6 +544,18 @@
               "Direction": "In",
               "TypeRef": {
                 "TypeId": "Fdp.Core.Entity",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "b604dc42-5172-5cc8-b356-08c3b7e70fe5",
+              "Name": "force",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "global::Fdp.Core.ForceId",
                 "IsArray": false,
                 "GenericArgs": []
               },
@@ -1022,6 +1059,12 @@
           "FromPinId": "a1ce6752-89df-53ff-abd8-e962a77a3964",
           "ToNodeId": "fa325522-3527-5f1b-b4fe-c96ad8268a10",
           "ToPinId": "b388dbfe-450a-5a2a-b52e-b2a5215d08ad"
+        },
+        {
+          "FromNodeId": "2c520c13-79b9-5da2-87b2-a2f3a2a5fe89",
+          "FromPinId": "4012e794-8b97-5433-af57-e12c00e96bff",
+          "ToNodeId": "532e4dc4-6e33-501c-95b4-d5251561ea75",
+          "ToPinId": "b604dc42-5172-5cc8-b356-08c3b7e70fe5"
         }
       ],
       "LocalVariables": [],

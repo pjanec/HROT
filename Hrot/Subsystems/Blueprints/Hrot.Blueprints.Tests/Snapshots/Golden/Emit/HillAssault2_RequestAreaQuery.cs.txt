@@ -84,10 +84,11 @@ public static class HillAssault2RequestAreaQuery_2F8D984A_Bp
         
         __block_branch_1918ee13_true:
         var __t7 = p.TargetAreaEntity;
-        var __t8 = global::Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.Request(__t7, self, world);
-        var __t9 = -1L;
-        var __t10 = __t8 == __t9;
-        if (__t10)
+        var __t8 = global::Fdp.Core.ForceId.Hostile;
+        var __t9 = global::Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.Request(__t7, __t8, self, world);
+        var __t10 = -1L;
+        var __t11 = __t9 == __t10;
+        if (__t11)
             goto __block_merge_a2febdaa;
         else
             goto __block_branch_66eb8af1_false;
@@ -96,9 +97,9 @@ public static class HillAssault2RequestAreaQuery_2F8D984A_Bp
         return global::Fbt.NodeStatus.Failure;
         
         __block_branch_66eb8af1_false:
-        ws.CachedEqsRequestId = __t8;
-        var __t11 = global::Hrot.AI.Behaviors.Brains.WorldOps.SimTime(world);
-        ws.EqsRequestTime = __t11;
+        ws.CachedEqsRequestId = __t9;
+        var __t12 = global::Hrot.AI.Behaviors.Brains.WorldOps.SimTime(world);
+        ws.EqsRequestTime = __t12;
         goto __block_merge_fa325522;
         
     }

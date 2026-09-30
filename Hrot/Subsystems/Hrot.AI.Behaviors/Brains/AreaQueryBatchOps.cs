@@ -28,19 +28,19 @@ namespace Hrot.AI.Behaviors.Brains
     public static class AreaQueryBatchOps
     {
         /// <summary>
-        /// Submits a hostile-force area query for <paramref name="targetArea"/> on behalf of
-        /// <paramref name="self"/>. Returns the non-negative slot id to poll, or <c>-1</c> if the batch
+        /// Submits an area query for entities of <paramref name="force"/> inside <paramref name="targetArea"/>,
+        /// on behalf of <paramref name="self"/>. Returns the non-negative slot id to poll, or <c>-1</c> if the batch
         /// is full (or the view is not a real repository) — matching the oracle's <c>id == -1</c> retry
-        /// signal. Wraps <see cref="AreaQueryBatchHelper.RequestAreaQuery"/> with
-        /// <see cref="ForceId.Hostile"/> baked (the oracle's only caller uses Hostile).
+        /// signal. Wraps <see cref="AreaQueryBatchHelper.RequestAreaQuery"/>. ⭐ <c>CE-464</c>: the force is an
+        /// argument (it used to be baked to <see cref="ForceId.Hostile"/>), so any doctrine can ask for any force.
         /// </summary>
         [BlueprintCallable("EQS")]
-        public static long Request(Entity targetArea, Entity self, ISimulationView view)
+        public static long Request(Entity targetArea, ForceId force, Entity self, ISimulationView view)
         {
             if (view is not EntityRepository world)
                 return -1;
 
-            return AreaQueryBatchHelper.RequestAreaQuery(world, self, targetArea, ForceId.Hostile);
+            return AreaQueryBatchHelper.RequestAreaQuery(world, self, targetArea, force);
         }
 
         /// <summary>
@@ -90,6 +90,20 @@ namespace Hrot.AI.Behaviors.Brains
         /// eliminated; the accompanying <c>CachedEqsRequestId = -1</c> WorkingState reset stays a visual
         /// <c>SetVariable</c> (architect Q#7-D). No-op for a non-repository view.
         /// </summary>
+        /// <summary>
+        /// ⭐ <c>CE-464</c> — the <paramref name="index"/>-th entity of a resolved query's target group, or
+        /// <see cref="Entity.Null"/> past the end. Generic: the doctrine decides what to do with the target.
+        /// </summary>
+        [BlueprintCallable("EQS")]
+        public static Entity TargetAt(int targetGroupHandle, int index, ISimulationView view)
+        {
+            if (view is not EntityRepository world)
+                return Entity.Null;
+
+            long packed = AreaQueryBatchHelper.GetTargetFromPool(world, targetGroupHandle, index);
+            return packed == 0L ? Entity.Null : new Entity((ulong)packed);
+        }
+
         [BlueprintCallable("EQS", IsPure = false)]
         public static void Free(long requestId, ISimulationView view)
         {

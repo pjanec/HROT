@@ -117,7 +117,7 @@ public sealed class HillAssault2_IsAreaQueryResolved_ProofTests
     /// is guaranteed consistent with <c>AreaQueryBatchHelper.ComputeSlot</c>, then returns that slot.
     /// </summary>
     private static long SubmitRequest(EntityRepository world, Entity self, Entity area)
-        => AreaQueryBatchOps.Request(area, self, world);
+        => AreaQueryBatchOps.Request(area, ForceId.Hostile, self, world);
 
     private static (object Ws, Type WsType) MakeWorkingState(Type bpType, long cachedId, int cachedHandle, float reqTime)
     {
