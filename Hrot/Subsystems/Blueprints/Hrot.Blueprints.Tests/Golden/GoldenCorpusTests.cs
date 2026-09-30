@@ -87,7 +87,8 @@ public sealed class GoldenCorpusTests
         //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
         // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
         //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
-        Assert.Equal(40, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 40 → 41 (CE-446, 2026-09-30): `BlueprintBehaviourDemo` — the FIRST blueprint BEHAVIOUR (Dispatch = Behavior).
+        Assert.Equal(41, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

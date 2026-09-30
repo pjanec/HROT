@@ -1,0 +1,172 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "efb010d7-23f2-9e24-ab27-d6bdc1445b15",
+  "Name": "BlueprintBehaviourDemo",
+  "Dispatch": "Behavior",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "Declarations": [
+    {
+      "Kind": "Variable",
+      "Id": "bbda8ed2-fa86-3395-d1dd-a83a852d43a0",
+      "Name": "Waited",
+      "Type": {
+        "TypeId": "System.Boolean",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "a99e46e3-1c2b-ff80-e93f-d2a839a0ce50",
+      "Name": "Tick",
+      "Kind": "Function",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "e7deae8d-a7da-6581-a846-d18dbeb4662d",
+          "Pins": [
+            {
+              "Id": "e0827d77-df90-d210-2497-58f49b8104b6",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Delay",
+          "Id": "2b364672-c169-5566-5136-4c8d8f24ad3c",
+          "Pins": [
+            {
+              "Id": "056ebadd-7756-bc21-2e3c-f6f3fe10048b",
+              "Name": "Duration",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "System.Single",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": false,
+              "LinkedToIds": [],
+              "DefaultValue": "1"
+            },
+            {
+              "Id": "39e6111b-ead1-e031-a585-cc96a217b9f3",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            },
+            {
+              "Id": "058f679a-0cd2-31bb-0644-623f98ccad8c",
+              "Name": "ExecOut",
+              "Direction": "Out",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "a5033f25-add5-a9c2-5bd2-49f62c46c8d3",
+          "Pins": [
+            {
+              "Id": "64966ef9-0658-a3fa-1332-44e9c7d790bf",
+              "Name": "ExecIn",
+              "Direction": "In",
+              "TypeRef": {
+                "TypeId": "",
+                "IsArray": false,
+                "GenericArgs": []
+              },
+              "IsExec": true,
+              "LinkedToIds": []
+            }
+          ],
+          "EditorMetadata": {
+            "X": 0,
+            "Y": 0,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "e7deae8d-a7da-6581-a846-d18dbeb4662d",
+          "FromPinId": "e0827d77-df90-d210-2497-58f49b8104b6",
+          "ToNodeId": "2b364672-c169-5566-5136-4c8d8f24ad3c",
+          "ToPinId": "39e6111b-ead1-e031-a585-cc96a217b9f3"
+        },
+        {
+          "FromNodeId": "2b364672-c169-5566-5136-4c8d8f24ad3c",
+          "FromPinId": "058f679a-0cd2-31bb-0644-623f98ccad8c",
+          "ToNodeId": "a5033f25-add5-a9c2-5bd2-49f62c46c8d3",
+          "ToPinId": "64966ef9-0658-a3fa-1332-44e9c7d790bf"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CE-446 (Q77) - a behaviour implemented by a blueprint: waits one second (latent Delay), then Return(Success) finishes it; the brain tick then clears it (CE-449).",
+    "Category": null,
+    "Recipe": null
+  }
+}

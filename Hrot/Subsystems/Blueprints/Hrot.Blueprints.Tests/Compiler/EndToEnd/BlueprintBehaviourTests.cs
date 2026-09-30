@@ -64,6 +64,27 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.DoesNotContain("NodeStatus.Success", src);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>The SHIPPED path</b> — the corpus asset <c>BlueprintBehaviourDemo.bp.json</c> is compiled by the real source
+    /// generator into <c>Hrot.AI.Behaviors</c>, and the production registrar scan registers it as a behaviour on the blueprint
+    /// brain tier (and NOT as an attachable Instance).
+    /// </summary>
+    [Fact]
+    public void CE446_TheShippedDemo_IsRegisteredByTheProductionScan_AsABlueprintBehaviour()
+    {
+        GoldenCorpus.EnsureBehaviorAssemblyLoaded();
+        var staging = new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging();
+        var beh     = new BehaviorRegistry();
+        Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(
+            typeof(Hrot.AI.Behaviors.BpComponentDemo).Assembly, staging, beh, skipOnUnknownParam: true);
+
+        Assert.True(beh.TryGetId("BlueprintBehaviourDemo", out int id), "the generated registrar must register the shipped demo");
+        Assert.True(beh.TryGetDefinition(id, out var def));
+        Assert.Equal(BehaviorConstants.BrainTierBlueprint, def!.BrainTier);
+        Assert.NotNull(def.BlueprintTick);
+        Assert.NotNull(def.ParseParams);
+    }
+
     // ── runtime, through the real ingress and brain tick ───────────────────
 
     /// <summary>

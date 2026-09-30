@@ -306,5 +306,7 @@ classDiagram
 | runtime: the tick delegate gains `ecb` + `instanceId`; `BrainTickSystem` passes `view.GetCommandBuffer()`; `BlueprintEventDispatch.Dispatch(handlers, …)` | `BlueprintBehaviorTickDelegate.cs`, `BrainTickSystem.cs`, `BlueprintEventDispatch.cs` |
 | rails | `BlueprintBehaviourTests` — status Tick + registration; fall-off ⇒ Running; compile → load → assign → wait (latent) → Success → finished once → cleared |
 
-⚠ **Still open inside `CE-446`:** its own resolver (§3 B) · a shipped corpus demo asset · hot reload of a running blueprint
+⭐ **Shipped demo:** `BlueprintBehaviourDemo.bp.json` — compiled by the production generator; the production registrar scan registers it on `BrainTierBlueprint` (rail `CE446_TheShippedDemo_…`).
+
+⚠ **Still open inside `CE-446`:** its own resolver (§3 B) · hot reload of a running blueprint
 behaviour whose layout changed (§5.8) · E4 editor (§5.5).

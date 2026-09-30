@@ -23,7 +23,7 @@ namespace Hrot.Blueprints.Tests.Golden;
 /// </summary>
 public sealed class CorpusCanonicalisationTests
 {
-    /// <summary>The two roots: the compiled corpus (40) and the editor's recipe templates (16).</summary>
+    /// <summary>The two roots: the compiled corpus (41) and the editor's recipe templates (16).</summary>
     public static IEnumerable<string> AllManagedFiles()
         => GoldenCorpus.EnumerateFiles().Concat(RecipeFiles());
 
@@ -266,7 +266,7 @@ public sealed class CorpusCanonicalisationTests
     }
 
     /// <summary>
-    /// The scope, asserted so it cannot quietly shrink: 40 compiled + 16 recipes.
+    /// The scope, asserted so it cannot quietly shrink: 41 compiled + 16 recipes.
     /// ⚠ Fixtures are deliberately excluded — several are malformed on purpose and a fixture's bytes
     /// are frequently the thing under test.
     /// </summary>
@@ -297,7 +297,8 @@ public sealed class CorpusCanonicalisationTests
         //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
         // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
         //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
-        Assert.Equal(40, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 40 → 41 (CE-446, 2026-09-30): `BlueprintBehaviourDemo` — the FIRST blueprint BEHAVIOUR (Dispatch = Behavior).
+        Assert.Equal(41, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }
