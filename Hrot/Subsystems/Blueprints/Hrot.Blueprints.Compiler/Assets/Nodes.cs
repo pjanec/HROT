@@ -1101,9 +1101,9 @@ public sealed class FlowForEachNode : Node
 {
     /// <summary>FQN of the ECS component read off self that holds the collection (e.g. "Fdp.Core.CommandHierarchy.UnitRoster").</summary>
     public string SourceComponentFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").</summary>
+    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").</summary>
     public string CountAccessorFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
+    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item").</summary>
     public string ItemAccessorFqn { get; set; } = "";
 }
 

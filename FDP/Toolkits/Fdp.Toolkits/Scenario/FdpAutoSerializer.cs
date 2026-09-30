@@ -102,12 +102,8 @@ namespace Fdp.Toolkit.Scenario
                         throw new InvalidOperationException(
                             $"Component '{type.Name}' has a fixed-buffer field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.");
                 }
-                foreach (var (_, elemType, _) in GetInlineArrayFields(type))
-                {
-                    if (elemType == typeof(Entity))
-                        throw new InvalidOperationException(
-                            $"Component '{type.Name}' has an [InlineArray] field with element type Entity, which is not supported by FdpAutoSerializer. Use [ScenarioIgnore] to exclude it.");
-                }
+                // ⭐ CE-467: an [InlineArray] of Entity IS supported — each element goes through the
+                //   IGuidResolver exactly like a scalar Entity field (UnitRoster.SubordinateEntities).
 
                 var entry = TryBuildEntry(type, typeId);
                 if (entry != null)
@@ -286,6 +282,16 @@ namespace Fdp.Toolkit.Scenario
                 .GetMethod(nameof(FillInlineArray), BindingFlags.NonPublic | BindingFlags.Static)!
                 .GetGenericMethodDefinition();
 
+        private static readonly MethodInfo _readInlineEntityArrayGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(ReadInlineEntityArray), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
+        private static readonly MethodInfo _fillInlineEntityArrayGeneric =
+            typeof(FdpAutoSerializer)
+                .GetMethod(nameof(FillInlineEntityArray), BindingFlags.NonPublic | BindingFlags.Static)!
+                .GetGenericMethodDefinition();
+
         // ── Entry builder ────────────────────────────────────────────────────────
 
         private static AutoSerializeEntry? TryBuildEntry(Type componentType, int typeId)
@@ -446,8 +452,12 @@ namespace Fdp.Toolkit.Scenario
             foreach (var (iaField, elemType, length) in inlineArrayFields)
             {
                 var inlineFieldAccess = Expression.Field(compVar, iaField);
-                var readMethod = _readInlineArrayGeneric.MakeGenericMethod(iaField.FieldType, elemType);
-                var arrExpr    = Expression.Call(null, readMethod, inlineFieldAccess, Expression.Constant(length));
+                // CE-467: Entity elements are resolved to their GUID strings, like a scalar Entity field.
+                var arrExpr = elemType == typeof(Entity)
+                    ? Expression.Call(null, _readInlineEntityArrayGeneric.MakeGenericMethod(iaField.FieldType),
+                        inlineFieldAccess, Expression.Constant(length), resolverParam)
+                    : Expression.Call(null, _readInlineArrayGeneric.MakeGenericMethod(iaField.FieldType, elemType),
+                        inlineFieldAccess, Expression.Constant(length));
                 bodyStatements.Add(
                     Expression.Call(jsonVar, _jsonObjectAddMethod,
                         Expression.Constant(iaField.Name), Expression.Convert(arrExpr, typeof(JsonNode))));
@@ -531,9 +541,12 @@ namespace Fdp.Toolkit.Scenario
                     var itemAccess = Expression.Property(
                         jsonObjVar, _jsonObjectIndexer, Expression.Constant(iaField.Name));
                     var arrExpr = Expression.Convert(itemAccess, typeof(JsonArray));
-                    var fillMethod = _fillInlineArrayGeneric.MakeGenericMethod(componentType, elemType);
-                    fillCalls.Add(Expression.Call(null, fillMethod,
-                        holderVar, Expression.Constant(offset), Expression.Constant(length), arrExpr));
+                    fillCalls.Add(elemType == typeof(Entity)
+                        // CE-467: Entity elements come back through the resolver (GUID string → Entity).
+                        ? Expression.Call(null, _fillInlineEntityArrayGeneric.MakeGenericMethod(componentType),
+                            holderVar, Expression.Constant(offset), Expression.Constant(length), arrExpr, resolverParam)
+                        : Expression.Call(null, _fillInlineArrayGeneric.MakeGenericMethod(componentType, elemType),
+                            holderVar, Expression.Constant(offset), Expression.Constant(length), arrExpr));
                 }
 
                 var setMethod = _setComponentGeneric.MakeGenericMethod(componentType);
@@ -666,6 +679,40 @@ namespace Fdp.Toolkit.Scenario
             for (int i = 0; i < length; i++)
                 arr.Add(SerializeFieldToNode(Unsafe.Add(ref first, i)));
             return arr;
+        }
+
+        /// <summary>
+        /// ⭐ CE-467 — an <c>[InlineArray]</c> of <see cref="Entity"/>: each element becomes its GUID string via
+        /// <paramref name="resolver"/>, exactly as a scalar <see cref="Entity"/> field does.
+        /// </summary>
+        private static JsonArray ReadInlineEntityArray<TInline>(TInline inline, int length, IGuidResolver resolver)
+            where TInline : unmanaged
+        {
+            ref Entity first = ref Unsafe.As<TInline, Entity>(ref inline);
+            var arr = new JsonArray();
+            for (int i = 0; i < length; i++)
+                arr.Add(JsonValue.Create(resolver.Resolve(Unsafe.Add(ref first, i))));
+            return arr;
+        }
+
+        /// <summary>
+        /// ⭐ CE-467 — the inverse of <see cref="ReadInlineEntityArray{TInline}"/>: GUID strings back to entities through
+        /// <paramref name="resolver"/>. A missing or null element leaves the slot at its default.
+        /// </summary>
+        private static void FillInlineEntityArray<TComp>(
+            Holder<TComp> holder, nint fieldByteOffset, int length, JsonArray? arr, IGuidResolver resolver)
+            where TComp : struct
+        {
+            if (arr == null) return;
+            ref Entity first = ref Unsafe.As<TComp, Entity>(
+                ref Unsafe.AddByteOffset(ref holder.Value, fieldByteOffset));
+            int count = Math.Min(length, arr.Count);
+            for (int i = 0; i < count; i++)
+            {
+                var node = arr[i];
+                if (node != null)
+                    Unsafe.Add(ref first, i) = resolver.Resolve(node.GetValue<string>());
+            }
         }
 
         /// <summary>

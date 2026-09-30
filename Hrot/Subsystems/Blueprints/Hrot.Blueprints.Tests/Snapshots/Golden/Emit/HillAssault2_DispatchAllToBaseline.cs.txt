@@ -56,10 +56,10 @@ public static class HillAssault2DispatchAllToBaseline_58007911_Bp
         ws.BaselineReservedMask = __t0;
         var __t1 = self;
         ref readonly var __t2 = ref world.GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t1);
-        var __t4 = global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(__t2);
+        var __t4 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t2);
         for (int __fe3 = 0; __fe3 < __t4; __fe3++)
         {
-            var __t3 = global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate(__t2, __fe3);
+            var __t3 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item(__t2, __fe3);
             var __t5 = __fe3;
             var __t6 = global::Hrot.AI.Behaviors.Brains.WorldOps.IsAlive(__t3, world);
             if (__t6)

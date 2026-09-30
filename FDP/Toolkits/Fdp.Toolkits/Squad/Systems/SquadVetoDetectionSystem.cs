@@ -81,7 +81,7 @@ namespace Fdp.Toolkit.Squad.Systems
 
                 int expectedHash = expectedHashByRole[roleId];
 
-                var member = new Entity((ulong)roster.SubordinateEntities[m]);
+                var member = roster.SubordinateEntities[m];
                 if (!repo.HasComponent<BehaviorState>(member)) { counterSpan[m] = 0; continue; }
 
                 int actualHash = repo.GetComponentRO<BehaviorState>(member).ActiveBehaviorHash;

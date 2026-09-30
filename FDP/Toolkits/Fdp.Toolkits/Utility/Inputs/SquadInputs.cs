@@ -137,7 +137,7 @@ namespace Fdp.Toolkit.Utility
 
             for (int m = 0; m < roster.Count; m++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[m]);
+                var member = roster.SubordinateEntities[m];
                 if (!ctx.Repo.HasComponent<Health>(member)) continue;
                 ref readonly var h = ref ctx.Repo.GetComponentRO<Health>(member);
                 sumCurrent += h.Current;
@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Utility
 
             for (int m = 0; m < roster.Count; m++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[m]);
+                var member = roster.SubordinateEntities[m];
                 if (!ctx.Repo.HasComponent<WeaponState>(member)) continue;
                 ref readonly var ws = ref ctx.Repo.GetComponentRO<WeaponState>(member);
                 if (ws.MaxAmmo <= 0) continue;
@@ -262,11 +262,10 @@ namespace Fdp.Toolkit.Utility
             if (!ctx.Repo.HasComponent<UnitRoster>(commander)) return 0f;
 
             ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(commander);
-            long selfPacked = (long)ctx.Self.PackedValue;
             int memberIndex = -1;
             for (int m = 0; m < roster.Count; m++)
             {
-                if (roster.SubordinateEntities[m] == selfPacked) { memberIndex = m; break; }
+                if (roster.SubordinateEntities[m] == ctx.Self) { memberIndex = m; break; }
             }
             if (memberIndex < 0) return 0f;
 
@@ -300,11 +299,10 @@ namespace Fdp.Toolkit.Utility
             if (!ctx.Repo.HasComponent<UnitRoster>(commander)) return 0f;
 
             ref readonly var roster = ref ctx.Repo.GetComponentRO<UnitRoster>(commander);
-            long selfPacked = (long)ctx.Self.PackedValue;
             int memberIndex = -1;
             for (int m = 0; m < roster.Count; m++)
             {
-                if (roster.SubordinateEntities[m] == selfPacked) { memberIndex = m; break; }
+                if (roster.SubordinateEntities[m] == ctx.Self) { memberIndex = m; break; }
             }
             if (memberIndex < 0) return 0f;
 

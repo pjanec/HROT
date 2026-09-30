@@ -138,7 +138,7 @@ namespace Fdp.Toolkit.Tests
             Assert.Equal(leader, w.Repo.GetComponentRO<UnitSubordinate>(member).Commander);
 
             ref var roster = ref w.Repo.GetComponentRW<UnitRoster>(leader);
-            int slot = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int slot = UnitRoster.IndexOf(ref roster, member);
             Assert.True(slot >= 0, "Member should be in roster.");
         }
     }

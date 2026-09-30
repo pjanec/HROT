@@ -46,7 +46,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             _repo.AddComponent(m, new UnitSubordinate { Commander = commander });
             _repo.AddComponent(m, new BehaviorState { ActiveBehaviorHash = behaviorHash });
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
 
             // Write role into SquadCognitiveState.
             int idx = roster.Count - 1;
@@ -125,7 +125,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
             var m = _repo.CreateEntity();
             _repo.AddComponent(m, new UnitSubordinate { Commander = cmd });
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(cmd);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
             // Write roleId=1 into state.
             ref var state = ref _repo.GetComponentRW<SquadCognitiveState>(cmd);
             System.Runtime.InteropServices.MemoryMarshal.CreateSpan(

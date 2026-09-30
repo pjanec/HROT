@@ -101,7 +101,7 @@ public sealed class HillAssault2_DispatchAllToBaseline_ProofTests
     private static Entity AddSubordinate(EntityRepository world, ref UnitRoster roster)
     {
         var sub = world.CreateEntity();
-        UnitRoster.Add(ref roster, (long)sub.PackedValue);
+        UnitRoster.Add(ref roster, sub);
         return sub;
     }
 

@@ -65,6 +65,9 @@
     <!-- Roslyn source generators: GizmoRegistrar.g.cs, FbtActionRegistrar.g.cs, FbtTreeCatalog.g.cs, HsmActionRegistrar.g.cs. -->
     <ProjectReference Include="..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj"
                       OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <!-- CE-467: CollectionOpsGenerator moved to Fdp.Core.Generators; BpGenListDemo's [BlueprintCollectionField] needs it. -->
+    <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core.Generators\Fdp.Core.Generators.csproj"
+                      OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
     <!-- Fdp.Core: Entity type used in Condition_TargetAliveAndVisible and Action_FireAtTarget. -->
     <ProjectReference Include="..\..\..\FDP\Engine\Fdp.Core\Fdp.Core.csproj" />
     <!-- Hrot.Core provides: TkbEntityTypes constants used by mapper implementations. -->

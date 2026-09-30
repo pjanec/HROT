@@ -120,11 +120,11 @@ public sealed class HillAssault2_ForEachSubordinate_ProofTests
         source.Should().Contain("for (",
             "FlowForEachNode must lower to an inline C# for loop (architect ruling Q#5-C), not a " +
             "BFS-scheduled block per iteration -- see generated TickCore below:\n" + source);
-        source.Should().Contain("UnitRosterOps.Count(",
-            "the loop bound must call the curated, reflection-free UnitRosterOps.Count(in UnitRoster) " +
+        source.Should().Contain("UnitRosterSubordinateEntitiesOps.Count(",
+            "the loop bound must call the generated UnitRosterSubordinateEntitiesOps.Count(in UnitRoster) " +
             "accessor -- see generated TickCore below:\n" + source);
-        source.Should().Contain("UnitRosterOps.Subordinate(",
-            "the per-iteration item must be read via the curated UnitRosterOps.Subordinate(in " +
+        source.Should().Contain("UnitRosterSubordinateEntitiesOps.Item(",
+            "the per-iteration item must be read via the generated UnitRosterSubordinateEntitiesOps.Item(in " +
             "UnitRoster, int) accessor -- see generated TickCore below:\n" + source);
         source.Should().Contain("world.Bus.Publish",
             "the Body must lower to a world.Bus.Publish call (P4 PublishEvent reuse) -- see " +
@@ -147,9 +147,9 @@ public sealed class HillAssault2_ForEachSubordinate_ProofTests
         var sub3 = world.CreateEntity();
 
         var roster = new UnitRoster();
-        UnitRoster.Add(ref roster, (long)sub1.PackedValue);
-        UnitRoster.Add(ref roster, (long)sub2.PackedValue);
-        UnitRoster.Add(ref roster, (long)sub3.PackedValue);
+        UnitRoster.Add(ref roster, sub1);
+        UnitRoster.Add(ref roster, sub2);
+        UnitRoster.Add(ref roster, sub3);
         world.AddComponent(commander, roster);
 
         var status = TickOnce(bpType, commander, world);

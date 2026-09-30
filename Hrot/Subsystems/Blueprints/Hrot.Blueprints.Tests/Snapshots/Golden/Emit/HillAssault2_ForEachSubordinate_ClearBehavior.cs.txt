@@ -48,9 +48,9 @@ public static class HillAssault2ForEachSubordinateClearBehavior_FE4B7CEE_Bp
     {
         var __t0 = self;
         ref readonly var __t1 = ref world.GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t0);
-        for (int __fe2 = 0; __fe2 < global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(__t1); __fe2++)
+        for (int __fe2 = 0; __fe2 < global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t1); __fe2++)
         {
-            var __t2 = global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate(__t1, __fe2);
+            var __t2 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item(__t1, __fe2);
             world.Bus.Publish(new global::Fdp.Toolkit.Behavior.Events.ClearBehaviorEvent
             {
                 Entity = __t2

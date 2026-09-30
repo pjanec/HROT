@@ -80,10 +80,10 @@ public static class HillAssault2DispatchWaveWithTargets_8CA4BFD9_Bp
         ws.WaveUsedSlotsMask = __t1;
         var __t2 = self;
         ref readonly var __t3 = ref world.GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t2);
-        var __t5 = global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(__t3);
+        var __t5 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t3);
         for (int __fe4 = 0; __fe4 < __t5; __fe4++)
         {
-            var __t4 = global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate(__t3, __fe4);
+            var __t4 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item(__t3, __fe4);
             var __t6 = __fe4;
             var __t7 = ws.Runners;
             var __t8 = global::Hrot.AI.Behaviors.Brains.MemberSlotListOps.Count(__t7);

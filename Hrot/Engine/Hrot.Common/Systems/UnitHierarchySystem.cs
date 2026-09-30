@@ -65,7 +65,7 @@ namespace Hrot.Common.Systems
                     {
                         for (int i = 0; i < roster.Count; i++)
                         {
-                            var sub = new Entity((ulong)roster.SubordinateEntities[i]);
+                            var sub = roster.SubordinateEntities[i];
                             if (!repo.IsAlive(sub)) continue;
                             if (!repo.HasComponent<UnitSubordinate>(sub)) continue;
                             repo.RemoveComponent<UnitSubordinate>(sub);
@@ -144,7 +144,7 @@ namespace Hrot.Common.Systems
                 // b. Add entry to roster
                 unsafe
                 {
-                    roster.SubordinateEntities[roster.Count]  = (long)sub.PackedValue;
+                    roster.SubordinateEntities[roster.Count]  = sub;
                     roster.TacticalDesignations[roster.Count] = (ushort)evt.Designation;
                     roster.Count++;
                 }
@@ -218,7 +218,7 @@ namespace Hrot.Common.Systems
             {
                 for (int i = 0; i < roster.Count; i++)
                 {
-                    if (roster.SubordinateEntities[i] == (long)subordinate.PackedValue)
+                    if (roster.SubordinateEntities[i] == subordinate)
                     {
                         foundIdx = i;
                         break;
@@ -234,7 +234,7 @@ namespace Hrot.Common.Systems
                     roster.TacticalDesignations[i] = roster.TacticalDesignations[i + 1];
                 }
                 // Zero the vacated last slot
-                roster.SubordinateEntities[roster.Count - 1]  = 0;
+                roster.SubordinateEntities[roster.Count - 1]  = default;
                 roster.TacticalDesignations[roster.Count - 1] = 0;
                 roster.Count--;
             }

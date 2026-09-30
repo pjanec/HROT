@@ -89,7 +89,7 @@ namespace Hrot.SimHost.Tests
         {
             var roster = new UnitRoster { Count = subs.Length };
             for (int i = 0; i < subs.Length; i++)
-                roster.SubordinateEntities[i] = (long)subs[i].PackedValue;
+                roster.SubordinateEntities[i] = subs[i];
             repo.AddComponent(commander, roster);
         }
 

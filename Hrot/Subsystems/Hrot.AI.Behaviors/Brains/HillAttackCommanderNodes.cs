@@ -92,9 +92,9 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < count; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
                 if (!ctx.World.IsAlive(sub)) continue;
 
                 // Interpolate baseline position for this tank.
@@ -148,9 +148,9 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < count; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
                 if (!ctx.World.IsAlive(sub)) continue;  // dead = counts as arrived
 
                 if (!ctx.World.HasComponent<NavigationStatus>(sub))
@@ -332,9 +332,9 @@ namespace Hrot.AI.Behaviors.Brains
 
             for (int i = 0; i < rosterCount && s.ActiveAttackerCount < 8; i++)
             {
-                long packed = roster.SubordinateEntities[i];
+                var sub = roster.SubordinateEntities[i];
+                long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                var sub = new Entity((ulong)packed);
                 if (!ctx.World.IsAlive(sub)) continue;
 
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.

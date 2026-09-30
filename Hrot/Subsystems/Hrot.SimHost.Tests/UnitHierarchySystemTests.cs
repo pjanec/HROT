@@ -79,7 +79,7 @@ namespace Hrot.SimHost.Tests
             {
                 var roster = repo.GetComponent<UnitRoster>(cmd);
                 Assert.Equal(1, roster.Count);
-                Assert.Equal((long)sub.PackedValue, roster.SubordinateEntities[0]);
+                Assert.Equal(sub, roster.SubordinateEntities[0]);
             }
         }
 
@@ -107,9 +107,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(3, roster.Count);
             unsafe
             {
-                Assert.Equal((long)a.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal((long)b.PackedValue, roster.SubordinateEntities[1]);
-                Assert.Equal((long)c.PackedValue, roster.SubordinateEntities[2]);
+                Assert.Equal(a, roster.SubordinateEntities[0]);
+                Assert.Equal(b, roster.SubordinateEntities[1]);
+                Assert.Equal(c, roster.SubordinateEntities[2]);
             }
         }
 
@@ -142,7 +142,7 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, roster2.Count);
             unsafe
             {
-                Assert.Equal((long)sub.PackedValue, roster2.SubordinateEntities[0]);
+                Assert.Equal(sub, roster2.SubordinateEntities[0]);
             }
 
             // UnitSubordinate must point at cmd2
@@ -176,9 +176,9 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(2, roster.Count);
             unsafe
             {
-                Assert.Equal((long)a.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal((long)c.PackedValue, roster.SubordinateEntities[1]);
-                Assert.Equal(0L, roster.SubordinateEntities[2]); // last slot zeroed
+                Assert.Equal(a, roster.SubordinateEntities[0]);
+                Assert.Equal(c, roster.SubordinateEntities[1]);
+                Assert.Equal(default(Entity), roster.SubordinateEntities[2]); // last slot zeroed
             }
 
             // b must have lost its UnitSubordinate
@@ -282,8 +282,8 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1, roster.Count);
             unsafe
             {
-                Assert.Equal((long)s2.PackedValue, roster.SubordinateEntities[0]);
-                Assert.Equal(0L, roster.SubordinateEntities[1]);
+                Assert.Equal(s2, roster.SubordinateEntities[0]);
+                Assert.Equal(default(Entity), roster.SubordinateEntities[1]);
             }
         }
 

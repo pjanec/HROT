@@ -390,10 +390,10 @@ public sealed class NodeCoverageTests
         // (a) Count hoisted to an OUTER-scope local: the accessor appears as an assignment RHS
         // (`= global::…Count(`), which the non-hoisted path never emits (there it is only ever a loop
         // bound `< global::…Count(`).
-        Assert.Contains("= global::Hrot.AI.Behaviors.Brains.UnitRosterOps.Count(", src);
+        Assert.Contains("= global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(", src);
         // ...and the for-loop bound is that hoisted local, not a fresh Count() re-eval each pass.
         Assert.Matches(@"for \(int __fe\d+ = 0; __fe\d+ < __t\d+;", src);
-        Assert.DoesNotMatch(@"< global::Hrot\.AI\.Behaviors\.Brains\.UnitRosterOps\.Count\(", src);
+        Assert.DoesNotMatch(@"< global::Fdp\.Core\.CommandHierarchy\.UnitRosterSubordinateEntitiesOps\.Count\(", src);
 
         // (b) Loop counter copied into a body-scope local for CurrentIndex.
         Assert.Matches(@"var __t\d+ = __fe\d+;", src);
@@ -1973,8 +1973,8 @@ public sealed class NodeCoverageTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem });
 
@@ -2043,8 +2043,8 @@ public sealed class NodeCoverageTests
         {
             Id                 = Guid.NewGuid(),
             SourceComponentFqn = "Fdp.Core.CommandHierarchy.UnitRoster",
-            CountAccessorFqn   = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-            ItemAccessorFqn    = "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+            CountAccessorFqn   = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+            ItemAccessorFqn    = "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
         };
         fe.Pins.AddRange(new[] { feIn, feBody, feCompleted, feItem, feIndex, feCount });
 
