@@ -408,4 +408,4 @@ Filed as `CE-452` and replaced.
 |---|---|
 | the assignment picker lists every `BrainTier` | ✅ `ScenarioMissionService.AppendEditorBTreeBehaviors` now admits BTree, HSM and Blueprint (rail `EditorMissionServiceTests.CE446_GetAvailableBehaviors_ListsEveryTechnology`, red-proofed by restoring the BTree-only predicate). ⚠ The method keeps its old name — renaming is a Roslyn job, left for the slice that touches it next |
 | the technology shown as a label | ⛔ not built — `IMissionEditorService.GetAvailableBehaviors` returns bare names (four implementations incl. `Hrot.ExCon`), so a label is an interface change |
-| New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ⛔ not built — editor menus, the UI lane's surface |
+| New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ⛔ not built — editor menus, the UI lane's surface. ⭐ Handoff (draft): [`HANDOFF_E4_Product_First_Authoring.md`](batches/HANDOFF_E4_Product_First_Authoring.md) |
