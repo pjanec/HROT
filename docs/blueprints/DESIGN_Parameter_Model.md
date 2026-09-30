@@ -216,6 +216,76 @@ it: blueprint resolver graphs have no host-read node, and curated resolvers are 
 | how the graph reads them — ⭐ **consistency with every other blueprint** | 📐 AiPrimitive and Instance blueprints receive params as **declared Parameters**, read by `GetVariable` (one) or the built-in pure **`GetAllParametersNode`** (one output pin per Parameter, `Stage0_Rehydrate.cs:295`, in the palette, used by shipped `HillAssault2_*` assets). Function / Event / Macro entry nodes flatten their inputs to **one pin per field** (`Stage0_Rehydrate.cs:240`). ⛔ No blueprint today receives its inputs as ONE struct pin | ✅ **APPROVED** (same ruling): **reuse `GetVariable`/`GetAllParametersNode` on the declared Parameters** — nothing new to build or learn; the resolver's generated method maps Parameters onto `authored`. ⛔ Not an Entry struct pin: it would be the only place inputs arrive as a struct |
 | a **nullable** field (`float?`) | ⛔ not designed (no `Nullable` handling in the blueprint core, compiler, editor pin types or generators, grep `2026-09-30`) | ✅ **refused** — user `2026-09-30`: *"Ok, no nullables."* *"Not given"* = the baked default, or an explicit `bool HasX` field |
 
+### P.8 ⭐ `CE-443` BUILD DESIGN — **the resolver receives the source** *(`2026-09-30`, build-state: BUILDING)*
+
+**INVENTORY** *(grep + read, `2026-09-30`; the codebase-memory graph was disconnected for most of this session, so
+this list is grep-derived — ⚠ not an exhaustive graph enumeration)*: `ResolveStageDelegate` (1 declaration,
+`BehaviorRegistry.cs:55`) · `BehaviorDefinition.ResolveStage` (1 producer: `BTreeBridgeEmitCore` `:1582`; 2 callers:
+the emitted `ParseParams` `:1526`, `HostedSubtree.StartChild` `:240`) · `ResolverSubjectDecl.AuthoredTypeId`
+(1 consumer: `LibraryEmitter.cs:270`; 1 producer: `BehaviorResolverAuthoring.cs:65`) · blueprint resolver assets
+shipped: **1** (`T40Resolver.bp.json`) · curated `[BehaviorResolver]` in production: **all JSON-shaped** (the typed
+`ResolveBlock` shape is test-only) · HSM resolver assets: **none** (`HsmBridgeEmitCore` has no resolver arm — out
+of scope here).
+
+```mermaid
+classDiagram
+    class ResolverAssetClass {
+        <<generated from the resolver .bp.json>>
+        +struct Params  (from its Parameters, NEW)
+        +ParseAuthored(json, out Params) NEW
+        +ResolveBehavior(in Params authored, ref Block block, world, self, host)
+    }
+    class BTreeRegistrar {
+        <<generated per behaviour>>
+        +__parseParams: bake block, ParseAuthored, ResolveBehavior
+        +__ResolveStage(source, sourceBytes, block, capacity, world, self, host) CHANGED
+        +JsonParamsDtoType = ResolverAssetClass.Params  CHANGED
+    }
+    class BehaviorDefinition {
+        +BakeDefaults
+        +ResolveStage : ResolveStageDelegate  (gains the source)
+    }
+    class HostedSubtree {
+        +StartChild()  (resolver present: no Supply)
+    }
+    class BehaviorRegistry {
+        +RegisterSourceResolver(name, ResolveStageDelegate) NEW  (CE-438)
+    }
+    BTreeRegistrar --> ResolverAssetClass : calls
+    BTreeRegistrar --> BehaviorDefinition : fills
+    HostedSubtree --> BehaviorDefinition : ResolveStage(source)
+    HostedSubtree --> BehaviorRegistry : curated typed arm
+```
+
+> ⭐ **Caption.** The authored shape moves from "the BTree's `In` struct" to **the resolver asset's own `Params`**,
+> so the resolver OWNS the shape it converts from. A behaviour with no resolver is unchanged.
+
+```mermaid
+sequenceDiagram
+    participant Ing as "ingress (root) / StartChild (hosted)"
+    participant Def as "behaviour definition"
+    participant Res as "ResolverAssetClass"
+    Ing->>Def: clear the block, BakeDefaults
+    alt root, resolver bound
+        Ing->>Res: ParseAuthored(json) = Parameter defaults, then JSON by name
+        Ing->>Res: ResolveBehavior(in authored, ref block)
+    else hosted, resolver bound
+        Ing->>Def: ResolveStage(host variable bytes, or none, ref block)
+        Def->>Res: ResolveBehavior(in authored, ref block)
+    else no resolver
+        Ing->>Def: default copy (JSON by name / whole host struct onto In)
+    end
+```
+
+| decision | why |
+|---|---|
+| `ResolveStageDelegate` gains `(byte* source, int sourceBytes)`; `source == null` ⇒ the authored defaults | one stage, both callers — an unbound hosted child still gets the resolver's defaults |
+| the hosted source must be exactly `sizeof(Params)` — else THROW | the host variable IS the authored DTO; a width mismatch can only be a wrong binding (the `CE-431` rule, moved) |
+| `ResolverSubjectDecl.AuthoredTypeId` is **deleted** | its only consumer now derives `{class}.Params`; keeping it would be a second producer (`R-132`) |
+| `BP1011` allows Parameters on a resolver asset; they are read-only (`in`) | §P.7 |
+| a curated **typed** resolver whose `TAuthored` is unmanaged also registers a from-bytes arm (`CE-438`); a JSON-shaped one hosted still THROWS, with the reason | a JSON parse cannot consume host bytes |
+| `host` (`IHostVariableAccess`) is left in the signatures | removed by `CE-445`, not here — one churn per signature |
+
 ---
 
 ## 0. ⛔⛔ Do not re-derive these — **each was got WRONG at least once in this programme**
