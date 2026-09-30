@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4k** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 slice 1 built; ⚠ next is a USER DECISION — CE-441 slice 2, Q76 §12.25c) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4k** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 built — decision C closed by the user after slice 1, Q76 §12.25e; the Q76-B plan is complete) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -840,7 +840,7 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ `GetShared`/`SetShared` left the blueprint language end to end — nodes, compiler arms, IR ops, `BlueprintSharedState`, editor surface, the gameplay types only they used, the three demo assets and `T36`/`T37`/`T38`. ⚠ **KEPT:** the struct-type provider + field reflector + `SharedFieldDecl` feed the surviving Make/Break/SetMembers palette (extracted to `StructPickerHelpers.cs`). ⏭ `CE-441`: the three scope enums collapse; `CE-422` closes with it. 📄 [`Q76` §12.24](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4k 🟡 `CE-441` SLICE 1 BUILT *(overnight)* — decision `C`, the dead half — ⚠ **NEXT IS A USER DECISION**
+### 13.4k ✅ `CE-441` CLOSED — decision `C`: slice 1 built, slice 2 WITHDRAWN by the user (Q76 §12.25e) — `Node` stays as an internal key
 
 ⭐ `Entity` removed from all three scope enums, the key function and the emitter/editor filters; no key value changed; `CE-422` closed. ⛔ **Slice 2 NOT built on purpose:** collapsing `Node`/`Behavior` re-homes the node-bound working state of every composed blueprint node into the block and changes key values — an engine contract. Lean + claim table in [`Q76` §12.25c](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md): *every composed node's state becomes a field of `St`; the identity keys move to named recipes* — ⚠ gated on a block-size budget measurement.
 

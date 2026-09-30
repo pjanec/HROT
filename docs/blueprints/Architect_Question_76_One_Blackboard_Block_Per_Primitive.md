@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 slice 1 are BUILT (§11.7, §12.15–§12.25). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 are BUILT (CE-441 closed after slice 1) (§11.7, §12.15–§12.25). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2617,3 +2617,13 @@ arms; the four `Behavior OR Entity` filters read `Behavior`. ⭐ **No key value 
 (`OccurrenceSlotKeyParityTests`) still proves byte-identity for `Node` and `Behavior`, and now pins that the value `2`
 stays undefined. The manifest rail that used `Entity` as its side-slot subject now uses the node-bound `Node`-scoped
 State variable — the one side slot that genuinely still exists. `CE-422` closes. ⏭ Slice 2: §12.25c, the user's call.
+
+#### 12.25e ✅ CLOSED `2026-09-30` — **slice 2 WITHDRAWN by the user**
+
+🔒 **User:** *"I never meant to change anything about how blueprints work"* → *"yes, close it that way"*.
+⭐ What scope means now: it only decides **who shares a State variable** — `Node`: each composed blueprint node
+(a tree node running a blueprint) keeps its own private copy in a per-node slot keyed (asset, node); `Behavior`:
+every node bound to that variable shares one copy inside the block. Neither is visible as a choice to authors
+(`CE-435`), and neither crosses entities (`Entity` is gone, slice 1). ⛔ §12.25c's lean (re-home node-bound memory
+into the block) is **withdrawn**: it would change storage and keys for no author-facing gain. `Node` stays as an
+internal key. Decision `C` is complete as far as it concerns authors.
