@@ -40,62 +40,19 @@ public sealed class V_ResolverPurityTests
 
     private const string Dto = "global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams";
 
-    /// <summary>A Library asset with one Construction graph shaped exactly as `Q43-D` requires.</summary>
-    private static BlueprintAsset ResolverAsset(Action<Graph>? tweak = null)
-    {
-        var asset = BlueprintAssetBuilder
-            .Library("R")
-            .WithGraph("Resolve", GraphKind.Construction, g =>
-            {
-                g.WithInput("Dto", Dto);
-                g.Entry().Return();
-            })
-            .Build();
-
-        var graph = asset.Graphs.Single();
-        graph.Outputs.Add(new ParameterDecl
-        {
-            Id = Guid.NewGuid(), Name = "Result", Type = new BlueprintTypeRef { TypeId = Dto },
-        });
-
-        tweak?.Invoke(graph);
-        return asset;
-    }
-
     // ---- BP1675 — purity ------------------------------------------------
+    //  ⛔ CE-448: the reusable Library resolver is retired, so every purity rail runs on the ONE kind left — a
+    //  behaviour resolver asset (SubjectAsset, below). Its exemption is narrow: a write to its OWN block.
 
     [Fact]
     [CoversDiagnosticCode("BP1675")]
     public void Resolver_WithASideEffectingNode_EmitsBP1675()
     {
-        // ⚠ A SetVariable is the cheapest witness, and it is also the REAL hazard: Q43 §4 — a write
-        //   outside the returned value escapes the ingress's shadow parse and survives a FAILED parse,
-        //   leaving the entity half-switched.
-        var asset = BlueprintAssetBuilder
-            .Library("R")
-            .WithGraph("Resolve", GraphKind.Construction, g =>
-            {
-                g.WithInput("Dto", Dto);
-                g.Entry().SetVariable("Whatever", "1").Return();
-            })
-            .Build();
-        asset.Graphs.Single().Outputs.Add(new ParameterDecl
-        {
-            Id = Guid.NewGuid(), Name = "Result", Type = new BlueprintTypeRef { TypeId = Dto },
-        });
+        // ⚠ A ChannelCommand dispatches out of the graph — the REAL hazard: Q43 §4, an effect outside the block
+        //   escapes the ingress's shadow parse and survives a FAILED parse, leaving the entity half-switched.
+        var asset = SubjectAsset(g => g.Entry().Return());
+        asset.Graphs.Single().Nodes.Add(new ChannelCommandNode { Id = Guid.NewGuid() });
 
-        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
-    }
-
-    /// <summary>
-    /// ⛔ <c>CE-433</c> — <c>Set Variables</c> takes <c>Set Variable</c>'s rule, not a looser one: a plain
-    /// Library resolver (no behaviour subject) owns no block, so the node is BP1675 like any other write.
-    /// ⚠ Inverse-edit red-proof: drop <c>SetVariablesNode</c> from the deny-list and this passes silently.
-    /// </summary>
-    [Fact]
-    public void CE433_SetVariables_InAPlainLibraryResolver_EmitsBP1675()
-    {
-        var asset = ResolverAsset(g => g.Nodes.Add(new SetVariablesNode { Id = Guid.NewGuid() }));
         Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
     }
 
@@ -111,14 +68,14 @@ public sealed class V_ResolverPurityTests
     [Fact]
     public void APureResolver_EmitsNoPurityDiagnostic()
     {
-        var diags = Validate(ResolverAsset());
+        var diags = Validate(SubjectAsset(g => g.Entry().Return()));
 
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1675);
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1676);
         Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1677);
     }
 
-    // ---- BP1676 — Construction is a Library shape today -----------------
+    // ---- BP1676 — a resolver belongs to a behaviour ----------------------
 
     [Fact]
     [CoversDiagnosticCode("BP1676")]
@@ -136,26 +93,25 @@ public sealed class V_ResolverPurityTests
         Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1676);
     }
 
-    // ---- BP1677 — the resolver signature --------------------------------
-
+    /// <summary>
+    /// ⛔ <c>CE-448</c> — a Library Construction graph with no <c>ResolverSubject</c> (the retired reusable resolver,
+    /// shaped exactly as <c>Q43-D</c> once required) is <c>BP1676</c>, and NOT also judged on the old signature.
+    /// </summary>
     [Fact]
-    [CoversDiagnosticCode("BP1677")]
-    public void Resolver_WithNoOutput_EmitsBP1677()
+    public void CE448_AReusableLibraryResolver_EmitsBP1676_AndNoSignatureDiagnostic()
     {
-        var asset = ResolverAsset(g => g.Outputs.Clear());
+        var asset = BlueprintAssetBuilder
+            .Library("R")
+            .WithGraph("Resolve", GraphKind.Construction, g =>
+            {
+                g.WithInput("Dto", Dto).WithOutput("Result", Dto);
+                g.Entry().Return();
+            })
+            .Build();
 
-        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1677);
-    }
-
-    [Fact]
-    public void Resolver_WhoseOutputTypeDiffersFromItsInput_EmitsBP1677()
-    {
-        // ⭐ Q43-D / R-81: a resolver REFINES what bake+overlay produced. A different output type is a
-        //   resolver that REPLACES — which silently discards the scenario's JSON override, the exact
-        //   defect BP-275 fixed on the generated path.
-        var asset = ResolverAsset(g => g.Outputs[0].Type = new BlueprintTypeRef { TypeId = "System.Int32" });
-
-        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1677);
+        var diags = Validate(asset);
+        Assert.Contains(diags, d => d.Code == DiagnosticCodes.BP1676);
+        Assert.DoesNotContain(diags, d => d.Code == DiagnosticCodes.BP1677);
     }
 
     // ---- the completeness rail ------------------------------------------
@@ -208,6 +164,7 @@ public sealed class V_ResolverPurityTests
 
     /// <summary>⛔ <c>CE-428</c> — the injected subjects are NOT declared: a graph input is BP1677.</summary>
     [Fact]
+    [CoversDiagnosticCode("BP1677")]
     public void CE428_ABehaviourResolverGraph_ThatDeclaresAnInput_EmitsBP1677()
     {
         var diags = Validate(SubjectAsset(g => { g.WithInput("Dto", Dto); g.Entry().Return(); }));

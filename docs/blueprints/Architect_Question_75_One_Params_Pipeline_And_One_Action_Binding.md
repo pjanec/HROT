@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-09-30 (CE-448 known-rot)
 build-state: ⛔ DESIGN — SUBSUMED 2026-09-29 BY Q76 §12, WHICH IS APPROVED AND BUILDING.
   ⭐⭐⭐ READ Q76 FIRST. Q76-B ("one blackboard block per running behaviour") was APPROVED by the
   user on 2026-09-29 and Q76 §4-E already ruled that THIS document depends on it. As of that
@@ -30,7 +30,9 @@ current-answer: ⭐⭐⭐ READ §0 FIRST — it is the revision summary and says
 stale-below: ⛔ §5's slice table and §4's decision C were written before the second measurement
   pass. Both are CORRECTED IN PLACE and say so; nothing below is quotable as a plan without
   reading §0.
-known-rot: ⚠ 2026-09-30 (R-155) — wherever this document places a resolve step
+known-rot: ⛔ 2026-09-30 (CE-448) — BlueprintResolverEntry / BlueprintDefinition.Resolvers (cited as a
+  publication currency) are DELETED.
+  known-rot: ⚠ 2026-09-30 (R-155) — wherever this document places a resolve step
   AFTER the automatic copy, or on an action binding, read DESIGN_Parameter_Model.md §P instead: the
   resolver replaces the copy (§P.2) and action bindings have no resolver (§P.3).
   earlier: 🔴 THREE claims this document made on 2026-09-28 that its own second pass overturned,

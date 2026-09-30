@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-09-30 (CE-448 known-rot)
 build-state: BUILT 2026-09-21 — see section 10 for the as-built and the two deviations.
 current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and section 5
   (the diagrams). Section 7.1 settles the
@@ -10,7 +10,12 @@ current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and s
   superseded "rank by authorship" answer. Do NOT quote either.
 stale-below: section 7.2a (the three-arm ParamResolverRef shape) and section 7.2's trailing
   HISTORY note are both SUPERSEDED and kept only for the measurements that retired them.
-known-rot: ⚠ 2026-09-30 (R-155) — two of the five supply paths this document serves are
+known-rot: ⛔ 2026-09-30 (CE-448) — the REUSABLE resolver (a Library Construction graph declaring
+  1-in/1-out DTO, published in BlueprintDefinition.Resolvers via BlueprintResolverEntry, §7.1) is RETIRED with
+  its demos ParamResolverDemo/ResolverWorldReachDemo; BP1676 now refuses a Library Construction graph without a
+  ResolverSubject. The reach decision (world + self in scope) stands on the ONE kind left, the behaviour resolver
+  asset; its rails are ResolverWorldReachTests A1-A3 (re-homed). DESIGN_Parameter_Model.md §P.4/§P.5.
+  known-rot: ⚠ 2026-09-30 (R-155) — two of the five supply paths this document serves are
   action paths (hosted blueprint primitives in a BTree node / HSM state). They lose their resolver
   (DESIGN_Parameter_Model.md §P.4, CE-445). The reach decision (what a resolver may read) stands for
   behaviour resolvers; §P.6 leaves IHostVariableAccess OPEN (lean retire).

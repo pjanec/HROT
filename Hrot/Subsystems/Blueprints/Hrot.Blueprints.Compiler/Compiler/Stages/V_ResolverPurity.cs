@@ -84,11 +84,10 @@ internal sealed class V_ResolverPurity : IValidator
 
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
-        // ⭐⭐⭐ R-149/R-155 — WHOSE params a resolver graph refines. ⛔ CE-445 retired the own-asset resolver of an
-        //   AiPrimitive (shape ②): actions and conditions read their host live and have NO resolver
-        //   (DESIGN_Parameter_Model §P.4). Two kinds remain, both on a LIBRARY asset:
-        //   ① a reusable resolver — declares the DTO it refines (BP1677);
-        //   ③ a behaviour resolver asset (ResolverSubject) — the ONE resolver a behaviour names.
+        // ⭐⭐⭐ R-155 — a resolver belongs to a BEHAVIOUR. ⛔ CE-445 retired the own-asset resolver of an
+        //   AiPrimitive (actions and conditions read their host live, DESIGN_Parameter_Model §P.4); ⛔ CE-448
+        //   retired the REUSABLE Library resolver (a named DTO→DTO graph nothing bound). ONE kind remains:
+        //   a behaviour resolver asset (a Library with a ResolverSubject) — the ONE resolver a behaviour names.
         var ownResolverGraphs = new List<Graph>();
 
         foreach (var graph in asset.Graphs)
@@ -97,7 +96,6 @@ internal sealed class V_ResolverPurity : IValidator
 
             bool isLibrary = asset.Dispatch == BlueprintDispatchKind.Library;
             bool isSubject = isLibrary && asset.ResolverSubject is not null;
-            if (isSubject) ownResolverGraphs.Add(graph);
 
             // ── BP1676 — a resolver belongs to a BEHAVIOUR, never to an action/condition/instance ────
             if (!isLibrary)
@@ -110,9 +108,22 @@ internal sealed class V_ResolverPurity : IValidator
                 continue;
             }
 
-            // ── BP1677 — the signature, which differs by KIND ─────────────────────
-            if (isSubject) ValidateSubjectSignature(asset, graph, ctx);
-            else           ValidateReusableSignature(asset, graph, ctx);
+            // ── BP1676 — ⛔ CE-448: no REUSABLE resolver. A Library Construction graph must belong to a behaviour ─
+            if (!isSubject)
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
+                    $"Graph '{graph.Name}' is a Construction graph (a resolver) on a Library asset that resolves "
+                    + "no behaviour. Reusable resolvers are retired (CE-448): a resolver is the ONE optional stage a "
+                    + "behaviour names (R-155). Create it as that behaviour's resolver asset, or make this graph a "
+                    + "Function graph and call it from one.",
+                    asset.AssetId, graph.Id));
+                continue;
+            }
+
+            ownResolverGraphs.Add(graph);
+
+            // ── BP1677 — the signature: both subjects are injected, nothing is declared ─────
+            ValidateSubjectSignature(asset, graph, ctx);
 
             // ── BP1675 — purity ───────────────────────────────────────────────────
             foreach (var node in graph.Nodes)
@@ -124,12 +135,12 @@ internal sealed class V_ResolverPurity : IValidator
                 //   to ANY of them is the resolver's result, never an escape. ⭐ CE-443: its Parameters are the
                 //   `in` authored DTO — READ-ONLY, so a write to one is refused like any other denied write.
                 // ⛔ CE-445: the AiPrimitive own-resolver exemption (CE-432) is gone with the own resolver.
-                if (isSubject && node is SetVariableNode subjectWrite
+                if (node is SetVariableNode subjectWrite
                     && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
                     continue;
 
                 // ⭐ CE-433 — Set Variables writes ONLY pinned Variables (BP1670 refuses any other pin).
-                if (isSubject && node is SetVariablesNode)
+                if (node is SetVariablesNode)
                     continue;
 
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1675,
@@ -147,7 +158,6 @@ internal sealed class V_ResolverPurity : IValidator
         // ⭐ R-149: "one field, one value, so two resolvers for one region cannot be authored." An
         // asset's own parameters are ONE region, so two Construction graphs on it would be exactly
         // the competition the selection model exists to make unrepresentable.
-        // ⚠ A LIBRARY may carry many — they are separate reusable resolvers, each named separately.
         // ⭐ CE-428 — a behaviour resolver asset exists to hold ONE resolver; none is a resolver nothing runs.
         if (asset.ResolverSubject is not null && asset.Dispatch == BlueprintDispatchKind.Library
             && ownResolverGraphs.Count == 0)
@@ -165,39 +175,6 @@ internal sealed class V_ResolverPurity : IValidator
                 + $"({string.Join(", ", ownResolverGraphs.Select(g => "'" + g.Name + "'"))}), but a behaviour "
                 + "has exactly one resolver (R-152). Keep one.",
                 asset.AssetId, ownResolverGraphs[1].Id));
-        }
-    }
-
-    /// <summary>
-    /// ⭐ <b>① a REUSABLE resolver on a Library asset</b> — it declares the DTO it refines.
-    ///
-    /// <para>
-    /// ⭐⭐ <c>Q43-D</c>/<c>R-81</c>: <i>"the graph takes the current DTO as an input and returns the
-    /// modified one"</i> is what makes a resolver REFINE rather than REPLACE. ⛔ A resolver that only
-    /// PRODUCED a value would silently discard the scenario's JSON override — the exact defect
-    /// <c>BP-275</c> fixed on the generated path.
-    /// </para>
-    /// </summary>
-    private static void ValidateReusableSignature(BlueprintAsset asset, Graph graph, ValidationContext ctx)
-    {
-        if (graph.Inputs.Count != 1 || graph.Outputs.Count != 1)
-        {
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
-                $"Resolver graph '{graph.Name}' must declare exactly one input and one output "
-                + $"(the parameters DTO in, the refined DTO out); it declares "
-                + $"{graph.Inputs.Count} input(s) and {graph.Outputs.Count} output(s).",
-                asset.AssetId, graph.Id));
-            return;
-        }
-
-        if (!string.Equals(graph.Inputs[0].Type.TypeId, graph.Outputs[0].Type.TypeId,
-                StringComparison.Ordinal))
-        {
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
-                $"Resolver graph '{graph.Name}' takes '{graph.Inputs[0].Type.TypeId}' but returns "
-                + $"'{graph.Outputs[0].Type.TypeId}'. A resolver REFINES the parameters it is "
-                + "given, so its input and output must be the same type.",
-                asset.AssetId, graph.Id));
         }
     }
 

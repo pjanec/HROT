@@ -14,7 +14,7 @@ namespace Hrot.Blueprints.Tests.Compiler;
 
 /// <summary>
 /// ⛔ <c>CE-445</c>: the <c>E8a</c> own-asset resolver of an action blueprint is RETIRED (<c>R-155</c>: only behaviours
-/// have resolvers). What stays here: the refusal, the reusable Library resolvers, and the behaviour resolver asset
+/// have resolvers). What stays here: the refusals (CE-445 actions, CE-448 reusable Library resolvers) and the behaviour resolver asset
 /// (<c>CE-428</c>/<c>CE-433</c>/<c>CE-443</c>). ⛔ HISTORY below.
 /// <b><c>E8a</c> — an asset carries its OWN parameter resolver, so NOTHING has to name it.</b>
 /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §7.2 · <c>R-149</c>.
@@ -70,22 +70,22 @@ public sealed class OwnParamResolverTests
     }
 
     /// <summary>
-    /// ⭐ A LIBRARY may carry many — they are separately-named reusable resolvers, each bound by
-    /// whoever names it. ⛔ Collapsing that to "one per asset" would forbid a resolver library.
+    /// ⛔ <c>CE-448</c> (<c>R-155</c>) — <b>no reusable resolvers.</b> A Construction graph on a Library that resolves
+    /// no behaviour (no <c>ResolverSubject</c>) is refused (<c>BP1676</c>), however well-shaped: a resolver is the ONE
+    /// optional stage a behaviour names. ⚠ This inverts the pre-CE-448 rail <c>TwoResolversOnALibraryAsset_AreLegal</c>.
+    /// <para>⚠ Inverse-edit red-proof: delete the <c>!isSubject</c> arm in <c>V_ResolverPurity</c> and this passes validation.</para>
     /// </summary>
     [Fact]
-    public void TwoResolversOnALibraryAsset_AreLegal()
+    public void CE448_AResolverOnALibraryThatResolvesNoBehaviour_EmitsBP1676()
     {
         const string Dto = "global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams";
         var asset = BlueprintAssetBuilder
             .Library("ResolverLib")
             .WithGraph("A", GraphKind.Construction, g =>
                 { g.WithInput("D", Dto).WithOutput("R", Dto); g.Entry().Return(); })
-            .WithGraph("B", GraphKind.Construction, g =>
-                { g.WithInput("D", Dto).WithOutput("R", Dto); g.Entry().Return(); })
             .Build();
 
-        Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP1676);
+        Assert.Contains(Validate(asset), d => d.Code == DiagnosticCodes.BP1676);
     }
 
     // ── BP1677 — the two signatures ──────────────────────────────────────────

@@ -34,9 +34,8 @@ internal static class LibraryEmitter
         // through the LibraryFunctionDelegate adapter; §8.1's "R3 — struct/DTO-typed graph inputs,
         // Hard (architectural)" is STALE).
         //
-        // ⛔ What makes it a RESOLVER rather than a function is the KIND, carried through to a separate
-        // `BlueprintDefinition.Resolvers` index and checked for purity by V_ResolverPurity — never a
-        // naming convention (Q43-A3).
+        // ⛔ CE-448 — only a behaviour resolver asset (ResolverSubject) may carry one (V_ResolverPurity BP1676);
+        //   the reusable DTO→DTO resolver and its `BlueprintDefinition.Resolvers` index are retired.
         foreach (var graph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction))
         {
             EmitResolverGraph(e, asset, graph);
@@ -174,41 +173,15 @@ internal static class LibraryEmitter
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>R4</c> — a resolver graph's emitted method, with the world in scope.</b>
-    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4.
+    /// ⭐⭐⭐ <b><c>R4</c> — a behaviour resolver graph's emitted method, with the world in scope.</b>
+    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4 · <c>DESIGN_Parameter_Model.md</c> §P.7.
     ///
     /// <para>
-    /// ⭐⭐⭐ <b>The parameter list IS <c>ResolveParams&lt;TDto&gt;</c> with the <c>ref</c> unrolled into
-    /// a return value</b> — <c>(dto, world, self, host)</c>. ⇒ the emitted method is the universal
-    /// currency every supply path already speaks, so the registrar needs no adapter and no new
-    /// delegate: it wraps this in one lambda whose body is <c>dto = Resolve(dto, world, self, host)</c>.
-    /// </para>
-    ///
-    /// <para>
-    /// ⚠ <b>The context is appended ALWAYS, never demand-driven</b> (§4 <c>D1</c>). <c>BP1677</c>
-    /// already fixes the DTO half of the signature, so a fixed shape makes a resolver callable
-    /// generically; a demand-driven list would produce N shapes and force reflection over generated
-    /// code to call any of them.
-    /// </para>
-    ///
-    /// <para>
-    /// ⛔ <b><c>EntityRepository</c>, not <c>ISimulationView</c></b> (§4 <c>D2</c>): the world-singleton
-    /// accessors are declared on the repository and NOT on the view, so a resolver reaching
-    /// <c>IGeographicTransform</c> needs the concrete type. ⭐ It upcasts implicitly wherever a view is
-    /// wanted, which is why <c>EmissionContext.ViewVar</c> can answer <c>"world"</c> unchanged.
-    /// </para>
-    ///
-    /// <para>
-    /// ⚠ <b><c>host</c> is emitted although NOTHING supplies it on this path yet</b> (§4 <c>D3</c>) —
-    /// deliberately, and the precedent is this codebase's own: <c>ParseParamsDelegate</c> carries the
-    /// same parameter for the same stated reason, <i>"adding one is a breaking change to every
-    /// resolver."</i> ⛔ Paying that twice is the mistake being avoided.
-    /// </para>
-    ///
-    /// <para>
-    /// ⛔ <b>No <c>time</c></b> (§4 <c>D4</c>): <c>R-37</c> is resolve-once-at-activation, so a tick
-    /// clock would invite params that resolve once and then lie — and omitting it keeps this signature
-    /// EQUAL to <c>ResolveParams&lt;TDto&gt;</c> rather than merely similar.
+    /// ⭐ The subjects are injected (<c>in Params authored</c>, <c>ref TBlock block</c>) and the trailing context
+    /// is fixed (<c>world</c>, <c>self</c>). ⛔ <b><c>EntityRepository</c>, not <c>ISimulationView</c></b> (§4
+    /// <c>D2</c>): the world-singleton accessors live on the repository. ⛔ No <c>time</c> (§4 <c>D4</c>):
+    /// resolve-once-at-activation (<c>R-37</c>). ⛔ <c>host</c> retired by <c>CE-445</c>; the reusable
+    /// <c>(dto, world, self)</c> shape retired by <c>CE-448</c>.
     /// </para>
     /// </summary>
     private static void EmitResolverGraph(CSharpEmitter e, IrAsset asset, IrGraph graph)
@@ -236,18 +209,8 @@ internal static class LibraryEmitter
             return;
         }
 
-        var parts = graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}").ToList();
-        parts.Add("global::Fdp.Core.EntityRepository world");
-        parts.Add("global::Fdp.Core.Entity self");
-
-        e.WriteLine($"public static {returnType} {graph.Name}({string.Join(", ", parts)})");
-        e.WriteLine("{");
-        e.Indent();
-
-        EmitGraphBody(e, asset, graph);
-
-        e.Outdent();
-        e.WriteLine("}");
+        // ⛔ CE-448 — unreachable: BP1676 refuses a Construction graph on a Library with no ResolverSubject,
+        //   and a fatal validation error stops the pipeline before emit.
         e.Ctx.CurrentGraph = null;
     }
 

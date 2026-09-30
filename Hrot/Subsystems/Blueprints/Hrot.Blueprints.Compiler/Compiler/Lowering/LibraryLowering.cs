@@ -38,10 +38,10 @@ internal static class LibraryLowering
         // skips them and IrGraphKind has no Macro member, so "declares only macros" and "declares
         // nothing" look identical here. Without DeclaredMacroCount this rule rejected the one asset
         // shape the macro feature was built to allow.
-        // ⭐⭐ Q43-A2′ — a CONSTRUCTION graph exposes something too. It is the blueprint-authored
-        // parameter resolver: `LibraryEmitter` emits a static method for it and the registrar puts it
-        // in `BlueprintDefinition.Resolvers`, so an asset whose only graph is a resolver is a complete,
-        // callable asset — not an empty one.
+        // ⭐⭐ Q43-A2′ — a CONSTRUCTION graph exposes something too. It is a behaviour resolver asset's
+        // one resolver: `LibraryEmitter` emits it plus `ResolveBehavior`, which the behaviour's registrar
+        // calls (CE-428/CE-443), so an asset whose only graph is a resolver is a complete, callable asset —
+        // not an empty one. (⛔ CE-448 retired the `BlueprintDefinition.Resolvers` index.)
         //
         // ⚠ Measured 2026-09-21 BEFORE the change: a Library carrying only a Construction graph
         // compiled to BP5001 and emitted NOTHING, so this rule — not the type system, not the emitter

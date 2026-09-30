@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
+updated: 2026-09-30 (CE-448 known-rot)
 build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbatim: "whatever leads to
   this single-blackboard-slot-per-running-behavior is authorized"). ⇒ A and C, which resolved to
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
@@ -20,7 +20,9 @@ decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will
   carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
   ~200 lines and would park under the same rule. Reuse the rule on the next such question.
 stale-below: nothing.
-known-rot: ⚠ 2026-09-30 (R-155, §12.26) — the resolver no longer runs AFTER an automatic copy.
+known-rot: ⛔ 2026-09-30 (CE-448) — the diagram/table rows naming BlueprintDefinition.Resolvers and
+  BlueprintResolverEntry (§12.20 area) describe a publication index that is DELETED.
+  known-rot: ⚠ 2026-09-30 (R-155, §12.26) — the resolver no longer runs AFTER an automatic copy.
   §12.3's "bake → supply → resolve" and §12.9c's "the resolver MODIFIES" describe the as-built
   order; the TARGET is "bake → EITHER the default copy OR the resolver, which receives the SOURCE"
   (DESIGN_Parameter_Model.md §P.2, CE-443). §12.20's T40 demo reads block.In after the copy — rot

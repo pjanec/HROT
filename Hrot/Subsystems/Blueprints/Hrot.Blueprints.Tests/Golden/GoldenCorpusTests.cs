@@ -85,7 +85,9 @@ public sealed class GoldenCorpusTests
         //    with the GetShared/SetShared node pair they demonstrated (decision A, Q76 §12.24).
         // ⛔ 43 → 42 (CE-445, 2026-09-30): `OwnParamResolverDemo` DELETED — an AiPrimitive's own resolver is
         //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
-        Assert.Equal(42, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
+        //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
+        Assert.Equal(40, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

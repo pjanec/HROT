@@ -2,12 +2,13 @@
 state: LIVE
 build-state: PLAN — the dispatchable breakdown of an approved design. ⛔ NOT a design: every task
   REFERENCES its owning chapter and restates nothing. If this file and the design disagree, the DESIGN wins.
-updated: 2026-09-21
+updated: 2026-09-30 (CE-448 known-rot)
 current-answer: §2 is the stage/task table (14 tasks, 5 increments). §3 is the under-specified register
   (W1–W5, all implementer calls). §4 is what this deliberately does NOT contain. §5 is the dispatch
   grouping — ⭐ increment A is dispatchable now, nothing blocks it.
 stale-below: nothing — new document.
-known-rot: nothing.
+known-rot: ⛔ 2026-09-30 (CE-448) — E6's reusable blueprint resolver (Library Construction graph in
+  BlueprintDefinition.Resolvers) is RETIRED; see DESIGN_Parameter_Model.md §P.4.
 known-conflict: ⚠ ONE, and it is a deliberate deviation from the design's §6 sequence table, argued in
   §2-A3: the design homes H1's `Reserved` copy in `O3a`, but `Kind` lands in `O3`. Between the two,
   every tier promotion would zero the nibble array. ⇒ H1 moves INTO `O3` here. The design's §6 row is

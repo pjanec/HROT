@@ -23,7 +23,7 @@ namespace Hrot.Blueprints.Tests.Golden;
 /// </summary>
 public sealed class CorpusCanonicalisationTests
 {
-    /// <summary>The two roots: the compiled corpus (42) and the editor's recipe templates (16).</summary>
+    /// <summary>The two roots: the compiled corpus (40) and the editor's recipe templates (16).</summary>
     public static IEnumerable<string> AllManagedFiles()
         => GoldenCorpus.EnumerateFiles().Concat(RecipeFiles());
 
@@ -266,7 +266,7 @@ public sealed class CorpusCanonicalisationTests
     }
 
     /// <summary>
-    /// The scope, asserted so it cannot quietly shrink: 42 compiled + 16 recipes.
+    /// The scope, asserted so it cannot quietly shrink: 40 compiled + 16 recipes.
     /// ⚠ Fixtures are deliberately excluded — several are malformed on purpose and a fixture's bytes
     /// are frequently the thing under test.
     /// </summary>
@@ -295,7 +295,9 @@ public sealed class CorpusCanonicalisationTests
         //    with the GetShared/SetShared node pair they demonstrated (decision A, Q76 §12.24).
         // ⛔ 43 → 42 (CE-445, 2026-09-30): `OwnParamResolverDemo` DELETED — an AiPrimitive's own resolver is
         //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
-        Assert.Equal(42, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
+        //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
+        Assert.Equal(40, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

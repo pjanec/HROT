@@ -443,6 +443,17 @@ public sealed class GraphBuilder
     {
         var nodeId = MakeNodeId("SetVariable", _nodes.Count);
         var node = new SetVariableNode { Id = nodeId, VariableId = variableName };
+
+        // ⭐ CE-448 — a pending PureCallReturning feeds the written value, so a resolver graph (which declares
+        //   no outputs) can still pull a CLR call into its body. ⛔ Unwired, Stage 5 would drop the call.
+        if (_pendingReturnValue is { } src)
+        {
+            var valuePinId = MakePinId(nodeId, "Value");
+            node.Pins.Add(new Pin { Id = valuePinId, Name = "Value", Direction = "In", TypeRef = new BlueprintTypeRef() });
+            _links.Add(new Link { FromNodeId = src.NodeId, FromPinId = src.PinId, ToNodeId = nodeId, ToPinId = valuePinId });
+            _pendingReturnValue = null;
+        }
+
         RegisterNode(node, hasExecIn: true, hasExecOut: true);
         return this;
     }

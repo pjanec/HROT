@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (R-155 known-rot + §P link)
+updated: 2026-09-30 (CE-448 known-rot)
 current-answer: section 5 for the DECISIONS (APPROVED IN FULL by the user 2026-08-18: A2',
   B2, C1, D, E, F). Section 8 for WHAT IS BUILT - read it before quoting section 1's
   INVENTORY or section 6's sequencing, both of which section 8 corrects.
@@ -8,7 +8,10 @@ stale-below: section 1's INVENTORY is INCOMPLETE - it never found
   Behavior_Parameter_Resolver_Detailed_Design.md, which already owns this feature as gap G2
   and decomposes it into R1-R5. Section 6's step 2 ("the C# resolver picker first") did NOT
   happen and was not a hard dependency. Section 8 supersedes both.
-known-rot: ⚠ 2026-09-30 (R-155) — SUPERSEDED IN SUBJECT. The blueprint PRIMITIVE's own
+known-rot: ⛔ 2026-09-30 (CE-448) — the reusable Library resolver this question built (ParamResolverDemo,
+  the Resolvers index) is RETIRED; a blueprint-authored resolver is now only a behaviour's resolver asset
+  (CE-428/CE-443, DESIGN_Parameter_Model.md §P.7).
+  known-rot: ⚠ 2026-09-30 (R-155) — SUPERSEDED IN SUBJECT. The blueprint PRIMITIVE's own
   Construction-graph resolver this question approved (and CE-432 widened to the whole block, shape ②)
   is RETIRED by the user: "only behaviors have optional custom resolvers applied once on behavior
   start". Actions/conditions/activities/guards read their host variable live, with no resolver

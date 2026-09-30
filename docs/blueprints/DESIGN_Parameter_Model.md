@@ -184,6 +184,7 @@ deactivator, `F14`) — a sub-behaviour restarts, an action/guard keeps its memo
 | a resolver on an action / condition / activity / guard | they have no authored input to convert; their params ARE host variables. ⚠ Retires the blueprint primitive's own Construction-graph resolver (`HostedParamResolvers`, `Q43`, `CE-432`'s shape ②) |
 | a params COPY for an action | the action would stop seeing host changes mid-run |
 | running a resolver on top of an automatic copy | two ways to fill one field; an author could not stop the copy (§P.2 caption) |
+| a **reusable** resolver (a Library `Construction` graph refining a named DTO, published by name) | nothing names it: a resolver is the ONE optional stage of ONE behaviour, and `R-152` refused per-variable resolvers — its only intended use. ⛔ Retired by `CE-448` |
 
 ### P.5 As-built vs target
 
@@ -198,6 +199,7 @@ deactivator, `F14`) — a sub-behaviour restarts, an action/guard keeps its memo
 | **blueprint action in a BTree** reads live | ✅ — and it has no resolver (`CE-445`, `2026-09-30`) | — |
 | **blueprint HSM activity / guard** reads live | ✅ `CE-444` (`2026-09-30`): projected from the root block at the host offset cached in its occurrence | — |
 | no action-level resolver anywhere | ✅ `CE-445` (`2026-09-30`): `HostedParamResolvers`, `IHostVariableAccess`, `HsmHostVariableAccess`, the name map and the `host` argument deleted; a Construction graph on a non-Library asset is `BP1676` | — |
+| no reusable resolver | ✅ `CE-448` (`2026-09-30`): `BlueprintDefinition.Resolvers`, `BlueprintResolverEntry`, the demos `ParamResolverDemo`/`ResolverWorldReachDemo` deleted; a Library `Construction` graph without a `ResolverSubject` is `BP1676`. ⚠ `ResolveParams<T>`/`BehaviorParams.FromJson` KEPT as a public helper for hand-written `ParseParams` — measured: no production caller, only the `ParameterSupplyRails`/`HsmOccurrenceKey` tests | — |
 | blueprint as a behaviour | ⛔ | `CE-446` = `O9` / [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) |
 
 ### P.6 ✅ DECIDED `2026-09-30` — retire the host accessor (`IHostVariableAccess`)

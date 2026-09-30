@@ -265,29 +265,9 @@ internal sealed class CSharpEmitter
             WriteLine("},");
         }
 
-        // ⭐⭐⭐ Q43-A2′ — the Construction graphs land in their OWN index, through the SAME adapter.
-        //
-        // ⭐ One adapter emitter, two tables: the marshalling problem is identical (blittable inputs in
-        // declaration order, return value out), so a second adapter would be ruling 9's "two
-        // implementations of one concept". ⛔ The tables are separate because the KIND is the only
-        // thing that distinguishes a resolver from a helper, and a binding site must not have to guess
-        // (Q43-A3).
-        //
-        // ⚠ Gated on Count > 0, like Functions above — the emitter-addition trap this programme paid
-        // for (O7b: emitting a constant unconditionally moved 11 golden baselines for assets that
-        // could not use the feature). With the gate, every asset without a Construction graph is
-        // byte-identical.
-        var constructionGraphs = asset.Graphs.Where(g => g.Kind == IrGraphKind.Construction).ToList();
-        if (constructionGraphs.Count > 0)
-        {
-            WriteLine("Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)");
-            WriteLine("{");
-            Indent();
-            foreach (var g in constructionGraphs)
-                EmitResolverEntry(className, g);
-            Outdent();
-            WriteLine("},");
-        }
+        // ⛔ CE-448 — no `Resolvers` index. A Library's only Construction graph belongs to a behaviour
+        //   resolver asset, which the BEHAVIOUR's registrar calls through `ResolveBehavior` (LibraryEmitter);
+        //   the reusable DTO→DTO resolvers this index published are retired (R-155).
 
         Outdent();
         WriteLine("});");
@@ -361,43 +341,6 @@ internal sealed class CSharpEmitter
 
         Outdent();
         WriteLine("},");
-    }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>R4</c> — publishes one <c>Construction</c> graph as a typed
-    /// <c>ResolveParams&lt;TDto&gt;</c>.</b> 📄 <c>DESIGN_Resolver_World_Reach.md</c> §4, §7.1.
-    ///
-    /// <para>
-    /// ⭐⭐ <b>No marshalling, and that is the saving.</b> <see cref="EmitLibraryFunctionAdapter"/>
-    /// blits its arguments through two byte spans because <c>LibraryFunctionDelegate</c> is untyped.
-    /// ⛔ A resolver does not need that: <c>BP1677</c> guarantees the graph's input and output are the
-    /// SAME declared type, so the emitted method already has the exact shape
-    /// <c>ResolveParams&lt;TDto&gt;</c> wants — the lambda just unrolls <c>ref</c> into an assignment.
-    /// </para>
-    ///
-    /// <para>
-    /// ⚠ <b>Why a lambda and not a method group.</b> The emitted resolver RETURNS the DTO (a graph's
-    /// output is a return value), while <c>ResolveParams&lt;TDto&gt;</c> writes through <c>ref</c>.
-    /// ⭐ <c>BlueprintResolverEntry.For&lt;TDto&gt;</c> supplies the target type, so the lambda needs no
-    /// cast and the generated code stays one expression per resolver.
-    /// </para>
-    /// </summary>
-    private void EmitResolverEntry(string className, IrGraph graph)
-    {
-        // ⛔ BP1677 refuses anything else at Stage 2, and a fatal validation error stops the pipeline
-        //    before emit — so this cannot be reached with a malformed signature. Guarded anyway: an
-        //    emitter that indexes [0] on an empty list would crash the SOURCE GENERATOR, which reports
-        //    far worse than a diagnostic.
-        if (graph.Inputs.Count != 1) return;
-
-        string dto = LibraryEmitter.CSharpType(graph.Inputs[0].Type);
-
-        WriteLine($"[\"{graph.Name}\"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<{dto}>(");
-        Indent();
-        WriteLine($"static (ref {dto} __dto, global::Fdp.Core.EntityRepository __world, " +
-                  "global::Fdp.Core.Entity __self) =>");
-        WriteLine($"    __dto = {className}.{graph.Name}(__dto, __world, __self)),");
-        Outdent();
     }
 
     private void EmitAiPrimitiveRegistration(string className, IrAsset asset)

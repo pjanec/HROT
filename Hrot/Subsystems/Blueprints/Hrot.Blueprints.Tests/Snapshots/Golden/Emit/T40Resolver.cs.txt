@@ -82,9 +82,6 @@ public static class BlueprintRegistrar_T40Resolver_3C40EC2E_Bp
             Kind = global::Fdp.Toolkit.Blueprints.BlueprintDispatchKind.Library,
             StructureHash = 15569476227100396208UL,
             StateSize = 0,
-            Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)
-            {
-            },
         });
     }
 }
