@@ -399,9 +399,9 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             foreach (var s in brainPack.SimulationSystems)  simList.Add(s);
             foreach (var s in musclePack.SimulationSystems) simList.Add(s);
-            // MissionAdapterSystem bridges ActiveMissionPlan BehaviorParams into BrainBlackboard,
-            // enabling end-to-end mission execution tests without a live CGF node.
-            simList.Add(new MissionAdapterSystem());
+            // ⛔ CE-453 (2026-09-30): a SECOND MissionAdapterSystem used to be added here. CgfLogicPack already schedules
+            //   its own (CgfLogicPack.cs:187), so the harness ran two per frame — harmless only because both share the
+            //   per-entity MissionAdapterState and the second always skipped. Production runs one.
 
             foreach (var s in musclePack.PostSimulationSystems) postSimList.Add(s);
 
@@ -869,6 +869,15 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
         {
             var world = new EntityRepository();
 
+            // ⭐⭐ CE-453 (2026-09-30): THE SAME BASE REGISTRATION EVERY PRODUCTION NODE CALLS (IG, Stride, CGF via
+            //   CgfComponentRegistry, SimHost via SimHostComponentRegistry). 🔴 This host hand-picked its list and never
+            //   called it, so the blueprint blackboard TIER LADDER (BlueprintBlackboardTiers.RegisterAll — CE-161: "the
+            //   Hrot-wide component registry calls it once for every node") was missing ⇒ no occurrence store ⇒ since P3-C
+            //   made the root params slot the ONLY home of a behaviour's parameters, every MoveToLocation start threw
+            //   "nowhere to put them". The explicit registrations below stay: they add this host's extras, and
+            //   registering an already-registered type is idempotent.
+            HrotSharedComponentRegistry.RegisterAll(world);
+
             // â”€â”€ IG metadata component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
             world.RegisterComponent<Fdp.Core.EntityInfo>();
             world.RegisterManagedComponent<ActiveMissionPlan>();
@@ -894,7 +903,8 @@ namespace Hrot.SimHost.Integration.Tests.Infrastructure
 
             // ⛔ O7c-④d (2026-09-23): the HSM brain tier is no longer a component. The instance is
             //   an occurrence slot, so what an HSM-brained entity needs registered is the tier
-            //   ladder — and BlueprintComponentRegistry already does that for this world.
+            //   ladder — HrotSharedComponentRegistry.RegisterAll at the top of this method.
+            //   ⚠ (CE-453: this line used to credit a "BlueprintComponentRegistry" that does not exist.)
             world.RegisterComponent<PreviousCapabilities>();
             world.RegisterComponent<PassengerBuffer>();
             world.RegisterComponent<IsEmbarkedTag>();

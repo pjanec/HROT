@@ -2627,6 +2627,14 @@ bootstrappers already call *(CGF, SimHost, IG, Stride)*. ⛔ **Not** four host r
 chances to forget, which is the disease. Both publishers and the consumer are served on every node, which is
 what `R-138`'s *"nodes should be equal"* requires.
 
+> ⚠ **`CE-453` (`2026-09-30`) — the same disease on the TEST side.** `SimHost.Integration.Tests`' `SimHostInstance.BuildWorld`
+> hand-picked its registrations and never called `HrotSharedComponentRegistry.RegisterAll`, so it lacked the blueprint
+> blackboard tier ladder (`BlueprintBlackboardTiers.RegisterAll`, `:174`). ⇒ no occurrence store ⇒ once P3-C made the root
+> params slot the ONLY home of a behaviour's parameters, every `MoveToLocation` mission start threw in ingress
+> (`EntityMission_MovesEntity` and two siblings red since then). Fixed by calling the shared registry first; the harness also
+> dropped a second `MissionAdapterSystem` that `CgfLogicPack` already schedules. ⭐ **A harness is a node too** — it takes
+> the shared registry, never a hand list.
+
 #### ⑤ ⛔⛔⛔ WHY EVERY EXISTING CONTROL MISSED IT — **the part worth keeping**
 
 | control | why it was blind |
