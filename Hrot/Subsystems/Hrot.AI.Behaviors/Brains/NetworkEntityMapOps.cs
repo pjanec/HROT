@@ -1,7 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Replication.Services;
-using Hrot.Editor.AiShared;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -36,17 +35,11 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="Entity.Null"/> rather than throw.
         /// </para>
         /// </summary>
-        [BlueprintCallable("NetworkMap")]
+        /// <remarks>⭐ <c>CE-469</c>: routed to the built-in
+        /// <see cref="StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId"/> — one implementation. Kept for the
+        /// <c>HillAssault2_*</c> twins' baked FunctionCalls; retires with them (<c>CE-464</c>). ⚠ Deliberately NOT <c>[BlueprintCallable]</c>: the palette offers only
+        /// <i>Entity From Network Id</i> (the compiler never reads the attribute, so the twins still compile).</remarks>
         public static Entity ResolveTarget(long targetNetworkId, ISimulationView view)
-        {
-            if (view is not EntityRepository world)
-                return Entity.Null;
-
-            if (!world.HasSingletonManaged<NetworkEntityMap>())
-                return Entity.Null;
-
-            var map = world.GetSingletonManaged<NetworkEntityMap>();
-            return (map != null && map.TryGetEntity(targetNetworkId, out var target)) ? target : Entity.Null;
-        }
+            => StandardLibrary.BlueprintWorldLibrary.EntityFromNetworkId(targetNetworkId, view);
     }
 }
