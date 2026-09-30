@@ -1,10 +1,12 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: DESIGN — every sub-question carries a lean; nothing is approved yet.
-current-answer: §3, the decisions, each with a lean. §1 is the inventory and §2 the claim table.
-stale-below: nothing.
-known-rot: none.
+build-state: DESIGN — A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
+  to blueprint functions whenever suitable"); everything else awaits review of §5. "Measure first … No blind coding."
+current-answer: ⭐ §5 (round-2 measurements and the REVISED leans) first, then §3 for A, B and E.
+stale-below: §3's rows C1, C2, C4, D1, D2 — each is overtaken by §5; do not quote them.
+known-rot: ⚠ §3 was written without reading Q6's approved rulings (2026-07-17) and Q#5-C; four of its leans contradicted
+  them (§5.1). §2's "replaced by" column for AreaQueryBatchOps and the intent JSON is wrong the same way.
 known-conflict: HillAssault_Blueprint_Migration.md §"What blueprintize means" keeps the BTree topology and turns only the
   node logic into blueprints. Decision A here departs from that on purpose; the reason is in A.
 related-designs:
@@ -18,6 +20,11 @@ related-designs:
   - docs/designs/hill-attack/DESIGN.md — owns the doctrine itself (phases, slots, waves). Its behaviour is the spec;
     CE-460's known quirk is part of it (WON'T FIX).
   - Blueprint_Fixed_Collections_Design.md — owns the fixed-list variable and the curated-accessor collection nodes (C4).
+  - Architect_Question_6_Access_Shapes_And_Vocabulary.md — ⭐ owns FOUR APPROVED rulings this question must honour
+    (demand-driven vocabulary, no GetSingleton node, curated JSON builder, area query ≠ EqsSensor). §5.1.
+  - Architect_Question_17_Component_Collection_Read.md — carries Q#5-C (raw fixed buffers stay out of the graph). §5.1.
+  - DESIGN_Resolver_World_Reach.md — §6 refuses a read-singleton node; world reach in a resolver is a curated call.
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — the template EqsSensor system; §5.3 finds it inert in production.
 -->
 
 # Architect Question #78 — the hill attack, the blueprint-node way (`CE-464`)
@@ -120,3 +127,89 @@ not a proven complete set.
 
 ① C1 round-out + C2 + C3 (small, generic, independent) → ② C4 and D1 (each needs its own measurement first) → ③ D2 →
 ④ author the behaviour (A1) → ⑤ the proof (E). Each generic node gets its own rail in its feature's suite.
+
+## 5. ⭐ ROUND 2 — measured `2026-09-30`, and what it changed
+
+> 🔒 **User, `2026-09-30`:** *"Approved roughly but measure first and then let me review again. No blind coding. Agreed
+> on the single blueprint behavior, could be broken to blueprint functions whenever suitable. Pls measure the missing
+> pieces. Especially the eqs is a bit alarming, how many env query systems we have?"*
+
+### 5.1 ⛔ Rulings §3 missed — the C# helpers were the APPROVED design
+
+| ruling | says | effect on §3 |
+|---|---|---|
+| **Q6-A** (`Architect_Question_6…md:111`) | add `BinaryOp` vocabulary **strictly demand-driven**; no speculative visual math | ⛔ drops C1's bit-operator round-out |
+| **Q6-B** (`:115`) | ⛔ **do NOT build a `GetSingleton` node** — a curated context-aware `FunctionCall` | ⛔ drops C2's singleton node; `DESIGN_Resolver_World_Reach` §6 refuses it too |
+| **Q6-C** (`:121`) | a **curated typed→JSON `FunctionCall` helper** feeds `PublishEvent`; *"without exposing … JSON nodes to the graph"* | ⛔ contradicts D2's `ToJson` node |
+| **Q6-D** (`:125`) | *"Do NOT force the batch query into the `SpawnEqsSensor` template path"*; a curated helper trio | ✅ confirms D1 — and §5.3 measures why |
+| **Q#5-C** (`Architect_Question_17…md:63-70`) | raw fixed/inline-array access stays **out of the graph**, in a tiny curated accessor | ⛔ flips C4 |
+
+⭐ **The reconciliation:** Q6's principle is *"orchestration-first + **curated-generic**"*. What went wrong is that the
+helpers stopped being generic: `SegmentMath`, `SlotOps`, `WaveMonitorOps`, `HullDownIntentJson` are the doctrine
+itself, written in C#. ⇒ §3 B's lean (B2) *is* Q6 applied faithfully: **curated C# only where it is generic (engine
+access, serialisation, geo), doctrine logic in nodes and blueprint functions.**
+
+### 5.2 Blueprint functions in a behaviour — ✅ supported
+
+| claim | code |
+|---|---|
+| a `Behavior` blueprint may carry `Function` graphs | ✅ `Stage2_Validate.cs:1190` (same rule as Instance) |
+| a graph calls a local function | ✅ `FunctionCall` with `TargetGraphId`, lowered at `Stage5_Schedule.cs:1639`; rails `BATCH03A_FunctionGraphCallTests`, `BP73_MultipleFunctionOutputsTests` |
+| ⚠ limits | `When` is refused in a pure function (`:1191`); `SpawnEqsSensor`/`ReadEqsResult` only in event graphs (`:1498`, `:1535`); **no Break node** — a loop runs to its bound |
+
+### 5.3 🔴 The EQS answer — **TWO systems, separate solvers; only one works in production**
+
+| | **A — AreaQuery** (the one the C# hill attack uses) | **B — template EqsSensor** ("EQS v1.3") |
+|---|---|---|
+| types | `AreaQueryRequestEvent`/`ResultEvent`, `AreaQueryBatchData` ring, `AreaQueryBatchHelper` (`Fdp.Toolkits/Spatial/Eqs`) | `EqsSensor`, `EqsCognitiveBuffer`, `IEqsTemplateRegistry`, generators + tests, `[EqsTemplate]` |
+| solver | `AreaQuerySolverSystem` in `CognitiveSpatialModule` | `EqsSolverSystem` in `EqsModule` — ⛔ **does not delegate to A** (`EqsModule.cs:17-19`) |
+| registered on | SimHost, Stride, editor | SimHost, Stride (not the non-Stride editor) |
+| answers | entities of one force **inside an area polygon** — exactly the hill attack's need | radius searches, cover points, navmesh samples; ⛔ **no area/polygon generator** |
+| production callers | the C# hill attack (5 methods) | `HideInCoverBehavior` — whose BTree is *"registered as behaviours nowhere"* (`CuratedBehaviorGenerator.cs:26`) |
+| tests | 12 files | 81 files |
+| 🔴 **production state** | ✅ live, tested, proven by the hill attack | ⛔ **INERT: no production code ever installs `IEqsTemplateRegistry`.** Every implementer and every `SetSingletonManaged<IEqsTemplateRegistry>` is in a test (verified by grep). Without it `EqsSolverSystem.cs:143-158` takes the *"Phase 1 stub fallback (empty result)"* on every query |
+| design | `docs/designs/hill-attack/DESIGN.md` Phase 1 | `docs/designs/eqs-2/EQS_Design_v1.3_final.md:19` — *"upgrades the engine's current minimalistic `AreaQuerySolverSystem`"* — an intent to supersede, **never carried out** |
+
+⇒ **Lean D1 (revised): use System A.** It is the only one that answers the question and the only one that works.
+Keep Q6-D's curated trio, but **make it generic**: move `AreaQueryBatchOps` beside `AreaQueryBatchHelper` and take
+the force as an argument (today `ForceId.Hostile` is hard-coded, `AreaQueryBatchOps.cs`). ⚠ System B's inert state
+is a separate defect, filed as **`CE-465`** — not this question's to fix. The blueprint nodes that target it
+(`SpawnEqsSensor`, `ReadEqsResult`) would return nothing at runtime today.
+
+### 5.4 The revised gap list — what stays C#, and it is all generic
+
+| need | measured | revised lean |
+|---|---|---|
+| is-alive, sim time | ✅ `ISimulationView` has `IsAlive` and `Time` (`ISimulationView.cs`); `Time` = `SimulationTime` (`EntityRepository.View.cs:29`); a behaviour's view IS the repository at runtime (`BrainTickSystem.cs:414`) | curated generic `FunctionCall`s (today's `WorldOps`, moved to a shared library). No engine change; no new node (Q6-A) |
+| singletons | ✅ **only the resolver** needs them — geo transform + network map (`HillAttackCommanderNodes.cs:669-674`); the tick never does. The behaviour resolver gets `EntityRepository` (`InstanceEmitter.cs:505`) | curated generic calls in the resolver (geo `ToCartesian`, network-id lookup) — the reach `DESIGN_Resolver_World_Reach` §6 designed. No singleton node (Q6-B) |
+| random | ✅ `SimRng` exists, deterministic, with `SimRngRails` | one curated generic `RandomInt(seed…, min, max)` over `SimRng` |
+| slot bookkeeping (was bitmasks) | ✅ blackboard fixed lists are built end to end; a **struct** element is tested (`ListVariableFoundationTests:82,101`); ⚠ an **enum** element is accepted by the type rule (`StaticTypeRegistry.cs:266`) but no test uses one | a fixed list of slot states → **no bit operations needed at all** (Q6-A: no demand, no vocabulary). ⚠ measure the enum element first |
+| the runner list | ✅ fixed list of a `Runner` struct; iterable with `ComponentForEach` and no accessor | nodes only — `MemberSlotListOps` disappears |
+| the roster loop | `UnitRoster.SubordinateEntities` is a raw `fixed long[16]`; ⛔ no accessor-free path (Q#5-C) | **keep the curated accessor** (`UnitRosterOps`) — it is an ENGINE collection's accessor, so move it beside `UnitRoster`'s toolkit, not the doctrine folder |
+| the order's JSON | the whole assign pipeline is JSON (`AssignTacticalIntentEvent.JsonParams` → `AssignBehaviorEvent` → the start record); `FormatString` builds a culture-formatted `FixedString` — ⛔ unfit for JSON | ⚖️ **needs your call** — see D2′ below |
+| "is this member running HullDownAttackRun?" | the C# compares `BehaviorState.ActiveBehaviorHash` to `BehaviorHash.FromName(...)` | `GetComponent` on the member + a curated generic `BehaviorHash.FromName` call |
+
+**D2′ — the JSON payload, two honest options:**
+- **D2′a (lean): ONE generic curated serialiser.** `MakeStruct` builds the existing `HullDownAttackParams` /
+  `MoveToLocationParams` struct in the graph; one generic C# function serialises any struct. It keeps Q6-C's letter
+  (C# serialises, no JSON nodes) and drops the per-intent builders. ⚠ **Unmeasured:** whether `FunctionCall` accepts
+  an `object`/generic parameter. If it does not, this needs a small compiler change.
+- **D2′b: keep per-intent builders**, as Q6-C literally approved. Two small C# functions stay (`MoveIntentJson`,
+  `HullDownIntentJson`) — they are pure data mapping, not doctrine logic.
+
+### 5.5 What moves into NODES and blueprint FUNCTIONS (the doctrine itself)
+
+`SegmentMath` → `BlueprintMath.Lerp` + arithmetic · `SlotOps.PickClosestBaselineSlot` / `PickRandomFreeSlot` → blueprint
+functions over the slot list · `WaveMonitorOps.Update` → a blueprint function looping the runner list · `WaveParityOps`,
+`WaveDispatchOps.ShouldConsider`, `WorldOps.IsNull` → `Compare`/`BinaryOp(Modulo)` · `MemberSlotListOps`, `MaskOps` →
+fixed-list writes · `TargetPoolOps.ResolveNetId` → a function over the area-query result + `GetComponent<NetworkIdentity>`
+on the target · `VectorOps` → `MakeStruct`. ⇒ **12 of the 15 doctrine helper classes disappear;** what remains in C#
+is engine access (area query, world, roster accessor, geo/network in the resolver), random, the behaviour hash and the
+serialiser — all generic.
+
+### 5.6 Still unmeasured — to settle before any build
+
+① an **enum** as a fixed-list element (no test uses one) · ② `FunctionCall` with an `object`/generic parameter (D2′a) ·
+③ the block budget for the doctrine's state (slot list + runner list + wave bookkeeping) against the tier ladder
+(`BlueprintTierLadder`, max 16 384 B — expected to fit easily; not computed) · ④ whether `When` or a polled `Branch` +
+`Return Running` better expresses "wait until all at baseline" (both exist; a style call).
