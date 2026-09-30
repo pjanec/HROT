@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: section 5 for the DECISIONS (APPROVED IN FULL by the user 2026-08-18: A2',
   B2, C1, D, E, F). Section 8 for WHAT IS BUILT - read it before quoting section 1's
   INVENTORY or section 6's sequencing, both of which section 8 corrects.
@@ -8,7 +8,13 @@ stale-below: section 1's INVENTORY is INCOMPLETE - it never found
   Behavior_Parameter_Resolver_Detailed_Design.md, which already owns this feature as gap G2
   and decomposes it into R1-R5. Section 6's step 2 ("the C# resolver picker first") did NOT
   happen and was not a hard dependency. Section 8 supersedes both.
-known-rot: 2026-09-21 - C1'/C2' resolve PER VARIABLE, and a site reaches a variable via
+known-rot: ⚠ 2026-09-30 (R-155) — SUPERSEDED IN SUBJECT. The blueprint PRIMITIVE's own
+  Construction-graph resolver this question approved (and CE-432 widened to the whole block, shape ②)
+  is RETIRED by the user: "only behaviors have optional custom resolvers applied once on behavior
+  start". Actions/conditions/activities/guards read their host variable live, with no resolver
+  (DESIGN_Parameter_Model.md §P.3/§P.4, CE-445). A behaviour-level blueprint resolver asset (CE-428,
+  shape ③) survives.
+  earlier: 2026-09-21 - C1'/C2' resolve PER VARIABLE, and a site reaches a variable via
   ExpressionTargetField - which HSM STATES did not have. E3b-0 has since given the state's
   four action slots a target field, so that gap is CLOSED; see
   DESIGN_Occurrence_Scoped_Storage.md 28.6.
@@ -18,6 +24,8 @@ known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.3 rules a reuse
   `global::Ns.Struct` compiles and marshals today. Q43-B2 wins; 8.3's avoidance is stale.
   This is Q41-C3' promoted to its own question, as Q41 said it should be.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): retires the
+    primitive-level resolver this question designed (§P.4, CE-445).
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐ owns the BINDING this
     document's Construction graph still lacks. Measured 2026-09-29: the graph is authorable,
     purity-checked, compiled and published in BlueprintDefinition.Resolvers, and that index is

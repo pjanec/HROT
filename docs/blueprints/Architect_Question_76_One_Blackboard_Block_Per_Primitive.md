@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-29
+updated: 2026-09-30
 build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbatim: "whatever leads to
   this single-blackboard-slot-per-running-behavior is authorized"). ⇒ A and C, which resolved to
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
@@ -20,7 +20,11 @@ decision-rule: 🔒 The user's test for both resolved decisions, verbatim: "will
   carries its measurement inline, and BOTH answers are "remove ONLY as part of B" — A alone is
   ~200 lines and would park under the same rule. Reuse the rule on the next such question.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⚠ 2026-09-30 (R-155, §12.26) — the resolver no longer runs AFTER an automatic copy.
+  §12.3's "bake → supply → resolve" and §12.9c's "the resolver MODIFIES" describe the as-built
+  order; the TARGET is "bake → EITHER the default copy OR the resolver, which receives the SOURCE"
+  (DESIGN_Parameter_Model.md §P.2, CE-443). §12.20's T40 demo reads block.In after the copy — rot
+  under the same row. The AiPrimitive own-resolver (shape ②, CE-432) is retired by §P.4 (CE-445).
 known-conflict: ⚠ Blueprint_SharedState_GetShared_Design.md §7 rules the opposite on ONE point —
   "Group/squad scope is not a separate scope — it is an Entity-scoped slot on the coordinator, read
   by members via the Slice-2 accessor", i.e. squad coordination by SHARED MEMORY. This document
@@ -33,7 +37,9 @@ related-designs:
     proposal; its O3 row is the unfinished key unification this completes.
   - Blueprint_SharedState_GetShared_Design.md — owns GetShared/SetShared, the feature §5 retires
     and §6 re-expresses. Read its §1 for WHY the capability exists before removing anything.
-  - DESIGN_Parameter_Model.md — owns the three data shapes and the bake/overlay/resolve order.
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155):
+    behaviours take inputs once at start, actions/conditions read the host live with no resolver.
+    It owns the three data shapes and the start order; this document owns the block layout.
     Its §3.1 "AS MEASURED 2026-09-28" subsection records the scope findings this acts on.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the params pipeline.
     ⛔ Q75 DEPENDS ON THIS: its S0 (one layout authority) is this document's first step, and its
@@ -2627,3 +2633,25 @@ every node bound to that variable shares one copy inside the block. Neither is v
 (`CE-435`), and neither crosses entities (`Entity` is gone, slice 1). ⛔ §12.25c's lean (re-home node-bound memory
 into the block) is **withdrawn**: it would change storage and keys for no author-facing gain. `Node` stays as an
 internal key. Decision `C` is complete as far as it concerns authors.
+
+### 12.26 ⭐⭐⭐ `2026-09-30` — **THE SWITCH TO THE USER'S MODEL: the resolver gets the SOURCE, and only behaviours have one** *(`R-155`)*
+
+🔒 **User:** *"I thought custom resolver gets the source … and copies or converts the stuff itself. So if it does
+not copy anything … nothing is copied"* → *"yes, switch to my model please. I need consistency."* · *"actions are
+not behaviors, so they reference host blackboard (no param copy, they do not have any resolver)"*.
+
+⭐ **The canonical statement is NOT here** — it is [`DESIGN_Parameter_Model`](DESIGN_Parameter_Model.md) §P, with
+its diagrams and the as-built-vs-target table. This section records only what it changes in THIS document:
+
+| here | ⛔ now reads as | target | item |
+|---|---|---|---|
+| §12.3 bake → supply → resolve | as-built order | bake → **either** the default copy **or** the resolver (given the source) | `CE-443` |
+| §12.9c "the resolver modifies" | as-built | the resolver **produces** stage 2 from the source; an empty body copies nothing | `CE-443` |
+| §12.20 T40 demo reads `block.In` after supply | as-built | the demo reads its source parameter | `CE-443` |
+| shape ② — an AiPrimitive's own Construction-graph resolver (`CE-432`) | as-built | retired: actions have no resolver | `CE-445` |
+| blueprint HSM activity/guard seeded at activation | as-built | reads the host live, like a BTree-composed node | `CE-444` |
+
+⭐ **Unchanged:** one block per running behaviour (`R-151`), one resolver per behaviour named by the behaviour
+(`R-152`, `R-154`), no carry-over on re-assign (`R-153`), `Node` scope for an action's private working memory
+(§12.25e). ⭐ A blueprint implementing a behaviour is `CE-446` = `O9` / `Q33` and inherits §P.2.
+⚠ **Not implemented** — the user ruled design-only on `2026-09-30`.

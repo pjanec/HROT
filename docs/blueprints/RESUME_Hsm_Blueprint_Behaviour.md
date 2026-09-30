@@ -4,7 +4,7 @@ doc-type: THE resumption doc for the `behaviors` lane — programme: **AN EDITOR
   ENTITY BEHAVIOUR, WITH BLUEPRINT ACTIONS AND GUARDS**. ⚠ A STATE doc, not canon: every
   "green"/"pushed"/"HEAD" line is a snapshot dated below. ⛔ VERIFY against git before acting
   ("THE LEDGER MAY NOT ASSERT WHAT THE CODE IS").
-updated: 2026-09-29
+updated: 2026-09-30 (R-155 known-rot + §P link)
 build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme COMPLETE, and the
   RUNTIME is PROVED END TO END live (§8.4): the demo scenario drives to a seeded destination and
   destroys a target. Built: CE-402/403/388(D-A2,D-B1,D-D1,D-F)/404(D-E WITHDRAWN)/405/406/407/
@@ -12,7 +12,11 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4k** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 built — decision C closed by the user after slice 1, Q76 §12.25e; the Q76-B plan is complete) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **NEXT (2026-09-30): the design-ready parameter switch** — DESIGN_Parameter_Model.md §P
+  (R-155: behaviours take inputs once, actions read the host live, only behaviours have a resolver).
+  Items CE-443, CE-444, CE-445, then CE-446 (= O9). NOT STARTED — the user ruled design-only on
+  2026-09-30; §P.6 (IHostVariableAccess, lean retire) awaits the user. ⭐ History of what led here:
+  **START AT §13, then §13.4a–§13.4k** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 built — decision C closed by the user after slice 1, Q76 §12.25e; the Q76-B plan is complete) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -26,6 +30,8 @@ known-conflict: ⚠ `RESUME_Hsm_Subtree_Authoring.md` is the PREVIOUS programme'
   its build-state block already points here. ⛔ Two `RESUME_*` files exist for this one lane — THIS
   is the live one.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): the next
+    programme step (CE-443..CE-446).
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — ⭐⭐⭐ THE OWNING DESIGN. §3 the decisions, §4-§6 the
     UML, §8 the items, §8a the pre-build measurements, §8b an accepted limit, §12 the gate baseline,
     §13 the AS-BUILT. It wins over anything here.

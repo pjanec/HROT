@@ -1,7 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-22
-current-answer: the whole document; it is authoritative for parameters and storage.
+updated-2: 2026-09-30 — §P added: THE PARAMETER CONTRACT BY KIND (user ruling R-155). ⭐ READ §P FIRST.
+current-answer: ⭐⭐⭐ §P — the contract by kind (behaviour: inputs once at start, resolver REPLACES the copy;
+  action/condition: live host reference, no copy, no resolver), its as-built table §P.5 and open item §P.6.
+  The rest of the document is authoritative for parameters and storage where §P does not override it.
   See 3.1's AS BUILT 2026-09-08 (CE-235) for the two-member split of the authored DTO
   vs the blackboard layout - that is the live shape of BehaviorDefinition.
   READ 4.7 FIRST for hosted occurrences: as of 2026-09-21 (E3a) a HOSTED occurrence's params
@@ -17,7 +20,11 @@ known-rot: 4.1's params column is SUPERSEDED for HOSTED occurrences by 4.7 (E3a,
   (none-otherwise) - the BP1031-as-live rot was REPAIRED 2026-08-17, Batch 82; the
   section 3.2 "overlay is NOT implemented on every path" correction was REPAIRED
   2026-08-18 (it had gone false at Batch 70/74) and now sits under a HISTORY fold
-known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. UNRECONCILED.
+known-rot: (2026-09-30, §P) §1's Scope row: Entity is REMOVED (CE-441) and Scope is not authorable (CE-435) —
+  Node = a blueprint node's private memory, Behavior = the shared block copy. §3.4's host accessor is OPEN (§P.6).
+  §0 row 2 "a blueprint has params only when Dispatch == AiPrimitive" predates §3.3's Instance params.
+known-conflict: gives Scope three values; Q-b in Variable_Model_Unification rules two. RESOLVED 2026-09-30 by
+  CE-441 (Entity removed) — two remain, neither authorable.
 related-designs:
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
@@ -35,6 +42,16 @@ related-designs:
     middle step and with what in scope.
   - EXPLAINER_Where_Parameters_And_State_Live.md — the file:line measurement record behind §2.
   - Architect_Question_34_Blueprint_Occurrence_Identity.md — blueprint Instance slot identity.
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns the BLOCK a behaviour's inputs land in
+    (one block per running behaviour) and the build history of the start pipeline (§12). §P here owns the
+    CONTRACT; Q76 §12.26 records the 2026-09-30 switch and its slices.
+  - Architect_Question_33_Blueprint_Brain_Tier.md — owns blueprint-as-a-behaviour (O9, the third BrainTier);
+    it inherits §P.2 unchanged.
+  - Behavior_Parameter_Resolver_Detailed_Design.md — the original resolver model; its pipeline ORDER is
+    amended by §P.2 (the resolver replaces stage 2, it does not follow it).
+  - BTree_AiActionParameterBinding_Detailed_Design.md — owns HOW a BTree action binds its host variable (§P.3).
+  - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md — owns how an HSM state/guard binds a blueprint; its activation
+    SEED is superseded by §P.3 (CE-444).
 -->
 # DESIGN — the parameter model *(AUTHORITATIVE, `2026-08-16`)*
 
@@ -51,6 +68,127 @@ related-designs:
 > | 📄 [`PLAN_Cross_Host_Sequencing.md`](PLAN_Cross_Host_Sequencing.md) §2 (`D2`), §6 (Phase B) | ⛔ **superseded** — `W8`/`W12` dropped, `D2` dissolved |
 > | 📄 [`EXPLAINER_Where_Parameters_And_State_Live.md`](EXPLAINER_Where_Parameters_And_State_Live.md) | ⭐ **kept as the measurement record + diagrams.** ⛔ **This doc wins on any disagreement** |
 > | 📄 [`Architect_Question_33`](Architect_Question_33_Blueprint_Brain_Tier.md) | ⚠ **NOT part of this story — but NOT parked either.** ⛔ **CORRECTED `2026-09-19`:** this row said *"PARKED"*, which `Q33`'s own header has contradicted since `2026-08-16` *("UNPARKED — resolved jointly with the user")*. ⭐ It is **scoped out of the parameter story and COMMITTED as a follow-on** — 🔒 user, `2026-09-19`: *"I need it (using blueprint instance as root behavior) to be solved after the occurences"* ⇒ **after [`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md) `O8`; see its §12** |
+
+---
+
+## P. ⭐⭐⭐ THE PARAMETER CONTRACT BY KIND — **behaviours take inputs once; actions read live** *(user ruling, `2026-09-30`)*
+
+> 🔒 **User, `2026-09-30`, verbatim:** *"actions are not behaviors, so they reference host blackboard (no param
+> copy, they do not have any resolver) and respond to changes in host blackoard immediately even mid run. Hsm is
+> a behavior, so it should follow the "my model" above, taking inputs only when they start."* · *"only behaviors
+> have optional custom resolvers applied once on behavior start"* · on the resolver: *"I thought custom resolver
+> gets the source … and copies or converts the stuff itself. So if it does not copy anything … nothing is copied"*
+> → *"yes, switch to my model please. I need consistency."*
+>
+> ⭐⭐⭐ **This section is the CANONICAL statement of how every kind of AI unit gets its parameters.** Every other
+> document that describes supply, seeding or resolvers defers to it. ⚠ It is the **TARGET**: §P.5 says what is
+> already built and which item builds the rest. 📐 Ledger row `R-155`.
+
+### P.1 Two kinds — and nothing in between
+
+```mermaid
+flowchart TD
+    subgraph BEH["BEHAVIOUR — a unit with its own lifecycle and its own blackboard block"]
+        R["root BTree / root HSM"]
+        S["sub-behaviour: a BTree hosted by a BTree node or an HSM state"]
+        BP["blueprint as a behaviour (O9, planned)"]
+    end
+    subgraph ACT["ACTION / CONDITION — called by a behaviour every tick"]
+        A1["BTree action / condition (C# or blueprint)"]
+        A2["HSM state activity (C# or blueprint)"]
+        A3["HSM guard, polled or event (C# or blueprint)"]
+    end
+    SRC1["intent JSON"] -->|once, at start| R
+    SRC2["host variable, ParamsVariable"] -->|once, at start| S
+    SRC1 -->|once, at start| BP
+    HB["the HOST behaviour's block"] -->|live, every call| A1
+    HB -->|live, every call| A2
+    HB -->|live, every call| A3
+```
+
+> ⭐ **Caption.** The split is by **lifecycle**, not by language or host: anything that STARTS and RUNS is a
+> behaviour and takes its inputs at the start; anything a behaviour CALLS reads the caller's blackboard as it is at
+> that call. ⛔ A blueprint is on either side depending on how it is used — a blueprint action is an action.
+
+### P.2 A behaviour — inputs once, at start
+
+```mermaid
+sequenceDiagram
+    participant Src as "source (intent JSON or host variable)"
+    participant P as "start pipeline"
+    participant B as "the behaviour's block"
+    participant Res as "resolver (optional)"
+    P->>B: 0 clear
+    P->>B: 1 bake the editor-saved defaults (In and St)
+    alt no resolver
+        Src->>B: 2 plain copy onto In (the default resolver)
+    else a resolver is bound
+        P->>Res: 2 resolve(source, ref block)
+        Res->>B: writes only what it chooses — convert, copy, or nothing
+    end
+    Note over P,B: commit, then the behaviour ticks on its own block
+```
+
+> ⭐ **Caption.** There is ONE stage 2, and the resolver **replaces** it — it is not run on top of a copy.
+> ⇒ an empty resolver body leaves the block at its baked defaults.
+
+| rule | |
+|---|---|
+| **source** | a ROOT behaviour: the intent's JSON, deserialised to the behaviour's authored DTO · a SUB-behaviour: the host variable its node/state names (`ParamsVariable`) — already the binary authored DTO, so there is nothing to deserialise |
+| **no resolver** | the source lands on the block's `In` half. From JSON it is applied **by field name** (a field absent from the JSON keeps its baked default); from a host variable it is the **whole struct** |
+| **a resolver** | receives the **source** and `ref block` (baked defaults already in). It may convert, copy, or write anything — including `St`. ⭐ The authored DTO may therefore differ from `In` (e.g. geo lat/long → cartesian) |
+| **how many** | **one per behaviour** (`R-152`), named by the behaviour (`R-149`, `R-154`); hand-written C# `[BehaviorResolver]` or a blueprint resolver asset (`CE-428`) |
+| **when** | **once, at start.** A re-assign or re-start runs the whole pipeline again from empty (`R-153`) |
+| **after start** | the block is the behaviour's own. A host that changes its variable later does NOT reach a running sub-behaviour until it restarts |
+
+### P.3 An action / condition — no copy, no resolver
+
+```mermaid
+sequenceDiagram
+    participant H as "host behaviour's block"
+    participant K as "BTree node / HSM state or guard"
+    participant A as "action or condition (C# or blueprint)"
+    loop every call
+        K->>A: call, bound to a host variable (ExpressionTargetField)
+        A->>H: read that variable in place
+        Note over A,H: a host write mid-run is seen on the next call
+    end
+```
+
+> ⭐ **Caption.** Nothing is copied and nothing resolves — the action works directly on its host's variable.
+> ⭐ A blueprint action keeps its **own working memory** (`WorkingState`, a per-node slot — `Node` scope, kept by
+> the user `2026-09-30`); only its **params** are the host's, read live.
+
+### P.4 What this deliberately rules out
+
+| ⛔ | why |
+|---|---|
+| a resolver on an action / condition / activity / guard | they have no authored input to convert; their params ARE host variables. ⚠ Retires the blueprint primitive's own Construction-graph resolver (`HostedParamResolvers`, `Q43`, `CE-432`'s shape ②) |
+| a params COPY for an action | the action would stop seeing host changes mid-run |
+| running a resolver on top of an automatic copy | two ways to fill one field; an author could not stop the copy (§P.2 caption) |
+
+### P.5 As-built vs target
+
+| rule | today | builds it |
+|---|---|---|
+| root behaviour, no resolver: JSON applied by name onto `In` | ✅ | — |
+| root behaviour, hand-written C# resolver gets the source | ✅ | — |
+| root behaviour, **blueprint resolver asset** gets the source | ⛔ JSON is copied onto `In` first, then the resolver runs on the copy | `CE-443` |
+| sub-behaviour, no resolver: whole host struct copied onto `In` | ✅ (`CE-431`) | — |
+| sub-behaviour, resolver gets the host bytes | ⛔ copy first, then resolve; a C# resolver throws | `CE-443` (absorbs `CE-438`) |
+| C# action / condition reads live | ✅ | — |
+| **blueprint action in a BTree** reads live | ✅ — but its own resolver never runs | `CE-445` (resolver retired) |
+| **blueprint HSM activity / guard** reads live | ⛔ params are copied into its occurrence at activation, then its own resolver runs | `CE-444` |
+| no action-level resolver anywhere | ⛔ `HostedParamResolvers` + `IHostVariableAccess` ship | `CE-445` |
+| blueprint as a behaviour | ⛔ | `CE-446` = `O9` / [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) |
+
+### P.6 ⚠ One open decision — the host accessor (`IHostVariableAccess`)
+
+§3.4 below (user ruling `2026-08-16`) gave a HOSTED unit's resolver read-only, name-keyed access to its host's
+variables. ⛔ Its only consumers were action-level resolvers, which §P.4 retires; behaviour resolvers pass `null`
+today. ⭐ **Lean: retire it** — a sub-behaviour's input is exactly its bound host variable, and a child needing more
+of its host should get a bigger bound struct, not a side door. ⚠ **Not decided** — it reverses a user ruling, so it
+waits for the user; `CE-445` is written to stop before removing it.
 
 ---
 

@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 build-state: READY-TO-BUILD
-updated: 2026-09-27
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight build items (CE-381..CE-388).
   ⭐⭐ §11 is the SEPARATE call-cost thread (CE-389..CE-392) — it is independent of §8 and can land
   before, after or alongside it; §11.4 answers "can we live without UnsafeShim", and §11.7 files the
@@ -19,13 +19,19 @@ current-answer: ⭐⭐⭐ §3 is the decision, §4-§6 the UML, §8 the eight bu
   two rails either side of the DTO" — all three are now closed and that sentence is SUPERSEDED.
   ⏭ WHAT IS LEFT: CE-388; the §11 call-cost thread CE-389..CE-392; and CE-395 (priority bits).
 stale-below: nothing yet.
-known-rot: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
+known-rot: ⚠ 2026-09-30 (R-155) — the blueprint activity/guard thunk SEEDS its params from
+  the host at activation (AiPrimitiveEmitter.EmitParamSeed) and then runs its own resolver. Target:
+  it reads its host variable LIVE on every call, no seed, no resolver — like a BTree-composed
+  blueprint node (DESIGN_Parameter_Model.md §P.3, CE-444 + CE-445). The per-site offset binding stays.
+  earlier: ⚠ §3.3 used to claim `ActionSchemaExporter` exports the `hsmAction`/`hsmGuard` flags
   separately. MEASURED FALSE on 2026-09-27 — it collapses both into one `ActionHosting.Hsm` bit. The
   paragraph now carries the correction inline, and it makes CE-386 bigger than §8a ④ estimated.
 known-conflict: ⚠ HSM_Editor_NodeEditor_Host_Design.md §10.4 says the `Lane` property on
   `[HsmAction]` "doesn't currently exist". It DOES — `HsmActionGenerator.cs:598` emits it. That line
   is rotted; this design does not depend on it either way.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): an HSM
+    activity/guard is an ACTION: live host read, no resolver (§P.3).
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
     action-binding carrier. It is DESIGN, not built; it depends on this document's model and

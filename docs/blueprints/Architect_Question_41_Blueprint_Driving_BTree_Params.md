@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-22
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: section 5 - APPROVED IN FULL by the user 2026-08-18. A, B and D as
   written; C1 WITHDRAWN and replaced by C1'/C2'/C3', also approved. C3' is detailed
   in Architect_Question_43_Blueprint_Authored_Param_Resolver.md. Nothing is built.
 stale-below: nothing.
-known-rot: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
+known-rot: ⚠ 2026-09-30 (R-155) — C3' (a blueprint-authored resolver on the
+  primitive, detailed in Q43) is retired — resolvers belong only to behaviours (DESIGN_Parameter_Model.md
+  §P.4, CE-445). A blueprint driving a BTree behaviour's params does so as that behaviour's ONE
+  resolver asset (CE-428), which receives the source (§P.2, CE-443).
+  earlier: 2026-09-21 - the DECISIONS all re-measured TRUE (Construction still unconsumed,
   MakeStruct/SetMembers still live, IHostVariableAccess still zero-implementer). But C1'/C2'
   resolve PER VARIABLE, and a site reaches a variable via ExpressionTargetField - which HSM
   STATES do not have (only BTree nodes and HSM transitions do). So this question's answers do
@@ -23,6 +27,8 @@ known-conflict: none known. Section 3 records where DESIGN_Parameter_Model.md's
   R-149's selection property, which lands without the editor; the PICKER half stays
   held with the UI lane. See DESIGN_Resolver_World_Reach.md 7.2.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): decides which of
+    this question's C-arms survive (behaviour resolver: yes; primitive resolver: no).
   - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - C3' promoted; owns WHAT a
     resolver blueprint is.
   - DESIGN_Resolver_World_Reach.md - owns what a resolver graph can REACH (R4), the publishing

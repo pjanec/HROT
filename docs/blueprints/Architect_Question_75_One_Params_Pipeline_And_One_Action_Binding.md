@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-28
+updated: 2026-09-30 (R-155 known-rot + §P link)
 build-state: ⛔ DESIGN — SUBSUMED 2026-09-29 BY Q76 §12, WHICH IS APPROVED AND BUILDING.
   ⭐⭐⭐ READ Q76 FIRST. Q76-B ("one blackboard block per running behaviour") was APPROVED by the
   user on 2026-09-29 and Q76 §4-E already ruled that THIS document depends on it. As of that
@@ -30,7 +30,10 @@ current-answer: ⭐⭐⭐ READ §0 FIRST — it is the revision summary and says
 stale-below: ⛔ §5's slice table and §4's decision C were written before the second measurement
   pass. Both are CORRECTED IN PLACE and say so; nothing below is quotable as a plan without
   reading §0.
-known-rot: 🔴 THREE claims this document made on 2026-09-28 that its own second pass overturned,
+known-rot: ⚠ 2026-09-30 (R-155) — wherever this document places a resolve step
+  AFTER the automatic copy, or on an action binding, read DESIGN_Parameter_Model.md §P instead: the
+  resolver replaces the copy (§P.2) and action bindings have no resolver (§P.3).
+  earlier: 🔴 THREE claims this document made on 2026-09-28 that its own second pass overturned,
   recorded here so nobody re-derives them: ① §5's S2 row said routing the emitted producers
   through the factory is "behaviour-identical by construction" — FALSE, §2.5 measures 9 fields
   where it would move bytes; ② §3.1's sequence diagram draws "bake authored defaults" as a step of
@@ -44,6 +47,8 @@ known-conflict: ⛔⛔ DESIGN_Per_Variable_Param_Resolver.md (E8c, build-state D
   supersedes two claims Claude made in chat on 2026-09-28 ("the curated path has a resolve stage"
   and "IsBlackboardEditorManaged is BTree-specific") — both were wrong; the refutations are in §2.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): the
+    contract the unified pipeline and action binding must implement.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐⭐⭐ SUPERSEDES the storage
     half of this document and OWNS the live slices. Its §12 is the approved design; §12.6 the
     ordered slice list. S0→CE-418, S1→CE-425's HSM arm, C/S2→CE-426.

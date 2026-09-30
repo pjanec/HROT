@@ -1,12 +1,18 @@
 <!--STATUS
 state: LIVE (partly superseded — see the banner below)
-updated: 2026-09-27 (related-designs added; no content changed)
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: the MODEL and PIPELINE here stand; DESIGN_Parameter_Model.md wins on any disagreement.
 stale-below: §6/§7 (ground truth + the G1-G7 gap list) were re-measured 2026-08-16 and are STALE.
 known-conflict: ⚠ §338 expresses R-132's probe as "RegisterResolver is reached ONLY from
   CgfCuratedBehaviorRegistrar". DESIGN_Behavior_Self_Registration.md DELETES that class ⇒ the PROBE
   must be re-expressed against the [BehaviorResolver] attribute. ⛔ The RULING is unchanged.
+known-rot: ⚠ 2026-09-30 (R-155) — the pipeline order here ("bake → overlay JSON → resolve", the resolver running on the overlaid copy) is
+  the AS-BUILT, not the target. Target: the resolver receives the SOURCE and REPLACES the default copy;
+  an empty body copies nothing (DESIGN_Parameter_Model.md §P.2, CE-443). Resolvers exist only for
+  behaviours, never for actions/conditions (§P.4).
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): owns the target
+    start pipeline and the behaviour-vs-action split; this document keeps the resolver authoring model.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
     action-binding carrier. It is DESIGN, not built; it depends on this document's model and

@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
+updated: 2026-09-30 (R-155 known-rot + §P link)
 build-state: BUILT 2026-09-21 — see section 10 for the as-built and the two deviations.
 current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and section 5
   (the diagrams). Section 7.1 settles the
@@ -10,11 +10,17 @@ current-answer: section 10 (AS-BUILT) first, then section 4 (the decision) and s
   superseded "rank by authorship" answer. Do NOT quote either.
 stale-below: section 7.2a (the three-arm ParamResolverRef shape) and section 7.2's trailing
   HISTORY note are both SUPERSEDED and kept only for the measurements that retired them.
-known-rot: nothing.
+known-rot: ⚠ 2026-09-30 (R-155) — two of the five supply paths this document serves are
+  action paths (hosted blueprint primitives in a BTree node / HSM state). They lose their resolver
+  (DESIGN_Parameter_Model.md §P.4, CE-445). The reach decision (what a resolver may read) stands for
+  behaviour resolvers; §P.6 leaves IHostVariableAccess OPEN (lean retire).
+  earlier: nothing.
 known-conflict: Behavior_Parameter_Resolver_Detailed_Design.md 8.1 rates R4 "Medium" and offers
   two shapes ("adapter-supplied service arguments, or a small read-singleton node"). This design
   picks the FIRST and explicitly REFUSES the second; section 6 says why.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): narrows the
+    supply paths a resolver serves to behaviours only; §P.6 is the open host-accessor decision.
   - Architect_Question_43_Blueprint_Authored_Param_Resolver.md - owns WHAT a resolver blueprint IS
     (A2' the Construction graph, B2 the struct signature, C1 purity). This owns what it can REACH.
   - Behavior_Parameter_Resolver_Detailed_Design.md - owns the R1-R5 decomposition; this builds R4

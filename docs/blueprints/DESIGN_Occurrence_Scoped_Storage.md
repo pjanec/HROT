@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-27
+updated: 2026-09-30 (R-155 known-rot + §P link)
 build-state: ⛔ PER-SECTION — this file spans a whole programme, so there is no single answer, and the
   one that used to be here ("DESIGN, because §32's review demoted it") was stale the moment §32 shipped.
   ⭐ BUILT: §29 (P3) · §30 (P4) · §31 (O7c) · §32 (E5) · §33 (E6) · §33.12 (the editor path).
@@ -93,7 +93,11 @@ current-answer: ⭐⭐⭐ §33 — E6, BTREE-HOSTS-BTREE — IS THE NEWEST SECTI
   O-item — it is simply already satisfied. An earlier STATUS line here said it was RED and blocked
   the programme; that was a measurement error (spawn read as baseline), filed as CE-296 and refuted.
 stale-below: nothing. Superseded wording lives under §15's "⛔ HISTORY" heading.
-known-rot:
+known-rot: ⚠ 2026-09-30 (R-155) — §28.7's hosted resolve (a blueprint primitive running its
+  own resolver at activation) is superseded — actions have no resolver (DESIGN_Parameter_Model.md
+  §P.4, CE-445) and a blueprint HSM activity/guard reads its host live (§P.3, CE-444). §12's O9
+  (blueprint as a root behaviour) now has a tracker row: CE-446; it inherits §P.2.
+  earlier:
   - §3.2 was written as a "shipped" defect. MEASURED 2026-09-20: it is LATENT — gated on
     HeavyDtoType, which production sets nowhere, so Blackboard1024 is on zero entities.
     Corrected in place; the prior wording is in §15's HISTORY row.
@@ -112,6 +116,8 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): the parameter
+    contract O9 (CE-446) inherits and that retires §28.7's hosted resolve.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
     ParseParams factory, G1's deserialize/resolve split, the HSM blackboard struct) and of the
     action-binding carrier. It is DESIGN, not built; it depends on this document's model and

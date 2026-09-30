@@ -1,5 +1,15 @@
 # Architect Question #33 — blueprint as a brain tier, and suspendable sub-behaviours
 
+> ## ⭐ `2026-09-30` — TRACKED AS `CE-446`; ITS PARAMETERS FOLLOW `DESIGN_Parameter_Model` §P
+>
+> 🔒 User, `2026-09-30`: *"I meant i need the behavior to be implementable by blueprint"* — this question's
+> blueprint brain tier (`O9` in [`DESIGN_Occurrence_Scoped_Storage`](DESIGN_Occurrence_Scoped_Storage.md) §12)
+> is that capability, tracked as `CE-446` in [`Blueprint_Issues_Tracker`](Blueprint_Issues_Tracker.md). A
+> blueprint behaviour takes its inputs ONCE at start — the intent JSON by default copy, or its ONE optional
+> resolver which receives the source — and its own actions read its block live
+> ([`DESIGN_Parameter_Model`](DESIGN_Parameter_Model.md) §P.2/§P.3, `R-155`). ⛔ It is not a `BlueprintInstance`
+> (attached, several per entity, no resolver).
+
 > ## ⚠⚠ STORAGE MODEL SUPERSEDED — `2026-09-19`
 >
 > 📄 **[`DESIGN_Occurrence_Scoped_Storage.md`](DESIGN_Occurrence_Scoped_Storage.md)** moves params and

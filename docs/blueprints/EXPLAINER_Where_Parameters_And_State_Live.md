@@ -1,11 +1,15 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-29
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: ⭐ §7 — the AS-MEASURED BASELINE (2026-09-28), which is the current, complete
   picture and the one to read first. §1's storage map is still correct but PARTIAL: it does not
   show that the ROOT is split across 3+ slots while a hosted child is one, nor the two key
   schemes, nor that two offset authorities disagree. §2-§6 remain the evidence behind §1.
-known-rot: ⚠ §3's row 3 says of working state "reset at activation; Scope decides sharing" — that
+known-rot: ⚠ 2026-09-30 (R-155) — this explainer records how params IS supplied; the TARGET
+  differs on three points — the behaviour resolver gets the source (CE-443), a blueprint HSM
+  activity/guard reads live instead of being seeded (CE-444), and no action has a resolver (CE-445).
+  See DESIGN_Parameter_Model.md §P.5.
+  earlier: ⚠ §3's row 3 says of working state "reset at activation; Scope decides sharing" — that
   clause is TRUE OF ONE SCOPE OF THREE; §7.3 has the measured table, and DESIGN_Parameter_Model.md
   §3.1 carries the same correction. ⚠ §4's "one region, two layout authorities" is about WHO
   DECLARES the shape (compiler vs human); §7.4 is a DIFFERENT and newer finding about two
@@ -14,6 +18,8 @@ known-conflict: none. ⛔ This document records how storage IS. How it is meant 
   Architect_Question_76_One_Blackboard_Block_Per_Primitive.md, which is PARKED awaiting one
   decision; where they differ, this one is the present tense and Q76 is the future one.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): how it is
+    MEANT to be; this file is how it IS.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — the proposed simplification this
     baseline was measured for (one contiguous block per running primitive). Its §10 is the open
     decision; §1.4 and §4 reuse the measurements in §7 here.

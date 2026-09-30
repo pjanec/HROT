@@ -1,9 +1,14 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-22
+updated: 2026-09-30 (R-155 known-rot + §P link)
 current-answer: §3 (stateless multi-action binding) and §4 (multiple stateful primitives per
   entity). Both are built.
+known-rot: ⚠ 2026-09-30 (R-155) — this document's live-bound action (a field of the host's
+  params struct, projected each tick) IS the target model for every action and condition, C# or
+  blueprint, BTree or HSM (DESIGN_Parameter_Model.md §P.3). Nothing here is overturned.
 related-designs:
+  - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): generalises this
+    document's binding to every action/condition, including HSM activities and guards.
   - DESIGN_Occurrence_Scoped_Storage.md — owns the storage model this binds against: the root
     params slot and the node working-state slots in the BlueprintBlackboard tier ladder.
   - DESIGN_Parameter_Model.md — owns WHAT a parameter is, as opposed to where it lives.
