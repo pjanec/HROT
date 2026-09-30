@@ -11,6 +11,8 @@ related-designs:
   - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
     return to baseline must be an explicit step here.
   - docs/blueprints/Architect_Question_8_Wave_Core.md — the wave core rulings this doctrine's blueprint twin follows.
+  - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — owns the blueprint rebuild of this
+    doctrine (CE-464); this document stays its spec, CE-460 quirk included.
 -->
 # Hill Attack Group Behavior — Design
 

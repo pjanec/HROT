@@ -17,6 +17,8 @@ related-designs:
     blueprint reads its authored input (Parameters + Get All Parameters).
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns the ONE block per running behaviour a blueprint
     behaviour gets (R-151).
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — the first real doctrine proposed on this runtime (the
+    hill-attack commander as one blueprint behaviour) and the generic nodes it needs.
 -->
 
 # Architect Question #77 — a behaviour implemented by a blueprint (`CE-446` = `O9`)

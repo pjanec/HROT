@@ -1,3 +1,15 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-09-30
+current-answer: none here. The live question is Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md.
+stale-below: the whole log. Its GAP list is partly out of date (loops, EQS nodes, target-entity component reads now
+  exist; re-measured in Q78 §2). The integrated PlatoonHillAttack2 it led to was deleted by CE-436.
+known-rot: "What blueprintize means" (keep the BTree, blueprint the leaves) is not the lean any more; Q78 decision A says why.
+related-designs:
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — the current rebuild question (CE-464).
+  - TreeIntegration_Build_Plan.md — the integrated version, since deleted (CE-436).
+-->
+
 # Hill-Attack → Blueprints — Migration Log
 
 > **Goal:** rebuild the Platoon Hill-attack behavior, step by step, as visually-authored
