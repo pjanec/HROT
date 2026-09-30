@@ -521,7 +521,7 @@ public sealed class NodeCoverageTests
     /// one uses <see cref="CoverageMode.ValidateOnlyStage1To7"/> instead. Prefers reusing
     /// existing demo/recipe/test assets over inventing new ones; only the kinds with genuinely
     /// no existing coverage (CallPeerBlueprint, Cast, CallCustomEvent, WaitForEvent,
-    /// ScoreDecision, ReadRankedResult, GetShared, SetShared) get a purpose-built minimal
+    /// ScoreDecision, ReadRankedResult) get a purpose-built minimal
     /// fixture below.
     /// </summary>
     private static IEnumerable<(string Description, IReadOnlyList<BlueprintAsset> Assets, CompileOptions? Options, CoverageMode Mode)> CoverageAssets()
@@ -594,7 +594,6 @@ public sealed class NodeCoverageTests
         // value passes both Stage2 validation AND Roslyn compilation today.
         yield return ("Inline/ScoreDecision", new[] { BuildScoreDecisionMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/ReadRankedResult", new[] { BuildReadRankedResultMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
-        yield return ("Inline/GetSharedSetShared", new[] { BuildGetSetSharedMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetComponent", new[] { BuildGetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/SetComponent", new[] { BuildSetComponentMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/DiamondMerge", new[] { BuildDiamondMergeMinimalAsset() }, null, CoverageMode.FullRoslynPipeline);
@@ -1080,60 +1079,8 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
-    /// EventEntry -&gt; SetShared("x", System.Int32) -&gt; Return, fed by GetShared("x",
-    /// System.Int32). Uses <c>System.Int32</c> as the shared-struct type (proven to resolve by
-    /// V_SharedStateValidatorTests.Validate_PrimitiveSharedTypeId_NoBP2041) rather than a real
-    /// Category-1 shared struct, so this fixture has zero dependency on Hrot.AI.Behaviors.
-    /// </summary>
-    private static BlueprintAsset BuildGetSetSharedMinimalAsset()
-    {
-        var getValuePin = DataPin("Value", "Out", "System.Int32");
-        var getFoundPin = DataPin("Found", "Out", "System.Boolean");
-        var getNode = new GetSharedNode { Id = Guid.NewGuid(), VariableId = "x", SharedTypeId = "System.Int32" };
-        getNode.Pins.AddRange(new[] { getValuePin, getFoundPin });
-
-        var setExecIn   = ExecPin("ExecIn",  "In");
-        var setExecOut  = ExecPin("ExecOut", "Out");
-        var setValuePin = DataPin("Value",   "In",  "System.Int32");
-        var setWritten  = DataPin("Written", "Out", "System.Boolean");
-        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "x", SharedTypeId = "System.Int32" };
-        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
-
-        var entry    = new EventEntryNode { Id = Guid.NewGuid() };
-        var entryOut = ExecPin("ExecOut", "Out");
-        entry.Pins.Add(entryOut);
-
-        var ret   = new ReturnNode { Id = Guid.NewGuid() };
-        var retIn = ExecPin("ExecIn", "In");
-        ret.Pins.Add(retIn);
-
-        var graph = new Graph
-        {
-            Id    = Guid.NewGuid(),
-            Name  = "Main",
-            Kind  = GraphKind.Function,
-            Nodes = { entry, getNode, setNode, ret },
-            Links =
-            {
-                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
-                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
-                new Link { FromNodeId = getNode.Id, FromPinId = getValuePin.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
-            },
-        };
-
-        return new BlueprintAsset
-        {
-            AssetId  = Guid.NewGuid(),
-            Name     = "GetSetSharedCoverage",
-            Dispatch = BlueprintDispatchKind.Instance,
-            Graphs   = { graph },
-        };
-    }
-
-    /// <summary>
     /// EventEntry -&gt; SetVariable(FloatOut) -&gt; Return, fed by a data-only GetComponent node
-    /// (P2 -- Hill-attack -&gt; Blueprints migration). Mirrors <see cref="BuildGetSetSharedMinimalAsset"/>'s
-    /// shape/evidence bar. Uses <c>System.Numerics.Vector3</c> (public field "X") as the "component"
+    /// (P2 -- Hill-attack -&gt; Blueprints migration). Uses <c>System.Numerics.Vector3</c> (public field "X") as the "component"
     /// type -- a real, already-resolvable, zero-Hrot.AI.Behaviors-dependency blittable struct --
     /// rather than a real ECS-registered component: <c>GetComponentRO&lt;T&gt;</c> only requires
     /// <c>T : unmanaged</c> at compile time (no registration check), so this exercises the SAME
@@ -2071,7 +2018,7 @@ public sealed class NodeCoverageTests
     }
 
     /// <summary>
-    /// EventEntry -&gt; FlowForEach(Body -&gt; SetShared(int "scratch" &lt;- BinaryOp(CurrentIndex -
+    /// EventEntry -&gt; FlowForEach(Body -&gt; SetVariable(int Scratch &lt;- BinaryOp(CurrentIndex -
     /// Count))) [Completed] -&gt; Return. Exercises the FlowForEach loop-introspection out-pins
     /// (<c>CurrentIndex</c>, <c>Count</c>): the Count out wires into the arithmetic BinaryOp's B
     /// operand (proving the loop-invariant count is available in the body scope) and CurrentIndex into
@@ -2108,13 +2055,14 @@ public sealed class NodeCoverageTests
         var binNode = new BinaryOpNode { Id = Guid.NewGuid(), Operator = ArithmeticOperator.Subtract };
         binNode.Pins.AddRange(new[] { binAPin, binBPin, binResultPin });
 
-        // SetShared(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        // SetVariable(int) inside the body consumes the BinaryOp result (keeps both loop outs live).
+        // ⛔ HISTORY — this was a SetShared("scratch") until CE-440 removed the node pair (Q76 §12.24).
+        var scratch = new VariableDecl { Id = Guid.NewGuid(), Name = "Scratch", Type = new BlueprintTypeRef { TypeId = "System.Int32" } };
         var setExecIn   = ExecPin("ExecIn",  "In");
         var setExecOut  = ExecPin("ExecOut", "Out");
         var setValuePin = DataPin("Value",   "In",  "System.Int32");
-        var setWritten  = DataPin("Written", "Out", "System.Boolean");
-        var setNode = new SetSharedNode { Id = Guid.NewGuid(), VariableId = "scratch", SharedTypeId = "System.Int32" };
-        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin, setWritten });
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = scratch.Id.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
 
         var ret   = new ReturnNode { Id = Guid.NewGuid() };
         var retIn = ExecPin("In", "In");
@@ -2147,6 +2095,7 @@ public sealed class NodeCoverageTests
                 Intent   = AiPrimitiveIntent.Action,
                 Hostings = { AiPrimitiveHosting.BTreeAction },
             },
+            WorkingState = { scratch },
             Graphs    = { graph },
         };
     }

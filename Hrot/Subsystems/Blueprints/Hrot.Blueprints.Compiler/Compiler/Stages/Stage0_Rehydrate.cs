@@ -147,14 +147,6 @@ internal static class Stage0_Rehydrate
                 EnrichSetVariablePins(pins, sv, asset, staticShapes);
                 break;
 
-            case GetSharedNode gsn:
-                EnrichGetSharedPins(pins, gsn, staticShapes);
-                break;
-
-            case SetSharedNode ssn:
-                EnrichSetSharedPins(pins, ssn, staticShapes);
-                break;
-
             case GetComponentNode gcn:
                 EnrichGetComponentPins(pins, gcn, staticShapes);
                 break;
@@ -477,66 +469,7 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// GetSharedNode (Slice 2a-2 + Slice 2b): pure-data node. Static skeleton is empty (registry
-    /// mirrors GetVariableNode). Build data-In "Target" (OPTIONAL, <c>Fdp.Core.Entity</c> -- Slice
-    /// 2b cross-entity read; unwired = self, mirrors how <c>IrOp_GetComponent</c>'s Entity argument
-    /// is carried/typed) + data-Out "Value" typed DIRECTLY from
-    /// <see cref="GetSharedNode.SharedTypeId"/> (NOT <c>ResolveVariableTypeId</c> over
-    /// <c>asset.Variables</c> -- the shared struct is foreign to this asset's variable list) +
-    /// data-Out "Found" (<c>System.Boolean</c>).
-    /// </summary>
-    private static void EnrichGetSharedPins(
-        List<Pin> pins, GetSharedNode gsn, IReadOnlyList<PinSchema> staticShapes)
-    {
-        pins.Clear();
-        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
-
-        // Q#14 multi-pin: baked per-field decls → one data-OUT pin per field (read the struct once,
-        // project each field) + "Found". Mirrors EnrichSetSharedPins / the PublishEvent baked path.
-        if (gsn.Fields is { Count: > 0 })
-        {
-            foreach (var f in gsn.Fields)
-                pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
-            pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
-            return;
-        }
-
-        // Legacy whole-struct path: single "Value" data-out (typed by SharedTypeId) + "Found".
-        var typeId = SharedTypePinTypeId(gsn.SharedTypeId);
-        pins.Add(MakePin("Value", "Out", isExec: false, typeId: typeId));
-        pins.Add(MakePin("Found", "Out", isExec: false, typeId: "System.Boolean"));
-    }
-
-    /// <summary>
-    /// SetSharedNode (Slice 2a-2): exec node. Static skeleton is exec In/Out (registry mirrors
-    /// SetVariableNode). Enrich: add data-In "Value" typed DIRECTLY from
-    /// <see cref="SetSharedNode.SharedTypeId"/> + data-Out "Written" (<c>System.Boolean</c>).
-    /// </summary>
-    private static void EnrichSetSharedPins(
-        List<Pin> pins, SetSharedNode ssn, IReadOnlyList<PinSchema> staticShapes)
-    {
-        pins.Clear();
-        pins.Add(MakePin("In",  "In",  isExec: true, typeId: ""));
-        pins.Add(MakePin("Out", "Out", isExec: true, typeId: ""));
-
-        // Q#14 multi-pin: baked per-field decls → one data-in pin per field (name = field name, matched
-        // by Stage5 lowering) so the designer sets fields directly. Unwired fields are simply not written.
-        if (ssn.Fields is { Count: > 0 })
-        {
-            foreach (var f in ssn.Fields)
-                pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
-            return;
-        }
-
-        // Legacy whole-struct path: single "Value" data-in + "Written" data-out.
-        var typeId = SharedTypePinTypeId(ssn.SharedTypeId);
-        pins.Add(MakePin("Value",   "In",  isExec: false, typeId: typeId));
-        pins.Add(MakePin("Written", "Out", isExec: false, typeId: "System.Boolean"));
-    }
-
-    /// <summary>
-    /// GetComponentNode (CA-01, Slice 1a): pure-data node, mirrors <see cref="EnrichGetSharedPins"/>
-    /// exactly. Static skeleton is empty (registry mirrors GetSharedNode). Build data-In "Target"
+    /// GetComponentNode (CA-01, Slice 1a): pure-data node. Static skeleton is empty. Build data-In "Target"
     /// (OPTIONAL, <c>Fdp.Core.Entity</c> -- cross-entity read, unwired = self) + either one data-Out
     /// pin PER baked <see cref="GetComponentNode.Fields"/> entry (multi-pin) or the legacy single
     /// "Value" data-Out typed from <see cref="GetComponentNode.FieldTypeFqn"/> -- plus data-Out
@@ -583,7 +516,7 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// SetComponentNode (CA-03/CA-06): exec node, mirrors <see cref="EnrichSetSharedPins"/>.
+    /// SetComponentNode (CA-03/CA-06): exec node.
     /// Static skeleton is exec In/Out. UNMANAGED (<see cref="SetComponentNode.IsManaged"/> == false):
     /// one data-IN pin PER baked <see cref="SetComponentNode.Fields"/> entry (no fields baked yet ⇒
     /// none). MANAGED (CA-06, Slice W2, Q#16-C): a SINGLE data-IN "Value" pin typed by
@@ -818,8 +751,9 @@ internal static class Stage0_Rehydrate
     }
 
     /// <summary>
-    /// Resolves the pin <c>TypeId</c> for a GetShared/SetShared "Value" pin directly from the
-    /// node's <c>SharedTypeId</c> (a foreign Category-1 struct FQN, not a declared asset variable).
+    /// Resolves the pin <c>TypeId</c> for a struct-typed pin (SetComponent/Make/Break/SetMembers "Value") directly
+    /// from a baked struct FQN (a foreign struct, not a declared asset variable). ⛔ HISTORY: written for the
+    /// GetShared/SetShared nodes removed by <c>CE-440</c>; the name is historical.
     /// Stamped with the <c>"global::"</c> AN2 sentinel (mirrors <c>EnumStampedTypeFqn</c> in the
     /// editor's <c>NodePinSchema</c>) so <see cref="Catalogs.StaticTypeRegistry"/> accepts it as a
     /// project/unmanaged type without requiring reflection over an assembly that, in the analyzer
@@ -1120,7 +1054,7 @@ internal static class Stage0_Rehydrate
     /// structs declared in <see cref="Catalogs.StaticTypeRegistry"/>) pass through UNPREFIXED so they
     /// resolve via the type table. A curated blittable struct the table does NOT know (e.g. a demo's
     /// own shared struct) is stamped with the <c>"global::"</c> AN2 sentinel — exactly like
-    /// <see cref="SharedTypePinTypeId"/> does for GetShared/SetShared — so it flows through the
+    /// <see cref="SharedTypePinTypeId"/> does for struct pins — so it flows through the
     /// registry's project-type acceptance path instead of failing BP1500.
     /// <para>
     /// This is what makes the semantic-model FunctionCall rehydration (Blocker-1) general: the
@@ -1183,7 +1117,7 @@ internal static class Stage0_Rehydrate
     /// Recognition is by TYPE (exact FQN match against <c>Fdp.Core.Entity</c> /
     /// <c>Fdp.ModuleHost.Abstractions.ISimulationView</c>). The <c>Entity</c> case ALSO requires the
     /// parameter be named exactly <c>"self"</c> (ordinal) -- <c>Entity</c> is a legitimate ordinary
-    /// data-pin type elsewhere (e.g. <see cref="GetSharedNode"/>'s "Target" pin), so the name
+    /// data-pin type elsewhere (e.g. GetComponent's "Target" pin), so the name
     /// disambiguates a genuine trailing self-context parameter from an author-supplied data argument.
     /// <c>ISimulationView</c> has no legitimate ordinary blueprint-data use, so type alone suffices.
     /// </para>
@@ -1453,7 +1387,6 @@ internal static class Stage0_Rehydrate
         GetParameterNode      => false,
         GetAllParametersNode  => false,
         GetAllVariablesNode   => false,
-        GetSharedNode         => false,
         GetComponentNode      => false,
         CompareNode           => false,
         BinaryOpNode          => false,

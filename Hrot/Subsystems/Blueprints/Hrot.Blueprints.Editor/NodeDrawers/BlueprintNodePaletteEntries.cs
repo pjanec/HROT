@@ -135,19 +135,6 @@ public static class BlueprintNodePaletteEntries
             "SetVariables", "Set Variables", Categories.Variables,
             "Write blackboard variables from one node -- one input pin per variable; an unwired pin leaves its variable unchanged.");
 
-        // ── Shared State (Slice 2a-3) ──────────────────────────────────────
-        // GetSharedNode/SetSharedNode default-construct with empty VariableId/SharedTypeId;
-        // both are editable post-placement via GetSharedNodeDrawer/SetSharedNodeDrawer
-        // (Hrot.Blueprints.Editor.NodeDrawers.SharedNodeDrawers), the same
-        // IBlueprintNodeDrawer/INodeEditSession Details-panel mechanism used by
-        // FunctionCallNode/LiteralNode — see BlueprintEditorBootstrap.CreateNodeDrawerRegistry.
-        yield return Make<GetSharedNode>(
-            "GetShared", "Get Shared", Categories.SharedState,
-            "Read an entity-scoped shared struct slot (pure).");
-        yield return Make<SetSharedNode>(
-            "SetShared", "Set Shared", Categories.SharedState,
-            "Write an entity-scoped shared struct slot.");
-
         // ── Function / data ────────────────────────────────────────────────
         yield return Make<FunctionCallNode>(
             "FunctionCall", "Function Call", Categories.Function,

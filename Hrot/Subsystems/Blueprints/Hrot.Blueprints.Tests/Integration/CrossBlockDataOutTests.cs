@@ -175,68 +175,8 @@ public sealed class CrossBlockDataOutTests
         Assert.DoesNotContain(messages, m => m.Contains("count=0"));
     }
 
-    // ── Test 3: SetShared's "Written" out-pin across a Branch ───────────────────────────────────
-
-    /// <summary>
-    /// <see cref="SetSharedNode"/>'s <c>Written</c> out-pin (bool), wired across a <c>Branch</c> into
-    /// a Print String. Fixed code answers <c>true</c> from <c>_statementPinCache</c>; the old code's
-    /// gap here (BOTH caches were already missing this write in the unfixed state the task
-    /// describes) would have silently printed <c>false</c>.
-    /// </summary>
-    [Fact]
-    public void SetShared_WrittenOutPin_AcrossBranch_ReachesLog_NotFalse()
-    {
-        const string slotName = "XBlkSlot";
-
-        var messages = RunToLog(() =>
-        {
-            var doc = OpenDoc("XBlk_SetShared");
-
-            var setShared    = AuthoringPath.AddNode(doc.Sink, doc.Graph, "SetShared");
-            var sharedSession = (SetSharedNodeSession)AuthoringPath.Details(doc, setShared);
-            sharedSession.SetVariableIdForTest(slotName);
-            sharedSession.SetSharedTypeIdForTest("System.Int32");
-            doc.Model.RebuildAndNotify();
-
-            var branch  = AuthoringPath.AddNode(doc.Sink, doc.Graph, "Branch");
-            var litTrue = AuthoringPath.AddNode(doc.Sink, doc.Graph, "LiteralBool");
-            ((LiteralNode)litTrue).ValueJson = "true";
-            AuthoringPath.Link(doc, litTrue, "Value", branch, "Condition");
-
-            var print = AuthoringPath.AddNode(doc.Sink, doc.Graph, "PrintString");
-            var printSession = (PrintStringNodeSession)AuthoringPath.Details(doc, print);
-            printSession.SetFormatForTest("w={Written}");
-            doc.Model.RebuildAndNotify();
-
-            var entry = doc.Graph.Nodes.First(n => n is EventEntryNode);
-            var ret   = doc.Graph.Nodes.First(n => n is ReturnNode);
-            AuthoringPath.Link(doc, entry,     "Out",  setShared, "In");
-            AuthoringPath.Link(doc, setShared, "Out",  branch,    "In");
-            AuthoringPath.Link(doc, branch,    "True", print,     "In");   // ⭐ the block boundary
-            AuthoringPath.Link(doc, print,     "Out",  ret,       "In");
-
-            var literal = AuthoringPath.AddNode(doc.Sink, doc.Graph, "LiteralInt");
-            ((LiteralNode)literal).ValueJson = "5";
-            // ⚠ BlueprintGraphModel.ResolvePinDisplayLabel relabels SetShared's data-in "Value" pin
-            // with the slot name for display (Get/SetShared: "VariableId is already the shared
-            // field's slot name -- show it on the pin") -- AuthoringPath.Pin() matches by that
-            // display Label, not the pin's underlying Name, so the wire target is the slot name.
-            AuthoringPath.Link(doc, literal, "Value", setShared, slotName);
-
-            AuthoringPath.Link(doc, setShared, "Written", print, "Written");
-
-            return doc.Asset;
-        },
-        ticks: 1,
-        // ⚠ Not a caching concern: BlueprintSharedState.TrySetShared legitimately fails (Written =
-        // false) unless the entity-scoped slot is provisioned first -- mirrors
-        // MultiPinSetSharedTests.AttachSharedSlot, which must run AFTER AttachBlueprint (the
-        // partition tier component only exists once the blueprint is attached).
-        afterAttach: (fixture, entity) => AttachIntSharedSlot(fixture.World, entity, slotName));
-
-        Assert.Contains(messages, m => m.Contains("w=True"));
-        Assert.DoesNotContain(messages, m => m.Contains("w=False"));
-    }
+    // ⛔ HISTORY — Test 3 pinned SetShared's "Written" out-pin across a Branch; the node pair was removed
+    //   by CE-440 (Q76 §12.24). The cross-block cache invariant stays pinned by Tests 1 and 2.
 
     // ── Test 4: CollectionWrite's "Ok" out-pin across a Branch ──────────────────────────────────
 
@@ -476,30 +416,6 @@ public sealed class CrossBlockDataOutTests
         {
             AiBehaviorLogTarget.SharedInstance.Clear();
             LogManager.Configuration = previousConfig;
-        }
-    }
-
-    /// <summary>
-    /// Provisions an entity-scoped <c>int</c> shared-state slot named <paramref name="slotName"/> —
-    /// mirrors <c>MultiPinSetSharedTests.AttachSharedSlot</c> (same
-    /// <c>BlueprintBlackboardPartitions.TryAttach</c> call, generalized off <c>MultiPinShared</c> to
-    /// a plain <c>int</c>). Must run AFTER <c>AttachBlueprint</c> — the BB1024 tier component this
-    /// reads only exists once the blueprint has been attached.
-    /// </summary>
-    private static unsafe void AttachIntSharedSlot(EntityRepository world, Entity entity, string slotName)
-    {
-        int slotKey = StatefulBTreeActionBinder.ComputeStatefulSlotKey(
-            Guid.Empty, StatefulSlotScope.Entity, Guid.Empty, slotName);
-        uint expectedHash = unchecked(
-            StatefulBTreeActionBinder.ComputeTypeNameHash(typeof(int).FullName ?? "") ^ (uint)Marshal.SizeOf<int>());
-
-        // ⭐ B4 — §17.7: the store through the SEAM, not a named tier.
-        byte* mem = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
-        {
-            bool ok = BlueprintBlackboardPartitions.TryAttach(
-                mem, slotKey, Marshal.SizeOf<int>(), expectedHash, out _);
-            if (!ok)
-                throw new InvalidOperationException($"TryAttach for shared slot '{slotName}' failed.");
         }
     }
 }

@@ -82,22 +82,6 @@ public sealed class BlueprintNodeTitleTests
         Assert.Equal("Set Members",  Title(new SetMembersNode  { StructTypeId = fqn! }));
     }
 
-    // Get/Set Shared bracket the slot name into the title; empty slot keeps the bare verb.
-    [Fact]
-    public void GetShared_BracketsSlotName()
-        => Assert.Equal("Get Shared [RallyPoint]", Title(new GetSharedNode { VariableId = "RallyPoint" }));
-
-    [Fact]
-    public void SetShared_BracketsSlotName()
-        => Assert.Equal("Set Shared [RallyPoint]", Title(new SetSharedNode { VariableId = "RallyPoint" }));
-
-    [Fact]
-    public void Shared_EmptySlot_KeepsBareTitle()
-    {
-        Assert.Equal("Get Shared", Title(new GetSharedNode { VariableId = "" }));
-        Assert.Equal("Set Shared", Title(new SetSharedNode { VariableId = "" }));
-    }
-
     // CA-02: GetComponent brackets the short component-type name (mirrors Make/Break/SetMembers'
     // "[ShortTypeName]" convention), and flags NodeState.Error when the baked ComponentTypeFqn no
     // longer resolves (renamed/removed from C#) -- reuses the FunctionCall red-node pattern.

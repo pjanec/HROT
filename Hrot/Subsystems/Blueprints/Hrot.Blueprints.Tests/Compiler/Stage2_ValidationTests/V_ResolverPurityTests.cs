@@ -274,7 +274,7 @@ public sealed class V_ResolverPurityTests
         //   — a copy-with-changes into a new temp, never a write to anything the caller owns.
 
         // ── reads of state the resolver is entitled to see ───────────────
-        "GetAllParametersNode", "GetAllVariablesNode", "GetParameterNode", "GetVariableNode", "GetSharedNode",
+        "GetAllParametersNode", "GetAllVariablesNode", "GetParameterNode", "GetVariableNode",
         "GetComponentNode", "ComponentContainsNode", "ComponentFindNode", "ComponentForEachNode",
         "ComponentItemCountNode", "ComponentItemGetNode",
         "ReadEqsResultNode", "ReadRankedResultNode",

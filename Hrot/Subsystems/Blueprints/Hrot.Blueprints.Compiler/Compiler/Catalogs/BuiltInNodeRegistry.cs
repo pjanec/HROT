@@ -51,22 +51,14 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         GetAllVariablesNode => Array.Empty<PinSchema>(),
         SetVariablesNode    => new[] { ExecIn(), ExecOut() },
 
-        // GetShared/SetShared (Slice 2a-2): mirrors Get/SetVariable -- static skeleton only;
-        // Stage0_Rehydrate enriches data pins directly from SharedTypeId (NOT asset.Variables --
-        // the shared type is foreign to this asset). Slice 2b: GetShared's enricher additionally
-        // adds an OPTIONAL data-in "Target" Entity pin (cross-entity read) -- still no static
-        // shape here, since the enricher fully rebuilds this node's pins regardless.
-        GetSharedNode   => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out, type from SharedTypeId
-        SetSharedNode   => new[] { ExecIn(), ExecOut() },
-
-        // GetComponent (P2 migration + CA-01 multi-pin): pure data-(In Target?)/Out node, mirrors
-        // GetSharedNode -- static skeleton is empty; Stage0_Rehydrate.EnrichGetComponentPins
+        // GetComponent (P2 migration + CA-01 multi-pin): pure data-(In Target?)/Out node --
+        // static skeleton is empty; Stage0_Rehydrate.EnrichGetComponentPins
         // rebuilds Target(in)/per-field-or-legacy-Value(out)/Found(out) whenever the node is
         // stored pin-less (fully-authored fixtures with Pins.Count > 0 are left alone by the
-        // "node.Pins.Count > 0 => skip" guard, same as GetShared).
+        // "node.Pins.Count > 0 => skip" guard, the removed GetShared once was).
         GetComponentNode => Array.Empty<PinSchema>(),   // pure data-(In Target?)/Out; enriched by Stage0 when pin-less
 
-        // SetComponent (CA-03, Slice W1): exec node, mirrors SetSharedNode -- static skeleton is
+        // SetComponent (CA-03, Slice W1): exec node -- static skeleton is
         // exec In/Out; Stage0_Rehydrate.EnrichSetComponentPins adds per-field data-ins + "Written"
         // whenever the node is stored pin-less. Self-only -- no "Target" pin (unlike GetComponent).
         SetComponentNode => new[] { ExecIn(), ExecOut() },

@@ -36,8 +36,6 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(AssignRolesNode),        "AssignRoles")]
 [JsonDerivedType(typeof(AdvancePhaseNode),       "AdvancePhase")]
 [JsonDerivedType(typeof(AcquireSlotNode),        "AcquireSlot")]
-[JsonDerivedType(typeof(GetSharedNode),          "GetShared")]
-[JsonDerivedType(typeof(SetSharedNode),          "SetShared")]
 [JsonDerivedType(typeof(GetComponentNode),       "GetComponent")]
 [JsonDerivedType(typeof(SetComponentNode),       "SetComponent")]
 [JsonDerivedType(typeof(PublishEventNode),       "PublishEvent")]
@@ -592,53 +590,9 @@ public sealed class AcquireSlotNode : Node
     public int TotalSlots { get; set; } = 1;
 }
 
-// ──────────────────────────────────────────────────────────────────────────
-// GetShared / SetShared (Slice 2a-2 -- entity-scoped Blueprint shared state)
-// Compile to calls into Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState
-// (Slice 2a-1). Same-entity (self) only -- no target-Entity pin, no cross-entity
-// (that is Slice 2b). No Scope field -- Entity scope is implied for 2a.
-//
-// Slice 2b adds an OPTIONAL "Target" data-in Entity pin to GetShared ONLY (see
-// NodePinSchema.GetSharedPins / Stage0_Rehydrate.EnrichGetSharedPins). When wired, the graph
-// author supplies a target Entity (any Entity-valued pin) instead of self, so a member entity
-// can read a coordinator entity's Entity-scoped shared slot directly (≤1-frame staleness,
-// TryGetShared -> false when the target hasn't provisioned yet -- never throws). SetShared
-// remains self-only by construction -- cross-entity WRITE is a separate future slice (a
-// deferred-event bus), not built here.
-// ──────────────────────────────────────────────────────────────────────────
-
-/// <summary>
-/// Reads the ENTITY-scoped shared working-state slot named <see cref="VariableId"/> off
-/// <c>self</c> (or off an explicit target Entity -- Slice 2b, see "Target" pin), via
-/// <c>BlueprintSharedState.TryGetShared&lt;SharedTypeId&gt;</c>. Pure-data node (no exec pins):
-/// OPTIONAL data-in "Target" (<c>Fdp.Core.Entity</c> -- unwired = self, byte-identical to Slice
-/// 2a-2), data-out "Value" (typed by <see cref="SharedTypeId"/>) + data-out "Found"
-/// (<c>System.Boolean</c>).
-/// </summary>
-public sealed class GetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TryGetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// GetShared projects one data-out pin PER FIELD (read the struct once, expose each field) instead of a
-    /// single whole-struct "Value" pin. Null (and omitted from JSON) = legacy whole-struct path — existing
-    /// assets round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
-
-/// <summary>One baked shared-struct field: name + pin TypeId + byte offset within the struct (for the
-/// per-field write). Mirrors <see cref="PublishEventFieldDecl"/> plus <see cref="Offset"/>.</summary>
+/// <summary>One reflected struct field: name + pin TypeId + byte offset within the struct. Produced by the
+/// editor's struct reflector for the Make/Break/SetMembers palette. ⛔ HISTORY — named for GetShared/SetShared,
+/// its first consumer, removed by <c>CE-440</c> (decision <c>A</c>, <c>Q76</c> §12.24).</summary>
 public sealed class SharedFieldDecl
 {
     public string Name { get; set; } = "";
@@ -647,40 +601,12 @@ public sealed class SharedFieldDecl
     public int Offset { get; set; }
 }
 
-/// <summary>
-/// Writes <c>Value</c> into the ENTITY-scoped shared working-state slot named
-/// <see cref="VariableId"/> on <c>self</c>, via <c>BlueprintSharedState.TrySetShared&lt;SharedTypeId&gt;</c>.
-/// Exec node: exec-In + exec-Out, data-in "Value" (typed by <see cref="SharedTypeId"/>), plus an
-/// optional data-out "Written" (<c>System.Boolean</c>).
-/// </summary>
-public sealed class SetSharedNode : Node
-{
-    /// <summary>Entity-scoped slot name (matches the manifest-provisioned variable name).</summary>
-    public string VariableId { get; set; } = "";
-
-    /// <summary>
-    /// FQN of the standalone Category-1 shared struct (a hand-written blittable struct, NOT a
-    /// generated <c>_Bp+WorkingState</c>). Used to type the "Value" pin directly and as the
-    /// generic argument of <c>BlueprintSharedState.TrySetShared&lt;T&gt;</c>.
-    /// </summary>
-    public string SharedTypeId { get; set; } = "";
-
-    /// <summary>
-    /// Q#14 multi-pin: baked per-field decls the editor reflects from the shared struct. When non-null,
-    /// SetShared exposes one data-in pin PER FIELD; each WIRED field lowers to a per-field write
-    /// (<c>BlueprintSharedState.TrySetSharedField</c>) at that field's offset — unwired fields are
-    /// preserved. Null (and omitted from JSON) = legacy whole-struct "Value" path — existing assets
-    /// round-trip byte-identically.
-    /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
-    public List<SharedFieldDecl>? Fields { get; set; }
-}
 
 // ──────────────────────────────────────────────────────────────────────────
 // GetComponent (Hill-attack -> Blueprints migration P2 -- reads an ECS component field)
 //
 // Reflection-free by construction: ComponentTypeFqn/FieldName/FieldTypeFqn are baked strings
-// authored at edit time (mirrors GetShared/SetShared's SharedTypeId and the P7.1
+// authored at edit time (as the removed GetShared/SetShared's SharedTypeId was, and the P7.1
 // FunctionCallNode.TrailingContext bake -- see that type's doc comment for why the Roslyn
 // incremental generator, running as a netstandard2.0 analyzer, can never load game assemblies
 // to inspect a real CLR type). Lowers in Stage5_Schedule to the SAME three existing IR ops
@@ -690,8 +616,7 @@ public sealed class SetSharedNode : Node
 
 /// <summary>
 /// Reads a field off an ECS component on <c>self</c> (or an explicit target Entity -- OPTIONAL
-/// "Target" data-in pin, cross-entity read, mirrors <see cref="GetSharedNode"/>'s Slice 2b
-/// "Target" pin; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
+/// "Target" data-in pin, cross-entity read; unwired = self). Pure-data node (no exec pins): OPTIONAL data-in "Target"
 /// (<c>Fdp.Core.Entity</c>), data-out "Value" (typed by <see cref="FieldTypeFqn"/> when set,
 /// else the Stage4-resolved pin type). Compiles to
 /// <c>{world}.GetComponentRO&lt;global::ComponentTypeFqn&gt;(entity).FieldName</c> -- see
@@ -712,7 +637,7 @@ public sealed class GetComponentNode : Node
     /// non-null, GetComponent projects one data-out pin PER FIELD (read the component once, expose
     /// each field) instead of the single legacy "Value" pin (<see cref="FieldName"/>/<see
     /// cref="FieldTypeFqn"/>). Null (and omitted from JSON) = legacy single-field path -- existing
-    /// assets round-trip byte-identically. Mirrors <see cref="GetSharedNode.Fields"/> exactly, EXCEPT
+    /// assets round-trip byte-identically. Mirrors the removed GetSharedNode.Fields exactly, EXCEPT
     /// no byte <c>Offset</c> -- component reads are typed member access (<c>__c.{Name}</c>), not a
     /// blittable-struct byte read, so there is nothing to offset into.
     /// </summary>

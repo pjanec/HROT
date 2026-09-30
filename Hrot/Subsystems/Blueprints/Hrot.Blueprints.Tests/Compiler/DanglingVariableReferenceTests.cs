@@ -144,43 +144,6 @@ public sealed class DanglingVariableReferenceTests
         Assert.DoesNotContain(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
     }
 
-    /// <summary>
-    /// ⭐⭐ <b>The scope guard — the one that would have failed six shipped assets.</b>
-    /// <c>GetShared</c>/<c>SetShared</c> also carry a <c>VariableId</c>, but it is a name-keyed
-    /// shared-state slot resolved at runtime, never through <c>FindVariableIndex</c>. The shipped
-    /// corpus holds 61 such references (the literals <c>"state"</c> and <c>"rally"</c>), and a rail
-    /// generalised to "any node with a VariableId" would reject every one of them.
-    /// </summary>
-    [Fact]
-    public void ASharedStateReference_IsNotTouchedByThisRail()
-    {
-        var entry = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = "" };
-        var eOut  = P("Out", "Out", true); entry.Pins.Add(eOut);
-
-        var lit  = new LiteralNode { Id = Guid.NewGuid(), ValueJson = "7" };
-        var lOut = P("Value", "Out", false, "System.Int32"); lit.Pins.Add(lOut);
-
-        var set = new SetSharedNode
-        {
-            Id = Guid.NewGuid(), VariableId = "state", SharedTypeId = "System.Int32",
-        };
-        var sIn  = P("In",  "In",  true);
-        var sOut = P("Out", "Out", true);
-        var sVal = P("Value", "In", false, "System.Int32");
-        set.Pins.AddRange(new[] { sIn, sOut, sVal });
-
-        var ret = new ReturnNode { Id = Guid.NewGuid() };
-        var rIn = P("In", "In", true); ret.Pins.Add(rIn);
-
-        var graph = new Graph
-        {
-            Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Function,
-            Nodes = { entry, lit, set, ret },
-            Links = { W(entry, eOut, set, sIn), W(lit, lOut, set, sVal), W(set, sOut, ret, rIn) },
-        };
-
-        var result = Compile(Instance("SharedRef", graph));
-
-        Assert.DoesNotContain(DiagnosticCodes.BP1670, result.Diagnostics.Select(d => d.Code));
-    }
+    // ⛔ HISTORY — a rail here proved BP1670 ignored the (name-keyed, runtime-resolved) SetShared VariableId.
+    //   The node pair was removed by CE-440 (Q76 §12.24), so there is nothing left to ignore.
 }

@@ -199,42 +199,6 @@ internal static class StatementEmitter
                 break;
             }
 
-            // ------------------------------------------------------------------
-            // GetShared / SetShared (Slice 2a-2 + Slice 2b): entity-scoped shared working-state,
-            // compiled to calls into the Slice 2a-1 accessor.
-            // ------------------------------------------------------------------
-
-            case IrOp_ReadShared op:
-            {
-                string sharedTypeFqn = op.SharedTypeFqn;
-                if (idx >= 0)
-                    e.WriteLine($"var __t{idx} = default(global::{sharedTypeFqn});");
-                string valueRef = idx >= 0 ? $"__t{idx}" : "_";
-                // Slice 2b: an explicit "Target" pin resolves to the accessor's entity arg (cross-
-                // entity read); referenced directly by index exactly as IrOp_GetComponent references
-                // its resolved Entity IrValue (no cast -- the producing statement's C# local is
-                // already typed global::Fdp.Core.Entity). Unwired (TargetEntity == null) emits
-                // `self` EXACTLY as Slice 2a-2 -- byte-identical unwired-path codegen.
-                string entityArg = op.TargetEntity is { } targetEntity ? $"__t{targetEntity.Index}" : "self";
-                e.WriteLine(
-                    $"bool __t{op.FoundValue.Index} = global::Fdp.Toolkit.Blueprints.Partitioning." +
-                    $"BlueprintSharedState.TryGetShared<global::{sharedTypeFqn}>({wv}, {entityArg}, \"{op.VariableId}\", out {valueRef});");
-                break;
-            }
-
-            case IrOp_WriteShared op:
-            {
-                string sharedTypeFqn = op.SharedTypeFqn;
-                string call =
-                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
-                    $"TrySetShared<global::{sharedTypeFqn}>({wv}, self, \"{op.VariableId}\", in __t{op.Value.Index})";
-                if (idx >= 0)
-                    e.WriteLine($"bool __t{idx} = {call};");
-                else
-                    e.WriteLine($"{call};");
-                break;
-            }
-
             case IrOp_MakeStruct op:
             {
                 // Q#14 Option B: build a struct value into __t{idx}; the value flows to consumers.
@@ -264,17 +228,6 @@ internal static class StatementEmitter
                     foreach (var f in op.Fields)
                         e.WriteLine($"__t{idx}.{f.FieldName} = __t{f.Value.Index};");
                 }
-                break;
-            }
-
-            case IrOp_WriteSharedField op:
-            {
-                // Q#14 multi-pin: true per-field write — touches only this field's bytes, unwired
-                // fields preserved. Result discarded (self-only, not-ready => no-op, mirrors WriteShared).
-                e.WriteLine(
-                    $"global::Fdp.Toolkit.Blueprints.Partitioning.BlueprintSharedState." +
-                    $"TrySetSharedField<global::{op.SharedTypeFqn}, global::{op.FieldTypeFqn}>(" +
-                    $"{wv}, self, \"{op.VariableId}\", {op.FieldOffset}, in __t{op.Value.Index});");
                 break;
             }
 

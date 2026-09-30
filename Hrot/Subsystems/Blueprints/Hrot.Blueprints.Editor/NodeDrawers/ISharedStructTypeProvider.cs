@@ -5,8 +5,9 @@ namespace Hrot.Blueprints.Editor.NodeDrawers;
 
 /// <summary>
 /// Discovers the fully-qualified names of Category-1 shared-struct types (C# structs
-/// decorated with <see cref="BlackboardDtoStructAttribute"/>) for the "Shared Type FQN"
-/// picker used by <see cref="GetSharedNodeDrawer"/>/<see cref="SetSharedNodeDrawer"/>.
+/// decorated with <see cref="BlackboardDtoStructAttribute"/>) for the Make/Break/SetMembers struct palette
+/// (<see cref="MakeBreakStructPaletteEntries"/>). ⚠ Its first consumer — the GetShared/SetShared drawers —
+/// was removed by <c>CE-440</c>; the "Shared" name is historical.
 /// </summary>
 public interface ISharedStructTypeProvider
 {

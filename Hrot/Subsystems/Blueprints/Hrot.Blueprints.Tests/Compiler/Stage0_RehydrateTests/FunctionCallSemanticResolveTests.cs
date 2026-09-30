@@ -73,23 +73,23 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps.GetCachedEqsRequestId"] =
+            ["Hrot.AI.Behaviors.Brains.WaveMonitorOps.ActiveCount"] =
                 new ClrMethodSig(
-                    new[] { new ClrParamInfo("s", "Hrot.AI.Behaviors.Brains.HillAttackSharedState") },
-                    "System.Int64"),
+                    new[] { new ClrParamInfo("s", "Hrot.AI.Behaviors.Brains.WaveState") },
+                    "System.Int32"),
         });
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = true,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.HillAttackSharedStateOps",
-            MethodName = "GetCachedEqsRequestId",
+            TargetTypeId = "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
+            MethodName = "ActiveCount",
             TrailingContext = FunctionCallContextKind.None,
         };
         var pins = Rehydrate(fc, resolver).Pins.Select(P).ToList();
 
         // Registered curated struct → UNPREFIXED TypeId (resolves via the type table).
-        Assert.Equal(("s", "In", false, "Hrot.AI.Behaviors.Brains.HillAttackSharedState"), pins[0]);
-        Assert.Equal(("Return", "Out", false, "System.Int64"), pins[1]);
+        Assert.Equal(("s", "In", false, "Hrot.AI.Behaviors.Brains.WaveState"), pins[0]);
+        Assert.Equal(("Return", "Out", false, "System.Int32"), pins[1]);
         Assert.Equal(2, pins.Count);
     }
 

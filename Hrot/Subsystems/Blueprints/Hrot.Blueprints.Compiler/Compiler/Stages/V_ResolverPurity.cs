@@ -50,7 +50,6 @@ internal sealed class V_ResolverPurity : IValidator
         // ── writes that outlive the shadow parse ──────────────────────────────
         typeof(SetVariableNode),          // writes asset-scope state
         typeof(SetVariablesNode),         // CE-433: the same writes, many at once — same exemption below
-        typeof(SetSharedNode),            // writes the cross-entity shared region
         typeof(SetComponentNode),         // writes a component on an entity
         typeof(CollectionWriteNode),      // mutates a component collection
         typeof(ListWriteNode),            // mutates a fixed-capacity list variable

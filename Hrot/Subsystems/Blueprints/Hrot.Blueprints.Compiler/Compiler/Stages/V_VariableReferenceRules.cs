@@ -25,8 +25,8 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 ///
 /// <para>
 /// ⛔⛔ <b>Scoped to Get/SetVariableNode, and the scope is load-bearing.</b>
-/// <c>GetSharedNode</c>/<c>SetSharedNode</c> also carry a <c>VariableId</c>, but it is a name-keyed
-/// shared-state slot resolved at RUNTIME (<c>BlueprintSharedState.TryGetShared</c>) and never passed to
+/// The (since removed, <c>CE-440</c>) <c>GetSharedNode</c>/<c>SetSharedNode</c> also carried a <c>VariableId</c>,
+/// but a name-keyed shared-state slot resolved at RUNTIME and never passed to
 /// <c>FindVariableIndex</c> at all. The shipped corpus holds <b>61</b> such references — the literals
 /// <c>"state"</c> and <c>"rally"</c> — and a rail generalised to "any node with a VariableId" would
 /// reject six shipped assets on a mechanism that works correctly.

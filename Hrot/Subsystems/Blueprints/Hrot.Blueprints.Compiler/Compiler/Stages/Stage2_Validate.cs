@@ -52,7 +52,6 @@ internal static class Stage2_Validate
         new V_FlowForEachRules(),
         new V_ReadEqsResultNodeRules(),
         new V_SpawnEqsSensorNodeRules(),
-        new V_SharedStateRules(),
         new V_ComponentAccessRules(),
         new V_ListVariableRules(),
         new V_FunctionGraphCallRules(),
@@ -1592,80 +1591,6 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
 }
 
 // ---------------------------------------------------------------------------
-// V_SharedStateRules (BP2040-BP2042 -- Slice 2a-2 GetShared/SetShared)
-// ---------------------------------------------------------------------------
-
-/// <summary>
-/// Validates <see cref="GetSharedNode"/>/<see cref="SetSharedNode"/> nodes.
-/// <list type="bullet">
-///   <item>BP2040 -- <c>SharedTypeId</c> is empty.</item>
-///   <item>BP2041 -- <c>SharedTypeId</c> does not look like a well-formed dotted CLR type FQN
-///     (e.g. contains whitespace, is a bare/malformed identifier, or has an empty segment).
-///     <para>
-///     NOTE: this is a syntactic check, not full type resolution. The compiler's
-///     <see cref="ITypeRegistry"/> accepts ANY "global::"-prefixed TypeId unconditionally (the AN2
-///     "trust the FQN, let the downstream C# compiler catch a bad reference" strategy -- see
-///     <see cref="StaticTypeRegistry.TryResolve"/>), and reflection-based resolution is unreliable in
-///     the analyzer/generator host (the shared struct commonly lives in the very assembly being
-///     compiled, per the same reasoning documented on <c>FunctionCallNode</c>'s CLR-reflection
-///     fallback in <c>Stage0_Rehydrate</c>). A deterministic, host-independent syntax check is the
-///     only meaningful signal available at this stage; genuine "type does not exist" errors surface
-///     later as ordinary C# compiler errors on the emitted <c>global::{SharedTypeFqn}</c> reference.
-///     </para>
-///   </item>
-///   <item>BP2042 -- node appears in a Library-dispatch asset, which has no <c>self</c> Entity in
-///     scope (the generated call is <c>BlueprintSharedState.TryGetShared/TrySetShared(world, self,
-///     ...)</c> -- <c>self</c> does not exist in a stateless Library function).</item>
-/// </list>
-/// Cross-entity checks are moot for 2a-2 -- there is no target-Entity pin (Slice 2b).
-/// </summary>
-internal sealed class V_SharedStateRules : IValidator
-{
-    // One-or-more dot/plus-separated C# identifier segments, optional "global::" prefix.
-    // Rejects whitespace, empty segments, punctuation other than '.'/'+', etc.
-    private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
-        @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
-        System.Text.RegularExpressions.RegexOptions.Compiled);
-
-    public void Validate(BlueprintAsset asset, ValidationContext ctx)
-    {
-        foreach (var graph in asset.Graphs)
-        {
-            foreach (var node in graph.Nodes)
-            {
-                string? sharedTypeId = node switch
-                {
-                    GetSharedNode gsn => gsn.SharedTypeId,
-                    SetSharedNode ssn => ssn.SharedTypeId,
-                    _                 => null,
-                };
-                if (sharedTypeId is null) continue;
-
-                if (asset.Dispatch == BlueprintDispatchKind.Library)
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2042,
-                        $"{node.GetType().Name} is not permitted in a Library-dispatch asset -- " +
-                        "there is no `self` Entity in scope for the shared-state accessor call.",
-                        asset.AssetId, graph.Id, node.Id));
-
-                if (string.IsNullOrEmpty(sharedTypeId))
-                {
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2040,
-                        $"{node.GetType().Name}: SharedTypeId must not be empty.",
-                        asset.AssetId, graph.Id, node.Id));
-                    continue;
-                }
-
-                if (!FqnPattern.IsMatch(sharedTypeId))
-                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2041,
-                        $"{node.GetType().Name}: SharedTypeId '{sharedTypeId}' does not resolve to a " +
-                        "known unmanaged/blittable struct type (not a well-formed type name).",
-                        asset.AssetId, graph.Id, node.Id));
-            }
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
 // V_ComponentAccessRules (BP2060-BP2065 -- CA-03/CA-05/CA-06: SetComponent/GetComponent access)
 // ---------------------------------------------------------------------------
 
@@ -1674,16 +1599,15 @@ internal sealed class V_SharedStateRules : IValidator
 /// <list type="bullet">
 ///   <item>BP2060 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> is empty.</item>
 ///   <item>BP2061 -- <see cref="SetComponentNode"/>.<c>ComponentTypeFqn</c> does not look like a
-///     well-formed dotted CLR type FQN (same syntactic-only check as <see cref="V_SharedStateRules"/>'s
-///     BP2041 -- see that validator's doc comment for why a full-resolution check is not meaningful
-///     here).</item>
+///     well-formed dotted CLR type FQN (syntactic only: the compiler runs as a netstandard2.0 analyzer and cannot load the game
+///     assemblies to resolve the type).</item>
 ///   <item>BP2062 -- the node carries a "Target" pin. <see cref="SetComponentNode"/> is SELF-ONLY
 ///     by construction (Q#16) -- <c>Stage0_Rehydrate.EnrichSetComponentPins</c> never projects
 ///     one, so a "Target" pin here can only come from a hand-authored/legacy asset; flagged
 ///     regardless of whether the pin is actually linked.</item>
 ///   <item>BP2063 (CA-05, Slice 1b) -- a <see cref="GetComponentNode"/> with <c>IsManaged == true</c>
 ///     has one of its FIELD out-pins wired directly into a persisting sink (<see cref="SetVariableNode"/>
-///     or <see cref="SetSharedNode"/>). Rule G1 (Q#15): a managed component-read value is
+///     or SetSharedNode (removed, CE-440)). Rule G1 (Q#15): a managed component-read value is
 ///     read-and-pass-to-managed-consumer only -- never persisted. See this rule's own doc comment
 ///     below for what BP1503/BP1501 already cover vs. the gap this closes.</item>
 ///   <item>BP2064 (CA-06, Slice W2, Q#16-C) -- a <see cref="SetComponentNode"/> with
@@ -1710,7 +1634,7 @@ internal sealed class V_SharedStateRules : IValidator
 /// </summary>
 internal sealed class V_ComponentAccessRules : IValidator
 {
-    // Same syntactic FQN check as V_SharedStateRules -- one-or-more dot/plus-separated C#
+    // Syntactic FQN check (the retired V_SharedStateRules used the same) -- one-or-more dot/plus-separated C#
     // identifier segments, optional "global::" prefix.
     private static readonly System.Text.RegularExpressions.Regex FqnPattern = new(
         @"^(global::)?[A-Za-z_][A-Za-z0-9_]*([.+][A-Za-z_][A-Za-z0-9_]*)*$",
@@ -2021,7 +1945,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     <c>asset.Variables</c>/<c>asset.WorkingState</c> entry whose OWN declared type resolves to
     ///     managed -- independent of wiring. So "managed value -&gt; a Variable declared with that same
     ///     managed type" is already impossible: the Variable itself cannot exist. This does NOT cover
-    ///     <c>SetSharedNode</c> at all (<see cref="V_SharedStateRules"/> only checks <c>SharedTypeId</c>
+    ///     <c>SetSharedNode</c> at all (the retired V_SharedStateRules only checked <c>SharedTypeId</c>
     ///     syntactically, never its managed-ness), and does not stop wiring in general -- only the
     ///     specific case of a type-matched, explicitly-declared managed Variable/WorkingState field.
     ///   </item>
@@ -2032,9 +1956,9 @@ internal sealed class V_ComponentAccessRules : IValidator
     ///     regardless of whether that shared type is managed.
     ///   </item>
     /// </list>
-    /// <b>The gap this closes:</b> <see cref="SetSharedNode"/> has NO managed-ness check anywhere
+    /// <b>The gap this closes:</b> SetSharedNode (removed, CE-440) has NO managed-ness check anywhere
     /// (BP1503 never looks at it), so wiring a managed <see cref="GetComponentNode"/> field straight
-    /// into a <see cref="SetSharedNode"/> field pin of the SAME type name was previously accepted by
+    /// into a SetSharedNode (removed, CE-440) field pin of the SAME type name was previously accepted by
     /// both BP1503 (out of scope) and BP1501 (name matches). This rule closes that gap directly at the
     /// LINK level, and -- for defense in depth / a clearer diagnostic message pointing at the actual
     /// managed-read node -- also flags the <see cref="SetVariableNode"/> case even though BP1503
@@ -2043,7 +1967,7 @@ internal sealed class V_ComponentAccessRules : IValidator
     /// <para>
     /// Deliberately narrow: only flags a link whose SOURCE is one of <paramref name="gcn"/>'s named
     /// FIELD out-pins (excludes "Found", a plain <c>System.Boolean</c> that is never itself a managed
-    /// value) landing on <see cref="SetVariableNode"/>/<see cref="SetSharedNode"/> specifically -- a
+    /// value) landing on <see cref="SetVariableNode"/>/SetSharedNode (removed, CE-440) specifically -- a
     /// link into a <see cref="FunctionCallNode"/> data-in (library/function call parameter) is NOT
     /// touched, so a legitimate managed-&gt;managed pass-through (e.g. a library call taking the managed
     /// type) is never rejected. <see cref="SetComponentNode"/> is also NOT a checked destination here:
@@ -2068,7 +1992,7 @@ internal sealed class V_ComponentAccessRules : IValidator
             if (link.FromNodeId != gcn.Id || !fieldPinIds.Contains(link.FromPinId)) continue;
 
             var sink = graph.Nodes.FirstOrDefault(n => n.Id == link.ToNodeId);
-            if (sink is not (SetVariableNode or SetSharedNode)) continue;
+            if (sink is not SetVariableNode) continue;
 
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2063,
                 $"{nameof(GetComponentNode)}: a managed component-read field value may only feed a " +

@@ -60,7 +60,7 @@ public sealed class ComponentNodeDrawersTests
     public void Drawer_Handles_OtherNodeTypes_False()
     {
         var drawer = new GetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
-        Assert.False(drawer.Handles(new GetSharedNode  { Id = Guid.NewGuid() }));
+        Assert.False(drawer.Handles(new GetVariableNode{ Id = Guid.NewGuid() }));
         Assert.False(drawer.Handles(new SetVariableNode{ Id = Guid.NewGuid() }));
     }
 
@@ -340,7 +340,7 @@ public sealed class ComponentNodeDrawersTests
     {
         var drawer = new SetComponentNodeDrawer(new SpyEditService(), DefaultTypeProvider);
         Assert.False(drawer.Handles(new GetComponentNode { Id = Guid.NewGuid() }));
-        Assert.False(drawer.Handles(new SetSharedNode    { Id = Guid.NewGuid() }));
+        Assert.False(drawer.Handles(new SetVariableNode  { Id = Guid.NewGuid() }));
     }
 
     [Fact]

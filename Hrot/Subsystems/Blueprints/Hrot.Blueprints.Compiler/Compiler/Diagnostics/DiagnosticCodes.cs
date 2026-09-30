@@ -216,10 +216,8 @@ public static class DiagnosticCodes
     public const string BP2031 = "BP2031";  // SpawnEqsSensorNode template not found
     public const string BP2032 = "BP2032";  // SpawnEqsSensorNode InstanceId collision
 
-    // Stage 2 -- Validate (GetShared/SetShared rules -- Slice 2a-2)
-    public const string BP2040 = "BP2040";  // SharedTypeId empty
-    public const string BP2041 = "BP2041";  // SharedTypeId does not resolve to a known unmanaged/blittable struct type
-    public const string BP2042 = "BP2042";  // GetShared/SetShared in unsupported (Library) dispatch -- no `self` in scope
+    // ⛔ BP2040–BP2042 RETIRED by CE-440 (decision A, Q76 §12.24) with the GetShared/SetShared nodes they
+    //   validated. Never reuse the numbers — they are cited from docs and old logs.
 
     public const string BP2050 = "BP2050";  // FlowForEach body contains a latent or (P1a) Branch node -- body must be a synchronous, latent-free (and branch-free) sub-DAG
 

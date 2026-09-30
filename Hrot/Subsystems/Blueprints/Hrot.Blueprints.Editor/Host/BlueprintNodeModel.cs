@@ -299,8 +299,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         // Slice 2a-3: GetShared/SetShared — VariableId is a raw manifest-provisioned slot name
         // (not a blueprint VariableDecl GUID), so no ResolveVariableName lookup is needed. The slot
         // name is bracketed into the title for fast identification (also shown on the collapsed Value pin).
-        Hrot.Blueprints.Core.Assets.GetSharedNode gsn      => string.IsNullOrEmpty(gsn.VariableId) ? "Get Shared" : $"Get Shared [{gsn.VariableId}]",
-        Hrot.Blueprints.Core.Assets.SetSharedNode ssn      => string.IsNullOrEmpty(ssn.VariableId) ? "Set Shared" : $"Set Shared [{ssn.VariableId}]",
         // CA-02: bracket the short component type name, mirroring Make/Break/SetMembers's
         // "[ShortTypeName]" convention -- the component identity is the interesting bit, not the
         // generic "GetComponentNode" class name.
@@ -383,8 +381,6 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.EventEntryNode           => NodeCategory.Event,
         Hrot.Blueprints.Core.Assets.GetVariableNode          => NodeCategory.VariableGet,
         Hrot.Blueprints.Core.Assets.SetVariableNode          => NodeCategory.VariableSet,
-        Hrot.Blueprints.Core.Assets.GetSharedNode            => NodeCategory.VariableGet,
-        Hrot.Blueprints.Core.Assets.SetSharedNode            => NodeCategory.VariableSet,
         // CA-02: GetComponent is pure-data (no exec pins), the "get" analog of GetShared.
         Hrot.Blueprints.Core.Assets.GetComponentNode         => NodeCategory.VariableGet,
         // CA-04: SetComponent is an exec node, the "set" analog of SetShared.

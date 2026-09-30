@@ -65,12 +65,6 @@ public static class BlueprintEditorBootstrap
         // labels (action is baked at creation via the per-action palette; no mutation path).
         registry.Register(typeof(ChannelCommandNode), new ChannelCommandNodeDrawer(channelCatalog));
 
-        // Slice 2a-3: GetSharedNode/SetSharedNode — VariableId (free-text) + SharedTypeId
-        // (filtered picker over ISharedStructTypeProvider) editable post-placement; see
-        // SharedNodeDrawers.cs for the picker rationale.
-        registry.Register(typeof(GetSharedNode), new GetSharedNodeDrawer(editService, sharedStructTypeProvider));
-        registry.Register(typeof(SetSharedNode), new SetSharedNodeDrawer(editService, sharedStructTypeProvider));
-
         // CA-02: GetComponentNode -- ComponentTypeFqn (filtered picker over IComponentTypeProvider,
         // always re-bakes the full field set; no collapse toggle, see ComponentNodeDrawers.cs).
         registry.Register(typeof(GetComponentNode), new GetComponentNodeDrawer(editService, componentTypeProvider));

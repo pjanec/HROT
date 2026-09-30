@@ -81,7 +81,9 @@ public sealed class GoldenCorpusTests
         //    `HillAssault2` matches both.
         // ⭐ 44 → 45 (CE-428, 2026-09-29): `T40Resolver` — the FIRST behaviour RESOLVER asset (shape ③, a Library
         //    with a ResolverSubject). Before it no .bp.json could be bound to a behaviour at all (Q76 §12.20).
-        Assert.Equal(45, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 45 → 43 (CE-440, 2026-09-30): `SharedStateRallyDemo` and `SharedStateCrossEntityDemo` were DELETED
+        //    with the GetShared/SetShared node pair they demonstrated (decision A, Q76 §12.24).
+        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

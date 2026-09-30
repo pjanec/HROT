@@ -84,8 +84,9 @@ removed from the palette. Per-node, per-axis detail lives in the (dated)
 contract), `GetAllParameters` ✅, `GetAllVariables` / `SetVariables` ✅ (the whole blackboard as pins —
 `CE-433`, Q76 §12.22; an unwired `SetVariables` pin leaves its variable untouched).
 
-**Shared & component state** (entity-scoped, foreign structs) — `GetShared` ✅, `SetShared` ✅ (both
-support **per-field pins** — see §6), `GetComponent` ✅ (read a field off an ECS component).
+**Component state** — `GetComponent` ✅ (read a field off an ECS component). ⛔ `GetShared` / `SetShared`
+(entity-scoped shared memory) were **REMOVED** by `CE-440` — decision `A` of Q76 §12.24; a behaviour's state
+lives in its own block, read and written through `GetVariable` / `SetVariable` / `GetAllVariables` / `SetVariables`.
 
 **Struct values** — `MakeStruct` ✅, `BreakStruct` ✅, `SetMembers` ✅ (construct / deconstruct /
 copy-modify a blittable struct inline). New in the Option-B work.
@@ -173,9 +174,7 @@ mirrored in the other.
 - **Blackboard tiers** — per-entity state lives in one of three fixed-size unmanaged components
   (`BlueprintBlackboard1024 / 4096 / 16384`), chosen by size; `BlueprintMaintenanceSystem` upgrades a
   slot to a larger tier when it outgrows the current one.
-- **`BlueprintSharedState`** — by-value, fail-safe entity-scoped shared slots: `TryGetShared<T>`,
-  `TrySetShared<T>`, and `TrySetSharedField<TStruct,TField>` (true per-field write at a baked offset).
-  Returns `false` (never throws) on layout drift or key collision.
+- ⛔ **`BlueprintSharedState`** (entity-scoped shared slots) — **REMOVED** by `CE-440` (Q76 §12.24).
 - **Custom-event dispatch** — `BlueprintEventDispatch.DispatchForSlot`: for each Event-graph handler,
   resolves the event key → bus type-id, `HasEvent`-gates (absent events cost nothing), and invokes the
   handler once per event instance with the payload bytes.
@@ -191,11 +190,10 @@ mirrored in the other.
   publishers, and a Make/Break/SetMembers triple per `[BlackboardDtoStruct]`. Discovery reflects
   Hrot/Fdp assemblies and **bakes** the resulting FQNs onto the created node.
 - **Pin projection** — `NodePinSchema.GetCanonicalPins` computes each node's pins (authored → registry
-  → fallback). Dynamic kinds (EventEntry, FunctionCall, Get/SetShared, Make/Break/SetMembers,
+  → fallback). Dynamic kinds (EventEntry, FunctionCall, Make/Break/SetMembers,
   PublishEvent, …) are computed with reflection + `global::` stamping, and must match Stage0 (§4).
-- **Per-field ("expand") pins** — `GetShared`/`SetShared`/`PublishEvent` can show one pin per struct
-  field instead of one whole-struct pin. `SetShared`'s multi-pin write is a **true per-field write** —
-  unwired fields keep their existing value (no whole-struct clobber).
+- **Per-field ("expand") pins** — `PublishEvent` can show one pin per struct field instead of one whole-struct
+  pin *(`GetShared`/`SetShared` had the same, and were removed by `CE-440`)*.
 - **Wire editing + undo** — a full NodeEdit **Host** layer (`BlueprintNodeModel`/`GraphModel`/
   `NodePinSchema`/`BlueprintCommandSink`) with wire-drop and exec-out fan-out. **One undo stack**
   covers canvas *and* Details-panel edits, in the order the designer performed them (BP-11); a
@@ -220,7 +218,7 @@ The features below post-date most existing docs (they are folded into the sectio
 | Capability | What it enables |
 |------------|-----------------|
 | **Custom events pub/sub** | Designer-authored bus events with typed payloads, published from one blueprint (`PublishEvent`) and handled by another's **Event graph** (`EventEntry`), optionally filtered to **Self** vs **Any** recipient. |
-| **Multi-pin field access** | Per-field pins on `PublishEvent` / `GetShared` / `SetShared` — set/read individual struct fields without touching the rest. |
+| **Multi-pin field access** | Per-field pins on `PublishEvent` *(`GetShared`/`SetShared` removed, `CE-440`)* — set/read individual struct fields without touching the rest. |
 | **Struct-value nodes** | `MakeStruct` / `BreakStruct` / `SetMembers` — construct, deconstruct, and copy-modify blittable structs inline; whole structs flow along pins. |
 | **Struct-typed Variables** | A Variable can hold a blittable struct; state offsets are derived from the emitted `State` layout. |
 | **Wire-edit undo** | Link add/remove/replace and node delete are undoable through `CommandHistory`. |

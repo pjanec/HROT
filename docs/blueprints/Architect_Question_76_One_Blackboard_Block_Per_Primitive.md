@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430 are BUILT (§11.7, §12.15–§12.23). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440 are BUILT (§11.7, §12.15–§12.24). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2491,3 +2491,79 @@ hand-written PlatoonHillAttack tree registers all six stateful keys at `@0@{offs
 Node method signatures are unchanged, so the cross-lane `Hrot.IG.Tests` deactivator rails are untouched.
 ⏭ What remains of the partition store is decisions `A` + `C` (generated Node-scoped variables, Entity scope,
 HSM) — not this slice.
+
+### 12.24 ⭐⭐⭐ `CE-440` BUILD DESIGN — **decision `A`: the shared-state node pair leaves the blueprint language** *(`2026-09-30`, overnight)*
+
+🔒 **Frame:** §4-`A` (*"REMOVE, SEQUENCED INSIDE `B`"* — the user's measure-the-simplification rule, applied
+and recorded) · §12.14 (`CE-436` already deleted the 58 `state` references and `PlatoonHillAttack2`) ·
+§12.15 (*"`CE-422` and decision `A` are ONE removal"* — `rally` is pinned to `Entity` only by the accessor).
+🔒 `R-137` is satisfied by the explicit decision, not waived. ⛔ **Not here:** decision `C` (the scope enums
+themselves) — `CE-441`, next.
+
+#### 12.24a INVENTORY *(grep over every symbol of the feature, `2026-09-30`; cross-lane dirs checked: 0 hits)*
+
+| layer | what goes | files |
+|---|---|---|
+| node model | `GetSharedNode` · `SetSharedNode` (+ JSON discriminators) | `Nodes.cs` |
+| compiler | `BuiltInNodeRegistry` arms · `Stage0` enrichers · `Stage2` shared-state rules (`BP2040`–`2042`) · `Stage5` lowering · `IrOp_ReadShared`/`WriteShared` · `IrPrinter` · `StatementEmitter` · purity/reference-rule arms | 10 |
+| runtime | `BlueprintSharedState` (the name-keyed Entity accessor) | 1 |
+| editor | `SharedNodeDrawers` (534) · `ISharedStructTypeProvider` · palette/title/pin-schema/command-sink/graph-model/bootstrap arms · incidental cross-refs in 5 other drawers | 13 |
+| gameplay types | `HillAttackSharedState` · `HillAttackSharedStateOps` · `SquadRallyState` · `WaveMonitorOps.UpdateShared`/`ActiveCountShared` (the `WaveState` overloads STAY — `HillAssault2_IsWaveCompleted` calls them) · their `StaticTypeRegistry` entry | 5 |
+| demo assets | `SharedStateRallyDemo.bp.json` · `SharedStateCrossEntityDemo.bp.json` · `T37_SharedStateManifestProvisioning.btree.json` (+ goldens) | 3 |
+| tests | `T36`/`T37`/`T38` proofs · `BlueprintSharedStateTests` · `V_SharedStateValidatorTests` · `SharedNode*Tests` ×3 · `MultiPinSetSharedTests` · arms in ~12 others | ~20 |
+
+#### 12.24b DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **delete the node kinds end to end** — every stage arm, the IR ops, the accessor, the editor surface | ⛔ keep the node "deprecated" — a kind nothing can author still carries an arm in every compiler stage, which is the cost the decision measured |
+| ⭐⭐ **delete the three demo assets and their proofs** (`T36`/`T37`/`T38`) | ⛔ re-point them — they exist to prove the removed feature; `R-137` is honoured by the recorded decision |
+| ⭐ **delete the gameplay structs** only the removed graphs used | ⛔ keep them "for C#" — measured: no hand-written node reads them |
+| ⭐ **`BP2040`–`2042` codes are retired, not renumbered** | ⛔ reuse the numbers — a code is cited from docs and old logs |
+| ⭐ **a legacy `.bp.json` carrying `GetShared`/`SetShared` fails to LOAD** (unknown discriminator) | ⛔ a silent skip — the graph would compile without its reads; loud is right, and the corpus holds none after this slice |
+
+```mermaid
+classDiagram
+    class GetSharedNode { <<DELETED>> }
+    class SetSharedNode { <<DELETED>> }
+    class IrOp_ReadShared { <<DELETED>> }
+    class IrOp_WriteShared { <<DELETED>> }
+    class BlueprintSharedState { <<DELETED - runtime accessor>> }
+    class SharedNodeDrawers { <<DELETED - editor>> }
+    class GetVariableNode { <<EXISTS - the block, per field>> }
+    class GetAllVariablesNode { <<EXISTS - CE-433>> }
+    class ContainerFor { <<EXISTS - EmissionContext>> }
+    GetSharedNode ..> IrOp_ReadShared
+    SetSharedNode ..> IrOp_WriteShared
+    IrOp_ReadShared ..> BlueprintSharedState
+    IrOp_WriteShared ..> BlueprintSharedState
+    SharedNodeDrawers ..> GetSharedNode
+    GetVariableNode ..> ContainerFor
+    GetAllVariablesNode ..> ContainerFor
+```
+
+> ⭐ **Caption.** The left cluster is one vertical slice with no edge into the right one — which is why it
+> can leave whole. What an author reaches for instead is the block (`Get Variable`, `Get All Variables`).
+
+```mermaid
+sequenceDiagram
+    participant L as "asset load"
+    participant S0 as "Stage0..5"
+    participant E as "emitter"
+    L->>L: kind GetShared - unknown discriminator
+    L-->>L: load fails loudly
+    Note over S0,E: no stage, IR op or emitter arm remains for the pair
+```
+
+> ⭐ **Caption.** The only runtime-visible change is at load time; nothing downstream has an arm to reach.
+
+#### 12.24c ✅ AS BUILT `2026-09-30` — as designed, plus one measured KEEP
+
+The vertical slice left whole: no stage, IR op, emitter arm, runtime accessor or editor surface for the pair
+remains; `BP2040`–`2042` are retired, not reused. ⭐⭐ **The measured KEEP — found only by opening every
+consumer before deleting:** the struct-type provider (`ISharedStructTypeProvider`), the struct field reflector
+and `SharedFieldDecl` were written FOR the pair, but the surviving Make/Break/SetMembers palette and the
+Component/WaitForChannel pickers use them. They stay (extracted to `StructPickerHelpers.cs`), names flagged as
+historical — ⛔ a rename is a Roslyn job, not this slice's. Gates: Blueprints **3981/0/17** · Generators
+**341/0** · Toolkits **2380/0** · AiShared **2095/0/1**; goldens moved by exactly the three deleted assets'
+rows. ⏭ `CE-441` — decision `C`.

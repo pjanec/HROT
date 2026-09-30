@@ -77,43 +77,7 @@ namespace Hrot.AI.Behaviors.Brains
         [BlueprintCallable("Wave")]
         public static int ActiveCount(WaveState s) => s.Runners.Count;
 
-        // ── tree-integration adapters (architect Q#9) ───────────────────────────
-        // The integrated IsWaveCompleted blueprint shares state via HillAttackSharedState (GetShared/
-        // SetShared), not a private WaveState WorkingState var. These thin adapters project the three
-        // wave fields into a WaveState, reuse the proven WaveState monitor above, and write them back --
-        // so the integrated node stays a thin GetShared -> UpdateShared -> SetShared wrapper with zero
-        // logic duplication.
-        //
-        // NAMED DISTINCTLY from the WaveState Update/ActiveCount above (not C# overloads): a
-        // FunctionCall blueprint node identifies its target by (TargetTypeId, MethodName) ONLY, so both
-        // the editor's node picker and the compiler's pin resolution (Stage0 semantic-model/reflection)
-        // resolve by name and CANNOT disambiguate overloads -- they would bind the first-declared
-        // WaveState overload and mis-type the shared-struct pins. Unique names keep name-only resolution
-        // unambiguous so these blueprints round-trip with NO explicit persisted pins (Blocker-1 fix).
-
-        /// <summary>Runs the wave-completion monitor over the shared commander struct (projects the
-        /// <c>ActiveRunners</c>/<c>BurnedSlotsMask</c>/<c>BaselineReservedMask</c> fields into a
-        /// <see cref="WaveState"/>, calls <see cref="Update(WaveState, ISimulationView)"/>, writes them
-        /// back), returning the mutated <see cref="HillAttackSharedState"/>.</summary>
-        [BlueprintCallable("Wave")]
-        public static HillAttackSharedState UpdateShared(HillAttackSharedState s, ISimulationView view)
-        {
-            var wave = new WaveState
-            {
-                Runners              = s.ActiveRunners,
-                BurnedSlotsMask      = s.BurnedSlotsMask,
-                BaselineReservedMask = s.BaselineReservedMask,
-            };
-            wave = Update(wave, view);
-            s.ActiveRunners        = wave.Runners;
-            s.BurnedSlotsMask      = wave.BurnedSlotsMask;
-            s.BaselineReservedMask = wave.BaselineReservedMask;
-            return s;
-        }
-
-        /// <summary>Active-runner count off the shared struct (== <c>ActiveRunners.Count</c>).
-        /// Distinctly named from <see cref="ActiveCount(WaveState)"/> — see the note above.</summary>
-        [BlueprintCallable("Wave")]
-        public static int ActiveCountShared(HillAttackSharedState s) => s.ActiveRunners.Count;
+        // ⛔ HISTORY — UpdateShared/ActiveCountShared adapted this monitor to HillAttackSharedState for the
+        //   integrated (GetShared/SetShared) wave graph. Removed with that node pair by CE-440 (Q76 §12.24).
     }
 }
