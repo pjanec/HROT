@@ -3026,17 +3026,29 @@ FdpLog<IgApplication>.Info("[Node-{0}] MapClickEvent published. ContextId={1} hi
     /// </summary>
     private void ParseCommandAndSetSelection(string argsJson)
     {
-        if (string.IsNullOrWhiteSpace(argsJson)) return;
-
         try
         {
-            using var doc  = JsonDocument.Parse(argsJson);
-            var       root = doc.RootElement;
+            // ⭐⭐ Q73 §8 — a command with NO entity id (absent, 0, or no arguments at all) CLEARS the
+            //   selection. 🔒 User, 2026-09-30: "set selection without id means clear." Before this, a
+            //   remote controller (ExCon) could select on the IG map but never clear it. ⚠ Same Remote.
+            //   reason prefix as the select below, so the egress does not echo it back to its sender.
+            long entityId = 0;
+            if (!string.IsNullOrWhiteSpace(argsJson))
+            {
+                using var doc = JsonDocument.Parse(argsJson);
+                if (doc.RootElement.ValueKind == JsonValueKind.Object
+                    && doc.RootElement.TryGetProperty("entityId", out var eidEl)
+                    && eidEl.ValueKind == JsonValueKind.Number)
+                    entityId = eidEl.GetInt64();
+            }
 
-            if (!root.TryGetProperty("entityId", out var eidEl))
+            if (entityId == 0)
+            {
+                _world.Bus.PublishManaged(
+                    Fdp.Toolkit.Vis2D.Abstractions.SelectionChangeRequest.ClearAll(
+                        Hrot.ScenarioEditor.Systems.SelectionEgressSystem.RemoteOriginPrefix + "ClearSelection"));
                 return;
-
-            long entityId = eidEl.GetInt64();
+            }
 
             if (!_entityMap.TryGetEntity(entityId, out var entity))
             {

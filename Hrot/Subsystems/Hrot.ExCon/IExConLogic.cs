@@ -112,6 +112,8 @@ public interface IExConLogic
     /// Applies a local selection optimistically and publishes
     /// <c>MapCommandRequest(CMD_SET_SELECTION, {"entityId": id})</c> to the IG.
     /// </summary>
+    /// <remarks>⭐ Q73 §8 — <paramref name="entityId"/> <c>0</c> CLEARS the selection, on the IG map too
+    /// (a <c>CMD_SET_SELECTION</c> with no id means clear).</remarks>
     void SendSetSelection(int entityId);
 
     /// <summary>
