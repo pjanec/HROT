@@ -162,6 +162,10 @@ internal static class NodePinSchema
             SetMembersNode smn  => SetMembersPins(smn),
             ChannelCommandNode cc => ChannelCommandPins(cc, channelCommands, behaviorActions),
             PublishEventNode pev => PublishEventPins(pev),
+            // ⭐ CE-472 — parity with Stage0_Rehydrate's SendIntent / ToJson / FromJson enrichment.
+            SendIntentNode sin => SendIntentPins(sin),
+            ToJsonNode tjn     => ToJsonPins(tjn),
+            FromJsonNode fjn   => FromJsonPins(fjn),
             CallCustomEventNode cce => CallCustomEventPins(cce, asset),
             CallPeerBlueprintNode cpb => CallPeerBlueprintPins(cpb, peerSignatureLookup),
 
@@ -311,6 +315,40 @@ internal static class NodePinSchema
     /// load-bearing. System/catalog events (EventId only, no baked FQN) have no shape available in the editor
     /// host, so they fall through to the exec-only registry shape — unchanged (no regression).
     /// </summary>
+    /// <summary>⭐ CE-472 — exec pair, optional <c>Target</c> entity, one data-IN per baked DTO member.</summary>
+    private static IReadOnlyList<Pin> SendIntentPins(SendIntentNode sin)
+    {
+        var pins = new List<Pin>(3 + sin.Fields.Count)
+        {
+            MakeExec("In",  "In"),
+            MakeExec("Out", "Out"),
+            MakeData("Target", "In", "Fdp.Core.Entity"),
+        };
+        foreach (var f in sin.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        return pins;
+    }
+
+    /// <summary>⭐ CE-472 — one data-IN per DTO member, <c>Json</c> string out.</summary>
+    private static IReadOnlyList<Pin> ToJsonPins(ToJsonNode tjn)
+    {
+        var pins = new List<Pin>(tjn.Fields.Count + 1);
+        foreach (var f in tjn.Fields)
+            pins.Add(MakeData(f.Name, "In", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Json", "Out", "System.String"));
+        return pins;
+    }
+
+    /// <summary>⭐ CE-472 — <c>Json</c> string in, one data-OUT per DTO member, then <c>Ok</c>.</summary>
+    private static IReadOnlyList<Pin> FromJsonPins(FromJsonNode fjn)
+    {
+        var pins = new List<Pin>(fjn.Fields.Count + 2) { MakeData("Json", "In", "System.String") };
+        foreach (var f in fjn.Fields)
+            pins.Add(MakeData(f.Name, "Out", string.IsNullOrEmpty(f.TypeId) ? "System.Object" : f.TypeId));
+        pins.Add(MakeData("Ok", "Out", "System.Boolean"));
+        return pins;
+    }
+
     private static IReadOnlyList<Pin> PublishEventPins(PublishEventNode pev)
     {
         if (string.IsNullOrEmpty(pev.EventTypeFqn))

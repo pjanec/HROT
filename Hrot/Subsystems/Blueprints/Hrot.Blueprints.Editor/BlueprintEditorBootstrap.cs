@@ -159,6 +159,10 @@ public static class BlueprintEditorBootstrap
         foreach (var descriptor in MakeBreakStructPaletteEntries.Entries(new ReflectionSharedStructTypeProvider()))
             registry.Register(descriptor);
 
+        // ⭐ CE-472: one "Send Intent: {id}" / "To JSON" / "From JSON" row per [BehaviorContract] parameter DTO.
+        foreach (var descriptor in IntentContractPaletteEntries.Entries(new ReflectionIntentContractProvider()))
+            registry.Register(descriptor);
+
         // CA-02: register a "Get Component: {Type}" entry per discovered ECS component type
         // ([ComponentId]-marked struct/class) with at least one reflectable field. Each drops a
         // GetComponentNode baked with the component FQN + its full reflected field set.

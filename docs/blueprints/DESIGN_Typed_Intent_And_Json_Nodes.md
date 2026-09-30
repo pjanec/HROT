@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: DESIGN
-current-answer: §3 (the diagrams) and §4 (decisions + leans) — awaiting the user's review before any build
-stale-below: nothing yet
+build-state: BUILT
+current-answer: §3 (the diagrams, as built) · §4 (decisions, APPROVED 2026-09-30) · §5 (as-built deviations — read it)
+stale-below: nothing; the pre-build provider shape is recorded in §5 as SUPERSEDED
 known-rot: none
 known-conflict: docs/blueprints/Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-C ("curated typed→JSON FunctionCall … without exposing JSON nodes") — SUPERSEDED by the user's Q78 §6 revision; this doc follows Q78
 related-designs:
@@ -86,15 +86,21 @@ classDiagram
   ToJsonNode ..> IrOp_ToJson
   FromJsonNode ..> IrOp_FromJson
 
-  class IContractTypeProvider {
+  class IIntentContractProvider {
     <<interface>>
-    +Contracts() IReadOnlyList~ContractInfo~
+    +GetContracts() IReadOnlyList~IntentContract~
+  }
+  class ReflectionIntentContractProvider {
+    +Compute(assemblies)
+    +PinnableMembers(type)
   }
   class ISharedStructTypeProvider { <<existing>> }
-  class BehaviorRegistry { <<existing>> +JsonParamsDtoType }
-  IContractTypeProvider ..> BehaviorRegistry : host impl reads
+  IIntentContractProvider <|.. ReflectionIntentContractProvider
+  IIntentContractProvider ..> ISharedStructTypeProvider : mirrors
+  class IrOp_FromJsonOk { +IrValue Dto }
+  FromJsonNode ..> IrOp_FromJsonOk
 ```
-*What the picture shows that prose hid: only TWO new IR ops (`IrOp_ToJson`, `IrOp_FromJson`) — everything else is
+*What the picture shows that prose hid: only THREE new IR ops (`IrOp_ToJson`, `IrOp_FromJson`, `IrOp_FromJsonOk`) — everything else is
 existing machinery. The DTO value never appears on a wire; it lives only between `MakeStruct` and `ToJson` inside one
 node's lowering.*
 
@@ -103,12 +109,12 @@ node's lowering.*
 ```mermaid
 sequenceDiagram
   participant Ed as Blueprint editor
-  participant Prov as IContractTypeProvider (host)
+  participant Prov as ReflectionIntentContractProvider
   participant C as Compiler Stage5
   participant Gen as Generated Tick
   participant Bus as Event bus
   participant TIR as TacticalIntentResolutionSystem
-  Ed->>Prov: Contracts()
+  Ed->>Prov: GetContracts()
   Prov-->>Ed: id, DTO FQN, members
   Ed->>Ed: place SendIntent(IntentId), bake Fields to pins
   C->>C: MakeStruct(DTO, pins)
@@ -126,12 +132,12 @@ agnostic).*
 
 ```mermaid
 graph TD
-  subgraph Editor host
-    HE[Hrot.Editor] -->|injects| CTP[IContractTypeProvider impl]
-    CTP -->|reads| BR[BehaviorRegistry JsonParamsDtoType]
+  subgraph Blueprints editor
+    BOOT[BlueprintEditorBootstrap] -->|registers| PAL[IntentContractPaletteEntries]
+    PAL -->|asks| CTP[ReflectionIntentContractProvider]
+    CTP -->|scans by attribute NAME| HC[Hrot.Core BehaviorContract DTOs]
   end
-  subgraph Blueprints
-    PAL[BlueprintNodePaletteEntries] -->|asks| CTP
+  subgraph Blueprints compiler
     S5[Stage5_Schedule] --> SE[StatementEmitter IrOp_ToJson / IrOp_FromJson]
   end
   subgraph Runtime every frame
@@ -141,10 +147,10 @@ graph TD
   end
   SE -. emits code into .-> TICK
 ```
-*What it shows: the only new seam is the host-injected provider (the blueprint editor cannot see `Hrot.Core`); at
-runtime nothing new is registered — the existing systems carry the event.*
+*What it shows: the only new seam is the palette provider, which scans `[BehaviorContract]` by attribute NAME because the
+blueprint editor cannot reference `Hrot.Core`; at runtime nothing new is registered — the existing systems carry the event.*
 
-## 4. Decisions — ⭐ leans, for the user's review
+## 4. Decisions — ✅ APPROVED by the user `2026-09-30` ("approved, go ahead with CE-472")
 
 | # | decision | ⭐ lean | rejected (one line each) |
 |---|---|---|---|
@@ -155,6 +161,23 @@ runtime nothing new is registered — the existing systems carry the event.*
 | **E** | `FromJson` failure | `Ok = false`, members default; never throws in a tick | *throw* — a bad payload would kill the frame |
 | **F** | where each node may appear | `SendIntent`: exec node, not in a resolver (side-effecting — joins `V_ResolverPurity.SideEffectingNodeTypes`); `ToJson`/`FromJson`: pure | — |
 
-**Scope of the build once approved:** 3 node classes, 2 IR ops, Stage0 pin enrichment from baked `Fields`, Stage5
+**Scope (as planned; see §5 for what changed):** 3 node classes, 2 IR ops, Stage0 pin enrichment from baked `Fields`, Stage5
 lowering, emitter cases, the provider interface + a host implementation, palette entries (one row per contract),
 rails (real Roslyn compile + a JSON round-trip through `BehaviorParams.FromJson`), and decision D's DTO.
+
+## 5. As built `2026-09-30` — deviations and measured facts
+
+| | what | why |
+|---|---|---|
+| ⚠ deviation | the provider is **`IIntentContractProvider` + `ReflectionIntentContractProvider` in `Hrot.Blueprints.Editor`**, matching `[BehaviorContract]` by attribute NAME — ⛔ SUPERSEDED: *"`IContractTypeProvider`, a host implementation reading `BehaviorRegistry.JsonParamsDtoType`"* | mirrors `ReflectionSharedStructTypeProvider` exactly; no host wiring, and the registry holds the same set (`BehaviorSchemaDiscovery.AuthoredContracts` scans the same attribute) |
+| ⚠ deviation | **three** IR ops, not two: `IrOp_FromJsonOk` reads the parse flag the `IrOp_FromJson` emit declares (`__fjok{n}`) | an IR statement has one result; `Ok` is a second output |
+| ➕ added | compile error **`BP1680`** — a Send Intent / To JSON / From JSON node with no DTO type, or a Send Intent with no intent id | said in the compiler's language, not a `CS0246` in a generated file |
+| ➕ added | pinnable members = public read/write properties + public fields, not `[JsonIgnore]`, of a primitive / `string` / enum type (enum spelled `global::`) | e.g. `MoveToLocation.PickableLocation` (`PickableGeoPoint`, `[JsonIgnore]`) is left out and keeps its default |
+| 📐 measured | ⛔ a `string` **cannot** be a function-graph input or output — the Library ABI marshals I/O through `MemoryMarshal.Read/Write<T>` (`CS0453` on string) | confirms decision B from the other side: JSON lives *inside* a graph, between the node that makes it and the node that consumes it |
+| ✅ decision D | `Hrot.Core/MapDefinitions/Behavior/Intents/HullDownAttackIntentDto.cs` + `BehaviorNames.HullDownAttack`; `HullDownAttackMapper` now reads both names from `BehaviorNames` | members = `HullDownAttackParams`' fields minus the receiver-owned counters; defaults = the helper's constants |
+
+**Rails** (`Hrot.Blueprints.Tests/Compiler/CE472_IntentAndJsonNodeTests.cs`): a blueprint BEHAVIOUR ticks through the real
+`BehaviorIngressSystem` + `BrainTickSystem`, its Send Intent's `AssignTacticalIntentEvent` is read off the bus, and the real
+`HillAttackTankNodes.ParseHullDownAttackParams` parses it — equal to the parse of the retired `HullDownIntentJson.Build`
+output · a Library round-trip (To JSON → From JSON) invoked by reflection, incl. bad/empty JSON ⇒ `Ok = false`, no throw ·
+`BP1680` · the palette discovery. Coverage fixtures registered in `NodeCoverageTests`.

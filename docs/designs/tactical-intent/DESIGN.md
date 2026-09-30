@@ -1,3 +1,11 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+current-answer: whole document (the intent pipeline); §4.2 is the contract rule
+stale-below: nothing marked
+related-designs:
+  - docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md — owns the blueprint Send Intent node that publishes AssignTacticalIntentEvent from a graph, keyed by the §4.2 contract; it added the missing HullDownAttackIntentDto (CE-472)
+-->
 # Tactical Intent Distribution System - Design
 
 ## Background and Motivation

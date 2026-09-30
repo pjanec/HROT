@@ -196,6 +196,10 @@ public static class DiagnosticCodes
     // (Library functions and resolvers have neither; AiPrimitive and Instance Event_* have no deltaTime).
     public const string BP1679 = "BP1679";  // Get Time node where that clock is not in scope
 
+    // ⭐ CE-472 — a Send Intent / To JSON / From JSON node with no DTO type or (Send Intent) no intent id: there is
+    // no type to construct or id to publish, and saying so beats a CS0246 in a generated file.
+    public const string BP1680 = "BP1680";  // JSON / intent node missing its DTO type or intent id
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

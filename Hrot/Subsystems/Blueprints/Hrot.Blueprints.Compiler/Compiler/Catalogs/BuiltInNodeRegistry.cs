@@ -89,6 +89,10 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         NotNode          => NotPins(),
         // CE-470: one float out-pin, no inputs, no exec.
         GetTimeNode      => new[] { new PinSchema("Value", "Out", false, "System.Single") },
+        // CE-472: exec skeleton; Stage0_Rehydrate adds Target + one pin per baked DTO member.
+        SendIntentNode   => new[] { ExecIn(), ExecOut() },
+        ToJsonNode       => Array.Empty<PinSchema>(),   // pure; Stage0 enriches from Fields
+        FromJsonNode     => Array.Empty<PinSchema>(),
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },

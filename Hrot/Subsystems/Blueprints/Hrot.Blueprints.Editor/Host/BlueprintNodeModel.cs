@@ -342,6 +342,9 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
+        Hrot.Blueprints.Core.Assets.SendIntentNode si     => string.IsNullOrEmpty(si.IntentId) ? "Send Intent" : $"Send Intent: {si.IntentId}",
+        Hrot.Blueprints.Core.Assets.ToJsonNode tj         => string.IsNullOrEmpty(tj.DtoTypeFqn) ? "To JSON"   : $"To JSON [{ShortTypeName(tj.DtoTypeFqn)}]",
+        Hrot.Blueprints.Core.Assets.FromJsonNode fj       => string.IsNullOrEmpty(fj.DtoTypeFqn) ? "From JSON" : $"From JSON [{ShortTypeName(fj.DtoTypeFqn)}]",
         Hrot.Blueprints.Core.Assets.GetTimeNode gtn       => gtn.Kind == Hrot.Blueprints.Core.Assets.TimeKind.DeltaTime ? "Get Delta Time" : "Get Sim Time",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => string.IsNullOrEmpty(cp.FunctionRef)
@@ -408,6 +411,8 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.NotNode                  => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.GetTimeNode              => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.ToJsonNode               => NodeCategory.Pure,   // CE-472
+        Hrot.Blueprints.Core.Assets.FromJsonNode             => NodeCategory.Pure,
         // Q#14 Option B struct-value nodes are pure data (construct/deconstruct/copy-modify).
         Hrot.Blueprints.Core.Assets.MakeStructNode           => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BreakStructNode          => NodeCategory.Pure,
