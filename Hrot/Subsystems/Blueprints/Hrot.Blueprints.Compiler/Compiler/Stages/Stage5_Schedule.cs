@@ -51,6 +51,13 @@ internal static class Stage5_Schedule
         SizeBytes = 4,
     };
 
+    internal static readonly IrTypeRef StringType = new IrTypeRef
+    {
+        FullName = "System.String",
+        IsUnmanaged = false,
+        SizeBytes = 0,
+    };
+
     internal static readonly IrTypeRef Int32Type = new IrTypeRef
     {
         FullName = "System.Int32",
@@ -1978,6 +1985,60 @@ internal sealed class GraphScheduler
                 break;
             }
 
+            // ⭐ CE-472 — Send Intent: DTO from the member pins → JSON → PublishManaged(AssignTacticalIntentEvent).
+            // The event shape comes from the EngineEventCatalog entry (the same one PublishEvent uses).
+            case SendIntentNode sin:
+            {
+                if (!RequireDto(sin.DtoTypeFqn, sin.Id)) break;
+                if (string.IsNullOrEmpty(sin.IntentId))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1680,
+                        $"Send Intent node '{sin.Id}' has no intent id — nothing to publish.",
+                        _ctx.AssetId, _graph.Id, sin.Id));
+                    break;
+                }
+                var intentEntry = _ctx.EngineEvents.GetEntries().FirstOrDefault(e =>
+                    string.Equals(e.Name, "AssignTacticalIntentEvent", StringComparison.Ordinal));
+                if (intentEntry is null) break;   // no catalog ⇒ no safe publish shape (as PublishEvent)
+
+                var targetPin = sin.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Target", StringComparison.OrdinalIgnoreCase));
+                var targetLink = targetPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == sin.Id && l.ToPinId == targetPin.Id);
+                IrValue target;
+                if (targetLink is not null)
+                    target = ResolveNodeOutput(targetLink.FromNodeId, targetLink.FromPinId, stmts);
+                else
+                {
+                    target = AllocValue(Stage5_Schedule.EntityType);
+                    stmts.Add(new IrStatement { ResultValue = target, Operation = new IrOp_Self(), Debug = DebugOf(node) });
+                }
+
+                var dto  = LowerMakeDto(sin.Id, sin.DtoTypeFqn, sin.Fields, sin.Pins, stmts, Guid.Empty);
+                var json = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement { ResultValue = json, Operation = new IrOp_ToJson(dto), Debug = DebugOf(node) });
+                var intentId = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = intentId,
+                    Operation   = new IrOp_Const("\"" + sin.IntentId.Replace("\\", "\\\\").Replace("\"", "\\\"") + "\"", Stage5_Schedule.StringType),
+                    Debug       = DebugOf(node),
+                });
+                stmts.Add(new IrStatement
+                {
+                    Operation = new IrOp_PublishBusEvent(intentEntry.EventTypeFqn,
+                        new List<(string FieldName, IrValue Value)>
+                        {
+                            (intentEntry.TargetFieldName ?? "Entity", target),
+                            ("IntentId", intentId),
+                            ("JsonParams", json),
+                        },
+                        Managed: true),
+                    Debug = DebugOf(node),
+                });
+                break;
+            }
+
             case CallCustomEventNode cce:
             {
                 int idx = FindCustomEventIndex(cce.EventId);
@@ -2477,6 +2538,87 @@ internal sealed class GraphScheduler
                     Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = ln.Id, PinId = sourcePinId },
                 });
                 break;
+
+            // ⭐ CE-472 — To JSON: construct the DTO from the wired member pins (unwired ⇒ the DTO's default),
+            // then serialise it. The DTO lives only in a local between the two ops (decision B).
+            case ToJsonNode tjn:
+            {
+                if (!RequireDto(tjn.DtoTypeFqn, tjn.Id)) { result = AllocValue(Stage5_Schedule.StringType); break; }
+                var dto = LowerMakeDto(tjn.Id, tjn.DtoTypeFqn, tjn.Fields, tjn.Pins, stmts, sourcePinId);
+                result = AllocValue(Stage5_Schedule.StringType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = result,
+                    Operation   = new IrOp_ToJson(dto),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = tjn.Id, PinId = sourcePinId },
+                });
+                break;
+            }
+
+            // ⭐ CE-472 — From JSON: deserialise once (never null, never throws — decision E), then project
+            // each member out-pin and the "Ok" flag, the BreakStruct read-once-then-project idiom.
+            case FromJsonNode fjn:
+            {
+                string dtoFqn = NormalizeSharedTypeFqn(fjn.DtoTypeFqn);
+                var jsonPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                    && string.Equals(p.Name, "Json", StringComparison.OrdinalIgnoreCase));
+                IrValue jsonVal;
+                var jLink = jsonPin is null ? null
+                    : _graph.Links.FirstOrDefault(l => l.ToNodeId == fjn.Id && l.ToPinId == jsonPin.Id);
+                if (jLink is not null)
+                    jsonVal = ResolveNodeOutput(jLink.FromNodeId, jLink.FromPinId, stmts);
+                else
+                {
+                    jsonVal = AllocValue(Stage5_Schedule.StringType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = jsonVal,
+                        Operation   = new IrOp_Const("\"\"", Stage5_Schedule.StringType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = sourcePinId },
+                    });
+                }
+                if (!RequireDto(fjn.DtoTypeFqn, fjn.Id)) { result = jsonVal; break; }
+
+                var dtoVal = AllocValue(new IrTypeRef { FullName = dtoFqn, IsUnmanaged = false, SizeBytes = 0 });
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = dtoVal,
+                    Operation   = new IrOp_FromJson(jsonVal, dtoFqn),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = sourcePinId },
+                });
+                foreach (var f in fjn.Fields)
+                {
+                    var fPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                        && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+                    if (fPin is null) continue;
+                    IrTypeRef fType = _typed.PinTypes.TryGetValue(fPin.Id, out var fpt)
+                        ? fpt
+                        : new IrTypeRef { FullName = NormalizeSharedTypeFqn(f.TypeId), IsUnmanaged = true, SizeBytes = 0 };
+                    var fRes = AllocValue(fType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = fRes,
+                        Operation   = new IrOp_FieldRead(dtoVal, f.Name, fType),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = fPin.Id },
+                    });
+                    _pinValueCache[fPin.Id] = fRes;
+                }
+                var okPin = fjn.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Ok", StringComparison.OrdinalIgnoreCase));
+                if (okPin is not null)
+                {
+                    var okRes = AllocValue(Stage5_Schedule.BoolType);
+                    stmts.Add(new IrStatement
+                    {
+                        ResultValue = okRes,
+                        Operation   = new IrOp_FromJsonOk(dtoVal),
+                        Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = fjn.Id, PinId = okPin.Id },
+                    });
+                    _pinValueCache[okPin.Id] = okRes;
+                }
+                result = _pinValueCache.TryGetValue(sourcePinId, out var fjr) ? fjr : dtoVal;
+                break;
+            }
 
             // Q#14 Option B — MakeStruct: build a struct value from its wired field data-ins (unwired
             // fields keep the struct default). The single "Value" out-pin carries the constructed struct.
@@ -4536,6 +4678,45 @@ internal sealed class GraphScheduler
     /// <c>global::global::...</c>, CS0234). Also converts reflection's nested-type '+' separator to
     /// '.' (Category-1 shared structs are expected to be top-level, but this is defensive).
     /// </summary>
+    /// <summary>⭐ CE-472 — BP1680 when a JSON/intent node carries no DTO type (nothing to construct).</summary>
+    private bool RequireDto(string dtoTypeFqn, Guid nodeId)
+    {
+        if (!string.IsNullOrEmpty(dtoTypeFqn)) return true;
+        _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1680,
+            $"Node '{nodeId}' has no DTO type — pick the parameter class it serialises.",
+            _ctx.AssetId, _graph.Id, nodeId));
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐ CE-472 — the shared DTO construction for Send Intent / To JSON: <c>new global::Dto { M = __tN, … }</c> from the
+    /// WIRED member pins only (an unwired member keeps the DTO's own initialiser — e.g. a default <c>TankSpacing</c>).
+    /// Reuses <see cref="IrOp_MakeStruct"/>: object-initialiser syntax is the same for a class.
+    /// </summary>
+    private IrValue LowerMakeDto(Guid nodeId, string dtoTypeFqn, IReadOnlyList<StructFieldDecl> fields,
+                                 IReadOnlyList<Pin> pins, List<IrStatement> stmts, Guid sourcePinId)
+    {
+        string fqn = NormalizeSharedTypeFqn(dtoTypeFqn);
+        var made = new List<(string, IrValue)>();
+        foreach (var f in fields)
+        {
+            var pin = pins.FirstOrDefault(p => !p.IsExec && p.Direction == "In"
+                && string.Equals(p.Name, f.Name, StringComparison.OrdinalIgnoreCase));
+            if (pin is null) continue;
+            var link = _graph.Links.FirstOrDefault(l => l.ToNodeId == nodeId && l.ToPinId == pin.Id);
+            if (link is null) continue;
+            made.Add((f.Name, ResolveNodeOutput(link.FromNodeId, link.FromPinId, stmts)));
+        }
+        var dto = AllocValue(new IrTypeRef { FullName = fqn, IsUnmanaged = false, SizeBytes = 0 });
+        stmts.Add(new IrStatement
+        {
+            ResultValue = dto,
+            Operation   = new IrOp_MakeStruct(fqn, made),
+            Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = nodeId, PinId = sourcePinId },
+        });
+        return dto;
+    }
+
     private static string NormalizeSharedTypeFqn(string sharedTypeId)
     {
         if (string.IsNullOrEmpty(sharedTypeId)) return sharedTypeId ?? "";

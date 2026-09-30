@@ -57,6 +57,7 @@ internal sealed class V_ResolverPurity : IValidator
         // ── dispatch: the value leaves this graph and something else acts on it ─
         typeof(ChannelCommandNode),
         typeof(PublishEventNode),
+        typeof(SendIntentNode),           // CE-472: publishes AssignTacticalIntentEvent
         typeof(CallEventDispatcherNode),
         typeof(BindEventDispatcherNode),
         typeof(CallCustomEventNode),

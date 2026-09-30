@@ -766,6 +766,21 @@ public sealed record IrOp_ReadRankedResult(
 /// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
 /// object-initializer construction, but the value flows out instead of being published).
 /// </summary>
+/// <summary>
+/// ⭐ CE-472 — <c>var __t{r} = JsonSerializer.Serialize(__t{Value}, FdpJsonOptionsRegistry.DefaultRelaxed);</c> — the
+/// one serializer setting every behaviour parse already reads with (DESIGN_Typed_Intent_And_Json_Nodes §4 C).
+/// </summary>
+public sealed record IrOp_ToJson(IrValue Value) : IrOperation;
+
+/// <summary>
+/// ⭐ CE-472 — deserialises <see cref="Json"/> into a <see cref="TypeFqn"/> instance, never null and never throwing:
+/// bad or empty input yields <c>new T()</c> and records failure in <c>__fjok{r}</c>, read by <see cref="IrOp_FromJsonOk"/>.
+/// </summary>
+public sealed record IrOp_FromJson(IrValue Json, string TypeFqn) : IrOperation;
+
+/// <summary>⭐ CE-472 — <c>var __t{r} = __fjok{Dto};</c> — whether the <see cref="IrOp_FromJson"/> that produced <see cref="Dto"/> parsed.</summary>
+public sealed record IrOp_FromJsonOk(IrValue Dto) : IrOperation;
+
 public sealed record IrOp_MakeStruct(
     string StructFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields

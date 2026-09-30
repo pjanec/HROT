@@ -199,6 +199,34 @@ internal static class StatementEmitter
                 break;
             }
 
+            // ⭐ CE-472 — the ONE JSON emitter (DESIGN_Typed_Intent_And_Json_Nodes §4 C): the same options every
+            // behaviour parse reads with, so what a blueprint writes is what BehaviorParams.FromJson reads.
+            case IrOp_ToJson op:
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = global::System.Text.Json.JsonSerializer.Serialize(__t{op.Value.Index}, "
+                              + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
+                break;
+
+            case IrOp_FromJson op:
+            {
+                if (idx < 0) break;
+                // Never null, never throws in a tick (decision E): a bad/empty payload ⇒ new T() and __fjok = false.
+                e.WriteLine($"global::{op.TypeFqn} __t{idx} = null!;");
+                e.WriteLine($"if (!string.IsNullOrEmpty(__t{op.Json.Index}))");
+                e.WriteLine("{");
+                e.WriteLine($"    try {{ __t{idx} = global::System.Text.Json.JsonSerializer.Deserialize<global::{op.TypeFqn}>(__t{op.Json.Index}, "
+                          + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed); }");
+                e.WriteLine("    catch (global::System.Text.Json.JsonException) { }");
+                e.WriteLine("}");
+                e.WriteLine($"bool __fjok{idx} = __t{idx} != null;");
+                e.WriteLine($"__t{idx} ??= new global::{op.TypeFqn}();");
+                break;
+            }
+
+            case IrOp_FromJsonOk op:
+                if (idx >= 0) e.WriteLine($"var __t{idx} = __fjok{op.Dto.Index};");
+                break;
+
             case IrOp_MakeStruct op:
             {
                 // Q#14 Option B: build a struct value into __t{idx}; the value flows to consumers.

@@ -52,6 +52,9 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
 [JsonDerivedType(typeof(GetTimeNode),            "GetTime")]
+[JsonDerivedType(typeof(SendIntentNode),         "SendIntent")]
+[JsonDerivedType(typeof(ToJsonNode),             "ToJson")]
+[JsonDerivedType(typeof(FromJsonNode),           "FromJson")]
 [JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
 [JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
@@ -915,6 +918,43 @@ public enum TimeKind
 public sealed class GetTimeNode : Node
 {
     public TimeKind Kind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-472 — typed Send Intent + To JSON / From JSON.
+// 📄 docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md (§3 diagrams, §4 decisions A–F).
+// All three carry the DTO's FQN + its baked members (the editor reflects the [BehaviorContract] class; the
+// compiler only reads these strings). The DTO value never appears on a wire — decision B.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Exec node: builds the intent's parameter DTO from one data-in pin per member, serialises it with the shared
+/// JSON settings and publishes <c>AssignTacticalIntentEvent { Entity = Target (default self), IntentId, JsonParams }</c>.
+/// Keyed by the INTENT id (decision A) — the receiver's mapper picks the behaviour.
+/// </summary>
+public sealed class SendIntentNode : Node
+{
+    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[BehaviorContract]</c> id).</summary>
+    public string IntentId { get; set; } = "";
+    /// <summary>FQN of the <c>[BehaviorContract]</c> parameter DTO.</summary>
+    public string DtoTypeFqn { get; set; } = "";
+    /// <summary>The DTO members exposed as pins (name + pin TypeId).</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: one data-in per DTO member → a <c>System.String</c> "Json" out (the shared JSON settings).</summary>
+public sealed class ToJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: a <c>System.String</c> "Json" in → one data-out per DTO member + "Ok" (false on bad input,
+/// members then default — decision E; it never throws in a tick).</summary>
+public sealed class FromJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────

@@ -19,5 +19,7 @@ namespace Hrot.Map.Definitions.Behavior
         public const string Ambush = "Ambush";
         public const string ConvoyEscort = "ConvoyEscort";
         public const string DefendArea = "DefendArea";
+        /// <summary>⭐ CE-472 — the tactical intent a commander sends a tank; mapped to <see cref="HullDownAttackRun"/>.</summary>
+        public const string HullDownAttack = "HullDownAttack";
     }
 }
