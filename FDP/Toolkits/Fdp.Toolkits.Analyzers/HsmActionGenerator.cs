@@ -609,30 +609,24 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
             //   (region, state) the kernel stamped (O6) and by this action's compound key.
             //
-            // ⭐ The ROOT PARAMS REGION survives ONLY as the SEED, inside the freshlyAttached arm —
-            //   the same shape AiPrimitiveEmitter.EmitParamSeed emits for a hosted blueprint
-            //   (E3a/E3b-0). 🔴 P3-C (2026-09-21): that region is now the entity's ROOT PARAMS SLOT,
-            //   not BrainBlackboard — the anchor moved, the offset arithmetic did not (§29.6).
             sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
             sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
             sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
                           + "UL ^ (ulong)sizeof(" + entry.FieldTypeFqn + ");");
+            // ⭐⭐⭐ CE-444 (R-155, DESIGN_Parameter_Model §P.3/§P.9, option B): the action reads its host's field
+            //   LIVE every call. The occurrence caches only the host offset (looked up once at attach); ⛔ it used to
+            //   COPY the field at activation, so a host write mid-activity was never seen.
             sb.AppendLine("            ref var __ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<"
-                          + entry.FieldTypeFqn + ", global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
-            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out "
-                          + entry.FieldTypeFqn + "* __params);");
+                          + "int, global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
+            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out int* __hostOffset);");
             sb.AppendLine("            if (__freshlyAttached)");
-            sb.AppendLine("            {");
-            // ⭐⭐ E3b-0 composes with the attribute's offset: the STATE picks which blackboard variable
-            //   seeds this occurrence, and entry.Offset picks the field inside the action's own SLOT
-            //   struct. Neither is a blackboard address on its own.
-            sb.AppendLine("                int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer);");
-            sb.AppendLine("                *__params = Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                    " + BlackboardParamsExpression.AtExpr(
-                              "repo", "bridge->Self", "__seedOffset + " + entry.Offset) + ");");
-            sb.AppendLine("            }");
+            sb.AppendLine("                *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer) + " + entry.Offset + ";");
             sb.AppendLine("            _ = __ws;");
-            sb.AppendLine("            ref var field = ref *__params;");
+            sb.AppendLine("            byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(repo, bridge->Self, out int __rootLen);");
+            sb.AppendLine("            int __at = *__hostOffset;");
+            sb.AppendLine("            if (__at < 0 || __at + sizeof(" + entry.FieldTypeFqn + ") > __rootLen)");
+            sb.AppendLine("                throw new global::System.InvalidOperationException($\"CE-444: " + entry.MethodName + " at host offset {__at} does not fit the {__rootLen}-byte root block.\");");
+            sb.AppendLine("            ref var field = ref *(" + entry.FieldTypeFqn + "*)(__root + __at);");
             sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
             sb.AppendLine("            global::" + entry.FullName + "(ref field, bridge->Self, repo);");
             sb.AppendLine("        }");

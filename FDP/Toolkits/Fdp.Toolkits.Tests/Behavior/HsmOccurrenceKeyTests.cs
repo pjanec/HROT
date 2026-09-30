@@ -1425,24 +1425,30 @@ public sealed unsafe class HsmOccurrenceKeyTests
 
             ulong sh = global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.StructureHash;
 
+            // ⭐ CE-444: the occurrence caches the HOST OFFSET (an int), not a params copy — [WorkingState][int].
             OccurrenceWorkingState.ResolveOrAttach<
-                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params,
+                    int,
                     global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState>(
-                world, entity, keyA, sh, OccurrenceKind.Hsm, out bool freshA, out var pA);
+                world, entity, keyA, sh, OccurrenceKind.Hsm, out bool freshA, out int* offA);
             OccurrenceWorkingState.ResolveOrAttach<
-                    global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params,
+                    int,
                     global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.WorkingState>(
-                world, entity, keyB, sh, OccurrenceKind.Hsm, out bool freshB, out var pB);
+                world, entity, keyB, sh, OccurrenceKind.Hsm, out bool freshB, out int* offB);
 
             // ⛔ NON-VACUITY: the tick must already have attached both — a `true` here would mean
             //    the thunk never ran and we are reading two slots we just created ourselves.
             Assert.False(freshA, "region 1's occurrence was not attached by the tick — the thunk never ran");
             Assert.False(freshB, "region 2's occurrence was not attached by the tick — the thunk never ran");
 
-            // ⭐⭐⭐ THE RAIL. Two parallel regions, ONE asset, ONE tick — and each holds the value its
-            //    OWN bound variable seeded. 🔴 Before E3b-0 both would read RegionZeroValue.
-            Assert.Equal(RegionZeroValue, pA->Value);
-            Assert.Equal(RegionOneValue,  pB->Value);
+            // ⭐⭐⭐ THE RAIL. Two parallel regions, ONE asset, ONE tick — each is bound to its OWN host variable
+            //    (offset 0 vs 4) and reads the value there. 🔴 Before E3b-0 both would read RegionZeroValue.
+            byte* root = RootParamsAccess.RequireRootBytes(world, entity);
+            Assert.Equal(0, *offA);
+            Assert.Equal(4, *offB);
+            Assert.Equal(RegionZeroValue,
+                ((global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params*)(root + *offA))->Value);
+            Assert.Equal(RegionOneValue,
+                ((global::Hrot.AI.Behaviors.Generated.HsmTwoRegionParamsDemo_1434647B_Bp.Params*)(root + *offB))->Value);
         }
         finally
         {
@@ -1551,23 +1557,24 @@ public sealed unsafe class HsmOccurrenceKeyTests
             //    (OccurrenceWorkingState.cs:115 — "the order is load-bearing"). ⇒ resolve through the
             //    SAME helper the emitted thunk uses rather than re-deriving the offset here, which is
             //    exactly the duplication OccurrenceSlotKey exists to prevent.
-            OccurrenceWorkingState.ResolveOrAttach<
-                    global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams,
-                    HsmOccurrence.EmptyWorkingState>(
-                world, entity, keyA, hashA, OccurrenceKind.Hsm, out bool freshA, out var pA);
-            OccurrenceWorkingState.ResolveOrAttach<
-                    global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams,
-                    HsmOccurrence.EmptyWorkingState>(
-                world, entity, keyB, hashB, OccurrenceKind.Hsm, out bool freshB, out var pB);
+            // ⭐ CE-444: the occurrence caches the HOST OFFSET, not a copy of the field.
+            OccurrenceWorkingState.ResolveOrAttach<int, HsmOccurrence.EmptyWorkingState>(
+                world, entity, keyA, hashA, OccurrenceKind.Hsm, out bool freshA, out int* offA);
+            OccurrenceWorkingState.ResolveOrAttach<int, HsmOccurrence.EmptyWorkingState>(
+                world, entity, keyB, hashB, OccurrenceKind.Hsm, out bool freshB, out int* offB);
 
             // ⛔ NON-VACUITY: the TICK attached these, not this read-back.
             Assert.False(freshA);
             Assert.False(freshB);
 
-            // ⭐⭐⭐ THE RAIL. 🔴 Before P2 both regions read bb.BehaviorParameters[0] + 0 and
-            //    would have seen RegionZeroValue twice.
-            Assert.Equal(RegionZeroValue, pA->Value);
-            Assert.Equal(RegionOneValue,  pB->Value);
+            // ⭐⭐⭐ THE RAIL. Each region is bound to its own host field and reads the value there LIVE.
+            //    🔴 Before P2 both regions read bb.BehaviorParameters[0] + 0 and would have seen RegionZeroValue twice.
+            Assert.NotEqual(*offA, *offB);
+            byte* root = RootParamsAccess.RequireRootBytes(world, entity);
+            Assert.Equal(RegionZeroValue,
+                ((global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams*)(root + *offA))->Value);
+            Assert.Equal(RegionOneValue,
+                ((global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams*)(root + *offB))->Value);
         }
         finally
         {

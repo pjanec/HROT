@@ -358,68 +358,21 @@ internal static class AiPrimitiveEmitter
     /// </para>
     /// </summary>
     /// <summary>
-    /// ⭐⭐⭐ <c>E3a</c> / <c>CE-298</c> — <b>the SEED, and it runs ONCE per occurrence.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.4.
-    ///
-    /// <para>🔴 <b>What this used to be.</b> The identical expression, evaluated on EVERY dispatch as
-    /// the LIVE params home: <c>Unsafe.As&lt;byte, Params&gt;(ref bb.BehaviorParameters[0] + 0)</c>.
-    /// ⛔ A literal <c>0</c> shared by every occurrence on the entity ⇒ two HSM regions running actions
-    /// overwrote each other, and two DIFFERENT blueprints type-punned each other's variable.
-    /// 🔒 <b>User, <c>2026-09-21</c>:</b> <i>"forget the fact it is not in use now. it will be."</i></para>
-    ///
-    /// <para>⭐⭐ <b>Why the seed comes from HERE and not from zeros.</b> This is the ONLY place an
-    /// authored value for this occurrence exists today — an HSM state's binding is a bare method-name
-    /// string with no params of its own. ⇒ copying makes the move <b>byte-identical at the first
-    /// dispatch</b>, so it is provably not a downgrade. ⛔ Seeding from <c>default</c> would hand every
-    /// occurrence zeroed params where today it gets the behaviour's authored ones — §26.1, the rule
-    /// <c>O7d</c> was reverted twice for.</para>
-    ///
-    /// <para>⚠ <b>Offset <c>0</c> is the seed's SOURCE, never the destination.</b> It is inherited from
-    /// the model being retired and it dies at <c>E3b</c>, when <c>Q41-C1′</c>'s resolve hook gives a
-    /// per-site authored value. ⛔ It is not a new dependency on the blackboard.</para>
-    ///
-    /// <para>⛔ <b>And the re-supply is <c>BehaviorIngressSystem</c>'s half</b>
-    /// (<c>DetachHostedOccurrenceSlots</c>): without it a re-assign's new JSON would never reach the
-    /// slot, because this seed only runs when the slot is created.</para>
+    /// ⭐⭐⭐ <c>CE-444</c> (<c>R-155</c>, <c>DESIGN_Parameter_Model.md</c> §P.3/§P.9) — an action or guard reads its
+    /// host's parameters LIVE, every call; nothing is copied at activation. ⭐ Option B (user-approved): the host
+    /// offset is looked up ONCE, when the occurrence is first attached, and cached in it; each call projects
+    /// <c>Params</c> from the root block at that offset. ⛔ HISTORY: <c>EmitParamSeed</c> copied the params into the
+    /// occurrence at activation (E3a/E3b-0), so a host write mid-activity was never seen.
+    /// <para>⚠ The cached offset is bounds-checked against the root block on every call — an occurrence that
+    /// survived a hot reload of the old (copying) layout would otherwise hand back a stale number.</para>
     /// </summary>
-    private static void EmitParamSeed(
-        CSharpEmitter e, string offsetExpr, string worldExpr, string selfExpr,
-        string? blockExpr = null)
+    private static void EmitLiveHostParams(CSharpEmitter e, string worldExpr, string selfExpr)
     {
-        e.WriteLine("if (freshlyAttached)");
-        e.WriteLine("{");
-        e.Indent();
-        e.WriteLine("// E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the");
-        e.WriteLine("//   slot. Copying them makes the move byte-identical at the first dispatch.");
-        if (offsetExpr != "0")
-        {
-            e.WriteLine("// E3b-0 (§28.6): …and WHICH bytes is the STATE's own binding, not always the");
-            e.WriteLine("//   first variable — that is what lets two parallel regions differ.");
-            e.WriteLine($"int __seedOffset = {offsetExpr};");
-            offsetExpr = "__seedOffset";
-        }
-        // 🔴 P3-C (2026-09-21): the seed's anchor is the entity's ROOT PARAMS SLOT, not the retired
-        //   BrainBlackboard component. ⭐ The offset is untouched — it still indexes INTO the same
-        //   packed variable table (§29.6), which is why this is one line and not an E3b-0 rewrite.
-        // ⚠ Declared INSIDE the freshlyAttached arm on purpose: the anchor THROWS when the entity has
-        //   no root params slot, and a thunk on an entity that legitimately has none must not pay that
-        //   on every dispatch — only on the one that would actually read the seed.
-        // ⭐ CE-431: a BTree thunk seeds from the block it was TICKED with (its `bb`) — the root block for a
-        //   root, a hosted subtree's OWN block for a child. ⚠ The HSM thunk has no bb and an HSM is always
-        //   a root, so it keeps the root anchor.
-        e.WriteLine(blockExpr is null
-            ? $"ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef({worldExpr}, {selfExpr});"
-            : $"ref byte __rootParams = ref {blockExpr};");
-        e.WriteLine("*__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
-        e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(");
-        e.WriteLine($"        ref __rootParams, (nint){offsetExpr}));");
-        // ⭐⭐⭐ CE-426 — STAGE ORDER: bake → supply → resolve. The state's defaults are BAKED before the
-        //   resolver runs, so a resolver MODIFIES a pre-seeded block (Q76 §12.9c). ⛔ This line used to
-        //   run AFTER the resolve — harmless while a resolver could write parameters only, and it would
-        //   have silently wiped every state value a CE-432 resolver writes.
-        e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
-        e.Outdent();
-        e.WriteLine("}");
+        e.WriteLine($"byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes({worldExpr}, {selfExpr}, out int __rootLen);");
+        e.WriteLine("int __at = *__hostOffset;");
+        e.WriteLine("if (__at < 0 || __at + sizeof(Params) > __rootLen)");
+        e.WriteLine("    throw new global::System.InvalidOperationException($\"CE-444: '{nameof(Params)}' at host offset {__at} does not fit the {__rootLen}-byte root block — a stale occurrence or a wrong binding.\");");
+        e.WriteLine("ref var p = ref *(Params*)(__root + __at);");
     }
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
@@ -476,14 +429,15 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("// O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence");
         e.WriteLine("//          store — NOT Blackboard1024, and no longer the SHARED param region.");
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);");
-        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(");
         e.WriteLine("    ctx.World, ctx.Self, occurrenceKey, StructureHash,");
-        e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
-        // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
-        //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
-        EmitParamSeed(e, "0", "ctx.World", "ctx.Self",
-                      "global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)");
-        e.WriteLine("ref var p = ref *__params;");
+        e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);");
+        e.WriteLine("if (freshlyAttached)");
+        e.WriteLine("    InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
+        // ⭐ CE-444: params read LIVE from the block this thunk was ticked with, at offset 0 — true by
+        //   construction for the standalone (single-occurrence) hosting, the `@0` in its registration key.
+        e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(");
+        e.WriteLine("    ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));");
         e.WriteLine(tail);
     }
 
@@ -589,21 +543,19 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine();
-        e.WriteLine("// CE-297: the SEED comes from the entity's ROOT PARAMS SLOT, not the kernel's instance pointer.");
-        e.WriteLine();
-        e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
-        e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
+        e.WriteLine("// CE-444: params are read LIVE from the entity's root block (§P.3); the occurrence holds only the");
+        e.WriteLine("//         working state and the host offset, looked up once at attach (option B, §P.9).");
         e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);");
-        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(");
-        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);");
-        // ⭐⭐⭐ CE-414 — AssetId identifies the HOSTING SITE, not just the state. The line above
-        //   already passes it to KeyFor; passing it here too means the occurrence's SLOT and its SEED
-        //   are addressed by ONE identity. 🔴 Without it a state's activity blueprint and the guard
-        //   blueprint on its outgoing transition — which the kernel stamps with the same state —
-        //   project two different Params types over one variable.
-        EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId)",
-                      "world", "bridge->Self");
-        e.WriteLine("ref var p = ref *__params;");
+        e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<int, WorkingState>(");
+        e.WriteLine("    world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out int* __hostOffset);");
+        // ⭐⭐⭐ CE-414 — AssetId identifies the HOSTING SITE, not just the state: the occurrence's slot and its host
+        //   offset are addressed by ONE identity (an activity and a guard on one state bind different variables).
+        e.WriteLine("if (freshlyAttached)");
+        e.WriteLine("{");
+        e.WriteLine("    *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);");
+        e.WriteLine("    InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
+        e.WriteLine("}");
+        EmitLiveHostParams(e, "world", "bridge->Self");
         e.WriteLine(tail);
     }
 

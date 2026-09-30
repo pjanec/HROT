@@ -59,20 +59,13 @@ public static class HillAssault2AbortEngagement_2FA7F03D_Bp
         // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
         //          store — NOT Blackboard1024, and no longer the SHARED param region.
         int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
-        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>(
+        ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
             ctx.World, ctx.Self, occurrenceKey, StructureHash,
-            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);
+            global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);
         if (freshlyAttached)
-        {
-            // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
-            //   slot. Copying them makes the move byte-identical at the first dispatch.
-            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb);
-            *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-                ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                    ref __rootParams, (nint)0));
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
-        }
-        ref var p = ref *__params;
+        ref var p = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
+            ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
         return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime);
     }
     

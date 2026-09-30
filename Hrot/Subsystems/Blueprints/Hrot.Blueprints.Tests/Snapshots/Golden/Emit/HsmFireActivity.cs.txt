@@ -92,27 +92,21 @@ public static class HsmFireActivity_055BAC64_Bp
         var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;
         var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         
-        // CE-297: the SEED comes from the entity's ROOT PARAMS SLOT, not the kernel's instance pointer.
-        
-        // O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)
-        //        the kernel stamped (O6) and by the hosting machine's id from the instance header.
+        // CE-444: params are read LIVE from the entity's root block (§P.3); the occurrence holds only the
+        //         working state and the host offset, looked up once at attach (option B, §P.9).
         int occurrenceKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer);
-        ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<Params, WorkingState>(
-            world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out Params* __params);
+        ref var ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<int, WorkingState>(
+            world, bridge->Self, occurrenceKey, StructureHash, out bool freshlyAttached, out int* __hostOffset);
         if (freshlyAttached)
         {
-            // E3a SEED (§28.4): the bytes this thunk read LIVE before params moved into the
-            //   slot. Copying them makes the move byte-identical at the first dispatch.
-            // E3b-0 (§28.6): …and WHICH bytes is the STATE's own binding, not always the
-            //   first variable — that is what lets two parallel regions differ.
-            int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);
-            ref byte __rootParams = ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(world, bridge->Self);
-            *__params = global::System.Runtime.CompilerServices.Unsafe.As<byte, Params>(
-                ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
-                    ref __rootParams, (nint)__seedOffset));
+            *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
         }
-        ref var p = ref *__params;
+        byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(world, bridge->Self, out int __rootLen);
+        int __at = *__hostOffset;
+        if (__at < 0 || __at + sizeof(Params) > __rootLen)
+            throw new global::System.InvalidOperationException($"CE-444: '{nameof(Params)}' at host offset {__at} does not fit the {__rootLen}-byte root block — a stale occurrence or a wrong binding.");
+        ref var p = ref *(Params*)(__root + __at);
         TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);
     }
     

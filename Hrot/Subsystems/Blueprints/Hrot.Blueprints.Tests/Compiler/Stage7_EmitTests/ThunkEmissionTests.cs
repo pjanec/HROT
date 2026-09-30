@@ -102,7 +102,7 @@ public sealed class ThunkEmissionTests
         //    asset wrote the same bytes, silently (BP-297).
         Assert.Contains("global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyFor(instance, AssetId, writer)", src);
         // ⭐⭐⭐ E3a — and the PARAMS ride the same slot: one key, one lookup, one lifetime (§28).
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<int, WorkingState>", src);   // CE-444: [WorkingState][host offset]
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
 
         // ⭐ CE-297 — the params SEED comes from the blackboard, never from the kernel's instance
@@ -110,7 +110,7 @@ public sealed class ThunkEmissionTests
         //   OccurrenceSlot_E3a pins that it sits inside the freshly-attached arm.
         // ⚠ CE-445: this asserted the word "BrainBlackboard", which only a (now removed) comment carried.
         //   The seed's real source is the entity's root params slot.
-        Assert.Contains("RootParamsAccess.RootRef(", src);
+        Assert.Contains("RootParamsAccess.RequireRootBytes(", src);   // CE-444: read live from the root block
         Assert.DoesNotContain("*(Params*)instance", src);
     }
 
@@ -129,7 +129,7 @@ public sealed class ThunkEmissionTests
         Assert.Contains("HsmGuard", src);
 
         // ⭐⭐ O7 / E3 / E3a + CE-297 — the same corrections as the action thunk; one shared body.
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<int, WorkingState>", src);   // CE-444: [WorkingState][host offset]
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);
         Assert.DoesNotContain("*(Params*)instance", src);
     }
@@ -168,7 +168,7 @@ public sealed class ThunkEmissionTests
     /// through two occurrences and prove they do not move each other.</para>
     /// </summary>
     [Fact]
-    public void HsmThunk_TakesParamsFromTheOccurrenceSlot_E3a()
+    public void CE444_HsmThunk_ReadsParamsLive_ThroughTheCachedHostOffset()
     {
         var asset = BlueprintAssetBuilder
             .AiPrimitive("ParamsPerEntity")
@@ -178,34 +178,21 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        // ⭐⭐ ONE slot carries BOTH — one key, one lookup, one lifetime.
-        Assert.Contains("HsmOccurrence.ResolveOrAttach<Params, WorkingState>", src);
+        // ⭐⭐ ONE slot carries the working state AND the cached host offset — one key, one lookup, one lifetime.
+        Assert.Contains("HsmOccurrence.ResolveOrAttach<int, WorkingState>", src);
         Assert.DoesNotContain("HsmOccurrence.ResolveOrAttach<WorkingState>", src);
 
-        // ⭐ The live read is from the slot…
-        Assert.Contains("ref var p = ref *__params;", src);
-
-        // …and the blackboard survives ONLY as the seed, inside the freshly-attached arm.
-        int seed = src.IndexOf("*__params = ", StringComparison.Ordinal);
-        int fresh = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
-        Assert.True(fresh >= 0 && seed > fresh,
-            "the blackboard copy must sit INSIDE the freshlyAttached arm — a seed, not a live read");
-
-        // ⭐⭐⭐ E3b-0 (§28.6): and the seed offset is the STATE'S OWN BINDING, not a literal 0 —
-        //    that is what lets two parallel regions seed from different variables.
-        // ⭐⭐⭐ CE-414 (§28.6c): …and it is keyed by the HOSTING SITE too, which is why AssetId is
-        //    passed. 🔴 Without it a state's activity blueprint and the GUARD on its outgoing
-        //    transition — which the kernel stamps with the SAME state — read one variable through two
-        //    different Params types. ⚠ AssetId is the same Guid KeyFor takes two lines above, so the
-        //    slot and its seed are addressed by ONE identity; a rail that let them drift apart is
-        //    exactly what this line pins.
-        Assert.Contains("int __seedOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);", src);
-        // 🔴 P3-C: the anchor is the ROOT PARAMS SLOT now; the OFFSET is what this rail is about.
-        Assert.Contains("ref __rootParams, (nint)__seedOffset", src);
-        Assert.Contains("RootParamsAccess.RootRef(world, bridge->Self)", src);
-
-        // ⛔ …and the HSM thunk no longer bakes a literal 0 anywhere.
-        Assert.Equal(0, CountOccurrences(src, "ref __rootParams, (nint)0"));
+        // ⭐⭐⭐ CE-444 (§P.9, option B): the host offset is looked up ONCE, inside the freshly-attached arm…
+        //    ⭐ CE-414: keyed by the HOSTING SITE too (AssetId), the same identity KeyFor takes.
+        int fresh  = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
+        int cache  = src.IndexOf("*__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId);", StringComparison.Ordinal);
+        int read   = src.IndexOf("ref var p = ref *(Params*)(__root + __at);", StringComparison.Ordinal);
+        Assert.True(fresh >= 0 && cache > fresh, "the host offset must be cached INSIDE the freshly-attached arm");
+        // …and the params are read LIVE from the root block on every call, AFTER that arm.
+        Assert.True(read > cache, "params must be projected live from the root block on every call");
+        Assert.Contains("RootParamsAccess.RequireRootBytes(world, bridge->Self, out int __rootLen)", src);
+        // ⛔ no activation-time copy any more (the old E3a seed).
+        Assert.DoesNotContain("*__params", src);
     }
 
     /// <summary>
@@ -230,7 +217,8 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        Assert.Contains("ref __rootParams, (nint)0", src);
+        // ⭐ CE-444: projected LIVE from the ticked block at a literal 0 — no copy, no binding lookup.
+        Assert.Contains("AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0)", src);
         Assert.DoesNotContain("SeedParamsOffset", src);
 
         // ⛔ CE-445 — no action-level RESOLVE stage any more (R-155: only behaviours have resolvers).
@@ -296,7 +284,7 @@ public sealed class ThunkEmissionTests
 
         // ⭐⭐ THE RAIL. Asset-scoped occurrence storage, through the SAME shared body the HSM path uses.
         Assert.Contains("OccurrenceSlots.StandaloneStateKeyFor(AssetId)", src);
-        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<Params, WorkingState>", src);
+        Assert.Contains("OccurrenceWorkingState.ResolveOrAttach<WorkingState>", src);   // CE-444: working state only
 
         // 🔴 …and the legacy per-entity blackboard is gone from this thunk.
         Assert.DoesNotContain("global::Fdp.Toolkit.Behavior.Components.Blackboard1024", src);

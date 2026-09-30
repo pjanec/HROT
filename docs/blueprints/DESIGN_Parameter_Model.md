@@ -194,9 +194,9 @@ deactivator, `F14`) — a sub-behaviour restarts, an action/guard keeps its memo
 | root behaviour, **blueprint resolver asset** gets the source | ✅ `CE-443` (`2026-09-30`): the JSON is parsed into the resolver's own Parameters and nothing is copied onto `In` | — |
 | sub-behaviour, no resolver: whole host struct copied onto `In` | ✅ (`CE-431`) | — |
 | sub-behaviour, resolver gets the host bytes | ✅ `CE-443`: the host variable is the resolver's source, no copy; a curated TYPED resolver runs from the bytes (`CE-438` closed); a JSON-shaped curated one throws, with the reason | — |
-| C# action / condition reads live | ✅ in a **BTree** · ⛔ **in an HSM it seeds a copy at activation too** (`HsmActionGenerator.cs:629`, the `[SharedAiAction]` thunk — measured `2026-09-30`, this row said ✅ before) | `CE-444` |
+| C# action / condition reads live | ✅ BTree · ✅ HSM since `CE-444` (`2026-09-30`; the `[SharedAiAction]` HSM thunk used to seed a copy — measured, this row once said ✅ wrongly) | — |
 | **blueprint action in a BTree** reads live | ✅ — and it has no resolver (`CE-445`, `2026-09-30`) | — |
-| **blueprint HSM activity / guard** reads live | ⛔ params are copied into its occurrence at activation, then its own resolver runs | `CE-444` |
+| **blueprint HSM activity / guard** reads live | ✅ `CE-444` (`2026-09-30`): projected from the root block at the host offset cached in its occurrence | — |
 | no action-level resolver anywhere | ✅ `CE-445` (`2026-09-30`): `HostedParamResolvers`, `IHostVariableAccess`, `HsmHostVariableAccess`, the name map and the `host` argument deleted; a Construction graph on a non-Library asset is `BP1676` | — |
 | blueprint as a behaviour | ⛔ | `CE-446` = `O9` / [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) |
 
@@ -304,7 +304,7 @@ sequenceDiagram
 | a curated **typed** resolver whose `TAuthored` is unmanaged also registers a from-bytes arm (`CE-438`); a JSON-shaped one hosted still THROWS, with the reason | a JSON parse cannot consume host bytes |
 | `host` (`IHostVariableAccess`) is left in the signatures | removed by `CE-445`, not here — one churn per signature |
 
-### P.9 ✅ `CE-444` DESIGN — **HSM activities and guards read their host live** *(`2026-09-30`, build-state: READY-TO-BUILD — option B approved)*
+### P.9 ✅ `CE-444` DESIGN — **HSM activities and guards read their host live** *(`2026-09-30`, build-state: BUILT — option B, as drawn)*
 
 **INVENTORY** *(grep, `2026-09-30`)*: the activation-time params copy is emitted in **two** places —
 `AiPrimitiveEmitter.EmitParamSeed` (blueprint HSM activity/guard, and the standalone `BTreeTick@0` thunk) and
@@ -345,6 +345,12 @@ sequenceDiagram
 ✅ **Decided — B.** 🔒 User, `2026-09-30`: *"storing host offset sounds good."* The HSM hot path gets one extra root lookup per
 active action/guard — the price of "reads live" (§P.3). ⚠ Not measured: an absolute cached pointer (zero extra lookups) is
 only safe if the occurrence allocator never moves slots — unverified, so not proposed.
+
+✅ **As built:** `AiPrimitiveEmitter` (HSM body: `ResolveOrAttach<int, WorkingState>`, offset cached at attach, `Params` projected from
+`RequireRootBytes` each call with a bounds check; standalone BTree body: `ResolveOrAttach<WorkingState>` + a live projection from
+`BehaviorBlock.Require(ref bb)` at `(nint)0`) and `HsmActionGenerator` (same shape for `[SharedAiAction]`). The old `EmitParamSeed` is
+deleted. Rails: `BrainTickSystemHsmArmTests.CE444_R1_APolledGuard_SeesAHostWriteMadeAfterItWasFirstEvaluated` (red under the old
+copy); `O7_R37`/`O7_R38` re-homed onto the cached offset.
 
 ---
 

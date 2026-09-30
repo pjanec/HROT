@@ -593,6 +593,33 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-444</c> — <b>a guard reads its host LIVE: a host write mid-run is seen on the next poll.</b>
+        /// 📄 <c>DESIGN_Parameter_Model.md</c> §P.3/§P.9 (<c>R-155</c>: an action/condition has no param copy).
+        ///
+        /// <para>The guard is polled CLOSED for several ticks (its occurrence is attached and its host offset
+        /// cached), then the HOST variable is opened. ⭐ The machine must now finish.</para>
+        /// <para>⚠ Inverse-edit red-proof: restore the activation-time copy (the old <c>EmitParamSeed</c>) and the
+        /// guard keeps its seeded <c>false</c> forever ⇒ zero events.</para>
+        /// </summary>
+        [Fact]
+        public void CE444_R1_APolledGuard_SeesAHostWriteMadeAfterItWasFirstEvaluated()
+        {
+            var (world, sys, e, _) = ArrangePolledGuardMachine(open: false);
+
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            Assert.Equal(0, CountEventsForEntity(world, e));   // evaluated closed — occurrence attached
+
+            SeedOpen(world, e, open: true);                    // the HOST changes mid-run
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+
+            Assert.Equal(1, CountEventsForEntity(world, e));
+
+            world.Dispose();
+        }
+
+        /// <summary>
         /// ⭐⭐ <b>The transition really is POLLED — nothing posts an event.</b> ⚠ The instance's event
         /// queue stays empty for the whole run, so the transition cannot have been taken by an
         /// event round; the only remaining path is the <c>Idle</c> arm's polled scan (<c>CE-382</c>).
