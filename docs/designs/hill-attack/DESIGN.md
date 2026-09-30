@@ -5,7 +5,7 @@ current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack retur
 stale-below: nothing.
 known-rot: ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
   fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
-  same slot mid-run (CE-460, OPEN).
+  same slot mid-run (CE-460 — WON'T FIX by user ruling 2026-09-30: keep the old behaviour).
 known-conflict: none.
 related-designs:
   - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
