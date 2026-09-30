@@ -33,13 +33,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         private const string Name = "CountToTarget";
         private const int    Id   = 9301;
 
-        private static (EntityRepository world, BehaviorIngressSystem ingress, BrainTickSystem brain, Entity e, Func<int> ticks)
+        private static (EntityRepository world, BehaviorIngressSystem ingress, BrainTickSystem brain, Entity e, Func<int> ticks, Func<Block> last)
             Fixture(string json)
         {
             var world = TestWorldFactory.Create();
             BlueprintTierTable.RegisterAll(world);
 
             int ticks = 0;
+            Block seen = default;
             var registry = new BehaviorRegistry();
             registry.Register(Id, Name, new BehaviorDefinition
             {
@@ -53,6 +54,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                     ticks++;
                     ref var b = ref Unsafe.As<byte, Block>(ref block);
                     b.Count++;
+                    seen = b;
                     return b.Count >= b.Target ? NodeStatus.Success : NodeStatus.Running;
                 },
             });
@@ -64,7 +66,21 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             var ingress = new BehaviorIngressSystem(registry);
             ingress.Execute(world, 0.016f);
-            return (world, ingress, new BrainTickSystem(registry), e, () => ticks);
+            return (world, ingress, new BrainTickSystem(registry), e, () => ticks, () => seen);
+        }
+
+        private static int LiveBehaviourBlocks(EntityRepository world, Entity e)
+        {
+            byte* memory = OccurrenceStoreAccess.TryGetStore(world, e, out _);
+            if (memory == null) return 0;
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+            byte* table = memory + sizeof(BlueprintBlackboardHeader);
+            int live = 0;
+            for (int i = 0; i < header.SlotCount; i++)
+                if (Unsafe.AsRef<BlueprintSlotEntry>(table + i * BlueprintBlackboardPartitions.SlotEntrySize).BlueprintId != 0
+                    && BlueprintBlackboardPartitions.GetSlotKind(memory, i) == OccurrenceKind.BlueprintBehavior)
+                    live++;
+            return live;
         }
 
         private static int TickAndCountFinished(EntityRepository world, BrainTickSystem brain, Entity e, int frames)
@@ -90,7 +106,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void CE446_ABlueprintBehaviour_RunsOverItsRootBlock_AndFinishesExactlyOnce()
         {
-            var (world, _, brain, e, ticks) = Fixture("3");
+            var (world, _, brain, e, ticks, last) = Fixture("3");
 
             Assert.Equal(BehaviorConstants.BrainTierBlueprint, world.GetComponent<BehaviorState>(e).BrainTier);
 
@@ -98,9 +114,8 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(1, finished);
             Assert.Equal(3, ticks());
-            ref var block = ref Unsafe.As<byte, Block>(ref RootParamsAccess.RootRef(world, e));
-            Assert.Equal(3, block.Target);
-            Assert.Equal(3, block.Count);
+            Assert.Equal(3, last().Target);   // the JSON reached In
+            Assert.Equal(3, last().Count);    // the state persisted across frames
 
             world.Dispose();
         }
@@ -113,7 +128,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void CE446_ReassigningAFinishedBlueprintBehaviour_RunsItAgainFromAnEmptyBlock()
         {
-            var (world, ingress, brain, e, ticks) = Fixture("2");
+            var (world, ingress, brain, e, ticks, last) = Fixture("2");
             Assert.Equal(1, TickAndCountFinished(world, brain, e, frames: 4));
 
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = Name, JsonParams = "2" });
@@ -122,40 +137,31 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(1, TickAndCountFinished(world, brain, e, frames: 4));
             Assert.Equal(4, ticks());
-            Assert.Equal(2, Unsafe.As<byte, Block>(ref RootParamsAccess.RootRef(world, e)).Count);
+            Assert.Equal(2, last().Count);    // from an EMPTY block, not 2 + 2
 
             world.Dispose();
         }
 
         /// <summary>
-        /// ⭐⭐ <b>Finishing does not free the block; the DECIDER does.</b> 📄 <c>BD1-DESIGN.md</c> §1: <c>BehaviorFinishedEvent</c>
-        /// is a bottom-up NOTIFICATION, and the mission tier answers with <c>ClearBehaviorEvent</c> or the next assign.
-        /// ⭐ This pins that the clear reclaims a blueprint behaviour's root block exactly as it does a BTree's — the
-        /// block is a <see cref="OccurrenceKind.BlueprintBehavior"/> slot, and <c>RootParamsAccess.DetachRoot</c> is keyed
-        /// by behaviour, not by kind.
+        /// ⭐⭐ <b>The block is freed AT FINISH</b> (user, <c>2026-09-30</c>: <i>"isn't it well defined when a behavior finished so
+        /// when to free its resources?"</i>) — for this tier it is: the instance is never ticked again. ⭐ The decider's
+        /// clear that follows (<c>BD1-DESIGN.md</c> §1) then finds nothing to free and is a no-op.
+        /// <para>⚠ Inverse-edit red-proof: drop the <c>DetachRoot</c> in <c>TickBlueprint</c> and the first assertion fails.</para>
         /// </summary>
         [Fact]
-        public void CE446_AFinishedBlueprintBehaviour_IsFreedByTheClearThatFollowsIt()
+        public void CE446_AFinishedBlueprintBehaviour_FreesItsBlockAtFinish_AndTheClearAfterIsANoOp()
         {
-            var (world, ingress, brain, e, _) = Fixture("1");
+            var (world, ingress, brain, e, _, _) = Fixture("1");
+            Assert.Equal(1, LiveBehaviourBlocks(world, e));
+
             Assert.Equal(1, TickAndCountFinished(world, brain, e, frames: 2));
-            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _), "still held after finishing — by design");
+            Assert.Equal(0, LiveBehaviourBlocks(world, e));
+            Assert.False(RootParamsAccess.TryGetRootBytes(world, e, out _));
 
             world.Bus.Publish(new ClearBehaviorEvent { Entity = e });
             world.Bus.SwapBuffers();
-            ingress.Execute(world, 0.016f);
-
+            Assert.Null(Record.Exception(() => ingress.Execute(world, 0.016f)));
             Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
-            byte* memory = OccurrenceStoreAccess.TryGetStore(world, e, out _);
-            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
-            byte* table = memory + sizeof(BlueprintBlackboardHeader);
-            int live = 0;
-            for (int i = 0; i < header.SlotCount; i++)
-                if (Unsafe.AsRef<BlueprintSlotEntry>(table + i * BlueprintBlackboardPartitions.SlotEntrySize).BlueprintId != 0
-                    && BlueprintBlackboardPartitions.GetSlotKind(memory, i) == OccurrenceKind.BlueprintBehavior)
-                    live++;
-            Assert.Equal(0, live);
-            Assert.False(RootParamsAccess.TryGetRootBytes(world, e, out _));
 
             world.Dispose();
         }
@@ -167,7 +173,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void CE446_TheRootBlock_IsDeclaredAsABlueprintBehaviourSlot_NotAnInstance()
         {
-            var (world, _, _, e, _) = Fixture("1");
+            var (world, _, _, e, _, _) = Fixture("1");
 
             byte* memory = OccurrenceStoreAccess.TryGetStore(world, e, out _);
             Assert.True(memory != null, "the store must exist");

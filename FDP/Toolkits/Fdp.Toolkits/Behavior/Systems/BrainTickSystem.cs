@@ -340,7 +340,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </para>
         ///
         /// <para>
-        /// ⛔ <b>A finished blueprint is NOT ticked again</b> until a new assign bumps <c>InstanceId</c>. Unlike a BTree
+        /// ⭐ <b>Its block is freed at finish</b>, and ⛔ <b>a finished blueprint is NOT ticked again</b> until a new
+        /// assign bumps <c>InstanceId</c>. Unlike a BTree
         /// root — which the interpreter restarts — a blueprint's tick has no restart semantics: calling it again would
         /// re-run the graph from phase 0 and re-issue its commands after it said it was done.
         /// </para>
@@ -374,6 +375,15 @@ namespace Fdp.Toolkit.Behavior.Systems
             {
                 repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = status });
                 _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
+
+                // ⭐⭐ FREE THE BLOCK AT FINISH (user, 2026-09-30: "isn't it well defined when a behavior finished so
+                //   when to free its resources?"). ⭐ For THIS tier it is: the instance is never ticked again (guard
+                //   above), so nothing of ours reads the block after this line. ⛔ NOT done for BTree — a BTree root
+                //   that returns Success is reset and re-run next frame (Interpreter RunningNodeIndex = 0), so its
+                //   "finished" is a report, not an end. ⚠ Not a structural change: DetachRoot edits the slot table
+                //   inside the tier component, so the walk that is iterating stays valid. A later clear/assign's
+                //   DetachRoot of the same key is then a no-op.
+                RootParamsAccess.DetachRoot(repo, entity, behavior.ActiveBehaviorHash);
             }
         }
 

@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
-  shape") are OVERTAKEN by measurement — see §5. §5.2 was APPROVED by the user 2026-09-30.
+  shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (awaiting the user); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns the three settled rulings (blueprint IS a brain tier; latent ≠
@@ -193,7 +193,7 @@ as approved.
 
 | claim | code | design |
 |---|---|---|
-| finishing does NOT free the block | ✅ `BrainTickSystem.TickBlueprint` only publishes | ✅ `docs/designs/brain-death/BD1-DESIGN.md` §1 — `BehaviorFinishedEvent` is a bottom-up NOTIFICATION; the mission tier decides |
+| ⛔ SUPERSEDED same day — ~~finishing does NOT free the block~~ ⇒ ✅ **freed AT FINISH** (user: *"isn't it well defined when a behavior finished so when to free its resources?"*); the following clear is a no-op. Blueprint tier only: a BTree root is re-run after Success (`Interpreter.cs:359-366`); HSM clears Terminated and returns to Idle — not measured to closure | ✅ `TickBlueprint` → `RootParamsAccess.DetachRoot`; rail `CE446_AFinishedBlueprintBehaviour_FreesItsBlockAtFinish_AndTheClearAfterIsANoOp` (red-proof run) | ✅ `docs/designs/brain-death/BD1-DESIGN.md` §1 — `BehaviorFinishedEvent` is a bottom-up NOTIFICATION; the mission tier decides |
 | the decider's `ClearBehaviorEvent` / next assign frees it | ✅ ingress detaches the previous root slots by behaviour key (`RootParamsAccess.DetachRoot`, kind-agnostic) — rail `CE446_AFinishedBlueprintBehaviour_IsFreedByTheClearThatFollowsIt` | ✅ same § — `MissionDirectorSystem` answers a finish with `CurrentPhase++` ⇒ next assign or clear |
 | there is no blueprint INSTANCE to remove | ✅ the behaviour is not an Instance slot and spawns nothing (§3 C, kind `BlueprintBehavior`) | ✅ `O9` gap ③ |
 | ⚠ with no mission, a finished behaviour holds its block (not ticked) until reassign / clear / entity destruction | ✅ only mission systems and one hand-written node publish `ClearBehaviorEvent` | — identical for BTree and HSM today |
@@ -219,3 +219,15 @@ Blueprint/BTree/Hsm; AiPrimitive NOT offered, `BlueprintNewAssetService.cs:28`);
 technologies (`ActionSchemaExporter`); the behaviour assignment list is curated + BTree ONLY
 (`ScenarioMissionService.cs:103`). ⇒ E4 = New Behaviour/Action/Condition entries with a technology choice + list every
 `BrainTier` in the assignment picker, with the technology as a label.
+
+### 5.6 ⚠ AWAITING THE USER — §5.2 is overtaken: build on the INSTANCE body + a status *(measured `2026-09-30`)*
+
+> 🔒 User: *"what makes behavior blueprint different from instance ones? … Why not the instance node set?"*
+
+| claim | code |
+|---|---|
+| `When` / EQS / Event graphs are Instance-only by ACCIDENT, not semantics | ✅ `When` = synthesized prev-value fields (`WhenLowering_Instance.cs`); Event graphs = static `BlueprintEventDispatch.DispatchForSlot`; EQS spawn needs `ecb`, obtainable as `view.GetCommandBuffer()` (`BlueprintTickSystem.cs:57`) |
+| ⛔ §5.2's "~30 sites" was the cost of the WRONG body | ✅ those are `AiPrimitive ? … : …` binaries — a new kind falls on the Instance side; only **11** compiler sites test `Instance` explicitly (Stage2 ×5, CSharpEmitter ×3, Stage6, parser, registrar) |
+| blackboard access exists on either body | ✅ Parameters = `In`, Variables = `St`, via Get/Set Variable |
+
+⭐ **Lean:** `BlueprintDispatchKind.Behavior` (§3 A's kind) on the **Instance** emitter + a status: `Return` ⇒ `Success`/`Failure`, suspended ⇒ `Running`; registrar registers the tier-3 `BehaviorDefinition`; `TickBlueprint` runs `BlueprintEventDispatch` then the tick with an `ecb`. ⛔ Rejected: `AiPrimitiveHosting.Behavior` (§5.2) — no `When`/EQS/Event graphs, and widening it re-plumbs what Instance has. ⚠ Editor switch sites not yet measured.
