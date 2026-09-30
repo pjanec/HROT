@@ -1,3 +1,22 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+build-state: DESIGN (the AreaQuery unification, §16, is measured but not yet designed in UML)
+current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
+  unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
+stale-below: nothing is superseded, but §6.4 (hot reload) and §6.6 (starter pack of 8) describe intent that was
+  never built — see §16.
+known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordinator ... registrars invoked" — the
+  generated registrar registers a BlueprintDefinition, not the template, and the coordinator has no EQS code (§16).
+known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
+  the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
+related-designs:
+  - docs/designs/hill-attack/DESIGN.md — owns the doctrine and the AreaQuery pipeline (Phase 1), the one live consumer.
+  - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — §5.3 measured the two systems; the
+    blueprint hill attack is the consumer waiting for the unification.
+  - docs/blueprints/batches/HANDOFF_EQS_Unification.md — the frame for the unification work (draft).
+  - docs/projects/FDP/Toolkits/Fdp.Toolkits.Spatial.Eqs.md — the toolkit reference; already calls AreaQuery "legacy".
+-->
 # EQS (Environment Query System) — Design v1.3
 
 Consolidated design from the brainstorming sessions between the project owner and Claude, incorporating responses from the engine architect.
@@ -651,3 +670,49 @@ Suggested order for incremental implementation, each phase testable end-to-end:
 | Convoy | Snapshot sharing across modules running at the same frequency |
 | Soft reload | Hot-reload that only changes parameters; live sensors keep state |
 | Hard reset | Hot-reload that changes structure; live sensors wipe state |
+
+---
+
+## 16. As-built state and the AreaQuery unification — measured `2026-09-30`
+
+⭐ **Why this section exists.** §1 says EQS *"upgrades the engine's current minimalistic `AreaQuerySolverSystem`"*.
+That never happened: two pipelines with separate solvers exist (`EqsModule.cs:17-19`). The user ruled on
+`2026-09-30` to unify them into EQS 1.3 (`R-156`). This section holds what the measurement found. ⛔ It is a state
+record: re-measure before you build on it.
+
+### 16.1 What is already there — reuse, do not rebuild
+
+| piece | where | state |
+|---|---|---|
+| solver pipeline (generate → filter → Top-K → score → pool → event) | `EqsSolverSystem.cs:84-290` | ✅ complete |
+| Brain-side buffer write, local + DDS paths | `EqsResultUpdateSystem.cs` Path A / Path B | ✅ complete |
+| DDS wiring | `SimHostAuxiliaryTranslatorPack.cs:67-68` (Brain arm), `:92-93` (Muscle arm) — beside AreaQuery's `:64-65`, `:89-90` | ✅ symmetric with AreaQuery |
+| force filter | `FactionFilterTest` (bitmask `1 << ForceId`) | ✅ reusable as-is |
+| BTree nodes | `EqsLifecycleNodes`: `Action_MaintainEqsSensor`, `Action_WaitForSensor`, `Action_SpawnEqsSensorChild` | ✅ exist |
+| blueprint nodes | `SpawnEqsSensorNode`, `ReadEqsResultNode`, `When` EQS triggers (`Nodes.cs:455-486`) | ✅ exist — ⚠ see 16.2 H6 |
+| snapshot carries the registry | `EntityRepository.Sync.cs:118` syncs singleton id 210 | ✅ |
+
+### 16.2 What blocks it — each with its evidence
+
+| # | finding | evidence |
+|---|---|---|
+| **H1** | ⛔ **no production registry** (`CE-465`): every `IEqsTemplateRegistry` install is in a test, so every sensor gets the empty stub. The `[EqsTemplate]` generator emits a `BlueprintDefinition` (name + hash), and **drops the template itself** | `EqsSolverSystem.cs:143-158`; `EqsTemplateGenerator.cs:75-88` |
+| **H2** | ⛔ **hot reload does not exist** — `AiHotReloadCoordinator` has no EQS code; `EqsModule.cs:21` says otherwise | `CE-465` |
+| **H3** | 🔴 **two different spatial grids.** EQS generators read `SpatialGridData` = CarKinem's grid, **only entities with `PhysicsCollider`**, only where `SpatialHashSystem` runs. AreaQuery reads the perception grid = **every entity with `SimTransform`**. An area generator on `SpatialGridData` would silently drop collider-less targets | `SpatialHashSystem.cs:54-57`; `LocalGridBuilderSystem.cs:94`; `EntitiesInRadiusGenerator.cs:19` |
+| **H4** | ⚠ the perception grid is deliberately **not** a singleton — it is handed by constructor to `CognitiveSpatialModule`'s systems; `EqsModule` is a separate background module, so reading it from there races its rebuild | `PerceptionGridProvider.cs:23-29` |
+| **H5** | ⚠ **a child sensor whose parent has no `NetworkIdentity` returns NOTHING** — not even the empty event — so a waiter hangs until its timeout | `EqsSolverSystem.cs:100-101` |
+| **H6** | ⛔ the blueprint `SpawnEqsSensor` emits **no context slots** — so a graph cannot pass the area entity. It also always makes a `PartMetadata` child (⇒ H5) and has no update/despawn | `StatementEmitter.cs:1233-1257` |
+| **H7** | ⚠ the **editor** host registers AreaQuery (`EditorCapabilities.cs:211`, `EditorSubsystem.cs:1513`) but **not `EqsModule`**. Retiring AreaQuery without adding it drops area queries there (`R-141`: just register it) | `grep "new EqsModule"` — SimHost + Stride only |
+| **H8** | ⭐ **Top-K 16 vs AreaQuery's 64 costs the one consumer nothing:** a wave assigns at most one target per tank, and a roster holds 16 (`UnitRoster.Capacity`). ⚠ It is still a generic cap (§4.3 accepted 16 by design) | `UnitRoster.cs:32`; `HillAttackCommanderNodes.cs:374` |
+| **H9** | ⚠ **order is not parity.** AreaQuery returns grid order; EQS sorts by `Score` (0 for all without a scoring test). The doctrine picks targets by `index % count`, so *which* tank fires at *which* target can change. Parity is set-parity; the outcome rail is `hill-attack-close` | `EqsSolverSystem.cs:286`; `HillAttackCommanderNodes.cs:374` |
+| **H10** | ⚠ AreaQuery also filters **wrecks** (`Health.Current <= 0`) — the area template needs that filter too | `AreaQuerySolverSystem.cs:159-163` |
+| **H11** | ⚠ the invariant rail `HillAttackIntegrationTests` hand-wires `AreaQuerySolverSystem` into its tick loop, so it must be rewired and **cannot alone prove "unchanged"** — the live cluster run must | `HillAttackIntegrationTests.cs:185-229` |
+
+### 16.3 AreaQuery's full footprint *(what retirement removes)*
+
+`search_graph(".*AreaQuery.*", Class)` → **21**. Production: `AreaQueryEvents`, `AreaQueryBatchData` (+`EqsTargetPool`),
+`AreaQueryBatchHelper`, `AreaQuerySolverSystem`, `AreaQueryResultMaterializationSystem`, four translators + two DDS
+messages (a **wire-contract** removal, `AllDescriptors.cs`), two ImGui singleton renderers, registrations in SimHost /
+Stride / editor / `StrideNodeBootstrapper`. Callers (**behaviours lane**): `HillAttackCommanderNodes` (5 methods),
+`TargetPoolOps`, `AreaQueryBatchOps`, **four `HillAssault2_*.bp.json` blueprints** and `PlatoonHillAttack.btree.json`.
+Tests: **17** files mention it.
