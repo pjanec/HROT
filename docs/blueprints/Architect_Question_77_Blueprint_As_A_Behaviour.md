@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
-  shape") are OVERTAKEN by measurement — see §5. §5.2 is an OPEN question to the user.
+  shape") are OVERTAKEN by measurement — see §5. §5.2 was APPROVED by the user 2026-09-30.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns the three settled rulings (blueprint IS a brain tier; latent ≠
@@ -168,7 +168,10 @@ graph TD
 | root block declared `OccurrenceKind.BlueprintBehavior = 4` — ⛔ not `Blueprint`, which `BlueprintTickSystem` walks as an Instance and ingress sweeps as hosted (`O9` gap ③ closed by construction) | `OccurrenceKind.cs`, ingress `KindOf` / `EnsureOccurrenceStore` |
 | rails | `BrainTickSystemBlueprintArmTests` (runs over the block, finishes once, not re-ticked; re-assign runs again from an empty block; slot kind) |
 
-### 5.2 ⚠ OPEN — the COMPILER shape: §3 A's lean is overtaken
+### 5.2 ✅ APPROVED `2026-09-30` — the COMPILER shape: `AiPrimitiveHosting.Behavior` (§3 A overtaken)
+
+> 🔒 **User, `2026-09-30`:** *"I would approve your lean again … but i expect you back your judgement by measurements
+> and you do not offer something which is not implementable."* ⇒ §5.4 lists what was measured implementable and what is NOT.
 
 | the lean rested on | code — how it IS | design basis |
 |---|---|---|
@@ -184,4 +187,35 @@ ONLY hosting (a behaviour's params come from its intent, an action's from its ho
 contracts, `R-155`); `BP1676` allows exactly one Construction graph there (its resolver, §3 B).
 ⛔ **Rejected:** a new `BlueprintDispatchKind.Behavior` — the same emitted body behind a second discriminant, paid for
 at ~30 compiler sites + the runtime mirror enum + editor switches, with no behavioural difference. ⚠ This reverses §3 A
-as approved; the user decides.
+as approved.
+
+### 5.3 Lifecycle — **who frees the block** *(measured)*
+
+| claim | code | design |
+|---|---|---|
+| finishing does NOT free the block | ✅ `BrainTickSystem.TickBlueprint` only publishes | ✅ `docs/designs/brain-death/BD1-DESIGN.md` §1 — `BehaviorFinishedEvent` is a bottom-up NOTIFICATION; the mission tier decides |
+| the decider's `ClearBehaviorEvent` / next assign frees it | ✅ ingress detaches the previous root slots by behaviour key (`RootParamsAccess.DetachRoot`, kind-agnostic) — rail `CE446_AFinishedBlueprintBehaviour_IsFreedByTheClearThatFollowsIt` | ✅ same § — `MissionDirectorSystem` answers a finish with `CurrentPhase++` ⇒ next assign or clear |
+| there is no blueprint INSTANCE to remove | ✅ the behaviour is not an Instance slot and spawns nothing (§3 C, kind `BlueprintBehavior`) | ✅ `O9` gap ③ |
+| ⚠ with no mission, a finished behaviour holds its block (not ticked) until reassign / clear / entity destruction | ✅ only mission systems and one hand-written node publish `ClearBehaviorEvent` | — identical for BTree and HSM today |
+
+### 5.4 Implementability of §5.2 *(measured before building)*
+
+| needed | status |
+|---|---|
+| a generated blueprint registrar can register a `BehaviorDefinition` | ✅ `BlueprintRegistrarScanner` injects `BehaviorRegistry` by parameter type (startup AND hot reload); id = `BehaviorHash.FromName` like BTree/HSM |
+| the tick body with a status and latent waits | ✅ `TickCore → NodeStatus`; delay / wait-for-channel / wait-for-event supported for AiPrimitive (`Stage5_Schedule.cs:454-469`) |
+| its own resolver | ✅ emit the Construction graph as `Resolve(in Params p, ref WorkingState ws, world, self)` — the AiPrimitive `p`/`ws` names already in `EmissionContext`; BP1676/BP1675 exempt Variables writes for `Behavior` hosting only |
+| ⛔ **NOT available in v1** | `When` nodes (BP2001), EQS sensor nodes (BP2020/BP2030), Event graphs (BP1025) are Instance-only today ⇒ a blueprint behaviour has the node vocabulary blueprint actions have. Widening is a follow-up, not part of E1–E3 |
+
+### 5.5 E4 re-framed — **product first, technology second** *(user, `2026-09-30`)*
+
+> 🔒 *"User adds certain product features/building blocks like behaviors, conditions, actions and the technology is a
+> secondary choice … when picking conditions i need to see all available ones no matter what technology."*
+
+⭐ Already the ruled intent: `docs/UX/UX_Requirements.md` **UXR-40** (one New Behavior entry) / **UXR-41** (assignable
+without restart), `docs/UX/UX_Design.md` **UXD-03** (one assignment path over N implementations, OPEN), `Q25-C`
+(`BehaviorRegistry` the single source). Measured today: creation is technology-first (`NewAssetLauncher`, kinds
+Blueprint/BTree/Hsm; AiPrimitive NOT offered, `BlueprintNewAssetService.cs:28`); action/condition pickers ALREADY merge
+technologies (`ActionSchemaExporter`); the behaviour assignment list is curated + BTree ONLY
+(`ScenarioMissionService.cs:103`). ⇒ E4 = New Behaviour/Action/Condition entries with a technology choice + list every
+`BrainTier` in the assignment picker, with the technology as a label.
