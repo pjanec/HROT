@@ -496,6 +496,22 @@ internal static class InstanceEmitter
     private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
     {
         var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
+        // ⭐ CE-446 (Q77 §3 B) — the behaviour's OWN resolver: its one Construction graph, over the injected block.
+        //   Emitted with the Instance context (StateVar `s`, params `s.Params`); a Construction graph's view is `world`.
+        var resolver = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
+        if (resolver is not null)
+        {
+            e.WriteLine($"/// <summary>CE-446: the behaviour's own resolver — reads its Parameters, writes its Variables.</summary>");
+            e.WriteLine($"private static void Resolve_{Sanitizer.SanitizeName(resolver.Name)}(ref State s, "
+                      + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
+            e.WriteLine("{");
+            e.Indent();
+            LibraryEmitter.EmitGraphBody(e, asset, resolver);
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+
         if (events.Count > 0)
         {
             e.WriteLine("private static readonly global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate> BehaviorEventHandlers =");
@@ -520,6 +536,10 @@ internal static class InstanceEmitter
         e.WriteLine("InitDefault(new global::System.Span<byte>(memory, StateSize));");
         if (asset.Parameters.Count > 0)
             e.WriteLine("ParseParams(json, memory + ParamsOffset, capacity - ParamsOffset, world, self);");
+        // ⭐ The resolver runs LAST, inside the ingress shadow: Parameters are parsed, Variables baked — it derives state.
+        if (resolver is not null)
+            e.WriteLine($"Resolve_{Sanitizer.SanitizeName(resolver.Name)}("
+                      + "ref global::System.Runtime.CompilerServices.Unsafe.AsRef<State>(memory), world, self);");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine();

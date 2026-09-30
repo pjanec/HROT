@@ -149,6 +149,108 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.True(WasHit());
     }
 
+    // ── the behaviour's OWN resolver (Q77 §3 B) ─────────────────────────────
+
+    /// <summary>
+    /// A behaviour with Parameter <c>Speed</c> (default 2), Variable <c>Mirrored</c>, and a resolver graph
+    /// <c>Mirrored = Speed</c> (Get Parameter → Set Variable). ⭐ The resolver reads the AUTHORED input and writes STATE.
+    /// </summary>
+    private static BlueprintAsset BehaviourWithResolver(string name, Action<Graph>? tweakResolver = null)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name)
+            .WithParameter("Speed", typeof(float), "2")
+            .WithVariable("Mirrored", typeof(float))
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        var speed = asset.Parameters.Single();
+        var mirrored = asset.Variables.Single();
+
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var eOut  = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        entry.Pins.Add(eOut);
+        var get   = new GetParameterNode { Id = Guid.NewGuid(), ParameterId = speed.Id.ToString() };
+        var gOut  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        get.Pins.Add(gOut);
+        var set   = new SetVariableNode { Id = Guid.NewGuid(), VariableId = mirrored.Id.ToString() };
+        var sIn   = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
+        var sOut  = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        var sVal  = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", TypeRef = new BlueprintTypeRef { TypeId = "System.Single" } };
+        set.Pins.Add(sIn); set.Pins.Add(sOut); set.Pins.Add(sVal);
+        var resolver = new Graph
+        {
+            Id = Guid.NewGuid(), Name = "Resolve", Kind = GraphKind.Construction,
+            Nodes = { entry, get, set },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = eOut.Id, ToNodeId = set.Id, ToPinId = sIn.Id },
+                new Link { FromNodeId = get.Id,   FromPinId = gOut.Id, ToNodeId = set.Id, ToPinId = sVal.Id },
+            },
+        };
+        tweakResolver?.Invoke(resolver);
+        asset.Graphs.Add(resolver);
+        return asset;
+    }
+
+    private unsafe float AssignAndReadMirrored(string name, string json)
+    {
+        _fixture.CompileAndLoad(BehaviourWithResolver(name), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var world = _fixture.World;
+        var e = _fixture.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = name, JsonParams = json });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
+        Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
+        return *(float*)(root + (int)System.Runtime.InteropServices.Marshal.OffsetOf(def!.BlackboardLayoutType!, "Mirrored"));
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>The own resolver runs at ASSIGN</b>, inside the ingress shadow, AFTER the JSON is parsed onto the Parameters:
+    /// <c>{"Speed": 7}</c> ⇒ <c>Mirrored == 7</c> before the first tick.
+    /// <para>⚠ Inverse-edit red-proof: drop the <c>Resolve_…</c> call from <c>BehaviorParseParams</c> and this reads 0.</para>
+    /// </summary>
+    [Fact]
+    public void CE446_TheOwnResolver_RunsAtAssign_FromTheParsedParameters()
+        => Assert.Equal(7f, AssignAndReadMirrored("CE446ResolverJson", "{\"Speed\": 7}"));
+
+    /// <summary>⭐ With no JSON the Parameter keeps its authored default, and the resolver sees it.</summary>
+    [Fact]
+    public void CE446_TheOwnResolver_SeesTheParameterDefault_WhenTheJsonOmitsIt()
+        => Assert.Equal(2f, AssignAndReadMirrored("CE446ResolverDefault", string.Empty));
+
+    private static System.Collections.Generic.IReadOnlyList<Hrot.Blueprints.Core.Compiler.Diagnostics.Diagnostic> Diagnose(BlueprintAsset a)
+        => new BlueprintCompiler().Compile(a, GoldenCorpus.Options()).Diagnostics;
+
+    /// <summary>⛔ The authored input is read-only: a resolver that writes a Parameter is BP1675.</summary>
+    [Fact]
+    public void CE446_AResolverWritingAParameter_IsBP1675()
+    {
+        var a = BehaviourWithResolver("CE446WritesParam");
+        var set = a.Graphs.Single(g => g.Kind == GraphKind.Construction).Nodes.OfType<SetVariableNode>().Single();
+        set.VariableId = a.Parameters.Single().Id.ToString();
+        Assert.Contains(Diagnose(a), d => d.Code == "BP1675");
+    }
+
+    /// <summary>⛔ A behaviour has exactly ONE resolver (R-152): two Construction graphs are BP1676.</summary>
+    [Fact]
+    public void CE446_TwoResolvers_AreBP1676()
+    {
+        var a = BehaviourWithResolver("CE446TwoResolvers");
+        a.Graphs.Add(new Graph { Id = Guid.NewGuid(), Name = "Resolve2", Kind = GraphKind.Construction });
+        Assert.Contains(Diagnose(a), d => d.Code == "BP1676");
+    }
+
+    /// <summary>⛔ The block is injected: a resolver graph that declares an input is BP1677.</summary>
+    [Fact]
+    public void CE446_AResolverDeclaringAnInput_IsBP1677()
+    {
+        var a = BehaviourWithResolver("CE446ResolverInput", g => g.Inputs.Add(new ParameterDecl
+            { Id = Guid.NewGuid(), Name = "X", Type = new BlueprintTypeRef { TypeId = "System.Single" } }));
+        Assert.Contains(Diagnose(a), d => d.Code == "BP1677");
+    }
+
     // ── runtime, through the real ingress and brain tick ───────────────────
 
     /// <summary>

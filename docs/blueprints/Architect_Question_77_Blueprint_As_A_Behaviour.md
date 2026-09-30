@@ -308,7 +308,7 @@ classDiagram
 
 ⭐ **Shipped demo:** `BlueprintBehaviourDemo.bp.json` — compiled by the production generator; the production registrar scan registers it on `BrainTierBlueprint` (rail `CE446_TheShippedDemo_…`).
 
-⚠ **Still open inside `CE-446`:** its own resolver (§3 B) · hot reload of a running blueprint
+⚠ **Still open inside `CE-446`:** hot reload of a running blueprint
 behaviour whose layout changed (§5.8) · E4 editor (§5.5).
 
 ### 5.10 ✅ The Instance node set, PROVEN in a blueprint behaviour *(`2026-09-30`)*
@@ -325,3 +325,28 @@ Instance graph copied into a behaviour changes meaning wherever it returns per f
 ⛔⛔ **Found and fixed (pre-existing, all Instances):** a `When` with an UNCONNECTED exit compiled to a bare label before the
 method's closing brace (CS1525). Stage 5 now seals it like a Branch arm (`SealFallThrough`); rail
 `WhenNodeRuntimeTests.AWhenWithUnconnectedExits_CompilesAndTicks_ForAnInstance`.
+
+### 5.11 ✅ BUILT `2026-09-30` — the behaviour's OWN resolver (§3 B)
+
+```mermaid
+sequenceDiagram
+    participant I as "BehaviorIngressSystem (shadow)"
+    participant P as "BehaviorParseParams"
+    participant R as "Resolve_X(ref State s, world, self)"
+    I->>P: clear shadow, ParseParams(json)
+    P->>P: InitDefault — cursor zeroed, Variable defaults
+    P->>P: ParseParams — JSON by name onto s.Params (defaults kept for missing keys)
+    P->>R: the ONE Construction graph
+    R->>R: Get Parameter (read-only) ⇒ Set Variable (the state)
+    I->>I: commit shadow to the root block
+```
+
+> ⭐ **Caption:** the resolver runs LAST and INSIDE the shadow, so a throw leaves the entity on its old behaviour. ⭐
+> **Decision (logged):** a blueprint behaviour's Parameters are ONE struct — the authored input AND the block's `Params` —
+> so the parse always fills them and there is no "default copy" to skip (unlike `§P.2`, where the authored DTO and `In` are
+> different types). The resolver derives STATE from them. ⛔ Writing a Parameter is `BP1675`; two resolvers `BP1676`; a
+> declared input/output `BP1677`.
+
+Rails (`BlueprintBehaviourTests`): `CE446_TheOwnResolver_RunsAtAssign_FromTheParsedParameters` (✅ red-proof: drop the call ⇒
+fails) · `…_SeesTheParameterDefault_WhenTheJsonOmitsIt` · `CE446_AResolverWritingAParameter_IsBP1675` · `CE446_TwoResolvers_AreBP1676` ·
+`CE446_AResolverDeclaringAnInput_IsBP1677`.

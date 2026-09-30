@@ -97,15 +97,18 @@ internal sealed class V_ResolverPurity : IValidator
             bool isLibrary = asset.Dispatch == BlueprintDispatchKind.Library;
             bool isSubject = isLibrary && asset.ResolverSubject is not null;
 
-            // ── BP1676 — a resolver belongs to a BEHAVIOUR, never to an action/condition/instance ────
-            // ⚠ CE-446: a blueprint BEHAVIOUR's own resolver (Q77 §3 B) is approved but NOT BUILT yet — refused with a
-            //   message that says so, rather than the "only behaviours have resolvers" one, which would be false here.
+            // ── ⭐ CE-446 (Q77 §3 B) — a blueprint BEHAVIOUR's own Construction graph IS its ONE resolver. It reads its
+            //   Parameters (the authored input, read-only) and writes its Variables (the block's state). It declares no
+            //   inputs/outputs — the block is injected (`ref State s`), exactly like a behaviour resolver asset.
             if (asset.Dispatch == BlueprintDispatchKind.Behavior)
             {
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
-                    $"Graph '{graph.Name}' is a Construction graph on a blueprint behaviour. A blueprint behaviour's own "
-                    + "resolver (Q77 §3 B) is not built yet (CE-446); remove the graph for now.",
-                    asset.AssetId, graph.Id));
+                ownResolverGraphs.Add(graph);
+                if (graph.Inputs.Count != 0 || graph.Outputs.Count != 0)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1677,
+                        $"Resolver graph '{graph.Name}' of a blueprint behaviour must declare no inputs and no outputs; read "
+                        + "the Parameters with Get Parameter and write the Variables with Set Variable.",
+                        asset.AssetId, graph.Id));
+                CheckPurity(asset, graph, ctx);
                 continue;
             }
             if (!isLibrary)
@@ -135,32 +138,7 @@ internal sealed class V_ResolverPurity : IValidator
             // ── BP1677 — the signature: both subjects are injected, nothing is declared ─────
             ValidateSubjectSignature(asset, graph, ctx);
 
-            // ── BP1675 — purity ───────────────────────────────────────────────────
-            foreach (var node in graph.Nodes)
-            {
-                if (!SideEffectingNodeTypes.Contains(node.GetType())) continue;
-
-                // ⭐⭐ THE ONE EXEMPTION — CE-428 ③: a behaviour resolver asset's Variables ARE the behaviour's
-                //   block (the injected `ref TBlock`), and the resolve runs inside the ingress shadow — so a write
-                //   to ANY of them is the resolver's result, never an escape. ⭐ CE-443: its Parameters are the
-                //   `in` authored DTO — READ-ONLY, so a write to one is refused like any other denied write.
-                // ⛔ CE-445: the AiPrimitive own-resolver exemption (CE-432) is gone with the own resolver.
-                if (node is SetVariableNode subjectWrite
-                    && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
-                    continue;
-
-                // ⭐ CE-433 — Set Variables writes ONLY pinned Variables (BP1670 refuses any other pin).
-                if (node is SetVariablesNode)
-                    continue;
-
-                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1675,
-                    $"Resolver graph '{graph.Name}' contains a '{node.GetType().Name}', which has an "
-                    + "effect outside the block it resolves. A resolver runs inside the behaviour "
-                    + "ingress's shadow parse: anything it writes elsewhere survives even when the "
-                    + "parse fails, leaving the entity half-switched. Compute the value and return it "
-                    + "through the graph's output instead.",
-                    asset.AssetId, graph.Id, node.Id));
-            }
+            CheckPurity(asset, graph, ctx);
         }
 
         // ── BP1676 (second arm) — ONE resolver per params region ──────────────────
@@ -181,10 +159,44 @@ internal sealed class V_ResolverPurity : IValidator
         if (ownResolverGraphs.Count > 1)
         {
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
-                $"This behaviour resolver asset declares {ownResolverGraphs.Count} Construction graphs "
+                $"This asset declares {ownResolverGraphs.Count} resolver (Construction) graphs "
                 + $"({string.Join(", ", ownResolverGraphs.Select(g => "'" + g.Name + "'"))}), but a behaviour "
                 + "has exactly one resolver (R-152). Keep one.",
                 asset.AssetId, ownResolverGraphs[1].Id));
+        }
+    }
+
+    /// <summary>
+    /// ⭐ BP1675 — the purity check, shared by a behaviour resolver asset (CE-428) and a blueprint behaviour's own
+    /// resolver (CE-446): both write ONLY their block's Variables, and both run inside the ingress shadow.
+    /// </summary>
+    private static void CheckPurity(BlueprintAsset asset, Graph graph, ValidationContext ctx)
+    {
+        // ── BP1675 — purity ───────────────────────────────────────────────────
+        foreach (var node in graph.Nodes)
+        {
+            if (!SideEffectingNodeTypes.Contains(node.GetType())) continue;
+
+            // ⭐⭐ THE ONE EXEMPTION — CE-428 ③: a behaviour resolver asset's Variables ARE the behaviour's
+            //   block (the injected `ref TBlock`), and the resolve runs inside the ingress shadow — so a write
+            //   to ANY of them is the resolver's result, never an escape. ⭐ CE-443: its Parameters are the
+            //   `in` authored DTO — READ-ONLY, so a write to one is refused like any other denied write.
+            // ⛔ CE-445: the AiPrimitive own-resolver exemption (CE-432) is gone with the own resolver.
+            if (node is SetVariableNode subjectWrite
+                && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
+                continue;
+
+            // ⭐ CE-433 — Set Variables writes ONLY pinned Variables (BP1670 refuses any other pin).
+            if (node is SetVariablesNode)
+                continue;
+
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1675,
+                $"Resolver graph '{graph.Name}' contains a '{node.GetType().Name}', which has an "
+                + "effect outside the block it resolves. A resolver runs inside the behaviour "
+                + "ingress's shadow parse: anything it writes elsewhere survives even when the "
+                + "parse fails, leaving the entity half-switched. Compute the value and return it "
+                + "through the graph's output instead.",
+                asset.AssetId, graph.Id, node.Id));
         }
     }
 
