@@ -32,7 +32,12 @@ namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 ///         and they agree again after a target leaves the area.</item>
 ///   <item>T-DIS5 -- A later sensor parameter change (a new area) reaches the Muscle without the
 ///         remove/re-add workaround T-DIS2 needs.</item>
+///   <item>T-DIS6..10 -- the PARITY MATRIX: the old AreaQuery and EQS 1.3 compared step by step under
+///         runtime changes, on concave / irregular areas with concurrent sensors, with more than 16
+///         targets (the one designed difference), with an area that has no polygon yet, and outside the
+///         old query's 0..1000 m perception-grid footprint.</item>
 /// </list>
+/// <para>Domain range: 201-210.</para>
 /// </summary>
 [Collection("EqsIntegrationTests")]
 public sealed class EqsDistributedTests
@@ -445,6 +450,308 @@ public sealed class EqsDistributedTests
             $"brain epoch={cgf.GetComponentRO<EqsSensor>(sensor).Epoch}");
     }
 
+    // ── T-DIS6..10: the PARITY MATRIX — old AreaQuery vs EQS 1.3, scenario by scenario ─────
+    // 📄 docs/designs/eqs-2/EQS_Design_v1.3_final.md §17.5. Every step: change the Muscle-owned world,
+    //    pump until EQS settles on the EXPECTED set on the Brain, then ask the old AreaQuery the same
+    //    question at that moment — it must return the same network ids. Order is not compared (neither
+    //    pipeline guarantees one).
+    // ⚠ Parity scenarios stay inside x, y ∈ [0, 1000) m: the old AreaQuery's broad phase is the
+    //    perception grid, which covers only that square (T-DIS10 records what happens outside it).
+
+    /// <summary>
+    /// T-DIS6: one area, then a sequence of runtime changes — a target enters, one dies, one turns
+    /// hostile, one turns friendly, one is deleted, one leaves, and finally the AREA moves.
+    /// </summary>
+    [Fact(Timeout = 240_000)]
+    public void Parity_UnderRuntimeChanges()
+    {
+        using var rig = new ParityRig();
+        long area     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long stays    = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long enters   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long dies     = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long turnsHostile = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
+        long turnsFriend  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long deleted  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long leaves   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long atNewArea = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long commander = rig.Commander();
+        rig.WaitReplicated();
+
+        rig.Area(area, 100f, 100f, Square(50f));
+        rig.Put(stays,        110f, 120f, ForceId.Hostile);
+        rig.Put(enters,       300f, 300f, ForceId.Hostile);
+        rig.Put(dies,          80f,  90f, ForceId.Hostile);
+        rig.Put(turnsHostile,  95f, 105f, ForceId.Friend);
+        rig.Put(turnsFriend,  120f,  80f, ForceId.Hostile);
+        rig.Put(deleted,       70f, 130f, ForceId.Hostile);
+        rig.Put(leaves,       140f, 140f, ForceId.Hostile);
+        rig.Put(atNewArea,    710f, 690f, ForceId.Hostile);
+        var sensor = rig.Sensor(commander, AreaChildIndex, area, ForceId.Hostile);
+
+        var expected = Set(stays, dies, turnsFriend, deleted, leaves);
+        rig.Converge("initial", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Put(enters, 105f, 95f, ForceId.Hostile);
+        expected.Add(enters);
+        rig.Converge("a target enters", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Put(dies, 80f, 90f, ForceId.Hostile, health: 0f);
+        expected.Remove(dies);
+        rig.Converge("a target dies inside", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Put(turnsHostile, 95f, 105f, ForceId.Hostile);
+        expected.Add(turnsHostile);
+        rig.Converge("a friendly turns hostile", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Put(turnsFriend, 120f, 80f, ForceId.Friend);
+        expected.Remove(turnsFriend);
+        rig.Converge("a hostile turns friendly", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Delete(deleted);
+        expected.Remove(deleted);
+        rig.Converge("a target is deleted", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Put(leaves, 400f, -300f, ForceId.Hostile);
+        expected.Remove(leaves);
+        rig.Converge("a target leaves", sensor, commander, area, ForceId.Hostile, expected);
+
+        rig.Area(area, 700f, 700f, Square(50f));
+        rig.Converge("the area moves", sensor, commander, area, ForceId.Hostile, Set(atNewArea));
+    }
+
+    /// <summary>
+    /// T-DIS7: a concave L-shaped area (a target in its NOTCH is inside the bounding box but outside the
+    /// polygon), a triangle, a target exactly on an edge, and THREE sensors live at once — two children
+    /// of one commander (different areas) and one of a second commander asking for the other force.
+    /// </summary>
+    [Fact(Timeout = 240_000)]
+    public void Parity_OnConcaveAndIrregularAreas_WithConcurrentSensors()
+    {
+        using var rig = new ParityRig();
+        long lArea     = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long triangle  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long inArmOne  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long inArmTwo  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long inNotch   = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long onEdge    = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long friendInL = rig.Spawn(TkbEntityTypes.Tank_M1Abrams);
+        long inTri     = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long bboxOnly  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long commanderA = rig.Commander();
+        long commanderB = rig.Commander();
+        rig.WaitReplicated();
+
+        // L: arms along +x and +y, the notch is the square (20..60, 20..60).
+        rig.Area(lArea, 600f, 600f, new(0, 0), new(60, 0), new(60, 20), new(20, 20), new(20, 60), new(0, 60));
+        rig.Area(triangle, 850f, 600f, new(0, 0), new(50, 0), new(0, 50));
+        rig.Put(inArmOne,   640f,  610f, ForceId.Hostile);
+        rig.Put(inArmTwo,   610f,  640f, ForceId.Hostile);
+        rig.Put(inNotch,    640f,  640f, ForceId.Hostile);
+        rig.Put(onEdge,     660f,  610f, ForceId.Hostile);   // exactly on the x = 60 edge
+        rig.Put(friendInL,  605f,  605f, ForceId.Friend);
+        rig.Put(inTri,      860f,  610f, ForceId.Hostile);
+        rig.Put(bboxOnly,   890f,  640f, ForceId.Hostile);   // inside the triangle's box, outside it
+
+        var lHostile = rig.Sensor(commanderA, AreaChildIndex,     lArea,    ForceId.Hostile);
+        var triSens  = rig.Sensor(commanderA, AreaChildIndex + 1, triangle, ForceId.Hostile);
+        var lFriend  = rig.Sensor(commanderB, AreaChildIndex,     lArea,    ForceId.Friend);
+
+        // The edge point is decided by the SAME PointInPolygon in both pipelines — parity is the claim,
+        // not a particular side. ⇒ take the old answer, check the unambiguous members, require EQS to match.
+        rig.WaitForces((ForceId.Hostile, new[] { inArmOne, inArmTwo, inNotch, onEdge, inTri, bboxOnly }),
+                       (ForceId.Friend,  new[] { friendInL }));
+        var oldL = AreaQueryTargets(rig.H, rig.Brain(commanderA), rig.Brain(lArea));
+        Assert.Contains(inArmOne, oldL);
+        Assert.Contains(inArmTwo, oldL);
+        Assert.DoesNotContain(inNotch, oldL);
+        rig.Converge("L, hostile", lHostile, commanderA, lArea, ForceId.Hostile, oldL);
+        rig.Converge("triangle, hostile", triSens, commanderA, triangle, ForceId.Hostile, Set(inTri));
+        rig.Converge("L, friendly (second commander)", lFriend, commanderB, lArea, ForceId.Friend, Set(friendInL));
+    }
+
+    /// <summary>
+    /// T-DIS8: more targets than EQS keeps. ⭐ The ONE designed difference (§17.5, §16 H8): the old
+    /// AreaQuery returns every one (≤ 64); EQS returns exactly <c>EqsResultPool.MaxTopK</c> = 16 of them,
+    /// all drawn from the old set.
+    /// </summary>
+    [Fact(Timeout = 240_000)]
+    public void MoreThan16Targets_EqsReturns16_AllFromTheOldSet()
+    {
+        using var rig = new ParityRig();
+        long area = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        var targets = Enumerable.Range(0, 20).Select(_ => rig.Spawn(TkbEntityTypes.Tank_T72)).ToArray();
+        long commander = rig.Commander();
+        rig.WaitReplicated();
+
+        rig.Area(area, 100f, 100f, Square(50f));
+        for (int i = 0; i < targets.Length; i++)
+            rig.Put(targets[i], 60f + 4f * i, 100f + (i % 2 == 0 ? 10f : -10f), ForceId.Hostile);
+        var sensor = rig.Sensor(commander, AreaChildIndex, area, ForceId.Hostile);
+        rig.WaitForces((ForceId.Hostile, targets));
+
+        var old = AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area));
+        Assert.Equal(Set(targets), old);
+
+        Assert.True(rig.H.PumpUntil(() => EqsTargets(rig.H, sensor).Count == EqsResultPool.MaxTopK, timeoutFrames: 3000),
+            $"EQS must report {EqsResultPool.MaxTopK} targets. Got {EqsTargets(rig.H, sensor).Count}.");
+        var eqs = EqsTargets(rig.H, sensor);
+        Assert.True(eqs.IsSubsetOf(old), $"every EQS target must be one the old query reports: [{string.Join(",", eqs.Except(old))}]");
+    }
+
+    /// <summary>
+    /// T-DIS9: the area exists but has no usable polygon yet (two points). ⭐ A designed difference: the
+    /// old AreaQuery answers READY with 0 targets — which its consumer reads as "area clear"
+    /// (<c>AreaQuerySolverSystem.PublishEmptyResult</c>) — while EQS publishes NOTHING, so a reader keeps
+    /// waiting. Once the polygon arrives, both report the same target.
+    /// </summary>
+    [Fact(Timeout = 240_000)]
+    public void AnAreaWithoutAPolygon_OldSaysClear_EqsSaysNothing_ThenBothAgree()
+    {
+        using var rig = new ParityRig();
+        long area   = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long inside = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long commander = rig.Commander();
+        rig.WaitReplicated();
+
+        rig.Area(area, 100f, 100f, new(-50, -50), new(50, 50));
+        rig.Put(inside, 110f, 110f, ForceId.Hostile);
+        var sensor = rig.Sensor(commander, AreaChildIndex, area, ForceId.Hostile);
+        rig.WaitForces((ForceId.Hostile, new[] { inside }));
+
+        Assert.Empty(AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area)));   // READY, 0 targets
+        rig.H.PumpFrames(300);                                                          // ~30 solver refreshes
+        Assert.False(rig.Cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady,
+            "EQS must publish nothing for an area with no polygon (no false 'area clear').");
+
+        rig.Area(area, 100f, 100f, Square(50f));
+        rig.Converge("the polygon arrives", sensor, commander, area, ForceId.Hostile, Set(inside));
+    }
+
+    /// <summary>
+    /// T-DIS10: targets OUTSIDE the perception-grid footprint. ⭐ A difference, and the old query is the
+    /// one that is wrong: its broad phase is the perception grid — 200 × 200 cells of 5 m anchored at the
+    /// world origin (<c>PerceptionConstants.LocalGrid*</c>, "Perception grid footprint 1000 m × 1000 m —
+    /// not perceived" in the programmers' guide) — and <c>SpatialHashGrid.Add</c> skips anything outside
+    /// it. EQS walks the entities, so it sees them.
+    /// </summary>
+    /// <remarks>⚠ The old-query half pins a KNOWN LIMIT of the old pipeline (left as it is, by the user's
+    /// ruling). If it starts failing, the old query has learned to see beyond the grid — update this rail.</remarks>
+    [Fact(Timeout = 240_000)]
+    public void BeyondThePerceptionGrid_EqsSeesTargets_TheOldQueryDoesNot()
+    {
+        using var rig = new ParityRig();
+        long farArea  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long westArea = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
+        long far  = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long west = rig.Spawn(TkbEntityTypes.Tank_T72);
+        long commander = rig.Commander();
+        rig.WaitReplicated();
+
+        rig.Area(farArea,  1500f, 500f, Square(50f));   // beyond x = 1000
+        rig.Area(westArea, -200f, 500f, Square(50f));   // negative x
+        rig.Put(far,  1510f, 505f, ForceId.Hostile);
+        rig.Put(west, -190f, 505f, ForceId.Hostile);
+        var farSensor  = rig.Sensor(commander, AreaChildIndex,     farArea,  ForceId.Hostile);
+        var westSensor = rig.Sensor(commander, AreaChildIndex + 1, westArea, ForceId.Hostile);
+
+        foreach (var (sensor, area, target, label) in new[] { (farSensor, farArea, far, "x = 1510"), (westSensor, westArea, west, "x = -190") })
+        {
+            Assert.True(rig.H.PumpUntil(() => SameSet(EqsTargets(rig.H, sensor), Set(target)), timeoutFrames: 3000),
+                $"[{label}] EQS must see the target. Got [{string.Join(",", EqsTargets(rig.H, sensor))}].");
+            Assert.True(AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area)).Count == 0,
+                $"[{label}] the old AreaQuery was expected to be blind outside its 0..1000 m grid — it now sees the target; update this rail.");
+        }
+    }
+
+    private static Vector2[] Square(float half)
+        => new Vector2[] { new(-half, -half), new(half, -half), new(half, half), new(-half, half) };
+
+    private static SortedSet<long> Set(params long[] nets) => new(nets);
+
+    /// <summary>A real CGF Brain + SimHost Muscle over DDS, and the moves a parity scenario makes.</summary>
+    private sealed class ParityRig : IDisposable
+    {
+        public readonly HrotRunnerHarness H;
+        public EntityRepository Sim => H.SimHost.World!;
+        public EntityRepository Cgf => H.Cgf!.World!;
+        private readonly List<long> _all = new();
+
+        public ParityRig() => H = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _domainCounter));
+        public void Dispose() => H.Dispose();
+
+        public long Spawn(long tkbType) { long n = SpawnOnMuscle(H, tkbType); _all.Add(n); return n; }
+
+        // Brain-owned, with a NetworkIdentity — every sensor parent has one.
+        public long Commander()
+        {
+            long n = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+            _all.Add(n);
+            return n;
+        }
+
+        public void WaitReplicated()
+            => Assert.True(H.PumpUntil(() => _all.All(n =>
+                    H.SimHost.TestHook_EntityMap.TryGetEntity(n, out _)
+                 && H.Cgf!.GhostEntityMap!.TryGetEntity(n, out _)), timeoutFrames: 3000),
+                "All entities must exist on both the Muscle and the Brain.");
+
+        public Entity Brain(long net)
+        {
+            Assert.True(H.Cgf!.GhostEntityMap!.TryGetEntity(net, out Entity e), $"{net} has no Brain entity");
+            return e;
+        }
+
+        // Polygon points are RELATIVE to the area's position.
+        public void Area(long net, float x, float y, params Vector2[] points)
+        {
+            var e = SimEntity(H, net);
+            Place(Sim, e, x, y, ForceId.Neutral);
+            Sim.SetManagedComponent(e, new EditablePolyline { Points = new List<Vector2>(points) });
+        }
+
+        public void Put(long net, float x, float y, ForceId force, float? health = null)
+            => Place(Sim, SimEntity(H, net), x, y, force, health);
+
+        public void Delete(long net)
+        {
+            var e = SimEntity(H, net);
+            H.SimHost.World!.Bus.PublishManaged(new Fdp.Toolkit.NetworkSpawning.Events.DestroyEntityCommand
+            {
+                NetworkId = net,
+                Reason    = "EQS parity: a target is deleted",
+            });
+            Assert.True(H.PumpUntil(() => !Sim.IsAlive(e) && !H.Cgf!.GhostEntityMap!.TryGetEntity(net, out _),
+                timeoutFrames: 3000), $"{net} must be gone on both nodes.");
+            _all.Remove(net);
+        }
+
+        public Entity Sensor(long commanderNet, int childIndex, long areaNet, ForceId force)
+        {
+            Entity sensor = Cgf.CreateEntity();
+            Cgf.AddComponent(sensor, new PartMetadata { ParentEntity = Brain(commanderNet), InstanceId = childIndex });
+            Cgf.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(Brain(areaNet), force));
+            Cgf.AddComponent(sensor, new EqsCognitiveBuffer());
+            return sensor;
+        }
+
+        public void WaitForces(params (ForceId Force, long[] Nets)[] groups)
+            => Assert.True(H.PumpUntil(() => groups.All(g => ForceIs(H, g.Force, g.Nets)), timeoutFrames: 2000),
+                $"Forces must settle on the Muscle. {Describe(H, _all.ToArray())}");
+
+        /// <summary>EQS settles on <paramref name="expected"/>, then the old AreaQuery must say the same.</summary>
+        public void Converge(string step, Entity sensor, long commanderNet, long areaNet, ForceId force, SortedSet<long> expected)
+        {
+            Assert.True(H.PumpUntil(() => SameSet(EqsTargets(H, sensor), expected), timeoutFrames: 3000),
+                $"[{step}] EQS: expected [{string.Join(",", expected)}], got [{string.Join(",", EqsTargets(H, sensor))}]. " +
+                $"Muscle: {Describe(H, _all.ToArray())}");
+            var old = AreaQueryTargets(H, Brain(commanderNet), Brain(areaNet), force);
+            Assert.True(SameSet(old, expected),
+                $"[{step}] old AreaQuery: expected [{string.Join(",", expected)}], got [{string.Join(",", old)}]. " +
+                $"Muscle: {Describe(H, _all.ToArray())}");
+        }
+    }
+
     // ── helpers ──────────────────────────────────────────────────────────────────
 
     // The Muscle-side carrier of the commander's area sensor, and the area it resolved.
@@ -566,10 +873,11 @@ public sealed class EqsDistributedTests
     }
 
     // The old AreaQuery's answer on the Brain for the same area and force, as network ids.
-    private static SortedSet<long> AreaQueryTargets(HrotRunnerHarness harness, Entity commander, Entity area)
+    private static SortedSet<long> AreaQueryTargets(
+        HrotRunnerHarness harness, Entity commander, Entity area, ForceId force = ForceId.Hostile)
     {
         var world = harness.Cgf!.World!;
-        long requestId = AreaQueryBatchHelper.RequestAreaQuery(world, commander, area, ForceId.Hostile);
+        long requestId = AreaQueryBatchHelper.RequestAreaQuery(world, commander, area, force);
         Assert.NotEqual(-1L, requestId);
         Assert.True(harness.PumpUntil(() => AreaQueryBatchHelper.GetAreaQueryResult(world, requestId).IsReady,
                 timeoutFrames: 3000), "The old AreaQuery must answer across hosts.");

@@ -869,11 +869,23 @@ the registry also registers a template under its own `BlueprintId` so existing C
 | wrecks | `Health.Current <= 0` rejected | `AliveFilterTest` — same rule |
 | cap | 256 candidates, 64 results | 256 candidates, **16 results** — enough for a 16-slot roster (§16 H8) |
 | order | grid order | not guaranteed — ⭐ parity is **set** parity |
-| area missing | Muscle drops the request (no result) | generator returns `-1` ⇒ solver publishes **nothing** (no false "area clear") |
+| reach | ⛔ only **x, y ∈ [0, 1000) m** — its broad phase is the perception grid (200 × 200 × 5 m, anchored at the origin; programmers' guide: *"footprint 1000 m × 1000 m — not perceived"*); `SpatialHashGrid.Add` skips anything outside. Found by the parity matrix `2026-09-30` | ⭐ everywhere — the generator walks the entities |
+| area missing / no polygon | ⚠ answers **READY with 0 targets** (`AreaQuerySolverSystem.PublishEmptyResult`) — a consumer reads that as *"area clear"*. *(Corrected `2026-09-30`: this row used to say "drops the request", measured false.)* | generator returns `-1` ⇒ solver publishes **nothing**, the reader keeps waiting — a **designed** difference |
 
-⭐ **The proof** is a ClusterRunner rail in `EqsDistributedTests`: real CGF Brain + real SimHost Muscle over DDS, one
-area, targets inside / outside / friendly / wrecked; the old AreaQuery and the EQS sensor must return the **same set of
-network ids**, and must agree again after a target leaves the area.
+⭐ **The proof** is the parity matrix in `EqsDistributedTests` — real CGF Brain + real SimHost Muscle over DDS. Each step
+changes the Muscle's world, waits for EQS to settle on the expected set, then asks the old AreaQuery at that moment; both
+must return the **same network ids**:
+
+| rail | scenarios |
+|---|---|
+| T-DIS4 | one area · inside / outside / friendly / wrecked · a target leaves |
+| T-DIS6 | runtime changes in sequence: a target enters · dies inside · a friendly turns hostile · a hostile turns friendly · a target is deleted · a target leaves · **the area moves** |
+| T-DIS7 | a concave **L** (a target in the notch: inside the bounding box, outside the polygon) · a triangle · a target exactly on an edge (parity, not a side) · **three sensors live at once** — two children of one commander on different areas, one of a second commander asking for the other force |
+| T-DIS8 | 20 targets ⇒ old returns all 20; EQS returns exactly 16, all from the old set — the designed cap (§16 H8) |
+| T-DIS9 | area with no polygon ⇒ old: READY, 0 targets; EQS: nothing. Then the polygon arrives ⇒ both agree |
+| T-DIS10 | targets at x = 1510 and x = −190 ⇒ EQS sees them, the old query does not (its grid footprint). ⚠ The old half pins a known limit of a pipeline left as it is |
+
+⭐ **Verdict:** inside the old query's footprint, the two agree in every scenario above. They differ in exactly three, all listed in the table: more than 16 targets, an area with no polygon, and anything outside `[0, 1000)` m — where EQS is the one that is right.
 
 ### 17.6 Migration recipe for the callers *(behaviours lane — not done here, by the user's ruling)*
 
