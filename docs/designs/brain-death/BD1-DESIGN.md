@@ -143,6 +143,9 @@ sequenceDiagram
 > interpreter resets `RunningNodeIndex` on completion) and an HSM ran again (the tick cleared its `Terminated` latch).
 > ⚠ A tree that MEANS to loop says so with a `Repeater` at its root — measured: none of the 24 shipped BTree assets
 > has one.
+> ⭐ `CE-450` (`2026-09-30`): a FOREVER `Repeater` (count `-1`) runs **one iteration per tick** — it yields `Running` after
+> each completed iteration and resumes at itself next tick. ⛔ Before, a child that succeeded immediately made it loop inside the
+> tick forever (a hang). A BOUNDED `Repeater(n)` is unchanged: all `n` iterations in one tick (`Interpreter.ExecuteRepeater`).
 
 ### 1.0a BehaviorFinishedEvent (notification, bottom-up)
 

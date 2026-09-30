@@ -333,6 +333,52 @@ namespace Fbt.Tests.Unit
             Assert.Equal(3, bb.Counter); // Executed 3 times
         }
 
+        private static (Interpreter<TestBlackboard, MockContext> interpreter, TestBlackboard bb, BehaviorTreeState state, MockContext ctx)
+            Counting(string json)
+        {
+            var registry = new ActionRegistry<TestBlackboard, MockContext>();
+            registry.Register("IncrementCounter", TestActions.IncrementCounter);
+            return (new Interpreter<TestBlackboard, MockContext>(TreeCompiler.CompileFromJson(json), registry),
+                    new TestBlackboard(), new BehaviorTreeState(), new MockContext());
+        }
+
+        /// <summary>
+        /// CE-450: a FOREVER repeater whose child succeeds immediately runs ONE iteration per tick and yields Running.
+        /// Before, it looped inside the tick and never returned (red-proof: the tick hangs).
+        /// </summary>
+        [Fact]
+        public void CE450_ForeverRepeater_AtTheRoot_RunsOneIterationPerTick()
+        {
+            var (interpreter, bb, state, ctx) = Counting(@"{
+                ""TreeName"": ""Forever"",
+                ""Root"": { ""Type"": ""Repeater"", ""RepeatCount"": -1,
+                            ""Children"": [ { ""Type"": ""Action"", ""Action"": ""IncrementCounter"" } ] } }");
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(1, bb.Counter);
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(2, bb.Counter);
+        }
+
+        /// <summary>
+        /// CE-450: below the root, the yield RESUMES at the repeater — a finished sibling before it is not re-run.
+        /// </summary>
+        [Fact]
+        public void CE450_ForeverRepeater_InASequence_ResumesAtTheRepeater()
+        {
+            var (interpreter, bb, state, ctx) = Counting(@"{
+                ""TreeName"": ""ForeverInSequence"",
+                ""Root"": { ""Type"": ""Sequence"", ""Children"": [
+                    { ""Type"": ""Action"", ""Action"": ""IncrementCounter"" },
+                    { ""Type"": ""Repeater"", ""RepeatCount"": -1,
+                      ""Children"": [ { ""Type"": ""Action"", ""Action"": ""IncrementCounter"" } ] } ] } }");
+
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(2, bb.Counter);   // the first action + one iteration
+            Assert.Equal(NodeStatus.Running, interpreter.Tick(ref bb, ref state, ref ctx));
+            Assert.Equal(3, bb.Counter);   // one more iteration; the first action is NOT re-run
+        }
+
         [Fact]
         public void Parallel_RequireAll_AllSucceed_ReturnsSuccess()
         {
