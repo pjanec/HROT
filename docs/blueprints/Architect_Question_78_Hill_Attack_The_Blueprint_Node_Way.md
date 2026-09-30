@@ -317,3 +317,21 @@ overlay, the hill attack, `UnitRosterOps`), plus 5 test files. ⛔ **`UnitRoster
 belongs to the backend lane (a cross-lane STOP for this lane)** ⇒ it goes to the backend lane as its own small
 handoff, independent of the EQS unification. Unverified: whether anything serialises `UnitRoster` byte-for-byte
 (it is `NoScenario` and rebuilt by `UnitHierarchySystem`, so probably not; the session must check the network path).
+
+### 6.6 User decisions on §6.5 *(`2026-09-30`)*
+
+> 🔒 *"i think the "is alive" in platoon hill attack context means "health > 0", not "entity does not exist". EntityExists
+> (in the ECS) blueprint function is still useful of course. getLifecycle is not useful much fo game AI blueprints, at
+> leas not at this stage. ok to your roster lean. Take the roster tasks your self"*
+
+- ✅ **`Entity Exists`** — built-in, as §6.5 ①. ⛔ **`Get Lifecycle State` dropped** (not now).
+- ✅ **"alive" in the doctrine = `Health.Current > 0`** — a `GetComponent<Fdp.Toolkit.Combat.Components.Health>` read
+  in the graph, no C#. **Measured, it matches the engine's own rule:** since `2026-09-13` combat death is the STATE
+  `Health.Current <= 0` and the body stays in the world (`DamageSystem.cs:72-80`, `HealthApplicationSystem.cs:88-101`,
+  the `CE-267` revert). The EQS already filters on it (`AreaQuerySolverSystem.cs:161`).
+- 🔴 **Consequence for the C# reference:** `HillAttackCommanderNodes` still tests **`ctx.World.IsAlive`** (ECS
+  existence) at `:98, :154, :209, :338, :380, :466`. Since the revert, a knocked-out tank still "exists", so e.g.
+  `Condition_IsWaveCompleted:466`'s *"Tank died: burn the slot"* branch **can no longer fire**. Filed as **`CE-466`**.
+  Per the user's ruling the C# doctrine keeps its behaviour, so the blueprint rebuild will **diverge from the C#
+  reference exactly when one of the platoon's own tanks is knocked out**. The proof must name that case, not hide it.
+- ✅ **Roster** — §6.5 ② approved; the behaviours lane builds it (the `Fdp.Core` fence waived by the user for this task).
