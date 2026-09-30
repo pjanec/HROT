@@ -160,7 +160,8 @@ constructed with. ⛔ Do not paper over it inside `C2`.
 | **where** | `AssetRelPathTests` — the feature's own suite *(`R-142` ④)*, which already referenced all three editor projects |
 
 ⚠⚠ **The fix reaches the CONTRIBUTOR path only** — 📌 that is **F12**, filed below rather than silently
-absorbed.
+absorbed. ⭐ **And F12's `2026-09-30` re-measurement settles the risk:** that path has **zero production
+readers**, so the fix changed no runtime behaviour at all.
 
 ⚠ **Cross-lane, stated:** the three contributor files are **behaviors-lane** territory and
 `AssetRelPathTests` is shared-editor. 📐 Checked before touching: the newest commit on all three of
@@ -389,18 +390,38 @@ which toolchain?). ⛔ It cannot be left as *"the reader is built."*
 
 ---
 
-### ⚠ F12 — **THREE producers of "the base folder for a kind", and two bypass the contributor** *(found while fixing F2, `2026-09-20`)* → UI surface, **not** this design
+### ⚠ F12 — **the `BaseFolder` seam is ORPHANED: zero production readers, while a kind-keyed duplicate does all the work** *(found while fixing F2, `2026-09-20`; ⭐ SHARPENED `2026-09-30`)* → UI surface, **not** this design
 
-📐 **Measured — the same question is answered in three places:**
+⚠⚠ **CORRECTION, and it is the whole point of the finding.** This row first read *"THREE producers, and
+**two** bypass the contributor"* — ⛔ which implied **one** production reader used the contributor.
+📐 **Re-measured `2026-09-30`:**
 
-| # | producer | keyed on | reached by F2's fix? |
+```bash
+grep -rn "\.BaseFolder" --include=*.cs Hrot/ FDP/ Stride/ | grep -v Tests
+```
+
+⇒ ⭐⭐⭐ **NONE do.** Every non-test hit is a **doc comment** or the **kind-keyed**
+`AssetBrowserPanel.BaseFolderFor`:
+
+| # | producer / reader | keyed on | reached by F2's fix? |
 |---|---|---|---|
-| ① | `IAssetCatalogContributor.BaseFolder` | the **contributor** | ✅ **yes** |
-| ② | `AssetBrowserPanel.BaseFolderFor(kind)` (`:972`) | the **kind** — calls `AssetsFor(kind)` directly | ⛔ **no** |
-| ③ | a **copy of ②** as a lambda in `EditorSubsystem.RegisterWindows` (`:3948`) | the **kind** | ⛔ **no** |
+| ① | `IAssetCatalogContributor.BaseFolder` | the **contributor** | ✅ fixed — ⛔ **but read by NOTHING in production** |
+| ② | `AssetBrowserPanel.BaseFolderFor(kind)` (`:972`) | the **kind** — `AssetsFor(kind)` directly | ⛔ no |
+| ③ | a **copy of ②** as a lambda in `EditorSubsystem.RegisterWindows` (`:3948`) | the **kind** | ⛔ no |
+| — | `AssetPickerSource.cs:59` · `AssetPickerLauncher.cs:56` | **default to ②** | ⛔ no |
 
 ⭐ ③'s own comment admits the duplication: *"mirrors `AssetBrowserPanel.BaseFolderFor` which is internal —
 lambda wraps the same try/catch over `AssetRoots.AssetsFor`."*
+
+⭐⭐ **Why the sharpened version is a BETTER finding, not a smaller one.** *"Two of three duplicate a
+third"* is ordinary duplication. ⛔ **"The declared seam has zero adopters while an undeclared kind-keyed
+helper does all the work"** is 📌 **the seam law's exact shape** — *a shared X already exists and is
+under-adopted* — and it is the difference between *"tidy up a copy"* and *"nothing is using the interface
+we designed against."*
+
+⇒ ⭐⭐ **And it settles the risk question on F2 directly: the fix changed a property with no production
+reader ⇒ ZERO runtime behaviour change.** ⛔ It is a correctness repair made *before* the first consumer
+(`C2`'s probe) exists — not a live-path edit.
 
 ⇒ ⚠⚠ **The asset-browser tree and the Save-As `KnownSubfolders` still answer the bin dir**, and still
 depend on `AssetRelPath`'s `"../"` recovery to look right. 📌 **That recovery branch is therefore still
@@ -408,7 +429,8 @@ load-bearing — ⛔ do NOT delete it as dead code on the strength of F2's fix.*
 
 | ⭐ | |
 |---|---|
-| **what it is** | `R-132` — **two producers for one slot**; and ②/③ are duplicate CODE, which the removal rule says to **ROUTE, not delete** |
+| **what it is** | `R-132` — **two producers for one slot**, ⭐ **plus an orphaned seam**; ②/③ are duplicate CODE, which the removal rule says to **ROUTE, not delete** |
+| ⛔⛔ **what it is NOT — do not "simplify" it the wrong way** | 📌 *"`BaseFolder` has no readers ⇒ delete it"* is the **exact** mistake `CLAUDE.md`'s UNREFERENCED-IS-NOT-UNINTENTIONAL rule exists to stop. 🔒 The design record claims it — §7.3a's predicate and `C2`'s probe both key on it ⇒ ⭐ it is **dormant-by-design, awaiting its consumer**, not dead |
 | ⭐ **the shape of the fix** | ② takes the **contributor's** `BaseFolder` for the kind when the catalog has one, falling back to `AssetsFor(kind)`; ③ then calls ② instead of re-implementing it *(making it non-`internal`, or moving it to `AiShared`)* |
 | ⛔ **why it is NOT done here** | it is an **editor-UI surface**, owned by the **UI lane**, and it changes what the asset browser displays ⇒ it wants that lane's rails *(`R-124`'s in-frame measurement)*, not a backend push |
 | ⭐ **why the asset-management design is nonetheless correct** | `C2`'s probe reads path ① — ✅ the one that is now right |
