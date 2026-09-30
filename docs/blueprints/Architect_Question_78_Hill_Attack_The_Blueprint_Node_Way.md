@@ -3,8 +3,10 @@ state: LIVE
 updated: 2026-09-30
 build-state: DESIGN — A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
   to blueprint functions whenever suitable"); everything else awaits review of §5. "Measure first … No blind coding."
-current-answer: ⭐ §5 (round-2 measurements and the REVISED leans) first, then §3 for A, B and E.
-stale-below: §3's rows C1, C2, C4, D1, D2 — each is overtaken by §5; do not quote them.
+current-answer: ⭐⭐ §6 (the user's 2026-09-30 revision of the old rulings + the measured cost of each blueprint-way
+  node) FIRST — it overrides §5.1 and §5.4 where they disagree. Then §5 (EQS, measurements), then §3 A/E.
+stale-below: §3's rows C1, C2, C4, D1, D2 (overtaken by §5); §5.1's "effect on §3" column and §5.4's "revised lean"
+  column wherever §6 disagrees (§6 wins — the user revised the Q6 rulings §5.1 leaned on).
 known-rot: ⚠ §3 was written without reading Q6's approved rulings (2026-07-17) and Q#5-C; four of its leans contradicted
   them (§5.1). §2's "replaced by" column for AreaQueryBatchOps and the intent JSON is wrong the same way.
 known-conflict: HillAssault_Blueprint_Migration.md §"What blueprintize means" keeps the BTree topology and turns only the
@@ -213,3 +215,61 @@ serialiser — all generic.
 ③ the block budget for the doctrine's state (slot list + runner list + wave bookkeeping) against the tier ladder
 (`BlueprintTierLadder`, max 16 384 B — expected to fit easily; not computed) · ④ whether `When` or a polled `Branch` +
 `Return Running` better expresses "wait until all at baseline" (both exist; a style call).
+
+## 6. ⭐⭐ ROUND 3 — the old rulings REVISED by the user, and the measured cost of the blueprint way
+
+> 🔒 **User, `2026-09-30`:** *"the architect rulings seem obsolete and need revising. why not GetSingleton node? why not
+> typed Send Behavior Intent node taking parameters as pins, internally converting to Json string? why is alive not as
+> reading ECS component? Why not getting sim time as built-in blueprint function? why not random number as built-in
+> generic blueprint function? why not geo conversion as built-in blueprint function? why not generic json-serializer and
+> deserializer dto typed blueprint nodes? formatString should be always culture neutral. why not bit operations …
+> **Non-generic c# helpers are a band aid and last resort, our desire is to represent those via standard blueprint nodes
+> as much as possible.** Measure what is needed."* · on EQS: *"until then we need to use the 'good old' area query here,
+> likely via c# helper … (no new node for old eqs system)"*.
+
+⭐ **The new principle (ledger `R-156`)** — supersedes Q6-A (*demand-driven vocabulary*) and the "curated helper"
+leans of Q6-B/C: **standard blueprint nodes and built-in functions first; a non-generic C# helper is a last resort.**
+Q6-D (area query ≠ `EqsSensor`) is overtaken the other way: the two systems are to be **unified**
+([`HANDOFF_EQS_Unification`](batches/HANDOFF_EQS_Unification.md)).
+
+### 6.1 What a "built-in function" is today — the mechanism every answer below reuses
+
+| fact | code |
+|---|---|
+| a built-in function IS a `FunctionCall` node on a static C# method — there is no separate kind | `Nodes.cs:146-185` |
+| the palette auto-discovers `public static` methods with `[BlueprintCallable]` in `Hrot*`/`Fdp*` assemblies | `BlueprintCallablePaletteEntries.cs:27-61` |
+| ⚠ that attribute lives in a Hrot assembly FDP does not reference — so **`BlueprintMath` (FDP) is listed by hand** | `BlueprintMathPaletteEntries.cs:22`, `BlueprintEditorBootstrap.cs:144` |
+| the world reaches a call through `TrailingContext` (`View` = an `ISimulationView` last parameter; `Self` = an `Entity self`) | `Stage5_Schedule.cs:3753-3878` |
+
+⇒ **"Built-in" = a generic library in the engine, surfaced in the palette under a standard category.** The one open
+design point: where that library lives so the palette finds it (**lean:** beside `BlueprintMath` in
+`Fdp.Toolkits/Blueprints`, with the palette's hand-list generalised to a small FDP-side marker the scanner also
+accepts — one mechanism instead of two).
+
+### 6.2 The questions, answered — measured cost and lean
+
+| # | the user's question | measured today | lean | cost |
+|---|---|---|---|---|
+| **1** | GetSingleton node | no node; `ISimulationView` has no singleton accessor; ⛔ the type registry assumes **any** `global::` type is an unmanaged 4-byte value (`StaticTypeRegistry.cs:266-290`) — a managed singleton would be mistyped. And the two singletons the hill attack needs are **services** (`NetworkEntityMap.TryGetEntity`, `IGeographicTransform.ToCartesian`): a node that returns the object leaves you with an object you cannot call (a `FunctionCall` calls static methods only) | **built-in functions over the services** (rows 6 and network-id → entity) — they are what the graph actually wants. A GetSingleton node for **unmanaged data** singletons is cheap to add later; for managed ones it needs a managed-type story first | functions: 1 file each; node: a type-registry design pass |
+| **2** | typed **Send Behaviour Intent** node, params as pins, JSON inside | only `PublishEvent` with a raw `JsonParams: string` (`BuiltInEngineEventCatalog.cs:218`); per-behaviour builders (`MoveIntentJson`, `HullDownIntentJson`). `MakeStruct` already bakes a type + per-field pins (`StatementEmitter.cs:202-208`). A behaviour's params DTO is known at run time (`BehaviorRegistry.JsonParamsDtoType`, `BehaviorRegistry.cs:262`) but the editor does not read it | ⭐⭐ **BUILD IT.** The node bakes the behaviour name and its DTO's fields (editor-side, from the registry), shows one pin per field, and emits `new Dto{…}` + serialise + publish. **Retires both intent builders and the whole JSON question for orders** | ~5–6 files (node, Stage0 pins, Stage5, emitter, editor drawer) |
+| **3** | is-alive as reading an ECS component | liveness is **entity-index metadata, not a component** (`EntityIndex.cs:197`). `GetComponent`'s `Found` pin is false for a dead entity (`EntityRepository.cs:1007`) — but ⚠ the read is emitted **before** the check (`Stage5_Schedule.cs` GetComponent arm: `IrOp_GetComponentRO` then `IrOp_HasComponent`); whether that read throws on a dead entity is **not traced** | **a built-in `Is Alive (entity)`** — a component read is only a proxy that depends on which component. ⚠ Separately: measure the read-before-check order (a possible defect) | 1 file |
+| **4** | sim time as a built-in | `IrOp_Time` / `IrOp_DeltaTime` **already exist** in the IR and are emitted (`IrOperation.cs:52-53`, `StatementEmitter.cs:247-253`) — only the wait lowerings produce them; no node does | **a `Get Sim Time` / `Get Delta Time` node over the existing IR op** — no view argument, no C# | ~4 files |
+| **5** | random as a built-in | no node; `SimRng` exists (deterministic, `FromSim(entity, salt, time)`, `NextInt/NextSingle`) with `SimRngRails` | **built-in `Random Int (min, max, salt)` / `Random Float`**, seeded from self + salt + sim time. ⚠ Stateless: two calls with the same salt in one tick return the same value — the salt pin is how an author separates them | 1 file |
+| **6** | geo conversion as a built-in | none; `IGeographicTransform` is read via `GetSingletonManaged` in doctrine C# (`CgfNodes.cs:149`, `HillAttackCommanderNodes.cs:669`) | **built-in `Geo → Cartesian (lat, lon, alt)` and the inverse** | 1 file |
+| **7** | generic JSON serialise / deserialise, DTO-typed | none. ⛔ `FunctionCall` cannot call generic methods (lookup by name only, `Stage0_Rehydrate.cs:1421`) | **`To JSON` / `From JSON` nodes with a baked DTO type** (the `MakeStruct` pattern). Shares its emitter with row 2 — build them together | ~5 files, shared with 2 |
+| **8** | FormatString always culture-neutral | ⛔ **it is not**: `TryWrite($"…")` with no provider (`StatementEmitter.cs:1001`) — a cs-CZ machine writes `1,5`. `PrintString` is the same. No test pins culture | **fix: `TryWrite(CultureInfo.InvariantCulture, $"…")`** + a rail run under cs-CZ. A defect, not a design question | 1 line + 1 test |
+| **9** | bit operations | none: `ArithmeticOperator` = Add/Subtract/Multiply/Divide/Modulo (`Nodes.cs:465`); `BlueprintMath` has only boolean And/Or/Xor/Not. Lowering is operator-agnostic (`Stage5:3262-3300`) | **add `BitAnd/BitOr/BitXor/ShiftLeft/ShiftRight/BitNot`**, integer types only (a Stage2 type check — none exists today). ⚠ byte/short widen to int in C# | ~4–5 files |
+
+### 6.3 Two measured findings that change the rebuild
+
+| finding | evidence | consequence |
+|---|---|---|
+| 🔴 **an engine enum pin must be spelled `global::Fdp.Core.ForceId`**, and the compiler then assumes it is **4 bytes** | measured `2026-09-30`: the bare FQN fails **`BP1500` "does not resolve"**; the `global::` rule is `StaticTypeRegistry.cs` AN2 (*"default enum underlying size of 4 bytes"*). `ForceId` is a **byte** enum | harmless for a pin (a C# local); ⛔ **a byte-backed enum stored in a block would get the wrong layout.** The slot-state list's enum must be `int`-backed, or the size rule fixed first |
+| ✅ the stop-gap area query is generic now | `AreaQueryBatchOps.Request(targetArea, force, self, view)` (force was hard-coded Hostile) + new `TargetAt(groupHandle, index, view) → Entity` | the blueprint rebuild can use it until the EQS unification lands; no new node for the old system |
+
+### 6.4 What is left in C# after §6 — the whole list
+
+- The **area-query functions** — until the EQS unification replaces them with the EQS 1.3 nodes.
+- The **roster accessor** (`UnitRosterOps`) — Q#5-C (raw fixed buffers stay out of the graph); it is an engine
+  collection's accessor, not doctrine.
+- **Nothing doctrine-specific.**
