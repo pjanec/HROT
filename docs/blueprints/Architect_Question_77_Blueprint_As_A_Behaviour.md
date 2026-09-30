@@ -231,3 +231,23 @@ technologies (`ActionSchemaExporter`); the behaviour assignment list is curated 
 | blackboard access exists on either body | ✅ Parameters = `In`, Variables = `St`, via Get/Set Variable |
 
 ⭐ **Lean:** `BlueprintDispatchKind.Behavior` (§3 A's kind) on the **Instance** emitter + a status: `Return` ⇒ `Success`/`Failure`, suspended ⇒ `Running`; registrar registers the tier-3 `BehaviorDefinition`; `TickBlueprint` runs `BlueprintEventDispatch` then the tick with an `ecb`. ⛔ Rejected: `AiPrimitiveHosting.Behavior` (§5.2) — no `When`/EQS/Event graphs, and widening it re-plumbs what Instance has. ⚠ Editor switch sites not yet measured.
+
+### 5.7 Finish is terminal for EVERY tier — filed as `CE-449` *(user, `2026-09-30`)*
+
+| tier | after it finishes, today | intent (`BD1-DESIGN` §1.0a) |
+|---|---|---|
+| Blueprint | ✅ not ticked again; block freed (`CE-446`) | concluded |
+| BTree | ⛔ re-runs every frame (`Interpreter.cs:359-366` resets, no guard in `TickBTree`) | concluded |
+| HSM | ⛔ `TickHsm` clears `Terminated` (`BrainTickSystem.cs:515-526`) ⇒ the kernel runs it again | concluded |
+
+### 5.8 The Instance node set on a blueprint behaviour *(measured, for §5.6)*
+
+| Instance feature | runtime need | on the behaviour tier |
+|---|---|---|
+| `When` | synthesized prev-value fields in `State` | ✅ same lowering |
+| Event graphs | `BlueprintEventDispatch.DispatchForSlot` (static) | ✅ `TickBlueprint` calls it before the tick |
+| EQS spawn | an `ecb` | ✅ `view.GetCommandBuffer()` |
+| peer calls | a static call into the peer's generated class (`StatementEmitter.cs:331-350`) | ✅ nothing to wire |
+| latent cursor | `instanceVersion` for reload | ✅ pass `BehaviorState.InstanceId` (bumps on every assign) |
+| Get/Set Variable, Get All Parameters/Variables | `s.X` / `s.Params.X` on `[Cursor][Params][State]` | ✅ that IS the root block |
+| ⚠ hot reload of a RUNNING blueprint behaviour whose layout changed | `BlueprintTickSystem` re-inits on a hash mismatch; nothing does this for the behaviour tier yet | ⚠ build item, not a blocker |
