@@ -1,5 +1,5 @@
 <!--STATUS
-state: LIVE — DRAFT FOR DISCUSSION (not dispatched; the user tunes it in the UI lane first)
+state: LIVE — DISPATCHED at dba2233c4 (2026-09-30, user: "lets go implementing the handoff"); scope frozen there
 updated: 2026-09-30 (tuned in the UI lane: §2 intent→hostings rows, ③ rewritten on two user rulings, D1 picker shape, D7 added)
 current-answer: the whole file — a FRAME handoff (goal, fences, decisions with leans, acceptance). The UI lane designs the
   details (inventory, UML, seams) in its own docs/ design as step 1.
@@ -16,8 +16,8 @@ related-designs:
 
 # HANDOFF — E4: author by PRODUCT first, technology second
 
-**For:** the UI lane. **From:** the behaviours lane (`behaviors`). **Status:** draft for discussion — ⛔ not dispatched.
-Once tuned, stamp `Dispatched at <sha>`. From then on, the scope is frozen at that sha.
+**For:** the UI lane. **From:** the behaviours lane (`behaviors`). **Status:** ⭐ **Dispatched at `dba2233c4`** — the scope is frozen there; later documents are FYI only.
+The detail design is [`DESIGN_Product_First_Authoring.md`](../DESIGN_Product_First_Authoring.md) (ids `CE-460`–`CE-462`).
 
 ## 1. Goal — and the user's words
 
