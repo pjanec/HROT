@@ -85,6 +85,70 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.NotNull(def.ParseParams);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>An EVENT GRAPH runs inside a blueprint behaviour</b> — <c>BehaviorTick</c> dispatches this frame's events to
+    /// the Event graphs (the Instance dispatch over the handler table) before the Tick. The handler writes the behaviour's
+    /// own block. Tick: empty ⇒ Running; Event graph <c>WhenTestHitEvent</c>: <c>WasHit = true</c>.
+    /// </summary>
+    [Fact]
+    public unsafe void CE446_AnEventGraph_ReceivesItsEvent_InABlueprintBehaviour()
+    {
+        const string Name = "CE446EventGraph";
+        var varId = Guid.NewGuid();
+        var asset = BlueprintAssetBuilder.Behavior(Name).WithGraph("Tick", g => g.Entry()).Build();
+        asset.Variables.Add(new VariableDecl
+            { Id = varId, Name = "WasHit", Type = new BlueprintTypeRef { TypeId = "bool" }, DefaultValueJson = "false" });
+
+        var entry  = new EventEntryNode { Id = Guid.NewGuid(), EventTypeId = typeof(Runtime.WhenTestHitEvent).FullName! };
+        var eOut   = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        entry.Pins.Add(eOut);
+        var lit    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "bool", ValueJson = "true" };
+        var litOut = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "Out", TypeRef = new BlueprintTypeRef { TypeId = "bool" } };
+        lit.Pins.Add(litOut);
+        var set    = new SetVariableNode { Id = Guid.NewGuid(), VariableId = varId.ToString() };
+        var sIn    = new Pin { Id = Guid.NewGuid(), Name = "ExecIn", Direction = "In", IsExec = true, TypeRef = new() };
+        var sOut   = new Pin { Id = Guid.NewGuid(), Name = "ExecOut", Direction = "Out", IsExec = true, TypeRef = new() };
+        var sVal   = new Pin { Id = Guid.NewGuid(), Name = "Value", Direction = "In", TypeRef = new BlueprintTypeRef { TypeId = "bool" } };
+        set.Pins.Add(sIn); set.Pins.Add(sOut); set.Pins.Add(sVal);
+        asset.Graphs.Add(new Graph
+        {
+            Id = Guid.NewGuid(), Name = "OnHit", Kind = GraphKind.Event,
+            Nodes = { entry, lit, set },
+            Links =
+            {
+                new Link { FromNodeId = entry.Id, FromPinId = eOut.Id,   ToNodeId = set.Id, ToPinId = sIn.Id },
+                new Link { FromNodeId = lit.Id,   FromPinId = litOut.Id, ToNodeId = set.Id, ToPinId = sVal.Id },
+            },
+        });
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+
+        var world = _fixture.World;
+        var e = _fixture.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = Name, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(_fixture.BehaviorRegistry);
+
+        bool WasHit()
+        {
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
+            return *(bool*)(root + (int)System.Runtime.InteropServices.Marshal.OffsetOf(def!.BlackboardLayoutType!, "WasHit"));
+        }
+
+        world.Bus.SwapBuffers();
+        brain.Execute(world, 0.016f);
+        Assert.False(WasHit());
+
+        world.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 5f });
+        world.Bus.SwapBuffers();
+        brain.Execute(world, 0.016f);
+        Assert.True(WasHit());
+    }
+
     // ── runtime, through the real ingress and brain tick ───────────────────
 
     /// <summary>

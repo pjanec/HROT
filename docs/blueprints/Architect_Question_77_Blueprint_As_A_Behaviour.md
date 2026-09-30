@@ -310,3 +310,18 @@ classDiagram
 
 ⚠ **Still open inside `CE-446`:** its own resolver (§3 B) · hot reload of a running blueprint
 behaviour whose layout changed (§5.8) · E4 editor (§5.5).
+
+### 5.10 ✅ The Instance node set, PROVEN in a blueprint behaviour *(`2026-09-30`)*
+
+| node | rail (each in the feature's own suite) |
+|---|---|
+| `When` | `WhenNodeValidatorTests.CE446_Validate_BehaviorDispatch_AllowsWhen` · `WhenNodeRuntimeTests.CE446_EventFired_Fires_InABlueprintBehaviour` (compiled, assigned, ticked by `BrainTickSystem`, fires on the event) |
+| EQS spawn | `SpawnEqsSensorValidatorTests.CE446_Validate_BehaviorDispatch_AllowsSpawn` · `SpawnEqsSensorLoweringTests.CE446_Lower_InABehaviour_SpawnsThroughTheCommandBuffer` |
+| Event graph | `BlueprintBehaviourTests.CE446_AnEventGraph_ReceivesItsEvent_InABlueprintBehaviour` (runtime: the handler writes the block) |
+
+⚠ **Semantic difference, by design (§3 D):** an Instance `Return` ends THIS frame; a behaviour `Return` FINISHES it. An
+Instance graph copied into a behaviour changes meaning wherever it returns per frame.
+
+⛔⛔ **Found and fixed (pre-existing, all Instances):** a `When` with an UNCONNECTED exit compiled to a bare label before the
+method's closing brace (CS1525). Stage 5 now seals it like a Branch arm (`SealFallThrough`); rail
+`WhenNodeRuntimeTests.AWhenWithUnconnectedExits_CompilesAndTicks_ForAnInstance`.

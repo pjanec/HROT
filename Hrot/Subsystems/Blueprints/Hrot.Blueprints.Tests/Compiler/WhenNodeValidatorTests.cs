@@ -47,6 +47,22 @@ public sealed class WhenNodeValidatorTests
 
     // ---- BP2001: unsupported dispatch -----------------------------------
 
+    /// <summary>⭐ CE-446 — a blueprint BEHAVIOUR is an Instance body: When is allowed in its Tick (no BP2001).</summary>
+    [Fact]
+    public void CE446_Validate_BehaviorDispatch_AllowsWhen()
+    {
+        var asset = BlueprintAssetBuilder
+            .Behavior("BehWhen")
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        asset.Graphs[0].Nodes.Add(MakeValidValueChangedNode());
+
+        var sink = new DiagnosticSink();
+        Stage2_Validate.Run(asset, new ValidationContext(sink, DefaultOptions()));
+
+        Assert.DoesNotContain(sink.All, d => d.Code == DiagnosticCodes.BP2001);
+    }
+
     [Fact]
     [CoversDiagnosticCode("BP2001")]
     public void Validate_LibraryDispatch_BP2001()

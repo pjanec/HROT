@@ -154,6 +154,22 @@ public sealed class SpawnEqsSensorLoweringTests
         Assert.Contains("ecb.CreateEntity()", source);
     }
 
+    /// <summary>
+    /// ⭐ CE-446 — the same spawn in a blueprint BEHAVIOUR compiles to the same ECB spawn: its Tick receives the command
+    /// buffer (BrainTickSystem passes <c>view.GetCommandBuffer()</c>) and returns a status.
+    /// </summary>
+    [Fact]
+    public void CE446_Lower_InABehaviour_SpawnsThroughTheCommandBuffer()
+    {
+        var asset = BuildSpawnAsset();
+        asset.Dispatch = AssetDispatchKind.Behavior;
+        var source = Compile(asset);
+        Assert.NotNull(source);
+        Assert.Contains("ecb.CreateEntity()", source);
+        Assert.Contains("public static global::Fbt.NodeStatus Tick(", source);
+        Assert.Contains("BehaviorTick(", source);
+    }
+
     [Fact]
     public void Lower_EmitsPartMetadataAttach()
     {

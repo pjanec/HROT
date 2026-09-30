@@ -1213,15 +1213,28 @@ internal sealed class GraphScheduler
         Node? endedSucc  = GetWhenExecSuccessor(wn, "OnEnded");
         Node? outSucc    = GetWhenExecSuccessor(wn, "Out");
 
-        if (onFiredBlock.HasValue && firedSucc is not null)
-            _bfsQueue.Enqueue((onFiredBlock.Value.Value, firedSucc));
+        // ⛔⛔ CE-446 (found 2026-09-30): an UNCONNECTED exit used to stay an empty block with an implicit
+        //   FallThrough — and when it was the last block emitted there was nothing to fall into, so the C# was a
+        //   bare label before the method's closing brace (CS1525/CS1002, "not all code paths return"). Any Instance
+        //   whose When had no Out/OnFired successor failed to compile. ⭐ Seal an unconnected exit exactly as a
+        //   Branch arm is sealed (ResolveArmBlock): the Sequence continuation if there is one, else the implicit
+        //   return for this dispatch (a behaviour Tick ⇒ Running).
+        if (onFiredBlock.HasValue)
+        {
+            if (firedSucc is not null) _bfsQueue.Enqueue((onFiredBlock.Value.Value, firedSucc));
+            else SealFallThrough(onFiredBlock.Value.Value, _blockBuilders[onFiredBlock.Value.Value], debug);
+        }
 
-        if (onEndedBlock.HasValue && endedSucc is not null)
-            _bfsQueue.Enqueue((onEndedBlock.Value.Value, endedSucc));
+        if (onEndedBlock.HasValue)
+        {
+            if (endedSucc is not null) _bfsQueue.Enqueue((onEndedBlock.Value.Value, endedSucc));
+            else SealFallThrough(onEndedBlock.Value.Value, _blockBuilders[onEndedBlock.Value.Value], debug);
+        }
 
         if (outSucc is not null)
             _bfsQueue.Enqueue((outBlock.Value, outSucc));
-        // else outBlock stays empty -> auto-fallthrough from BlockBuilder.Build()
+        else
+            SealFallThrough(outBlock.Value, _blockBuilders[outBlock.Value], debug);
     }
 
     private static string ComparisonOpToCSharp(ComparisonOperator op) => op switch
