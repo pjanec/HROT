@@ -7,7 +7,11 @@ current-answer: ⭐⭐⭐ SESSION 2026-09-30 — E4 (product-first authoring) is
   Behavior template) and CE-462 (technology labels: behaviour picker + HSM action/guard combos) built;
   CE-461 (blueprint Action/Condition templates) built too — the compiler's intent→hostings table is now
   public (AiPrimitiveHostingRules), on the user's go-ahead. CE-459 (C#
-  as an authoring technology) filed as a design slice, not started. Q73 still awaits the user (lean A).
+  as an authoring technology) filed as a design slice, not started. Q73 RESOLVED 2026-09-30 → option A,
+  built as CE-463 (the external gizmo viewer addresses its canvas picks to the node it mirrors); CE-259t
+  fixed. ⚠ ID COLLISION: the behaviours lane also allocated CE-459/CE-460 (16:44, after ours at 16:09 on
+  ui, which it does not sync from) — reported to the user, not renumbered. Open: CMD_SET_SELECTION cannot
+  express a clear (Q73 §8).
   Everything below is the prior state:
   ⭐⭐⭐ READ THE TOP OF THIS FILE — the "SESSION 2026-09-21 (c)" block is the live state
   (CE-306 closed §2.7.7 deviation ③, and THREE of the five UXI-11 residuals were measured and struck —

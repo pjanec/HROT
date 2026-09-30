@@ -344,6 +344,58 @@ namespace Hrot.DDS.DataModel.Tests
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <b>Q73 — a CANVAS pick reaches the node it NAMES, and only that node.</b> 🔒 User,
+        /// <c>2026-09-30</c>: the external gizmo viewer <i>"is just external view on the node … it should work
+        /// same like local gizmo renderer"</i> ⇒ its empty-space right-click must clear THAT node's selection.
+        /// A canvas pick has no anchor to resolve, so <c>PickStreamId</c> carries the viewer's target node.
+        /// ⛔ Addressed elsewhere, or un-addressed (0 — every un-migrated sender), it is dropped as before:
+        /// otherwise one viewer's empty-space click would clear the selection on every node.
+        /// 🔴 Red-proof: drop the <c>canvasForMe</c> clause in the ingress ⇒ the first assertion fails.
+        /// </summary>
+        [Theory]
+        [InlineData(7u, true)]    // addressed to this node
+        [InlineData(3u, false)]   // addressed to another node
+        [InlineData(0u, false)]   // un-addressed: today's behaviour
+        public void Q73_A_canvas_pick_reaches_only_the_node_it_names(uint pickStreamId, bool delivered)
+        {
+            using var repo = GizmoInteractionTestRepo.Create();
+            var inBus = new FdpEventBus();
+            inBus.Register<GizmoInteractionStartedEvent>();
+            var ingress = new GizmoInteractionIngressTranslator(
+                reader: new SingleItemReader(new GizmoInteractionBatch
+                {
+                    SourceNodeId = 250,
+                    Kind         = GizmoInteractionEventKind.Started,
+                    PickAnchorId = GizmoMap.Network.GizmoPickScope.CanvasAnchorId,
+                    PickStreamId = pickStreamId,
+                    ActionId     = (int)MapMouseButton.Right,
+                }),
+                interactionBus: inBus,
+                localNodeId: 7);
+
+            ingress.PollIngress(new EntityCommandBuffer(), repo);
+            inBus.SwapBuffers();
+
+            var received = inBus.Read<GizmoInteractionStartedEvent>().ToArray();
+            Assert.Equal(delivered ? 1 : 0, received.Length);
+            if (delivered)
+            {
+                Assert.Equal(0L, received[0].Token.AnchorId);             // still a canvas pick downstream
+                Assert.Equal(MapMouseButton.Right, received[0].Button);   // ⇒ SelectionInteractionSystem clears
+            }
+        }
+
+        /// <summary>⭐ Q73 — the sender half: the viewer names its target for a canvas pick, never for an entity.</summary>
+        [Fact]
+        public void Q73_The_viewer_names_its_target_only_for_a_canvas_pick()
+        {
+            Assert.Equal(7u, GizmoMap.Network.GizmoPickScope.StreamIdFor(0, targetNodeId: 7));
+            Assert.Equal(0u, GizmoMap.Network.GizmoPickScope.StreamIdFor(1001, targetNodeId: 7));
+            Assert.True(GizmoMap.Network.GizmoPickScope.IsCanvasPickFor(0, 7u, 7));
+            Assert.False(GizmoMap.Network.GizmoPickScope.IsCanvasPickFor(1001, 7u, 7));   // an entity is scoped by its anchor
+        }
+
+        /// <summary>
         /// ⭐⭐ <b>The compatibility half, stated as a rail rather than asserted in prose.</b> A record
         /// whose <c>ActionId</c> was never set — an un-migrated sender, or any non-<c>Started</c> path —
         /// decodes as <c>Left</c>, which preserves the pre-<c>S-4b</c> meaning exactly.

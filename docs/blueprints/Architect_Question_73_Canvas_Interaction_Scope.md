@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-current-answer: OPEN — §7 (2026-09-30) supersedes the framing: the user's position is that the external
-  map's selection is INDEPENDENT; §7 measures that today BOTH directions are shared, deliberately, and
-  asks which the user wants. §4's options stand only if the answer is "shared". Nothing is built.
+current-answer: ✅ RESOLVED 2026-09-30 — §8: option A, BUILT (CE-463). The user clarified that the external
+  gizmo viewer is an external view on the node and selection spreads both ways "same like local gizmo
+  renderer"; the "independent" remark was about a different case (ExCon remote-controlling the IG map),
+  which must also sync — §8 measures it.
 stale-below: nothing — this file is new.
 known-rot: none.
 known-conflict: it REVERSES PART of DESIGN_Gizmo_Anchor_Identity.md §6.3 ("0 is the honest value" for
@@ -166,3 +167,17 @@ and its clicks edit it. Only the empty-space clear is missing (§1), which is th
 
 ⭐ **Lean: shared.** The viewer carries no state of its own, so "independent" means "has no selection", not
 "has its own"; and S-4 made CGF's remote map usable precisely by sharing it.
+
+## 8. ✅ RESOLVED `2026-09-30` — option A, built (`CE-463`)
+
+> 🔒 **User:** *"The external gizmo viewer is just external view on the node, so in that case the selection
+> should spread, it should work same like local gizmo renderer. I meant different situation, when the non gizmo
+> independent map (simulated by the network map controller) is remote controlled from excon. But even there
+> (the map running on the IG just remotely controlled) should sync the selection."*
+
+⇒ §7's "independent" reading is **withdrawn**: it was about ExCon, not the viewer.
+
+| | as built |
+|---|---|
+| **A — the viewer** | canvas picks carry `PickStreamId = targetNodeId`; the node accepts only canvas picks naming it ⇒ empty-space clear AND rubber band reach the node the viewer mirrors. 📄 `DESIGN_Gizmo_Anchor_Identity.md` §6.3a |
+| **ExCon ↔ IG map** | ✅ already synced both ways: ExCon → IG by `CMD_SET_SELECTION` (routed to the one requester, `S-3`), IG → ExCon by the notification-driven `SelectionChangedEvent` (`S-6`), applied at `ExConLogic.cs:835`. 🔴 One leak closed: the shared-orbat seam `ExConOrbatAdapter.SelectEntity` set ExCon's selection LOCALLY only (`CE-259t`) — now `SendSetSelection`. ⚠ **Open:** `CMD_SET_SELECTION` cannot express a CLEAR (it requires `entityId`, `IgApplication.cs:3036`) ⇒ nothing on ExCon can clear the IG map's selection; recorded, not built |
