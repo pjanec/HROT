@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: DESIGN — A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
+build-state: DESIGN — §6 leans APPROVED (user 2026-09-30: "paragraph 6 leans approved"), with §6.5's two amendments open; A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
   to blueprint functions whenever suitable"); everything else awaits review of §5. "Measure first … No blind coding."
 current-answer: ⭐⭐ §6 (the user's 2026-09-30 revision of the old rulings + the measured cost of each blueprint-way
   node) FIRST — it overrides §5.1 and §5.4 where they disagree. Then §5 (EQS, measurements), then §3 A/E.
@@ -273,3 +273,47 @@ accepts — one mechanism instead of two).
 - The **roster accessor** (`UnitRosterOps`) — Q#5-C (raw fixed buffers stay out of the graph); it is an engine
   collection's accessor, not doctrine.
 - **Nothing doctrine-specific.**
+
+### 6.5 After approval — two follow-ups from the user *(`2026-09-30`)*
+
+> 🔒 *"paragraph 6 leans approved. isAlive checking entity existence (while entity can be destroyed) is confusing name,
+> we need something like IsExistingEntity. Isnt there some more blueprint native way of representing the roster so that
+> the need for c# helper disappears? (we still want unmanaged ECS component though)"*
+
+**① The name — measured: the engine has THREE different notions, and "alive" blurs them**
+
+| notion | where | what it answers |
+|---|---|---|
+| **the handle is valid** | `EntityIndex.IsAlive` (`EntityIndex.cs:197-207`): slot active **and** generation matches | "does this entity still exist?" |
+| **lifecycle state** | `EntityRepository.GetLifecycleState` (`:358`) → `EntityLifecycle` = `Constructing` / `Active` / `TearDown` / `Ghost` (`EntityLifecycleState.cs`) | "is it fully set up, or being torn down?" — ⚠ an entity in `TearDown` still **exists** |
+| **gameplay-destroyed** (a knocked-out tank) | a component (health/damage) | "is it out of the fight?" — not an engine notion |
+
+⇒ **Lean:** row 3 becomes **`Entity Exists (entity)`** — the handle test, named for what it checks. Round-out: **`Get
+Lifecycle State (entity)`** returning the `EntityLifecycle` enum, so "exists but being torn down" is expressible.
+"Destroyed" in the gameplay sense stays a component read — the doctrine chooses which component means it.
+⚠ `EntityLifecycle` is a **byte** enum: fine as a pin, but see §6.3 before storing it in a block.
+
+**② The roster — ✅ a blueprint-native path ALREADY EXISTS; `UnitRoster` just does not use it**
+
+| fact | code |
+|---|---|
+| a component field that is an `[InlineArray]` buffer marked **`[BlueprintCollectionField(nameof(Count))]`** gets its accessors **generated** — no hand-written C# | `CollectionOpsGenerator` (`Fdp.Toolkits.Analyzers`); attribute in `Fdp.Core` |
+| the graph then reads it with the standard collection nodes (`GetComponent` collection pin → `ComponentForEach` / `ItemGet` / `ItemCount`), and writes it with `CollectionWrite` | Q#20; `Blueprint_Fixed_Collections_Design.md` |
+| proven: `BpGenListDemo` — the attribute is its *entire* authoring surface | `BpGenListDemo.cs:36`; rails `CollectionOpsGeneratorTests`, `GeneratedCollectionOpsTests` |
+| ⛔ `UnitRoster` uses raw **`fixed long SubordinateEntities[16]`** + `fixed ushort TacticalDesignations[16]` — the generator refuses `fixed` buffers (`FCOL002`), which is the only reason `UnitRosterOps` is hand-written | `UnitRoster.cs:41,47` |
+| it stays an unmanaged ECS component — `[InlineArray]` is unmanaged | — |
+| Q#5-C is satisfied: raw buffer access stays out of the graph, inside **generated** accessors | `Architect_Question_17…md:63-70` |
+
+**Lean:** convert `UnitRoster`'s two `fixed` buffers to two `[InlineArray(16)]` fields — **`Entity`** elements
+(not packed `long`, so the graph gets real entity pins) and `ushort` designations — each marked
+`[BlueprintCollectionField(nameof(Count))]`. Same 168 bytes, same parallel layout, the generator writes the
+accessors, **`UnitRosterOps` is deleted**, and the hill attack loops the roster with `ComponentForEach`.
+⚖️ Alternative: one `[InlineArray]` of a `RosterEntry { Entity; ushort Designation; }` struct — nicer in a graph
+(one loop yields both) but padding grows the component to ~256 B. Rejected on size unless the user prefers it.
+
+**Blast radius, measured:** 14 non-test files / 36 sites use the two buffers (`UnitHierarchySystem`, 5 squad
+systems, `SquadInputs`, `ThreatMatrixAssignmentSystem`, `GenesisMaterializationSystem`, `UnitRosterRenderer`, an
+overlay, the hill attack, `UnitRosterOps`), plus 5 test files. ⛔ **`UnitRoster` lives in `FDP/Engine/Fdp.Core`, which
+belongs to the backend lane (a cross-lane STOP for this lane)** ⇒ it goes to the backend lane as its own small
+handoff, independent of the EQS unification. Unverified: whether anything serialises `UnitRoster` byte-for-byte
+(it is `NoScenario` and rebuilt by `UnitHierarchySystem`, so probably not; the session must check the network path).
