@@ -1,8 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-21
-current-answer: OPEN — §4 carries the recommended answer per sub-question; the user approves or
-  redirects. Nothing is built.
+updated: 2026-09-30
+current-answer: OPEN — §7 (2026-09-30) supersedes the framing: the user's position is that the external
+  map's selection is INDEPENDENT; §7 measures that today BOTH directions are shared, deliberately, and
+  asks which the user wants. §4's options stand only if the answer is "shared". Nothing is built.
 stale-below: nothing — this file is new.
 known-rot: none.
 known-conflict: it REVERSES PART of DESIGN_Gizmo_Anchor_Identity.md §6.3 ("0 is the honest value" for
@@ -142,3 +143,26 @@ it drops a canvas anchor, so the next investigation starts at the filter instead
 | whether any **other** terminal exists beyond `GizmoMap.Viewer` and the Stride window | the user named both; I enumerated publishers, not deployments |
 | what a **multi-SimHost** cluster would want `PickStreamId` to mean | §6.3 says *"for multi-SimHost clusters"* and nothing sets it ⇒ ⭐ option A is the FIRST setter and therefore defines it. ⚠ That is the part most worth a second opinion |
 | whether `DdsGizmoInteractionPublisher` has a target-node concept at all | it is the reusable adapter; the viewer has one, this may not |
+
+## 7. ⭐⭐ `2026-09-30` — the user's position, and what the code does today
+
+> 🔒 **User, `2026-09-30`:** *"I think external map is independent, selection changes there do not propagate
+> to the other ui windows, nor the backwards."*
+
+⚠ **The code does NOT do that today — in either direction, and both were built on purpose:**
+
+| direction | measured | why it is that way |
+|---|---|---|
+| **external → node** | an external viewer's entity click reaches the node's selection. `GizmoInteractionIngressTranslator` publishes it onto the node's interaction bus (no source filter, `:58-62`), and the SAME bus feeds `SelectionInteractionSystem` on **CGF** (`CgfSubsystem.cs:1355,1369,1409`) and **SimHost** (`SimHostApp.cs:475`, `SimHostVisualization.cs:359`) | ⭐ `UXI-11` S-4 wired it deliberately: *"A click on a CGF-backed map selected nothing, silently"* (`CgfSubsystem.cs:1398-1403`); `UX_Feature_Selection.md` §2.6 *"remote map control is just another requester"* |
+| **node → external** | the node's selection shows on the viewer: `SelectionHighlightGizmo` draws the rings **into the DDS primitive stream** the viewer renders | ⭐ its own header: *"flow through the DDS transport and are rendered by any connected consumer"* (`SelectionHighlightGizmo.cs`) |
+
+⇒ ⭐ **the viewer is today a remote SCREEN of one node's map** (`targetNodeId`): it shows that node's selection
+and its clicks edit it. Only the empty-space clear is missing (§1), which is this question.
+
+| if the answer is… | what follows |
+|---|---|
+| ⭐ **shared (today's design)** — *lean* | §4 option A closes the one gap; nothing else changes |
+| **independent** | a real reversal, not a fix: filter remote `Started` out of `SelectionInteractionSystem` on the ingress nodes, and either drop `SelectionHighlightGizmo` from the stream or scope it per viewer. ⚠ The viewer then has NO selection at all (it holds no state), so its right-click menu has no target set — the menu design would need its own answer |
+
+⭐ **Lean: shared.** The viewer carries no state of its own, so "independent" means "has no selection", not
+"has its own"; and S-4 made CGF's remote map usable precisely by sharing it.
