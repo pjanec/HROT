@@ -99,10 +99,8 @@ internal sealed class V_AssetStructure : IValidator
 
 internal sealed class V_DispatchKindCompatibility : IValidator
 {
-    private static readonly AiPrimitiveHosting[] ActionHostings =
-        { AiPrimitiveHosting.BTreeAction, AiPrimitiveHosting.HsmAction };
-    private static readonly AiPrimitiveHosting[] ConditionHostings =
-        { AiPrimitiveHosting.BTreeCondition, AiPrimitiveHosting.HsmGuard };
+    // ⭐ CE-461 — the intent → hosting table lives in AiPrimitiveHostingRules (public), so the editor's
+    //   New Action / New Condition templates read the SAME rule this validator enforces.
 
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
@@ -154,12 +152,12 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 foreach (var hosting in asset.Primitive.Hostings)
                 {
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Action
-                        && ConditionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Action, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1022,
                             $"Action intent incompatible with condition-shaped hosting '{hosting}'.",
                             asset.AssetId));
                     if (asset.Primitive.Intent == AiPrimitiveIntent.Condition
-                        && ActionHostings.Contains(hosting))
+                        && !AiPrimitiveHostingRules.IsCompatible(AiPrimitiveIntent.Condition, hosting))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1023,
                             $"Condition intent incompatible with action-shaped hosting '{hosting}'.",
                             asset.AssetId));

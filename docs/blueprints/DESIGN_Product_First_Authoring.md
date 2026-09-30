@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: BUILT for CE-460 and CE-462 (2026-09-30); CE-461 BLOCKED on D7, see §6
+build-state: BUILT — CE-460, CE-461, CE-462 (2026-09-30)
 current-answer: §3 (classes), §4 (sequence), §5 (modules), §6 (decisions). §1 is the inventory the design is drawn from.
 stale-below: nothing.
 known-rot: none.
@@ -17,7 +17,7 @@ related-designs:
 # DESIGN — author by PRODUCT first, technology second (E4)
 
 **Ids:** `CE-460` (the product-first New entries + the blueprint Behaviour template) · `CE-461` (the
-blueprint Action / Condition templates — ⛔ blocked, §6 D7) · `CE-462` (technology labels in the behaviour and
+blueprint Action / Condition templates, §6 D7) · `CE-462` (technology labels in the behaviour and
 HSM pickers).
 
 ## 1. INVENTORY
@@ -173,12 +173,12 @@ graph TD
     RPS --> HSS[HsmNewAssetService]
     MP[MissionPanel.DrawContent each frame] --> SMS[ScenarioMissionService.GetAvailableBehaviorChoices]
     SMS --> REG[BehaviorRegistry live]
-    CMP[Stage2_Validate ActionHostings/ConditionHostings private]:::dead -.->|D7: not readable yet| BPS
-    classDef dead fill:#fdd,stroke:#c00
+    CMP[AiPrimitiveHostingRules public] -->|AllValidFor intent| BPS
+    V[Stage2 BP1022/BP1023] --> CMP
 ```
 
-*Caption:* both hosts reach the new items through the ONE table, so neither can lack them. ⛔ The red edge is the
-one dependency that does not exist yet — the compiler's intent table is private (D7), which is what blocks CE-461.
+*Caption:* both hosts reach the new items through the ONE table, so neither can lack them; the templates and the
+validator read ONE intent → hosting rule, so what the editor mints and what the compiler accepts cannot drift.
 
 ## 6. Decisions (as built)
 
@@ -188,4 +188,4 @@ one dependency that does not exist yet — the compiler's intent table is privat
 | D2 | the technology is the picker's first level. ⚠ **As built, there is no pre-selected default**: the tree widget (`PickerTreeBuilder`, ExtDeps) sorts folders by name and has no initial-selection input, so a "default technology" would need a vendored-widget change for one highlighted row. The collapse rule already makes a one-recipe technology a single click | a separate second dialog — one more click for no information · an ExtDeps change for a highlight |
 | D4 | `GetAvailableBehaviorChoices` beside `GetAvailableBehaviors`, **default interface member** returning unlabelled names; `ScenarioMissionService` derives names FROM choices. ⚠ The label is the **runtime** technology (`BrainTier`): a curated C# behaviour that runs as a BTree reads "BTree". ⚠ ExCon's own `MissionEditorService` is not overridden, so the ExCon host shows names unlabelled — its list comes over its own contract | changing the return type — 3 production impls + ~8 test doubles + Moq setups for a label |
 | D5 | the C# row is shown, not creatable; its description points at CE-459 | hiding it — the menu would lie about what exists |
-| D7 | ⛔ **CE-461 STOPS here.** The recipe must READ `Stage2_Validate`'s table; it is `private` in the compiler, which §5 of the handoff fences to the behaviours lane | copying the two arrays into the editor — two implementations of one rule (ruling 9) |
+| D7 | ✅ the recipe READS the compiler's table, now public as `AiPrimitiveHostingRules` (`IsCompatible` / `AllValidFor`), which BP1022/BP1023 also read. 🔒 User: *"No need to handoff that little class, you can do it."* ⛔ SUPERSEDED: this row said CE-461 stops here because the table was private and fenced to the behaviours lane | copying the two arrays into the editor — two implementations of one rule (ruling 9) |
