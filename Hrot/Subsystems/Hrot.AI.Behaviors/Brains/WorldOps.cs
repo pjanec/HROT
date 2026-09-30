@@ -28,14 +28,13 @@ namespace Hrot.AI.Behaviors.Brains
         /// view rather than throw.
         /// </para>
         /// </summary>
-        [BlueprintCallable("World")]
+        /// <remarks>⭐ <c>CE-469</c>: routed to the built-in
+        /// <see cref="StandardLibrary.BlueprintWorldLibrary.EntityExists"/> — one implementation (⚠ it reads
+        /// <see cref="ISimulationView.IsAlive"/> directly, so the downcast above is no longer needed). Kept for the
+        /// <c>HillAssault2_*</c> twins' baked FunctionCalls; retires with them (<c>CE-464</c>). ⚠ Deliberately NOT <c>[BlueprintCallable]</c>: the palette offers only
+        /// <i>Entity Exists</i> (one surface; the compiler never reads the attribute, so the twins still compile).</remarks>
         public static bool IsAlive(Entity e, ISimulationView view)
-        {
-            if (view is not EntityRepository world)
-                return false;
-
-            return world.IsAlive(e);
-        }
+            => StandardLibrary.BlueprintWorldLibrary.EntityExists(e, view);
 
         /// <summary>
         /// Blueprint-callable resolve-failure test (<see cref="Entity.Null"/> equality). Contextless
@@ -57,7 +56,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ISimulationView"/>), so downcast; returns <c>0</c> for a non-repository view.
         /// </para>
         /// </summary>
-        [BlueprintCallable("World")]
+        /// <remarks>⭐ <c>CE-470</c>: superseded by the native <i>Get Sim Time</i> node (<c>GetTimeNode</c>) — ⚠ deliberately NOT
+        /// <c>[BlueprintCallable]</c> any more (one palette surface). Kept for the <c>HillAssault2_*</c> twins' baked
+        /// FunctionCalls; retires with them (<c>CE-464</c>).</remarks>
         public static float SimTime(ISimulationView view)
         {
             if (view is not EntityRepository world)

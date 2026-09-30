@@ -234,6 +234,7 @@ public sealed class V_ResolverPurityTests
         "ArrayGetNode", "ArrayMakeNode", "BinaryOpNode", "BooleanOpNode", "BreakStructNode",
         "CastNode", "CompareNode", "FormatStringNode", "LiteralNode", "MakeStructNode",
         "NotNode", "SetMembersNode",
+        "GetTimeNode",   // CE-470: reads a clock, writes nothing (and BP1679 refuses it in a resolver anyway)
         // ⚠ SetMembersNode is PURE despite the name: it emits `var __t2 = __t0; __t2.F = __t1;`
         //   — a copy-with-changes into a new temp, never a write to anything the caller owns.
 

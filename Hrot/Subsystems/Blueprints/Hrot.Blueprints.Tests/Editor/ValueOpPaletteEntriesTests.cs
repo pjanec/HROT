@@ -47,6 +47,11 @@ public sealed class ValueOpPaletteEntriesTests
     [InlineData("BinaryOp.Multiply", ArithmeticOperator.Multiply)]
     [InlineData("BinaryOp.Divide",   ArithmeticOperator.Divide)]
     [InlineData("BinaryOp.Modulo",   ArithmeticOperator.Modulo)]
+    [InlineData("BinaryOp.BitAnd",     ArithmeticOperator.BitAnd)]
+    [InlineData("BinaryOp.BitOr",      ArithmeticOperator.BitOr)]
+    [InlineData("BinaryOp.BitXor",     ArithmeticOperator.BitXor)]
+    [InlineData("BinaryOp.ShiftLeft",  ArithmeticOperator.ShiftLeft)]
+    [InlineData("BinaryOp.ShiftRight", ArithmeticOperator.ShiftRight)]
     public void BinaryOpEntries_BakeTheOperator(string kind, ArithmeticOperator expected)
     {
         var entry = Entry(kind);

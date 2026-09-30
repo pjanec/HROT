@@ -3,7 +3,8 @@ state: LIVE
 updated: 2026-09-30
 current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
 stale-below: nothing.
-known-rot: ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
+known-rot: ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
+  destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
   fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
   same slot mid-run (CE-460 — WON'T FIX by user ruling 2026-09-30: keep the old behaviour).
 known-conflict: none.
@@ -306,7 +307,7 @@ action is preempted or returns `Failure`.
 local `Entity`, writes it to `WeaponChannel`, then returns `NodeStatus.Running` while
 the weapon channel reports the engagement in progress. It returns `NodeStatus.Success`
 when either the weapon channel confirms the engagement concluded OR
-`!repo.IsAlive(targetEntity)` — because standard executors do not natively detect target
+the target is knocked out (`!CombatLife.IsAlive`, `CE-466`) — because standard executors do not natively detect target
 destruction and would leave the node stuck in `Running` indefinitely.
 
 `Action_ReverseToBaseline` writes the reverse locomotion intent to `LocomotionChannel`.
@@ -343,10 +344,20 @@ tank spacing, target area) and drives the platoon through:
    d. Monitor the wave until all dispatched tanks have finished their run or died.
    e. Toggle the wave index.
 
-If a tank is destroyed mid-wave, its firing slot is permanently burned
+If a tank is knocked out mid-wave, its firing slot is permanently burned
 (`BurnedSlotsMask`) and its baseline slot is freed (`BaselineReservedMask`).
-The SoA tracker detects destruction via `EntityRepository.IsAlive` with O(1)
+The SoA tracker detects it via `CombatLife.IsAlive` (`Fdp.Toolkit.Combat`) with O(1)
 swap-remove.
+
+> ⭐ **`CE-466` (`2026-09-30`) — "alive" means `Health.Current > 0`, not ECS existence.** Since the `CE-267`
+> revert (`2026-09-13`) a knocked-out unit keeps its body in the world, so `EntityRepository.IsAlive` stays true
+> for it. `CombatLife.IsAlive(view, e)` is both halves: the entity exists **and**, if it has `Health`, HP is
+> above zero. Used at every doctrine site that means combat death — dispatch to baseline, the arrived check
+> (a knocked-out tank counts as arrived), wave candidates, the target and the attacker tracker — and by the tank's
+> `Action_AimAndFireSpecific` (a knocked-out target ends the engagement). The target AREA stays a plain existence
+> check: an area is not a unit. ⛔ HISTORY: every one of these used `IsAlive`, which after the revert could no
+> longer see a knocked-out tank — the "burn the slot" branch was unreachable. Rails: `CE466_*` in
+> `HillAttackNodeTests`.
 
 When no targets remain, the Repeater propagates `NodeStatus.Failure`; a `ForceSuccess` around it turns that normal exit
 into Success, the commander sends every subordinate back to its baseline staging slot (`Action_DispatchAllToBaseline`
@@ -418,7 +429,7 @@ After dispatch, toggle `CurrentWave`.
 ### 4.5 Wave Completion Check
 
 `Condition_IsWaveCompleted` iterates the SoA tracker backwards:
-- If `!repo.IsAlive(attacker)`: permanently set `BurnedSlotsMask` bit; clear
+- If `!CombatLife.IsAlive(attacker)` (knocked out or gone — `CE-466`): permanently set `BurnedSlotsMask` bit; clear
   `BaselineReservedMask` bit; swap-remove the entry from the SoA arrays.
 - If alive and `HasStartedRun[i] == 0`: check if
   `BehaviorState.ActiveBehaviorHash == HullDownAttackRun` hash. If so, set

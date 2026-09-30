@@ -953,7 +953,11 @@ internal static class StatementEmitter
                 if (idx >= 0)
                 {
                     string infix = ArithmeticOperatorInfix(op.Op);
-                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                    // CE-471: a C# shift count must be int -- cast, so a long/byte-typed B pin still compiles.
+                    string right = op.Op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight
+                        ? $"(int)__t{op.Right.Index}"
+                        : $"__t{op.Right.Index}";
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} {right};");
                 }
                 break;
 
@@ -988,7 +992,8 @@ internal static class StatementEmitter
                 var probe = $"global::Fdp.Core.Logging.BlueprintLog.Is{op.Level}Enabled";
                 var call  = $"global::Fdp.Core.Logging.BlueprintLog.{op.Level}";
                 e.WriteLine($"if ({probe})");
-                e.WriteLine($"    {call}($\"{op.InterpolatedBody}\");");
+                // ⭐ CE-468: culture-neutral — a cs-CZ machine must still log "1.5", not "1,5".
+                e.WriteLine($"    {call}(global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\"));");
                 break;
             }
 
@@ -999,7 +1004,8 @@ internal static class StatementEmitter
                 // ever materialising a managed string.
                 if (idx < 0) break;
                 e.WriteLine($"global::System.Span<char> __fb{idx} = stackalloc char[{op.BufferChars}];");
-                e.WriteLine($"__fb{idx}.TryWrite($\"{op.InterpolatedBody}\", out int __fn{idx});");
+                // ⭐ CE-468: culture-neutral — the provider overload, so a cs-CZ machine formats "1.5", not "1,5".
+                e.WriteLine($"__fb{idx}.TryWrite(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\", out int __fn{idx});");
                 e.WriteLine(
                     $"var __t{idx} = new global::{op.ResultTypeFqn}(__fb{idx}.Slice(0, __fn{idx}));");
                 break;
@@ -1515,6 +1521,11 @@ internal static class StatementEmitter
         ArithmeticOperator.Multiply => "*",
         ArithmeticOperator.Divide   => "/",
         ArithmeticOperator.Modulo   => "%",
+        ArithmeticOperator.BitAnd     => "&",
+        ArithmeticOperator.BitOr      => "|",
+        ArithmeticOperator.BitXor     => "^",
+        ArithmeticOperator.ShiftLeft  => "<<",
+        ArithmeticOperator.ShiftRight => ">>",
         _ => "+",
     };
 

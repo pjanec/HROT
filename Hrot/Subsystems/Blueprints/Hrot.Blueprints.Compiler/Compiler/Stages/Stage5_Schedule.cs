@@ -10,12 +10,45 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 
 internal static class Stage5_Schedule
 {
+    /// <summary>⭐ CE-471 — the BinaryOp operators that need integer operands.</summary>
+    internal static bool IsBitwiseOperator(ArithmeticOperator op) =>
+        op is ArithmeticOperator.BitAnd or ArithmeticOperator.BitOr or ArithmeticOperator.BitXor
+           or ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+
+    /// <summary>
+    /// ⭐ CE-471 — true when <paramref name="t"/> is a type this reflection-free compiler KNOWS cannot take
+    /// <paramref name="op"/>: floating point, decimal, string, vectors, an entity handle — and bool for a shift.
+    /// An unknown struct / an enum passes (C# decides; <c>&amp; | ^</c> are defined on enums).
+    /// </summary>
+    internal static bool IsKnownNonIntegerOperand(IrTypeRef t, ArithmeticOperator op)
+    {
+        if (t.IsEntityHandle) return true;
+        switch (t.FullName)
+        {
+            case "System.Single": case "System.Double": case "System.Decimal": case "System.String":
+            case "System.Numerics.Vector2": case "System.Numerics.Vector3": case "System.Numerics.Vector4":
+            case "System.Numerics.Quaternion":
+                return true;
+            case "System.Boolean":
+                return op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+            default:
+                return false;
+        }
+    }
+
     // Sentinel unresolved IrTypeRef used when no type information is available.
     internal static readonly IrTypeRef UnknownType = new IrTypeRef
     {
         FullName = "?",
         IsUnmanaged = false,
         SizeBytes = 0,
+    };
+
+    internal static readonly IrTypeRef SingleType = new IrTypeRef
+    {
+        FullName = "System.Single",
+        IsUnmanaged = true,
+        SizeBytes = 4,
     };
 
     internal static readonly IrTypeRef Int32Type = new IrTypeRef
@@ -3292,6 +3325,19 @@ internal sealed class GraphScheduler
                     ? ResolveDataPin(bo.Id, bPin.Id, stmts)
                     : AllocValue(Stage5_Schedule.UnknownType);
 
+                // ⭐ CE-471: the bit/shift operators need integer operands. The check is a DENY-list of the
+                // types this compiler KNOWS are not integers (reflection-free — an unknown struct or a
+                // [Flags] enum passes, and & | ^ are defined on enums). bool is fine for & | ^, not for shifts.
+                if (Stage5_Schedule.IsBitwiseOperator(bo.Operator)
+                    && (Stage5_Schedule.IsKnownNonIntegerOperand(aVal.Type, bo.Operator)
+                        || Stage5_Schedule.IsKnownNonIntegerOperand(bVal.Type, bo.Operator)))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1678,
+                        $"BinaryOp '{bo.Operator}' needs integer operands (a [Flags] enum is fine for BitAnd/BitOr/BitXor); "
+                        + $"got A = '{aVal.Type.FullName}', B = '{bVal.Type.FullName}'.",
+                        _ctx.AssetId, _graph.Id, bo.Id));
+                }
+
                 var binOpResult = AllocValue(aVal.Type);
                 stmts.Add(new IrStatement
                 {
@@ -3370,6 +3416,42 @@ internal sealed class GraphScheduler
                 });
                 // ResolveDataPin's own `_pinValueCache[sourcePinId] = result` below caches this, so
                 // the value is computed once no matter how many consumers read the Result pin.
+                break;
+            }
+
+            case GetTimeNode gt:
+            {
+                // ⭐ CE-470: reuse the IR ops the Wait lowering emits. Scope (Q78 §8): `time` is a parameter of every
+                // Function/Event method outside Library dispatch; `deltaTime` only of Instance/Behavior Function graphs.
+                var dispatch = _typed.Asset.Dispatch;
+                bool timeInScope = dispatch != AssetDispatchKind.Library
+                    && (_graph.Kind == GraphKind.Function || _graph.Kind == GraphKind.Event);
+                bool deltaInScope = (dispatch == AssetDispatchKind.Instance || dispatch == AssetDispatchKind.Behavior)
+                    && _graph.Kind == GraphKind.Function;
+                bool inScope = gt.Kind == TimeKind.DeltaTime ? deltaInScope : timeInScope;
+                if (!inScope)
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1679,
+                        $"'Get {(gt.Kind == TimeKind.DeltaTime ? "Delta Time" : "Sim Time")}' is not available in a "
+                        + $"{dispatch} {_graph.Kind} graph ('{_graph.Name}'): that clock is not passed to it. "
+                        + (gt.Kind == TimeKind.DeltaTime
+                            ? "Delta time exists only in an Instance/Behavior Tick or function graph."
+                            : "Sim time exists in every graph except a Library function or resolver."),
+                        _ctx.AssetId, _graph.Id, gt.Id));
+                }
+
+                var valuePin = gt.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                var timeResult = AllocValue(Stage5_Schedule.SingleType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = timeResult,
+                    Operation   = gt.Kind == TimeKind.DeltaTime ? new IrOp_DeltaTime() : new IrOp_Time(),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gt.Id, PinId = sourcePinId },
+                });
+                if (valuePin is not null) _pinValueCache[valuePin.Id] = timeResult;
+                result = timeResult;
                 break;
             }
 

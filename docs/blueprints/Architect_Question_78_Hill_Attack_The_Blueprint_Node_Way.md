@@ -12,6 +12,7 @@ known-rot: ⚠ §3 was written without reading Q6's approved rulings (2026-07-17
 known-conflict: HillAssault_Blueprint_Migration.md §"What blueprintize means" keeps the BTree topology and turns only the
   node logic into blueprints. Decision A here departs from that on purpose; the reason is in A.
 related-designs:
+  - DESIGN_Typed_Intent_And_Json_Nodes.md — owns HOW `CE-472` (typed Send Intent + To/From JSON) is built; awaiting review
   - HillAssault_Blueprint_Migration.md — owns the July rebuild log and its GAP-1..GAP-10 list, part of which is now
     out of date (§1 here re-measures it).
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint-behaviour runtime this rebuild runs on
@@ -264,7 +265,7 @@ accepts — one mechanism instead of two).
 
 | finding | evidence | consequence |
 |---|---|---|
-| 🔴 **an engine enum pin must be spelled `global::Fdp.Core.ForceId`**, and the compiler then assumes it is **4 bytes** | measured `2026-09-30`: the bare FQN fails **`BP1500` "does not resolve"**; the `global::` rule is `StaticTypeRegistry.cs` AN2 (*"default enum underlying size of 4 bytes"*). `ForceId` is a **byte** enum | harmless for a pin (a C# local); ⛔ **a byte-backed enum stored in a block would get the wrong layout.** The slot-state list's enum must be `int`-backed, or the size rule fixed first |
+| 🔴 **an engine enum pin must be spelled `global::Fdp.Core.ForceId`** — ⛔ *the "assumes 4 bytes" half of this row is WRONG for block fields; see §7 row 8 (`CE-473`)* | measured `2026-09-30`: the bare FQN fails **`BP1500` "does not resolve"**; the `global::` rule is `StaticTypeRegistry.cs` AN2 (*"default enum underlying size of 4 bytes"*). `ForceId` is a **byte** enum | harmless for a pin (a C# local); ⛔ **a byte-backed enum stored in a block would get the wrong layout.** The slot-state list's enum must be `int`-backed, or the size rule fixed first |
 | ✅ the stop-gap area query is generic now | `AreaQueryBatchOps.Request(targetArea, force, self, view)` (force was hard-coded Hostile) + new `TargetAt(groupHandle, index, view) → Entity` | the blueprint rebuild can use it until the EQS unification lands; no new node for the old system |
 
 ### 6.4 What is left in C# after §6 — the whole list
@@ -347,14 +348,14 @@ handoff, independent of the EQS unification. Unverified: whether anything serial
 | 0 | `CE-465` | template EQS inert in production — handed to the backend lane with the unification ([`HANDOFF_EQS_Unification`](batches/HANDOFF_EQS_Unification.md)) | 📋 backend lane, draft handoff | — |
 | 1 | — | area-query blueprint helpers made generic (force argument, `TargetAt`) — the stop-gap until the EQS unification | ✅ **DONE** (commit `6675608e5`) | — |
 | 2 | `CE-467` | **roster blueprint-native** — `UnitRoster`'s buffers are `[InlineArray]` of `Entity` / `ushort` + `[BlueprintCollectionField]` (read-only); accessors GENERATED (`UnitRosterSubordinateEntitiesOps`); `UnitRosterOps` deleted; `CollectionOpsGenerator` moved to the new engine analyzer `FDP/Engine/Fdp.Core.Generators`; 168 → 164 B. ⭐ Needed and done with it (**CE-467-A**): `FdpAutoSerializer` serialises an `[InlineArray]` of `Entity` through the `IGuidResolver` (it used to throw) — the route `.dev/_DONE/cgf-scn-2/design-talk.md:291` named; invariant 3 of `cgf-scn-2/DESIGN.md` holds (no raw handle is written) | ✅ **DONE** — gates: Fdp.Toolkits 2383/0 · Blueprints 3980/0/17 · Generators 341/0 · SimHost `HillAttack/UnitHierarchy/Genesis/Squad` 125/0 · Overlays 29/0 · Hrot.Core 170/2 (the 2 `EcsPatchContextTests` reds fail identically on base `e76814777`) | — |
-| 3 | `CE-468` | `FormatString` / `PrintString` culture-neutral (`TryWrite(InvariantCulture, …)`, `StatementEmitter.cs:1001`) + a rail under cs-CZ | 📋 OPEN — approved (§6 row 8) | — |
-| 4 | `CE-469` | **built-in function library** (engine-level, palette-visible — decide its home: beside `BlueprintMath` with one palette mechanism, §6.1): `Entity Exists`, `Random Int` / `Random Float` (seeded, salt pin), `Geo → Cartesian` + inverse, network-id → entity | 📋 OPEN — approved (§6 rows 1, 3, 5, 6) | — |
-| 5 | `CE-470` | `Get Sim Time` / `Get Delta Time` node over the existing `IrOp_Time` / `IrOp_DeltaTime` | 📋 OPEN — approved (§6 row 4) | — |
-| 6 | `CE-471` | bit operators on `BinaryOp` (`BitAnd/BitOr/BitXor/ShiftLeft/ShiftRight/BitNot`), integer types only, with a Stage2 type check | 📋 OPEN — approved (§6 row 9) | — |
-| 7 | `CE-472` | typed **Send Behaviour Intent** node (params as pins, JSON inside) + DTO-typed **To JSON / From JSON** nodes — one shared emitter | 📋 OPEN — approved (§6 rows 2, 7) | — |
-| 8 | `CE-473` | the enum-pin rule: every `global::` enum assumed 4 bytes. 🔒 User `2026-09-30`: *"can't we teach that compiler that enums can be sized?"* ⇒ **yes, measured:** the generator already carries a Roslyn semantic-model oracle (`RoslynClrSignatureResolver`, `Hrot.Blueprints.Generators`) that Stage4 already consults for type existence (`TypeExistsPerOracle`, `Stage4_TypeResolve.cs:305`). **Lean:** add `TryGetEnumUnderlyingType(typeId)` to `IClrSignatureResolver` (Roslyn: `INamedTypeSymbol.EnumUnderlyingType`; the in-process path: reflection `Enum.GetUnderlyingType`), use it in `StaticTypeRegistry`'s AN2 branch for the real size, and emit a diagnostic when no oracle can answer and the enum is stored in a block. ⚠ Check the second layout authority too — `BTreeBlackboardPackHelper.KnownSizes` (`CE-418`) — so a BTree blackboard enum agrees | 📋 OPEN — lean given, awaiting go | — |
+| 3 | `CE-468` | `FormatString` / `PrintString` culture-neutral (`TryWrite(InvariantCulture, …)` / `String.Create(InvariantCulture, …)`) — rail pins the provider in the generated C# | ✅ DONE `2026-09-30` | — |
+| 4 | `CE-469` | **built-in function library** — `BlueprintWorldLibrary` (`Hrot.AI.Behaviors/StandardLibrary`): `Entity Exists`, `Is Alive In Combat`, `Entity From Network Id`, `Random Int/Float` (seeded, salt pin), `Geo To Cartesian` + inverse. ⚠ Home is Hrot, not beside `BlueprintMath`: FDP cannot see the attribute / `GeoPoint` / `SimRng`; one palette mechanism = the `[BlueprintCallable]` scan. Legacy `WorldOps.IsAlive` / `NetworkEntityMapOps.ResolveTarget` delegate to it, off the palette | ✅ DONE `2026-09-30` | — |
+| 5 | `CE-470` | `Get Sim Time` / `Get Delta Time` — `GetTimeNode` over the existing `IrOp_Time` / `IrOp_DeltaTime`; `BP1679` where the clock is not in scope (design §8) | ✅ DONE `2026-09-30` | — |
+| 6 | `CE-471` | bit operators on `BinaryOp` (`BitAnd/BitOr/BitXor/ShiftLeft/ShiftRight`), integer operands only — `BP1678` (Stage5 deny-list). ⚠ no unary `BitNot` (A/B-shaped node; XOR with all-ones) | ✅ DONE `2026-09-30` | — |
+| 7 | `CE-472` | typed **Send Intent** node (params as pins, JSON inside) + **To JSON / From JSON** nodes — one shared emitter. 📐 Designed with UML: [`DESIGN_Typed_Intent_And_Json_Nodes.md`](DESIGN_Typed_Intent_And_Json_Nodes.md) — keyed by INTENT id, per-member pins, `DefaultRelaxed`; ⚠ found: `"HullDownAttack"` has no `[BehaviorContract]` DTO | 📋 DESIGNED — awaiting user review of §4 leans | — |
+| 8 | `CE-473` | enum sizes. ✅ **ALREADY SOLVED BEFORE THIS QUESTION — my §6.3 claim was wrong.** 📐 Measured `2026-09-30`: the generator passes a field-size oracle (`StructSizeResolver.MakeFieldSizeDelegate`, `BlueprintIncrementalGenerator.cs:124`) that sizes an enum by its underlying type (`StructSizeResolver.cs:274`); `Stage4_TypeResolve.WithOracleSize` replaces the 4-byte guess with it, and without an answer marks the size unreliable so the emitter keeps `Sequential` layout (proven for structs by `EmittedStateLayoutTests`). ⚠ The only remaining approximation is Stage2's tier-budget estimate (`ComputeStructSize`), which is a budget check, not a layout. ⭐ Added the missing enum rail: `StructSizeResolverEnumTests` (byte 1 · short 2 · int 4 · ulong 8). The `global::` spelling rule for enum PINS stands (a bare FQN is `BP1500`) | ✅ **DONE** — rail added; no compiler change needed | — |
 | 9 | `CE-474` | `GetComponent` emits the read before the `Found` check — measure whether it throws on a missing/dead entity | 📋 OPEN — measure only | — |
-| 10 | `CE-466` | the C# hill attack tests ECS existence where it means `Health > 0`. 🔒 User `2026-09-30`: *"466 - to be fixed"*. **Plan per site:** subordinates `:98, :154, :338, :466` and the target `:380` → *exists **and** `Health.Current > 0`* (one private helper in the doctrine); the target AREA `:209` stays a pure existence test (an area is not a unit). ⚠ Changes the live doctrine: re-verify `hill-attack-close` (SimHost + `--mode all`) and add a rail where a platoon tank is knocked out mid-wave | 📋 OPEN — approved to fix, awaiting go | — |
+| 10 | `CE-466` | the C# hill attack's "alive" = `Health.Current > 0`: `Fdp.Toolkit.Combat.CombatLife.IsAlive` at the 5 commander sites + the tank's `Action_AimAndFireSpecific`; the area stays an existence test. Rails `CE466_*` in `HillAttackNodeTests` (red-proofed) | ✅ **DONE** — live `hill-attack-close` re-verification: see the tracker row | — |
 | 11 | `CE-464` | **the rebuild itself** — the hill-attack commander as ONE blueprint behaviour (Q77), broken into blueprint functions where suitable, "alive" = `Health.Current > 0`, roster via the generated collection, area query via the generic helpers (until the EQS unification), orders via the typed intent node | 📋 OPEN — after 2–7 | 2, 3, 4, 5, 6, 7 |
 | 12 | — | the 15 `HillAssault2_*` twins — retire once the rebuild's proofs cover their node types (`R-137`) | 📋 OPEN — last | 11 |
 
@@ -364,3 +365,34 @@ handoff, independent of the EQS unification. Unverified: whether anything serial
 
 **Still open for the user:** the order of 3–7 (proposed as listed) · the built-in library's home (§6.1 lean) ·
 `CE-473`'s fix · `CE-466`.
+
+## 8. `CE-470` design note — `Get Sim Time` / `Get Delta Time` *(measured `2026-09-30`)*
+
+⭐ A trivial mirror-pattern node (a pure, pin-less data node like `GetParameter`) — ⛔ **except for ONE measured fact
+the §6 lean did not know: `deltaTime` is not in scope in every emitted method.** 📐 The emitters' signatures:
+
+| emitted method | `time` | `deltaTime` | source |
+|---|---|---|---|
+| Instance / Behavior `Tick`, `Func_*` | ✅ | ✅ | `InstanceEmitter.cs:463`, `:613` |
+| Instance `Event_*` | ✅ | ⛔ | `InstanceEmitter.cs:443` |
+| AiPrimitive `TickCore`, `Func_*` | ✅ | ⛔ | `AiPrimitiveEmitter.cs:225`, `:283` |
+| Library functions / resolvers | ⛔ | ⛔ | `LibraryEmitter.cs:165` |
+
+```mermaid
+graph LR
+  GST[GetSimTimeNode] -->|Stage5| T[IrOp_Time] -->|emit| t["var __tN = time;"]
+  GDT[GetDeltaTimeNode] -->|Stage5| D[IrOp_DeltaTime] -->|emit| d["var __tN = deltaTime;"]
+  GST -. Library .-> R1[BP1679 refused]
+  GDT -. "AiPrimitive / Event_* / Library" .-> R2[BP1679 refused]
+```
+*What the picture shows that prose hid: the two nodes reuse the IR ops the `Wait` lowering already emits
+(`WaitLowering_*`), so no new IR and no new emit — the only new logic is the scope refusal.*
+
+**Decision (as built `2026-09-30`):** one node class `GetTimeNode { TimeKind Kind }` (`SimTime` /
+`DeltaTime`), pure, a single `System.Single` `Value` out-pin; Stage5 lowers to `IrOp_Time` / `IrOp_DeltaTime`; a
+compile error **`BP1679`** where the value is not in scope (table above) — said in the compiler's own language, not as
+a `CS0103` in a generated file.
+**Rejected:** thread `deltaTime` into every signature — changes every AiPrimitive thunk and hosting contract for a value
+an AiPrimitive can already derive · two node classes — one class + a kind enum mirrors `BinaryOp`/`Compare` · keep
+`WorldOps.SimTime` as the surface — it is a C# helper per `R-156`; it loses its palette attribute once the node ships
+and retires with the twins (`CE-464`).
