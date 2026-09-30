@@ -308,8 +308,8 @@ classDiagram
 
 ⭐ **Shipped demo:** `BlueprintBehaviourDemo.bp.json` — compiled by the production generator; the production registrar scan registers it on `BrainTierBlueprint` (rail `CE446_TheShippedDemo_…`).
 
-⚠ **Still open inside `CE-446`:** hot reload of a running blueprint
-behaviour whose layout changed (§5.8) · E4 editor (§5.5).
+⚠ **Still open inside `CE-446`:** ~~hot reload of a running blueprint
+behaviour whose layout changed~~ (built, §5.12) · E4 editor (§5.5).
 
 ### 5.10 ✅ The Instance node set, PROVEN in a blueprint behaviour *(`2026-09-30`)*
 
@@ -350,3 +350,53 @@ sequenceDiagram
 Rails (`BlueprintBehaviourTests`): `CE446_TheOwnResolver_RunsAtAssign_FromTheParsedParameters` (✅ red-proof: drop the call ⇒
 fails) · `…_SeesTheParameterDefault_WhenTheJsonOmitsIt` · `CE446_AResolverWritingAParameter_IsBP1675` · `CE446_TwoResolvers_AreBP1676` ·
 `CE446_AResolverDeclaringAnInput_IsBP1677`.
+
+### 5.12 ✅ BUILT `2026-09-30` — hot reload of a RUNNING blueprint behaviour
+
+```mermaid
+sequenceDiagram
+    participant C as "AiHotReloadCoordinator"
+    participant R as "BehaviorRegistry (live)"
+    participant B as "BrainTickSystem.TickBlueprint"
+    participant S as "root block (occurrence slot)"
+    C->>R: MergeFrom(staging) — new BehaviorDefinition, BlueprintStructureHash
+    B->>B: started layout (InstanceId, hash) vs def.BlueprintStructureHash, slot width vs RootParamsBytes(def)
+    alt same layout, same width (SOFT)
+        B->>S: tick the new code over the kept state
+    else layout or width changed (HARD)
+        B->>S: ResolveOrAttachRoot at the new width, zero it
+        B->>S: def.ParseParams("{}") — authored defaults, then the own resolver
+        B->>B: IReloadLogSink.OnHardReset(old, new)
+        B->>S: tick
+    else rebuild failed (no room / resolver threw)
+        B->>B: BehaviorIngressSystem.Clear — never tick a half-built block
+    end
+```
+
+> ⭐ **Caption:** the check runs on the TICK, per entity, because no reload path tells a world which entities run the
+> reloaded behaviour (`OnHardReloadCompleted` fires only on the file-watcher path, and nothing subscribes to re-assign —
+> `DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md` §10.3, `CE-023`).
+
+| design basis | how this applies it |
+|---|---|
+| `AI_Editor_Shared_Infrastructure.md` §17 — Soft keeps state, Hard *"instances reset to initial state"* | the same split, keyed on the generated `StructureHash` (now `BehaviorDefinition.BlueprintStructureHash`) |
+| `R-24` / `BlueprintTickSystem` — an Instance with a stale hash is `ResetSlot` + `InitDefault`, logged | the behaviour-tier twin, through the definition's own pipeline (so the own resolver re-runs) |
+| `btree-ai-action-binding/SLICE2-DESIGN.md` Flaw 2 — a grown layout over an old slot overwrites the next one | the width check re-attaches BEFORE the new code ticks |
+
+⚠ **Decision (logged, the one that loses something):** the assigned JSON is retained nowhere, so a HARD reset lands on
+**authored defaults** — the same as an Instance's reset. ⭐ Keeping the assigned params across a Hard reset would need
+the JSON held per running instance (ingress has it only during the assign); ⛔ not built — the user's call.
+⚠ **Not covered, and pre-existing for every tier:** a BTree/HSM behaviour's root params block is not re-checked on
+reload either (the same Flaw 2 exposure); this slice closes it for the blueprint tier only.
+
+Rails (`BrainTickSystemBlueprintArmTests`): `CE446_AReloadThatKeepsTheLayout_KeepsTheRunningState` ·
+`…ChangesTheLayout_HardResetsTheRunningInstance_AndLogsIt` · `…GrowsTheBlock_BeforeItsFirstTick_ReattachesItAtTheNewWidth` (the window the width check exists for: no started layout on record yet) ·
+`CE446_AHardResetWhoseRebuildFails_ClearsTheBehaviour_InsteadOfTickingIt`.
+
+### 5.13 E4 — first slice BUILT `2026-09-30`; the rest is editor UI (§5.5)
+
+| §5.5 item | state |
+|---|---|
+| the assignment picker lists every `BrainTier` | ✅ `ScenarioMissionService.AppendEditorBTreeBehaviors` now admits BTree, HSM and Blueprint (rail `EditorMissionServiceTests.CE446_GetAvailableBehaviors_ListsEveryTechnology`, red-proofed by restoring the BTree-only predicate). ⚠ The method keeps its old name — renaming is a Roslyn job, left for the slice that touches it next |
+| the technology shown as a label | ⛔ not built — `IMissionEditorService.GetAvailableBehaviors` returns bare names (four implementations incl. `Hrot.ExCon`), so a label is an interface change |
+| New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ⛔ not built — editor menus, the UI lane's surface |

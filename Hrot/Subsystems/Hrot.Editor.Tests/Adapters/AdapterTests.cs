@@ -332,6 +332,32 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Contains("T10_MultiAction", behaviors);
         }
 
+        /// <summary>
+        /// ⭐ CE-446 E4 (Q77 §5.5): the picker lists every technology — an HSM and a blueprint behaviour appear beside a BTree.
+        /// <para>⚠ Inverse-edit red-proof: restore the BTree-only predicate and both assertions fail.</para>
+        /// </summary>
+        [Fact]
+        public void CE446_GetAvailableBehaviors_ListsEveryTechnology()
+        {
+            _registry.Register(43, "AuthoredHsm", new BehaviorDefinition
+            {
+                Name = "AuthoredHsm", BrainTier = BehaviorConstants.BrainTierHsm,
+            });
+            _registry.Register(44, "AuthoredBlueprint", new BehaviorDefinition
+            {
+                Name = "AuthoredBlueprint", BrainTier = BehaviorConstants.BrainTierBlueprint,
+            });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
+
+            var behaviors = new ScenarioMissionService(_bus, _repo, _registry).GetAvailableBehaviors(NetIdFor(entity));
+
+            Assert.Contains("AuthoredHsm", behaviors);
+            Assert.Contains("AuthoredBlueprint", behaviors);
+        }
+
         [Fact]
         public void GetAvailableBehaviors_DoesNotDuplicateCuratedEntries()
         {

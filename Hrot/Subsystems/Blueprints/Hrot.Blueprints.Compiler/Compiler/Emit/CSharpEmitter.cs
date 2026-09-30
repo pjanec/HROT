@@ -625,6 +625,7 @@ internal sealed class CSharpEmitter
         WriteLine($"BlackboardLayoutType = typeof({className}.State),");
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
+        WriteLine($"BlueprintStructureHash = {className}.StructureHash,");
         Outdent();
         WriteLine("});");
     }

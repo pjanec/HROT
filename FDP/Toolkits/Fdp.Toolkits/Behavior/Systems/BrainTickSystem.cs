@@ -100,11 +100,16 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly bool _gateOnAuthority;
 
-        public BrainTickSystem(BehaviorRegistry registry, bool gateOnAuthority = false)
+        public BrainTickSystem(BehaviorRegistry registry, bool gateOnAuthority = false,
+            Fdp.Toolkit.Blueprints.Systems.IReloadLogSink? reloadLog = null)
         {
             _registry = registry ?? throw new ArgumentNullException(nameof(registry));
             _gateOnAuthority = gateOnAuthority;
+            // ⚠ Optional exactly as BlueprintTickSystem's is — no production host constructs a sink for either tier today.
+            _reloadLog = reloadLog ?? Fdp.Toolkit.Blueprints.Systems.NullReloadLogSink.Instance;
         }
+
+        private readonly Fdp.Toolkit.Blueprints.Systems.IReloadLogSink _reloadLog;
 
         public void Execute(ISimulationView view, float deltaTime)
         {
@@ -198,7 +203,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private void SweepStaleDedupEntries(int tierCount)
         {
-            if (_publishedTerminalForInstanceId.Count == 0) return;
+            // ⭐ CE-446 step 3: the blueprint layout record is keyed the same way, for the same reason.
+            if (_publishedTerminalForInstanceId.Count == 0 && _blueprintLayout.Count == 0) return;
 
             _seenThisFrame.Clear();
             for (int t = 0; t < tierCount; t++)
@@ -212,6 +218,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (_seenThisFrame.Count == 0)
             {
                 _publishedTerminalForInstanceId.Clear();
+                _blueprintLayout.Clear();
                 return;
             }
 
@@ -220,6 +227,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_seenThisFrame.Contains(key)) _staleKeys.Add(key);
             foreach (var key in _staleKeys)
                 _publishedTerminalForInstanceId.Remove(key);
+
+            _staleKeys.Clear();
+            foreach (var key in _blueprintLayout.Keys)
+                if (!_seenThisFrame.Contains(key)) _staleKeys.Add(key);
+            foreach (var key in _staleKeys)
+                _blueprintLayout.Remove(key);
         }
 
         // ══ ARM 1 — BEHAVIOUR TREE ══════════════════════════════════════════════════════════
@@ -385,13 +398,71 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ Same predicate as the BTree arm: no params and no state ⇒ no block, and the sentinel makes a
             //   projection from it fail loudly rather than read a stack byte.
             ref byte block = ref BehaviorBlock.None;
-            if (RootParamsAccess.RootParamsBytes(def) > 0)
+            int blockBytes = RootParamsAccess.RootParamsBytes(def);
+            if (blockBytes > 0)
+            {
+                if (!HardResetIfRelaidOut(repo, entity, behavior, def, blockBytes))
+                    return;
                 block = ref RootParamsAccess.RootRef(repo, entity);
+            }
 
             var status = def.BlueprintTick(ref block, repo, _ecb!, entity, repo.SimulationTime, deltaTime, behavior.InstanceId);
 
             if (status == NodeStatus.Success || status == NodeStatus.Failure)
                 Finish(repo, entity, behavior, status);
+        }
+
+        /// <summary>The layout each running blueprint behaviour started with — keyed by <c>entity.Index</c>, valid only for
+        /// the recorded <c>(InstanceId, behaviour hash)</c>, and swept with the terminal dedup.</summary>
+        private readonly Dictionary<int, (uint InstanceId, int Behavior, ulong Layout)> _blueprintLayout = new();
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-446</c> step 3 — a hot reload that re-lays-out a RUNNING blueprint behaviour's block HARD-RESETS it.</b>
+        /// 📄 <c>Architect_Question_77</c> §5.12.
+        ///
+        /// <para>
+        /// ⭐ The design basis: <c>AI_Editor_Shared_Infrastructure.md</c> §17 — <i>"Hard … instances reset to initial state"</i>;
+        /// <c>R-24</c> — an Instance whose <c>StructureHash</c> no longer matches is <c>ResetSlot</c> + <c>InitDefault</c>'d and
+        /// LOGGED (<c>BlueprintTickSystem</c>). ⭐ This is that rule for the behaviour tier: the block is re-attached at the new
+        /// width (a grown block ticked over the old slot would write into the next occurrence — <c>SLICE2-DESIGN.md</c> Flaw 2),
+        /// then rebuilt by the definition's own pipeline with no JSON — authored defaults, then the behaviour's own resolver.
+        /// </para>
+        /// <para>
+        /// ⚠ The assigned JSON is not retained anywhere, so the reset lands on AUTHORED DEFAULTS — the same as the Instance
+        /// tier's reset. ⛔ A block that cannot be re-attached (the store is full; growing it is structural, ingress-only) is
+        /// CLEARED rather than ticked at the wrong width.
+        /// </para>
+        /// <returns><c>false</c> when the behaviour was cleared and must not be ticked.</returns>
+        /// </summary>
+        private bool HardResetIfRelaidOut(
+            EntityRepository repo, Entity entity, in BehaviorState behavior, BehaviorDefinition def, int blockBytes)
+        {
+            bool known = _blueprintLayout.TryGetValue(entity.Index, out var started)
+                         && started.InstanceId == behavior.InstanceId
+                         && started.Behavior == behavior.ActiveBehaviorHash;
+            _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash);
+
+            bool present = RootParamsAccess.TryGetRootBytes(repo, entity, out _, out int length);
+            bool widthChanged  = present && length != blockBytes;
+            bool layoutChanged = known && started.Layout != def.BlueprintStructureHash;
+            if (!widthChanged && !layoutChanged) return true;   // ⚠ absent: RootRef below throws with the causes
+
+            byte* memory = RootParamsAccess.ResolveOrAttachRoot(
+                repo, entity, behavior.ActiveBehaviorHash, blockBytes, OccurrenceKind.BlueprintBehavior, out _);
+            bool rebuilt = memory != null;
+            if (rebuilt)
+            {
+                Unsafe.InitBlock(memory, 0, (uint)blockBytes);   // same width ⇒ the slot is reused, not zeroed
+                try { def.ParseParams?.Invoke("{}", memory, blockBytes, repo, entity); }
+                catch (Exception) { rebuilt = false; }
+            }
+
+            _reloadLog.OnHardReset(behavior.ActiveBehaviorHash, entity,
+                known ? started.Layout : 0UL, def.BlueprintStructureHash);
+            if (rebuilt) return true;
+
+            BehaviorIngressSystem.Clear(repo, entity, _registry);
+            return false;
         }
 
         // ══ ARM 2 — HIERARCHICAL STATE MACHINE ══════════════════════════════════════════════

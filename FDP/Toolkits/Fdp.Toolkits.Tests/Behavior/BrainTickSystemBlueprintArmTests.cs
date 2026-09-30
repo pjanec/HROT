@@ -166,6 +166,159 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        // ══ CE-446 step 3 — hot reload of a RUNNING blueprint behaviour (Q77 §5.12) ══════════════════════════════
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct WideBlock
+        {
+            public int Target;
+            public int Count;
+            public long Extra;   // the reload GREW the block
+        }
+
+        /// <summary>A hot reload, as production commits it: a staging registry merged over the live one.</summary>
+        private static void Reload(BehaviorRegistry live, BehaviorDefinition next)
+        {
+            var staging = new BehaviorRegistry();
+            staging.Register(Id, Name, next);
+            live.MergeFrom(staging);
+        }
+
+        private static BehaviorDefinition CountingDef<TBlock>(ulong layout, Action<int>? onTick = null, bool parseThrows = false)
+            where TBlock : unmanaged => new()
+        {
+            Name                   = Name,
+            BrainTier              = BehaviorConstants.BrainTierBlueprint,
+            BlackboardLayoutType   = typeof(TBlock),
+            BlueprintStructureHash = layout,
+            // ⭐ "{}" is the reset's call: no JSON ⇒ the authored default (10).
+            ParseParams = parseThrows
+                ? static (string j, byte* mem, int capacity, EntityRepository w, Entity self) => throw new InvalidOperationException("resolver failed")
+                : static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
+                    ((Block*)mem)->Target = j == "{}" ? 10 : int.Parse(j),
+            BlueprintTick = (ref byte block, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
+            {
+                ref var b = ref Unsafe.As<byte, Block>(ref block);
+                b.Count++;
+                onTick?.Invoke(b.Count);
+                return b.Count >= b.Target ? NodeStatus.Success : NodeStatus.Running;
+            },
+        };
+
+        private static (EntityRepository world, BehaviorRegistry registry, BrainTickSystem brain, Entity e) Running(BehaviorDefinition def, string json)
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, def);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = Name, JsonParams = json });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            return (world, registry, new BrainTickSystem(registry), e);
+        }
+
+        private static Block ReadBlock(EntityRepository world, Entity e)
+        {
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* p));
+            return *(Block*)p;
+        }
+
+        /// <summary>
+        /// ⭐ A reload that keeps the layout is SOFT: the running instance keeps its state and simply ticks the new code
+        /// (<c>AI_Editor_Shared_Infrastructure.md</c> §17 — <i>"instances retain runtime state"</i>).
+        /// </summary>
+        [Fact]
+        public void CE446_AReloadThatKeepsTheLayout_KeepsTheRunningState()
+        {
+            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
+            TickAndCountFinished(world, brain, e, frames: 2);
+            Assert.Equal(2, ReadBlock(world, e).Count);
+
+            Reload(registry, CountingDef<Block>(layout: 0xA1));
+            TickAndCountFinished(world, brain, e, frames: 1);
+
+            Assert.Equal(3, ReadBlock(world, e).Count);   // continued, not restarted
+            Assert.Equal(5, ReadBlock(world, e).Target);  // the assigned params survived
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐ A reload that changes the layout at the SAME width is HARD: the block is rebuilt by the definition's own
+        /// pipeline with no JSON — authored defaults — exactly <c>R-24</c>'s Instance reset. The reset is LOGGED.
+        /// <para>⚠ Inverse-edit red-proof: drop the <c>layoutChanged</c> term and the count continues from 2.</para>
+        /// </summary>
+        [Fact]
+        public void CE446_AReloadThatChangesTheLayout_HardResetsTheRunningInstance_AndLogsIt()
+        {
+            var (world, registry, _, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
+            var log = new RecordingReloadLog();
+            var brain = new BrainTickSystem(registry, reloadLog: log);
+            TickAndCountFinished(world, brain, e, frames: 2);
+
+            Reload(registry, CountingDef<Block>(layout: 0xB2));
+            TickAndCountFinished(world, brain, e, frames: 1);
+
+            Assert.Equal(1, ReadBlock(world, e).Count);    // restarted from an empty block, then ticked once
+            Assert.Equal(10, ReadBlock(world, e).Target);  // authored default — the JSON is not retained
+            Assert.Equal((0xA1UL, 0xB2UL), Assert.Single(log.HardResets));
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ A reload that GROWS the block re-attaches it at the new width before the new code ticks — ⛔ ticking the
+        /// wider layout over the old slot would write into whatever the allocator put after it (<c>SLICE2-DESIGN.md</c> Flaw 2).
+        /// ⭐ Landed between the assign and the FIRST tick, so no started layout is on record yet — the window the WIDTH
+        /// check exists for (the layout hash cannot see it).
+        /// <para>⚠ Inverse-edit red-proof run: drop the <c>widthChanged</c> term and the slot stays 8 bytes.</para>
+        /// </summary>
+        [Fact]
+        public void CE446_AReloadThatGrowsTheBlock_BeforeItsFirstTick_ReattachesItAtTheNewWidth()
+        {
+            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _, out int before));
+            Assert.Equal(sizeof(Block), before);
+
+            int seenAtNewWidth = -1;
+            Reload(registry, CountingDef<WideBlock>(layout: 0xC3, onTick: c => seenAtNewWidth = c));
+            TickAndCountFinished(world, brain, e, frames: 1);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _, out int after));
+            Assert.Equal(sizeof(WideBlock), after);
+            Assert.Equal(1, seenAtNewWidth);
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// ⛔ A reset whose rebuild FAILS (the resolver throws) must not tick a half-built block: the behaviour is CLEARED
+        /// — the same clear as finishing (<c>CE-449</c>) — and never ticked again.
+        /// </summary>
+        [Fact]
+        public void CE446_AHardResetWhoseRebuildFails_ClearsTheBehaviour_InsteadOfTickingIt()
+        {
+            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
+            TickAndCountFinished(world, brain, e, frames: 1);
+
+            int ticksAfter = 0;
+            var broken = CountingDef<Block>(layout: 0xB2, onTick: _ => ticksAfter++, parseThrows: true);
+            Reload(registry, broken);
+            TickAndCountFinished(world, brain, e, frames: 3);
+
+            Assert.Equal(0, ticksAfter);
+            Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
+            Assert.Equal(0, LiveBehaviourBlocks(world, e));
+            world.Dispose();
+        }
+
+        private sealed class RecordingReloadLog : Fdp.Toolkit.Blueprints.Systems.IReloadLogSink
+        {
+            public readonly System.Collections.Generic.List<(ulong, ulong)> HardResets = new();
+            public void OnSoftReload(int blueprintId, Entity entity, ulong hash) { }
+            public void OnHardReset(int blueprintId, Entity entity, ulong oldHash, ulong newHash) => HardResets.Add((oldHash, newHash));
+        }
+
         /// <summary>
         /// ⛔ The root block is declared <see cref="OccurrenceKind.BlueprintBehavior"/> — NOT <see cref="OccurrenceKind.Blueprint"/>,
         /// which <c>BlueprintTickSystem</c> walks as an attached Instance and ingress sweeps as a hosted occurrence.

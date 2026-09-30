@@ -129,6 +129,7 @@ public static class BlueprintRegistrar_BlueprintBehaviourDemo_B50DE304_Bp
             BlackboardLayoutType = typeof(BlueprintBehaviourDemo_B50DE304_Bp.State),
             ParseParams = BlueprintBehaviourDemo_B50DE304_Bp.BehaviorParseParams,
             BlueprintTick = BlueprintBehaviourDemo_B50DE304_Bp.BehaviorTick,
+            BlueprintStructureHash = BlueprintBehaviourDemo_B50DE304_Bp.StructureHash,
         });
     }
 }

@@ -175,6 +175,14 @@ namespace Fdp.Toolkit.Behavior
         public BlueprintBehaviorTickDelegate? BlueprintTick { get; init; }
 
         /// <summary>
+        /// ⭐ <c>CE-446</c> step 3 — the generated class's <c>StructureHash</c> (its block LAYOUT). <c>BrainTickSystem</c>
+        /// compares it against the hash a running instance started with: a change means a hot reload re-laid-out the block
+        /// under it, and the instance is HARD-RESET — the behaviour-tier twin of <c>R-24</c>'s Instance reset
+        /// (<c>BlueprintTickSystem</c>). 0 for every other tier.
+        /// </summary>
+        public ulong BlueprintStructureHash { get; init; }
+
+        /// <summary>
         /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>
         /// for HSM-backed behaviors so diagnostic renderers / JSON translators can
         /// resolve raw state, event, and action IDs to human-readable names. May be

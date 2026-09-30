@@ -81,7 +81,7 @@ namespace Hrot.UI.Common.Adapters
         }
 
         /// <summary>
-        /// Appends registered editor-authored BTree behaviors (BrainTier == BrainTierBTree) to
+        /// Appends registered editor-authored behaviours of EVERY technology — BTree, HSM, blueprint (CE-446 E4) — to
         /// <paramref name="result"/>, skipping any names already present (dedup, curated first).
         /// </summary>
         /// <remarks>
@@ -100,7 +100,12 @@ namespace Hrot.UI.Common.Adapters
                     continue;
                 if (!registry.TryGetDefinition(id, out var def))
                     continue;
-                if (def.BrainTier != BehaviorConstants.BrainTierBTree)
+                // ⭐ CE-446 E4 (Q77 §5.5) — every TECHNOLOGY, not just BTree: 🔒 user 2026-09-30, "when picking … i need to
+                //   see all available ones no matter what technology they are based on". ⛔ An HSM or blueprint behaviour
+                //   registered in the live registry was assignable by MCP/JSON but invisible here.
+                if (def.BrainTier != BehaviorConstants.BrainTierBTree
+                    && def.BrainTier != BehaviorConstants.BrainTierHsm
+                    && def.BrainTier != BehaviorConstants.BrainTierBlueprint)
                     continue;
 
                 result.Add(name);
