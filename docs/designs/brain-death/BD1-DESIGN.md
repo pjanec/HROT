@@ -1,6 +1,6 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-12
+updated: 2026-09-30 (§1.0b — CE-449: finishing is terminal and runs the clear)
 current-answer: §1 (Phase 1, the brain-death lifecycle) is LIVE and BUILT — it is the event architecture
   every behavior/mission system still runs on.
 known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HERE AND IS NOT LIVE IN PRODUCTION.
@@ -20,6 +20,8 @@ known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HE
   answerable there. Step 16 of the end-to-end lifecycle below is the capability that a capability-only
   rule would cost.
 related-designs:
+  - ../../blueprints/Architect_Question_77_Blueprint_As_A_Behaviour.md — the blueprint brain tier (CE-446); §5.7 is
+    where CE-449 was measured. It owns the blueprint arm; this document owns what "finished" means for every arm.
   - ../../blueprints/Architect_Question_74_Blueprint_Channel_Lifecycle.md — ⭐ REUSES §1.1's
     "zero ActiveAction, INCREMENT ActionInstanceId" idiom for cleanup at STATE granularity inside one
     running HSM. ⛔ This document owns cleanup at BEHAVIOUR granularity (ChannelArbitrationSystem) and
@@ -113,6 +115,34 @@ foreach (var entity in query)
     }
 }
 ```
+
+### 1.0b ✅ AS-BUILT `2026-09-30` — `CE-449`: FINISHING IS TERMINAL AND RUNS THE CLEAR
+
+> 🔒 **User, `2026-09-30`:** *"Every behavior must be finishable in principle … must be finishable and clean up
+> resources"* · *"finishing a behavior should cancel the commands exactly same as Clear Behavior does. Without a
+> behavior, the entity needs to enter its default mode … each channel resets."*
+
+```mermaid
+sequenceDiagram
+    participant T as "BrainTickSystem (any arm)"
+    participant F as "Finish()"
+    participant C as "BehaviorIngressSystem.Clear()"
+    participant A as "ChannelArbitrationSystem"
+    participant M as "MissionDirectorSystem"
+    T->>F: root Success/Failure · HSM Terminated · blueprint status
+    F->>F: publish BehaviorFinishedEvent (once per InstanceId)
+    F->>C: inline, same frame
+    C->>C: detach stateful + hosted + root slots, hash=None, InstanceId++, BrainTier=0
+    A->>A: InstanceId mismatch ⇒ every channel ActiveAction=0 (default mode)
+    M->>M: reads the event ⇒ next phase assigns or does nothing
+```
+
+> ⭐ **Caption — what the picture shows that prose hid:** the clear is INLINE, not a published `ClearBehaviorEvent`.
+> ⛔ Ingress runs assign-by-name BEFORE clear in one pass, so a published clear would wipe a behaviour assigned in the
+> same frame. ⭐ And nothing ticks a finished behaviour again: before `CE-449` a BTree root re-ran every frame (the
+> interpreter resets `RunningNodeIndex` on completion) and an HSM ran again (the tick cleared its `Terminated` latch).
+> ⚠ A tree that MEANS to loop says so with a `Repeater` at its root — measured: none of the 24 shipped BTree assets
+> has one.
 
 ### 1.0a BehaviorFinishedEvent (notification, bottom-up)
 

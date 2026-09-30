@@ -330,56 +330,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             foreach (var evt in clearEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
-
-                // S3-5: detach the outgoing behavior's stateful slots BEFORE clearing.
-                // The switch path (AssignBehaviorEvent) already detaches on switch, but a clear-
-                // without-successor previously only nulled ActiveBehaviorHash, leaking the slots
-                // until the next assign. Capture the previous behavior id and reclaim its slots.
-                // DetachStatefulSlots frees by the manifest's SlotKey, which is scope-aware (S3-4),
-                // so this reclaims Node- and Behavior-scoped slots alike.
-                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
-                if (previousBehaviorId != BehaviorIds.None &&
-                    _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
-                    prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
-                {
-                    DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
-                }
-
-                // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
-                // too — the same leak S3-5 fixed for manifest slots.
-                DetachHostedOccurrenceSlots(repo, evt.Entity, manifest: null);
-
-                // 🔴🔴 O7c-② — THE ROOT SLOTS MUST BE DETACHED **BEFORE** THE HASH IS CLEARED, AND BOTH
-                //    OF THEM. 📄 §31.
-                //
-                //    ⛔⛔ Every root-slot key is COMPUTED from ActiveBehaviorHash, so once the line below
-                //      sets it to None the key is 0 and BOTH DetachRoot and ResetState become silent
-                //      no-ops. ⚠ The first draft of this change put the reset after the clear and it
-                //      would have leaked the slot on every brain-death — caught by reading the handler,
-                //      not by a test, because a leaked slot has no visible effect until MaxSlots (3 on
-                //      the 256 tier) runs out and params silently stop attaching.
-                //
-                //    🔴 AND THE PARAMS LINE IS A PRE-EXISTING LEAK THIS CHANGE FIXES, not one it caused:
-                //      CE-302 added DetachRoot to the ASSIGN path only, so a clear-without-successor has
-                //      been leaking the root params slot ever since. ⚠ Fixed here rather than filed,
-                //      because adding its exact twin while leaving it in place would be worse than
-                //      either doing both or neither.
-                //    ⭐ O7c-④: THE ROOT HSM SLOT NEEDS NO LINE HERE, AND THAT IS MEASURED, NOT FORGOTTEN.
-                //      It declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots(manifest: null) a
-                //      few lines above already reclaimed it — the same sweep that cannot see the two
-                //      BTree-kind slots below. ⚠ If that sweep's kind filter ever narrows, this is the
-                //      block that has to grow a RootHsmAccess.DetachRoot call.
-                if (previousBehaviorId != BehaviorIds.None)
-                {
-                    RootStateAccess.ResetState(repo, evt.Entity);   // zero while the key still resolves
-                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
-                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
-                }
-
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = BehaviorIds.None;
-                unchecked { behavior.InstanceId++; }
-                behavior.BrainTier = 0;
+                Clear(repo, evt.Entity, _registry);
             }
 
             // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
@@ -962,6 +913,73 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// <summary>Returns the used slot count (SlotCount) in the entity's tier.</summary>
         private static unsafe int GetTierUsedSlotCount(EntityRepository repo, Entity entity)
             => Unsafe.AsRef<BlueprintBlackboardHeader>(StoreOf(repo, entity)).SlotCount;
+
+        /// <summary>
+        /// ⭐⭐⭐ <b>THE one clear</b> — brain-death for one entity: detach the outgoing behaviour's stateful, hosted and root
+        /// slots, then set <c>ActiveBehaviorHash = None</c>, bump <c>InstanceId</c> (⇒ <c>ChannelArbitrationSystem</c> resets
+        /// every channel to its default, <c>ActiveAction = 0</c>) and <c>BrainTier = 0</c>.
+        /// <para>
+        /// ⭐ <c>CE-449</c>: called by the <see cref="ClearBehaviorEvent"/> handler AND by <c>BrainTickSystem</c> the moment a
+        /// behaviour of any tier finishes (user, <c>2026-09-30</c>: <i>"finishing a behavior should cancel the commands
+        /// exactly same as Clear Behavior does"</i>). ⛔ Inline, not a published event: ingress runs assign-by-name BEFORE
+        /// clear, so a published clear would wipe a behaviour assigned in the same frame. ⚠ Non-structural (every detach is a
+        /// slot-table edit), so it is safe inside the tick's walk.
+        /// </para>
+        /// </summary>
+        internal static void Clear(EntityRepository repo, Entity entity, BehaviorRegistry registry)
+        {
+
+            // S3-5: detach the outgoing behavior's stateful slots BEFORE clearing.
+            // The switch path (AssignBehaviorEvent) already detaches on switch, but a clear-
+            // without-successor previously only nulled ActiveBehaviorHash, leaking the slots
+            // until the next assign. Capture the previous behavior id and reclaim its slots.
+            // DetachStatefulSlots frees by the manifest's SlotKey, which is scope-aware (S3-4),
+            // so this reclaims Node- and Behavior-scoped slots alike.
+            int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            if (previousBehaviorId != BehaviorIds.None &&
+                registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+            {
+                DetachStatefulSlots(repo, entity, prevDef.StatefulWorkingSlots);
+            }
+
+            // E3a: a clear-without-successor must reclaim the lazily-attached hosted occurrences
+            // too — the same leak S3-5 fixed for manifest slots.
+            DetachHostedOccurrenceSlots(repo, entity, manifest: null);
+
+            // 🔴🔴 O7c-② — THE ROOT SLOTS MUST BE DETACHED **BEFORE** THE HASH IS CLEARED, AND BOTH
+            //    OF THEM. 📄 §31.
+            //
+            //    ⛔⛔ Every root-slot key is COMPUTED from ActiveBehaviorHash, so once the line below
+            //      sets it to None the key is 0 and BOTH DetachRoot and ResetState become silent
+            //      no-ops. ⚠ The first draft of this change put the reset after the clear and it
+            //      would have leaked the slot on every brain-death — caught by reading the handler,
+            //      not by a test, because a leaked slot has no visible effect until MaxSlots (3 on
+            //      the 256 tier) runs out and params silently stop attaching.
+            //
+            //    🔴 AND THE PARAMS LINE IS A PRE-EXISTING LEAK THIS CHANGE FIXES, not one it caused:
+            //      CE-302 added DetachRoot to the ASSIGN path only, so a clear-without-successor has
+            //      been leaking the root params slot ever since. ⚠ Fixed here rather than filed,
+            //      because adding its exact twin while leaving it in place would be worse than
+            //      either doing both or neither.
+            //    ⭐ O7c-④: THE ROOT HSM SLOT NEEDS NO LINE HERE, AND THAT IS MEASURED, NOT FORGOTTEN.
+            //      It declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots(manifest: null) a
+            //      few lines above already reclaimed it — the same sweep that cannot see the two
+            //      BTree-kind slots below. ⚠ If that sweep's kind filter ever narrows, this is the
+            //      block that has to grow a RootHsmAccess.DetachRoot call.
+            if (previousBehaviorId != BehaviorIds.None)
+            {
+                RootStateAccess.ResetState(repo, entity);   // zero while the key still resolves
+                RootStateAccess.DetachRoot(repo, entity, previousBehaviorId);
+                RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
+            }
+
+            ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+            behavior.ActiveBehaviorHash = BehaviorIds.None;
+            unchecked { behavior.InstanceId++; }
+            behavior.BrainTier = 0;
+        }
+
 
         /// <summary>
         /// S2-2: Detaches the previous behavior's stateful slots from the entity's tier.

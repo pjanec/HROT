@@ -136,7 +136,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.NotEqual(InstancePhase.Entry, ((InstanceHeader*)inst)->Phase);
 
             // And neither arm touched the other's slot.
-            Assert.True(RootStateAccess.TryGetState(world, btreeEntity, out _));
+            // ⭐ CE-449: the BTree FINISHED, so it was cleared — its own root state is gone and its tier is 0. (This line
+            //   used to assert the slot survived its finish; that survival was the defect.)
+            Assert.Equal(0, world.GetComponent<BehaviorState>(btreeEntity).BrainTier);
             Assert.False(RootHsmAccess.TryGetInstance(world, btreeEntity, out _, out _));
             Assert.False(RootStateAccess.TryGetState(world, hsmEntity, out _));
 

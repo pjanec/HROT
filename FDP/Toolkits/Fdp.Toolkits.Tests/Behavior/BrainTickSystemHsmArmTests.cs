@@ -164,7 +164,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var sys = new BrainTickSystem(registry);
             var e   = CreateHsmEntity(world, behaviorId, blob, instanceId: 0);
 
-            // Frame 1: event published, Terminated cleared by system.
+            // Frame 1: event published; CE-449 — the behaviour is cleared at finish.
             sys.Execute(world, 0.016f);
             world.Bus.SwapBuffers();
             int frame1Count = CountEventsForEntity(world, e);
@@ -201,12 +201,16 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Bus.SwapBuffers();
             Assert.Equal(1, CountEventsForEntity(world, e));
 
-            // Simulate behavior re-assignment: bump InstanceId and re-initialise HSM.
-            ref var behavior = ref world.GetComponentRW<BehaviorState>(e);
-            unchecked { behavior.InstanceId++; }
-            // ⭐ O7c-④b: re-bind through the slot. This is what BehaviorIngressSystem does on a
-            //   real re-assign (RootHsmAccess.ResetInstance), spelled out here so the rail keeps
+            // Simulate behavior re-assignment: restore the behaviour, bump InstanceId and re-attach the HSM.
+            // ⭐ CE-449: the finish CLEARED the behaviour (hash None, tier 0, instance slot detached), so a re-assign
+            //   must restore all three — exactly what BehaviorIngressSystem does. Spelled out here so the rail keeps
             //   testing the DEDUP rather than the ingress path.
+            ref var behavior = ref world.GetComponentRW<BehaviorState>(e);
+            Assert.Equal(0, behavior.BrainTier);           // CE-449: cleared at finish
+            behavior.ActiveBehaviorHash = behaviorId;
+            behavior.BrainTier          = BehaviorConstants.BrainTierHsm;
+            unchecked { behavior.InstanceId++; }
+            Assert.True(RootHsmAccess.EnsureRootInstance(world, e, behaviorId, blob));
             Assert.True(RootHsmAccess.ResetInstance(world, e, blob));
 
             // Frame 2: new InstanceId, machine re-enters final state -- new event.
@@ -896,12 +900,17 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             var (world, sys, e, _) = ArrangePolledGuardMachine(open: true);
 
+            int aliveFrames = 0;
             for (int i = 0; i < 12; i++)
             {
                 sys.Execute(world, 0.016f);
-                byte* inst = InstanceOf(world, e, out int size);
+                // ⭐ CE-449: once the machine reaches its final state it FINISHES and is cleared — its instance is
+                //   freed, so the claim holds for every frame it is alive.
+                if (!RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size)) break;
+                aliveFrames++;
                 Assert.Equal(0, HsmEventQueue.GetCount(inst, size));
             }
+            Assert.True(aliveFrames > 0, "the machine must have run at least one frame");
 
             world.Dispose();
         }

@@ -6,7 +6,7 @@ build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
-  shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (awaiting the user); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
+  shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (approved 2026-09-30); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns the three settled rulings (blueprint IS a brain tier; latent ≠
@@ -220,7 +220,7 @@ technologies (`ActionSchemaExporter`); the behaviour assignment list is curated 
 (`ScenarioMissionService.cs:103`). ⇒ E4 = New Behaviour/Action/Condition entries with a technology choice + list every
 `BrainTier` in the assignment picker, with the technology as a label.
 
-### 5.6 ⚠ AWAITING THE USER — §5.2 is overtaken: build on the INSTANCE body + a status *(measured `2026-09-30`)*
+### 5.6 ✅ APPROVED `2026-09-30` (*"instance based blueprints - ok as described"*) — §5.2 is overtaken: build on the INSTANCE body + a status *(measured `2026-09-30`)*
 
 > 🔒 User: *"what makes behavior blueprint different from instance ones? … Why not the instance node set?"*
 
@@ -232,7 +232,7 @@ technologies (`ActionSchemaExporter`); the behaviour assignment list is curated 
 
 ⭐ **Lean:** `BlueprintDispatchKind.Behavior` (§3 A's kind) on the **Instance** emitter + a status: `Return` ⇒ `Success`/`Failure`, suspended ⇒ `Running`; registrar registers the tier-3 `BehaviorDefinition`; `TickBlueprint` runs `BlueprintEventDispatch` then the tick with an `ecb`. ⛔ Rejected: `AiPrimitiveHosting.Behavior` (§5.2) — no `When`/EQS/Event graphs, and widening it re-plumbs what Instance has. ⚠ Editor switch sites not yet measured.
 
-### 5.7 Finish is terminal for EVERY tier — filed as `CE-449` *(user, `2026-09-30`)*
+### 5.7 Finish is terminal for EVERY tier — `CE-449` ✅ BUILT `2026-09-30` (finish = the clear, channels reset; `BD1-DESIGN` §1.0b)
 
 | tier | after it finishes, today | intent (`BD1-DESIGN` §1.0a) |
 |---|---|---|

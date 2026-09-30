@@ -159,6 +159,20 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        private static unsafe int LiveSlots(EntityRepository world, Entity e)
+        {
+            byte* memory = Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryGetStore(world, e, out _);
+            if (memory == null) return 0;
+            var header = *(Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardHeader*)memory;
+            byte* table = memory + sizeof(Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardHeader);
+            int live = 0;
+            for (int i = 0; i < header.SlotCount; i++)
+                if (((Fdp.Toolkit.Blueprints.Partitioning.BlueprintSlotEntry*)(table + i
+                        * Fdp.Toolkit.Blueprints.Partitioning.BlueprintBlackboardPartitions.SlotEntrySize))->BlueprintId != 0)
+                    live++;
+            return live;
+        }
+
         // ── Task-1 Tests: BehaviorFinishedEvent ──────────────────────────────────
 
         // Helper: build a one-node tree that always returns the given status.
@@ -179,6 +193,61 @@ namespace Fdp.Toolkit.Behavior.Tests
             });
             var sys = new BrainTickSystem(registry);
             return (registry, sys);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-449</c> — a finished BTree is CLEARED, not re-run.</b> 📄 <c>BD1-DESIGN.md</c> §1.0a.
+        /// <para>
+        /// 🔒 User, <c>2026-09-30</c>: <i>"finishing a behavior should cancel the commands exactly same as Clear Behavior
+        /// does … each channel resets."</i> ⭐ After the root returns <c>Success</c>: <c>BrainTier = 0</c>, the hash is
+        /// <c>None</c>, <c>InstanceId</c> is bumped (⇒ <c>ChannelArbitrationSystem</c> resets the channels), the root tree
+        /// state slot is gone, and further frames do not tick the tree.
+        /// </para>
+        /// <para>⚠ Inverse-edit red-proof: delete the <c>BehaviorIngressSystem.Clear</c> call in <c>Finish</c> and the tick
+        /// count runs past 1 (the interpreter resets on root completion and re-runs).</para>
+        /// </summary>
+        [Fact]
+        public void CE449_AFinishedBTree_IsClearedAndNotRerun()
+        {
+            var world = TestWorldFactory.Create();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            const int behaviorId = 8101;
+            int ticks = 0;
+            var registry  = new BehaviorRegistry();
+            var actionReg = new ActionRegistry<byte, BTreeContext>();
+            actionReg.Register("Once", (ref byte _, ref BehaviorTreeState _, ref BTreeContext _, int _) =>
+            {
+                ticks++;
+                return NodeStatus.Success;
+            });
+            registry.Register(behaviorId, "Once", new BehaviorDefinition
+            {
+                Name             = "Once",
+                BrainTier        = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter = new Interpreter<byte, BTreeContext>(BuildSingleActionBlob("Once"), actionReg),
+            });
+            var sys = new BrainTickSystem(registry);
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState
+            {
+                ActiveBehaviorHash = behaviorId, BrainTier = BehaviorConstants.BrainTierBTree, InstanceId = 7,
+            });
+            RootStateAccess.EnsureRootState(world, e);
+            Assert.Equal(1, LiveSlots(world, e));   // the root tree state slot exists before the finish
+
+            for (int i = 0; i < 4; i++) { sys.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+            Assert.Equal(1, ticks);
+            var state = world.GetComponent<BehaviorState>(e);
+            Assert.Equal(0, state.BrainTier);
+            Assert.Equal(BehaviorIds.None, state.ActiveBehaviorHash);
+            Assert.Equal(8u, state.InstanceId);
+            // ⚠ Scan the slot TABLE — TryGetState keys by the CURRENT hash, which the clear set to None, so it would
+            //   report "gone" even for a leaked slot.
+            Assert.Equal(0, LiveSlots(world, e));
+
+            world.Dispose();
         }
 
         [Fact]

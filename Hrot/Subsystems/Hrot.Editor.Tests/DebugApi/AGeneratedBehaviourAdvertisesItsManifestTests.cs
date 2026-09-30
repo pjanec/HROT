@@ -234,8 +234,15 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
             Type block  = def.BlackboardLayoutType!;    // CE-437: the layout IS the block
 
             var inField = block.GetField("In");
-            if (inField is null || inField.FieldType != layout)
-                problems.Add($"{def.Name}: block.In is {inField?.FieldType.Name ?? "missing"}, not {layout.Name}");
+            // ⭐ CE-443 (DESIGN_Parameter_Model §P.8): a behaviour bound to a RESOLVER publishes the resolver's AUTHORED
+            //   type as its JSON DTO — the source the resolver receives — and the block's In is what the resolver WRITES.
+            //   ⇒ the two are deliberately different types there. (This rail was missed when CE-443 landed: only the
+            //   resolver-filtered Editor tests were run; found by CE-449's full-suite gate.)
+            bool resolverBound = def.ResolveStage is not null;
+            if (inField is null)
+                problems.Add($"{def.Name}: block.In is missing");
+            else if (!resolverBound && inField.FieldType != layout)
+                problems.Add($"{def.Name}: block.In is {inField.FieldType.Name}, not {layout.Name}");
             else if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "In") != 0)
                 problems.Add($"{def.Name}: block.In is not at offset 0");
 
@@ -255,7 +262,7 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
             if (rootBytes < System.Runtime.InteropServices.Marshal.SizeOf(block))
                 problems.Add($"{def.Name}: root slot {rootBytes} B is narrower than the block");
 
-            int inBytes = System.Runtime.InteropServices.Marshal.SizeOf(layout);
+            int inBytes = System.Runtime.InteropServices.Marshal.SizeOf(inField?.FieldType ?? layout);
             if ((int)System.Runtime.InteropServices.Marshal.OffsetOf(block, "St") < inBytes)
                 problems.Add($"{def.Name}: block.St overlaps block.In");
         }

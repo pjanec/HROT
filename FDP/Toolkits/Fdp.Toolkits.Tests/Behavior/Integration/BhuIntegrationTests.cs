@@ -139,9 +139,11 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(1, CountBehaviorFinishedEvents(world, e));
 
-            InstanceHeader* hdr = HeaderOf(world, e);
-            Assert.Equal(0, (int)(hdr->Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr->Phase);
+            // ⛔ CE-449 (2026-09-30): this used to assert the Terminated latch was CLEARED and the phase back to Idle —
+            //   which is exactly what let a finished machine run again (the kernel refuses only a Terminated instance).
+            //   ⭐ Now finishing CLEARS the behaviour: tier 0, and the instance slot is freed.
+            Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
+            Assert.False(RootHsmAccess.TryGetInstance(world, e, out _, out _));
 
             world.Dispose();
         }
@@ -224,7 +226,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal((ushort)0xFFFF, ActiveLeaf0(world, e));
 
             var behavior = world.GetComponent<BehaviorState>(e);
-            Assert.Equal(2u, behavior.InstanceId);
+            // ⭐ CE-449: 1 → 2 by the clear that finishing A ran, → 3 by assigning B.
+            Assert.Equal(3u, behavior.InstanceId);
 
             // Drive behavior B to terminal (same blob, so MachineId still valid).
             InjectEvents(world, e,

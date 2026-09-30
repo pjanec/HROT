@@ -670,15 +670,19 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     private static Entity AssignCe431Host(
         EntityRepository world, BehaviorRegistry beh, bool hostHasBlock,
         System.Collections.Generic.IReadOnlyDictionary<Guid, HostedSubtree.SiteBinding>? bindings,
-        bool twoSites = false, bool curatedChild = false, ResolveStageDelegate? childResolve = null)
+        bool twoSites = false, bool curatedChild = false, ResolveStageDelegate? childResolve = null,
+        bool runTwice = false)
     {
         const int HostId = 0x6431;
         var hb = new BTreeBuilder<byte, BTreeContext>();
-        hb.Sequence(seq =>
+        void Body(BTreeBuilder<byte, BTreeContext> b) => b.Sequence(seq =>
         {
             seq.Subtree(ChildName, visualId: SiteA);
             if (twoSites) seq.Subtree(ChildName, visualId: SiteB);
         });
+        // ⭐ CE-449: a finished behaviour is CLEARED, so a host that must start its child twice says so with an explicit
+        //   Repeater — it used to get the second start from the root's implicit re-run, which was the defect.
+        if (runTwice) hb.Repeater(2, Body); else Body(hb);
         var hostBlob = hb.Compile(HostName);
         var plan = BTreeHostedSites.PlanFor(hostBlob, HostName, bindings: bindings);
 
@@ -740,7 +744,8 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         BlueprintTierTable.RegisterAll(world);
         var beh = new BehaviorRegistry();
         var e = AssignCe431Host(world, beh, hostHasBlock: true,
-            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) });
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
+            runTwice: true);
 
         HostBlock(world, e).B = 42;
         var brain = new BrainTickSystem(beh);
@@ -748,9 +753,8 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         HostBlock(world, e).B = 99;                   // host changes the bound variable mid-run
         brain.Execute(world, 0.016f);                 // still the same run — RecordIn does not re-enter
         _completeChild = true;
-        brain.Execute(world, 0.016f);                 // completes ⇒ next entry is a fresh start
+        brain.Execute(world, 0.016f);                 // completes ⇒ the Repeater's 2nd iteration is a FRESH start: re-seeds In = 99
         _completeChild = false;
-        brain.Execute(world, 0.016f);                 // fresh start: re-seeds In = 99
 
         Assert.Equal(new long[] { 42, 99 }, _seen);
         Assert.False(_childBbWasTheRoot, "the child must tick against its OWN block, never the host's root region");

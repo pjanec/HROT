@@ -314,18 +314,33 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ TERMINALITY, BTREE FORM: the root's returned status. Published exactly once per
             //   terminal transition per behaviour instance.
             if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
-            {
-                if (!_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prevInstanceId)
-                    || prevInstanceId != behavior.InstanceId)
-                {
-                    repo.Bus.Publish(new BehaviorFinishedEvent
-                    {
-                        Entity = entity,
-                        Result = rootResult
-                    });
-                    _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
-                }
-            }
+                Finish(repo, entity, behavior, rootResult);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-449</c> — finishing is TERMINAL, for every tier.</b> 📄 <c>BD1-DESIGN.md</c> §1.0a: root
+        /// <c>Success</c>/<c>Failure</c> ⇒ <i>"the entire behavior has concluded"</i>.
+        /// <para>
+        /// 🔒 User, <c>2026-09-30</c>: <i>"Every behavior must be finishable … must be finishable and clean up resources"</i> ·
+        /// <i>"finishing a behavior should cancel the commands exactly same as Clear Behavior does … each channel resets."</i>
+        /// ⇒ publish <see cref="BehaviorFinishedEvent"/> once, then run THE clear
+        /// (<see cref="BehaviorIngressSystem.Clear"/>): every slot of the behaviour is freed, <c>InstanceId</c> is bumped so
+        /// <c>ChannelArbitrationSystem</c> resets each channel to its default, and <c>BrainTier = 0</c> so nothing ticks it again.
+        /// </para>
+        /// <para>
+        /// ⛔ Before this, a BTree re-ran from its root every frame after finishing (the interpreter resets
+        /// <c>RunningNodeIndex</c>) and an HSM ran again because this system cleared its <c>Terminated</c> latch. ⚠ A tree that
+        /// is MEANT to loop says so with a <c>Repeater</c> at its root.
+        /// </para>
+        /// </summary>
+        private void Finish(EntityRepository repo, Entity entity, in BehaviorState behavior, NodeStatus result)
+        {
+            if (_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prev) && prev == behavior.InstanceId)
+                return;
+
+            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result });
+            _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
+            BehaviorIngressSystem.Clear(repo, entity, _registry);
         }
 
         // ══ ARM 3 — BLUEPRINT (CE-446, Q77) ═════════════════════════════════════════════════
@@ -340,8 +355,7 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </para>
         ///
         /// <para>
-        /// ⭐ <b>Its block is freed at finish</b>, and ⛔ <b>a finished blueprint is NOT ticked again</b> until a new
-        /// assign bumps <c>InstanceId</c>. Unlike a BTree
+        /// ⭐ <b>Finishing runs <see cref="Finish"/></b> (<c>CE-449</c>): the block is freed and the behaviour cleared. Unlike a BTree
         /// root — which the interpreter restarts — a blueprint's tick has no restart semantics: calling it again would
         /// re-run the graph from phase 0 and re-issue its commands after it said it was done.
         /// </para>
@@ -372,19 +386,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             var status = def.BlueprintTick(ref block, repo, entity, repo.SimulationTime, deltaTime);
 
             if (status == NodeStatus.Success || status == NodeStatus.Failure)
-            {
-                repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = status });
-                _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
-
-                // ⭐⭐ FREE THE BLOCK AT FINISH (user, 2026-09-30: "isn't it well defined when a behavior finished so
-                //   when to free its resources?"). ⭐ For THIS tier it is: the instance is never ticked again (guard
-                //   above), so nothing of ours reads the block after this line. ⛔ NOT done for BTree — a BTree root
-                //   that returns Success is reset and re-run next frame (Interpreter RunningNodeIndex = 0), so its
-                //   "finished" is a report, not an end. ⚠ Not a structural change: DetachRoot edits the slot table
-                //   inside the tier component, so the walk that is iterating stays valid. A later clear/assign's
-                //   DetachRoot of the same key is then a no-op.
-                RootParamsAccess.DetachRoot(repo, entity, behavior.ActiveBehaviorHash);
-            }
+                Finish(repo, entity, behavior, status);
         }
 
         // ══ ARM 2 — HIERARCHICAL STATE MACHINE ══════════════════════════════════════════════
@@ -510,21 +512,11 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             // ⭐ TERMINALITY, HSM FORM: a flag in the instance header, not a returned status.
-            //   BHU-007 — publish exactly once per behaviour instance, then clear the latch so a
-            //   re-assigned behaviour does not inherit Terminated from the previous one.
+            // ⛔ CE-449: the latch is NO LONGER cleared here — clearing it is what let the kernel run a finished
+            //   machine again (HsmKernelCore refuses a Terminated instance). Finish's clear detaches the whole
+            //   instance, so no later assign can inherit the flag (BHU-007's concern).
             if ((header->Flags & InstanceFlags.Terminated) != 0)
-            {
-                int  entityIdx  = entity.Index;
-                uint instanceId = behavior.InstanceId;
-                if (!_publishedTerminalForInstanceId.TryGetValue(entityIdx, out uint prev)
-                    || prev != instanceId)
-                {
-                    _publishedTerminalForInstanceId[entityIdx] = instanceId;
-                    repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity });
-                    header->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.Terminated);
-                    header->Phase  = InstancePhase.Idle;
-                }
-            }
+                Finish(repo, entity, behavior, NodeStatus.Success);
         }
 
         /// <summary>
