@@ -642,7 +642,7 @@ public static class HsmBridgeEmitCore
         foreach (var v in variables)
         {
             if (v.Role != BlackboardVariableRole.State) continue;
-            if (v.Scope != WorkingStateScope.Behavior && v.Scope != WorkingStateScope.Entity) continue;
+            if (v.Scope != WorkingStateScope.Behavior) continue;
 
             string typeId = v.Type?.TypeId ?? string.Empty;
             if (string.IsNullOrEmpty(typeId)) continue;

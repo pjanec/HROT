@@ -17,14 +17,9 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// <summary>Shared by every node in ONE asset that binds the same variable.</summary>
         Behavior = 1,
 
-        /// <summary>
-        /// Shared across behaviours on an entity — the key folds in the variable name ONLY.
-        /// ⛔ <b>Deliberate</b>: an owner and a member entity must agree on the key from the name
-        /// alone (<c>BlueprintSharedState</c>). This is the carve-out to
-        /// <c>DESIGN_Occurrence_Scoped_Storage</c> §3's thesis sentence — the occurrence owns memory
-        /// EXCEPT where a scope deliberately shares it (<c>R-137</c>: unification may not cost a feature).
-        /// </summary>
-        Entity = 2,
+        // ⛔ HISTORY — Entity = 2 folded the variable name ONLY, so an owner and a member entity could
+        //   agree on a key (BlueprintSharedState). REMOVED by CE-441 slice 1 (Q76 §12.25) after CE-440 removed
+        //   its only consumer. Do not reuse 2.
     }
 
     /// <summary>
@@ -71,10 +66,9 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// pins the exact integers for all three scopes; ⛔ do not "tidy" the byte order, the mask or
         /// the seed.</para>
         /// </summary>
-        /// <param name="assetId">Ignored for <see cref="OccurrenceSlotScope.Entity"/>.</param>
+        /// <param name="assetId">The asset id folded into every arm.</param>
         /// <param name="nodeVisualId">Consumed ONLY for <see cref="OccurrenceSlotScope.Node"/>.</param>
-        /// <param name="variableId">Consumed for <see cref="OccurrenceSlotScope.Behavior"/> and
-        /// <see cref="OccurrenceSlotScope.Entity"/>. Pass <see cref="string.Empty"/> for Node.</param>
+        /// <param name="variableId">Consumed for <see cref="OccurrenceSlotScope.Behavior"/>. Pass <see cref="string.Empty"/> for Node.</param>
         internal static int Compute(
             System.Guid assetId,
             OccurrenceSlotScope scope,
@@ -94,11 +88,6 @@ namespace Fdp.Toolkit.Behavior.Shared
 
                     case OccurrenceSlotScope.Behavior:
                         hash = FoldBytes(hash, assetId.ToByteArray());
-                        hash = FoldBytes(hash, System.Text.Encoding.UTF8.GetBytes(variableId ?? string.Empty));
-                        break;
-
-                    case OccurrenceSlotScope.Entity:
-                        // ⛔ assetId is EXCLUDED on purpose — see OccurrenceSlotScope.Entity.
                         hash = FoldBytes(hash, System.Text.Encoding.UTF8.GetBytes(variableId ?? string.Empty));
                         break;
 

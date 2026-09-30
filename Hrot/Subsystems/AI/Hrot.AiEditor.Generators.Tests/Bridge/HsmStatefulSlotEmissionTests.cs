@@ -76,7 +76,6 @@ public sealed class HsmStatefulSlotEmissionTests
     /// </summary>
     [Theory]
     [InlineData(WorkingStateScope.Behavior)]
-    [InlineData(WorkingStateScope.Entity)]
     public void TheSlotKeyMatchesTheBTreeAlgorithmForTheSameInputs(WorkingStateScope scope)
     {
         int expected = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, scope, Guid.Empty, "Cursor");

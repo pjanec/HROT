@@ -206,9 +206,8 @@ public static class BTreeBridgeEmitCore
     ///   <item><term><see cref="WorkingStateScope.Behavior"/></term>
     ///     <description>FNV-1a-32(assetId bytes ++ variableId UTF-8 bytes) — shared by
     ///     every node in the same asset that binds the same variable.</description></item>
-    ///   <item><term><see cref="WorkingStateScope.Entity"/></term>
-    ///     <description>FNV-1a-32(variableId UTF-8 bytes only) — survives a behavior
-    ///     switch; assetId is intentionally excluded (post-MVP).</description></item>
+    ///   <item><term><c>Entity</c></term>
+    ///     <description>⛔ REMOVED by <c>CE-441</c> slice 1 (Q76 §12.25).</description></item>
     /// </list>
     ///
     /// Result is always masked to a non-negative int (<c>&amp; 0x7FFFFFFF</c>).
@@ -1186,7 +1185,7 @@ public static class BTreeBridgeEmitCore
             foreach (var v in dto.Blackboard.Variables)
             {
                 if (v.Role != BlackboardVariableRole.State) continue;
-                if (v.Scope != WorkingStateScope.Behavior && v.Scope != WorkingStateScope.Entity) continue;
+                if (v.Scope != WorkingStateScope.Behavior) continue;
 
                 int standaloneSlotKey = ComputeStatefulSlotKey(dto.AssetId, v.Scope, Guid.Empty, v.Name);
                 if (slotsBySeen.ContainsKey(standaloneSlotKey)) continue; // node-bound (e.g. T35) — already seen above.

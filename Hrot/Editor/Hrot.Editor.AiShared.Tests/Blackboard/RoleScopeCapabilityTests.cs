@@ -133,7 +133,7 @@ public sealed class RoleScopeCapabilityTests
         src.SupportsRoleScopeEditing.Should().BeFalse();
         src.Invoking(s => s.UpdateVariableRole("x", BlackboardVariableRole.State))
            .Should().Throw<NotSupportedException>();
-        src.Invoking(s => s.UpdateVariableScope("x", WorkingStateScope.Entity))
+        src.Invoking(s => s.UpdateVariableScope("x", WorkingStateScope.Behavior))
            .Should().Throw<NotSupportedException>();
     }
 
@@ -145,10 +145,10 @@ public sealed class RoleScopeCapabilityTests
 
         ((IVariablesSchemaSource)src).SupportsRoleScopeEditing.Should().BeTrue();
         src.UpdateVariableRole("x", BlackboardVariableRole.State);
-        src.UpdateVariableScope("x", WorkingStateScope.Entity);
+        src.UpdateVariableScope("x", WorkingStateScope.Behavior);
 
         src.LastRole.Should().Be(BlackboardVariableRole.State);
-        src.LastScope.Should().Be(WorkingStateScope.Entity);
+        src.LastScope.Should().Be(WorkingStateScope.Behavior);
     }
 
     /// <summary>

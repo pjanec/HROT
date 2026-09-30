@@ -43,21 +43,17 @@ namespace Fdp.Toolkits.Tests.Behavior
                         foreach (byte b in assetId.ToByteArray())                   { hash ^= b; hash *= prime; }
                         foreach (byte b in Encoding.UTF8.GetBytes(variableId))      { hash ^= b; hash *= prime; }
                         return (int)(hash & 0x7FFFFFFFu);
-                    case StatefulSlotScope.Entity:
-                        foreach (byte b in Encoding.UTF8.GetBytes(variableId))      { hash ^= b; hash *= prime; }
-                        return (int)(hash & 0x7FFFFFFFu);
                     default:
                         throw new ArgumentOutOfRangeException(nameof(scope));
                 }
             }
         }
 
-        // ── R1 — BYTE IDENTITY, all three scopes ────────────────────────────────────────────────
+        // ── R1 — BYTE IDENTITY, both scopes ────────────────────────────────────────────────
 
         [Theory]
         [InlineData(StatefulSlotScope.Node)]
         [InlineData(StatefulSlotScope.Behavior)]
-        [InlineData(StatefulSlotScope.Entity)]
         public void A1_R1_TheUnifiedKey_IsByteIdenticalToTheLegacyAlgorithm(StatefulSlotScope scope)
         {
             const string variableId = "HillAttackState";
@@ -72,38 +68,18 @@ namespace Fdp.Toolkits.Tests.Behavior
         /// or both collapsed every scope to one value — R1 would pass over nothing forever.
         /// </summary>
         [Fact]
-        public void A1_R1b_TheThreeScopes_ProduceThreeDifferentKeys()
+        public void A1_R1b_TheTwoScopes_ProduceTwoDifferentKeys()
         {
             const string v = "HillAttackState";
             int node     = StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetA, StatefulSlotScope.Node,     NodeA, v);
             int behavior = StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetA, StatefulSlotScope.Behavior, NodeA, v);
-            int entity   = StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetA, StatefulSlotScope.Entity,   NodeA, v);
 
             Assert.NotEqual(node, behavior);
-            Assert.NotEqual(behavior, entity);
-            Assert.NotEqual(node, entity);
-            Assert.All(new[] { node, behavior, entity }, k => Assert.True(k > 0, "a key must be a positive int"));
+            Assert.All(new[] { node, behavior }, k => Assert.True(k > 0, "a key must be a positive int"));
         }
 
-        /// <summary>
-        /// ⛔ The <c>Entity</c> scope EXCLUDES the asset id on purpose — an owner and a member entity
-        /// must agree on the key from the variable name alone (<c>BlueprintSharedState</c>).
-        /// ⭐ This is the <c>R-137</c> carve-out: the unification may not cost that feature.
-        /// </summary>
-        [Fact]
-        public void A1_R1c_EntityScope_IgnoresTheAssetId_SoTwoAssetsShareTheSlot()
-        {
-            const string v = "SharedContactPool";
-
-            Assert.Equal(
-                StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetA, StatefulSlotScope.Entity, Guid.Empty, v),
-                StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetB, StatefulSlotScope.Entity, Guid.Empty, v));
-
-            // ...and Behavior scope does NOT — the two scopes must not have collapsed into one.
-            Assert.NotEqual(
-                StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetA, StatefulSlotScope.Behavior, Guid.Empty, v),
-                StatefulBTreeActionBinder.ComputeStatefulSlotKey(AssetB, StatefulSlotScope.Behavior, Guid.Empty, v));
-        }
+        // ⛔ HISTORY — A1_R1c pinned that the Entity scope ignored the asset id (the BlueprintSharedState carve-out,
+        //   R-137). Entity was removed by CE-441 slice 1 (Q76 §12.25) after CE-440 removed its only consumer.
 
         // ── R2 — the ROOT case is the identity ──────────────────────────────────────────────────
 
@@ -114,7 +90,6 @@ namespace Fdp.Toolkits.Tests.Behavior
         [Theory]
         [InlineData(StatefulSlotScope.Node)]
         [InlineData(StatefulSlotScope.Behavior)]
-        [InlineData(StatefulSlotScope.Entity)]
         public void A1_R2_AHostKeyOfZero_IsExactlyTheRootKey(StatefulSlotScope scope)
         {
             const string v = "HillAttackState";
@@ -196,7 +171,8 @@ namespace Fdp.Toolkits.Tests.Behavior
         {
             Assert.Equal(0, (int)StatefulSlotScope.Node);
             Assert.Equal(1, (int)StatefulSlotScope.Behavior);
-            Assert.Equal(2, (int)StatefulSlotScope.Entity);
+            // ⛔ 2 was Entity — retired by CE-441 slice 1, never to be reused.
+            Assert.False(Enum.IsDefined(typeof(StatefulSlotScope), (byte)2));
         }
     }
 }

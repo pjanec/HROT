@@ -77,7 +77,6 @@ public sealed class BlackboardOutlineTests
     [InlineData(BlackboardVariableRole.Input, WorkingStateScope.Behavior, BlackboardMyBlueprintModel.SectionInputs)]
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Node,     BlackboardMyBlueprintModel.SectionWorkingState)]
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Behavior, BlackboardMyBlueprintModel.SectionAssetGlobals)]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Entity,   BlackboardMyBlueprintModel.SectionAssetGlobals)]
     public void EachVariable_LandsInItsSection(
         BlackboardVariableRole role, WorkingStateScope scope, string expectedSection)
     {
@@ -99,12 +98,11 @@ public sealed class BlackboardOutlineTests
         var model = Model(BlackboardHostKind.Hsm,
             Var("speed",  BlackboardVariableRole.Input, WorkingStateScope.Node),
             Var("cursor", BlackboardVariableRole.State, WorkingStateScope.Node),
-            Var("shared", BlackboardVariableRole.State, WorkingStateScope.Behavior),
-            Var("wide",   BlackboardVariableRole.State, WorkingStateScope.Entity));
+            Var("shared", BlackboardVariableRole.State, WorkingStateScope.Behavior));
 
         Assert.Equal(new[] { "speed"  }, model.GetItems(BlackboardMyBlueprintModel.SectionInputs).Select(i => i.DisplayName));
         Assert.Equal(new[] { "cursor" }, model.GetItems(BlackboardMyBlueprintModel.SectionWorkingState).Select(i => i.DisplayName));
-        Assert.Equal(new[] { "shared", "wide" },
+        Assert.Equal(new[] { "shared" },
                      model.GetItems(BlackboardMyBlueprintModel.SectionAssetGlobals).Select(i => i.DisplayName));
     }
 

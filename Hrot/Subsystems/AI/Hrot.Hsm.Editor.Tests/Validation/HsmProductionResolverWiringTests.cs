@@ -203,13 +203,12 @@ public sealed class HsmProductionResolverWiringTests
 
     /// <summary>
     /// ⭐ <b>The HSM predicate is the SAME definition <c>E1</c>'s emitter uses:</b> a
-    /// <c>Role = State</c> variable scoped <c>Behavior</c> or <c>Entity</c> — exactly the set
+    /// <c>Role = State</c> variable scoped <c>Behavior</c> (<c>Entity</c> was removed by <c>CE-441</c>) — exactly the set
     /// <c>HsmBridgeEmitCore</c> emits a <c>StatefulSlotInfo</c> for. ⛔ A different notion of "stateful"
     /// here would let the validator and the emitter disagree about which assets own a partition slot.
     /// </summary>
     [Theory]
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Behavior, true)]
-    [InlineData(BlackboardVariableRole.State, WorkingStateScope.Entity,   true)]
     // ⚠ Node scope is excluded for the same reason emission skips it: its key needs a node id.
     [InlineData(BlackboardVariableRole.State, WorkingStateScope.Node,     false)]
     // ⛔ Input is the PARAMETER role, not working state.

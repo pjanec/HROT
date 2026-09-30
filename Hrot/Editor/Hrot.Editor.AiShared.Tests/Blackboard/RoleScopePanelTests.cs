@@ -64,7 +64,7 @@ public sealed class RoleScopePanelTests
     [Fact]
     public void VariablesPanel_ShowsScopeSelector_State_AllScopes()
     {
-        foreach (var scope in new[] { WorkingStateScope.Node, WorkingStateScope.Behavior, WorkingStateScope.Entity })
+        foreach (var scope in new[] { WorkingStateScope.Node, WorkingStateScope.Behavior })
         {
             var vm = MakeVar("stateVar", role: BlackboardVariableRole.State, scope: scope);
             vm.ShowScopeSelector.Should().BeTrue(
@@ -174,7 +174,7 @@ public sealed class RoleScopePanelTests
         // The WorkingStateScope enum offers Node/Behavior/Entity; all three must be reachable
         // through the schema path for an auto-managed State row (mirrors the main table's
         // three-entry "Node\0Behavior\0Entity" combo used by the new node-owned Scope dropdown).
-        foreach (var scope in new[] { WorkingStateScope.Node, WorkingStateScope.Behavior, WorkingStateScope.Entity })
+        foreach (var scope in new[] { WorkingStateScope.Node, WorkingStateScope.Behavior })
         {
             var asset = new FakeBlackboardAsset();
             asset.SetBlackboardVariables(new[]

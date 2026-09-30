@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Behavior
         /// <list type="bullet">
         ///   <item><see cref="StatefulSlotScope.Node"/>: FNV(assetId bytes ++ nodeVisualId bytes).</item>
         ///   <item><see cref="StatefulSlotScope.Behavior"/>: FNV(assetId bytes ++ variableId UTF-8).</item>
-        ///   <item><see cref="StatefulSlotScope.Entity"/>: FNV(variableId UTF-8 only).</item>
+        ///   <item><c>Entity</c>: ⛔ removed by <c>CE-441</c> slice 1.</item>
         /// </list>
         /// Result masked to a non-negative int.
         /// </summary>

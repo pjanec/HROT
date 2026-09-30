@@ -135,8 +135,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
         foreach (var v in _blackboardVariables)
         {
             if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
-            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior) continue;
 
             (keys ??= new HashSet<int>()).Add(
                 Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(

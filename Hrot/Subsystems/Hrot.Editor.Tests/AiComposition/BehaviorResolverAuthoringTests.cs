@@ -30,16 +30,16 @@ public sealed class BehaviorResolverAuthoringTests
     private static BehaviorTreeAssetDto LoadT40() => BTreeJsonServices.Deserialize(File.ReadAllText(RepoFile(
         "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "BTrees", "Authoring", "T40_BehaviorResolverAsset.btree.json")))!;
 
-    private static BehaviorTreeAssetDto Behaviour(params (string Name, string Type, bool State, bool EntityScope)[] vars)
+    private static BehaviorTreeAssetDto Behaviour(params (string Name, string Type, bool State, bool NodeScope)[] vars)
     {
         var dto = new BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "Beh", TargetNamespace = "Demo.Ns" };
         dto.Blackboard.Managed = true;
-        foreach (var (n, t, st, ent) in vars)
+        foreach (var (n, t, st, node) in vars)
             dto.Blackboard.Variables.Add(new BlackboardVariableDto
             {
                 Name = n, Type = new BlackboardTypeRefDto { TypeId = t },
                 Role = st ? BlackboardVariableRole.State : BlackboardVariableRole.Input,
-                Scope = ent ? WorkingStateScope.Entity : WorkingStateScope.Behavior,
+                Scope = node ? WorkingStateScope.Node : WorkingStateScope.Behavior,
             });
         return dto;
     }
@@ -62,8 +62,8 @@ public sealed class BehaviorResolverAuthoringTests
         Assert.Equal(shipped.StateVariables, derived.StateVariables);
     }
 
-    /// <summary>⭐ Create mirrors the BLOCK: In vars + Behavior-scoped State vars, CLR type ids; an Entity-scoped
-    /// State var (a side slot, not the block) is excluded. One empty Construction graph.</summary>
+    /// <summary>⭐ Create mirrors the BLOCK: In vars + Behavior-scoped State vars, CLR type ids; a Node-scoped
+    /// State var (a node-bound side slot, not the block) is excluded. One empty Construction graph.</summary>
     [Fact]
     public void Create_MirrorsTheBlock_AndSeedsOneConstructionGraph()
     {

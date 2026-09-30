@@ -138,15 +138,15 @@ public sealed class RoleScopeRoundTripTests
     }
 
     [Fact]
-    public void BlackboardVariable_RoleScope_RoundTrips_BTree_StateEntity_InJson()
+    public void BlackboardVariable_RoleScope_RoundTrips_BTree_StateBehavior_InJson()
     {
-        // A State/Entity variable must appear in JSON with the correct string values.
+        // A State/Behavior variable must appear in JSON with the correct string values.
         var asset = MakeBTreeAsset();
         asset.SetBlackboardVariables(new[]
         {
             new BlackboardVariableEntry("entityStateVar", typeof(float), null,
                 Role: BlackboardVariableRole.State,
-                Scope: WorkingStateScope.Entity),
+                Scope: WorkingStateScope.Behavior),
         });
 
         var dto  = BehaviorTreeAssetMapper.ToDto(asset);
@@ -155,8 +155,8 @@ public sealed class RoleScopeRoundTripTests
 
         json.Should().Contain("\"Role\":\"State\"",
             "Role=State must appear in JSON as a string (JsonStringEnumConverter)");
-        json.Should().Contain("\"Scope\":\"Entity\"",
-            "Scope=Entity must appear in JSON as a string (JsonStringEnumConverter)");
+        json.Should().Contain("\"Scope\":\"Behavior\"",
+            "Scope=Behavior must appear in JSON as a string (JsonStringEnumConverter)");
     }
 
     // ─────────────────────────────────────────────────────────────────────────

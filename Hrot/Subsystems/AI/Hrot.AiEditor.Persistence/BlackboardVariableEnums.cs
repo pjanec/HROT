@@ -40,13 +40,7 @@ public enum WorkingStateScope
     /// </summary>
     Behavior = 1,
 
-    /// <summary>
-    /// ⛔⛔ <b><c>CE-435</c> — NOT AUTHORABLE since <c>2026-09-29</c>.</b> Shared across all behaviors
-    /// on an entity — in fact across ENTITIES, because its key folds the variable name and nothing
-    /// else, and it is detached on every behaviour switch so it does not even outlive an assignment
-    /// (<c>CE-422</c>).
-    /// <para>📐 Its whole adoption was 4 variables, 2 of which went with <c>CE-436</c> and 2 re-homed
-    /// to <c>Behavior</c> by <c>CE-435</c>. The value is retained only so old JSON still deserializes.</para>
-    /// </summary>
-    Entity   = 2,
+    // ⛔ HISTORY — Entity = 2 (shared across behaviours AND entities, name-only key, CE-422) was REMOVED by
+    //   CE-441 slice 1 (Q76 §12.25): its last variable left with CE-440. A legacy file carrying "Entity" now
+    //   fails to load. Do not reuse 2.
 }

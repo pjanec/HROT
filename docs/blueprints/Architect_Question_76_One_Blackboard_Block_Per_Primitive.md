@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440 are BUILT (§11.7, §12.15–§12.24). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 slice 1 are BUILT (§11.7, §12.15–§12.25). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2567,3 +2567,53 @@ Component/WaitForChannel pickers use them. They stay (extracted to `StructPicker
 historical — ⛔ a rename is a Roslyn job, not this slice's. Gates: Blueprints **3981/0/17** · Generators
 **341/0** · Toolkits **2380/0** · AiShared **2095/0/1**; goldens moved by exactly the three deleted assets'
 rows. ⏭ `CE-441` — decision `C`.
+
+### 12.25 ⭐⭐⭐ `CE-441` — decision `C`, **measured into two slices: the dead arm now, the live arms need a design call** *(`2026-09-30`, overnight)*
+
+🔒 **Frame:** §4-`C` (*"REMOVE, SEQUENCED INSIDE `B`"* · *"the key function SHRINKS, it does not vanish:
+`ComputeNested(hostKey, siteId, assetId)` survives"*) · §12.15 (`Entity` was pinned only by `GetShared`, gone
+with `CE-440`).
+
+#### 12.25a INVENTORY *(grep over the three enums and their members, `2026-09-30`)*
+
+| member | authored uses (corpus) | production code that READS it | verdict |
+|---|---|---|---|
+| `Entity` (all three enums) | **0** *(the last, `T37:rally`, left with `CE-440`)* | the key arm `OccurrenceSlotKey:100` · two emitter filters (`BTreeBridgeEmitCore:1189`, `HsmBridgeEmitCore:645`) · two editor-model filters (`BehaviorTreeAsset:511`, `HsmAsset:139`) — every one reads `Behavior OR Entity` | ⭐ **dead ⇒ slice 1, built now** |
+| `Behavior` | **6** (all State variables) | block membership (`BTreeEmitCore:205`), the resolver shape, and ⚠ **9 identity-key recipes** in `OccurrenceSlotKey` (brain-state + hosted-site keys) | 🔴 **live** |
+| `Node` | 0 authored — ⚠ but **auto-managed**: `AutoManagedVariables:169` mints a `State`+`Node` variable per composed blueprint node, keyed `FNV(assetId ++ nodeVisualId)` in a partition slot (`BTreeBridgeEmitCore:258`) | 🔴 **live** — node-bound AiPrimitive working state, the common case |
+
+#### 12.25b DECISIONS — slice 1 *(built)*
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **delete the `Entity` member from all three enums, the key arm, and the `OR Entity` half of the four filters** | ⛔ keep it "for old JSON" — nothing in the corpus carries it; a legacy file failing to load is loud, and right |
+| ⭐ **no key value changes** — `Node` and `Behavior` arms are untouched, so every existing slot key is byte-identical | ⛔ renumber `Behavior` — the values are persisted and pinned by `OccurrenceSlotKeyParityTests` |
+| ⭐ `CE-422` closes with this slice | — |
+
+#### 12.25c ⚠ SLICE 2 IS A DESIGN CALL — **NOT built overnight, and why**
+
+⛔ Collapsing `Node`/`Behavior` is not a deletion: it **re-homes node-bound working state** (today a partition slot
+per composed node) **into the block** — each composed node's state becomes a named field of `St` — and it
+**changes key values** the partition store, the hot-reload walk and the inspector projection all read. That is
+the "keying from occurrence identity" §4-`C` says `B` must supply, and it is an engine contract, so it goes to
+the user with a lean rather than being decided in an unattended run.
+
+| claim the lean rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| node-bound state is auto-managed, one `State`+`Node` variable per composed node | ✅ `AutoManagedVariables.cs:169` | ✅ §4-`C` "`Node` … keys node-bound working state for hosted AiPrimitives, the common case" (§12.13) |
+| a `Behavior` State variable already lives in the block | ✅ `BTreeEmitCore.cs:205` (`CE-437`) | ✅ §12.1 |
+| the identity keys (`BrainStateKey`, site keys) use the `Behavior`/`Node` arms as RECIPES, not as authored scope | ✅ `OccurrenceSlotKey.cs:172–410` | ⛔ searched `docs/`+`.dev/` for a ruling that these recipes must go — none found; §4-`C` names only the "three scope arms" |
+
+⭐ **Lean for slice 2:** make every composed node's working state a **field of the block** (`St.{node}_{var}`), so the
+authored scope concept disappears entirely and the partition store keeps only the identity keys (brain state,
+hosted occurrences), which move to named recipes (`BrainStateKey`, `SiteKey`) instead of `Compute(…, scope, …)`.
+⚠ **What would change the lean:** a block-size budget measurement — if many composed nodes on one behaviour push
+the block past the tier the root slot can hold, per-node slots are the cheaper home and only the NAMES collapse.
+
+#### 12.25d ✅ SLICE 1 AS BUILT `2026-09-30`
+
+`Entity` is gone from `WorkingStateScope`, `StatefulSlotScope` and `OccurrenceSlotScope`; the key function has two
+arms; the four `Behavior OR Entity` filters read `Behavior`. ⭐ **No key value moved** — the parity rail
+(`OccurrenceSlotKeyParityTests`) still proves byte-identity for `Node` and `Behavior`, and now pins that the value `2`
+stays undefined. The manifest rail that used `Entity` as its side-slot subject now uses the node-bound `Node`-scoped
+State variable — the one side slot that genuinely still exists. `CE-422` closes. ⏭ Slice 2: §12.25c, the user's call.

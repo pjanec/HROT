@@ -193,7 +193,7 @@ public static class BTreeEmitCore
     /// <summary>
     /// ⭐ <c>CE-437</c> — the variables that live in the block's <c>St</c> half:
     /// <c>Role=State</c> at <c>Scope=Behavior</c>, in declaration order.
-    /// ⛔ <c>Scope=Entity</c> stays on its own slot — <c>BlueprintSharedState.TryGetShared</c> computes
+    /// ⛔ HISTORY — <c>Scope=Entity</c> stayed on its own slot (<c>BlueprintSharedState.TryGetShared</c> computed
     /// the ENTITY key at runtime, so it cannot move until decision <c>A</c> (<c>Q76</c> §12.15).
     /// ⛔ <c>Scope=Node</c> is not authorable (<c>CE-435</c>) and both bridge emitters skip it.
     /// </summary>

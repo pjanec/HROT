@@ -507,8 +507,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         foreach (var v in _blackboardVariables)
         {
             if (v.Role != Hrot.AiEditor.Persistence.BlackboardVariableRole.State) continue;
-            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior
-             && v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Entity) continue;
+            if (v.Scope != Hrot.AiEditor.Persistence.WorkingStateScope.Behavior) continue;
 
             (keys ??= new HashSet<int>()).Add(
                 Hrot.AiEditor.Persistence.Emit.BTreeBridgeEmitCore.ComputeStatefulSlotKey(
