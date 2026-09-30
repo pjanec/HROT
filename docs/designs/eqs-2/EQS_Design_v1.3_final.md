@@ -16,6 +16,8 @@ related-designs:
     blueprint hill attack is the consumer waiting for the unification.
   - docs/blueprints/batches/HANDOFF_EQS_Unification.md — the frame for the unification work (draft).
   - docs/projects/FDP/Toolkits/Fdp.Toolkits.Spatial.Eqs.md — the toolkit reference; already calls AreaQuery "legacy".
+  - docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md — the cgf==editor roadmap; §17.8 closes one of its gaps (Blueprint node
+    Details on CGF).
 -->
 # EQS (Environment Query System) — Design v1.3
 
@@ -820,11 +822,19 @@ graph TD
     subgraph Editor["Editor (default in-process muscle)"]
         EQ["NEW: PerceptionEqsSolver cap"] -->|RegisterModule| EM3["EqsModule"]
         EQ -->|InstallDefault| REG3["registry"]
-        PICK["Blueprint template picker"] -->|NEW: filled from Discover| REG3
     end
     subgraph CGF["CGF — Brain"]
         RU["EqsResultUpdateCapability"] --> RUS["EqsResultUpdateSystem"]
     end
+    subgraph Shared["SHARED — §17.8"]
+        SOLV_START["EqsSolverStartup.Register"]
+        AUTH["AiBlueprintNodeAuthoringBinder"] --> PICK["drawers + EQS template picker + Details node view"]
+    end
+    PS --> SOLV_START
+    SC --> SOLV_START
+    EQ --> SOLV_START
+    Editor -->|CreateDrawers + InstallDetails| AUTH
+    CGF -->|CreateDrawers + InstallDetails| AUTH
 ```
 
 *What the picture shows that prose hid:* before this change **no host** had a registry (so every sensor returned the
@@ -893,3 +903,26 @@ underneath them and were fixed because the cross-host rail could not pass withou
 reaches the Muscle) · `EqsModuleTests` (canonical id, production install, one-world parity, no-area ⇒ nothing) ·
 `SpawnEqsSensorLoweringTests` (pin-less reload keeps every pin and the saved link into `ContextSlot1`; unwired slots
 emit a default entity) · `EqsFlatTerrainGoldenTests.EntitiesOfForceInArea_FlatTerrain_MatchesGolden`.
+
+### 17.8 The Brain part is ONE implementation on the editor AND CGF *(`2026-09-30`)*
+
+> 🔒 **User:** *"the EQS brain part must be a shared code including the startup code for editor and CGF alike"* ·
+> *"anything like 'which only the editor provides' sounds suspicious, as CGF == editor in most features, unification
+> and sharing desired"*.
+
+| piece | before | after |
+|---|---|---|
+| result ingestion (`EqsResultUpdateSystem`) | ✅ already one class, `EqsResultUpdateCapability`, in both plans | unchanged |
+| Brain DDS translators | CGF via the NED aux pack; the editor is always offline (`OfflineNetworkFactory`) and runs its own muscle, so it needs none | unchanged — a role fact, not a host fork |
+| 🔴 Blueprint node drawers + the `SpawnEqsSensor` **template picker** + the Details **node view** | editor only (picker filled inline by §17.4); **CGF had none** — a blueprint opened on CGF had no node Details, so no EQS template could be picked | ⭐ `Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder` — `CreateDrawers` (template discovery inside) + `InstallDetails` (active Blueprint PULLED from the document manager). **Both hosts call both.** The editor's inline code and its `_blueprintActiveAsset` copy are deleted |
+| solver startup (template registry + `EqsModule`) | three hand-written copies (SimHost, Stride, editor) | ⭐ `Hrot.SimHost.EqsSolverStartup.Register` — the capability classes stay per host (keys pinned by rails), each calls this |
+
+⭐ Same pattern and home as `CE-340`/`CE-343`/`CE-347` (`DESIGN_Occurrence_Scoped_Storage.md` §32.18–32.21): a gap on
+one host is closed by ONE shared binder, never by a copy. ⚠ Noted, not fixed: the editor also builds Blueprint canvas
+**attachment providers and renderers** that nothing consumes (`EditorSubsystem`, dead locals) — so the EQS template
+badge on a `SpawnEqsSensor` node renders on neither host.
+
+**Rails:** `TheEqsBrainStartupIsSharedTests` (`Hrot.Editor.Tests` — both hosts call the binder and no host builds the
+pieces itself; every solver host calls the shared startup; the picker lists every runtime template) ·
+`EqsAuthoringOnBothHostsTests` (ClusterRunner — the CONSTRUCTED editor and CGF both hold the `SpawnEqsSensor` drawer and
+the same template list).

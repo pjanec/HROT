@@ -214,10 +214,7 @@ public static class EditorCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         public void Register(HrotNodeContext context, NodeBootValues values)
-        {
-            Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
-            context.Kernel.RegisterModule(new EqsModule());
-        }
+            => EqsSolverStartup.Register(context);
     }
 
     /// <summary>

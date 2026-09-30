@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Navigation.EngineBacked;
 using Fdp.Toolkit.Physics.Components;
-using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.Common;
 using Hrot.Common.Infrastructure;
 using Hrot.SimHost.Modules;
@@ -77,12 +76,7 @@ internal static class SimHostCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         public void Register(HrotNodeContext context, NodeBootValues values)
-        {
-            // CE-465: the solver answers only templates it can look up — without a registry every
-            // sensor gets the empty stub. Installed before the module so its first tick sees it.
-            EqsTemplateRegistry.InstallDefault(context.World);
-            context.Kernel.RegisterModule(new EqsModule());
-        }
+            => EqsSolverStartup.Register(context);
     }
 
     /// <summary>On-demand pathfinding, backed by the engine's navmesh and road graph.</summary>

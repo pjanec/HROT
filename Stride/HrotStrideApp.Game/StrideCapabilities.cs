@@ -199,9 +199,8 @@ public static class StrideCapabilities
             //    shape. Tracked, not papered over.
             NavigationSolverComponentRegistry.RegisterAll(context.World);
 
-            // CE-465: without a registry the EQS solver answers every sensor with the empty stub.
-            Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
-            context.Kernel.RegisterModule(new EqsModule());
+            // ⭐ The shared EQS solver startup (template registry + module) — EQS design §17.8.
+            Hrot.SimHost.EqsSolverStartup.Register(context);
         }
     }
 

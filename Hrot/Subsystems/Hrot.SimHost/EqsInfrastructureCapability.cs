@@ -46,3 +46,27 @@ public sealed class EqsResultUpdateCapability : INodeCapability
         simulation.Add(_system);
     }
 }
+
+/// <summary>
+/// ⭐⭐ <b>The EQS solver's startup, written ONCE</b> — every host that solves EQS (SimHost, Stride, the
+/// editor's in-process muscle) calls this from its perception capability. 📄
+/// <c>docs/designs/eqs-2/EQS_Design_v1.3_final.md</c> §17.8.
+/// </summary>
+/// <remarks>
+/// 🔒 User, <c>2026-09-30</c>: <i>"unification and sharing desired"</i>. ⛔ It was three hand-written copies
+/// (SimHost <c>PerceptionSolver</c>, Stride <c>PerceptionSolver</c>, editor <c>PerceptionEqsSolver</c>), and
+/// before <c>CE-465</c> none of them installed a template registry. The capability CLASSES stay per host
+/// (their keys and plan positions are pinned by rails); what they DO is this one call.
+/// </remarks>
+public static class EqsSolverStartup
+{
+    /// <summary>Installs the template registry on the node's world, then registers the solver module.</summary>
+    public static void Register(HrotNodeContext context)
+    {
+        if (context is null) throw new ArgumentNullException(nameof(context));
+        // CE-465: without a registry every sensor gets the empty stub. Installed BEFORE the module so
+        // its first tick sees it.
+        Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
+        context.Kernel.RegisterModule(new Modules.EqsModule());
+    }
+}
