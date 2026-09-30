@@ -12,6 +12,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Params;
 using Fdp.Toolkit.Blueprints.Partitioning;
+using Fdp.Toolkit.Combat;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Replication.Services;
@@ -95,7 +96,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!ctx.World.IsAlive(sub)) continue;
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Interpolate baseline position for this tank.
                 float t  = count > 1 ? (float)i / (count - 1) : 0.5f;
@@ -151,7 +152,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!ctx.World.IsAlive(sub)) continue;  // dead = counts as arrived
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;  // dead (knocked out or gone) = counts as arrived
 
                 if (!ctx.World.HasComponent<NavigationStatus>(sub))
                 {
@@ -335,7 +336,7 @@ namespace Hrot.AI.Behaviors.Brains
                 var sub = roster.SubordinateEntities[i];
                 long packed = (long)sub.PackedValue;
                 if (packed == 0) continue;
-                if (!ctx.World.IsAlive(sub)) continue;
+                if (!CombatLife.IsAlive(ctx.World, sub)) continue;   // CE-466: knocked-out tanks take no orders
 
                 // Wave parity: use Entity.Index (immutable) NOT roster index i.
                 if (!allParticipate && (sub.Index % 2) != s.CurrentWave) continue;
@@ -377,7 +378,7 @@ namespace Hrot.AI.Behaviors.Brains
                 if (targetPacked != 0L)
                 {
                     var targetEntity = new Entity((ulong)targetPacked);
-                    if (ctx.World.IsAlive(targetEntity)
+                    if (CombatLife.IsAlive(ctx.World, targetEntity)   // CE-466: never aim at a knocked-out target
                         && ctx.World.HasComponent<NetworkIdentity>(targetEntity))
                     {
                         targetNetId = ctx.World.GetComponentRO<NetworkIdentity>(targetEntity).Value;
@@ -463,7 +464,7 @@ namespace Hrot.AI.Behaviors.Brains
                 long packed    = s.ActiveEntityPacked[i];
                 var attacker   = new Entity((ulong)packed);
 
-                if (!ctx.World.IsAlive(attacker))
+                if (!CombatLife.IsAlive(ctx.World, attacker))   // CE-466: knocked out (Health <= 0) or gone
                 {
                     // Tank died: permanently burn the slot it was assigned.
                     s.BurnedSlotsMask     |= (ushort)(1 << s.ActiveSlotIndex[i]);

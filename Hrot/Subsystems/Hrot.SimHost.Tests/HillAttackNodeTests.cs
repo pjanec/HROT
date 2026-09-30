@@ -416,6 +416,35 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(NodeStatus.Success, result);
         }
 
+        /// <summary>
+        /// ⭐ CE-466: a KNOCKED-OUT target (<c>Health.Current == 0</c>, body still in the world) ends the engagement —
+        /// the sibling of SC-HA008-3b, which covers a destroyed one. ⛔ Before CE-466 the tank kept firing at a wreck.
+        /// </summary>
+        [Fact]
+        public void CE466_AimAndFireSpecific_ReturnsSuccess_WhenTargetKnockedOut()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var tank   = repo.CreateEntity();
+            var target = repo.CreateEntity();
+            repo.AddComponent(target, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+
+            var netMap = new NetworkEntityMap();
+            repo.SetSingletonManaged<NetworkEntityMap>(netMap);
+            netMap.Register(11L, target);
+            repo.AddComponent(tank, new WeaponChannel());
+
+            var p     = new HullDownAttackParams { TargetNetworkId = 11L };
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = tank, World = repo };
+
+            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
+        }
+
         // ── Corrective-1: SC-HA008 — Action_ReverseToBaseline ────────────────────
 
         /// <summary>SC-HA008-4: Action_ReverseToBaseline writes destination matching
@@ -1195,6 +1224,76 @@ namespace Hrot.SimHost.Tests
                 "Firing slot 1 should be burned");
             Assert.True((s.BaselineReservedMask & (1 << 2)) == 0,
                 "Baseline slot 2 should be released");
+        }
+
+        /// <summary>
+        /// ⭐ CE-466: an attacker KNOCKED OUT mid-wave (<c>Health.Current == 0</c>, body still in the world — the
+        /// engine's combat-death state since the CE-267 revert) burns its slot exactly like a destroyed one.
+        /// ⛔ Before CE-466 this was unreachable: the doctrine tested ECS existence, and a knocked-out tank exists.
+        /// </summary>
+        [Fact]
+        public void CE466_IsWaveCompleted_KnockedOutAttacker_BurnsSlotAndReturnsSuccess()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var commander = repo.CreateEntity();
+            var attacker = repo.CreateEntity();
+            repo.AddComponent(attacker, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            Assert.True(repo.IsAlive(attacker));   // the body still exists — this is the point
+
+            ref var s = ref GetHeavyState(repo, commander);
+            s.ActiveAttackerCount  = 1;
+            s.BurnedSlotsMask      = 0;
+            s.BaselineReservedMask = (ushort)(1 << 2);
+            unsafe
+            {
+                s.ActiveEntityPacked[0]      = (long)attacker.PackedValue;
+                s.ActiveSlotIndex[0]         = 1;
+                s.ReturnBaselineSlotIndex[0] = 2;
+                s.HasStartedRun[0]           = 1;
+            }
+
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
+
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
+            Assert.Equal(0, s.ActiveAttackerCount);
+            Assert.True((s.BurnedSlotsMask & (1 << 1)) != 0, "the knocked-out attacker's firing slot must be burned");
+            Assert.True((s.BaselineReservedMask & (1 << 2)) == 0, "its baseline slot must be released");
+        }
+
+        /// <summary>
+        /// ⭐ CE-466: a KNOCKED-OUT subordinate (<c>Health.Current == 0</c>, still in the world, never arriving) does
+        /// not block <c>Condition_AreAllAtBaseline</c> — the sibling of SC-HA010-7, which covers a destroyed one.
+        /// </summary>
+        [Fact]
+        public void CE466_AreAllAtBaseline_KnockedOutSubordinateCountsAsArrived()
+        {
+            using var repo = CreateWorld();
+            if (!repo.IsComponentTypeRegistered<Fdp.Toolkit.Combat.Components.Health>())
+                repo.RegisterComponent<Fdp.Toolkit.Combat.Components.Health>();
+
+            var commander  = repo.CreateEntity();
+            var aliveSub   = repo.CreateEntity();
+            var knockedOut = repo.CreateEntity();
+            repo.AddComponent(aliveSub, new NavigationStatus { Result = NavigationResult.Arrived });
+            repo.AddComponent(aliveSub, new Fdp.Toolkit.Combat.Components.Health { Current = 100f, Max = 100f });
+            repo.AddComponent(knockedOut, new NavigationStatus { Result = NavigationResult.InProgress });
+            repo.AddComponent(knockedOut, new Fdp.Toolkit.Combat.Components.Health { Current = 0f, Max = 100f });
+            AddRoster(repo, commander, new[] { aliveSub, knockedOut });
+
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
+
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+
+            Assert.Equal(NodeStatus.Success, result);
         }
 
         /// <summary>SC-HA012-6: Condition_IsWaveCompleted does NOT remove an entry when
