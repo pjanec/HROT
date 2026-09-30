@@ -316,12 +316,15 @@ internal static class InstanceEmitter
         e.WriteLine("foreach (var __prop in __doc.RootElement.EnumerateObject())");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("switch (__prop.Name)");
+        // ⭐ CE-464: keys match CASE-INSENSITIVELY, like __ParamJsonOptions (PropertyNameCaseInsensitive) and the curated
+        //   DTO parsers — a scenario authored "firingLineStart" must fill FiringLineStart. ⛔ It matched exactly, so a
+        //   camelCase key was silently dropped as "unknown" and the parameter kept its default.
+        e.WriteLine("switch (__prop.Name.ToLowerInvariant())");
         e.WriteLine("{");
         e.Indent();
         foreach (var f in asset.Parameters)
         {
-            e.WriteLine($"case \"{f.Name}\":");
+            e.WriteLine($"case \"{f.Name.ToLowerInvariant()}\":");
             e.Indent();
             e.WriteLine($"p.{f.Name} = global::System.Text.Json.JsonSerializer.Deserialize<{CSharpType(f.Type)}>(");
             e.WriteLine("    __prop.Value.GetRawText(), __ParamJsonOptions)!;");

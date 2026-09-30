@@ -1,0 +1,53 @@
+StructureHash: 0xA27A9AC6E77D6B73
+Parameters:
+  FiringLineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @16 size=4
+  FiringLineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @20 size=4
+  BaselineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @24 size=4
+  BaselineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @28 size=4
+  TankSpacing : System.Single @32 size=4
+  TargetAreaNetworkId : System.Int64 @40 size=8
+WorkingState:
+  (empty)
+Variables:
+  StartX : System.Single @48 size=4
+  StartY : System.Single @52 size=4
+  EndX : System.Single @56 size=4
+  EndY : System.Single @60 size=4
+  BaseSX : System.Single @64 size=4
+  BaseSY : System.Single @68 size=4
+  BaseEX : System.Single @72 size=4
+  BaseEY : System.Single @76 size=4
+  DirX : System.Single @80 size=4
+  DirY : System.Single @84 size=4
+  Spacing : System.Single @88 size=4
+  RequestTime : System.Single @92 size=4
+  BestD : System.Single @96 size=4
+  CurFx : System.Single @100 size=4
+  CurFy : System.Single @104 size=4
+  CurBx : System.Single @108 size=4
+  CurBy : System.Single @112 size=4
+  TargetArea : Fdp.Core.Entity @120 size=8
+  Phase : Hrot.AI.Behaviors.Brains.HillAttackPhase @128 size=4
+  TotalSlots : System.Int32 @132 size=4
+  Wave : System.Int32 @136 size=4
+  TargetCount : System.Int32 @140 size=4
+  WaveIndex : System.Int32 @144 size=4
+  Avail : System.Int32 @148 size=4
+  K : System.Int32 @152 size=4
+  Seen : System.Int32 @156 size=4
+  Pick : System.Int32 @160 size=4
+  Best : System.Int32 @164 size=4
+  CurSlot : System.Int32 @168 size=4
+  CurBase : System.Int32 @172 size=4
+  TargetGroup : System.Int32 @176 size=4
+  RequestId : System.Int64 @184 size=8
+  CurNet : System.Int64 @192 size=8
+  AllArrived : System.Boolean @200 size=1
+  FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @208 size=68
+  BaselineReserved : __List_System_Boolean_16 @280 size=20
+  Runners : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @304 size=36
+  Kept : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @344 size=36
+GraphLocalSlots:
+  (empty)
+Diagnostics:
+  (none)

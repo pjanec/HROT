@@ -128,11 +128,15 @@ namespace Hrot.SimHost.Tests
         public void CE469_EveryFunction_IsBlueprintCallable_WithTrailingContext()
         {
             var methods = typeof(BlueprintWorldLibrary).GetMethods(BindingFlags.Public | BindingFlags.Static);
-            Assert.Equal(7, methods.Length);
+            // CE-469's 7 + CE-464's RandomIntSeeded, EntityIndex, BehaviorHashOf, HasGeographicTransform, LatLonToCartesian
+            Assert.Equal(12, methods.Length);
             foreach (var m in methods)
             {
                 Assert.NotNull(m.GetCustomAttribute<BlueprintCallableAttribute>());
-                Assert.Equal(typeof(Fdp.ModuleHost.Abstractions.ISimulationView), m.GetParameters().Last().ParameterType);
+                // a world-reading function takes the view LAST (the P7 trailing context); a pure value function takes none
+                var ps = m.GetParameters();
+                Assert.True(ps.Length > 0);
+                Assert.DoesNotContain(ps.Take(ps.Length - 1), p => p.ParameterType == typeof(Fdp.ModuleHost.Abstractions.ISimulationView));
             }
         }
     }

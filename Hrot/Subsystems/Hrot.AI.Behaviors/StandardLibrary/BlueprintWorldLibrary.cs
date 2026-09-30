@@ -71,6 +71,27 @@ namespace Hrot.AI.Behaviors.StandardLibrary
             return min + (max - min) * rng.NextSingle();
         }
 
+        /// <summary>
+        /// ⭐ <c>CE-464</c> — a deterministic pseudo-random integer seeded by an explicit <paramref name="seed"/> (e.g. another
+        /// entity's index) rather than by self — the C# hill attack draws a slot per SUBORDINATE, so the graph must too.
+        /// Same <c>SimRng.FromSim(seed, salt, time)</c> stream as <see cref="RandomInt"/>.
+        /// </summary>
+        [BlueprintCallable("Random", DisplayName = "Random Int (Seeded)")]
+        public static int RandomIntSeeded(int seed, int salt, int minInclusive, int maxExclusive, ISimulationView view)
+        {
+            if (maxExclusive <= minInclusive) return minInclusive;
+            var rng = SimRng.FromSim(seed, salt, view.Time);
+            return rng.NextInt(minInclusive, maxExclusive);
+        }
+
+        /// <summary>⭐ <c>CE-464</c> — an entity's index (stable while it lives): a seed, a parity key.</summary>
+        [BlueprintCallable("World", DisplayName = "Entity Index")]
+        public static int EntityIndex(Entity entity) => entity.Index;
+
+        /// <summary>⭐ <c>CE-464</c> — the id a behaviour name registers under (<c>BehaviorState.ActiveBehaviorHash</c>).</summary>
+        [BlueprintCallable("Behavior", DisplayName = "Behavior Hash")]
+        public static int BehaviorHashOf(string behaviorName) => Fdp.Toolkit.Behavior.BehaviorHash.FromName(behaviorName);
+
         // ── Geo ──────────────────────────────────────────────────────────────────────────────────
 
         /// <summary>A geodetic point (lat/lon degrees, altitude metres) to local Cartesian metres, through the world's
@@ -91,6 +112,18 @@ namespace Hrot.AI.Behaviors.StandardLibrary
             if (geo == null) return default;
             var (lat, lon, alt) = geo.ToGeodetic(position);
             return new GeoPoint(lat, lon, alt);
+        }
+
+        /// <summary>⭐ <c>CE-464</c> — true when this world has an <see cref="IGeographicTransform"/> (offline/test worlds may not).</summary>
+        [BlueprintCallable("Geo", DisplayName = "Has Geographic Transform")]
+        public static bool HasGeographicTransform(ISimulationView view) => Transform(view) != null;
+
+        /// <summary>⭐ <c>CE-464</c> — latitude/longitude (degrees) at altitude 0 to local Cartesian metres; zero without a transform.</summary>
+        [BlueprintCallable("Geo", DisplayName = "Lat/Lon To Cartesian")]
+        public static Vector3 LatLonToCartesian(double latitude, double longitude, ISimulationView view)
+        {
+            var geo = Transform(view);
+            return geo == null ? Vector3.Zero : geo.ToCartesian(latitude, longitude, 0.0);
         }
 
         private static IGeographicTransform? Transform(ISimulationView view)

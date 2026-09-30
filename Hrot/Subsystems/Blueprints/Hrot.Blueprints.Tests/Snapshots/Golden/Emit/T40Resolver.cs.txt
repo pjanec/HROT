@@ -48,9 +48,9 @@ public static class T40Resolver_3C40EC2E_Bp
         if (__doc.RootElement.ValueKind != global::System.Text.Json.JsonValueKind.Object) return;
         foreach (var __prop in __doc.RootElement.EnumerateObject())
         {
-            switch (__prop.Name)
+            switch (__prop.Name.ToLowerInvariant())
             {
-                case "HalfSpeed":
+                case "halfspeed":
                     p.HalfSpeed = global::System.Text.Json.JsonSerializer.Deserialize<float>(
                         __prop.Value.GetRawText(), __ParamJsonOptions)!;
                     break;

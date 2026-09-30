@@ -196,6 +196,9 @@ internal static class StatementEmitter
                 }
                 e.Outdent();
                 e.WriteLine("}");
+                // ⭐ CE-464: an unwired Ok pin still allocates __tN; in a real generator build (warnings as errors) a
+                //   local assigned but never read is CS0219. Discard it explicitly — a no-op when Ok IS wired.
+                if (idx >= 0) e.WriteLine($"_ = {ok};");
                 break;
             }
 
@@ -1695,6 +1698,9 @@ internal static class StatementEmitter
             "System.Void"     => "void",
             "Fdp.Core.Entity" => "global::Fdp.Core.Entity",
             _ when t.FullName.StartsWith("_") => t.FullName, // local generated type (synthesized struct)
+            // ⭐ CE-464: a FullName still carrying the AN2 "global::" sentinel (an enum list ELEMENT keeps the
+            //   declaration's TypeId) is already qualified — never "global::global::".
+            _ when t.FullName.StartsWith("global::", System.StringComparison.Ordinal) => t.FullName,
             _                                  => $"global::{t.FullName}",
         };
     }
