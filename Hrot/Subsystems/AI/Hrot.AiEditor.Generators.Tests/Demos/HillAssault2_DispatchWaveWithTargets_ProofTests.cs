@@ -148,9 +148,9 @@ public sealed class HillAssault2_DispatchWaveWithTargets_ProofTests
         {
             var commander = world.CreateEntity();
             var roster = new UnitRoster();
-            UnitRoster.Add(ref roster, (long)world.CreateEntity().PackedValue);
-            UnitRoster.Add(ref roster, (long)world.CreateEntity().PackedValue);
-            UnitRoster.Add(ref roster, (long)world.CreateEntity().PackedValue);
+            UnitRoster.Add(ref roster, world.CreateEntity());
+            UnitRoster.Add(ref roster, world.CreateEntity());
+            UnitRoster.Add(ref roster, world.CreateEntity());
             world.AddComponent(commander, roster);   // rosterCount == 3 -> all participate regardless of parity
 
             var paramsType = bpType.GetNestedType("Params")!;

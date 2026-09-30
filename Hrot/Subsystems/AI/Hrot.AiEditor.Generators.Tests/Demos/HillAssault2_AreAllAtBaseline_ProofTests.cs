@@ -108,7 +108,7 @@ public sealed class HillAssault2_AreAllAtBaseline_ProofTests
     {
         var sub = world.CreateEntity();
         world.AddComponent(sub, new NavigationStatus { Result = result });
-        UnitRoster.Add(ref roster, (long)sub.PackedValue);
+        UnitRoster.Add(ref roster, sub);
         return sub;
     }
 
@@ -123,10 +123,10 @@ public sealed class HillAssault2_AreAllAtBaseline_ProofTests
 
         source.Should().Contain("for (",
             "the FlowForEach must lower to an inline C# for loop (P1a) -- see generated TickCore below:\n" + source);
-        source.Should().Contain("UnitRosterOps.Count(",
-            "the loop bound must call the curated UnitRosterOps.Count accessor -- see below:\n" + source);
-        source.Should().Contain("UnitRosterOps.Subordinate(",
-            "the per-iteration item must be read via the curated UnitRosterOps.Subordinate accessor -- see below:\n" + source);
+        source.Should().Contain("UnitRosterSubordinateEntitiesOps.Count(",
+            "the loop bound must call the generated UnitRosterSubordinateEntitiesOps.Count accessor -- see below:\n" + source);
+        source.Should().Contain("UnitRosterSubordinateEntitiesOps.Item(",
+            "the per-iteration item must be read via the generated UnitRosterSubordinateEntitiesOps.Item accessor -- see below:\n" + source);
         source.Should().Contain(
             "GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>",
             "each subordinate's NavigationStatus must be read via a reflection-free, Target-pinned " +

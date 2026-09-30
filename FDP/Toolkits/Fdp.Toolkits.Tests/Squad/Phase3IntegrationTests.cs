@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Squad.Tests
                 _repo.AddComponent(m, new Health { Current = 100f, Max = 100f });
                 _repo.AddComponent(m, new WeaponState { Ammo = 100, MaxAmmo = 100 });
                 ref var roster = ref _repo.GetComponentRW<UnitRoster>(_commander);
-                UnitRoster.Add(ref roster, (long)m.PackedValue);
+                UnitRoster.Add(ref roster, m);
             }
         }
 

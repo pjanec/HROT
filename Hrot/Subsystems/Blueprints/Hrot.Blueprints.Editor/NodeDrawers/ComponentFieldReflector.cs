@@ -484,7 +484,7 @@ internal static class ComponentFieldReflector
     /// FQN of a static accessor method as baked onto the node: <c>DeclaringType.FullName + "." +
     /// Name</c> -- no argument list, no <c>global::</c> prefix (mirrors how <c>FlowForEachNode</c>'s
     /// <c>CountAccessorFqn</c>/<c>ItemAccessorFqn</c> are authored, e.g.
-    /// "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").
+    /// "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").
     /// </summary>
     private static string AccessorFqn(MethodInfo m) => $"{m.DeclaringType!.FullName}.{m.Name}";
 }

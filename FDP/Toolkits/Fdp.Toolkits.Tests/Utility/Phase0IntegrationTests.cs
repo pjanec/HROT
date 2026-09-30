@@ -69,8 +69,8 @@ namespace Fdp.Toolkit.Tests
             var m2 = w.SpawnSquadMember(leader, health01: 1f, ammo01: 1f);
             {
                 ref var roster = ref w.Repo.GetComponentRW<UnitRoster>(leader);
-                int slot1 = UnitRoster.IndexOf(ref roster, (long)m1.PackedValue);
-                int slot2 = UnitRoster.IndexOf(ref roster, (long)m2.PackedValue);
+                int slot1 = UnitRoster.IndexOf(ref roster, m1);
+                int slot2 = UnitRoster.IndexOf(ref roster, m2);
                 Assert.True(slot1 >= 0, "m1 should be in roster");
                 Assert.True(slot2 >= 0, "m2 should be in roster");
                 Assert.NotEqual(slot1, slot2);

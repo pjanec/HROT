@@ -100,10 +100,8 @@ namespace Hrot.Diagnostics.Overlays
                 // P7-02: solid assignment line (always)
                 draw.DrawLine(Vector3.Zero, Vector3.Zero, s_assignColor, style: LineStyle.Solid);
 
-                // Resolve the member entity from the roster fixed array
-                Entity member;
-                long packedHandle = roster.SubordinateEntities[i];
-                member = new Entity((ulong)packedHandle);
+                // Resolve the member entity from the roster
+                Entity member = roster.SubordinateEntities[i];
 
                 // P7-02: dashed veto line + label when member's utility trace has records
                 if (_repo.HasComponent<UtilityTraceWorkingMemory1024>(member))

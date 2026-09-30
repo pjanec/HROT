@@ -284,7 +284,7 @@ namespace Fdp.Toolkit.Utility
             var commander = sub.Commander;
             if (!repo.HasComponent<SquadCognitiveState>(commander) || !repo.HasComponent<UnitRoster>(commander)) return 1f;
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            int idx = UnitRoster.IndexOf(ref roster, (long)ctx.Self.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, ctx.Self);
             if (idx < 0) return 1f;
             ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander).Assignment;
             long assignedHandle = state.GetAssignedTarget(idx);

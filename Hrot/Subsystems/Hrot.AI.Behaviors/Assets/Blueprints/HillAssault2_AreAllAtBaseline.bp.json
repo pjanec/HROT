@@ -86,8 +86,8 @@
         {
           "kind": "FlowForEach",
           "SourceComponentFqn": "Fdp.Core.CommandHierarchy.UnitRoster",
-          "CountAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count",
-          "ItemAccessorFqn": "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate",
+          "CountAccessorFqn": "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count",
+          "ItemAccessorFqn": "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item",
           "Id": "fe000000-0000-0000-0000-000000000001",
           "Pins": [
             {

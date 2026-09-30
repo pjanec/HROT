@@ -142,7 +142,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             // Add 1 member (real entity, no utility trace so no veto line)
             var member = repo.CreateEntity();
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             // Set member element index to 0
             ref var state = ref repo.GetComponentRW<SquadCognitiveState>(commander);
@@ -274,7 +274,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             var member = repo.CreateEntity();
             repo.AddComponent(member, new BehaviorState { ActiveBehaviorHash = 0 });
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             var draw = new LineCapturingDrawBuilder();
             arbiter.BeginFrame();
@@ -308,7 +308,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
                 winnerScore: 0.9f, runnerUpMargin: 0.1f);
 
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             var draw = new LineCapturingDrawBuilder();
             arbiter.BeginFrame();
@@ -341,7 +341,7 @@ namespace Hrot.Diagnostics.Overlays.Tests
             repo.AddComponent(member, new UtilityTraceWorkingMemory1024());
 
             ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             // Tick 1: option id = 3
             ref var mem = ref repo.GetComponentRW<UtilityTraceWorkingMemory1024>(member);

@@ -54,7 +54,7 @@ namespace Fdp.Toolkit.Squad.Tests.Systems
                     Designation = TacticalDesignation.Undefined
                 });
                 ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-                UnitRoster.Add(ref roster, (long)m.PackedValue);
+                UnitRoster.Add(ref roster, m);
                 members[i] = m;
             }
             return (_repo, commander, members);

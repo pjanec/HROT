@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Squad.Systems
 
             for (int m = 0; m < roster.Count; m++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[m]);
+                var member = roster.SubordinateEntities[m];
 
                 // ── ShotFired ────────────────────────────────────────────────
                 if (repo.HasComponent<WeaponState>(member))
