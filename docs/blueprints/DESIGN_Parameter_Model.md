@@ -176,7 +176,7 @@ sequenceDiagram
 | root behaviour, **blueprint resolver asset** gets the source | ✅ `CE-443` (`2026-09-30`): the JSON is parsed into the resolver's own Parameters and nothing is copied onto `In` | — |
 | sub-behaviour, no resolver: whole host struct copied onto `In` | ✅ (`CE-431`) | — |
 | sub-behaviour, resolver gets the host bytes | ✅ `CE-443`: the host variable is the resolver's source, no copy; a curated TYPED resolver runs from the bytes (`CE-438` closed); a JSON-shaped curated one throws, with the reason | — |
-| C# action / condition reads live | ✅ | — |
+| C# action / condition reads live | ✅ in a **BTree** · ⛔ **in an HSM it seeds a copy at activation too** (`HsmActionGenerator.cs:629`, the `[SharedAiAction]` thunk — measured `2026-09-30`, this row said ✅ before) | `CE-444` |
 | **blueprint action in a BTree** reads live | ✅ — and it has no resolver (`CE-445`, `2026-09-30`) | — |
 | **blueprint HSM activity / guard** reads live | ⛔ params are copied into its occurrence at activation, then its own resolver runs | `CE-444` |
 | no action-level resolver anywhere | ✅ `CE-445` (`2026-09-30`): `HostedParamResolvers`, `IHostVariableAccess`, `HsmHostVariableAccess`, the name map and the `host` argument deleted; a Construction graph on a non-Library asset is `BP1676` | — |
@@ -285,6 +285,48 @@ sequenceDiagram
 | `BP1011` allows Parameters on a resolver asset; they are read-only (`in`) | §P.7 |
 | a curated **typed** resolver whose `TAuthored` is unmanaged also registers a from-bytes arm (`CE-438`); a JSON-shaped one hosted still THROWS, with the reason | a JSON parse cannot consume host bytes |
 | `host` (`IHostVariableAccess`) is left in the signatures | removed by `CE-445`, not here — one churn per signature |
+
+### P.9 ⚠ `CE-444` DESIGN — **HSM activities and guards read their host live** *(`2026-09-30`, build-state: DESIGN — one decision open)*
+
+**INVENTORY** *(grep, `2026-09-30`)*: the activation-time params copy is emitted in **two** places —
+`AiPrimitiveEmitter.EmitParamSeed` (blueprint HSM activity/guard, and the standalone `BTreeTick@0` thunk) and
+`HsmActionGenerator.cs:629` (hand-written C# `[SharedAiAction]` on an HSM state). Both key the copy on
+`HsmOccurrence.SeedParamsOffset` → `HsmParamBindings.SeedOffsetFor` (a dictionary). A BTree action (C# or
+blueprint-composed) already projects live from `BehaviorBlock.Require(ref bb)+offset`.
+
+| claim | code — how it IS | design — how it was MEANT to be |
+|---|---|---|
+| the copy happens once, at activation | ✅ `if (freshlyAttached) { *__params = … }` in both emitters | ⛔ §P.3: an action reads live |
+| a thunk already pays one store+slot lookup per call | ✅ `OccurrenceWorkingState.ResolveOrAttach` (`TryGetStore` + `TryGetSlotOffset`) | — |
+| a live read adds one more store+slot lookup per call | ✅ `RootParamsAccess.RootRef` = `TryGetStore` + slot scan | — |
+| the host offset is constant for an occurrence's lifetime | ✅ keyed by (machine, state, site); a re-assign detaches hosted occurrences (`DetachHostedOccurrenceSlots`) | ✅ `DESIGN_Occurrence_Scoped_Storage` §28.6 |
+
+```mermaid
+sequenceDiagram
+    participant K as "HSM kernel"
+    participant T as "activity / guard thunk"
+    participant O as "its occurrence (working state + cached host offset)"
+    participant R as "entity root block"
+    K->>T: call (every tick while active)
+    T->>O: resolve or attach
+    alt freshly attached
+        T->>O: bake working state, store host offset once
+    end
+    T->>R: project Params at the cached offset (live, no copy)
+    Note over T,R: a host write mid-activity is seen on the next call
+```
+
+> ⭐ **Caption.** The occurrence keeps only what is truly the action's own — its working state — plus the one
+> number it would otherwise look up every call.
+
+| option | per-call cost vs today | blast radius |
+|---|---|---|
+| **B — cache the host offset in the occurrence** ⭐ lean | +1 root lookup (store + slot), no dictionary | the occurrence payload becomes `[WorkingState][int]` instead of `[WorkingState][Params]` — demand sizing (`HostedOccurrenceDemandCalculator`) and anything that decodes occurrence params change |
+| A — look the offset up every call | +1 root lookup **and** +1 dictionary lookup | none beyond the two emitters |
+
+⚠ **Open for the user:** the HSM hot path gets one extra lookup per active action/guard either way — that is the
+price of "reads live" (§P.3). ⭐ Lean **B**. ⚠ Not measured: an absolute cached pointer (zero extra lookups) is
+only safe if the occurrence allocator never moves slots — unverified, so not proposed.
 
 ---
 
