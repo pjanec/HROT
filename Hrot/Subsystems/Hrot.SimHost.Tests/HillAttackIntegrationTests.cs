@@ -758,6 +758,15 @@ namespace Hrot.SimHost.Tests
             }
             Assert.True(finishedEventPublished,
                 "BehaviorFinishedEvent was not published for the commander.");
+
+            // ⭐ CE-459: in the SAME tick the wave loop exits, the commander sends every subordinate back to its
+            //   baseline slot BEFORE it finishes — the platoon ends on the baseline, abreast. ⛔ Before, nothing
+            //   did: the platoon only got there because a finished tree re-ran from its root, which CE-449 ended.
+            //   (Red-proof: remove ReturnToBaseline from PlatoonHillAttack.btree.json ⇒ no intents this tick.)
+            var restaged = new HashSet<Entity>();
+            foreach (var evt in _repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                if (evt != null && evt.IntentId == "MoveToLocation") restaged.Add(evt.Entity);
+            Assert.Equal(new HashSet<Entity>(subs), restaged);
         }
     }
 }

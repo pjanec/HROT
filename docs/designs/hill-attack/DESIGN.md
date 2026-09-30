@@ -1,3 +1,17 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
+stale-below: nothing.
+known-rot: ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
+  fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
+  same slot mid-run (CE-460, OPEN).
+known-conflict: none.
+related-designs:
+  - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
+    return to baseline must be an explicit step here.
+  - docs/blueprints/Architect_Question_8_Wave_Core.md — the wave core rulings this doctrine's blueprint twin follows.
+-->
 # Hill Attack Group Behavior — Design
 
 ## Overview
@@ -332,8 +346,15 @@ If a tank is destroyed mid-wave, its firing slot is permanently burned
 The SoA tracker detects destruction via `EntityRepository.IsAlive` with O(1)
 swap-remove.
 
-When no targets remain, the Repeater propagates `NodeStatus.Failure` to the root
-and `BrainTickSystem`'s BTree arm publishes `BehaviorFinishedEvent(Success)`.
+When no targets remain, the Repeater propagates `NodeStatus.Failure`; a `ForceSuccess` around it turns that normal exit
+into Success, the commander sends every subordinate back to its baseline staging slot (`Action_DispatchAllToBaseline`
+again) and waits for arrival (`Condition_AreAllAtBaseline`), then the tree ends with Success and `BrainTickSystem`
+publishes `BehaviorFinishedEvent`.
+
+> ⭐ **`CE-459` (`2026-09-30`) — why the return is explicit.** Measured live (`hill-attack-close`, `--mode all`): before
+> `CE-449` the platoon ended "on the baseline" only because a finished tree RE-RAN from its root, and the re-run's
+> `DispatchAllToBaseline` re-staged every tank. `CE-449` made finishing terminal (user ruling), so nothing re-staged the
+> platoon and it stopped wherever the last retreat left it. The return is now a step of the doctrine, not a side effect.
 
 ### 4.2 BTree Topology
 
@@ -342,12 +363,15 @@ Sequence
   Action_CalculateSegments          // computes TotalSlots, inits masks
   Action_DispatchAllToBaseline      // sends MoveToLocation intent to all subordinates
   Condition_AreAllAtBaseline        // blocks until all tanks report NavigationStatus.Result == Arrived
-  Repeater(-1)
-    Sequence
-      Action_RequestAreaQuery       // submits EQS request; caches RequestId in mutable state
-      Condition_IsAreaQueryResolved // polls batch; Running->Success (targets found) / Failure (0 targets)
-      Action_DispatchWaveWithTargets // distributes targets + slots, dispatches HullDownAttack intents
-      Condition_IsWaveCompleted     // blocks until all active attackers done/dead
+  ForceSuccess                      // CE-459: area clear (the loop's Failure) is the normal exit
+    Repeater(-1)
+      Sequence
+        Action_RequestAreaQuery       // submits EQS request; caches RequestId in mutable state
+        Condition_IsAreaQueryResolved // polls batch; Running->Success (targets found) / Failure (0 targets)
+        Action_DispatchWaveWithTargets // distributes targets + slots, dispatches HullDownAttack intents
+        Condition_IsWaveCompleted     // blocks until all active attackers done/dead
+  Action_DispatchAllToBaseline      // CE-459: return every subordinate to its baseline staging slot
+  Condition_AreAllAtBaseline        // CE-459: wait until all are back, then the behaviour finishes
 ```
 
 ### 4.3 Node Attribute Requirements

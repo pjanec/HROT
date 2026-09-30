@@ -566,16 +566,22 @@ namespace Hrot.AI.Behaviors.Brains
                     .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
                         bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a2"))
                     .Action(bb => bb.Params, Condition_AreAllAtBaseline)
-                    .Repeater(-1, rep => rep
-                        .Sequence(wseq => wseq
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, bb => bb.State, Action_RequestAreaQuery, new Guid("1a000000-0000-0000-0000-0000000000b1"))
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, bb => bb.State, Condition_IsAreaQueryResolved, new Guid("1a000000-0000-0000-0000-0000000000b2"))
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, bb => bb.State, Action_DispatchWaveWithTargets, new Guid("1a000000-0000-0000-0000-0000000000b3"))
-                            .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, bb => bb.State, Condition_IsWaveCompleted, new Guid("1a000000-0000-0000-0000-0000000000b4")))));
+                    // ⭐ CE-459: area clear ends the wave loop with Failure; ForceSuccess lets the sequence go on to
+                    //   return the platoon to the baseline (mirrors PlatoonHillAttack.btree.json).
+                    .ForceSuccess(fs => fs
+                        .Repeater(-1, rep => rep
+                            .Sequence(wseq => wseq
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Action_RequestAreaQuery, new Guid("1a000000-0000-0000-0000-0000000000b1"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Condition_IsAreaQueryResolved, new Guid("1a000000-0000-0000-0000-0000000000b2"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Action_DispatchWaveWithTargets, new Guid("1a000000-0000-0000-0000-0000000000b3"))
+                                .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                                    bb => bb.Params, bb => bb.State, Condition_IsWaveCompleted, new Guid("1a000000-0000-0000-0000-0000000000b4")))))
+                    .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
+                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a4"))
+                    .Action(bb => bb.Params, Condition_AreAllAtBaseline));
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────
