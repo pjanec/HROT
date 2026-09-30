@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30
-build-state: DESIGN — every sub-question carries a lean; ⛔ nothing is built until the user approves (large blast radius:
-  a new brain tier touches ingress, the brain tick, the registrars and the editor).
+build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
+  A–E adopted as written.
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: none.

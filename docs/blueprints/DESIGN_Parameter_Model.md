@@ -161,6 +161,22 @@ sequenceDiagram
 > ⭐ A blueprint action keeps its **own working memory** (`WorkingState`, a per-node slot — `Node` scope, kept by
 > the user `2026-09-30`); only its **params** are the host's, read live.
 
+#### P.3a ⭐ The working-memory lifecycle of an action / guard *(measured + confirmed by the user, `2026-09-30`)*
+
+🔒 **User:** *"are they behaving almost identically to action (stateful, initialized once on first activation, retaining
+their state until whole behavior is cancelled?)"* — ⭐ **yes, as measured:**
+
+| | |
+|---|---|
+| **created** | on the **first** call (first activity dispatch / first guard evaluation), not at behaviour start — `OccurrenceWorkingState.ResolveOrAttach` → `freshlyAttached`; its defaults are baked ONCE there (`InitDefaultWorkingState`). ⚠ The store is sized for it at assign, so the late attach cannot run out of room |
+| **every call / poll** | finds the same memory and runs the tick graph once; a guard passes on `Success` (`AiPrimitiveEmitter.EmitHsmGuardThunk`) |
+| **across state exit and re-entry** | ⭐ **kept** — nothing detaches it on exit |
+| **released** | on re-assign / clear of the whole behaviour (`BehaviorIngressSystem` → `DetachHostedOccurrenceSlots`), or when a hot reload changes its layout |
+| **one per** | (HSM, region, the state that owns the transition, blueprint asset) — `HsmOccurrence.KeyFor`, stamped by the kernel (`HsmKernelCore.cs:724`). ⚠ So one guard asset on two transitions of the same state, or one asset used as that state's activity AND guard, share one memory |
+
+⚠ Contrast: a BTree hosted as an HSM state's / BTree node's CHILD is reset when its host leaves it (`HostedSubtree`
+deactivator, `F14`) — a sub-behaviour restarts, an action/guard keeps its memory.
+
 ### P.4 What this deliberately rules out
 
 | ⛔ | why |
@@ -288,7 +304,7 @@ sequenceDiagram
 | a curated **typed** resolver whose `TAuthored` is unmanaged also registers a from-bytes arm (`CE-438`); a JSON-shaped one hosted still THROWS, with the reason | a JSON parse cannot consume host bytes |
 | `host` (`IHostVariableAccess`) is left in the signatures | removed by `CE-445`, not here — one churn per signature |
 
-### P.9 ⚠ `CE-444` DESIGN — **HSM activities and guards read their host live** *(`2026-09-30`, build-state: DESIGN — one decision open)*
+### P.9 ✅ `CE-444` DESIGN — **HSM activities and guards read their host live** *(`2026-09-30`, build-state: READY-TO-BUILD — option B approved)*
 
 **INVENTORY** *(grep, `2026-09-30`)*: the activation-time params copy is emitted in **two** places —
 `AiPrimitiveEmitter.EmitParamSeed` (blueprint HSM activity/guard, and the standalone `BTreeTick@0` thunk) and
@@ -326,8 +342,8 @@ sequenceDiagram
 | **B — cache the host offset in the occurrence** ⭐ lean | +1 root lookup (store + slot), no dictionary | the occurrence payload becomes `[WorkingState][int]` instead of `[WorkingState][Params]` — demand sizing (`HostedOccurrenceDemandCalculator`) and anything that decodes occurrence params change |
 | A — look the offset up every call | +1 root lookup **and** +1 dictionary lookup | none beyond the two emitters |
 
-⚠ **Open for the user:** the HSM hot path gets one extra lookup per active action/guard either way — that is the
-price of "reads live" (§P.3). ⭐ Lean **B**. ⚠ Not measured: an absolute cached pointer (zero extra lookups) is
+✅ **Decided — B.** 🔒 User, `2026-09-30`: *"storing host offset sounds good."* The HSM hot path gets one extra root lookup per
+active action/guard — the price of "reads live" (§P.3). ⚠ Not measured: an absolute cached pointer (zero extra lookups) is
 only safe if the occurrence allocator never moves slots — unverified, so not proposed.
 
 ---
