@@ -10,6 +10,32 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 
 internal static class Stage5_Schedule
 {
+    /// <summary>⭐ CE-471 — the BinaryOp operators that need integer operands.</summary>
+    internal static bool IsBitwiseOperator(ArithmeticOperator op) =>
+        op is ArithmeticOperator.BitAnd or ArithmeticOperator.BitOr or ArithmeticOperator.BitXor
+           or ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+
+    /// <summary>
+    /// ⭐ CE-471 — true when <paramref name="t"/> is a type this reflection-free compiler KNOWS cannot take
+    /// <paramref name="op"/>: floating point, decimal, string, vectors, an entity handle — and bool for a shift.
+    /// An unknown struct / an enum passes (C# decides; <c>&amp; | ^</c> are defined on enums).
+    /// </summary>
+    internal static bool IsKnownNonIntegerOperand(IrTypeRef t, ArithmeticOperator op)
+    {
+        if (t.IsEntityHandle) return true;
+        switch (t.FullName)
+        {
+            case "System.Single": case "System.Double": case "System.Decimal": case "System.String":
+            case "System.Numerics.Vector2": case "System.Numerics.Vector3": case "System.Numerics.Vector4":
+            case "System.Numerics.Quaternion":
+                return true;
+            case "System.Boolean":
+                return op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight;
+            default:
+                return false;
+        }
+    }
+
     // Sentinel unresolved IrTypeRef used when no type information is available.
     internal static readonly IrTypeRef UnknownType = new IrTypeRef
     {
@@ -3285,6 +3311,19 @@ internal sealed class GraphScheduler
                 IrValue bVal = bPin is not null
                     ? ResolveDataPin(bo.Id, bPin.Id, stmts)
                     : AllocValue(Stage5_Schedule.UnknownType);
+
+                // ⭐ CE-471: the bit/shift operators need integer operands. The check is a DENY-list of the
+                // types this compiler KNOWS are not integers (reflection-free — an unknown struct or a
+                // [Flags] enum passes, and & | ^ are defined on enums). bool is fine for & | ^, not for shifts.
+                if (Stage5_Schedule.IsBitwiseOperator(bo.Operator)
+                    && (Stage5_Schedule.IsKnownNonIntegerOperand(aVal.Type, bo.Operator)
+                        || Stage5_Schedule.IsKnownNonIntegerOperand(bVal.Type, bo.Operator)))
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1678,
+                        $"BinaryOp '{bo.Operator}' needs integer operands (a [Flags] enum is fine for BitAnd/BitOr/BitXor); "
+                        + $"got A = '{aVal.Type.FullName}', B = '{bVal.Type.FullName}'.",
+                        _ctx.AssetId, _graph.Id, bo.Id));
+                }
 
                 var binOpResult = AllocValue(aVal.Type);
                 stmts.Add(new IrStatement

@@ -565,6 +565,11 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Multiply => "*",
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Divide   => "/",
         Hrot.Blueprints.Core.Assets.ArithmeticOperator.Modulo   => "%",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitAnd     => "&",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitOr      => "|",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.BitXor     => "^",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.ShiftLeft  => "<<",
+        Hrot.Blueprints.Core.Assets.ArithmeticOperator.ShiftRight => ">>",
         _                                                       => op.ToString(),
     };
 

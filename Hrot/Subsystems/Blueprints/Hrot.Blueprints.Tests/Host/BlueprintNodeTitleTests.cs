@@ -44,6 +44,8 @@ public sealed class BlueprintNodeTitleTests
     [Theory]
     [InlineData(ArithmeticOperator.Add, "Math +")]
     [InlineData(ArithmeticOperator.Modulo, "Math %")]
+    [InlineData(ArithmeticOperator.BitAnd, "Math &")]
+    [InlineData(ArithmeticOperator.ShiftLeft, "Math <<")]
     public void BinaryOp_ShowsOperator(ArithmeticOperator op, string expected)
         => Assert.Equal(expected, Title(new BinaryOpNode { Operator = op }));
 

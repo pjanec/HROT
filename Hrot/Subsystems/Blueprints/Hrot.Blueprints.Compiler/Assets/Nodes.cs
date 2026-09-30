@@ -469,6 +469,14 @@ public enum ArithmeticOperator
     Multiply,
     Divide,
     Modulo,
+    // ⭐ CE-471 — bitwise/shift, integer operands only (BP1678). Appended: the enum is persisted by value.
+    // BitAnd/BitOr/BitXor also accept a [Flags] enum (C# defines & | ^ on enums); shifts need an integer.
+    // ⚠ No unary BitNot: BinaryOp is A/B-shaped; `A ^ AllOnes` covers it (see BinaryOp_And_Boolean_Nodes_Design.md).
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 /// <summary>Boolean logic operator for the native <see cref="BooleanOpNode"/>.</summary>
@@ -843,7 +851,7 @@ public sealed class CompareNode : Node
 /// </summary>
 public sealed class BinaryOpNode : Node
 {
-    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
+    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo, and the CE-471 bit/shift operators).</summary>
     public ArithmeticOperator Operator { get; set; }
 }
 

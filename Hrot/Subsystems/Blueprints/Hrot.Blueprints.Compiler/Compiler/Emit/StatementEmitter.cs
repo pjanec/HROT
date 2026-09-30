@@ -953,7 +953,11 @@ internal static class StatementEmitter
                 if (idx >= 0)
                 {
                     string infix = ArithmeticOperatorInfix(op.Op);
-                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                    // CE-471: a C# shift count must be int -- cast, so a long/byte-typed B pin still compiles.
+                    string right = op.Op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight
+                        ? $"(int)__t{op.Right.Index}"
+                        : $"__t{op.Right.Index}";
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} {right};");
                 }
                 break;
 
@@ -1511,6 +1515,11 @@ internal static class StatementEmitter
         ArithmeticOperator.Multiply => "*",
         ArithmeticOperator.Divide   => "/",
         ArithmeticOperator.Modulo   => "%",
+        ArithmeticOperator.BitAnd     => "&",
+        ArithmeticOperator.BitOr      => "|",
+        ArithmeticOperator.BitXor     => "^",
+        ArithmeticOperator.ShiftLeft  => "<<",
+        ArithmeticOperator.ShiftRight => ">>",
         _ => "+",
     };
 
