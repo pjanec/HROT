@@ -54,8 +54,8 @@ related-designs:
   - Architect_Question_43_Blueprint_Authored_Param_Resolver.md — owns the BLUEPRINT-authored
     resolver (GraphKind.Construction, V_ResolverPurity, BlueprintDefinition.Resolvers). ⛔ It does
     NOT own the binding to a behaviour, which does not exist; §12.4 is that binding.
-  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — the blueprint hill-attack rebuild; its decision A leans on
-    this document's unapproved D (a leaf may not write its host) to choose one blueprint behaviour over blueprint leaves.
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — the blueprint hill-attack rebuild; one blueprint behaviour, so its
+    state lives in the one block this document gives it.
 -->
 # Architect Question 76 — ONE blackboard block per running AI primitive
 

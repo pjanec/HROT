@@ -12,8 +12,9 @@ related-designs:
     out of date (§1 here re-measures it).
   - Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint-behaviour runtime this rebuild runs on
     (a Tick graph with its own block, latent waits, Return finishes it).
-  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns "one block per running behaviour" and the
-    unapproved decision D (a leaf writing its host's block). That is why A leans away from blueprint leaves.
+  - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns "one block per running behaviour" (R-151).
+  - DESIGN_Parameter_Model.md — §P.9 owns "a leaf reads its host live"; no node writes a Parameter. That is why A leans
+    away from blueprint leaves.
   - docs/designs/hill-attack/DESIGN.md — owns the doctrine itself (phases, slots, waves). Its behaviour is the spec;
     CE-460's known quirk is part of it (WON'T FIX).
   - Blueprint_Fixed_Collections_Design.md — owns the fixed-list variable and the curated-accessor collection nodes (C4).
@@ -72,11 +73,15 @@ not a proven complete set.
   lives in its own block.
 - **A2 — keep the BTree, and make each leaf a blueprint** (the migration doc's original intent).
 - **Lean: A1.** Measured: the commander's leaves **write** shared doctrine state (segments, wave number, slot masks,
-  the runner list). Today a blueprint leaf reads its host tree live (§P.9, `CE-444`) but **cannot write it back**.
-  Writing back is Q76 decision D, which is unapproved, and the user called that kind of write *"a relic"*. The last
-  version that worked around this (`PlatoonHillAttack2` plus GetShared/SetShared) was deleted by `CE-436`.
-  **What would change the lean:** if the user wants the tree picture kept for readability, A2 needs Q76-D approved
-  first.
+  the runner list). A blueprint leaf **reads** its host's `Params` live (`DESIGN_Parameter_Model` §P.9, `CE-444`), and
+  the thunk even passes them by `ref` (`AiPrimitiveEmitter.EmitLiveHostParams`: `ref var p = ref *(Params*)(__root +
+  __at)`). But **no node writes a Parameter**: `GetParameter` exists, and `SetVariable` targets only the leaf's own
+  variables (`Nodes.cs:196`). So A2 needs a new "write my host's parameter" node, which makes leaves write shared host
+  bytes. That is the hazard the user named on `2026-09-21` (*"two actions running in two hsm regions would overwrite the
+  params"*, §P "the ruling that forced it"). The last version that worked around it (`PlatoonHillAttack2` plus
+  GetShared/SetShared) was deleted by `CE-436`.
+  **What would change the lean:** if the user wants the tree picture kept for readability, A2 is possible, but only
+  after a ruling that a leaf may write its host's parameters.
 
 ### B — What "no C# helpers" means precisely
 
