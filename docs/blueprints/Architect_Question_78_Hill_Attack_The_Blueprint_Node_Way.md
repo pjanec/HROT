@@ -3,7 +3,7 @@ state: LIVE
 updated: 2026-09-30
 build-state: DESIGN — §6 leans APPROVED (user 2026-09-30: "paragraph 6 leans approved"), with §6.5's two amendments open; A approved in principle (user 2026-09-30: "Agreed on the single blueprint behavior, could be broken
   to blueprint functions whenever suitable"); everything else awaits review of §5. "Measure first … No blind coding."
-current-answer: ⭐⭐ §6 (the user's 2026-09-30 revision of the old rulings + the measured cost of each blueprint-way
+current-answer: ⭐⭐⭐ §7 (THE PLAN — ordered tasks, status, what is decided and what is still open) FIRST; then §6 (the user's 2026-09-30 revision of the old rulings + the measured cost of each blueprint-way
   node) FIRST — it overrides §5.1 and §5.4 where they disagree. Then §5 (EQS, measurements), then §3 A/E.
 stale-below: §3's rows C1, C2, C4, D1, D2 (overtaken by §5); §5.1's "effect on §3" column and §5.4's "revised lean"
   column wherever §6 disagrees (§6 wins — the user revised the Q6 rulings §5.1 leaned on).
@@ -335,3 +335,32 @@ handoff, independent of the EQS unification. Unverified: whether anything serial
   Per the user's ruling the C# doctrine keeps its behaviour, so the blueprint rebuild will **diverge from the C#
   reference exactly when one of the platoon's own tanks is knocked out**. The proof must name that case, not hide it.
 - ✅ **Roster** — §6.5 ② approved; the behaviours lane builds it (the `Fdp.Core` fence waived by the user for this task).
+
+## 7. ⭐⭐⭐ THE PLAN — ordered, with status *(written `2026-09-30`; the durable record — resume from here)*
+
+> 🔒 **User, `2026-09-30`:** *"pls do not rush into implementation, we are still talking about what to do, then we need
+> to create tasks/plan that survives compaction. keep what you did but implement not more, summarize our plan."*
+> ⛔ **Nothing below marked OPEN may be started without the user's go.** The tracker rows carry the same ids.
+
+| # | id | task | status | depends on |
+|---|---|---|---|---|
+| 0 | `CE-465` | template EQS inert in production — handed to the backend lane with the unification ([`HANDOFF_EQS_Unification`](batches/HANDOFF_EQS_Unification.md)) | 📋 backend lane, draft handoff | — |
+| 1 | — | area-query blueprint helpers made generic (force argument, `TargetAt`) — the stop-gap until the EQS unification | ✅ **DONE** (commit `6675608e5`) | — |
+| 2 | `CE-467` | **roster blueprint-native:** `UnitRoster`'s `fixed` buffers → `[InlineArray]` of `Entity` / `ushort` + `[BlueprintCollectionField]` (read-only); `CollectionOpsGenerator` moved to a new engine-level analyzer `FDP/Engine/Fdp.Core.Generators` (it could not run on `Fdp.Core` from `Fdp.Toolkits.Analyzers` — that package's `HsmActionGenerator` emits a registrar needing `Fhsm`, measured `CS0246`); `UnitRosterOps` deleted; 14 production files + tests + 4 twin assets repointed; size 168 → 164 B | 🟡 **CODE WRITTEN, NOT YET VERIFIED OR COMMITTED** — stopped here by the user. Next step: finish the build + suites (`Fdp.Toolkits.Tests`, `Hrot.Core.Tests`, `Hrot.SimHost.Tests` incl. `HillAttack*`, `Hrot.Diagnostics.Overlays.Tests`, generator + Blueprints suites, regenerate the 4 goldens) and commit | — |
+| 3 | `CE-468` | `FormatString` / `PrintString` culture-neutral (`TryWrite(InvariantCulture, …)`, `StatementEmitter.cs:1001`) + a rail under cs-CZ | 📋 OPEN — approved (§6 row 8) | — |
+| 4 | `CE-469` | **built-in function library** (engine-level, palette-visible — decide its home: beside `BlueprintMath` with one palette mechanism, §6.1): `Entity Exists`, `Random Int` / `Random Float` (seeded, salt pin), `Geo → Cartesian` + inverse, network-id → entity | 📋 OPEN — approved (§6 rows 1, 3, 5, 6) | — |
+| 5 | `CE-470` | `Get Sim Time` / `Get Delta Time` node over the existing `IrOp_Time` / `IrOp_DeltaTime` | 📋 OPEN — approved (§6 row 4) | — |
+| 6 | `CE-471` | bit operators on `BinaryOp` (`BitAnd/BitOr/BitXor/ShiftLeft/ShiftRight/BitNot`), integer types only, with a Stage2 type check | 📋 OPEN — approved (§6 row 9) | — |
+| 7 | `CE-472` | typed **Send Behaviour Intent** node (params as pins, JSON inside) + DTO-typed **To JSON / From JSON** nodes — one shared emitter | 📋 OPEN — approved (§6 rows 2, 7) | — |
+| 8 | `CE-473` | the enum-pin rule: `global::` spelling required and every enum assumed 4 bytes — a byte enum stored in a block would mis-lay out. Fix the size rule or refuse non-`int` enums in blocks | 📋 OPEN — measured §6.3, not yet decided | — |
+| 9 | `CE-474` | `GetComponent` emits the read before the `Found` check — measure whether it throws on a missing/dead entity | 📋 OPEN — measure only | — |
+| 10 | `CE-466` | the C# hill attack tests ECS existence where it means `Health > 0` | 📋 OPEN — ⛔ awaiting a ruling (user: keep the old behaviour) | — |
+| 11 | `CE-464` | **the rebuild itself** — the hill-attack commander as ONE blueprint behaviour (Q77), broken into blueprint functions where suitable, "alive" = `Health.Current > 0`, roster via the generated collection, area query via the generic helpers (until the EQS unification), orders via the typed intent node | 📋 OPEN — after 2–7 | 2, 3, 4, 5, 6, 7 |
+| 12 | — | the 15 `HillAssault2_*` twins — retire once the rebuild's proofs cover their node types (`R-137`) | 📋 OPEN — last | 11 |
+
+**Decided (do not re-open):** single blueprint behaviour (§3 A) · the blueprint way first, C# helpers last resort
+(`R-156`) · §6 leans · `Entity Exists` naming · no `Get Lifecycle State` now · alive = health > 0 · roster lean
+(§6.5 ②) · the behaviours lane does the roster; the backend lane does EQS in parallel.
+
+**Still open for the user:** the order of 3–7 (proposed as listed) · the built-in library's home (§6.1 lean) ·
+`CE-473`'s fix · `CE-466`.
