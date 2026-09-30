@@ -221,6 +221,8 @@ public sealed class NewAssetLauncherTests
 
         Assert.Equal("New Behavior", picker.CapturedRequest!.Title);
         Assert.Equal("assets.new.behavior", picker.CapturedRequest.ContextKey);
+        // ⭐ D2 — BTree's blank template is the pre-selected default.
+        Assert.Equal("BTree:Empty", picker.CapturedRequest.InitialSelectionId);
         var entries = picker.CapturedRequest.ItemsProvider().ToList();
 
         Assert.Equal(2, entries.Count(e => e.Category == "BTree"));
@@ -252,8 +254,12 @@ public sealed class NewAssetLauncherTests
 
         launcher.Open(AuthoringProduct.Condition);
 
+        // ⭐ D2 — Blueprint's Condition template is the pre-selected default.
+        Assert.Equal("Blueprint:Condition", picker.CapturedRequest!.InitialSelectionId);
+
         var cs = Assert.Single(picker.CapturedRequest!.ItemsProvider(), e => e.Tag is NotCreatableChoice);
-        picker.InvokeHandler(ConfirmResult(cs));
+        Assert.False(cs.IsEnabled);   // the generic picker never confirms it…
+        picker.InvokeHandler(ConfirmResult(cs));   // …and if a host forced it through, nothing is created
 
         Assert.False(dialogCalled);
     }

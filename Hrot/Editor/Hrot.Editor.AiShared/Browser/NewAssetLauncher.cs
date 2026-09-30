@@ -93,6 +93,8 @@ public sealed class NewAssetLauncher
         {
             ContextKey = product is { } p ? $"assets.new.{p.ToString().ToLowerInvariant()}" : "assets.new",
             Title = source.Title,
+            // ⭐ CE-460 (D2) — the product's default technology is pre-selected: Enter takes it.
+            InitialSelectionId = source.DefaultEntryId(),
             Layout = PickerLayout.Tree,
             SelectionMode = PickerSelectionMode.Single,
             ItemsProvider = () => source.BuildEntries("", null),

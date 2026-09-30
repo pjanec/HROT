@@ -222,7 +222,7 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
         //   honest answer to "is there another way to make one of these?", whatever was typed.
         entries.Add(new PickerEntry(
             Id:            $"notcreatable:{CSharpTechnology}:{product}",
-            Name:          $"{CSharpTechnology} (hand-written, not created here)",
+            Name:          $"{CSharpTechnology} (hand-written)",
             Description:   $"A hand-written C# {product.ToString().ToLowerInvariant()} is authored in VS Code with the AI "
                            + "behaviour folder open. Creating one from the editor is a separate slice (CE-459).",
             Category:      null,
@@ -230,9 +230,32 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
             IconTextureId: null,
             Tag:           new NotCreatableChoice(CSharpTechnology,
                                "Hand-written C# is authored in VS Code; editor creation is CE-459."),
-            IconKey:       null));
+            IconKey:       null,
+            // ⭐ Shown, never choosable: the generic picker dims it, explains on hover, never confirms it.
+            IsEnabled:     false));
 
         return entries.AsReadOnly();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4, handoff D2) — the technology an author gets by pressing Enter: BTree for a
+    /// behaviour, Blueprint for an action or condition. ⛔ Not a filter — every technology stays listed.
+    /// </summary>
+    public static AssetKind DefaultTechnology(AuthoringProduct product)
+        => product == AuthoringProduct.Behavior ? AssetKind.BTree : AssetKind.Blueprint;
+
+    /// <summary>
+    /// The <see cref="PickerEntry.Id"/> to pre-select (<c>PickerRequest.InitialSelectionId</c>): the default
+    /// technology's first BLANK template. <see langword="null"/> without a product root, or when that
+    /// technology offers none — the picker then opens with nothing pre-selected.
+    /// </summary>
+    public string? DefaultEntryId()
+    {
+        if (_product is not { } product) return null;
+        var kind = DefaultTechnology(product);
+        if (!_services.TryGetValue(kind, out var svc)) return null;
+        var recipe = svc.AvailableRecipes().FirstOrDefault(r => svc.ProductOf(r) == product && svc.IsBlankTemplate(r));
+        return recipe is null ? null : GetItemKey(new RecipeChoice(kind, recipe));
     }
 
     // ── Identity / search helpers ──────────────────────────────────────

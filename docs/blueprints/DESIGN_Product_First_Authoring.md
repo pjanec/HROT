@@ -103,6 +103,16 @@ classDiagram
     RecipePickerSource ..> AuthoringProduct : optional root
     RecipePickerSource ..> NotCreatableChoice : C# row
     NewAssetLauncher --> RecipePickerSource : builds per open
+    class PickerRequest {
+        <<ExtDeps generic>>
+        +InitialSelectionId NEW
+    }
+    class PickerEntry {
+        <<ExtDeps generic>>
+        +IsEnabled NEW
+    }
+    NewAssetLauncher --> PickerRequest : InitialSelectionId = DefaultEntryId
+    RecipePickerSource --> PickerEntry : C# row IsEnabled false
     CgfEditorShellToolbar ..> NewAssetLauncher : host supplies Open(product)
 ```
 
@@ -185,7 +195,7 @@ validator read ONE intent → hosting rule, so what the editor mints and what th
 | | decision | rejected |
 |---|---|---|
 | D1 | one tree picker; product-rooted path `Technology[/Sub]`; a technology folder holding ONE recipe collapses to a leaf named by the technology | a new picker — duplicates `NewAssetLauncher` · product as a third path level under New Asset — New Asset is unchanged by ruling |
-| D2 | the technology is the picker's first level. ⚠ **As built, there is no pre-selected default**: the tree widget (`PickerTreeBuilder`, ExtDeps) sorts folders by name and has no initial-selection input, so a "default technology" would need a vendored-widget change for one highlighted row. The collapse rule already makes a one-recipe technology a single click | a separate second dialog — one more click for no information · an ExtDeps change for a highlight |
+| D2 | the technology is the picker's first level, and the product's DEFAULT is pre-selected so Enter takes it: Behavior → BTree's blank template, Action/Condition → the Blueprint template (`RecipePickerSource.DefaultEntryId` → `PickerRequest.InitialSelectionId`). ⭐ Built on a new GENERIC picker feature — `InitialSelectionId` opens the default's folders, focuses its row and selects it (ExtDeps `NodeEditor.UI`; 🔒 user: *"we can change the picker widgets in extdeps, we own all the code, just it should stay generic"*). ⛔ SUPERSEDED: an earlier as-built line said no default was possible without an ExtDeps change | a separate second dialog — one more click for no information |
 | D4 | `GetAvailableBehaviorChoices` beside `GetAvailableBehaviors`, **default interface member** returning unlabelled names; `ScenarioMissionService` derives names FROM choices. ⚠ The label is the **runtime** technology (`BrainTier`): a curated C# behaviour that runs as a BTree reads "BTree". ⚠ ExCon's own `MissionEditorService` is not overridden, so the ExCon host shows names unlabelled — its list comes over its own contract | changing the return type — 3 production impls + ~8 test doubles + Moq setups for a label |
-| D5 | the C# row is shown, not creatable; its description points at CE-459 | hiding it — the menu would lie about what exists |
+| D5 | the C# row is shown DISABLED — a new generic `PickerEntry.IsEnabled`: dimmed, its description as the hover tooltip, never returned by a confirm; it points at CE-459 | hiding it — the menu would lie about what exists · a pickable row that silently does nothing |
 | D7 | ✅ the recipe READS the compiler's table, now public as `AiPrimitiveHostingRules` (`IsCompatible` / `AllValidFor`), which BP1022/BP1023 also read. 🔒 User: *"No need to handoff that little class, you can do it."* ⛔ SUPERSEDED: this row said CE-461 stops here because the table was private and fenced to the behaviours lane | copying the two arrays into the editor — two implementations of one rule (ruling 9) |
