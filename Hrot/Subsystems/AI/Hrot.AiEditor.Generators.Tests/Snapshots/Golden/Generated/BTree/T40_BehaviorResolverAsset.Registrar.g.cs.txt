@@ -55,14 +55,27 @@ public static class T40_BehaviorResolverAssetRegistrar
                 }
             }
             __bakeDefaults = __BakeDefaults;
-            // Step 3 — CE-428: resolve, via resolver asset 'T40Resolver'.
-            static void __ResolveStage(byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            // CE-443: the resolver asset 'T40Resolver', handed the SOURCE (R-155).
+            static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)
             {
                 if (capacity < sizeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block))
                     throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than T40_BehaviorResolverAsset's block — a stale layout.");
-                ref var __blk = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory);
-                var __authored = __blk.In;   // the authored DTO IS block.In once supplied (Q76 §12.9c)
-                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref __blk, world, self, host);
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ParseAuthored(json, out var __authored);
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self, host);
+            }
+            static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            {
+                if (capacity < sizeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block))
+                    throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than T40_BehaviorResolverAsset's block — a stale layout.");
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params __authored;
+                if (source == null) global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ParseAuthored(null, out __authored);
+                else
+                {
+                    if (sourceBytes != sizeof(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params))
+                        throw new global::System.InvalidOperationException($"CE-443: the host variable bound to 'T40_BehaviorResolverAsset' is {sourceBytes} bytes but its resolver's authored Params is {sizeof(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params)}. The bound variable must be that type.");
+                    __authored = *(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params*)source;
+                }
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self, host);
             }
             __resolveStage = __ResolveStage;
             __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
@@ -70,34 +83,8 @@ public static class T40_BehaviorResolverAssetRegistrar
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
-                // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
-                // variable's deserializer (DEBT-AIB-021 names this shape).
-                // ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and
-                //    commits only on success, so a throw leaves the entity on its old behaviour.
-                if (!string.IsNullOrWhiteSpace(json))
-                {
-                    using var __doc = global::System.Text.Json.JsonDocument.Parse(json);
-                    if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)
-                    {
-                        foreach (var __prop in __doc.RootElement.EnumerateObject())
-                        {
-                            switch (__prop.Name)
-                            {
-                                case "Speed":
-                                {
-                                    var __o = global::System.Text.Json.JsonSerializer.Deserialize<float>(__prop.Value.GetRawText(), __paramJsonOpts);
-                                    global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __o);
-                                    break;
-                                }
-                                // ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.
-                                default: break;
-                            }
-                        }
-                    }
-                }
-
-                // Step 3 — CE-428: the bound resolver refines the block (inside the ingress shadow).
-                __ResolveStage(memory, capacity, world, self, host);
+                // Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).
+                __ResolveRoot(json, memory, capacity, world, self, host);
             };
         }
 
@@ -111,7 +98,7 @@ public static class T40_BehaviorResolverAssetRegistrar
             {
                 new("Speed", typeof(float), 0),
             },
-            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Blackboard),
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params),
             BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block),
             ParseParams  = __parseParams,
             BakeDefaults = __bakeDefaults,

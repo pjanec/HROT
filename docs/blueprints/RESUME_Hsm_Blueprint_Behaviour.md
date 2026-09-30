@@ -14,8 +14,8 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
 current-answer: ⭐⭐⭐ **NEXT (2026-09-30): the design-ready parameter switch** — DESIGN_Parameter_Model.md §P
   (R-155: behaviours take inputs once, actions read the host live, only behaviours have a resolver).
-  Items CE-443, CE-444, CE-445, then CE-446 (= O9). NOT STARTED — the user ruled design-only on
-  2026-09-30; §P.6 (IHostVariableAccess, lean retire) awaits the user. ⭐ History of what led here:
+  CE-443 BUILT 2026-09-30 (§P.8). NEXT: CE-444, CE-445 (+ retire IHostVariableAccess, user-approved §P.6),
+  then CE-446 (= O9). CE-447 (duplicate authored DTOs) filed. ⭐ History of what led here:
   **START AT §13, then §13.4a–§13.4k** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430, CE-440, CE-441 built — decision C closed by the user after slice 1, Q76 §12.25e; the Q76-B plan is complete) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of

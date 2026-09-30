@@ -145,7 +145,8 @@ internal sealed class EmissionContext
     /// </para>
     /// </summary>
     public string ParamsVar =>
-        Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
+        Asset.ResolverSubject is not null ? "authored"          // ⭐ CE-443: a resolver's Parameters are its authored source
+        : Asset.Dispatch == AssetDispatch.AiPrimitive ? "p" : $"{StateVar}.Params";
 
 
     /// <summary>

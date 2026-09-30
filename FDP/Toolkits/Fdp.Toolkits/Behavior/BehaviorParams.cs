@@ -156,5 +156,38 @@ namespace Fdp.Toolkit.Behavior
                 resolve(in authored, ref Unsafe.AsRef<TBlock>(memory), world, self, host);
             };
         }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-443</c> (absorbs <c>CE-438</c>) — the FROM-BYTES arm of a typed block resolver: what a HOSTED
+        /// child runs, its source being the bound host variable (<c>DESIGN_Parameter_Model.md</c> §P.2). Returns
+        /// <c>null</c> when <typeparamref name="TAuthored"/> is not unmanaged — a class-typed authored contract is
+        /// a JSON shape and cannot come from host bytes.
+        /// <para>⛔ A source whose width is not <c>sizeof(TAuthored)</c> THROWS — it can only be a wrong binding.
+        /// A <c>null</c> source (an unbound child) hands the resolver <c>default(TAuthored)</c>.</para>
+        /// </summary>
+        public static unsafe ResolveStageDelegate? FromBlockResolverSource<TAuthored, TBlock>(ResolveBlock<TAuthored, TBlock> resolve)
+            where TBlock : unmanaged
+        {
+            if (resolve is null) throw new ArgumentNullException(nameof(resolve));
+            if (RuntimeHelpers.IsReferenceOrContainsReferences<TAuthored>()) return null;
+            int authoredBytes = Unsafe.SizeOf<TAuthored>();
+            return (byte* source, int sourceBytes, byte* block, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            {
+                if (capacity < sizeof(TBlock))
+                    throw new InvalidOperationException(
+                        $"CE-443: the child block is {capacity} bytes but the resolver's block " +
+                        $"'{typeof(TBlock).Name}' needs {sizeof(TBlock)} — a stale layout; refusing to overrun it.");
+                TAuthored authored = default!;
+                if (source != null)
+                {
+                    if (sourceBytes != authoredBytes)
+                        throw new InvalidOperationException(
+                            $"CE-443: the host variable is {sourceBytes} bytes but the resolver's authored type " +
+                            $"'{typeof(TAuthored).Name}' is {authoredBytes}. The bound variable must be that type.");
+                    authored = Unsafe.ReadUnaligned<TAuthored>(source);
+                }
+                resolve(in authored, ref Unsafe.AsRef<TBlock>(block), world, self, host);
+            };
+        }
     }
 }

@@ -2654,4 +2654,4 @@ its diagrams and the as-built-vs-target table. This section records only what it
 ⭐ **Unchanged:** one block per running behaviour (`R-151`), one resolver per behaviour named by the behaviour
 (`R-152`, `R-154`), no carry-over on re-assign (`R-153`), `Node` scope for an action's private working memory
 (§12.25e). ⭐ A blueprint implementing a behaviour is `CE-446` = `O9` / `Q33` and inherits §P.2.
-⚠ **Not implemented** — the user ruled design-only on `2026-09-30`.
+⚠ **`CE-443` is BUILT (`2026-09-30`)** — the three `CE-443` rows above are as-built now (`DESIGN_Parameter_Model` §P.8); `CE-444`/`CE-445`/`CE-446` are not started.

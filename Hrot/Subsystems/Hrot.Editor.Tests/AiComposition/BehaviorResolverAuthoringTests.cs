@@ -57,13 +57,13 @@ public sealed class BehaviorResolverAuthoringTests
             "Hrot", "Subsystems", "Hrot.AI.Behaviors", "Assets", "Blueprints", "T40Resolver.bp.json")))!.ResolverSubject!;
 
         Assert.Equal(shipped.BehaviorName,   derived.BehaviorName);
-        Assert.Equal(shipped.AuthoredTypeId, derived.AuthoredTypeId);
         Assert.Equal(shipped.BlockTypeId,    derived.BlockTypeId);
         Assert.Equal(shipped.StateVariables, derived.StateVariables);
     }
 
     /// <summary>⭐ Create mirrors the BLOCK: In vars + Behavior-scoped State vars, CLR type ids; a Node-scoped
-    /// State var (a node-bound side slot, not the block) is excluded. One empty Construction graph.</summary>
+    /// State var (a node-bound side slot, not the block) is excluded. ⭐ CE-443: it seeds one Parameter per Input
+    /// variable (the authored input's identity shape). One empty Construction graph.</summary>
     [Fact]
     public void Create_MirrorsTheBlock_AndSeedsOneConstructionGraph()
     {
@@ -72,13 +72,15 @@ public sealed class BehaviorResolverAuthoringTests
 
         Assert.Equal(BlueprintDispatchKind.Library, bp.Dispatch);
         Assert.Equal("BehResolver", bp.Name);
-        Assert.Equal("Demo.Ns.Beh_Blackboard", bp.ResolverSubject!.AuthoredTypeId);
-        Assert.Equal("Demo.Ns.Beh_Block",      bp.ResolverSubject.BlockTypeId);
+        Assert.Equal("Demo.Ns.Beh_Block",      bp.ResolverSubject!.BlockTypeId);
         Assert.Equal(new[] { "Doubled" }, bp.ResolverSubject.StateVariables);
         var vars = bp.Declarations.Of(DeclarationKind.Variable).ToList();
         Assert.Equal(new[] { "Speed", "Doubled" }, vars.Select(v => v.Name));
         Assert.All(vars, v => Assert.Equal("System.Single", v.Type.TypeId));
-        Assert.Empty(bp.Declarations.Of(DeclarationKind.Parameter));
+        // ⭐ CE-443: the authored input starts as the identity shape — one Parameter per Input variable.
+        var ps = bp.Declarations.Of(DeclarationKind.Parameter).ToList();
+        Assert.Equal(new[] { "Speed" }, ps.Select(p => p.Name));
+        Assert.Equal("System.Single", ps[0].Type.TypeId);
         Assert.Single(bp.Graphs, g => g.Kind == GraphKind.Construction && g.Inputs.Count == 0 && g.Outputs.Count == 0);
     }
 

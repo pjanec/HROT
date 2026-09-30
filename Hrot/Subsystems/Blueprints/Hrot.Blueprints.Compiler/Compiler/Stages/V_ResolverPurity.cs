@@ -165,7 +165,8 @@ internal sealed class V_ResolverPurity : IValidator
                 //   other dispatch keeps the original parameters-only rule.
                 // ⭐⭐ CE-428 — ③: its Variables ARE the behaviour's block (the injected `ref TBlock`), and the
                 //   root resolve runs inside the ingress shadow — so a write to ANY of them is the resolver's
-                //   result, never an escape. (It declares no Parameters: the authored DTO is `in`.)
+                //   result, never an escape. ⭐ CE-443: its Parameters are the `in` authored DTO — READ-ONLY, so a write
+                //   to one is not exempted and is refused like any other denied write.
                 if (isSubject && node is SetVariableNode subjectWrite
                     && TargetsDeclaration(asset.Declarations.Of(DeclarationKind.Variable), subjectWrite))
                     continue;

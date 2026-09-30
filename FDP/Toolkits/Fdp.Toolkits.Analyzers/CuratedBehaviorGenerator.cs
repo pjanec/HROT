@@ -288,6 +288,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ",");
                         sb.AppendLine("                global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolver<" + r.AuthoredType + ", " + r.BlockType + ">(");
                         sb.AppendLine("                    global::" + r.MethodRef + ")" + tail + ");");
+                        // CE-443/CE-438: and its FROM-BYTES arm, so a HOSTED child can run it with its host
+                        // variable as the source. null (class-typed TAuthored) registers nothing.
+                        sb.AppendLine("            {");
+                        sb.AppendLine("                var __src = global::Fdp.Toolkit.Behavior.BehaviorParams.FromBlockResolverSource<" + r.AuthoredType + ", " + r.BlockType + ">(");
+                        sb.AppendLine("                    global::" + r.MethodRef + ");");
+                        sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src);");
+                        sb.AppendLine("            }");
                     }
                     else if (r.ParamCount == 6)
                     {

@@ -792,10 +792,10 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         Assert.Equal(new long[] { ChildDefault }, _seen);
     }
 
-    /// <summary>⛔ A hosted child with a CURATED resolver fails LOUDLY at start (§11.7c) — its JSON parse
-    /// would silently ignore the host's bytes. The byte-supplied arm is <c>CE-438</c>.</summary>
+    /// <summary>⛔ <c>CE-443</c> — a hosted child with a JSON-shaped CURATED resolver fails LOUDLY at start: its source
+    /// is the host variable's BYTES, which a JSON parse cannot consume (<c>DESIGN_Parameter_Model.md</c> §P.2).</summary>
     [Fact]
-    public void CE431_R4_AHostedChildWithACuratedResolver_ThrowsAtStart()
+    public void CE443_AHostedChildWithAJsonShapedCuratedResolver_ThrowsAtStart()
     {
         ResetCe431();
         using var world = TestWorldFactory.Create();
@@ -805,13 +805,39 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
             new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
             curatedChild: true);
 
-        var brain = new BrainTickSystem(beh);
         var ctx = new BTreeContext { Self = e, World = world };
         var ex = Assert.Throws<NotSupportedException>(() =>
             HostedSubtree.TickHosted(ref RootParamsAccess.RootRef(world, e), ref ctx,
                 BTreeHostedSites.PlanFor(BuildCe431Blob(), HostName).Entries[0].TreeStateSlotKey,
                 new HostedSubtree.SiteBinding(8, 8)));
-        Assert.Contains("CE-438", ex.Message);
+        Assert.Contains("CE-443", ex.Message);
+        Assert.Contains("JSON-shaped", ex.Message);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-443</c> (absorbs <c>CE-438</c>) — a CURATED TYPED resolver (unmanaged authored type) runs for a
+    /// hosted child with the host variable as its SOURCE, and nothing is copied onto the child's Input half.
+    /// <para>⚠ Inverse-edit red-proof: make <c>StartChild</c> ignore <c>TryGetSourceResolver</c> and it throws.</para>
+    /// </summary>
+    [Fact]
+    public void CE443_AHostedChildWithATypedCuratedResolver_RunsItOnTheHostBytes()
+    {
+        ResetCe431();
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+        var e = AssignCe431Host(world, beh, hostHasBlock: true,
+            new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
+            curatedChild: true);
+        beh.RegisterSourceResolver(ChildName, BehaviorParams.FromBlockResolverSource<long, Ce431ChildBlock>(
+            (in long authored, ref Ce431ChildBlock block, EntityRepository w, Entity s, IHostVariableAccess? h)
+                => block.St = authored * 3)!);
+
+        HostBlock(world, e).B = 7;
+        new BrainTickSystem(beh).Execute(world, 0.016f);
+
+        Assert.Equal(new long[] { ChildDefault }, _seen);   // In: baked, NOT copied
+        Assert.Equal(new long[] { 21 }, _seenSt);           // St: the resolver's, from the host's 7
     }
 
     private static BehaviorTreeBlob BuildCe431Blob()
@@ -822,12 +848,14 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-428</c> — a hosted child's bound RESOLVE stage runs at its start, AFTER the supply: the child's
-    /// state half is computed from the value its host supplied. 📄 <c>Q76</c> §12.3 (stage 3, both callers).
-    /// <para>⚠ Inverse-edit red-proof: drop the <c>ResolveStage</c> call in <c>HostedSubtree.StartChild</c> and St reads 0.</para>
+    /// ⭐⭐ <c>CE-443</c> — a hosted child's bound resolver REPLACES the default copy: it is handed the host variable
+    /// as its SOURCE, and the child's Input half is NOT copied — a resolver that does not write it leaves the baked
+    /// default. 📄 <c>DESIGN_Parameter_Model.md</c> §P.2 (<c>R-155</c>: "if it does not copy anything … nothing is copied").
+    /// <para>⚠ Inverse-edit red-proof: call <c>Supply</c> before the resolver in <c>HostedSubtree.StartChild</c> and
+    /// In reads 21, not the default.</para>
     /// </summary>
     [Fact]
-    public void CE428_AHostedChildsResolveStage_RunsAfterTheSupply()
+    public void CE443_AHostedChildsResolver_GetsTheHostVariable_AndNothingIsCopied()
     {
         ResetCe431();
         using var world = TestWorldFactory.Create();
@@ -835,13 +863,13 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         var beh = new BehaviorRegistry();
         var e = AssignCe431Host(world, beh, hostHasBlock: true,
             new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
-            childResolve: (byte* blk, int cap, EntityRepository w, Entity s, IHostVariableAccess? h)
-                => ((Ce431ChildBlock*)blk)->St = ((Ce431ChildBlock*)blk)->In * 2);
+            childResolve: (byte* src, int srcBytes, byte* blk, int cap, EntityRepository w, Entity s, IHostVariableAccess? h)
+                => ((Ce431ChildBlock*)blk)->St = *(long*)src * 2);
 
         HostBlock(world, e).B = 21;
         new BrainTickSystem(beh).Execute(world, 0.016f);
 
-        Assert.Equal(new long[] { 21 }, _seen);
+        Assert.Equal(new long[] { ChildDefault }, _seen);   // the resolver wrote no In ⇒ the baked default stands
         Assert.Equal(new long[] { 42 }, _seenSt);
     }
 

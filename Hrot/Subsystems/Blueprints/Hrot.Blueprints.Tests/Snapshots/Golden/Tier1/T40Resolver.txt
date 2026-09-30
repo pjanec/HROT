@@ -1,11 +1,11 @@
-StructureHash: 0xC3E80DFEAA427202
+StructureHash: 0xD811E4234F354AB0
 Parameters:
-  (empty)
+  HalfSpeed : System.Single @16 size=4
 WorkingState:
   (empty)
 Variables:
-  Speed : System.Single @16 size=4
-  Doubled : System.Single @20 size=4
+  Speed : System.Single @20 size=4
+  Doubled : System.Single @24 size=4
 GraphLocalSlots:
   (empty)
 Diagnostics:

@@ -284,6 +284,21 @@ internal static class InstanceEmitter
         e.WriteLine("ref var p = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Params>(memory);");
         e.WriteLine("p = default;");
 
+        EmitParamsDefaultsAndOverlay(e, asset);
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+        EmitParamJsonOptions(e);
+    }
+
+    /// <summary>
+    /// ⭐ The one "declared Parameter defaults, then the JSON wrapper object by name" body, over a local
+    /// <c>ref Params p</c> — shared by an Instance's <c>ParseParams</c> and a behaviour resolver asset's
+    /// <c>ParseAuthored</c> (<c>CE-443</c>). An absent key keeps its default; an unknown key is ignored;
+    /// malformed JSON throws. ⚠ Needs <c>__ParamJsonOptions</c> in scope (<see cref="EmitParamJsonOptions"/>).
+    /// </summary>
+    internal static void EmitParamsDefaultsAndOverlay(CSharpEmitter e, IrAsset asset)
+    {
         // Step 1 — the declared defaults.
         foreach (var f in asset.Parameters.Where(f =>
             !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
@@ -320,9 +335,11 @@ internal static class InstanceEmitter
         e.WriteLine("}");
         e.Outdent();
         e.WriteLine("}");
-        e.Outdent();
-        e.WriteLine("}");
-        e.WriteLine();
+    }
+
+    /// <summary>The platform-canonical JSON options field the overlay body reads.</summary>
+    internal static void EmitParamJsonOptions(CSharpEmitter e)
+    {
         e.WriteLine("// ⭐ The platform-canonical options, so params share ONE wire format with");
         e.WriteLine("// scenario save/load and with the BTree bridge's own ParseParams.");
         e.WriteLine("private static readonly global::System.Text.Json.JsonSerializerOptions __ParamJsonOptions =");

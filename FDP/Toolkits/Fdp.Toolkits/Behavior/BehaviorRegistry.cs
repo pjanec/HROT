@@ -49,11 +49,16 @@ namespace Fdp.Toolkit.Behavior
     public unsafe delegate void BakeDefaultsDelegate(byte* memory, int capacity);
 
     /// <summary>
-    /// ⭐⭐ <c>CE-428</c> — STAGE 3 alone: refine the whole block in place, after bake and supply.
-    /// 📄 <c>Q76</c> §12.20. ⚠ Takes no JSON — it is not a supply path (<c>ParameterSupplyRailsTests</c>).
+    /// ⭐⭐ <c>CE-443</c> — a behaviour's RESOLVER, handed the SOURCE: it REPLACES the default copy of
+    /// stage 2 (<c>DESIGN_Parameter_Model.md</c> §P.2, <c>R-155</c>). <paramref name="source"/> is the
+    /// authored DTO's bytes — a hosted child's bound host variable — or <c>null</c> when there is none,
+    /// in which case the resolver starts from its authored defaults. <paramref name="block"/> arrives
+    /// cleared and baked. ⚠ Takes no JSON: the root path parses its JSON into the authored DTO before
+    /// calling the resolver, inside the generated <c>ParseParams</c>.
     /// </summary>
     public unsafe delegate void ResolveStageDelegate(
-        byte* block, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host);
+        byte* source, int sourceBytes, byte* block, int capacity,
+        EntityRepository world, Entity self, IHostVariableAccess? host);
 
     /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
@@ -204,9 +209,10 @@ namespace Fdp.Toolkit.Behavior
         public BakeDefaultsDelegate? BakeDefaults { get; init; }
 
         /// <summary>
-        /// ⭐⭐⭐ <c>CE-428</c> — the behaviour's bound RESOLVE stage (a blueprint resolver asset, shape ③):
-        /// run by its own generated <see cref="ParseParams"/> after the overlay, and by
-        /// <c>HostedSubtree.StartChild</c> after the supply — one stage, both callers (<c>Q76</c> §12.3).
+        /// ⭐⭐⭐ <c>CE-428</c>/<c>CE-443</c> — the behaviour's bound resolver (a blueprint resolver asset, shape ③),
+        /// handed the SOURCE: the root's generated <see cref="ParseParams"/> calls its own copy with the
+        /// parsed authored DTO; <c>HostedSubtree.StartChild</c> calls this with the bound host variable
+        /// INSTEAD of the default copy (<c>DESIGN_Parameter_Model.md</c> §P.2).
         /// <para>⛔ A behaviour that carries one may NOT also get a curated <c>[BehaviorResolver]</c>: two
         /// explicit bindings for one region THROW (<c>R-149</c>). <see cref="ResolverName"/> names it for the message.</para>
         /// </summary>
@@ -320,6 +326,10 @@ namespace Fdp.Toolkit.Behavior
         // reconciles against the first.
         private readonly Dictionary<string, (ParseParamsDelegate Resolver, Type? BlackboardLayoutType)> _resolversByName
             = new(StringComparer.Ordinal);
+
+        // ⭐ CE-443/CE-438: the FROM-BYTES arm of a curated TYPED resolver (unmanaged TAuthored), keyed by
+        //   behaviour name — what a HOSTED child runs, its source being the host variable's bytes.
+        private readonly Dictionary<string, ResolveStageDelegate> _sourceResolversByName = new(StringComparer.Ordinal);
 
         // CE-235: authored JSON contracts keyed by behavior name, supplied by BehaviorSchemaDiscovery
         // from [BehaviorContract]. Same order-independent reconciliation as _resolversByName, and for
@@ -707,6 +717,27 @@ namespace Fdp.Toolkit.Behavior
         /// </summary>
         public bool HasCuratedResolver(string name) => name != null && _resolversByName.ContainsKey(name);
 
+        /// <summary>
+        /// ⭐ <c>CE-443</c>/<c>CE-438</c> — registers the FROM-BYTES arm of a curated typed resolver, so a HOSTED
+        /// child can run it with its host variable as the source (<c>DESIGN_Parameter_Model.md</c> §P.2). Built by
+        /// <see cref="BehaviorParams.FromBlockResolverSource{TAuthored, TBlock}"/>; emitted by the curated
+        /// generator beside <see cref="RegisterResolver"/>.
+        /// </summary>
+        public void RegisterSourceResolver(string name, ResolveStageDelegate resolve)
+        {
+            if (name    == null) throw new ArgumentNullException(nameof(name));
+            if (resolve == null) throw new ArgumentNullException(nameof(resolve));
+            _sourceResolversByName[name] = resolve;
+        }
+
+        /// <summary>⭐ <c>CE-443</c> — the curated from-bytes resolver for <paramref name="name"/>, if one is registered.</summary>
+        public bool TryGetSourceResolver(string name, out ResolveStageDelegate resolve)
+        {
+            if (name != null && _sourceResolversByName.TryGetValue(name, out var r)) { resolve = r; return true; }
+            resolve = null!;
+            return false;
+        }
+
         public bool TryGetId(string name, out int id)
             => _nameToId.TryGetValue(name, out id);
 
@@ -737,6 +768,7 @@ namespace Fdp.Toolkit.Behavior
             _definitions.Clear();
             _nameToId.Clear();
             _resolversByName.Clear();
+            _sourceResolversByName.Clear();
             _jsonParamsDtoByName.Clear();
             // O7b-3: a stale demand outliving its behaviour would size the NEXT one's tier.
             _hostedDemandByName.Clear();
@@ -754,6 +786,8 @@ namespace Fdp.Toolkit.Behavior
             // copied below that still lacks a resolver/DTO gets it bound during the copy.
             foreach (var (name, overlay) in source._resolversByName)
                 _resolversByName[name] = overlay;
+            foreach (var (name, resolve) in source._sourceResolversByName)
+                _sourceResolversByName[name] = resolve;
 
             // CE-235: same for authored JSON contracts — carried first so the copy below can bind them.
             foreach (var (name, jsonDto) in source._jsonParamsDtoByName)

@@ -190,7 +190,6 @@ public sealed class V_ResolverPurityTests
         asset.ResolverSubject = new ResolverSubjectDecl
         {
             BehaviorName   = "SomeBehaviour",
-            AuthoredTypeId = "Demo.SomeBehaviour_In",
             BlockTypeId    = "Demo.SomeBehaviour_Block",
             StateVariables = { "Doubled" },
         };
@@ -215,12 +214,20 @@ public sealed class V_ResolverPurityTests
         Assert.Contains(diags, d => d.Code == "BP1677");
     }
 
-    /// <summary>⛔ <c>CE-428</c> — the authored DTO is injected `in`; a declared Parameter is refused (BP1011).</summary>
+    /// <summary>⭐ <c>CE-443</c> — a resolver's Parameters declare its AUTHORED input (§P.7): allowed, no BP1011.</summary>
     [Fact]
-    public void CE428_ABehaviourResolver_DeclaringAParameter_EmitsBP1011()
+    public void CE443_ABehaviourResolver_DeclaringAParameter_IsAllowed()
     {
         var diags = Validate(SubjectAsset(g => g.Entry().Return(), withParameter: true));
-        Assert.Contains(diags, d => d.Code == "BP1011");
+        Assert.DoesNotContain(diags, d => d.Code == "BP1011");
+    }
+
+    /// <summary>⛔ <c>CE-443</c> — the authored input is `in`: writing a Parameter is refused (BP1675).</summary>
+    [Fact]
+    public void CE443_ABehaviourResolver_WritingAParameter_EmitsBP1675()
+    {
+        var diags = Validate(SubjectAsset(g => g.Entry().SetVariable("Nope", "1").Return(), withParameter: true));
+        Assert.Contains(diags, d => d.Code == "BP1675");
     }
 
     /// <summary>⛔ <c>CE-428</c> — a write OUTSIDE the block (to a name that is no declared variable) stays refused.</summary>

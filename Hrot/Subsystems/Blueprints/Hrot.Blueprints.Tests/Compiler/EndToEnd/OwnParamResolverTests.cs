@@ -256,8 +256,11 @@ public sealed class OwnParamResolverTests
         Assert.Equal(new[] { "Doubled" }, asset.ResolverSubject!.StateVariables);
 
         var src = Emit(asset);
-        Assert.Contains("public static void ResolveBehavior(in global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Blackboard authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block,", src);
-        Assert.Contains("block.In.Speed", src);          // a Variable NOT in StateVariables ⇒ the In half
+        // ⭐ CE-443: the authored type is the asset's OWN Params (its Parameters), parsed by ParseAuthored.
+        Assert.Contains("public static void ResolveBehavior(in Params authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block,", src);
+        Assert.Contains("public static void ParseAuthored(string json, out Params authored)", src);
+        Assert.Contains("authored.HalfSpeed", src);      // a Parameter ⇒ read from the authored source
+        Assert.Contains("block.In.Speed = ", src);       // a Variable NOT in StateVariables ⇒ the In half
         Assert.Contains("block.St.Doubled = ", src);     // a Variable in StateVariables ⇒ the St half
     }
 
@@ -276,9 +279,9 @@ public sealed class OwnParamResolverTests
 
         Assert.DoesNotContain(Validate(asset), d => d.Code == DiagnosticCodes.BP1675);
         var src = Emit(asset);
-        Assert.Contains("block.In.Speed", src);
         Assert.Contains("block.St.Doubled = ", src);
-        Assert.DoesNotContain("block.In.Speed = ", src);   // unwired ⇒ untouched
+        // unwired Speed pin on Set Variables ⇒ untouched: the Set Variable node stays Speed's ONLY writer
+        Assert.Single(System.Text.RegularExpressions.Regex.Matches(src, @"block\.In\.Speed = "));
     }
 
     /// <summary>
@@ -327,20 +330,18 @@ public sealed class OwnParamResolverTests
     /// </summary>
     private static BlueprintAsset WithWholeBlackboardPair(BlueprintAsset asset)
     {
+        // ⭐ CE-443: T40Resolver reads its AUTHORED input with Get All Parameters (no Get Variable left) and writes
+        //   the block with two Set Variable nodes. Swap the one writing Doubled for Set Variables; its Speed pin
+        //   stays UNWIRED, so it must write nothing (the other Set Variable is Speed's only writer).
         var graph = asset.Graphs.Single();
-        var get = graph.Nodes.OfType<GetVariableNode>().Single();
-        var set = graph.Nodes.OfType<SetVariableNode>().Single();
-        var gav = new GetAllVariablesNode { Id = get.Id, EditorMetadata = get.EditorMetadata };
-        var svs = new SetVariablesNode    { Id = set.Id, EditorMetadata = set.EditorMetadata };
-        graph.Nodes[graph.Nodes.IndexOf(get)] = gav;
+        var doubledId = asset.Declarations.Of(DeclarationKind.Variable).Single(d => d.Name == "Doubled").Id.ToString();
+        var set = graph.Nodes.OfType<SetVariableNode>().Single(n => n.VariableId == doubledId);
+        var svs = new SetVariablesNode { Id = set.Id, EditorMetadata = set.EditorMetadata };
         graph.Nodes[graph.Nodes.IndexOf(set)] = svs;
 
         foreach (var l in graph.Links)
-        {
-            if (l.FromNodeId == get.Id) l.FromPinId = DeterministicIds.PinId(get.Id, "Speed", "Out");
             if (l.ToNodeId == set.Id && l.ToPinId == DeterministicIds.PinId(set.Id, "Value", "In"))
                 l.ToPinId = DeterministicIds.PinId(set.Id, "Doubled", "In");
-        }
         return asset;
     }
 

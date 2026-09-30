@@ -24,8 +24,6 @@ public sealed class BehaviorResolverShape
         { Name = name; ClrTypeId = clrTypeId; IsState = isState; }
     }
 
-    /// <summary>FQN (no <c>global::</c>) of the authored DTO — the block's <c>In</c> struct.</summary>
-    public string AuthoredTypeId { get; }
     /// <summary>FQN (no <c>global::</c>) of the behaviour's block.</summary>
     public string BlockTypeId { get; }
     /// <summary>The block's fields, in declaration order.</summary>
@@ -36,8 +34,9 @@ public sealed class BehaviorResolverShape
     /// </summary>
     public uint ShapeHash { get; }
 
-    private BehaviorResolverShape(string authored, string block, IReadOnlyList<BlockVariable> vars, uint hash)
-    { AuthoredTypeId = authored; BlockTypeId = block; Variables = vars; ShapeHash = hash; }
+    // ⭐ CE-443: no AuthoredTypeId — the authored shape is the resolver asset's own Parameters (§P.7), not derived.
+    private BehaviorResolverShape(string block, IReadOnlyList<BlockVariable> vars, uint hash)
+    { BlockTypeId = block; Variables = vars; ShapeHash = hash; }
 
     /// <summary>The shape of <paramref name="dto"/>'s block.</summary>
     public static BehaviorResolverShape Of(BehaviorTreeAssetDto dto)
@@ -60,7 +59,6 @@ public sealed class BehaviorResolverShape
         foreach (var v in vars) { Mix(v.Name); Mix(v.ClrTypeId); Mix(v.IsState ? "St" : "In"); }
 
         return new BehaviorResolverShape(
-            ns + "." + BTreeEmitCore.BlackboardStructName(dto),
             ns + "." + BTreeEmitCore.BlockStructName(dto),
             vars, h);
     }

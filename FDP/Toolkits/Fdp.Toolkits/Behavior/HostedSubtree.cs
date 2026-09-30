@@ -202,29 +202,35 @@ public static unsafe class HostedSubtree
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <c>CE-431</c> — <b>the child's supply pipeline, run at every START</b>: clear → bake → supply →
-    /// resolve. 📄 <c>Q76</c> §12.3; the same ORDER <c>DESIGN_Parameter_Model.md</c> §3.2 rules for the
-    /// root, and the same "every start from empty" <c>R-153</c> rules for a re-assign.
+    /// ⭐⭐⭐ <c>CE-431</c>/<c>CE-443</c> — <b>the child's start pipeline, run at every START</b>: clear → bake →
+    /// EITHER the default copy OR the child's resolver, which is handed the SOURCE.
+    /// 📄 <c>DESIGN_Parameter_Model.md</c> §P.2 (<c>R-155</c>); "every start from empty" is <c>R-153</c>.
     ///
-    /// <para>⭐ Stage 2 copies the BOUND host variable's bytes into the child's Input region — the
-    /// default resolver of §12.3, one <c>memcpy</c>. ⛔ A width mismatch THROWS: it can only mean the
-    /// host's variable is not the child's Input struct.</para>
+    /// <para>⭐ No resolver: stage 2 copies the BOUND host variable's bytes into the child's Input region, one
+    /// <c>memcpy</c>. ⛔ A width mismatch THROWS: it can only mean the host's variable is not the child's
+    /// Input struct.</para>
     ///
-    /// <para>⛔ <b>A CURATED resolver throws here</b> (§11.7c): a curated resolver is a JSON parse and a
-    /// hosted child is supplied BYTES; running the parse would silently ignore them. The byte-supplied
-    /// arm is a follow-up, not a guess.</para>
+    /// <para>⭐ A resolver (a bound resolver asset, or a curated TYPED resolver — <c>CE-438</c>): the host
+    /// variable's bytes are its source and nothing is copied for it. ⛔ A curated JSON-shaped resolver
+    /// THROWS: a JSON parse cannot consume host bytes.</para>
     /// </summary>
     private static void StartChild(
         int treeStateSlotKey, BehaviorDefinition? childDef, byte* block, int blockBytes,
         ref byte hostBlock, SiteBinding binding, EntityRepository ctxWorld, Entity ctxSelf)
     {
+        ResolveStageDelegate? resolve = childDef?.ResolveStage;
         if (childDef is not null
             && HostedChildren.TryGetRegistry(treeStateSlotKey, out var registry, out var childName)
             && registry.HasCuratedResolver(childName))
-            throw new NotSupportedException(
-                $"CE-431: hosted child '{childName}' has a curated [BehaviorResolver]. A curated resolver " +
-                "parses JSON and a hosted child is supplied host BYTES — the byte-supplied resolver arm is " +
-                "not built yet (tracked as CE-438). Host it through a generated behaviour, or root-assign it.");
+        {
+            if (!registry.TryGetSourceResolver(childName, out var curated))
+                throw new NotSupportedException(
+                    $"CE-443: hosted child '{childName}' has a JSON-shaped [BehaviorResolver]. A hosted child's " +
+                    "source is its host variable's BYTES, which a JSON parse cannot consume. Give the resolver " +
+                    "the typed shape (in TAuthored authored, ref TBlock block, …) with an unmanaged TAuthored, " +
+                    "or root-assign the behaviour.");
+            resolve = curated;
+        }
 
         if (blockBytes > 0)
         {
@@ -232,13 +238,26 @@ public static unsafe class HostedSubtree
             childDef!.BakeDefaults?.Invoke(block, blockBytes);  // stage 1 — the child's authored defaults
         }
 
-        if (binding.IsBound) Supply(childDef!, block, blockBytes, ref hostBlock, binding);
+        if (resolve is null)
+        {
+            if (binding.IsBound) Supply(childDef!, block, blockBytes, ref hostBlock, binding);   // stage 2 — copy
+            return;
+        }
 
-        // ⭐ CE-428 — stage 3: the child's bound resolver asset refines its own block, exactly as its root
-        //   ParseParams does after the overlay. ⚠ No shadow here: a throw leaves the start word 0, so the
-        //   child never ticks on a half-resolved block and the next tick re-runs the pipeline from empty.
-        if (blockBytes > 0 && childDef!.ResolveStage is { } resolve)
-            resolve(block, blockBytes, ctxWorld, ctxSelf, null);
+        // ⭐⭐ CE-443 — stage 2 IS the resolver, handed the source. ⚠ No shadow here: a throw leaves the start
+        //   word 0, so the child never ticks on a half-resolved block and the next tick re-runs from empty.
+        byte* source = null;
+        int sourceBytes = 0;
+        if (binding.IsBound)
+        {
+            if (!BehaviorBlock.Has(ref hostBlock))
+                throw new InvalidOperationException(
+                    $"CE-443: child '{childDef!.Name}' is bound to a host variable, but its host has no blackboard block.");
+            source = (byte*)Unsafe.AsPointer(ref Unsafe.AddByteOffset(ref hostBlock, (nint)binding.HostOffset));
+            sourceBytes = binding.Length;
+        }
+        if (blockBytes > 0)
+            resolve(source, sourceBytes, block, blockBytes, ctxWorld, ctxSelf, null);
     }
 
     private static void Supply(BehaviorDefinition childDef, byte* block, int blockBytes,

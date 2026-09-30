@@ -40,14 +40,38 @@ public static class BehaviorResolverAuthoring
             Dispatch = BlueprintDispatchKind.Library,
             EditorMetadata = new AssetMetadata
             {
-                Description = $"Resolver for behaviour '{behaviour.Name}' (CE-434, derived). Runs after its bake and "
-                            + "JSON overlay; read and write the block with Get/Set Variable.",
+                Description = $"Resolver for behaviour '{behaviour.Name}' (CE-434/CE-443). Runs once at start INSTEAD of the "
+                            + "default copy: read the authored input with Get All Parameters, write the block with Set Variable.",
                 Category = "Resolver",
             },
         };
         Rederive(asset, behaviour);
+        asset.Declarations.ReplaceAll(DeclarationKind.Parameter, SeedParameters(asset.AssetId, behaviour));
         asset.Graphs.Add(EmptyConstructionGraph(assetId));
         return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-443</c> — the authored input a NEW resolver starts from: one Parameter per Input variable of the
+    /// behaviour, with that variable's editor default — the identity shape the default copy uses. ⭐ The author
+    /// then changes it (e.g. lat/lon in, metres out); <see cref="Rederive"/> never touches Parameters, because the
+    /// authored shape is the resolver's own (<c>DESIGN_Parameter_Model.md</c> §P.7).
+    /// </summary>
+    private static List<BlueprintDeclaration> SeedParameters(Guid assetId, BehaviorTreeAssetDto behaviour)
+    {
+        var inputs = new Dictionary<string, BlackboardVariableDto>(StringComparer.Ordinal);
+        foreach (var v in behaviour.Blackboard?.Variables ?? new List<BlackboardVariableDto>())
+            if (!string.IsNullOrEmpty(v.Name)) inputs[v.Name] = v;
+        var list = new List<BlueprintDeclaration>();
+        foreach (var v in BehaviorResolverShape.Of(behaviour).Variables.Where(v => !v.IsState))
+        {
+            var d = BlueprintDeclaration.Create(DeclarationKind.Parameter,
+                DeterministicIds.FromString($"resolver-param:{assetId:N}:{v.Name}"), v.Name,
+                new BlueprintTypeRef { TypeId = v.ClrTypeId });
+            d.AsParameterDecl!.DefaultValueJson = inputs.TryGetValue(v.Name, out var src) ? src.DefaultValueJson : null;
+            list.Add(d);
+        }
+        return list;
     }
 
     /// <summary>
@@ -62,7 +86,6 @@ public static class BehaviorResolverAuthoring
         resolver.ResolverSubject = new ResolverSubjectDecl
         {
             BehaviorName   = behaviour.Name,
-            AuthoredTypeId = shape.AuthoredTypeId,
             BlockTypeId    = shape.BlockTypeId,
             StateVariables = shape.Variables.Where(v => v.IsState).Select(v => v.Name).ToList(),
         };

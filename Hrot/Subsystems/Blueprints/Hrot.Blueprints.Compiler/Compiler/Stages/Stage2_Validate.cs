@@ -122,14 +122,11 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 // widening refuses nothing that ships.
                 // ⭐ CE-428: a BEHAVIOUR RESOLVER asset (ResolverSubject set) declares the behaviour block's
                 //   fields as its Variables — that is its subject, not asset-scope state (Q76 §12.20).
-                //   ⛔ Parameters stay refused: the authored DTO is injected, never declared.
+                //   ⭐ CE-443: and its Parameters declare the AUTHORED shape it converts from (§P.7) — both
+                //   allowed; nothing else is asset-scope on a resolver.
                 if (asset.ResolverSubject is not null)
                 {
-                    if (asset.Declarations.Of(DeclarationKind.Parameter).Any())
-                        ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,
-                            "A behaviour resolver asset declares the behaviour block's fields as Variables; "
-                            + "it must not declare Parameters (the authored DTO is injected as 'authored').",
-                            asset.AssetId));
+                    // allowed: Parameters (authored input) + Variables (the behaviour's block)
                 }
                 else if (asset.Declarations.Count > 0)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1011,

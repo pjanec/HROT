@@ -458,7 +458,7 @@ public static class BTreeBridgeEmitCore
             EmitBakeDefaultsFunction(sb, dto, packedFields,
                 System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
             sb.AppendLine(HasResolver(dto)
-                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ __BakeDefaults(memory, capacity); __ResolveStage(memory, capacity, world, self, host); }};"
+                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self, host); }};"
                 : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => __BakeDefaults(memory, capacity);");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
@@ -496,7 +496,9 @@ public static class BTreeBridgeEmitCore
             //   JsonParamsDtoType stays the Inputs struct (the PUBLIC authored contract);
             //   BlackboardLayoutType becomes {Asset}_Block — Inputs at offset 0 plus the State half —
             //   and RootParamsAccess.RootParamsBytes sizes the root slot from it. 📄 Q76 §12.2b.
-            string bbStructFqn = BTreeEmitCore.BlackboardStructFqn(dto);
+            // ⭐⭐ CE-443 — with a bound resolver asset the AUTHORED contract is the resolver's own Params
+            //   (its declared Parameters, DESIGN_Parameter_Model §P.7): the resolver owns the shape it converts from.
+            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto) : BTreeEmitCore.BlackboardStructFqn(dto);
             sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
         }
@@ -509,6 +511,8 @@ public static class BTreeBridgeEmitCore
             //   ⛔ No JsonParamsDtoType: there is no authored contract to publish.
             sb.AppendLine($"{pad2}{Indent}ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
             sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
+            if (HasResolver(dto))   // CE-443: the resolver's Parameters are the authored contract even with no Input half
+                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({ResolverParamsFqn(dto)}),");
         }
         if (hasParseParams)
         {
@@ -516,7 +520,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}BakeDefaults = __bakeDefaults,");   // CE-427: stage 1 on its own
             if (HasResolver(dto))
             {
-                sb.AppendLine($"{pad2}{Indent}ResolveStage = __resolveStage,");   // CE-428: stage 3 on its own
+                sb.AppendLine($"{pad2}{Indent}ResolveStage = __resolveStage,");   // CE-443: the resolver, handed a source (hosted)
                 sb.AppendLine($"{pad2}{Indent}ResolverName = \"{EscapeCSharpStringLiteral(dto.Resolver!.Name)}\",");
             }
         }
@@ -1489,6 +1493,16 @@ public static class BTreeBridgeEmitCore
 
         // ── step 2: overlay from the incoming json ───────────────────────────────
         sb.AppendLine();
+        if (HasResolver(dto))
+        {
+            // ⭐⭐ CE-443 (R-155, DESIGN_Parameter_Model §P.2) — stage 2 IS the resolver, handed the SOURCE:
+            //   the JSON parsed into the resolver's own authored Params (its Parameter defaults, then the
+            //   JSON by name). ⛔ No overlay onto In — the resolver writes whatever it chooses.
+            sb.AppendLine($"{pad4}// Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).");
+            sb.AppendLine($"{pad4}__ResolveRoot(json, memory, capacity, world, self, host);");
+        }
+        else
+        {
         sb.AppendLine($"{pad4}// Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each");
         sb.AppendLine($"{pad4}// variable's deserializer (DEBT-AIB-021 names this shape).");
         sb.AppendLine($"{pad4}// ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and");
@@ -1519,11 +1533,6 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad5}}}");
         sb.AppendLine($"{pad4}}}");
 
-        if (HasResolver(dto))
-        {
-            sb.AppendLine();
-            sb.AppendLine($"{pad4}// Step 3 — CE-428: the bound resolver refines the block (inside the ingress shadow).");
-            sb.AppendLine($"{pad4}__ResolveStage(memory, capacity, world, self, host);");
         }
 
         sb.AppendLine($"{pad3}}};");
@@ -1578,18 +1587,37 @@ public static class BTreeBridgeEmitCore
             //   bake + supply (Q76 §12.3 / §12.20). A static call — the C# compile checks TAuthored/TBlock.
             string blockFqn = BTreeEmitCore.BlockStructFqn(dto);
             string cls = BlueprintClassNaming.ClassFqn(dto.Resolver!.AssetId, dto.Resolver.Name);
-            sb.AppendLine($"{pad3}// Step 3 — CE-428: resolve, via resolver asset '{EscapeCSharpStringLiteral(dto.Resolver.Name)}'.");
-            sb.AppendLine($"{pad3}static void __ResolveStage(byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+            string authoredFqn = ResolverParamsFqn(dto);
+            string guard = $"{pad4}if (capacity < sizeof({blockFqn}))\n{pad4}{Indent}throw new global::System.InvalidOperationException(\"CE-428: the parse buffer is narrower than {EscapeCSharpStringLiteral(dto.Name)}'s block — a stale layout.\");";
+            sb.AppendLine($"{pad3}// CE-443: the resolver asset '{EscapeCSharpStringLiteral(dto.Resolver.Name)}', handed the SOURCE (R-155).");
+            // Root: the JSON → the resolver's authored Params (defaults, then JSON by name) → resolve.
+            sb.AppendLine($"{pad3}static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
             sb.AppendLine($"{pad3}{{");
-            sb.AppendLine($"{pad4}if (capacity < sizeof({blockFqn}))");
-            sb.AppendLine($"{pad4}{Indent}throw new global::System.InvalidOperationException(\"CE-428: the parse buffer is narrower than {EscapeCSharpStringLiteral(dto.Name)}'s block — a stale layout.\");");
-            sb.AppendLine($"{pad4}ref var __blk = ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory);");
-            sb.AppendLine($"{pad4}var __authored = __blk.In;   // the authored DTO IS block.In once supplied (Q76 §12.9c)");
-            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref __blk, world, self, host);");
+            sb.AppendLine(guard);
+            sb.AppendLine($"{pad4}{cls}.ParseAuthored(json, out var __authored);");
+            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self, host);");
+            sb.AppendLine($"{pad3}}}");
+            // Hosted: the bound host variable's bytes ARE the authored Params; none ⇒ its defaults.
+            sb.AppendLine($"{pad3}static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+            sb.AppendLine($"{pad3}{{");
+            sb.AppendLine(guard);
+            sb.AppendLine($"{pad4}{authoredFqn} __authored;");
+            sb.AppendLine($"{pad4}if (source == null) {cls}.ParseAuthored(null, out __authored);");
+            sb.AppendLine($"{pad4}else");
+            sb.AppendLine($"{pad4}{{");
+            sb.AppendLine($"{pad4}{Indent}if (sourceBytes != sizeof({authoredFqn}))");
+            sb.AppendLine($"{pad4}{Indent}{Indent}throw new global::System.InvalidOperationException($\"CE-443: the host variable bound to '{EscapeCSharpStringLiteral(dto.Name)}' is {{sourceBytes}} bytes but its resolver's authored Params is {{sizeof({authoredFqn})}}. The bound variable must be that type.\");");
+            sb.AppendLine($"{pad4}{Indent}__authored = *({authoredFqn}*)source;");
+            sb.AppendLine($"{pad4}}}");
+            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self, host);");
             sb.AppendLine($"{pad3}}}");
             sb.AppendLine($"{pad3}__resolveStage = __ResolveStage;");
         }
     }
+
+    /// <summary>⭐ <c>CE-443</c> — the resolver asset's authored <c>Params</c> struct (from its declared Parameters).</summary>
+    private static string ResolverParamsFqn(BehaviorTreeAssetDto dto)
+        => BlueprintClassNaming.ClassFqn(dto.Resolver!.AssetId, dto.Resolver.Name) + ".Params";
 
     /// <summary>⭐ <c>CE-428</c> — does this behaviour name a resolver asset?</summary>
     private static bool HasResolver(BehaviorTreeAssetDto dto)

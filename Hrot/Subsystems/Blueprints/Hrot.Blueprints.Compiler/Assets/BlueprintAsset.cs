@@ -157,14 +157,13 @@ public enum BlackboardTierHint { Auto, Force1024, Force4096, Force16384, Force25
 
 /// <summary>
 /// ⭐⭐ <c>CE-428</c> — what a behaviour resolver asset refines: the behaviour (by registry NAME, <c>R-154</c>)
-/// and the two generated types the injected subjects take. 📄 <c>Q76</c> §12.20.
+/// and the block type the injected <c>ref block</c> takes. 📄 <c>Q76</c> §12.20. ⭐ <c>CE-443</c>: the AUTHORED type is no
+/// longer named here — it is the asset's own <c>Params</c>, from its declared Parameters (<c>DESIGN_Parameter_Model</c> §P.7).
 /// </summary>
 public sealed class ResolverSubjectDecl
 {
     /// <summary>The behaviour this resolver serves — its registry name.</summary>
     public string BehaviorName { get; set; } = "";
-    /// <summary>FQN of the authored DTO (the behaviour's <c>JsonParamsDtoType</c> — its <c>In</c> struct).</summary>
-    public string AuthoredTypeId { get; set; } = "";
     /// <summary>FQN of the behaviour's block (<c>{Asset}_Block</c>).</summary>
     public string BlockTypeId { get; set; } = "";
     /// <summary>
