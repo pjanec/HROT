@@ -45,6 +45,8 @@ related-designs:
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — owns the BLOCK a behaviour's inputs land in
     (one block per running behaviour) and the build history of the start pipeline (§12). §P here owns the
     CONTRACT; Q76 §12.26 records the 2026-09-30 switch and its slices.
+  - Architect_Question_77_Blueprint_As_A_Behaviour.md — the BUILD design for blueprint-as-a-behaviour (CE-446): its
+    Parameters/resolver follow §P.2/§P.7 unchanged; its own Construction graph is its one resolver.
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns blueprint-as-a-behaviour (O9, the third BrainTier);
     it inherits §P.2 unchanged.
   - Behavior_Parameter_Resolver_Detailed_Design.md — the original resolver model; its pipeline ORDER is

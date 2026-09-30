@@ -116,6 +116,7 @@ reopens: Architect_Question_37_Unify_On_The_Allocator.md — PARKED by the user 
   ("keep this open and return to it a bit later"). THIS DOCUMENT IS THAT RETURN. Q37's
   measurements are banked and marked do-not-re-measure; they are cited here, not re-derived.
 related-designs:
+  - Architect_Question_77_Blueprint_As_A_Behaviour.md — the build design for O9 (CE-446); closes §12's gaps ②③④.
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): the parameter
     contract O9 (CE-446) inherits and that retires §28.7's hosted resolve.
   - Architect_Question_75_One_Params_Pipeline_And_One_Action_Binding.md — owns the UNIFICATION of the params pipeline (one
