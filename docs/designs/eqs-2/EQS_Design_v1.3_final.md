@@ -706,7 +706,27 @@ record: re-measure before you build on it.
 | **H8** | ⭐ **Top-K 16 vs AreaQuery's 64 costs the one consumer nothing:** a wave assigns at most one target per tank, and a roster holds 16 (`UnitRoster.Capacity`). ⚠ It is still a generic cap (§4.3 accepted 16 by design) | `UnitRoster.cs:32`; `HillAttackCommanderNodes.cs:374` |
 | **H9** | ⚠ **order is not parity.** AreaQuery returns grid order; EQS sorts by `Score` (0 for all without a scoring test). The doctrine picks targets by `index % count`, so *which* tank fires at *which* target can change. Parity is set-parity; the outcome rail is `hill-attack-close` | `EqsSolverSystem.cs:286`; `HillAttackCommanderNodes.cs:374` |
 | **H10** | ⚠ AreaQuery also filters **wrecks** (`Health.Current <= 0`) — the area template needs that filter too | `AreaQuerySolverSystem.cs:159-163` |
+| **H12** | 🔴 **the Brain never maps result entities back to local entities.** Egress turns each local entity into a network id; the Brain ingress hands `data.Results` straight to the bus, and `EqsResultUpdateSystem` Path A copies `EntityId` into the buffer as-is. ⇒ in the Muscle→Brain split the buffer holds **network ids**; on one node (Path B) it holds **packed local entities**. Same field, two meanings. §4.1 intends *"`NetworkId` — resolves to local entity on Brain"*; AreaQuery does it (`AreaQueryTranslators.cs:422-424`). ⚠ Never exercised: every distributed EQS rail uses positional results (`EntityId = 0`, `EqsDistributedTests.cs:48`, `EqsRoundTripTests.cs:82`) | `EqsResultEventEgressTranslator.cs` (local→net); `EqsResultIngressTranslator.cs` (no reverse); `EqsResultUpdateSystem.cs` Path A |
+| **H13** | ⚠ a target the Muscle cannot map to a network id is sent as `EntityId = 0`, which the Brain reads as a **positional** candidate. AreaQuery **skips** such targets (`AreaQueryTranslators.cs:308`) | `EqsResultEventEgressTranslator.cs` (`TryGetNetworkId` result ignored) |
+| **H14** | ⚠ context slots cross the wire as network ids and are resolved **once per config sample** (`EqsSensorConfigIngressTranslator` `ResolveSlot` → `Entity.Null` when not yet mapped). An area entity that reaches the Muscle after the sensor stays `Null` until the next epoch bump ⇒ an empty result that reads as *"area clear"*. The generator must tell *"no area"* from *"no targets"* | `EqsSensorConfigIngressTranslator.cs` `ResolveSlot` |
 | **H11** | ⚠ the invariant rail `HillAttackIntegrationTests` hand-wires `AreaQuerySolverSystem` into its tick loop, so it must be rewired and **cannot alone prove "unchanged"** — the live cluster run must | `HillAttackIntegrationTests.cs:185-229` |
+
+### 16.2a The node split — **same as AreaQuery, and it must stay that way** *(user, `2026-09-30`)*
+
+> 🔒 *"the area query is distributed, calculated on muscle node, evaluated on brain node; same split expected from
+> EQS 1.3"*
+
+| | AreaQuery | EQS 1.3 |
+|---|---|---|
+| Brain → Muscle | `AreaQueryRequestEvent` → `DdsAreaQueryRequest` (area as network id) | `EqsSensor` → `EqsSensorConfigTopic` (`TransientLocal`, context slots as network ids) |
+| computed on Muscle | `AreaQuerySolverSystem` in `CognitiveSpatialModule` | `EqsSolverSystem` in `EqsModule` — same `Perception` role (`SimHostNodeBootstrapper.cs:312-314`) |
+| Muscle → Brain | `DdsAreaQueryResponse` — targets as network ids, **mapped back** to local entities | `EqsResultTopic` — ⛔ **not mapped back** (H12) |
+| read on Brain | `AreaQueryBatchData` ring + `EqsTargetPool` | `EqsCognitiveBuffer` on the sensor entity |
+
+⇒ the split exists in both, over the same translator pack. ⭐ **The area generator runs on the Muscle** and needs the
+area entity (its `EditablePolyline` + `SimTransform`) and the targets' `EntityInfo` there — ✅ the same data
+AreaQuery's Muscle solver already reads, so no new replication. ⛔ **H12 must be fixed before any entity-shaped EQS
+result is used across nodes**, and the parity rail must run split, not only in one process.
 
 ### 16.3 AreaQuery's full footprint *(what retirement removes)*
 
