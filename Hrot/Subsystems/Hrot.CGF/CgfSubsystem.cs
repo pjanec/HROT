@@ -2272,6 +2272,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 BlueprintEditService = blueprintEditService,
                 BlueprintPalette     = blueprintPalette,
                 BlueprintPeerCatalog = blueprintPeerCatalog,
+                // ⭐ The canvas pills — built with the drawers in Initialize, same binder as the editor.
+                BlueprintNodeAuthoring = _blueprintNodeAuthoring,
                 BehaviorActions      = behaviorActions,
                 ChannelCommands      = bpChannelCatalog,
                 // 🔴🔴 CE-344 — CGF *DOES* HAVE A BLUEPRINT DEBUG SESSION, AND IT WAS NOT PASSED.

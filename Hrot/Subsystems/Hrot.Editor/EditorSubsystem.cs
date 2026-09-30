@@ -1827,14 +1827,15 @@ namespace Hrot.Editor
                     PredicateCompiler = bpPredicateCompiler,
                     PeerProvider      = blueprintPeerProvider,
                 });
-            var eqsTemplates = _blueprintNodeAuthoring.EqsTemplates;
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
             // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
             // later at doc-open, so the single build below suffices.
-            var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
-                eqsTemplates, peerNameResolver: _ => null);
-            var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
+            // ⭐ The canvas pills (When summary · EQS template · ReadEqsResult · cross-asset badge) are in
+            //    _blueprintNodeAuthoring.AttachmentProviders and reach the canvas through the shared
+            //    document binder below. 🔴 They WERE built here as locals nobody read, so no pill ever
+            //    rendered on either host. The When pulse renderer is built inside
+            //    BlueprintDocumentFactory itself. 📄 EQS design §17.8.
 
             // Store registries for later use by blueprint editor windows (opened on-demand).
             // The actual UI panels that consume these will be initialized in headless gate below.
@@ -4450,7 +4451,8 @@ namespace Hrot.Editor
                 documentManager: _aiDocumentManager!,
                 authoring:       _blueprintNodeAuthoring ?? new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring(
                                      new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
-                                     new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry()),
+                                     new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry(),
+                                     System.Array.Empty<Hrot.Blueprints.Editor.Visuals.IAttachmentProvider>()),
                 // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
                 //    ruling: "a production caller that HAS a dependency must PASS it" — this method
                 //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
@@ -4516,6 +4518,7 @@ namespace Hrot.Editor
                     BlueprintEditService = _blueprintEditService,
                     BlueprintPalette     = _blueprintPaletteEntries,
                     BlueprintPeerCatalog = blueprintPeerCatalog,
+                    BlueprintNodeAuthoring = _blueprintNodeAuthoring,
                     BehaviorActions      = _behaviorActionCatalog,
                     ChannelCommands      = Hrot.Blueprints.Core.Compiler.Catalogs
                                                .BuiltInChannelCommandCatalog.Instance,

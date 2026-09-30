@@ -27,6 +27,12 @@ public sealed class TheEqsBrainStartupIsSharedTests
         Assert.DoesNotContain("BlueprintEditorBootstrap.CreateNodeDrawerRegistry(", text);
         Assert.DoesNotContain("BlueprintDetailsContribution.InstallInto(", text);
         Assert.DoesNotContain("EqsTemplateRegistry.Discover(", text);
+
+        // ⭐ The canvas pills: built by the binder, handed to the shared document binder. 🔴 The editor
+        //   used to build them itself into a local nobody read, so no pill rendered on either host.
+        Assert.Contains("BlueprintNodeAuthoring = _blueprintNodeAuthoring", text);
+        Assert.DoesNotContain("BlueprintEditorBootstrap.CreateAttachmentProviders(", text);
+        Assert.DoesNotContain("BlueprintEditorBootstrap.CreateCanvasRenderers(", text);
     }
 
     [Theory]
@@ -45,9 +51,45 @@ public sealed class TheEqsBrainStartupIsSharedTests
     // ══ ② what the binder builds ══
 
     [Fact]
+    public void TheCrossAssetPill_ResolvesPeerNamesFromACachedScan_NotAScanPerFrame()
+    {
+        var peer = System.Guid.NewGuid();
+        var peers = new CountingPeers(new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerInfo(
+            peer, "SquadState", System.Array.Empty<string>()));
+        var now = new System.DateTime(2026, 9, 30, 12, 0, 0, System.DateTimeKind.Utc);
+        var cache = new AiBlueprintNodeAuthoringBinder.PeerNameCache(peers, () => now);
+
+        Assert.Equal("SquadState", cache.Resolve(peer));
+        for (int frame = 0; frame < 100; frame++) cache.Resolve(peer);
+        Assert.Equal(1, peers.Scans);                            // a hit never rescans
+
+        var created = System.Guid.NewGuid();                    // a peer the last scan did not see
+        Assert.Null(cache.Resolve(created));
+        Assert.Null(cache.Resolve(created));
+        Assert.Equal(1, peers.Scans);                            // a miss rescans at most once per interval
+
+        now += AiBlueprintNodeAuthoringBinder.PeerNameCache.RescanInterval;
+        cache.Resolve(created);
+        Assert.Equal(2, peers.Scans);
+    }
+
+    private sealed class CountingPeers(params Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerInfo[] peers)
+        : Hrot.Blueprints.Editor.NodeDrawers.IBlueprintPeerProvider
+    {
+        public int Scans { get; private set; }
+        public System.Collections.Generic.IReadOnlyList<Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerInfo> GetPeers()
+        {
+            Scans++;
+            return peers;
+        }
+    }
+
+    [Fact]
     public void TheSharedPickerListsEveryRuntimeTemplate()
     {
-        _ = typeof(Hrot.SimHost.Systems.EntitiesOfForceInArea); // make sure the declaring assembly is loaded
+        // Discovery scans LOADED assemblies. ⚠ `_ = typeof(X);` does NOT load one — the discard is dropped
+        // (measured: this rail was red with it). Touch the assembly for real.
+        Assert.Equal("Hrot.SimHost", typeof(Hrot.SimHost.Systems.EntitiesOfForceInArea).Assembly.GetName().Name);
 
         var picker = AiBlueprintNodeAuthoringBinder.CreateEqsTemplates();
 

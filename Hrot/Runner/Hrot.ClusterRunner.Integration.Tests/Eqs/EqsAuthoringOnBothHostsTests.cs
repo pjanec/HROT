@@ -24,7 +24,7 @@ public sealed class EqsAuthoringOnBothHostsTests
     [Fact(Timeout = 60_000)]
     public void BothHostsBuildTheSameBlueprintNodeAuthoring_WithTheAreaTemplate()
     {
-        _ = typeof(Hrot.SimHost.Systems.EntitiesOfForceInArea);
+        // ⭐ No pre-load here: the HOSTS must load the template's assembly themselves.
         var areaId = new System.Guid(Hrot.SimHost.Systems.EntitiesOfForceInArea.AssetId);
 
         var editor = new EditorSubsystem();
@@ -50,6 +50,19 @@ public sealed class EqsAuthoringOnBothHostsTests
             Assert.Equal(
                 onEditor!.EqsTemplates.EnumerateAll().Select(t => t.AssetId).OrderBy(g => g),
                 onCgf!.EqsTemplates.EnumerateAll().Select(t => t.AssetId).OrderBy(g => g));
+
+            // ⭐ The canvas pills — the same providers on both hosts, and the EQS pill names the area
+            //   template from the SAME list the picker offers. 📄 EQS design §17.8.
+            Assert.Equal(
+                onEditor.AttachmentProviders.Select(p => p.GetType()),
+                onCgf.AttachmentProviders.Select(p => p.GetType()));
+            foreach (var authoring in new[] { onEditor, onCgf })
+            {
+                var spawn = new SpawnEqsSensorNode { Id = System.Guid.NewGuid(), TemplateAssetId = areaId };
+                var eqsPill = authoring.AttachmentProviders.Single(p => p.Handles(spawn))
+                                       .CreateOrRefresh(spawn, existing: null);
+                Assert.Equal("EntitiesOfForceInArea", eqsPill?.Label);
+            }
         }
         finally
         {

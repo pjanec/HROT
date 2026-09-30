@@ -829,12 +829,18 @@ graph TD
     subgraph Shared["SHARED — §17.8"]
         SOLV_START["EqsSolverStartup.Register"]
         AUTH["AiBlueprintNodeAuthoringBinder"] --> PICK["drawers + EQS template picker + Details node view"]
+        AUTH --> PILLS["canvas pill providers"]
+        DVB["AiDocumentViewStateBinder"] -->|attachmentProviders| FAC["BlueprintDocumentFactory"]
+        FAC --> GM["BlueprintGraphModel.GetAttachmentsForNode"]
+        PILLS -.->|BlueprintNodeAuthoring| DVB
     end
     PS --> SOLV_START
     SC --> SOLV_START
     EQ --> SOLV_START
     Editor -->|CreateDrawers + InstallDetails| AUTH
     CGF -->|CreateDrawers + InstallDetails| AUTH
+    Editor -->|Bind| DVB
+    CGF -->|Bind| DVB
 ```
 
 *What the picture shows that prose hid:* before this change **no host** had a registry (so every sensor returned the
@@ -916,13 +922,23 @@ emit a default entity) · `EqsFlatTerrainGoldenTests.EntitiesOfForceInArea_FlatT
 | Brain DDS translators | CGF via the NED aux pack; the editor is always offline (`OfflineNetworkFactory`) and runs its own muscle, so it needs none | unchanged — a role fact, not a host fork |
 | 🔴 Blueprint node drawers + the `SpawnEqsSensor` **template picker** + the Details **node view** | editor only (picker filled inline by §17.4); **CGF had none** — a blueprint opened on CGF had no node Details, so no EQS template could be picked | ⭐ `Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder` — `CreateDrawers` (template discovery inside) + `InstallDetails` (active Blueprint PULLED from the document manager). **Both hosts call both.** The editor's inline code and its `_blueprintActiveAsset` copy are deleted |
 | solver startup (template registry + `EqsModule`) | three hand-written copies (SimHost, Stride, editor) | ⭐ `Hrot.SimHost.EqsSolverStartup.Register` — the capability classes stay per host (keys pinned by rails), each calls this |
+| 🔴 Blueprint **canvas pills** — the `SpawnEqsSensor` template badge, the `When` condition summary, the `ReadEqsResult` pill, the cross-asset `🔗` badge *(When design §9)* | the editor built the providers into a local nobody read; CGF built none; and `BlueprintGraphModel` never implemented `IGraphModel`'s attachment members ⇒ **no pill rendered on either host** | ⭐ `CreateDrawers` also builds the providers (same template list as the picker; peer names from a cached scan) → `AiDocumentHostServices.BlueprintNodeAuthoring` → the shared `AiDocumentViewStateBinder` → `BlueprintDocumentFactory` → `BlueprintGraphModel`. **Both hosts pass it.** Pills are **pulled** per node per frame (the Details picker mutates the node without a rebuild) and refreshed in place, so ids are stable |
 
 ⭐ Same pattern and home as `CE-340`/`CE-343`/`CE-347` (`DESIGN_Occurrence_Scoped_Storage.md` §32.18–32.21): a gap on
-one host is closed by ONE shared binder, never by a copy. ⚠ Noted, not fixed: the editor also builds Blueprint canvas
-**attachment providers and renderers** that nothing consumes (`EditorSubsystem`, dead locals) — so the EQS template
-badge on a `SpawnEqsSensor` node renders on neither host.
+one host is closed by ONE shared binder, never by a copy.
+
+⭐ **Pills are derived, not authored.** `BlueprintCommandSink` accepts `RemoveAttachments`/`AddAttachment` as explicit
+no-ops: a Delete over a selection that includes a pill still deletes its nodes (a failing inner command would abort the
+batch), and the pill goes with its host node. ⚠ **Not fixed — the `When` firing pulse.** `WhenFiringPulseRenderer` is
+already built inside `BlueprintDocumentFactory` on both hosts (so the editor's `CreateCanvasRenderers()` local was a
+duplicate and is deleted), but **nothing calls its `OnNodeFired`** — When design §9.5 says the host feeds it from the
+debug session's node-executed callback. It draws nothing on either host until that feed exists.
 
 **Rails:** `TheEqsBrainStartupIsSharedTests` (`Hrot.Editor.Tests` — both hosts call the binder and no host builds the
 pieces itself; every solver host calls the shared startup; the picker lists every runtime template) ·
-`EqsAuthoringOnBothHostsTests` (ClusterRunner — the CONSTRUCTED editor and CGF both hold the `SpawnEqsSensor` drawer and
-the same template list).
+`EqsAuthoringOnBothHostsTests` (ClusterRunner — the CONSTRUCTED editor and CGF both hold the `SpawnEqsSensor` drawer, 
+the same template list, and the same pill providers naming the area template) · pills:
+`WhenNodeEditorWiringTests.CanvasPill*` (the model: template name, a picker edit without a rebuild, When stacking, pills
+leave with their node) · `BlueprintDocumentFactoryTests` (the factory hands them to the model) ·
+`AiDocumentViewStateBinderTests.ABlueprintCanvas_ShowsThePillsOfTheHostsNodeAuthoring` (a real opened canvas through the
+shared binder) · `TheEqsBrainStartupIsSharedTests` (both hosts pass the authoring; peer names are a cached scan).

@@ -1,7 +1,12 @@
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor;
+using Hrot.Blueprints.Editor.Host;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Visuals;
+using Hrot.Blueprints.Tests.Builders;
+using NodeEditor.Core.Interfaces;
+using NodeEditor.Primitives;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Fdp.Core;
 using Hrot.Editor.AiShared;  // WHEN-M11-T5: Use canonical ReactiveGuardVocabulary
@@ -13,9 +18,12 @@ namespace Hrot.Blueprints.Tests.Integration;
 /// Ensures DrawerRegistry, NodeKindRegistry, and visual providers are correctly
 /// populated at editor startup.
 ///
-/// NOTE: These tests verify the bootstrap infrastructure. The production caller
-/// requirement (EditorSubsystem.Initialize calling BlueprintEditorBootstrap)
-/// is satisfied by the code in Hrot.Editor/EditorSubsystem.cs lines 673-691.
+/// NOTE: These tests verify the bootstrap infrastructure. ⚠ The attachment providers were for a long
+/// time built by EditorSubsystem and never consumed; the production path is now
+/// AiBlueprintNodeAuthoringBinder.CreateDrawers → AiDocumentHostServices.BlueprintNodeAuthoring →
+/// AiDocumentViewStateBinder → BlueprintDocumentFactory → BlueprintGraphModel, on the editor and CGF
+/// alike (docs/designs/eqs-2/EQS_Design_v1.3_final.md §17.8). The CanvasPill rails below pin the
+/// model end; TheEqsBrainStartupIsSharedTests and EqsAuthoringOnBothHostsTests pin the hosts.
 /// </summary>
 public sealed class WhenNodeEditorWiringTests
 {
@@ -188,6 +196,114 @@ public sealed class WhenNodeEditorWiringTests
 #else
         Assert.Empty(renderers);
 #endif
+    }
+
+    // ── The pills REACH THE CANVAS (EQS design §17.8) ──────────────────────────
+    // 🔴 The rails above pinned only that the provider LIST exists. Nothing consumed it: the editor
+    //    built it into a local nobody read and BlueprintGraphModel never implemented the attachment
+    //    members, so no pill rendered on either host — and this suite stayed green.
+
+    private static (BlueprintAsset Asset, Graph Graph) OneGraph()
+    {
+        var asset = BlueprintAssetBuilder.Instance("Pills")
+            .WithGraph("Main", GraphKind.Event, _ => { })
+            .Build();
+        return (asset, asset.Graphs[0]);
+    }
+
+    private static EqsTemplateRegistry Templates(params (Guid Id, string Name)[] entries)
+    {
+        var templates = new EqsTemplateRegistry();
+        foreach (var (id, name) in entries)
+            templates.Register(new EqsTemplateEntry { AssetId = id, DisplayName = name });
+        return templates;
+    }
+
+    [Fact]
+    public void CanvasPill_SpawnEqsSensor_NamesTheTemplate_AndFollowsAPickerEditWithoutARebuild()
+    {
+        Guid area = Guid.NewGuid(), cover = Guid.NewGuid();
+        var (asset, graph) = OneGraph();
+        var spawn = new SpawnEqsSensorNode { Id = Guid.NewGuid(), TemplateAssetId = area };
+        graph.Nodes.Add(spawn);
+        var model = new BlueprintGraphModel(asset, graph, attachmentProviders:
+            BlueprintEditorBootstrap.CreateAttachmentProviders(
+                Templates((area, "EntitiesOfForceInArea"), (cover, "FindCover")), _ => null));
+
+        var pill = Assert.Single(model.GetAttachmentsForNode(new NodeId(spawn.Id)));
+        Assert.IsType<EqsTemplateAttachment>(pill);
+        Assert.Equal("EntitiesOfForceInArea", pill.Label);
+
+        // ⭐ What the Details picker does: mutate the node, no rebuild, no notification.
+        spawn.TemplateAssetId = cover;
+
+        var again = Assert.Single(model.GetAttachmentsForNode(new NodeId(spawn.Id)));
+        Assert.Equal("FindCover", again.Label);
+        Assert.Equal(pill.Id, again.Id);                       // refreshed in place — stable id
+        Assert.Same(again, model.FindAttachment(again.Id));
+    }
+
+    [Fact]
+    public void CanvasPills_WhenNodeOnAPeerVariable_StackSummaryThenCrossAssetBadge()
+    {
+        var peer = Guid.NewGuid();
+        var (asset, graph) = OneGraph();
+        var when = new WhenNode
+        {
+            Id = Guid.NewGuid(),
+            Mode = WhenMode.ValueChanged,
+            ValueChanged = new ValueChangedPayload
+            {
+                Source = ValueChangedSource.PeerBlueprintVariable,
+                PeerBlueprintAssetId = peer,
+            },
+        };
+        graph.Nodes.Add(when);
+        var model = new BlueprintGraphModel(asset, graph, attachmentProviders:
+            BlueprintEditorBootstrap.CreateAttachmentProviders(
+                new EqsTemplateRegistry(), id => id == peer ? "SquadState" : null));
+
+        var pills = model.GetAttachmentsForNode(new NodeId(when.Id));
+
+        Assert.Equal(2, pills.Count);
+        Assert.IsType<ConditionSummaryAttachment>(pills[0]);
+        Assert.IsType<CrossAssetDependencyAttachment>(pills[1]);
+        Assert.Equal("SquadState", pills[1].Label);
+    }
+
+    [Fact]
+    public void CanvasPills_LeaveWithTheirNode_AndANodeNoProviderHandlesHasNone()
+    {
+        var (asset, graph) = OneGraph();
+        var read  = new ReadEqsResultNode { Id = Guid.NewGuid() };
+        var plain = new BranchNode { Id = Guid.NewGuid() };
+        graph.Nodes.Add(read);
+        graph.Nodes.Add(plain);
+        var model = new BlueprintGraphModel(asset, graph, attachmentProviders:
+            BlueprintEditorBootstrap.CreateAttachmentProviders(new EqsTemplateRegistry(), _ => null));
+
+        Assert.Single(model.GetAttachmentsForNode(new NodeId(read.Id)));
+        Assert.Empty(model.GetAttachmentsForNode(new NodeId(plain.Id)));
+        Assert.Single(model.Attachments);
+
+        graph.Nodes.Remove(read);
+        model.Rebuild();
+
+        Assert.Empty(model.Attachments);
+        Assert.Empty(model.GetAttachmentsForNode(new NodeId(read.Id)));
+    }
+
+    [Fact]
+    public void CanvasPills_NoProviders_NoPills()
+    {
+        var (asset, graph) = OneGraph();
+        var spawn = new SpawnEqsSensorNode { Id = Guid.NewGuid() };
+        graph.Nodes.Add(spawn);
+
+        var model = new BlueprintGraphModel(asset, graph);
+
+        Assert.Empty(model.GetAttachmentsForNode(new NodeId(spawn.Id)));
+        Assert.Empty(model.Attachments);
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────────

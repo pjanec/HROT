@@ -120,6 +120,65 @@ public sealed class AiDocumentViewStateBinderTests
     [Fact]
     public void Bind_WithNullServices_Throws()
         => Assert.Throws<ArgumentNullException>(() => AiDocumentViewStateBinder.Bind(null!));
+
+    /// <summary>
+    /// ⭐⭐ <b>The host's Blueprint node authoring reaches the CANVAS</b> — the one Blueprint input the
+    /// binder forwards that has no other rail. 🔴 The pill providers used to be built by the editor into a
+    /// local nobody read, so no pill rendered on either host. 📄 EQS design §17.8.
+    /// ⚠ A real canvas, so a real (fake-handle) atlas — the <c>BlueprintDocumentFactoryTests</c> fixture.
+    /// </summary>
+    [Fact]
+    public void ABlueprintCanvas_ShowsThePillsOfTheHostsNodeAuthoring()
+    {
+        var spawnId  = Guid.NewGuid();
+        var template = Guid.NewGuid();
+        var asset = new Hrot.Blueprints.Core.Assets.BlueprintAsset
+        {
+            AssetId = Guid.NewGuid(),
+            Name    = "Pills",
+            Header  = new Hrot.Blueprints.Core.Assets.Header(),
+            Graphs  =
+            {
+                new Hrot.Blueprints.Core.Assets.Graph
+                {
+                    Id = Guid.NewGuid(), Name = "Main", Kind = Hrot.Blueprints.Core.Assets.GraphKind.Event,
+                    Nodes = { new Hrot.Blueprints.Core.Assets.SpawnEqsSensorNode { Id = spawnId, TemplateAssetId = template } },
+                },
+            },
+        };
+        var dir  = Directory.CreateTempSubdirectory("BinderPills_");
+        var path = Path.Combine(dir.FullName, "Pills.bp.json");
+        File.WriteAllText(path, Hrot.Blueprints.Core.BlueprintJsonServices.Serialize(asset));
+
+        var templates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
+        templates.Register(new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateEntry
+            { AssetId = template, DisplayName = "EntitiesOfForceInArea" });
+        var authoring = new AiBlueprintNodeAuthoring(
+            new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(), templates,
+            Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(templates, _ => null));
+
+        using var atlas = new Fdp.Presentation.Icons.IconAtlas(new IntPtr(1), 256f, 256f, 16f);
+        var manager = new AiDocumentManager(_ => { });
+        try
+        {
+            AiDocumentViewStateBinder.Bind(new AiDocumentHostServices
+            {
+                Adapters               = new Hrot.Editor.AiShared.Adapters.AiEditorAdapterBundle(atlas),
+                DocumentManager        = manager,
+                BlueprintNodeAuthoring = authoring,
+            });
+
+            var doc = manager.Open(new Hrot.Blueprints.Editor.Catalog.BlueprintFileAsset(asset.AssetId, asset.Name, path));
+
+            var canvas = Assert.IsType<Hrot.Editor.AiShared.Windows.AiCanvasContext>(doc.ViewState);
+            var pill = Assert.Single(canvas.View.Model.GetAttachmentsForNode(new NodeEditor.Primitives.NodeId(spawnId)));
+            Assert.Equal("EntitiesOfForceInArea", pill.Label);
+        }
+        finally
+        {
+            try { dir.Delete(recursive: true); } catch { }
+        }
+    }
 }
 
 /// <summary>

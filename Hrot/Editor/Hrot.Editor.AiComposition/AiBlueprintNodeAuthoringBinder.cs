@@ -1,9 +1,11 @@
 using System;
+using System.Collections.Generic;
 using Fdp.Toolkit.ReplayBrowser.Search;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Catalogs;
 using Hrot.Blueprints.Editor;
 using Hrot.Blueprints.Editor.NodeDrawers;
+using Hrot.Blueprints.Editor.Visuals;
 using Hrot.Blueprints.Editor.Windows;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Documents;
@@ -30,8 +32,14 @@ public sealed record AiBlueprintNodeAuthoringServices
     public IBlueprintPeerProvider? PeerProvider { get; init; }
 }
 
-/// <summary>The drawer registry plus the EQS template list it was built with.</summary>
-public sealed record AiBlueprintNodeAuthoring(BlueprintNodeDrawerRegistry Drawers, EqsTemplateRegistry EqsTemplates);
+/// <summary>
+/// The drawer registry, the EQS template list it was built with, and the canvas pill providers
+/// that read the same list (so the pill names exactly what the picker offered).
+/// </summary>
+public sealed record AiBlueprintNodeAuthoring(
+    BlueprintNodeDrawerRegistry Drawers,
+    EqsTemplateRegistry EqsTemplates,
+    IReadOnlyList<IAttachmentProvider> AttachmentProviders);
 
 /// <summary>
 /// ⭐⭐⭐ <b>The Brain-side EQS authoring startup — and the Blueprint node drawers it lives in — written
@@ -66,7 +74,16 @@ public static class AiBlueprintNodeAuthoringBinder
         return picker;
     }
 
-    /// <summary>Builds the Blueprint node drawers (including the EQS template picker).</summary>
+    /// <summary>
+    /// Builds the Blueprint node drawers (including the EQS template picker) and the canvas pill
+    /// providers (When summary · EQS template · ReadEqsResult · cross-asset badge).
+    /// </summary>
+    /// <remarks>
+    /// ⭐ The pills reach the canvas through <see cref="AiDocumentHostServices.BlueprintNodeAuthoring"/>
+    /// → <see cref="AiDocumentViewStateBinder"/> → <c>BlueprintDocumentFactory</c> →
+    /// <c>BlueprintGraphModel</c>. 📄 <c>When_Reactivity_Iteration_Design_v2_2.md</c> §9,
+    /// <c>docs/designs/eqs-2/EQS_Design_v1.3_final.md</c> §17.8.
+    /// </remarks>
     public static AiBlueprintNodeAuthoring CreateDrawers(AiBlueprintNodeAuthoringServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
@@ -77,7 +94,44 @@ public static class AiBlueprintNodeAuthoringBinder
         var drawers = BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
             BuiltInChannelCommandCatalog.Instance, BuiltInEngineEventCatalog.Instance, edit, predicate, eqsTemplates,
             peerProvider: services.PeerProvider);
-        return new AiBlueprintNodeAuthoring(drawers, eqsTemplates);
+        var attachments = BlueprintEditorBootstrap.CreateAttachmentProviders(
+            eqsTemplates, new PeerNameCache(services.PeerProvider).Resolve);
+        return new AiBlueprintNodeAuthoring(drawers, eqsTemplates, attachments);
+    }
+
+    /// <summary>
+    /// The cross-asset pill's peer-name lookup. ⚠ <see cref="IBlueprintPeerProvider.GetPeers"/> reads
+    /// and parses every <c>*.bp.json</c> under the root, and a pill refreshes every frame — so names
+    /// are cached, and a miss (a peer created after the last scan) rescans at most once per
+    /// <see cref="RescanInterval"/>.
+    /// </summary>
+    public sealed class PeerNameCache
+    {
+        public static readonly TimeSpan RescanInterval = TimeSpan.FromSeconds(5);
+
+        private readonly IBlueprintPeerProvider? _peers;
+        private readonly Func<DateTime> _now;
+        private Dictionary<Guid, string> _names = new();
+        private DateTime _lastScan = DateTime.MinValue;
+
+        public PeerNameCache(IBlueprintPeerProvider? peers, Func<DateTime>? now = null)
+        {
+            _peers = peers;
+            _now   = now ?? (() => DateTime.UtcNow);
+        }
+
+        public string? Resolve(Guid assetId)
+        {
+            if (_names.TryGetValue(assetId, out var name)) return name;
+            if (_peers is null || _now() - _lastScan < RescanInterval) return null;
+
+            _lastScan = _now();
+            var names = new Dictionary<Guid, string>();
+            foreach (var p in _peers.GetPeers())
+                if (!string.IsNullOrEmpty(p.Name)) names[p.AssetId] = p.Name;
+            _names = names;
+            return _names.TryGetValue(assetId, out name) ? name : null;
+        }
     }
 
     /// <summary>

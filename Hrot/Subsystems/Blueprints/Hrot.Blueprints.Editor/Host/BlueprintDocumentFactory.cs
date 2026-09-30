@@ -101,6 +101,10 @@ public static class BlueprintDocumentFactory
     ///   pausing pulse automatically. When null, all debug features are inactive with
     ///   zero per-frame cost.
     /// </param>
+    /// <param name="attachmentProviders">
+    ///   The canvas pill providers (<see cref="BlueprintEditorBootstrap.CreateAttachmentProviders"/>),
+    ///   handed to <see cref="BlueprintGraphModel"/>. When null, no pills render.
+    /// </param>
     /// <returns>
     ///   A populated <see cref="AiCanvasContext"/> whose <see cref="AiCanvasContext.View"/>
     ///   is ready to render on the Blueprint canvas.
@@ -117,7 +121,8 @@ public static class BlueprintDocumentFactory
         IChannelCommandCatalog? channelCommands = null,
         BlueprintPeerSource?    peerAssetCatalog = null,
         ActionCatalog.IBehaviorActionCatalog? behaviorActions = null,
-        IBlueprintDebugSession? debugSession    = null)
+        IBlueprintDebugSession? debugSession    = null,
+        IReadOnlyList<IAttachmentProvider>? attachmentProviders = null)
     {
         if (asset  is null) throw new ArgumentNullException(nameof(asset));
         if (bundle is null) throw new ArgumentNullException(nameof(bundle));
@@ -173,7 +178,7 @@ public static class BlueprintDocumentFactory
         IPinDefaultValueEditorRegistry editorRegistry =
             new EnumSentinelPinEditorRegistry(builtinRegistry, enumProvider);
         var graphModel = new BlueprintGraphModel(bpAsset, graph, kindRegistry, channelCommands, peerLookup,
-            editorRegistry, enumProvider, behaviorActions);
+            editorRegistry, enumProvider, behaviorActions, attachmentProviders);
         var nodeCatalog  = new BlueprintNodeCatalog(kindRegistry);
         var typeSystem   = new BlueprintTypeSystem(editorRegistry);
         var validator    = new BlueprintLinkValidator(graphModel, typeSystem);
