@@ -190,6 +190,18 @@ today. ⭐ **Lean: retire it** — a sub-behaviour's input is exactly its bound 
 of its host should get a bigger bound struct, not a side door. ⚠ **Not decided** — it reverses a user ruling, so it
 waits for the user; `CE-445` is written to stop before removing it.
 
+📐 **Measured `2026-09-30` — how it works today, and that it is never fed.** The one implementation,
+`HsmHostVariableAccess`, exists only for a blueprint activity/guard inside an HSM. It looks a name up in
+`HsmParamBindings._variables`, keyed by the host HSM's `StructureHash` (read from the running instance's
+`InstanceHeader.MachineId`), then by the variable name (ordinal, case-sensitive). That gives an
+(offset, size) inside the host's root params slot. A read fails closed on an unknown machine or name, a size
+different from `sizeof(T)`, or an out-of-bounds read. ⛔⛔ **The only writer of that map,
+`HsmParamBindings.RegisterVariables`, has no production caller** — three test calls (`HsmOccurrenceKeyTests`),
+and no emitter or registrar. Its doc comment says it is *"emitted from the same `packedFields`"*; that is
+false. ⇒ in production every read returns `false`. And no blueprint node or curated resolver reads through
+it: blueprint resolver graphs have no host-read node, and curated resolvers are root-only, so they get
+`null`. ⇒ retiring it removes plumbing that is neither fed nor read.
+
 ---
 
 ## 0. ⛔⛔ Do not re-derive these — **each was got WRONG at least once in this programme**
