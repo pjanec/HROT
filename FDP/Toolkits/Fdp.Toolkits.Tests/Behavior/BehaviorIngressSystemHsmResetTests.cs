@@ -433,8 +433,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier            = BehaviorConstants.BrainTierHsm,
                 HsmDefinition        = blob,
                 BlackboardLayoutType = typeof(Ce318Params),
-                ParseParams          = static (string _, byte* _, int _, EntityRepository _, Entity _,
-                                               IHostVariableAccess? _) => { },
+                ParseParams          = static (string _, byte* _, int _, EntityRepository _, Entity _) => { },
             });
 
             var e = world.CreateEntity();

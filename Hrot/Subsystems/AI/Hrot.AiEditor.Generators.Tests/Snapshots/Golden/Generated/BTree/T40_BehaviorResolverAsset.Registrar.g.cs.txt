@@ -56,14 +56,14 @@ public static class T40_BehaviorResolverAssetRegistrar
             }
             __bakeDefaults = __BakeDefaults;
             // CE-443: the resolver asset 'T40Resolver', handed the SOURCE (R-155).
-            static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
             {
                 if (capacity < sizeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block))
                     throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than T40_BehaviorResolverAsset's block — a stale layout.");
                 global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ParseAuthored(json, out var __authored);
-                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self, host);
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self);
             }
-            static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
             {
                 if (capacity < sizeof(global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block))
                     throw new global::System.InvalidOperationException("CE-428: the parse buffer is narrower than T40_BehaviorResolverAsset's block — a stale layout.");
@@ -75,16 +75,16 @@ public static class T40_BehaviorResolverAssetRegistrar
                         throw new global::System.InvalidOperationException($"CE-443: the host variable bound to 'T40_BehaviorResolverAsset' is {sourceBytes} bytes but its resolver's authored Params is {sizeof(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params)}. The bound variable must be that type.");
                     __authored = *(global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.Params*)source;
                 }
-                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self, host);
+                global::Hrot.AI.Behaviors.Generated.T40Resolver_3C40EC2E_Bp.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block>(memory), world, self);
             }
             __resolveStage = __ResolveStage;
-            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
             {
                 // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
                 __BakeDefaults(memory, capacity);
 
                 // Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).
-                __ResolveRoot(json, memory, capacity, world, self, host);
+                __ResolveRoot(json, memory, capacity, world, self);
             };
         }
 

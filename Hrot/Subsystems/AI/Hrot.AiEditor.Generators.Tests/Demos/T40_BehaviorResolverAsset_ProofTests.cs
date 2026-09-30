@@ -113,7 +113,7 @@ public sealed class T40_BehaviorResolverAsset_ProofTests : IDisposable
         def.ResolverName.Should().Be("T40Resolver");
 
         var act = () => _registry.RegisterResolver("T40_BehaviorResolverAsset",
-            (string j, byte* m, int c, EntityRepository w, Entity s, IHostVariableAccess? h) => { }, typeof(float));
+            (string j, byte* m, int c, EntityRepository w, Entity s) => { }, typeof(float));
         act.Should().Throw<InvalidOperationException>().WithMessage("*R-149*");
     }
 }

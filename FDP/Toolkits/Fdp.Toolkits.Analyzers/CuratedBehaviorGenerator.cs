@@ -40,7 +40,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor InvalidResolver = new DiagnosticDescriptor(
             id: "BEH001",
             title: "Invalid BehaviorResolver method",
-            messageFormat: "Method '{0}' annotated with [BehaviorResolver] must be static and take (string, byte*, int), the full 6-parameter ParseParamsDelegate shape, or the typed block shape (in TAuthored, ref TBlock, EntityRepository, Entity, IHostVariableAccess?)",
+            messageFormat: "Method '{0}' annotated with [BehaviorResolver] must be static and take (string, byte*, int), the full 5-parameter ParseParamsDelegate shape, or the typed block shape (in TAuthored, ref TBlock, EntityRepository, Entity)",
             category: "BehaviorSourceGen",
             defaultSeverity: DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
@@ -129,12 +129,13 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             // that wrapper out by hand, twice.
             int argc = symbol.Parameters.Length;
             // ⭐⭐ CE-427 — a THIRD shape: the typed block resolver
-            //   (in TAuthored authored, ref TBlock block, EntityRepository, Entity, IHostVariableAccess?).
+            //   (in TAuthored authored, ref TBlock block, EntityRepository, Entity).
             //   Recognised by the ref-kinds of its first two parameters, never by a name.
-            bool isBlock = argc == 5
+            // ⭐ CE-445: `IHostVariableAccess host` is retired, so the full delegate is 5 params and the typed one 4.
+            bool isBlock = argc == 4
                 && symbol.Parameters[0].RefKind == RefKind.In
                 && symbol.Parameters[1].RefKind == RefKind.Ref;
-            bool valid = symbol.IsStatic && (argc == 3 || argc == 6 || isBlock);
+            bool valid = symbol.IsStatic && (argc == 3 || argc == 5 || isBlock);
 
             return new CuratedResolver
             {
@@ -296,7 +297,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         sb.AppendLine("                if (__src != null) beh.RegisterSourceResolver(" + Q(r.Name) + ", __src);");
                         sb.AppendLine("            }");
                     }
-                    else if (r.ParamCount == 6)
+                    else if (r.ParamCount == 5)
                     {
                         sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ", global::" + r.MethodRef + tail + ");");
                     }
@@ -307,7 +308,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                         // NOTE the params type is RegisterResolver's THIRD ARGUMENT -- it must attach
                         // to the call, never to the wrapped invocation.
                         sb.AppendLine("            beh.RegisterResolver(" + Q(r.Name) + ",");
-                        sb.AppendLine("                (json, memory, capacity, world, self, host) =>");
+                        sb.AppendLine("                (json, memory, capacity, world, self) =>");
                         sb.AppendLine("                    global::" + r.MethodRef + "(json, memory, capacity)" + tail + ");");
                     }
                 }

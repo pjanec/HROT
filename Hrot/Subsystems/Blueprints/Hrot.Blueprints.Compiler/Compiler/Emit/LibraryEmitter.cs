@@ -57,7 +57,7 @@ internal static class LibraryEmitter
         {
             e.WriteLine("/// <summary>CE-428: the behaviour-resolver entry point — stage 3 of the supply pipeline.</summary>");
             e.WriteLine($"public static void ResolveBehavior({SubjectParams(subject)})");
-            e.WriteLine($"    => {only.Name}(in authored, ref block, world, self, host);");
+            e.WriteLine($"    => {only.Name}(in authored, ref block, world, self);");
             e.WriteLine();
         }
 
@@ -239,23 +239,6 @@ internal static class LibraryEmitter
         var parts = graph.Inputs.Select(f => $"{CSharpType(f.Type)} {f.Name}").ToList();
         parts.Add("global::Fdp.Core.EntityRepository world");
         parts.Add("global::Fdp.Core.Entity self");
-        // ⚠⚠ UNANNOTATED on purpose — `IHostVariableAccess`, not `IHostVariableAccess?`.
-        //
-        // 🔴 The blueprint compiler's generated files carry NO `#nullable enable`, and a Roslyn
-        //    generator's output is nullable-OBLIVIOUS regardless of the project's <Nullable>enable</>
-        //    (CS8669: "auto-generated code requires an explicit #nullable directive"). ⛔ Measured:
-        //    emitting the `?` fails the build of every asset that has a resolver.
-        //
-        // ⭐ Adding the pragma to the file header is the OTHER fix and was rejected: it moves all 44
-        //    golden baselines for a nullability annotation, and it would switch every other emitted
-        //    construct from oblivious to annotated at once — under TreatWarningsAsErrors, with an
-        //    unmeasured blast radius. ⚠ `BTreeBridgeEmitCore` does emit the pragma; that is a
-        //    DIFFERENT emitter whose output was annotated from its first line.
-        //
-        // ⭐⭐ Nullability is not part of delegate compatibility, so the unannotated parameter binds to
-        //    `ResolveParams<TDto>`'s `IHostVariableAccess?` exactly. The annotation's documentation
-        //    value lives on that delegate's own declaration, where a reader will look for it.
-        parts.Add("global::Fdp.Toolkit.Behavior.IHostVariableAccess host");
 
         e.WriteLine($"public static {returnType} {graph.Name}({string.Join(", ", parts)})");
         e.WriteLine("{");
@@ -270,13 +253,12 @@ internal static class LibraryEmitter
 
     /// <summary>
     /// ⭐ <c>CE-428</c> — the injected subject parameters: <c>in TAuthored authored, ref TBlock block</c>, then
-    /// the same trailing context a resolver always takes. ⚠ <c>host</c> unannotated, as above.
+    /// the same trailing context a resolver always takes (<c>world</c>, <c>self</c>; <c>host</c> retired by <c>CE-445</c>).
     /// </summary>
     private static string SubjectParams(Hrot.Blueprints.Core.Assets.ResolverSubjectDecl subject)
         => "in Params authored, "
          + $"ref global::{subject.BlockTypeId.Replace('+', '.')} block, "
-         + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, "
-         + "global::Fdp.Toolkit.Behavior.IHostVariableAccess host";
+         + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self";
 
     /// <summary>
     /// ⭐⭐ <c>CE-443</c> — the resolver asset's authored <c>Params</c> (one field per declared Parameter, in

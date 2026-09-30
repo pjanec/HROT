@@ -259,7 +259,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Alpha",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
                 //   refuses the shape otherwise. The width is incidental to what this rail proves.
                 BlackboardLayoutType = typeof(int),
@@ -298,7 +298,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             {
                 Name        = "Reloadable",
                 BrainTier   = BehaviorConstants.BrainTierBTree,
-                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                ParseParams = static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 // ⭐ CE-328: a ParseParams must come with a declared width — BehaviorRegistry.Register
                 //   refuses the shape otherwise. The width is incidental to what this rail proves.
                 BlackboardLayoutType = typeof(int),
@@ -358,7 +358,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             // resolver registered BEFORE the topology
             var r1 = new BehaviorRegistry();
-            r1.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+            r1.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             r1.Register("Y", TopologyOnly());
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Y"), out var d1));
@@ -368,7 +368,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             // resolver registered AFTER the topology
             var r2 = new BehaviorRegistry();
             r2.Register("Y", TopologyOnly());
-            r2.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+            r2.RegisterResolver("Y", static (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
                 typeof(int));
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Y"), out var d2));
             Assert.NotNull(d2!.ParseParams);
@@ -409,9 +409,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             bool curatedRan;
 
             ParseParamsDelegate MakeGenerated() =>
-                (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => generatedRan = true;
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => generatedRan = true;
             ParseParamsDelegate MakeCurated() =>
-                (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => curatedRan = true;
+                (string json, byte* mem, int capacity, EntityRepository world, Entity self) => curatedRan = true;
 
             // ── generated topology FIRST, curated resolver second ──
             generatedRan = false; curatedRan = false;
@@ -420,7 +420,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             r1.RegisterResolver("Z", MakeCurated(), typeof(int));
 
             Assert.True(r1.TryGetDefinition(BehaviorHash.FromName("Z"), out var d1));
-            d1!.ParseParams!(string.Empty, null, 0, null!, default, null);
+            d1!.ParseParams!(string.Empty, null, 0, null!, default);
             Assert.True(curatedRan,    "the curated resolver must win over a generated ParseParams");
             Assert.False(generatedRan, "the generated ParseParams must not run once a curated one exists");
             Assert.Equal(typeof(int), d1.BlackboardLayoutType);   // the curated DTO type wins too
@@ -432,7 +432,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             r2.Register("Z", WithGeneratedParseParams(MakeGenerated()));
 
             Assert.True(r2.TryGetDefinition(BehaviorHash.FromName("Z"), out var d2));
-            d2!.ParseParams!(string.Empty, null, 0, null!, default, null);
+            d2!.ParseParams!(string.Empty, null, 0, null!, default);
             Assert.True(curatedRan,    "order must not decide which resolver wins");
             Assert.False(generatedRan);
             Assert.Equal(typeof(int), d2.BlackboardLayoutType);
@@ -461,9 +461,9 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier                  = BehaviorConstants.BrainTierBTree,
                 ManagedBlackboardVariables = new ManagedBlackboardVariable[] { new("In", typeof(long), 0) },
                 BlackboardLayoutType       = typeof(Ce437Block),
-                ParseParams = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { },
+                ParseParams = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { },
             };
-            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
 
             var r1 = new BehaviorRegistry();
             r1.Register("Blk", Generated());
@@ -505,9 +505,9 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BrainTier            = BehaviorConstants.BrainTierBTree,
                 BlackboardLayoutType = typeof(Ce437Block),
                 BakeDefaults = (byte* mem, int capacity) => { calls.Add("bake"); ((Ce437Block*)mem)->StA = 42; },
-                ParseParams  = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => calls.Add("generated"),
+                ParseParams  = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => calls.Add("generated"),
             };
-            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self)
                 => { calls.Add("curated"); ((Ce437Block*)mem)->In = 5; };
 
             foreach (bool resolverFirst in new[] { false, true })
@@ -519,7 +519,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
                 Assert.True(r.TryGetDefinition(BehaviorHash.FromName("Bk"), out var d));
                 var block = default(Ce437Block);
-                d!.ParseParams!("{}", (byte*)&block, sizeof(Ce437Block), null!, default, null);
+                d!.ParseParams!("{}", (byte*)&block, sizeof(Ce437Block), null!, default);
 
                 Assert.Equal(new[] { "bake", "curated" }, calls);
                 Assert.Equal(42, block.StA);
@@ -531,7 +531,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         [Fact]
         public void RegisterResolver_WithoutABake_InstallsTheCuratedResolverItself()
         {
-            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) => { };
+            ParseParamsDelegate curated = (string json, byte* mem, int capacity, EntityRepository world, Entity self) => { };
             var r = new BehaviorRegistry();
             r.Register("Hw", new BehaviorDefinition { Name = "Hw", BrainTier = BehaviorConstants.BrainTierBTree });
             r.RegisterResolver("Hw", curated, typeof(long));

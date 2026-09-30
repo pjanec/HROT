@@ -160,7 +160,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                             //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
                             //   region, and handing anything wider would license the overrun this
                             //   parameter exists to stop.
-                            def.ParseParams(evt.JsonParams, dst, shadow.Length, repo, evt.Entity, host: null);
+                            def.ParseParams(evt.JsonParams, dst, shadow.Length, repo, evt.Entity);
                             parseOk = true;
                         }
                         catch (Exception ex)

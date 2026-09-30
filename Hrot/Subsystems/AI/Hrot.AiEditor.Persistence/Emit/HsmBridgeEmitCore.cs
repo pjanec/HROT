@@ -64,7 +64,8 @@ public static class HsmBridgeEmitCore
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
 
-        // The emitted ParseParams lambda annotates `IHostVariableAccess? host`, which is a
+        // The emitted ParseParams lambda annotated `IHostVariableAccess? host` (retired by CE-445; the pragma
+        // stays so the goldens do not move), which is a
         // nullable-reference annotation and needs an in-file pragma in generator output (CS8632/CS8669
         // otherwise — the project-level <Nullable>enable</Nullable> does not propagate). ⭐ Emitted
         // ONLY for assets that emit a ParseParams, so every other asset's bridge stays byte-identical.
@@ -390,7 +391,7 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
         sb.AppendLine($"{pad2}unsafe");
         sb.AppendLine($"{pad2}{{");
-        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>");
         sb.AppendLine($"{pad3}{{");
 
         // ── step 1: bake the defaults ────────────────────────────────────────────

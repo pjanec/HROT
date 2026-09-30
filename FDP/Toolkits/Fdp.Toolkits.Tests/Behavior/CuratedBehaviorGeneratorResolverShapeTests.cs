@@ -10,7 +10,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 {
     /// <summary>
     /// ⭐⭐⭐ <c>CE-427</c> — the curated generator accepts a THIRD <c>[BehaviorResolver]</c> shape: the typed
-    /// block resolver <c>(in TAuthored, ref TBlock, EntityRepository, Entity, IHostVariableAccess?)</c>, and
+    /// block resolver <c>(in TAuthored, ref TBlock, EntityRepository, Entity)</c> (<c>host</c> retired by <c>CE-445</c>), and
     /// adapts it through <c>BehaviorParams.FromBlockResolver</c>. 📄 <c>Q76</c> §12.19.
     ///
     /// <para>⚠ Driven on an in-memory source, not the shipped assembly: no shipped resolver uses the typed
@@ -24,7 +24,6 @@ namespace Fdp.Toolkit.Behavior.Tests
 namespace Fdp.Core { public class EntityRepository { } public struct Entity { } }
 namespace Fdp.Toolkit.Behavior
 {
-    public interface IHostVariableAccess { }
     [System.AttributeUsage(System.AttributeTargets.Method)]
     public sealed class BehaviorResolverAttribute : System.Attribute
     {
@@ -78,7 +77,7 @@ namespace Demo
     {
         [Fdp.Toolkit.Behavior.BehaviorResolver(""GeoMove"")]
         public static void ResolveGeoMove(in GeoIntent authored, ref DemoBlock block,
-            Fdp.Core.EntityRepository world, Fdp.Core.Entity self, Fdp.Toolkit.Behavior.IHostVariableAccess host)
+            Fdp.Core.EntityRepository world, Fdp.Core.Entity self)
         { }
     }
 }");
@@ -102,7 +101,7 @@ namespace Demo
     {
         [Fdp.Toolkit.Behavior.BehaviorResolver(""Bad"")]
         public static void Bad(GeoIntent authored, DemoBlock block,
-            Fdp.Core.EntityRepository world, Fdp.Core.Entity self, Fdp.Toolkit.Behavior.IHostVariableAccess host)
+            Fdp.Core.EntityRepository world, Fdp.Core.Entity self)
         { }
     }
 }");
@@ -110,9 +109,10 @@ namespace Demo
             Assert.DoesNotContain("RegisterResolver(\"Bad\"", gen);
         }
 
-        /// <summary>⭐ The existing 6-param shape is emitted exactly as before — a method group, no adapter.</summary>
+        /// <summary>⭐ The full delegate shape (5 params since <c>CE-445</c> retired <c>host</c>) is emitted as a
+        /// method group, no adapter.</summary>
         [Fact]
-        public void TheSixParamShape_IsUnchanged()
+        public void TheFullDelegateShape_IsAMethodGroup()
         {
             var (diags, gen) = Run(@"
 namespace Demo
@@ -121,7 +121,7 @@ namespace Demo
     {
         [Fdp.Toolkit.Behavior.BehaviorResolver(""Six"")]
         public static void Six(string json, byte* memory, int capacity,
-            Fdp.Core.EntityRepository world, Fdp.Core.Entity self, Fdp.Toolkit.Behavior.IHostVariableAccess host)
+            Fdp.Core.EntityRepository world, Fdp.Core.Entity self)
         { }
     }
 }");

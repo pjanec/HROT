@@ -23,15 +23,10 @@ internal static class AiPrimitiveEmitter
         //    asset moved 11 golden baselines for assets that cannot use it — the corpus must stay
         //    byte-identical wherever the feature is not used, which is the property O4 established
         //    and the thing that makes "did this change behaviour?" answerable.
-        // ⭐ E8a — and for an asset carrying its OWN resolver, because AssetId IS the key the
-        //    registration and HostedParamResolvers.TryRun both use. ⚠ Still gated: an asset with
-        //    neither hosting nor a resolver emits nothing, so the corpus stays byte-identical
-        //    wherever the feature is unused.
         if (asset.Hostings.Contains(AiPrimitiveHosting.HsmAction) ||
             asset.Hostings.Contains(AiPrimitiveHosting.HsmGuard) ||
             asset.Hostings.Contains(AiPrimitiveHosting.BTreeAction) ||
-            asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition) ||
-            OwnResolverGraphOf(asset) is not null)
+            asset.Hostings.Contains(AiPrimitiveHosting.BTreeCondition))
         {
             e.WriteLine($"public static readonly global::System.Guid AssetId = new global::System.Guid(\"{asset.AssetId}\");");
         }
@@ -84,91 +79,10 @@ internal static class AiPrimitiveEmitter
             e.WriteLine();
         }
 
-        // ⭐⭐⭐ E8a — the asset's OWN parameter resolver.
-        if (OwnResolverGraphOf(asset) is { } resolverGraph)
-        {
-            EmitOwnResolverMethod(e, asset, resolverGraph);
-            e.WriteLine();
-        }
-
         EmitThunks(e, asset, className);
 
         e.Outdent();
         e.WriteLine("}");
-    }
-
-    /// <summary>
-    /// ⭐⭐ <b><c>E8a</c> — this asset's own <c>Construction</c> graph, or <c>null</c>.</b>
-    /// 📄 <c>DESIGN_Resolver_World_Reach.md</c> §7.2 · <c>R-149</c>.
-    ///
-    /// <para>
-    /// ⚠ <b><c>FirstOrDefault</c>, not <c>Single</c>.</b> <c>V_ResolverPurity</c>'s <c>BP1676</c>
-    /// already refuses a second one — an asset's parameters are ONE region and a region names exactly
-    /// one resolver — but a fatal validation error stops the pipeline before emit, so this can never
-    /// see two. ⛔ Throwing here would turn that into a source-generator crash rather than the
-    /// diagnostic the designer needs.
-    /// </para>
-    /// </summary>
-    internal static IrGraph? OwnResolverGraphOf(IrAsset asset)
-        => asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>E8a</c> → <c>CE-432</c> — emits the own-asset resolver, shaped as
-    /// <c>ResolveOccurrence&lt;Params, WorkingState&gt;</c>: the occurrence's whole block, both halves by ref.</b>
-    /// ⛔ It was <c>ResolveParams&lt;Params&gt;</c> — parameters only — until <c>CE-432</c>.
-    ///
-    /// <para>
-    /// ⭐⭐ <b>The signature is the universal currency EXACTLY</b>, so the registrar registers it by
-    /// METHOD GROUP — no lambda, no cast, no adapter:
-    /// <c>HostedParamResolvers.Register&lt;Params&gt;(AssetId, {Class}.{Name})</c>.
-    /// </para>
-    ///
-    /// <para>
-    /// 🔴 <b>Why <c>ref Params p</c> and not a declared DTO.</b> An AiPrimitive's params struct is
-    /// GENERATED from its own declarations, so no authored <c>TypeId</c> could name it without baking
-    /// this asset's emitted class name (which embeds the BlueprintId hash) into the asset. ⇒ the
-    /// subject is IMPLIED, <c>BP1677</c> requires the graph to declare nothing, and the graph reads
-    /// through <c>Get Parameter</c> and writes back through <c>Set Variable</c> — which
-    /// <c>V_ResolverPurity</c> permits here precisely because that write IS the return value.
-    /// </para>
-    ///
-    /// <para>
-    /// ⭐ <c>p</c> is the parameter name on purpose: <c>EmissionContext.ParamsVar</c> already answers
-    /// <c>"p"</c> for AiPrimitive dispatch, so every emitted parameter read and write resolves against
-    /// this argument with no new scope-var arm.
-    /// </para>
-    /// </summary>
-    private static void EmitOwnResolverMethod(CSharpEmitter e, IrAsset asset, IrGraph graph)
-    {
-        e.Ctx.CurrentGraph = graph;
-
-        // ⚠ The RETURN TYPE is the body's own, not `void`. A graph's `Return` node always carries a
-        //   NodeStatus — that is the graph vocabulary, shared with ticking graphs — so a resolver body
-        //   ends in `return NodeStatus.Success;` and a `void` method would be CS0127. ⭐ A resolver has
-        //   no status of its own, so the REGISTRATION discards it (see CSharpEmitter's resolver
-        //   registration); forcing `void` here would mean teaching the shared terminator emitter about
-        //   resolvers, which is a far wider change for a value nobody reads.
-        bool hasStatusReturn = graph.Blocks.Any(b => b.Terminator is IrTerm_ReturnStatus);
-        var returnType = LibraryEmitter.CSharpReturnType(graph, hasStatusReturn);
-
-        e.WriteLine($"public static {returnType} {graph.Name}(");
-        e.WriteLine("    ref Params p,");
-        // ⭐⭐⭐ CE-432 — the subject is the occurrence's WHOLE block: its state too, by ref. `ws` is
-        //   the name EmissionContext.StateVar already answers for AiPrimitive dispatch, so a graph's
-        //   Get/Set Variable on a state declaration resolves against this argument with no new arm —
-        //   exactly as `p` does for parameters (Q76 §12.12a).
-        e.WriteLine("    ref WorkingState ws,");
-        e.WriteLine("    global::Fdp.Core.EntityRepository world,");
-        e.WriteLine("    global::Fdp.Core.Entity self,");
-        e.WriteLine("    global::Fdp.Toolkit.Behavior.IHostVariableAccess host)");
-        e.WriteLine("{");
-        e.Indent();
-
-        LibraryEmitter.EmitGraphBody(e, asset, graph);
-
-        e.Outdent();
-        e.WriteLine("}");
-        e.Ctx.CurrentGraph = null;
     }
 
     private static void EmitParamsStruct(CSharpEmitter e, IrAsset asset)
@@ -469,7 +383,7 @@ internal static class AiPrimitiveEmitter
     /// slot, because this seed only runs when the slot is created.</para>
     /// </summary>
     private static void EmitParamSeed(
-        CSharpEmitter e, string offsetExpr, string hostExpr, string worldExpr, string selfExpr,
+        CSharpEmitter e, string offsetExpr, string worldExpr, string selfExpr,
         string? blockExpr = null)
     {
         e.WriteLine("if (freshlyAttached)");
@@ -504,44 +418,9 @@ internal static class AiPrimitiveEmitter
         //   run AFTER the resolve — harmless while a resolver could write parameters only, and it would
         //   have silently wiped every state value a CE-432 resolver writes.
         e.WriteLine("InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));");
-        EmitHostedResolve(e, hostExpr);
         e.Outdent();
         e.WriteLine("}");
     }
-
-    /// <summary>
-    /// ⭐⭐⭐ <c>Q41-C1′</c> for the hosted path — <b>the RESOLVE stage, at the child's activation.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
-    ///
-    /// <para>🔴 <b>The pipeline <c>BehaviorParams.FromJson</c> specifies is bake → overlay → RESOLVE →
-    /// write, and the RESOLVE stage has never been emitted anywhere.</b> ⭐ This is it, on the one path
-    /// where <c>IHostVariableAccess</c> can be non-null — a hosted occurrence, which by definition has
-    /// a host.</para>
-    ///
-    /// <para>⭐⭐ <b>Why it belongs in the SEED and not in <c>ParseParams</c>.</b> A resolver reads
-    /// <c>world</c>, <c>self</c> and <c>host</c>, so its result depends on the OCCURRENCE's context.
-    /// ⛔ The behaviour's <c>ParseParams</c> runs once per assign with <c>host: null</c> — running the
-    /// resolve there and copying the result into every occurrence would be wrong by construction.</para>
-    ///
-    /// <para>⚠ <b>Resolve-ONCE</b> (§3.1): this sits inside <c>if (freshlyAttached)</c>, so it runs at
-    /// activation and never on a steady-state dispatch. ⛔ Live re-binding is out of the model (<c>R-84</c>).</para>
-    ///
-    /// <para>⭐ <b>Free when unused</b> — <c>TryRun</c> is a dictionary miss for every asset with no
-    /// registered resolver, which §3.1 says is the overwhelmingly common case.</para>
-    /// </summary>
-    private static void EmitHostedResolve(CSharpEmitter e, string hostExpr)
-    {
-        e.WriteLine("// C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.");
-        // ⭐ CE-426/CE-432: over the WHOLE block, in the seam's shadow — committed only if it returns.
-        e.WriteLine("global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(");
-        e.WriteLine($"    AssetId, ref *__params, ref ws, {WorldExprOf(hostExpr)}, {SelfExprOf(hostExpr)}, {hostExpr});");
-    }
-
-    /// <summary>The repository expression that goes with a given host expression.</summary>
-    private static string WorldExprOf(string hostExpr) => hostExpr == "null" ? "ctx.World" : "world";
-
-    /// <summary>The entity expression that goes with a given host expression.</summary>
-    private static string SelfExprOf(string hostExpr) => hostExpr == "null" ? "ctx.Self" : "bridge->Self";
 
     private static void EmitBTreeActionThunk(CSharpEmitter e)
     {
@@ -602,7 +481,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached, out Params* __params);");
         // ⭐ Offset 0, and TRUE BY CONSTRUCTION here: standalone hosting is the single-
         //   occurrence case (the `@0` in its own registration key). ⛔ No site to bind.
-        EmitParamSeed(e, "0", "null", "ctx.World", "ctx.Self",   // standalone: no host variables
+        EmitParamSeed(e, "0", "ctx.World", "ctx.Self",
                       "global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);
@@ -710,17 +589,7 @@ internal static class AiPrimitiveEmitter
         e.WriteLine("var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;");
         e.WriteLine("var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
         e.WriteLine();
-        e.WriteLine("// E3b (§28.7): the HOST's params region, so a resolver can read the host's own");
-        e.WriteLine("//   variables BY NAME through IHostVariableAccess — its first implementation.");
-        e.WriteLine("// CE-297: the SEED comes from HERE, not from the kernel's instance pointer.");
-        e.WriteLine("// P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.");
-        e.WriteLine("// CE-305: the EXTENT comes from the slot, never from MaxBehaviorParamByteSize. The");
-        e.WriteLine("//   constant was right while the region was a fixed byte[100]; since P3-C it is only");
-        e.WriteLine("//   RootParamsBytes(def) wide, so a 100-byte bound lets IHostVariableAccess read past");
-        e.WriteLine("//   the slot into the next occurrence (§29.10 — the ANCHOR was specified, the EXTENT");
-        e.WriteLine("//   never was).");
-        e.WriteLine("byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(");
-        e.WriteLine("    world, bridge->Self, out int __hostParamsLen);");
+        e.WriteLine("// CE-297: the SEED comes from the entity's ROOT PARAMS SLOT, not the kernel's instance pointer.");
         e.WriteLine();
         e.WriteLine("// O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)");
         e.WriteLine("//        the kernel stamped (O6) and by the hosting machine's id from the instance header.");
@@ -733,7 +602,6 @@ internal static class AiPrimitiveEmitter
         //   blueprint on its outgoing transition — which the kernel stamps with the same state —
         //   project two different Params types over one variable.
         EmitParamSeed(e, "global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instance, writer, AssetId)",
-                      "global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen)",
                       "world", "bridge->Self");
         e.WriteLine("ref var p = ref *__params;");
         e.WriteLine(tail);

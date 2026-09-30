@@ -108,7 +108,9 @@ public sealed class ThunkEmissionTests
         // ⭐ CE-297 — the params SEED comes from the blackboard, never from the kernel's instance
         //   pointer. ⚠ E3a demoted it from the live home to the seed; HsmThunk_TakesParamsFromThe-
         //   OccurrenceSlot_E3a pins that it sits inside the freshly-attached arm.
-        Assert.Contains("BrainBlackboard", src);
+        // ⚠ CE-445: this asserted the word "BrainBlackboard", which only a (now removed) comment carried.
+        //   The seed's real source is the entity's root params slot.
+        Assert.Contains("RootParamsAccess.RootRef(", src);
         Assert.DoesNotContain("*(Params*)instance", src);
     }
 
@@ -231,27 +233,17 @@ public sealed class ThunkEmissionTests
         Assert.Contains("ref __rootParams, (nint)0", src);
         Assert.DoesNotContain("SeedParamsOffset", src);
 
-        // ⭐ C1′ — it still gets the RESOLVE stage, with a null host: it has none by construction,
-        //   but a resolver may still compute from world/self.
-        Assert.Contains("HostedParamResolvers.TryRun(", src);
-        Assert.Contains("ctx.World, ctx.Self, null)", src);
-        Assert.DoesNotContain("HsmHostVariableAccess", src);
+        // ⛔ CE-445 — no action-level RESOLVE stage any more (R-155: only behaviours have resolvers).
+        Assert.DoesNotContain("HostedParamResolvers", src);
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b><c>Q41-C1′</c> / <c>E7a</c> — the HSM thunk emits the RESOLVE stage WITH ITS HOST.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
-    ///
-    /// <para>🔴 <b>The pipeline <c>BehaviorParams.FromJson</c> specifies is bake → overlay → RESOLVE →
-    /// write, and the RESOLVE stage had never been emitted anywhere.</b> ⭐ This is it — and this is
-    /// the call site that finally gives <see cref="Fdp.Toolkit.Behavior.IHostVariableAccess"/> a
-    /// non-null value after it sat declared-not-implemented since <c>2026-08-16</c>.</para>
-    ///
-    /// <para>⚠ It sits INSIDE the freshly-attached arm: resolve-ONCE, at the child's activation, never
-    /// on a steady-state dispatch (§3.1, <c>R-84</c>).</para>
+    /// ⛔ <c>CE-445</c> — <b>the HSM thunk emits NO resolve stage and NO host accessor.</b> 🔒 <c>R-155</c>: an HSM
+    /// activity/guard is an ACTION; only behaviours have resolvers (<c>DESIGN_Parameter_Model.md</c> §P.4, §P.6).
+    /// ⛔ HISTORY: this rail was <c>HsmThunk_EmitsTheResolveStageWithItsHost_C1Prime</c> (Q41-C1′ / E7a).
     /// </summary>
     [Fact]
-    public void HsmThunk_EmitsTheResolveStageWithItsHost_C1Prime()
+    public void CE445_HsmThunk_EmitsNoResolveStageAndNoHostAccessor()
     {
         var asset = BlueprintAssetBuilder
             .AiPrimitive("ResolvedParams")
@@ -261,16 +253,9 @@ public sealed class ThunkEmissionTests
 
         var src = EmitAndGetSource(asset);
 
-        // ⭐⭐ THE RAIL. The resolve stage, and a REAL host access rather than null.
-        Assert.Contains("HostedParamResolvers.TryRun(", src);
-        Assert.Contains("HsmHostVariableAccess.For(instance, __hostParams", src);
-        Assert.DoesNotContain("bridge->Self, null)", src);
-
-        // ⚠ …and it is inside the freshly-attached arm — resolve ONCE, not per dispatch.
-        int fresh = src.IndexOf("if (freshlyAttached)", StringComparison.Ordinal);
-        int resolve = src.IndexOf("HostedParamResolvers.TryRun(", StringComparison.Ordinal);
-        Assert.True(fresh >= 0 && resolve > fresh,
-            "the resolve must run at activation, never on a steady-state dispatch");
+        Assert.DoesNotContain("HostedParamResolvers", src);
+        Assert.DoesNotContain("HsmHostVariableAccess", src);
+        Assert.DoesNotContain("__hostParams", src);
     }
 
     private static int CountOccurrences(string haystack, string needle)

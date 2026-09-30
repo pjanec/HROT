@@ -18,7 +18,7 @@ public static class ResolverWorldReachDemo_AB7D5FF9_Bp
 {
     public const int BlueprintId = unchecked((int)0xAB7D5FF9);
     
-    public static global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams ResolveHillAttack(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Dto, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
+    public static global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams ResolveHillAttack(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Dto, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
     {
         var __t0 = Dto;
         var __t1 = 4242L;
@@ -45,8 +45,8 @@ public static class BlueprintRegistrar_ResolverWorldReachDemo_AB7D5FF9_Bp
             Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)
             {
                 ["ResolveHillAttack"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
-                    static (ref global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams __dto, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self, global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>
-                        __dto = ResolverWorldReachDemo_AB7D5FF9_Bp.ResolveHillAttack(__dto, __world, __self, __host)),
+                    static (ref global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams __dto, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self) =>
+                        __dto = ResolverWorldReachDemo_AB7D5FF9_Bp.ResolveHillAttack(__dto, __world, __self)),
             },
         });
     }

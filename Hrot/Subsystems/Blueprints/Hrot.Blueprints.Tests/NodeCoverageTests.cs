@@ -432,8 +432,8 @@ public sealed class NodeCoverageTests
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
                 "being reconstructed. Proven by HillAssault2_RequestAreaQuery, HillAssault2_HasTarget, " +
-                "HsmGuardDemo and OwnParamResolverDemo, the four surviving corpus assets carrying a " +
-                "GetParameter node (measured 2026-09-29). " +
+                "and HsmGuardDemo, the three surviving corpus assets carrying a GetParameter node (measured " +
+                "2026-09-29; OwnParamResolverDemo, a fourth, was deleted by CE-445). " +
                 "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
                 "was ALREADY WRONG before CE-436 deleted it: that asset had ZERO GetParameter nodes. " +
                 "The one integrated asset that did carry one was HillAssault2I_RequestAreaQuery, whose " +

@@ -690,7 +690,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
             BTreeInterpreter     = host,
             StatefulWorkingSlots = plan.Slots,
             BlackboardLayoutType = hostHasBlock ? typeof(Ce431HostBlock) : null,
-            ParseParams          = hostHasBlock ? (string j, byte* m, int c, EntityRepository w, Entity e, IHostVariableAccess? h) => { } : null,
+            ParseParams          = hostHasBlock ? (string j, byte* m, int c, EntityRepository w, Entity e) => { } : null,
         });
         BTreeHostedSites.Bind(beh, hostBlob, plan);
 
@@ -709,7 +709,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
             ResolverName               = childResolve is null ? null : "ChildResolver",
         });
         if (curatedChild)
-            beh.RegisterResolver(ChildName, (string j, byte* m, int c, EntityRepository w, Entity e, IHostVariableAccess? h) => { }, typeof(long));
+            beh.RegisterResolver(ChildName, (string j, byte* m, int c, EntityRepository w, Entity e) => { }, typeof(long));
 
         var entity = world.CreateEntity();
         world.AddComponent(entity, new BehaviorState());
@@ -830,7 +830,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
             new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
             curatedChild: true);
         beh.RegisterSourceResolver(ChildName, BehaviorParams.FromBlockResolverSource<long, Ce431ChildBlock>(
-            (in long authored, ref Ce431ChildBlock block, EntityRepository w, Entity s, IHostVariableAccess? h)
+            (in long authored, ref Ce431ChildBlock block, EntityRepository w, Entity s)
                 => block.St = authored * 3)!);
 
         HostBlock(world, e).B = 7;
@@ -863,7 +863,7 @@ public sealed unsafe class BTreeHostsBTreeTests : IDisposable
         var beh = new BehaviorRegistry();
         var e = AssignCe431Host(world, beh, hostHasBlock: true,
             new System.Collections.Generic.Dictionary<Guid, HostedSubtree.SiteBinding> { [SiteA] = new(8, 8) },
-            childResolve: (byte* src, int srcBytes, byte* blk, int cap, EntityRepository w, Entity s, IHostVariableAccess? h)
+            childResolve: (byte* src, int srcBytes, byte* blk, int cap, EntityRepository w, Entity s)
                 => ((Ce431ChildBlock*)blk)->St = *(long*)src * 2);
 
         HostBlock(world, e).B = 21;

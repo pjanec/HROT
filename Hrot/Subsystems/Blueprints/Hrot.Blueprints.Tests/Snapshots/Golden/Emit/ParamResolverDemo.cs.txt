@@ -18,7 +18,7 @@ public static class ParamResolverDemo_5C812ACE_Bp
 {
     public const int BlueprintId = unchecked((int)0x5C812ACE);
     
-    public static global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams ResolveMoveTo(global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams Dto, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
+    public static global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams ResolveMoveTo(global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams Dto, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
     {
         var __t0 = Dto;
         var __t1 = __t0.X;
@@ -49,8 +49,8 @@ public static class BlueprintRegistrar_ParamResolverDemo_5C812ACE_Bp
             Resolvers = new global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry>(global::System.StringComparer.Ordinal)
             {
                 ["ResolveMoveTo"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams>(
-                    static (ref global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams __dto, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self, global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>
-                        __dto = ParamResolverDemo_5C812ACE_Bp.ResolveMoveTo(__dto, __world, __self, __host)),
+                    static (ref global::Hrot.AI.Behaviors.Brains.CgfNodes.MoveToLocationParams __dto, global::Fdp.Core.EntityRepository __world, global::Fdp.Core.Entity __self) =>
+                        __dto = ParamResolverDemo_5C812ACE_Bp.ResolveMoveTo(__dto, __world, __self)),
             },
         });
     }

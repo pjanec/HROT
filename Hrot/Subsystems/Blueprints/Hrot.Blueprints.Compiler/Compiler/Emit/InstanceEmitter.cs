@@ -254,10 +254,6 @@ internal static class InstanceEmitter
     /// does); <b>malformed JSON THROWS</b>, which is what makes parse-before-commit meaningful.
     /// </para>
     ///
-    /// <para>
-    /// ⚠ <c>host</c> is accepted and unused — <c>IHostVariableAccess</c> ships declared-not-implemented
-    /// and <c>E7a</c> populates it. Its value for a root occurrence is <c>null</c>.
-    /// </para>
     /// </summary>
     private static void EmitParseParams(CSharpEmitter e, IrAsset asset)
     {
@@ -267,8 +263,7 @@ internal static class InstanceEmitter
         e.WriteLine("byte* memory,");
         e.WriteLine("int capacity,");                 // CE-331 — the writable extent
         e.WriteLine("global::Fdp.Core.EntityRepository world,");
-        e.WriteLine("global::Fdp.Core.Entity self,");
-        e.WriteLine("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+        e.WriteLine("global::Fdp.Core.Entity self)");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();

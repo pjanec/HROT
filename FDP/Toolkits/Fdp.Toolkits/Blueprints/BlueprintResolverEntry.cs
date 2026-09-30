@@ -12,7 +12,7 @@ namespace Fdp.Toolkit.Blueprints;
 /// published resolvers as <see cref="LibraryFunctionDelegate"/>, reusing the table
 /// <see cref="BlueprintDefinition.Functions"/> already had. 📐 That delegate is
 /// <c>(inputs, outputs, ISimulationView, Entity, float)</c> and carries <b>no</b>
-/// <see cref="IHostVariableAccess"/> ⇒ a resolver dispatched through it <b>silently loses
+/// <c>IHostVariableAccess</c> (retired by <c>CE-445</c>) ⇒ a resolver dispatched through it <b>silently loses
 /// <c>host</c></b> — the one capability <c>Q41-C1′</c>/<c>E7a</c> exist to provide — and pays a span
 /// round-trip besides.
 /// </para>

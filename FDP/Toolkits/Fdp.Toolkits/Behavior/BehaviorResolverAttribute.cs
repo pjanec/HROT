@@ -19,16 +19,16 @@ namespace Fdp.Toolkit.Behavior
     /// drove to <c>(0,0)</c> with no exception and every rail green.</para>
     ///
     /// <para>⭐⭐ <b>Three method shapes are accepted</b> (the third since <c>CE-427</c>), and the
-    /// generator wraps the two that are not the 6-param delegate:</para>
+    /// generator wraps the two that are not the 5-param delegate:</para>
     /// <para>⭐ <b>typed block</b> — <c>(in TAuthored authored, ref TBlock block, EntityRepository world,
-    /// Entity self, IHostVariableAccess? host)</c> — <see cref="ResolveBlock{TAuthored, TBlock}"/>. The
+    /// Entity self)</c> — <see cref="ResolveBlock{TAuthored, TBlock}"/>. The
     /// generator adapts it with <see cref="BehaviorParams.FromBlockResolver{TAuthored, TBlock}"/>: the JSON
     /// is deserialized into <c>TAuthored</c>, the block arrives already BAKED, and the resolver converts and
     /// modifies it in place. ⭐ The recommended shape for a new resolver — no <c>byte*</c>, no manual
     /// deserialize.</para>
     /// <list type="bullet">
-    ///   <item><b>6-param</b> — <c>(string json, byte* memory, int capacity, EntityRepository world,
-    ///         Entity self, IHostVariableAccess? host)</c>: bound directly as a
+    ///   <item><b>5-param</b> — <c>(string json, byte* memory, int capacity, EntityRepository world,
+    ///         Entity self)</c>: bound directly as a
     ///         <see cref="BehaviorRegistry.ParseParamsDelegate"/>.</item>
     ///   <item><b>3-param</b> — <c>(string json, byte* memory, int capacity)</c>: the generator emits
     ///         the adapter lambda that the hand-written registrar used to spell out twice.</item>

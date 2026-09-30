@@ -658,8 +658,7 @@ namespace Hrot.AI.Behaviors.Brains
         [Fdp.Toolkit.Behavior.BehaviorResolver("PlatoonHillAttack",
             ParamsType = typeof(Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams))]
         public static unsafe void ResolvePlatoonHillAttackParams(
-            string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self,
-            Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+            string json, byte* ptr, int capacity, Fdp.Core.EntityRepository world, Entity self)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()

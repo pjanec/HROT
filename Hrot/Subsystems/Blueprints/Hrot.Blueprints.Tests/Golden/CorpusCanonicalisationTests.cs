@@ -293,7 +293,9 @@ public sealed class CorpusCanonicalisationTests
         //    with a ResolverSubject). Before it no .bp.json could be bound to a behaviour at all (Q76 §12.20).
         // ⛔ 45 → 43 (CE-440, 2026-09-30): `SharedStateRallyDemo` and `SharedStateCrossEntityDemo` were DELETED
         //    with the GetShared/SetShared node pair they demonstrated (decision A, Q76 §12.24).
-        Assert.Equal(43, GoldenCorpus.EnumerateFiles().Count);
+        // ⛔ 43 → 42 (CE-445, 2026-09-30): `OwnParamResolverDemo` DELETED — an AiPrimitive's own resolver is
+        //    retired (R-155: only behaviours have resolvers; DESIGN_Parameter_Model §P.4).
+        Assert.Equal(42, GoldenCorpus.EnumerateFiles().Count);
         Assert.Equal(16, RecipeFiles().Count);
     }
 }

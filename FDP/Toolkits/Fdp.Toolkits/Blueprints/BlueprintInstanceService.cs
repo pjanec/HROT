@@ -138,13 +138,11 @@ public static unsafe class BlueprintInstanceService
             new Span<byte>(scratch, paramsSize).Clear();
             try
             {
-                // ⚠ host is null: IHostVariableAccess is declared-not-implemented and E7a populates it;
-                //   null is its defined value for a root (non-hosted) occurrence.
                 // ⭐⭐ CE-331 (2026-09-23): `paramsSize` is the stackalloc's exact extent, so it IS
                 //   the capacity. ⚠ This is the SECOND invocation of the delegate and the one a
                 //   `ParseParams(` grep misses — it is spelled `def.ParseParams!(`. The compiler
                 //   found it; the search did not.
-                def.ParseParams!(paramsJson ?? string.Empty, scratch, paramsSize, world, entity, host: null);
+                def.ParseParams!(paramsJson ?? string.Empty, scratch, paramsSize, world, entity);
             }
             catch (Exception ex)
             {

@@ -458,8 +458,8 @@ public static class BTreeBridgeEmitCore
             EmitBakeDefaultsFunction(sb, dto, packedFields,
                 System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
             sb.AppendLine(HasResolver(dto)
-                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self, host); }};"
-                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) => __BakeDefaults(memory, capacity);");
+                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self); }};"
+                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);");
             sb.AppendLine($"{pad2}}}");
             hasParseParams = true;
         }
@@ -1486,7 +1486,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}// 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).");
         sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
         EmitBakeDefaultsFunction(sb, dto, packedFields, defaults, pad2);
-        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host) =>");
+        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>");
         sb.AppendLine($"{pad3}{{");
         sb.AppendLine($"{pad4}// Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).");
         sb.AppendLine($"{pad4}__BakeDefaults(memory, capacity);");
@@ -1499,7 +1499,7 @@ public static class BTreeBridgeEmitCore
             //   the JSON parsed into the resolver's own authored Params (its Parameter defaults, then the
             //   JSON by name). ⛔ No overlay onto In — the resolver writes whatever it chooses.
             sb.AppendLine($"{pad4}// Step 2 — CE-443: the bound resolver, handed the parsed authored DTO (no copy onto In).");
-            sb.AppendLine($"{pad4}__ResolveRoot(json, memory, capacity, world, self, host);");
+            sb.AppendLine($"{pad4}__ResolveRoot(json, memory, capacity, world, self);");
         }
         else
         {
@@ -1591,14 +1591,14 @@ public static class BTreeBridgeEmitCore
             string guard = $"{pad4}if (capacity < sizeof({blockFqn}))\n{pad4}{Indent}throw new global::System.InvalidOperationException(\"CE-428: the parse buffer is narrower than {EscapeCSharpStringLiteral(dto.Name)}'s block — a stale layout.\");";
             sb.AppendLine($"{pad3}// CE-443: the resolver asset '{EscapeCSharpStringLiteral(dto.Resolver.Name)}', handed the SOURCE (R-155).");
             // Root: the JSON → the resolver's authored Params (defaults, then JSON by name) → resolve.
-            sb.AppendLine($"{pad3}static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+            sb.AppendLine($"{pad3}static void __ResolveRoot(string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
             sb.AppendLine($"{pad3}{{");
             sb.AppendLine(guard);
             sb.AppendLine($"{pad4}{cls}.ParseAuthored(json, out var __authored);");
-            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self, host);");
+            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self);");
             sb.AppendLine($"{pad3}}}");
             // Hosted: the bound host variable's bytes ARE the authored Params; none ⇒ its defaults.
-            sb.AppendLine($"{pad3}static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)");
+            sb.AppendLine($"{pad3}static void __ResolveStage(byte* source, int sourceBytes, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
             sb.AppendLine($"{pad3}{{");
             sb.AppendLine(guard);
             sb.AppendLine($"{pad4}{authoredFqn} __authored;");
@@ -1609,7 +1609,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad4}{Indent}{Indent}throw new global::System.InvalidOperationException($\"CE-443: the host variable bound to '{EscapeCSharpStringLiteral(dto.Name)}' is {{sourceBytes}} bytes but its resolver's authored Params is {{sizeof({authoredFqn})}}. The bound variable must be that type.\");");
             sb.AppendLine($"{pad4}{Indent}__authored = *({authoredFqn}*)source;");
             sb.AppendLine($"{pad4}}}");
-            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self, host);");
+            sb.AppendLine($"{pad4}{cls}.ResolveBehavior(in __authored, ref global::System.Runtime.CompilerServices.Unsafe.AsRef<{blockFqn}>(memory), world, self);");
             sb.AppendLine($"{pad3}}}");
             sb.AppendLine($"{pad3}__resolveStage = __ResolveStage;");
         }

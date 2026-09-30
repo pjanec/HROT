@@ -63,8 +63,7 @@ public sealed class ResolverWorldReachTests : IDisposable
 
         const string ResolverSignature =
             "Resolve(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams Dto, "
-            + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, "
-            + "global::Fdp.Toolkit.Behavior.IHostVariableAccess host)";
+            + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)";   // CE-445: no host
 
         Assert.Contains(ResolverSignature, src);
 
@@ -147,7 +146,7 @@ public sealed class ResolverWorldReachTests : IDisposable
         var resolve = def!.Resolvers["ResolveHillAttack"].As<HillAttackParams>();
 
         var dto = new HillAttackParams { StartX = 11f, TankSpacing = 7f };
-        resolve(ref dto, _fixture.World, _fixture.CreateEntity(), host: null);
+        resolve(ref dto, _fixture.World, _fixture.CreateEntity());
 
         Assert.Equal(target, dto.TargetAreaEntity);
         // ⭐ every unwired member is PRESERVED — the resolver REFINES (Q43-D).
@@ -172,7 +171,7 @@ public sealed class ResolverWorldReachTests : IDisposable
         var resolve = def!.Resolvers["ResolveHillAttack"].As<HillAttackParams>();
 
         var dto = new HillAttackParams { StartX = 3f };
-        var ex = Record.Exception(() => resolve(ref dto, _fixture.World, _fixture.CreateEntity(), null));
+        var ex = Record.Exception(() => resolve(ref dto, _fixture.World, _fixture.CreateEntity()));
 
         Assert.Null(ex);
         Assert.Equal(Fdp.Core.Entity.Null, dto.TargetAreaEntity);

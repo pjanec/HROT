@@ -63,7 +63,7 @@ public sealed class BlueprintAuthoredResolver_InvokeTests : IDisposable
         var dto = new MoveToParams { X = 12.5f, Y = -3.25f, Speed = 36f, ArrivalRadius = 4f };
         var entity = _fixture.CreateEntity();
 
-        resolve(ref dto, _fixture.World, entity, host: null);
+        resolve(ref dto, _fixture.World, entity);
 
         // ⭐ Q43-D — the resolver REFINES: the one member it rewires changes, the rest are PRESERVED
         //   because they were left unwired on the SetMembers node. ⛔ A resolver that merely PRODUCED a

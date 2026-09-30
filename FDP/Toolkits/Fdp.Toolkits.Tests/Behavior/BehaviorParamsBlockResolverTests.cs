@@ -26,7 +26,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         private static void Parse(ParseParamsDelegate p, string json, ref GeoBlock block, int capacity)
         {
             fixed (GeoBlock* b = &block)
-                p(json, (byte*)b, capacity, null!, default, null);
+                p(json, (byte*)b, capacity, null!, default);
         }
 
         /// <summary>
@@ -41,7 +41,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void TheResolverWritesTheWholeBlockInPlace_OverTheBakedDefaults()
         {
             var parse = BehaviorParams.FromBlockResolver<GeoIntent, GeoBlock>(
-                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s, IHostVariableAccess? h) =>
+                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s) =>
                 {
                     b.X = (float)a.Lon * 10f;
                     b.Y = (float)a.Lat * 10f;
@@ -63,7 +63,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             bool sawNull = false;
             var parse = BehaviorParams.FromBlockResolver<GeoIntent, GeoBlock>(
-                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s, IHostVariableAccess? h) => sawNull = a is null);
+                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s) => sawNull = a is null);
 
             var block = default(GeoBlock);
             Parse(parse, "", ref block, sizeof(GeoBlock));
@@ -76,7 +76,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         {
             bool ran = false;
             var parse = BehaviorParams.FromBlockResolver<GeoIntent, GeoBlock>(
-                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s, IHostVariableAccess? h) => ran = true);
+                (in GeoIntent a, ref GeoBlock b, EntityRepository w, Entity s) => ran = true);
 
             var block = default(GeoBlock);
             Assert.Throws<InvalidOperationException>(() => Parse(parse, "{}", ref block, sizeof(GeoBlock) - 1));

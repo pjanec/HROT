@@ -105,9 +105,6 @@ public static class HillAssault2AreAllAtBaseline_4CDE3A29_Bp
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref __rootParams, (nint)0));
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
-            // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
-            global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
-                AssetId, ref *__params, ref ws, ctx.World, ctx.Self, null);
         }
         ref var p = ref *__params;
         return TickCore(ref p, ref ws, ctx.Self, ctx.World, ctx.World.SimulationTime) == global::Fbt.NodeStatus.Success;

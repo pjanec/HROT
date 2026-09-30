@@ -16,7 +16,7 @@ namespace Fdp.Toolkit.Behavior
     /// </para>
     /// </summary>
     public delegate void ResolveParams<TDto>(
-        ref TDto dto, EntityRepository world, Entity self, IHostVariableAccess? host)
+        ref TDto dto, EntityRepository world, Entity self)
         where TDto : unmanaged;
 
     /// <summary>
@@ -29,8 +29,6 @@ namespace Fdp.Toolkit.Behavior
     /// default (<c>CE-426</c>), so the resolver CONVERTS and MODIFIES (<c>R-152</c>: <i>"Resolves does
     /// conversion if needed"</i>) and may write any field of the block, State included (<c>R-151</c> ③).</para>
     ///
-    /// <para>⚠ Not to be confused with <see cref="ResolveOccurrence{TParams, TState}"/>, the HOSTED
-    /// blueprint primitive's shape, whose parameters ARE its input part and so are passed by <c>ref</c>.</para>
     /// </summary>
     /// <para>⚠ <typeparamref name="TAuthored"/> is deliberately UNCONSTRAINED — refines <c>Q76</c> §12.4c,
     /// which wrote <c>unmanaged</c>. 📐 The two shipped two-shape authored DTOs
@@ -39,22 +37,8 @@ namespace Fdp.Toolkit.Behavior
     /// only <typeparamref name="TBlock"/> must be unmanaged. With an empty payload a class-typed
     /// <paramref name="authored"/> is <c>null</c> — the resolver decides what an absent intent means.</para>
     public delegate void ResolveBlock<TAuthored, TBlock>(
-        in TAuthored authored, ref TBlock block, EntityRepository world, Entity self, IHostVariableAccess? host)
+        in TAuthored authored, ref TBlock block, EntityRepository world, Entity self)
         where TBlock : unmanaged;
-
-    /// <summary>
-    /// ⭐⭐⭐ <c>CE-432</c> — the RESOLVE stage over an occurrence's WHOLE block: its parameters AND
-    /// its state (<c>R-151</c> requirement ③, <i>"a custom resolver may write the whole block"</i>).
-    ///
-    /// <para>⭐ Both subjects are INJECTED by reference, exactly as <see cref="ResolveParams{TDto}"/>
-    /// injects its one (<c>Q76</c> §12.9f). The state arrives already BAKED with its defaults and the
-    /// parameters already SUPPLIED, so a resolver MODIFIES a pre-seeded block and never produces one
-    /// from nothing (§12.9c).</para>
-    /// </summary>
-    public delegate void ResolveOccurrence<TParams, TState>(
-        ref TParams parameters, ref TState state, EntityRepository world, Entity self, IHostVariableAccess? host)
-        where TParams : unmanaged
-        where TState : unmanaged;
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>G1</c> — deserialize and resolve, split apart and composed back into ONE delegate.</b>
@@ -101,7 +85,7 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Builds the behaviour's <see cref="ParseParamsDelegate"/> from its DTO type: deserialize the
-        /// authored JSON, optionally <paramref name="resolve"/> it against world/self/host, then write
+        /// authored JSON, optionally <paramref name="resolve"/> it against world/self, then write
         /// it at the start of the params region.
         ///
         /// <para>
@@ -113,13 +97,13 @@ namespace Fdp.Toolkit.Behavior
         public static unsafe ParseParamsDelegate FromJson<TDto>(ResolveParams<TDto>? resolve = null)
             where TDto : unmanaged
         {
-            return (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            return (string json, byte* memory, int capacity, EntityRepository world, Entity self) =>
             {
                 TDto dto = string.IsNullOrWhiteSpace(json)
                     ? default
                     : JsonSerializer.Deserialize<TDto>(json, JsonOptions);
 
-                resolve?.Invoke(ref dto, world, self, host);
+                resolve?.Invoke(ref dto, world, self);
 
                 Unsafe.Write(memory, dto);
             };
@@ -142,7 +126,7 @@ namespace Fdp.Toolkit.Behavior
             where TBlock : unmanaged
         {
             if (resolve is null) throw new ArgumentNullException(nameof(resolve));
-            return (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            return (string json, byte* memory, int capacity, EntityRepository world, Entity self) =>
             {
                 if (capacity < sizeof(TBlock))
                     throw new InvalidOperationException(
@@ -153,7 +137,7 @@ namespace Fdp.Toolkit.Behavior
                     ? default!
                     : JsonSerializer.Deserialize<TAuthored>(json, JsonOptions)!;
 
-                resolve(in authored, ref Unsafe.AsRef<TBlock>(memory), world, self, host);
+                resolve(in authored, ref Unsafe.AsRef<TBlock>(memory), world, self);
             };
         }
 
@@ -171,7 +155,7 @@ namespace Fdp.Toolkit.Behavior
             if (resolve is null) throw new ArgumentNullException(nameof(resolve));
             if (RuntimeHelpers.IsReferenceOrContainsReferences<TAuthored>()) return null;
             int authoredBytes = Unsafe.SizeOf<TAuthored>();
-            return (byte* source, int sourceBytes, byte* block, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+            return (byte* source, int sourceBytes, byte* block, int capacity, EntityRepository world, Entity self) =>
             {
                 if (capacity < sizeof(TBlock))
                     throw new InvalidOperationException(
@@ -186,7 +170,7 @@ namespace Fdp.Toolkit.Behavior
                             $"'{typeof(TAuthored).Name}' is {authoredBytes}. The bound variable must be that type.");
                     authored = Unsafe.ReadUnaligned<TAuthored>(source);
                 }
-                resolve(in authored, ref Unsafe.AsRef<TBlock>(block), world, self, host);
+                resolve(in authored, ref Unsafe.AsRef<TBlock>(block), world, self);
             };
         }
     }

@@ -177,14 +177,14 @@ sequenceDiagram
 | sub-behaviour, no resolver: whole host struct copied onto `In` | ✅ (`CE-431`) | — |
 | sub-behaviour, resolver gets the host bytes | ✅ `CE-443`: the host variable is the resolver's source, no copy; a curated TYPED resolver runs from the bytes (`CE-438` closed); a JSON-shaped curated one throws, with the reason | — |
 | C# action / condition reads live | ✅ | — |
-| **blueprint action in a BTree** reads live | ✅ — but its own resolver never runs | `CE-445` (resolver retired) |
+| **blueprint action in a BTree** reads live | ✅ — and it has no resolver (`CE-445`, `2026-09-30`) | — |
 | **blueprint HSM activity / guard** reads live | ⛔ params are copied into its occurrence at activation, then its own resolver runs | `CE-444` |
-| no action-level resolver anywhere | ⛔ `HostedParamResolvers` + `IHostVariableAccess` ship | `CE-445` |
+| no action-level resolver anywhere | ✅ `CE-445` (`2026-09-30`): `HostedParamResolvers`, `IHostVariableAccess`, `HsmHostVariableAccess`, the name map and the `host` argument deleted; a Construction graph on a non-Library asset is `BP1676` | — |
 | blueprint as a behaviour | ⛔ | `CE-446` = `O9` / [`Q33`](Architect_Question_33_Blueprint_Brain_Tier.md) |
 
 ### P.6 ✅ DECIDED `2026-09-30` — retire the host accessor (`IHostVariableAccess`)
 
-🔒 **User, `2026-09-30`:** *"Retire it."* ⇒ `CE-445` removes the interface, `HsmHostVariableAccess`, the
+🔒 **User, `2026-09-30`:** *"Retire it."* ✅ **DONE by `CE-445`** — it removed the interface, `HsmHostVariableAccess`, the
 `HsmParamBindings` name map and the `host` parameter on every resolver signature. This reverses §3.4's `2026-08-16` ruling;
 the history below is kept as the reason.
 

@@ -395,10 +395,8 @@ internal sealed class CSharpEmitter
         WriteLine($"[\"{graph.Name}\"] = global::Fdp.Toolkit.Blueprints.BlueprintResolverEntry.For<{dto}>(");
         Indent();
         WriteLine($"static (ref {dto} __dto, global::Fdp.Core.EntityRepository __world, " +
-                  "global::Fdp.Core.Entity __self, " +
-                  // ⚠ unannotated for the same CS8669 reason LibraryEmitter documents.
-                  "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
-        WriteLine($"    __dto = {className}.{graph.Name}(__dto, __world, __self, __host)),");
+                  "global::Fdp.Core.Entity __self) =>");
+        WriteLine($"    __dto = {className}.{graph.Name}(__dto, __world, __self)),");
         Outdent();
     }
 
@@ -451,35 +449,8 @@ internal sealed class CSharpEmitter
                 $"{className}.BTreeEvaluate(ref bb, ref st, ref ctx, pi) " +
                 "? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure);");
 
-        // ⭐⭐⭐ E8a — the asset's OWN parameter resolver, registered under the SAME key the emitted
-        //    thunk already resolves against. 📐 AiPrimitiveEmitter:413 emits
-        //    `HostedParamResolvers.TryRun(AssetId, ref *__params, …)`; this is `Register(AssetId, …)`.
-        //    ⇒ producer and consumer key on one value the asset already carries, so there is NO
-        //    BINDING STEP — which is the whole reason E8a needs no selection property (R-149, §7.2).
-        //
-        // ⚠ A METHOD GROUP, not a lambda: EmitOwnResolverMethod emits exactly the
-        //    ResolveParams<Params> signature, so the conversion is direct.
-        //
-        // ⛔ Register OVERWRITES on a duplicate and must keep doing so — it is keyed by ASSET id and
-        //    re-registered by every rescan. ⚠ Its sibling BehaviorRegistry.RegisterResolver THROWS on
-        //    a duplicate instead (R-149): that one is name-keyed on a FRESH staging registry per scan,
-        //    so a duplicate there can only be two bindings in one scan. Opposite policies, opposite
-        //    reasons — see that method's header.
-        if (AiPrimitiveEmitter.OwnResolverGraphOf(asset) is { } ownResolver)
-        {
-            // ⚠ A LAMBDA, not a method group: the emitted resolver returns the graph vocabulary's
-            //    NodeStatus (every Return node carries one) and a resolver has no status, so the
-            //    value is discarded HERE rather than by teaching the shared terminator emitter about
-            //    resolvers. ⭐ The lambda is exactly ResolveOccurrence<Params, WorkingState> (CE-432).
-            // ⭐⭐ CE-432: the BLOCK shape — parameters AND working state, both by ref (ResolveOccurrence).
-            WriteLine($"global::Fdp.Toolkit.Behavior.HostedParamResolvers.Register<{className}.Params, {className}.WorkingState>(");
-            WriteLine($"    {className}.AssetId,");
-            WriteLine($"    static (ref {className}.Params __p, ref {className}.WorkingState __ws, " +
-                      "global::Fdp.Core.EntityRepository __world, " +
-                      "global::Fdp.Core.Entity __self, " +
-                      "global::Fdp.Toolkit.Behavior.IHostVariableAccess __host) =>");
-            WriteLine($"        {className}.{ownResolver.Name}(ref __p, ref __ws, __world, __self, __host));");
-        }
+        // ⛔ CE-445 (R-155): an AiPrimitive no longer carries its own resolver — actions and conditions read
+        //    their host live and have none (DESIGN_Parameter_Model §P.4). HostedParamResolvers is retired.
 
         // Register HSM thunks via static calls (HsmActionDispatcher is a static unsafe class,
         // not injectable; Patch C1). The unmanaged function pointers are cast to IntPtr.

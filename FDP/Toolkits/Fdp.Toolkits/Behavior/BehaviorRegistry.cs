@@ -31,15 +31,8 @@ namespace Fdp.Toolkit.Behavior
     /// entity map, etc. — reached via <paramref name="world"/> singletons (rather than a
     /// registration-time closure). Runs once at behavior activation (<see cref="Systems.BehaviorIngressSystem"/>).
     /// </summary>
-    /// <param name="host">
-    /// ⭐⭐ <c>G1</c>/<c>E7</c> — the HOSTING occurrence's variables, or <c>null</c> for a root
-    /// behaviour. 📄 <c>DESIGN_Parameter_Model.md</c> §3.4.
-    /// ⛔ <b>Always <c>null</c> today</b>: <see cref="IHostVariableAccess"/> is declared and
-    /// unimplemented on purpose. ⭐ The parameter is here NOW because adding one is a breaking change
-    /// to every resolver, and <c>E7a</c> should populate it without a second such change.
-    /// </param>
     public unsafe delegate void ParseParamsDelegate(
-        string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host);
+        string json, byte* memory, int capacity, EntityRepository world, Entity self);
 
     /// <summary>
     /// ⭐⭐ <c>CE-427</c> — <b>STAGE 1 alone: bake every authored default into the block.</b>
@@ -58,7 +51,7 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public unsafe delegate void ResolveStageDelegate(
         byte* source, int sourceBytes, byte* block, int capacity,
-        EntityRepository world, Entity self, IHostVariableAccess? host);
+        EntityRepository world, Entity self);
 
     /// <summary>Variable metadata for one packed slot in the root params region.</summary>
     public sealed record ManagedBlackboardVariable(string Name, Type Type, int ByteOffset);
@@ -595,10 +588,7 @@ namespace Fdp.Toolkit.Behavior
             //    can only be two registrations in ONE scan — a genuine authoring error — while
             //    re-registration across a hot reload never reaches this check. A throw without that
             //    distinction would have broken reload.
-            //
-            // ⚠ Its sibling HostedParamResolvers.Register deliberately does the OPPOSITE and
-            //    overwrites: it is keyed by ASSET id and re-registered by every rescan, so the two
-            //    registries need opposite duplicate policies for opposite reasons.
+
             if (_resolversByName.ContainsKey(name))
                 throw new InvalidOperationException(
                     $"Two resolvers are registered for behaviour '{name}' in one scan. A parameters "
@@ -668,10 +658,10 @@ namespace Fdp.Toolkit.Behavior
             var curated = overlay.Resolver;
             def.ParseParams = bake == null
                 ? curated
-                : (string json, byte* memory, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host) =>
+                : (string json, byte* memory, int capacity, EntityRepository world, Entity self) =>
                 {
                     bake(memory, capacity);
-                    curated(json, memory, capacity, world, self, host);
+                    curated(json, memory, capacity, world, self);
                 };
             if (overlay.BlackboardLayoutType == null) return;
 

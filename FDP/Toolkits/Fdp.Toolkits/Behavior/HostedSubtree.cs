@@ -257,7 +257,7 @@ public static unsafe class HostedSubtree
             sourceBytes = binding.Length;
         }
         if (blockBytes > 0)
-            resolve(source, sourceBytes, block, blockBytes, ctxWorld, ctxSelf, null);
+            resolve(source, sourceBytes, block, blockBytes, ctxWorld, ctxSelf);
     }
 
     private static void Supply(BehaviorDefinition childDef, byte* block, int blockBytes,

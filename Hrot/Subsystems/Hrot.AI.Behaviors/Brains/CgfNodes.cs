@@ -159,7 +159,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// singleton and delegates to <see cref="ParseMoveToParams"/>. Null geo → Cartesian fallback.
         /// </summary>
         [Fdp.Toolkit.Behavior.BehaviorResolver("MoveToLocation")]
-        public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
+        public static unsafe void ResolveMoveToParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
         {
             var geo = world.HasSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
                 ? world.GetSingletonManaged<Fdp.Modules.Geographic.IGeographicTransform>()
@@ -172,7 +172,7 @@ namespace Hrot.AI.Behaviors.Brains
         /// singleton and delegates to <see cref="ParseFireAtTargetParams"/>.
         /// </summary>
         [Fdp.Toolkit.Behavior.BehaviorResolver("FireAtTarget")]
-        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self, IHostVariableAccess? host)
+        public static unsafe void ResolveFireAtTargetParams(string json, byte* ptr, int capacity, EntityRepository world, Entity self)
         {
             var map = (world.HasSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()
                 ? world.GetSingletonManaged<Fdp.Toolkit.Replication.Services.NetworkEntityMap>()

@@ -160,7 +160,7 @@ public sealed class InstanceParamsLayoutTests
         var src = CompileSource(InstanceWithParams());
 
         Assert.Contains("public static unsafe void ParseParams(", src);
-        Assert.Contains("global::Fdp.Toolkit.Behavior.IHostVariableAccess? host)", src);
+        Assert.Contains("global::Fdp.Core.Entity self)", src);   // CE-445: no host argument
         Assert.Contains("ParseParams = ParamCarrier_", src);
         Assert.Contains("ParamsOffset = ParamCarrier_", src);
         Assert.Contains("ParamsSize = ParamCarrier_", src);

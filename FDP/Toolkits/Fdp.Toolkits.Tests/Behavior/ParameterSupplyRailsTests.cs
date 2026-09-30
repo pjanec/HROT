@@ -72,7 +72,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             var parse = BehaviorParams.FromJson<DemoParams>();
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            parse("{\"Count\":7,\"Speed\":2.5}", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
+            parse("{\"Count\":7,\"Speed\":2.5}", buffer, Marshal.SizeOf<DemoParams>(), null!, default);
 
             var written = *(DemoParams*)buffer;
             Assert.Equal(7, written.Count);
@@ -88,14 +88,14 @@ namespace Fdp.Toolkit.Behavior.Tests
         public void FromJson_RunsTheResolverOverTheDeserializedValue()
         {
             var parse = BehaviorParams.FromJson<DemoParams>(
-                static (ref DemoParams dto, EntityRepository w, Entity s, IHostVariableAccess? h) =>
+                static (ref DemoParams dto, EntityRepository w, Entity s) =>
                 {
                     Assert.Equal(7, dto.Count);      // ⭐ the resolver sees the authored value…
                     dto.Speed = dto.Count * 10f;     // …and derives from it
                 });
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            parse("{\"Count\":7}", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
+            parse("{\"Count\":7}", buffer, Marshal.SizeOf<DemoParams>(), null!, default);
 
             Assert.Equal(70f, ((DemoParams*)buffer)->Speed);
         }
@@ -112,7 +112,7 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
             *(DemoParams*)buffer = new DemoParams { Count = 99, Speed = 99f };   // pre-dirty the region
-            parse("", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null);
+            parse("", buffer, Marshal.SizeOf<DemoParams>(), null!, default);
 
             Assert.Equal(0, ((DemoParams*)buffer)->Count);
         }
@@ -136,55 +136,30 @@ namespace Fdp.Toolkit.Behavior.Tests
             var parse = BehaviorParams.FromJson<DemoParams>();
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            Assert.ThrowsAny<Exception>(() => parse("{ not json", buffer, Marshal.SizeOf<DemoParams>(), null!, default, null));
+            Assert.ThrowsAny<Exception>(() => parse("{ not json", buffer, Marshal.SizeOf<DemoParams>(), null!, default));
         }
 
-        // ── §3.4: the host argument is present and always null for a root ────
+        // ── CE-445: the host accessor is RETIRED ─────────────────────────────
 
         /// <summary>
-        /// ⭐ <b>The host parameter exists NOW so it is never added twice.</b> ⚠ Asserted on the
-        /// delegate's signature rather than on behaviour, because there is no behaviour yet:
-        /// <see cref="IHostVariableAccess"/> is declared and deliberately unimplemented, and every
-        /// caller passes <c>null</c> until <c>E7a</c>.
+        /// ⛔ <c>CE-445</c> — <b><c>IHostVariableAccess</c> is gone, and so is the <c>host</c> argument.</b> 🔒 User,
+        /// <c>2026-09-30</c>: <i>"Retire it."</i> 📐 Nothing fed its name map in production and nothing read through it;
+        /// a sub-behaviour's input is exactly its bound host variable (<c>DESIGN_Parameter_Model.md</c> §P.6).
+        /// <para>⚠ Inverse-edit red-proof: re-add the interface or the parameter and this reds.</para>
         /// </summary>
         [Fact]
-        public void ParseParamsDelegate_CarriesTheHostArgument()
+        public void CE445_TheHostAccessorAndItsArgument_AreRetired()
         {
-            var invoke = typeof(ParseParamsDelegate).GetMethod("Invoke")!;
-            var last   = invoke.GetParameters().Last();
+            var asm = typeof(ParseParamsDelegate).Assembly;
+            Assert.Null(asm.GetType("Fdp.Toolkit.Behavior.IHostVariableAccess"));
+            Assert.Null(asm.GetType("Fdp.Toolkit.Behavior.HsmHostVariableAccess"));
+            Assert.Null(asm.GetType("Fdp.Toolkit.Behavior.HostedParamResolvers"));
 
-            Assert.Equal(typeof(IHostVariableAccess), last.ParameterType);
-            Assert.Equal("host", last.Name);
-        }
-
-        /// <summary>
-        /// ✅ <b><c>E7a</c> — <c>IHostVariableAccess</c> IS IMPLEMENTED, and the ROOT ingress still
-        /// passes <c>null</c>.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.7.
-        ///
-        /// <para>⚠ <b>This rail was a pin asserting ZERO implementers, and it has FLIPPED</b> — which
-        /// is what a pin is for. ⛔ But its stated premise needed correcting, not just its assertion:
-        /// it said <i>"the ingress must start passing a real instance, and the two go together."</i>
-        /// 📐 <b>The ingress is the ROOT path, and a root behaviour HAS no host</b> — §3.4 defines
-        /// <c>null</c> as its value. ⇒ the real instance appears on the HOSTED path, at the
-        /// occurrence's seed, which is the only place a host exists.</para>
-        ///
-        /// <para>⭐ So the pairing the old rail wanted is still asserted, just at the right seam: an
-        /// implementation EXISTS, and the root caller still passes <c>null</c>.</para>
-        /// </summary>
-        [Fact]
-        public void IHostVariableAccess_IsImplemented_AndTheRootStillPassesNull()
-        {
-            var implementers = typeof(IHostVariableAccess).Assembly.GetTypes()
-                .Where(t => !t.IsInterface && typeof(IHostVariableAccess).IsAssignableFrom(t))
-                .Select(t => t.Name)
-                .ToList();
-
-            // ⭐⭐ THE RAIL. 🔴 Zero implementers from 2026-08-16 until E7a landed.
-            Assert.Contains(nameof(HsmHostVariableAccess), implementers);
-
-            // ⭐ …and the delegate still carries the argument, so nothing had to change shape.
-            var last = typeof(ParseParamsDelegate).GetMethod("Invoke")!.GetParameters().Last();
-            Assert.Equal(typeof(IHostVariableAccess), last.ParameterType);
+            foreach (var d in new[] { typeof(ParseParamsDelegate), typeof(ResolveStageDelegate) })
+            {
+                var last = d.GetMethod("Invoke")!.GetParameters().Last();
+                Assert.Equal(typeof(Fdp.Core.Entity), last.ParameterType);
+            }
         }
     }
 }

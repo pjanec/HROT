@@ -92,17 +92,7 @@ public static class HsmFireActivity_055BAC64_Bp
         var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)context;
         var world = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;
         
-        // E3b (§28.7): the HOST's params region, so a resolver can read the host's own
-        //   variables BY NAME through IHostVariableAccess — its first implementation.
-        // CE-297: the SEED comes from HERE, not from the kernel's instance pointer.
-        // P3-C: and 'here' is the entity's ROOT PARAMS SLOT — BrainBlackboard is retired.
-        // CE-305: the EXTENT comes from the slot, never from MaxBehaviorParamByteSize. The
-        //   constant was right while the region was a fixed byte[100]; since P3-C it is only
-        //   RootParamsBytes(def) wide, so a 100-byte bound lets IHostVariableAccess read past
-        //   the slot into the next occurrence (§29.10 — the ANCHOR was specified, the EXTENT
-        //   never was).
-        byte* __hostParams = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(
-            world, bridge->Self, out int __hostParamsLen);
+        // CE-297: the SEED comes from the entity's ROOT PARAMS SLOT, not the kernel's instance pointer.
         
         // O7/E3: this occurrence's OWN params AND working state, keyed by the (region, state)
         //        the kernel stamped (O6) and by the hosting machine's id from the instance header.
@@ -121,9 +111,6 @@ public static class HsmFireActivity_055BAC64_Bp
                 ref global::System.Runtime.CompilerServices.Unsafe.AddByteOffset(
                     ref __rootParams, (nint)__seedOffset));
             InitDefaultWorkingState((WorkingState*)global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref ws));
-            // C1′ (§28.7): the RESOLVE stage — the one place IHostVariableAccess is non-null.
-            global::Fdp.Toolkit.Behavior.HostedParamResolvers.TryRun(
-                AssetId, ref *__params, ref ws, world, bridge->Self, global::Fdp.Toolkit.Behavior.HsmHostVariableAccess.For(instance, __hostParams, __hostParamsLen));
         }
         ref var p = ref *__params;
         TickCore(ref p, ref ws, bridge->Self, world, world.SimulationTime);

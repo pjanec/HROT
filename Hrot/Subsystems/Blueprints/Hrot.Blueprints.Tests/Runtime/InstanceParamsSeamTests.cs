@@ -66,8 +66,7 @@ public sealed unsafe class InstanceParamsSeamTests : IDisposable
     /// behaviours, which this seam reuses rather than redeciding.
     /// </summary>
     private static void ParseParams(
-        string json, byte* memory, int capacity, EntityRepository world, Entity self,
-        Fdp.Toolkit.Behavior.IHostVariableAccess? host)
+        string json, byte* memory, int capacity, EntityRepository world, Entity self)
     {
         ref var p = ref Unsafe.AsRef<ParamsShape>(memory);
         p = default;

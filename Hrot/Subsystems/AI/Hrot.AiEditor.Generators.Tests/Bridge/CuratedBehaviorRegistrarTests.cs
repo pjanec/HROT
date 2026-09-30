@@ -231,7 +231,7 @@ public sealed class CuratedBehaviorRegistrarTests
 
         var act = () => beh.RegisterResolver(
             Hrot.Map.Definitions.Behavior.BehaviorNames.MoveToLocation,
-            (json, memory, capacity, world, self, host) => { });
+            (json, memory, capacity, world, self) => { });
 
         act.Should().Throw<Exception>("R-149: two explicit bindings for one params region must throw");
     }

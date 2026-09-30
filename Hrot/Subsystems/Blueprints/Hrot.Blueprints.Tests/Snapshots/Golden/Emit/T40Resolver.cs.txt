@@ -18,7 +18,7 @@ public static class T40Resolver_3C40EC2E_Bp
 {
     public const int BlueprintId = unchecked((int)0x3C40EC2E);
     
-    public static global::Fbt.NodeStatus ResolveT40(in Params authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
+    public static global::Fbt.NodeStatus ResolveT40(in Params authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
     {
         var __t0 = authored.HalfSpeed;
         var __t1 = 2.0f;
@@ -66,8 +66,8 @@ public static class T40Resolver_3C40EC2E_Bp
         global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
     
     /// <summary>CE-428: the behaviour-resolver entry point — stage 3 of the supply pipeline.</summary>
-    public static void ResolveBehavior(in Params authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self, global::Fdp.Toolkit.Behavior.IHostVariableAccess host)
-        => ResolveT40(in authored, ref block, world, self, host);
+    public static void ResolveBehavior(in Params authored, ref global::Hrot.AI.Behaviors.Trees.T40_BehaviorResolverAsset_Block block, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
+        => ResolveT40(in authored, ref block, world, self);
     
 }
 
