@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-09-30 (§5 — runtime half built; lean A re-opened by measurement)
-build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
+build-state: BUILDING (compiler + runtime built 2026-09-30, §5.9) — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
   A–E adopted as written.
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
@@ -251,3 +251,60 @@ technologies (`ActionSchemaExporter`); the behaviour assignment list is curated 
 | latent cursor | `instanceVersion` for reload | ✅ pass `BehaviorState.InstanceId` (bumps on every assign) |
 | Get/Set Variable, Get All Parameters/Variables | `s.X` / `s.Params.X` on `[Cursor][Params][State]` | ✅ that IS the root block |
 | ⚠ hot reload of a RUNNING blueprint behaviour whose layout changed | `BlueprintTickSystem` re-inits on a hash mismatch; nothing does this for the behaviour tier yet | ⚠ build item, not a blocker |
+
+### 5.9 ✅ AS-BUILT `2026-09-30` — the compiler half (§5.6)
+
+```mermaid
+classDiagram
+    class BehaviorDispatch {
+        <<compiler, NEW>>
+        +IsTickGraph(asset, graph) bool
+    }
+    class InstanceEmitter {
+        <<EXISTS, reused whole>>
+        +Tick() NodeStatus for Behavior
+        +BehaviorParseParams() NEW
+        +BehaviorTick() NEW
+    }
+    class TerminatorEmitter {
+        <<EXISTS>>
+        void exit ⇒ Running in a behaviour Tick
+    }
+    class Stage5_Schedule {
+        <<EXISTS>>
+        Return node ⇒ Success/Failure in a behaviour Tick
+    }
+    class CSharpEmitter {
+        <<EXISTS>>
+        +EmitBehaviorRegistration() NEW
+    }
+    class BehaviorDefinition {
+        <<runtime>>
+        +BrainTier = 3
+        +BlackboardLayoutType = State
+        +ParseParams = BehaviorParseParams
+        +BlueprintTick = BehaviorTick
+    }
+    BehaviorDispatch <.. TerminatorEmitter
+    BehaviorDispatch <.. Stage5_Schedule
+    CSharpEmitter --> InstanceEmitter : Behavior ⇒ Instance body
+    CSharpEmitter --> BehaviorDefinition : registrar(beh) registers
+```
+
+> ⭐ **Caption — what the picture shows that prose hid:** there is NO behaviour emitter. `Behavior` rides the Instance
+> lowering and `InstanceEmitter` unchanged; the whole difference is ONE predicate (`BehaviorDispatch.IsTickGraph`) read by
+> the two places that decide an exit — Stage 5 (a `Return` node) and `TerminatorEmitter` (every void exit ⇒ `Running`) —
+> plus two entry points and a registration. ⇒ every Instance node (`When`, EQS, Event graphs, peer calls) is available.
+
+| piece | where |
+|---|---|
+| `BlueprintDispatchKind.Behavior` (compiler + runtime mirror) · parser `"behavior"` | `BlueprintAsset.cs`, `BlueprintDispatchKind.cs`, `BlueprintSignatureParser.cs` |
+| Stage 2: the Instance arms + `When`/EQS allowed; a Construction graph refused with *"own resolver not built yet"* | `Stage2_Validate.cs`, `V_ResolverPurity.cs` |
+| Stage 5: `Return` ⇒ `IrTerm_ReturnStatus` in the Tick · Stage 6: Instance lowering | `Stage5_Schedule.cs`, `Stage6_Lower.cs` |
+| `BehaviorParseParams` = `InitDefault` (whole `[Cursor][Params][State]`) + Instance `ParseParams` at `ParamsOffset` · `BehaviorTick` = event dispatch then `Tick` | `InstanceEmitter.cs` |
+| registrar takes `BehaviorRegistry beh`, registers by name on `BrainTierBlueprint`; ⛔ never staged as an Instance | `CSharpEmitter.EmitBehaviorRegistration` |
+| runtime: the tick delegate gains `ecb` + `instanceId`; `BrainTickSystem` passes `view.GetCommandBuffer()`; `BlueprintEventDispatch.Dispatch(handlers, …)` | `BlueprintBehaviorTickDelegate.cs`, `BrainTickSystem.cs`, `BlueprintEventDispatch.cs` |
+| rails | `BlueprintBehaviourTests` — status Tick + registration; fall-off ⇒ Running; compile → load → assign → wait (latent) → Success → finished once → cleared |
+
+⚠ **Still open inside `CE-446`:** its own resolver (§3 B) · a shipped corpus demo asset · hot reload of a running blueprint
+behaviour whose layout changed (§5.8) · E4 editor (§5.5).

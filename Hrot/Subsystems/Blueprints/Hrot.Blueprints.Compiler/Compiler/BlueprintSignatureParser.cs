@@ -74,6 +74,7 @@ public static class BlueprintSignatureParser
         {
             "aiprimitive" => BlueprintDispatchKind.AiPrimitive,
             "instance"    => BlueprintDispatchKind.Instance,
+            "behavior"    => BlueprintDispatchKind.Behavior,
             _             => BlueprintDispatchKind.Library,
         };
     }

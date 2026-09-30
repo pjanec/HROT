@@ -2173,7 +2173,9 @@ internal sealed class GraphScheduler
         // and must keep returning NodeStatus, not be swept into the value-return path below.
         bool wantsStatusReturn =
             _typed.Asset.Dispatch == AssetDispatchKind.AiPrimitive
-            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && valuePins.Count == 0);
+            || (_typed.Asset.Dispatch == AssetDispatchKind.Library && valuePins.Count == 0)
+            // ⭐ CE-446: a blueprint BEHAVIOUR's Return node finishes it with its Success/Failure (Q77 D).
+            || BehaviorDispatch.IsTickGraph(_typed.Asset, _graph);
 
         if (wantsStatusReturn)
         {

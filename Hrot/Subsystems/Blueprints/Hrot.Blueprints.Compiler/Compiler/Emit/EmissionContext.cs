@@ -16,6 +16,15 @@ internal sealed class EmissionContext
     public IrGraph? CurrentGraph { get; set; }
 
     /// <summary>
+    /// ⭐ <c>CE-446</c> — the graph being emitted is a blueprint BEHAVIOUR's Tick, so every non-status exit is
+    /// <c>Running</c> (<see cref="BehaviorDispatch"/>).
+    /// </summary>
+    public bool IsBehaviorTick => BehaviorDispatch.IsTickGraph(Asset, CurrentGraph);
+
+    /// <summary>⭐ <c>CE-446</c> — the "not finished yet" exit of a behaviour Tick.</summary>
+    public const string ReturnRunning = "return global::Fbt.NodeStatus.Running;";
+
+    /// <summary>
     /// CallPeerBlueprint/AiPrimitiveCall alias fix -- the cross-asset function signatures the
     /// caller was compiled WITH (<c>CompileOptions.SiblingSignatures</c>), threaded through so
     /// <c>CSharpEmitter.EmitUsings</c> can resolve a peer's REAL generated class name

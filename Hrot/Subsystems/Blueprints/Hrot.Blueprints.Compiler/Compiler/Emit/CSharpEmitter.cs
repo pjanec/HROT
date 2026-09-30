@@ -119,6 +119,7 @@ internal sealed class CSharpEmitter
                 AiPrimitiveEmitter.EmitClass(this, asset);
                 break;
             case AssetDispatch.Instance:
+            case AssetDispatch.Behavior:     // CE-446: a behaviour IS an Instance body (+ a status)
                 InstanceEmitter.EmitClass(this, asset);
                 break;
             default:
@@ -188,7 +189,7 @@ internal sealed class CSharpEmitter
         bool needsActionRegistry = asset.Hostings.Any(h =>
             h == AiPrimitiveHosting.BTreeAction || h == AiPrimitiveHosting.BTreeCondition);
 
-        bool hasConditionMet = asset.Dispatch == AssetDispatch.Instance &&
+        bool hasConditionMet = asset.Dispatch is AssetDispatch.Instance or AssetDispatch.Behavior &&
             asset.Graphs
                 .SelectMany(g => g.Blocks)
                 .SelectMany(b => b.Statements)
@@ -206,6 +207,9 @@ internal sealed class CSharpEmitter
                 "global::Fbt.Runtime.ActionRegistry<" +
                 "byte, " +   // P4-②
                 "global::Fdp.Toolkit.Behavior.BTreeContext> actionRegistry");
+        // ⭐ CE-446: a blueprint behaviour registers into the BEHAVIOUR registry (the scanner injects it by type).
+        if (asset.Dispatch == AssetDispatch.Behavior)
+            paramParts.Add("global::Fdp.Toolkit.Behavior.BehaviorRegistry beh");
         if (hasConditionMet)
         {
             paramParts.Add("global::Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler predicateCompiler");
@@ -229,6 +233,11 @@ internal sealed class CSharpEmitter
                 if (hasConditionMet)
                     WriteLine($"{className}.InitializePredicates(predicateCompiler, dtoRegistry);");
                 EmitInstanceRegistration(className, asset);
+                break;
+            case AssetDispatch.Behavior:
+                if (hasConditionMet)
+                    WriteLine($"{className}.InitializePredicates(predicateCompiler, dtoRegistry);");
+                EmitBehaviorRegistration(className, asset);
                 break;
         }
 
@@ -599,6 +608,26 @@ internal sealed class CSharpEmitter
     /// </summary>
     private static int StructRelativeOffset(IrAsset asset, IrField f)
         => f.Offset - (asset.Dispatch == AssetDispatch.AiPrimitive ? 8 : 0);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6) — a blueprint BEHAVIOUR registers a <c>BehaviorDefinition</c> by NAME on the third
+    /// brain tier, exactly as a BTree/HSM registrar does (<c>BehaviorHash.FromName</c>). ⛔ It is NOT staged as an Instance:
+    /// it is never attached, and its block is the root params slot the ingress allocates from <c>BlackboardLayoutType</c>.
+    /// </summary>
+    private void EmitBehaviorRegistration(string className, IrAsset asset)
+    {
+        WriteLine($"beh.Register(global::Fdp.Toolkit.Behavior.BehaviorHash.FromName(\"{asset.Name}\"), \"{asset.Name}\", "
+                + "new global::Fdp.Toolkit.Behavior.BehaviorDefinition");
+        WriteLine("{");
+        Indent();
+        WriteLine($"Name = \"{asset.Name}\",");
+        WriteLine("BrainTier = global::Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint,");
+        WriteLine($"BlackboardLayoutType = typeof({className}.State),");
+        WriteLine($"ParseParams = {className}.BehaviorParseParams,");
+        WriteLine($"BlueprintTick = {className}.BehaviorTick,");
+        Outdent();
+        WriteLine("});");
+    }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)
     {

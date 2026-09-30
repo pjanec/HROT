@@ -95,7 +95,11 @@ internal static class InstanceEmitter
             e.WriteLine();
         }
 
-        EmitTickThunk(e);
+        // ⭐ CE-446: a BEHAVIOUR is registered as a behaviour, not an Instance — its entry points replace the thunk.
+        if (asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior)
+            EmitBehaviorEntryPoints(e, asset);
+        else
+            EmitTickThunk(e);
         e.WriteLine();
 
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
@@ -447,8 +451,10 @@ internal static class InstanceEmitter
 
     private static void EmitTickMethod(CSharpEmitter e, IrAsset asset)
     {
+        // ⭐ CE-446: a behaviour's Tick reports whether it finished (BehaviorDispatch).
+        bool behaviour = asset.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior;
         // Q-18.1: includes uint instanceVersion as last parameter
-        e.WriteLine("public static void Tick(");
+        e.WriteLine(behaviour ? "public static global::Fbt.NodeStatus Tick(" : "public static void Tick(");
         e.Indent();
         e.WriteLine("ref State s,");
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
@@ -468,7 +474,68 @@ internal static class InstanceEmitter
         {
             LibraryEmitter.EmitGraphBody(e, asset, tickGraph);
         }
+        else if (behaviour)
+        {
+            e.WriteLine(EmissionContext.ReturnRunning);   // no Tick graph: never finishes on its own
+        }
 
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6) — the two entry points a blueprint BEHAVIOUR registers with.
+    /// <list type="bullet">
+    /// <item><c>BehaviorParseParams</c> — the root block IS the Instance payload <c>[Cursor][Params][State]</c>: bake the
+    /// whole block (<c>InitDefault</c>: cursor zeroed, Variable defaults), then parse the JSON onto <c>Params</c> at
+    /// <c>ParamsOffset</c> (the Instance <c>ParseParams</c>, unchanged).</item>
+    /// <item><c>BehaviorTick</c> — dispatch this frame's events to the Event graphs (the Instance dispatch, over the
+    /// handler table), then run the Tick, whose status ends the behaviour.</item>
+    /// </list>
+    /// </summary>
+    private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
+    {
+        var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
+        if (events.Count > 0)
+        {
+            e.WriteLine("private static readonly global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate> BehaviorEventHandlers =");
+            e.WriteLine("    new(global::System.StringComparer.Ordinal)");
+            e.WriteLine("{");
+            e.Indent();
+            foreach (var g in events)
+                e.WriteLine($"[\"{g.EventTypeFqn ?? g.Name}\"] = Event_{g.Name}_Thunk,");
+            e.Outdent();
+            e.WriteLine("};");
+            e.WriteLine();
+        }
+
+        e.WriteLine("/// <summary>CE-446: bake the whole block, then parse Params at their offset.</summary>");
+        e.WriteLine("public static unsafe void BehaviorParseParams(string json, byte* memory, int capacity,");
+        e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("if (capacity < StateSize)");
+        e.WriteLine("    throw new global::System.ArgumentOutOfRangeException(nameof(capacity),");
+        e.WriteLine("        $\"the behaviour block holds {capacity} bytes but this blueprint needs {StateSize} (CE-446).\");");
+        e.WriteLine("InitDefault(new global::System.Span<byte>(memory, StateSize));");
+        if (asset.Parameters.Count > 0)
+            e.WriteLine("ParseParams(json, memory + ParamsOffset, capacity - ParamsOffset, world, self);");
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+
+        e.WriteLine("/// <summary>CE-446: this frame's events, then the Tick — its status ends the behaviour.</summary>");
+        e.WriteLine("public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block,");
+        e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
+        e.WriteLine("    global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId)");
+        e.WriteLine("{");
+        e.Indent();
+        if (events.Count > 0)
+            e.WriteLine("global::Fdp.Toolkit.Blueprints.BlueprintEventDispatch.Dispatch(BehaviorEventHandlers, "
+                      + "new global::System.Span<byte>(global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref block), StateSize), "
+                      + "world.Bus, world, ecb, self, time, deltaTime);");
+        e.WriteLine("return Tick(ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(ref block), "
+                  + "world, ecb, self, time, deltaTime, instanceId);");
         e.Outdent();
         e.WriteLine("}");
     }

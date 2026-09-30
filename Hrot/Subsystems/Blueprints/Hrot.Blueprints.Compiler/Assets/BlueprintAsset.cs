@@ -145,7 +145,9 @@ public sealed class BlueprintAsset
 /// <summary>
 /// Mirror of <c>Fdp.Toolkit.Blueprints.BlueprintDispatchKind</c>.
 /// </summary>
-public enum BlueprintDispatchKind { Library, AiPrimitive, Instance }
+/// ⭐ <c>Behavior</c> (<c>CE-446</c>, <c>Q77</c> §5.6): a behaviour implemented by a blueprint — the Instance body (full node
+/// set, latent cursor) plus a status: its Tick returns <c>Success</c>/<c>Failure</c> to finish, <c>Running</c> otherwise.
+public enum BlueprintDispatchKind { Library, AiPrimitive, Instance, Behavior }
 
 /// <summary>
 /// Authoring hint for which blackboard tier an Instance blueprint should use.

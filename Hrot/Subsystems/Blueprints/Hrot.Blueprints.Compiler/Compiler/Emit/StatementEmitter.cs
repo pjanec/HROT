@@ -767,7 +767,8 @@ internal static class StatementEmitter
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine("s.Cursor.ResumeAt = 0;");
-                e.WriteLine("return;");
+                // ⭐ CE-446: a stale cursor in a behaviour Tick restarts it next frame — still Running.
+                e.WriteLine(e.Ctx.IsBehaviorTick ? EmissionContext.ReturnRunning : "return;");
                 e.Outdent();
                 e.WriteLine("}");
                 break;

@@ -98,6 +98,16 @@ internal sealed class V_ResolverPurity : IValidator
             bool isSubject = isLibrary && asset.ResolverSubject is not null;
 
             // ── BP1676 — a resolver belongs to a BEHAVIOUR, never to an action/condition/instance ────
+            // ⚠ CE-446: a blueprint BEHAVIOUR's own resolver (Q77 §3 B) is approved but NOT BUILT yet — refused with a
+            //   message that says so, rather than the "only behaviours have resolvers" one, which would be false here.
+            if (asset.Dispatch == BlueprintDispatchKind.Behavior)
+            {
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,
+                    $"Graph '{graph.Name}' is a Construction graph on a blueprint behaviour. A blueprint behaviour's own "
+                    + "resolver (Q77 §3 B) is not built yet (CE-446); remove the graph for now.",
+                    asset.AssetId, graph.Id));
+                continue;
+            }
             if (!isLibrary)
             {
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1676,

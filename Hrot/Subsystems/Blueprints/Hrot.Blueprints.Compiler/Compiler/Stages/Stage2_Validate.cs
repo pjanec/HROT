@@ -176,6 +176,7 @@ internal sealed class V_DispatchKindCompatibility : IValidator
                 // V_AiPrimitiveIntent below. See that validator for what Batch 67 widened.
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
                 if (asset.Primitive is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1030,
@@ -530,6 +531,7 @@ internal sealed class V_VariablesAndState : IValidator
                         asset.AssetId));
                 break;
 
+            case BlueprintDispatchKind.Behavior:   // CE-446: a behaviour IS an Instance body
             case BlueprintDispatchKind.Instance:
                 int stateSize = ComputeStructSize(
                     asset.Declarations.Of(DeclarationKind.Variable).Select(d => d.Type), ctx);
@@ -1186,7 +1188,7 @@ internal sealed class V_WhenNodeRules : IValidator
             // A Function graph in an Instance blueprint is "pure" if it contains no
             // EventEntryNode (i.e., it is a user-defined pure helper function).
             // WhenNode is forbidden in pure helper functions.
-            bool graphIsPureFunction = asset.Dispatch == BlueprintDispatchKind.Instance
+            bool graphIsPureFunction = asset.Dispatch is BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior
                 && graph.Kind == GraphKind.Function
                 && !graph.Nodes.OfType<EventEntryNode>().Any();
 
@@ -1493,7 +1495,7 @@ internal sealed class V_ReadEqsResultNodeRules : IValidator
     {
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 
@@ -1530,7 +1532,7 @@ internal sealed class V_SpawnEqsSensorNodeRules : IValidator
         // BP2030 / BP2031 -- per-node checks (per graph)
         foreach (var graph in asset.Graphs)
         {
-            bool isUnsupported = asset.Dispatch != BlueprintDispatchKind.Instance
+            bool isUnsupported = asset.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior)
                 || (graph.Kind == GraphKind.Function
                     && !graph.Nodes.OfType<EventEntryNode>().Any());
 

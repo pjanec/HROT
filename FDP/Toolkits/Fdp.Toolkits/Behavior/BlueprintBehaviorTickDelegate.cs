@@ -1,5 +1,6 @@
 using Fbt;
 using Fdp.Core;
+using Fdp.Interfaces;
 
 namespace Fdp.Toolkit.Behavior
 {
@@ -15,6 +16,9 @@ namespace Fdp.Toolkit.Behavior
     /// <c>BrainTickSystem</c> publishes <c>BehaviorFinishedEvent</c> once per <c>InstanceId</c>.
     /// </para>
     /// </summary>
+    /// <para>⭐ <paramref name="ecb"/> — the frame's command buffer, as an Instance tick receives it (EQS spawns etc.);
+    /// <paramref name="instanceId"/> — <c>BehaviorState.InstanceId</c>, the latent cursor's version (bumps on every assign).</para>
     public delegate NodeStatus BlueprintBehaviorTickDelegate(
-        ref byte block, EntityRepository world, Entity self, float time, float deltaTime);
+        ref byte block, EntityRepository world, IEntityCommandBuffer ecb, Entity self,
+        float time, float deltaTime, uint instanceId);
 }

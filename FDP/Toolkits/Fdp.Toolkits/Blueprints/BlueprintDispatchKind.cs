@@ -12,4 +12,6 @@ public enum BlueprintDispatchKind
     Library    = 0,
     AiPrimitive = 1,
     Instance   = 2,
+    /// <summary>⭐ CE-446 — a behaviour implemented by a blueprint (BrainTierBlueprint); never an attached Instance.</summary>
+    Behavior   = 3,
 }

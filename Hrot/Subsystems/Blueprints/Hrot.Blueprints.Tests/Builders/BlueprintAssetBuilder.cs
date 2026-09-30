@@ -293,6 +293,16 @@ public sealed class GraphBuilder
     {
         var nodeId = MakeNodeId("Delay", _nodes.Count);
         var node = new LatentDelayNode { Id = nodeId };
+        // ⭐ CE-446: honour the duration, exactly as a real asset carries it (PinDefaults["Duration"]). It was
+        //   silently dropped (every Delay compiled to 0 s) — invisible while callers only asserted the latent SHAPE.
+        // ⚠ As the data pin the schema declares (BuiltInNodeRegistry: data-In "Duration"/System.Single): PinDefaults only
+        //   become pins on a PIN-LESS node (Stage 0 rehydration), and a builder node already carries its exec pins.
+        node.Pins.Add(new Pin
+        {
+            Id = MakePinId(nodeId, "Duration"), Name = "Duration", Direction = "In",
+            TypeRef = new BlueprintTypeRef { TypeId = "System.Single" },
+            DefaultValue = duration.ToString(System.Globalization.CultureInfo.InvariantCulture),
+        });
         RegisterNode(node, hasExecIn: true, hasExecOut: true);
         return this;
     }
@@ -612,6 +622,10 @@ public sealed class BlueprintAssetBuilder
 
     public static BlueprintAssetBuilder Instance(string name)
         => new(name, BlueprintDispatchKind.Instance);
+
+    /// <summary>⭐ CE-446 — a blueprint BEHAVIOUR: the Instance body whose Tick returns a status.</summary>
+    public static BlueprintAssetBuilder Behavior(string name)
+        => new(name, BlueprintDispatchKind.Behavior);
 
     public static BlueprintAssetBuilder Instance(string name, Guid assetId)
     {

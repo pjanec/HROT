@@ -49,7 +49,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BlackboardLayoutType = typeof(Block),
                 ParseParams = static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
                     ((Block*)mem)->Target = int.Parse(j),
-                BlueprintTick = (ref byte block, EntityRepository w, Entity self, float time, float dt) =>
+                BlueprintTick = (ref byte block, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
                 {
                     ticks++;
                     ref var b = ref Unsafe.As<byte, Block>(ref block);

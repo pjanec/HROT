@@ -126,6 +126,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             var tiers = BlueprintTierTable.Ascending;
 
+            // ⭐ CE-446: a blueprint behaviour's tick takes the frame's command buffer, like an Instance tick.
+            _ecb = view.GetCommandBuffer();
+
             // Prune the dedup cache using reliable lifecycle events.
             foreach (var evt in repo.Bus.Read<DestructionOrder>())
                 _publishedTerminalForInstanceId.Remove(evt.Entity.Index);
@@ -360,6 +363,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// re-run the graph from phase 0 and re-issue its commands after it said it was done.
         /// </para>
         /// </summary>
+        private Fdp.Interfaces.IEntityCommandBuffer? _ecb;
+
         private void TickBlueprint(
             EntityRepository repo, Entity entity, in BehaviorState behavior,
             BehaviorDefinition def, float deltaTime)
@@ -383,7 +388,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (RootParamsAccess.RootParamsBytes(def) > 0)
                 block = ref RootParamsAccess.RootRef(repo, entity);
 
-            var status = def.BlueprintTick(ref block, repo, entity, repo.SimulationTime, deltaTime);
+            var status = def.BlueprintTick(ref block, repo, _ecb!, entity, repo.SimulationTime, deltaTime, behavior.InstanceId);
 
             if (status == NodeStatus.Success || status == NodeStatus.Failure)
                 Finish(repo, entity, behavior, status);
