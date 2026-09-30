@@ -1,8 +1,11 @@
 using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior.Attributes;
 
-namespace Fdp.Toolkit.Behavior.Params
+namespace Fdp.Toolkit.Behavior.Tests.Fixtures
 {
+    // ⭐ CE-447 (2026-09-30): a TEST FIXTURE, moved out of Fdp.Toolkits production. The one authored contract is
+    //   Hrot.Core's [BehaviorContract] class of the same name; FDP tests cannot reference Hrot.Core, so they
+    //   carry this attribute-bearing stand-in for the FDP-level mechanisms (remapper, presentation attributes).
     /// <summary>
     /// JSON serialization DTO for the <c>FireAtTarget</c> behavior parameter block.
     /// JSON keys match what <c>MissionPanel.BuildFireAtTargetParams</c> produces.

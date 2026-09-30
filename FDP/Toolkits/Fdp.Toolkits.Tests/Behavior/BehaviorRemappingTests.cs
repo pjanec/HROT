@@ -3,6 +3,7 @@ using System.Text.Json.Serialization;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Attributes;
 using Fdp.Toolkit.Behavior.Params;
+using Fdp.Toolkit.Behavior.Tests.Fixtures;
 using Xunit;
 
 namespace Fdp.Toolkit.Behavior.Tests

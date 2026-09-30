@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Fdp.Toolkit.Behavior.Params;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.Presentation.Behavior;
 using Xunit;
 

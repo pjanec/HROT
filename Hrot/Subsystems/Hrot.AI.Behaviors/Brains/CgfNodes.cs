@@ -17,9 +17,9 @@ namespace Hrot.AI.Behaviors.Brains
 {
     /// <summary>
     /// FastBTree action node delegates for CGF Brain-tier mission behaviors.
-    /// Hot-reloadable copy compiled independently into Hrot.AI.Behaviors so the
-    /// FbtAssemblyHotReloader can load a fresh version without restarting the editor.
-    /// Source of truth is Hrot.CGF.Brains.CgfNodes; keep both files in sync.
+    /// Compiled into Hrot.AI.Behaviors so the FbtAssemblyHotReloader can load a fresh version without
+    /// restarting the editor. ⚠ CE-447: an older header said a second copy lived in Hrot.CGF.Brains and had to
+    /// be kept in sync — measured 2026-09-30, it does not exist; this is the only CgfNodes.
     /// </summary>
     public static class CgfNodes
     {
@@ -125,24 +125,9 @@ namespace Hrot.AI.Behaviors.Brains
             public int   RoundsFired;
         }
 
-        // -- JSON parse DTOs (private) --
-
-        private class MoveToLocationParamsJsonDto
-        {
-            public double TargetLat { get; set; }
-            public double TargetLon { get; set; }
-            public float Speed { get; set; }
-            public float ArrivalRadius { get; set; }
-            public float X { get; set; }
-            public float Y { get; set; }
-        }
-
-        private class FireAtTargetParamsJsonDto
-        {
-            public long  TargetNetworkId  { get; set; }
-            public int   MaxRounds        { get; set; }
-            public float CooldownSeconds  { get; set; }
-        }
+        // ⭐ CE-447 (2026-09-30): no private parse DTOs — the resolvers deserialise into the ONE authored contract,
+        //   Hrot.Core's [BehaviorContract] classes (the paramSchema a scenario is authored against). ⛔ The private
+        //   copies here had drifted (float vs double, R-132: one producer per slot).
 
         /// <summary>
         /// Fallback travel speed (m/s) applied when a <c>MoveToLocation</c> params JSON
@@ -188,7 +173,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            var dto = JsonSerializer.Deserialize<MoveToLocationParamsJsonDto>(json, JsonOptions);
+            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.MoveToLocationParamsJsonDto>(json, JsonOptions);
             if (dto == null)
             {
                 Unsafe.Write(ptr, default(MoveToLocationParams));
@@ -197,8 +182,8 @@ namespace Hrot.AI.Behaviors.Brains
 
             var p = new MoveToLocationParams
             {
-                Speed = dto.Speed > 0f ? dto.Speed : DefaultMoveToSpeed,
-                ArrivalRadius = dto.ArrivalRadius > 0f ? dto.ArrivalRadius : 5f,
+                Speed = dto.Speed > 0 ? (float)dto.Speed : DefaultMoveToSpeed,
+                ArrivalRadius = dto.ArrivalRadius > 0 ? (float)dto.ArrivalRadius : 5f,
                 X = dto.X,
                 Y = dto.Y
             };
@@ -239,7 +224,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return;
             }
 
-            var dto = JsonSerializer.Deserialize<FireAtTargetParamsJsonDto>(json, JsonOptions);
+            var dto = JsonSerializer.Deserialize<Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(json, JsonOptions);
             if (dto == null)
             {
                 BehaviorLog.ParseWarn("FireAtTarget JSON deserialized to null; using default params.");

@@ -1,4 +1,5 @@
 using Fdp.Toolkit.Behavior.Params;
+using Hrot.Map.Definitions.Behavior;
 using Hrot.Core.Mission;
 using Hrot.Presentation.Behavior;
 using Hrot.UI.Common.Facades;
@@ -39,7 +40,7 @@ namespace Hrot.Presentation.Tests.Behavior
         public void C010_MissionPanel_Constructor_WithRegistryArg_Succeeds()
         {
             var registry = new BehaviorUiRegistry();
-            registry.Register<Fdp.Toolkit.Behavior.Params.FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId);
+            registry.Register<Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto>(Hrot.Map.Definitions.Behavior.FireAtTargetParamsJsonDto.BehaviorId);
 
             var panel = new MissionPanel(behaviorUiRegistry: registry);
 
