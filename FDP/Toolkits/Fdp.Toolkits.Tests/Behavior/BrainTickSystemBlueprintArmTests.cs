@@ -128,6 +128,39 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐⭐ <b>Finishing does not free the block; the DECIDER does.</b> 📄 <c>BD1-DESIGN.md</c> §1: <c>BehaviorFinishedEvent</c>
+        /// is a bottom-up NOTIFICATION, and the mission tier answers with <c>ClearBehaviorEvent</c> or the next assign.
+        /// ⭐ This pins that the clear reclaims a blueprint behaviour's root block exactly as it does a BTree's — the
+        /// block is a <see cref="OccurrenceKind.BlueprintBehavior"/> slot, and <c>RootParamsAccess.DetachRoot</c> is keyed
+        /// by behaviour, not by kind.
+        /// </summary>
+        [Fact]
+        public void CE446_AFinishedBlueprintBehaviour_IsFreedByTheClearThatFollowsIt()
+        {
+            var (world, ingress, brain, e, _) = Fixture("1");
+            Assert.Equal(1, TickAndCountFinished(world, brain, e, frames: 2));
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _), "still held after finishing — by design");
+
+            world.Bus.Publish(new ClearBehaviorEvent { Entity = e });
+            world.Bus.SwapBuffers();
+            ingress.Execute(world, 0.016f);
+
+            Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
+            byte* memory = OccurrenceStoreAccess.TryGetStore(world, e, out _);
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(memory);
+            byte* table = memory + sizeof(BlueprintBlackboardHeader);
+            int live = 0;
+            for (int i = 0; i < header.SlotCount; i++)
+                if (Unsafe.AsRef<BlueprintSlotEntry>(table + i * BlueprintBlackboardPartitions.SlotEntrySize).BlueprintId != 0
+                    && BlueprintBlackboardPartitions.GetSlotKind(memory, i) == OccurrenceKind.BlueprintBehavior)
+                    live++;
+            Assert.Equal(0, live);
+            Assert.False(RootParamsAccess.TryGetRootBytes(world, e, out _));
+
+            world.Dispose();
+        }
+
+        /// <summary>
         /// ⛔ The root block is declared <see cref="OccurrenceKind.BlueprintBehavior"/> — NOT <see cref="OccurrenceKind.Blueprint"/>,
         /// which <c>BlueprintTickSystem</c> walks as an attached Instance and ingress sweeps as a hosted occurrence.
         /// </summary>
