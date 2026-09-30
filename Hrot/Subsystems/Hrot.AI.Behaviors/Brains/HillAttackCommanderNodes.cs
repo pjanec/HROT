@@ -26,10 +26,11 @@ namespace Hrot.AI.Behaviors.Brains
     ///
     /// <para>S3-G: the six mutable-state nodes use the four-parameter stateful form
     /// <c>(ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState, ref BTreeContext)</c>.
-    /// The <see cref="HillAttackMutableState"/> working state is a <c>Behavior</c>-scoped variable that
-    /// lives in a <c>BlueprintBlackboard*</c> partition slot; it is projected by the JSON emitter's stateful
-    /// thunk (production path) or the code builder's <c>StatefulAction</c> helper (<see cref="BuildPlatoonHillAttackTree"/>).
-    /// The old <c>Blackboard1024</c> + <c>Unsafe.As</c> projection is gone.
+    /// The <see cref="HillAttackMutableState"/> working state lives in the behaviour's ONE block — projected by the
+    /// JSON emitter's thunk from <c>PlatoonHillAttack_Block.St.State</c> (production, <c>CE-437</c>) or by the code
+    /// builder's <c>StatefulAction</c> from <see cref="PlatoonHillAttackBlackboard.State"/>
+    /// (<see cref="BuildPlatoonHillAttackTree"/>, <c>CE-430</c>). ⛔ HISTORY: a Behavior-scoped partition slot
+    /// (S3-G), and before it a <c>Blackboard1024</c> + <c>Unsafe.As</c> offset.
     /// <c>Condition_AreAllAtBaseline</c> touches no working state and stays three-parameter.</para>
     /// </summary>
     public static unsafe class HillAttackCommanderNodes
@@ -555,36 +556,26 @@ namespace Hrot.AI.Behaviors.Brains
         [BTreeDefinition("PlatoonHillAttack")]
         public static BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext> BuildPlatoonHillAttackTree()
         {
-            // S3-G: the six mutable-state nodes bind HillAttackMutableState as a Behavior-scoped
-            // working-state variable ("State") — one shared partition slot, shared across all of them.
-            // The asset id matches PlatoonHillAttack.btree.json so the code-first and JSON slot keys agree.
-            // Condition_AreAllAtBaseline touches no working state and stays the plain 3-param form.
-            var manifest = new StatefulSlotManifestBuilder(new Guid("1a000000-0000-0000-0000-0000000000dd"));
-            const string stateVar = "State";
-
+            // ⭐ CE-430 (Q76 §12.23): the six mutable-state nodes project BOTH fields of the one block —
+            //   bb.Params and bb.State — so all six share one State by construction, with no slot key,
+            //   scope or manifest. Condition_AreAllAtBaseline touches no working state (3-param form).
             return new BTreeBuilder<PlatoonHillAttackBlackboard, BTreeContext>()
                 .Sequence(seq => seq
                     .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, Action_CalculateSegments, manifest, stateVar,
-                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a1"), "CalculateSegments")
+                        bb => bb.Params, bb => bb.State, Action_CalculateSegments, new Guid("1a000000-0000-0000-0000-0000000000a1"))
                     .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                        bb => bb.Params, Action_DispatchAllToBaseline, manifest, stateVar,
-                        StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000a2"), "DispatchAllToBaseline")
+                        bb => bb.Params, bb => bb.State, Action_DispatchAllToBaseline, new Guid("1a000000-0000-0000-0000-0000000000a2"))
                     .Action(bb => bb.Params, Condition_AreAllAtBaseline)
                     .Repeater(-1, rep => rep
                         .Sequence(wseq => wseq
                             .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Action_RequestAreaQuery, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b1"), "RequestAreaQuery")
+                                bb => bb.Params, bb => bb.State, Action_RequestAreaQuery, new Guid("1a000000-0000-0000-0000-0000000000b1"))
                             .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Condition_IsAreaQueryResolved, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b2"), "IsAreaQueryResolved")
+                                bb => bb.Params, bb => bb.State, Condition_IsAreaQueryResolved, new Guid("1a000000-0000-0000-0000-0000000000b2"))
                             .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Action_DispatchWaveWithTargets, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b3"), "DispatchWaveWithTargets")
+                                bb => bb.Params, bb => bb.State, Action_DispatchWaveWithTargets, new Guid("1a000000-0000-0000-0000-0000000000b3"))
                             .StatefulAction<PlatoonHillAttackBlackboard, PlatoonHillAttackParams, HillAttackMutableState>(
-                                bb => bb.Params, Condition_IsWaveCompleted, manifest, stateVar,
-                                StatefulSlotScope.Behavior, new Guid("1a000000-0000-0000-0000-0000000000b4"), "IsWaveCompleted"))));
+                                bb => bb.Params, bb => bb.State, Condition_IsWaveCompleted, new Guid("1a000000-0000-0000-0000-0000000000b4")))));
         }
 
         // ── Private helpers ───────────────────────────────────────────────────────

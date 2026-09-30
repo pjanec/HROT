@@ -51,7 +51,7 @@ public sealed unsafe class BlueprintSharedStateTests
         return world;
     }
 
-    /// <summary>Same formula production uses at registration time (mirrors <c>RegisterStatefulThunk</c>'s
+    /// <summary>Same formula production uses at registration time (mirrors the emitted manifest's
     /// <c>structureHash:</c> argument and the emitter's <c>EmitStatefulWorkingSlotsArray</c> expression);
     /// calls the shared public <see cref="StatefulBTreeActionBinder.ComputeTypeNameHash"/> rather than
     /// reimplementing FNV, so this is bit-identical to what <see cref="BlueprintSharedState"/> itself

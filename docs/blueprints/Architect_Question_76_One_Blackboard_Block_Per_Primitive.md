@@ -6,7 +6,7 @@ build-state: ✅ READY-TO-BUILD — **B IS APPROVED** (user, 2026-09-29, verbati
   "remove, sequenced inside B", are no longer inert. D remains an UNAPPROVED lean and is NOT
   covered by the authorisation — see §12.0's warning: the grant is a resolver writing its OWN
   block, NOT IHostVariableAccess.TryWrite against its HOST. E is settled (Q75 depends on this).
-  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433 are BUILT (§11.7, §12.15–§12.22). ⚠ §12.6's order is REVISED by
+  BUILDING — CE-418, CE-436, CE-435, CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430 are BUILT (§11.7, §12.15–§12.23). ⚠ §12.6's order is REVISED by
   §12.16: a missing slice (CE-437) was filed, and it lands together with CE-429.
 current-answer: ⭐⭐⭐ **START AT §12** — the APPROVED design: who defines the block's DTO, and how
   parameters reach it (bake → supply → resolve). ⭐⭐ **§12.10 answers the user's five resolver
@@ -2401,3 +2401,93 @@ emits `block.In.Speed` and `block.St.Doubled = ` and — with its `Speed` pin un
 (`BuiltInNodeRegistry`), and `DeterministicIds.PinId` keys on (name, direction) — so a variable literally
 named `In` would collide with the exec-in pin. Not refused today; filed as a known limitation alongside the
 rename one above rather than widening the slice.
+
+### 12.23 ⭐⭐⭐ `CE-430` BUILD DESIGN — **a hand-written behaviour's state lives in its `TBlackboard`** *(`2026-09-30`, overnight)*
+
+🔒 **Frame:** §12.2 (hand-written C#: *"the author defines `TBlackboard`"* — it IS the block) · the `CE-430`
+row (*"add `HillAttackMutableState State;` and the six `StatefulAction` calls collapse to plain actions over
+`ref bb` — no manifest builder, no slot key, no scope argument"*) · user, `2026-09-29`: *"hand written
+behaviors have no assets, they are just code."* ⛔ **Not here:** decisions `A`/`C` (the partition store and
+`WorkingStateScope` themselves) — they still serve generated Node-scoped variables and HSM.
+
+#### 12.23a INVENTORY *(grep + `search_graph`, `2026-09-30`)*
+
+| query | result |
+|---|---|
+| callers of `StatefulSlotManifestBuilder` / `RegisterStatefulThunk` / `.StatefulAction<` | **3 files**: `HillAttackCommanderNodes.BuildPlatoonHillAttackTree` (the ONE production author) · `StatefulTreeBuilderExtensions` (the wrapper) · `CodeBuiltStatefulActionTests` (its suite) |
+| who ticks `BuildPlatoonHillAttackTree`'s blob | ⛔ **nobody.** `FbtTreeCatalog.GetPlatoonHillAttack` is called only by `HillAttackNodeTests.SC_HA013_1` (non-null). `BTreeDefinitionAttribute.cs:56`: PlatoonHillAttack's topology is owned by its GENERATED JSON registrar; only its resolver is curated |
+| the production block today | ✅ already one block — generated `PlatoonHillAttack_Block { In.Params; St.State }`, and the registrar's thunks read `…_Block>(BehaviorBlock.Require(ref bb)).St.State` (`CE-437`). ⇒ the partition slot survives ONLY in the hand-written path |
+| `StatefulBTreeActionBinder`'s other members | `ComputeStatefulSlotKey` / `ComputeOccurrenceSlotKey` / `ComputeTypeNameHash` — used by the generated/HSM paths ⇒ **stay** |
+| node method signatures | `(ref PlatoonHillAttackParams, ref HillAttackMutableState, ref BehaviorTreeState, ref BTreeContext)` — called directly by `Hrot.IG.Tests` (cross-lane) ⇒ **unchanged** |
+
+#### 12.23b DECISIONS
+
+| decision | rejected, one line each |
+|---|---|
+| ⭐⭐ **`PlatoonHillAttackBlackboard { Params; State; }`** — the S3-G removal, reversed | ⛔ bind the hand-written tree to the generated `PlatoonHillAttack_Block` — a hand-written behaviour has no asset (user); it must not depend on one |
+| ⭐⭐ **one block binder**: `StatefulBTreeActionBinder.RegisterBlockThunk(registry, paramSelector, stateSelector, logic)` — projects BOTH from `ref bb` at their member offsets; key `{MethodFqn}@{paramOffset}@{stateOffset}` | ⛔ keep the slot thunk "for Node scope" — two nodes wanting separate state now declare two FIELDS; the block expresses it with no key, no manifest, no provisioning |
+| ⭐ **`StatefulAction(bb => bb.Params, bb => bb.State, logic)`** replaces the manifest overload in `StatefulTreeBuilderExtensions` | ⛔ add a FastBTree overload — `ExtDeps/FastBTree` stays free of the toolkit's delegate types |
+| ⭐⭐ **`StatefulSlotManifestBuilder` and `RegisterStatefulThunk` are DELETED** — their only production author migrates in this slice | ⛔ keep them dormant — duplicate CODE for the same concept (ruling 9); ⭐ the capability (stateful code-built nodes) survives, re-expressed |
+| ⭐ **`CodeBuiltStatefulActionTests` keeps both claims, re-expressed**: two nodes over ONE field share state; two nodes over TWO fields keep independent state | ⛔ delete the suite with the API — it is that feature's rail (`T-1`) |
+
+```mermaid
+classDiagram
+    class PlatoonHillAttackBlackboard {
+      <<EXISTS - hand-written TBlackboard>>
+      +PlatoonHillAttackParams Params
+      +HillAttackMutableState State  NEW
+    }
+    class StatefulTreeBuilderExtensions {
+      <<EXISTS - Hrot.AI.Behaviors>>
+      +StatefulAction(paramSel, stateSel, logic)  RESHAPED
+    }
+    class StatefulBTreeActionBinder {
+      <<EXISTS - Fdp.Toolkits>>
+      +RegisterBlockThunk(registry, paramSel, stateSel, logic)  NEW
+      +ComputeStatefulSlotKey  KEPT
+      RegisterStatefulThunk  DELETED
+    }
+    class StatefulSlotManifestBuilder {
+      <<DELETED>>
+    }
+    class BTreeBuilder {
+      <<EXISTS - FastBTree>>
+      +Action(string key, visualId)
+    }
+    class HillAttackCommanderNodes {
+      <<EXISTS>>
+      node methods unchanged
+      +BuildPlatoonHillAttackTree
+    }
+    HillAttackCommanderNodes ..> StatefulTreeBuilderExtensions : six nodes
+    StatefulTreeBuilderExtensions ..> StatefulBTreeActionBinder : RegisterBlockThunk
+    StatefulTreeBuilderExtensions ..> BTreeBuilder : Action(key)
+    HillAttackCommanderNodes ..> PlatoonHillAttackBlackboard : TBlackboard
+```
+
+> ⭐ **Caption.** After the slice nothing on the hand-written path names a slot, a scope or a manifest —
+> the state's home is a FIELD of the type the author already declares.
+
+```mermaid
+sequenceDiagram
+    participant I as "Interpreter"
+    participant T as "block thunk"
+    participant N as "node method"
+    I->>T: tick(ref bb, ref st, ref ctx)
+    T->>T: p = ref bb + paramOffset
+    T->>T: s = ref bb + stateOffset
+    T->>N: logic(ref p, ref s, ref st, ref ctx)
+    N-->>I: NodeStatus
+```
+
+> ⭐ **Caption.** The old thunk's partition-tier lookup (`TryResolveOccurrence`) and its `Failure` arm on a
+> missing slot are gone — there is no second storage to be missing.
+
+#### 12.23c ✅ AS BUILT `2026-09-30` — as designed
+
+The class and sequence diagrams hold. `CodeBuiltStatefulActionTests` keeps its two claims over FIELDS
+(one field ⇒ shared, cursor 2; two fields ⇒ independent, 1 and 1) and adds the shipped author: the
+hand-written PlatoonHillAttack tree registers all six stateful keys at `@0@{offsetof(State)}`.
+Node method signatures are unchanged, so the cross-lane `Hrot.IG.Tests` deactivator rails are untouched.
+⏭ What remains of the partition store is decisions `A` + `C` (generated Node-scoped variables, Entity scope,
+HSM) — not this slice.

@@ -73,25 +73,32 @@ namespace Hrot.AI.Behaviors.Brains
     }
 
     /// <summary>
-    /// Single-field blackboard wrapper used as <c>TBlackboard</c> in the PlatoonHillAttack
-    /// <c>BTreeBuilder</c> expression-binding overloads.
+    /// The hand-written PlatoonHillAttack tree's <c>TBlackboard</c> — its ONE block: the authored params and the
+    /// commander's working state, side by side.
+    ///
+    /// <para>⭐ <c>CE-430</c> (<c>Q76</c> §12.23): <see cref="State"/> is back. S3-G had moved it out into a
+    /// Behavior-scoped partition slot, leaving a one-field wrapper; the stateful nodes now project both fields
+    /// from <c>ref bb</c>. The GENERATED twin (<c>PlatoonHillAttack_Block { In.Params; St.State }</c>, from the
+    /// JSON asset that owns this behaviour's production topology) has had the same two homes since
+    /// <c>CE-437</c>.</para>
     /// </summary>
     [StructLayout(LayoutKind.Sequential)]
     public struct PlatoonHillAttackBlackboard
     {
         /// <summary>Static configuration parameters for the hill attack.</summary>
         public PlatoonHillAttackParams Params;
+
+        /// <summary>The commander's mutable working state (wave cursor, slot masks, EQS handles, attackers).</summary>
+        public HillAttackMutableState State;
     }
 
     /// <summary>
     /// Mutable working state for the PlatoonHillAttack commander behavior.
     ///
-    /// <para>Since S3-G this lives in a <b>Behavior-scoped</b> <c>BlueprintBlackboard</c>
-    /// partition slot (provisioned by <c>BehaviorIngressSystem</c> from the behavior's
-    /// <c>StatefulWorkingSlots</c> manifest and projected into the stateful node delegates),
-    /// not in a fixed <c>Blackboard1024.Memory</c> offset via <c>Unsafe.As</c> — that legacy
-    /// hack was removed. See <c>Behavior_Parameter_Resolver_Detailed_Design.md</c> and the
-    /// S3-G reports for the migration.</para>
+    /// <para>⭐ Lives in the behaviour's own block: the generated <c>PlatoonHillAttack_Block.St.State</c>
+    /// (<c>CE-437</c>) and the hand-written <see cref="PlatoonHillAttackBlackboard.State"/> (<c>CE-430</c>).
+    /// ⛔ HISTORY — S3-G had put it in a Behavior-scoped partition slot provisioned from a manifest, which
+    /// itself replaced a fixed <c>Blackboard1024.Memory</c> offset via <c>Unsafe.As</c>.</para>
     ///
     /// <para>All <c>fixed</c> arrays are sized to 8 entries, matching
     /// <c>UnitRoster.MaxSubordinates / 2</c> (maximum wave size from a 16-subordinate platoon).</para>

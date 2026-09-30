@@ -12,7 +12,7 @@ build-state: ✅ authoring programme COMPLETE. ✅ CHANNEL-LIFECYCLE programme C
   field), CE-414 (offset-coupled param seeding), CE-415 (a dropped Vector3 pin default) — plus
   CE-408 (filed, unexercised), CE-410 (another lane), and the user's own editor pass.
   Branch `behaviors` @ 7deefb2b5. ⏭ NOW: the Q75 unification, §9 — approved, not started.
-current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4h** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433 built; next is CE-430) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
+current-answer: ⭐⭐⭐ **START AT §13, then §13.4a–§13.4i** (CE-425, CE-437 + CE-429, CE-426 + CE-432, CE-427, CE-431, CE-428, CE-434, CE-433, CE-430 built; next is decisions A + C) — the `2026-09-29` evening resumption. `Q76`-`B` is APPROVED
   and the first THREE slices are BUILT (`CE-418`, `CE-436`, `CE-435`). §13.3 is what comes next
   (`CE-425`), §13.4 the three debts, §13.5 eight measured traps. §12 and §11 are earlier states of
   the same day — read them only for history. ⛔ The OWNING design is
@@ -828,9 +828,13 @@ the cost is near zero, and doing it alone costs a ~40-project rebuild.
 
 ⭐ `BehaviorResolverShape` (Persistence) derives a resolver's subject from a behaviour through the emitter's own namers and hashes it; `BehaviorResolverAuthoring` (AiComposition) creates / re-derives (keeping surviving variable ids) / binds / clears; `BTreeValidator` warns `ResolverOutOfDate` when the recorded hash no longer matches. Proven against the shipped T40 pair. ⏭ `CE-433` → `CE-430` → `A` + `C`; the UI wiring for CE-434 is an open follow-up. 📄 [`Q76` §12.21](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
-### 13.4h ✅ `CE-433` BUILT *(overnight)* — ⭐ **NEXT IS `CE-430`**
+### 13.4h ✅ `CE-433` BUILT *(overnight)*
 
 ⭐ `Get All Variables` / `Set Variables`: the whole blackboard as pins, over ONE pin-set answer (`GetAllVariablesNode.PinnedVariablesOf` — non-list Variables). Both lower to the per-field IR ops, so every subject is inherited; an unwired `Set Variables` pin writes nothing; `Set Variables` shares `Set Variable`'s purity exemption; a stale pin name is `BP1670`. ⚠ Two known limitations (pin ids key on name: rename drops links; a variable named `In` collides with the exec pin). ⏭ `CE-430` → `A` + `C`. 📄 [`Q76` §12.22](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
+
+### 13.4i ✅ `CE-430` BUILT *(overnight)* — ⭐ **NEXT IS decisions `A` + `C`**
+
+⭐ The hand-written PlatoonHillAttack tree keeps its state in `PlatoonHillAttackBlackboard.State`; `StatefulAction(bb => bb.Params, bb => bb.State, logic)` binds through `RegisterBlockThunk`. `StatefulSlotManifestBuilder` + `RegisterStatefulThunk` are DELETED. 📐 Production was already one block since `CE-437`; the slot lived on only in the hand-written path (compiled, never ticked). ⏭ `A` (retire Entity-scoped shared memory) + `C` (retire `WorkingStateScope`) — both touch the generated/HSM partition paths. 📄 [`Q76` §12.23](Architect_Question_76_One_Blackboard_Block_Per_Primitive.md).
 
 ### 13.5 ⛔⛔ TRAPS MEASURED THIS SESSION — **do NOT re-derive**
 

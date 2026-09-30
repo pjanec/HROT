@@ -25,8 +25,8 @@ namespace Fdp.Toolkit.Blueprints.Partitioning;
 /// only — no assetId, no nodeVisualId — so an owner and a member entity agree on the key from the
 /// variable name alone, and the slot key does not depend on which behavior/asset is running.</para>
 ///
-/// <para><b>Tier probe</b> mirrors the inline probe in the composed-node stateful thunk
-/// (<see cref="StatefulBTreeActionBinder.RegisterStatefulThunk{TBB,TParams,TWorkingState}"/>): tries
+/// <para><b>Tier probe</b> mirrors the probe the generated stateful thunks emit
+/// (<c>BTreeBridgeEmitCore</c>; the code-built twin, <c>RegisterStatefulThunk</c>, was retired by <c>CE-430</c>): tries
 /// <c>BlueprintBlackboard16384</c>, then <c>BlueprintBlackboard4096</c>, then <c>BlueprintBlackboard1024</c>
 /// on <c>self</c> via <c>HasComponent</c> → <c>GetComponentRW</c> → <c>fixed (byte* mem = tier.Memory)</c>.
 /// An entity carries at most one tier at a time, so the first matching tier is authoritative.</para>
@@ -36,7 +36,6 @@ namespace Fdp.Toolkit.Blueprints.Partitioning;
 /// provisioning time — <c>unchecked(ComputeTypeNameHash(typeof(T).FullName) ^ (uint)Marshal.SizeOf&lt;T&gt;())</c>
 /// — by calling <see cref="StatefulBTreeActionBinder.ComputeTypeNameHash"/> directly (not
 /// reimplementing FNV), so this is bit-identical to
-/// <c>StatefulBTreeActionBinder.RegisterStatefulThunk</c>'s <c>structureHash:</c> argument and to
 /// <c>BTreeBridgeEmitCore.ComputeTypeNameHash</c> / <c>EmitStatefulWorkingSlotsArray</c>'s emitted
 /// <c>StructureHash</c> expression. If the slot's stored <c>StructureHash</c>
 /// (<see cref="BlueprintSlotEntry.StructureHash"/>) doesn't match, this is treated as NOT a match:
@@ -160,7 +159,7 @@ public static unsafe class BlueprintSharedState
     /// Expected <c>StructureHash</c> for <typeparamref name="T"/>, computed IDENTICALLY to
     /// provisioning time: <c>unchecked(ComputeTypeNameHash(typeName) ^ (uint)Marshal.SizeOf&lt;T&gt;())</c>.
     /// Calls <see cref="StatefulBTreeActionBinder.ComputeTypeNameHash"/> directly (the same public
-    /// method <c>RegisterStatefulThunk</c> uses to build <c>StatefulSlotInfo.StructureHash</c>) rather
+    /// method the emitted <c>StatefulSlotInfo.StructureHash</c> expression mirrors) rather
     /// than reimplementing FNV-1a-32, so this is guaranteed bit-identical rather than merely intended
     /// to be.
     /// </summary>
