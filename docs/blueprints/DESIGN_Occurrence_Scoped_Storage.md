@@ -6880,6 +6880,15 @@ than one pass, which is what the kernel really does.
 
 #### 31.16.7 🔴 `AssignBehaviorHashEvent` LEAKED THE OUTGOING ROOT SLOTS — **and the HSM instance is what made it bite**
 
+> ⭐ **AS-BUILT `2026-09-30` — `CE-451` (+ `CE-452`):** the hash handler no longer hand-writes its own sequence. Both
+> handlers — and a hot-reload restart — run ONE `BehaviorIngressSystem.Start(entity, name, id, def, json)`: parse into
+> the shadow → commit → provision → detach the previous slots → attach root params / tree state / HSM instance → write the
+> `BehaviorStartRecord`. ⇒ an assign by hash now PROVISIONS the params block and parses (`"{}"` — the event carries no
+> JSON); ⛔ before, a behaviour with parameters threw in `RootParamsAccess.RootRef`. ⚠ A hash assign that duplicates a
+> named assign of the same behaviour in the same pass is dropped (CGF's phase advance produces both; the named one carries
+> the task's parameters). ⚠ A hash with NO definition on this node keeps the old bookkeeping only (release the old root
+> slots, record the hash, bump the instance — nothing starts). The per-handler detail below is HISTORY. 📄 `Architect_Question_77` §5.12.
+
 📐 **Found by rail `A3`, which reassigns a behaviour through the hash path.** That handler calls
 **neither** `DetachStatefulSlots` **nor** `DetachHostedOccurrenceSlots`, so — unlike the
 `AssignBehaviorEvent` path — nothing reclaims the previous behaviour's root slots. ⚠ §22's `F14b`

@@ -279,8 +279,13 @@ namespace Fdp.Toolkit.Behavior.Systems
             // ⭐ CE-431: "no block" is the shared SENTINEL, never a stack byte — thunks now project from
             //   bb, and BehaviorBlock.Require turns a projection from the sentinel into a loud failure.
             ref byte blackboard = ref BehaviorBlock.None;
-            if (RootParamsAccess.RootParamsBytes(def) > 0)
+            int blockBytes = RootParamsAccess.RootParamsBytes(def);
+            if (blockBytes > 0)
+            {
+                // ⭐ CE-452: a reload that changed the block's width restarts the behaviour instead of ticking it.
+                if (!RestartIfRelaidOut(repo, entity, behavior, def, blockBytes)) return;
                 blackboard = ref RootParamsAccess.RootRef(repo, entity);
+            }
 
             // Resolve the optional per-entity trace ring buffer.
             BTreeTraceWorkingMemory1024* tracePtr = null;
@@ -401,7 +406,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             int blockBytes = RootParamsAccess.RootParamsBytes(def);
             if (blockBytes > 0)
             {
-                if (!HardResetIfRelaidOut(repo, entity, behavior, def, blockBytes))
+                if (!RestartIfRelaidOut(repo, entity, behavior, def, blockBytes))
                     return;
                 block = ref RootParamsAccess.RootRef(repo, entity);
             }
@@ -412,56 +417,75 @@ namespace Fdp.Toolkit.Behavior.Systems
                 Finish(repo, entity, behavior, status);
         }
 
-        /// <summary>The layout each running blueprint behaviour started with — keyed by <c>entity.Index</c>, valid only for
-        /// the recorded <c>(InstanceId, behaviour hash)</c>, and swept with the terminal dedup.</summary>
-        private readonly Dictionary<int, (uint InstanceId, int Behavior, ulong Layout)> _blueprintLayout = new();
+        /// <summary>The layout each running behaviour started with — keyed by <c>entity.Index</c>, valid only for the recorded
+        /// <c>(InstanceId, behaviour hash)</c>; <c>Pending</c> = a restart was requested for that instance. Swept with the
+        /// terminal dedup.</summary>
+        private readonly Dictionary<int, (uint InstanceId, int Behavior, ulong Layout, bool Pending)> _blueprintLayout = new();
 
         /// <summary>
-        /// ⭐⭐ <b><c>CE-446</c> step 3 — a hot reload that re-lays-out a RUNNING blueprint behaviour's block HARD-RESETS it.</b>
-        /// 📄 <c>Architect_Question_77</c> §5.12.
+        /// ⭐⭐ <b><c>CE-452</c> — a hot reload that re-lays-out a RUNNING behaviour's root block RESTARTS it through the ONE
+        /// start pipeline, with the parameters it was started with.</b> 📄 <c>Architect_Question_77</c> §5.12.
         ///
         /// <para>
-        /// ⭐ The design basis: <c>AI_Editor_Shared_Infrastructure.md</c> §17 — <i>"Hard … instances reset to initial state"</i>;
-        /// <c>R-24</c> — an Instance whose <c>StructureHash</c> no longer matches is <c>ResetSlot</c> + <c>InitDefault</c>'d and
-        /// LOGGED (<c>BlueprintTickSystem</c>). ⭐ This is that rule for the behaviour tier: the block is re-attached at the new
-        /// width (a grown block ticked over the old slot would write into the next occurrence — <c>SLICE2-DESIGN.md</c> Flaw 2),
-        /// then rebuilt by the definition's own pipeline with no JSON — authored defaults, then the behaviour's own resolver.
+        /// ⭐ Design basis: <c>btree-ai-action-binding/SLICE2-DESIGN.md</c> Flaw 2 — on a layout-changing reload
+        /// <i>"re-publish <c>AssignBehaviorEvent</c> for every entity running that behavior"</i> so ingress re-provisions
+        /// correctly-sized slots; <c>AI_Editor_Shared_Infrastructure.md</c> §17 — Soft keeps state, Hard restarts.
+        /// ⭐ Detected per entity on the tick, because no reload path tells a world which entities run the reloaded
+        /// behaviour (<c>DESIGN_Cgf_Editor_Sharing_Slice3</c> §10.3).
         /// </para>
+        /// <list type="bullet">
+        /// <item>WIDTH changed (every tier) — the block no longer fits the definition; ⛔ ticking would read/write past it.</item>
+        /// <item>LAYOUT changed (blueprint tier — the generated <c>StructureHash</c>); a BTree/HSM root has no layout hash yet.</item>
+        /// </list>
         /// <para>
-        /// ⚠ The assigned JSON is not retained anywhere, so the reset lands on AUTHORED DEFAULTS — the same as the Instance
-        /// tier's reset. ⛔ A block that cannot be re-attached (the store is full; growing it is structural, ingress-only) is
-        /// CLEARED rather than ticked at the wrong width.
+        /// ⭐ On either: this tick is SKIPPED and an <c>AssignBehaviorEvent</c> is published with the
+        /// <see cref="BehaviorStartRecord"/>'s name + JSON (authored defaults when there is none), so next frame's
+        /// <c>BehaviorIngressSystem.Start</c> rebuilds everything — params, own resolver, hosted children (they re-seed from
+        /// the rebuilt block), store growth (structural, so ingress-only). ⚠ A restart is a new instance: <c>InstanceId</c>
+        /// bumps, so each channel resets once. ⛔ If the instance is STILL here next tick, the restart failed (the parse
+        /// threw, or the name is gone) ⇒ it is CLEARED rather than ticked over a block that does not fit.
         /// </para>
-        /// <returns><c>false</c> when the behaviour was cleared and must not be ticked.</returns>
+        /// <returns><c>false</c> when this tick must be skipped.</returns>
         /// </summary>
-        private bool HardResetIfRelaidOut(
+        private bool RestartIfRelaidOut(
             EntityRepository repo, Entity entity, in BehaviorState behavior, BehaviorDefinition def, int blockBytes)
         {
             bool known = _blueprintLayout.TryGetValue(entity.Index, out var started)
                          && started.InstanceId == behavior.InstanceId
                          && started.Behavior == behavior.ActiveBehaviorHash;
-            _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash);
+
+            if (known && started.Pending)
+            {
+                _blueprintLayout.Remove(entity.Index);
+                BehaviorIngressSystem.Clear(repo, entity, _registry);
+                return false;
+            }
+
+            // ⚠ Per entity per tick on every brain — written only when the instance or its layout changed.
+            if (!known || started.Layout != def.BlueprintStructureHash)
+                _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash, false);
 
             bool present = RootParamsAccess.TryGetRootBytes(repo, entity, out _, out int length);
             bool widthChanged  = present && length != blockBytes;
             bool layoutChanged = known && started.Layout != def.BlueprintStructureHash;
-            if (!widthChanged && !layoutChanged) return true;   // ⚠ absent: RootRef below throws with the causes
+            if (!widthChanged && !layoutChanged) return true;   // ⚠ absent: RootRef throws with the causes
 
-            byte* memory = RootParamsAccess.ResolveOrAttachRoot(
-                repo, entity, behavior.ActiveBehaviorHash, blockBytes, OccurrenceKind.BlueprintBehavior, out _);
-            bool rebuilt = memory != null;
-            if (rebuilt)
+            string? name = null, json = null;
+            if (repo.HasManagedComponent<BehaviorStartRecord>(entity))
             {
-                Unsafe.InitBlock(memory, 0, (uint)blockBytes);   // same width ⇒ the slot is reused, not zeroed
-                try { def.ParseParams?.Invoke("{}", memory, blockBytes, repo, entity); }
-                catch (Exception) { rebuilt = false; }
+                var record = ((ISimulationView)repo).GetManagedComponentRO<BehaviorStartRecord>(entity);
+                if (record.InstanceId == behavior.InstanceId) { name = record.BehaviorName; json = record.JsonParams; }
+            }
+            if (name == null && !_registry.TryGetName(behavior.ActiveBehaviorHash, out name))
+            {
+                BehaviorIngressSystem.Clear(repo, entity, _registry);
+                return false;
             }
 
+            repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = name!, JsonParams = json ?? "{}" });
+            _blueprintLayout[entity.Index] = (behavior.InstanceId, behavior.ActiveBehaviorHash, def.BlueprintStructureHash, true);
             _reloadLog.OnHardReset(behavior.ActiveBehaviorHash, entity,
                 known ? started.Layout : 0UL, def.BlueprintStructureHash);
-            if (rebuilt) return true;
-
-            BehaviorIngressSystem.Clear(repo, entity, _registry);
             return false;
         }
 
@@ -472,6 +496,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             BehaviorDefinition def, float deltaTime, in HsmEvent mobilityLostEvent)
         {
             if (def.HsmDefinition == null) return;
+
+            // ⭐ CE-452: the root params block is read by the machine's actions and hosted children — same restart rule.
+            int hsmBlockBytes = RootParamsAccess.RootParamsBytes(def);
+            if (hsmBlockBytes > 0 && !RestartIfRelaidOut(repo, entity, behavior, def, hsmBlockBytes)) return;
 
             // ⭐⭐⭐ THE INSTANCE COMES FROM THE ENTITY'S ROOT HSM SLOT, WITH ITS SIZE (O7c-④a).
             //

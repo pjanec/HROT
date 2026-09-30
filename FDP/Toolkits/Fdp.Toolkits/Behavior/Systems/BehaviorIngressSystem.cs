@@ -95,6 +95,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                     $"{nameof(BehaviorIngressSystem)} requires direct EntityRepository access " +
                     $"and cannot run on a read-only snapshot ({view.GetType().Name}).");
 
+            _startedByNameThisFrame.Clear();
             var events = repo.Bus.ReadManaged<AssignBehaviorEvent>();
 
             foreach (var evt in events)
@@ -106,220 +107,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (!_registry.TryGetId(evt.BehaviorName, out int behaviorId)) continue;
                 if (!_registry.TryGetDefinition(behaviorId, out var def)) continue;
 
-                // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
-                // Strategy: parse into stack memory and commit only on success, so a ParseParams
-                // failure leaves the entity 100% on the old behavior.
-                //
-                // ⭐⭐⭐ P3-C — THE CLEAN CUT (2026-09-21). 🔴 The shadow used to be copied FROM and
-                //   committed back TO a per-entity BrainBlackboard component. Both halves are gone:
-                //   the parsed bytes now land in the entity's ROOT PARAMS OCCURRENCE SLOT, which is
-                //   attached further down once the store is provisioned (§29.6 / §29.7 P3-C).
-                //
-                // ⛔ NOT a dual write. R-132's second producer, and in this codebase a temporary one
-                //   becomes permanent — the user ruled CLEAN CUT for exactly that reason.
-                // ⭐⭐⭐ CE-307 — THE SHADOW IS SIZED BY THE BEHAVIOUR, NOT BY A CONSTANT.
-                //   Hoisted here because the shadow's width IS this number: the region the parser may
-                //   write is the packed variable table's extent, and that is what lands in the slot
-                //   below. ⛔ It used to be BrainBlackboardByteSize (100) — the OLD component's width —
-                //   which made a >100-byte behaviour a STACK SMASH in ParseParams and a silent
-                //   truncation in the carry-over. Impossible only because the analyzer capped at 100.
-                int rootBytes = def.ParseParams != null ? RootParamsAccess.RootParamsBytes(def) : 0;
-                Span<byte> shadow = def.ParseParams != null ? EnsureShadow(rootBytes) : default;
-
-                if (def.ParseParams != null)
-                {
-                    // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
-                    //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
-                    //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
-                    //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
-                    //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
-                    //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
-                    // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
-                    //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
-                    //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
-                    //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
-                    //   without reading that row. Both are gone.
-                    // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
-                    //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
-                    //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
-                    // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
-                    //   frames, so a stale event's bytes would otherwise leak into this one.
-                    shadow.Clear();
-
-                    // Attempt parse on the shadow.
-                    bool parseOk;
-                    fixed (byte* dst = shadow)
-                    {
-                        try
-                        {
-                            // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
-                            //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
-                            //   will pass its host's variable access here, at E7a, without another
-                            //   signature change.
-                            // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
-                            //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
-                            //   region, and handing anything wider would license the overrun this
-                            //   parameter exists to stop.
-                            def.ParseParams(evt.JsonParams, dst, shadow.Length, repo, evt.Entity);
-                            parseOk = true;
-                        }
-                        catch (Exception ex)
-                        {
-                            // Suppress — do NOT rethrow; a parse failure must not crash the loop.
-                            _ = ex;
-                            parseOk = false;
-                        }
-                    }
-
-                    if (!parseOk) continue; // ParseParams failed — entity stays on old behavior entirely.
-                }
-
-                // ParseParams succeeded (or was not required). Commit behavior transition.
-
-                // 1. Update BehaviorState.
-                // Read previous behavior hash before overwriting (needed for S2-2 detach).
-                int previousBehaviorId = repo.GetComponentRW<BehaviorState>(evt.Entity).ActiveBehaviorHash;
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = behaviorId;
-                // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
-                unchecked { behavior.InstanceId++; }
-                behavior.BrainTier = def.BrainTier;
-                // ⛔ P4-① (2026-09-22): the Blackboard1024 add is GONE with the component. It was
-                //    gated on `def.HeavyDtoType != null`, which is null at every production site and
-                //    in all 30 shipped assets ⇒ this branch never ran. 📄 §30.13.
-
-                // S2-2: Synchronously provision stateful working-state partition slots.
-                // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
-                if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
-                {
-                    // Detach previous behavior's slots to avoid leaking them.
-                    if (previousBehaviorId != BehaviorIds.None &&
-                        previousBehaviorId != behaviorId &&
-                        _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
-                        prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
-                    {
-                        DetachStatefulSlots(repo, evt.Entity, prevDef.StatefulWorkingSlots);
-                    }
-
-                    // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
-                    // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
-                    // a filter). The behaviour's tier IS the kind for its stateful working slots.
-                    // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
-                    // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
-                    _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
-                    ProvisionStatefulSlots(repo, evt.Entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots), KindOf(def),
-                                           hosted, RootParamsCost(def), RootBrainStateCost(def));
-                }
-                else
-                {
-                    _registry.TryGetHostedOccurrenceDemand(evt.BehaviorName, out var hosted);
-                    EnsureOccurrenceStore(repo, evt.Entity, def, hosted, RootParamsCost(def), RootBrainStateCost(def));
-                }
-
-                // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
-                // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
-                DetachHostedOccurrenceSlots(repo, evt.Entity, def.StatefulWorkingSlots);
-
-                // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
-                //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
-                //   this, every behaviour change leaks one slot, and an entity reassigned a few times
-                //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
-                if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)
-                {
-                    RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
-                    // ⭐⭐ O7c-② / CE-319: the root TREE STATE slot leaks the same way and for the same
-                    //   reason — its kind is BTree, so DetachHostedOccurrenceSlots cannot see it either.
-                    RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
-                }
-
-                // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
-                //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
-                //   so every per-state seed offset (E3b-0) keeps meaning what it means. ⛔ It is NOT a
-                //   scatter — scattering would destroy that indexing.
-                //
-                // ⚠ It must run AFTER provisioning: the occurrence store is what we attach into, and
-                //   ProvisionStatefulSlots/EnsureOccurrenceStore above is what guarantees one exists.
-                //
-                // 🔴🔴 AND AFTER DetachHostedOccurrenceSlots — measured 2026-09-21, this ordering is
-                //   LOAD-BEARING and the first version had it wrong. An HSM behaviour's root slot is
-                //   attached with OccurrenceKind.Hsm (KindOf follows the brain tier, A3/D1′), and the
-                //   sweep detaches exactly "kind Hsm|Blueprint and not named by the manifest" ⇒ it
-                //   swept the root slot away on the very same assign that created it. ⛔ Harmless only
-                //   while the blackboard commit still ran; after P3-C it is total params loss on every
-                //   HSM brain. ⚠ Do NOT move this block back above the sweep.
-                if (def.ParseParams != null)
-                {
-                    // ⚠ CE-307: `rootBytes` is the SAME value the shadow was sized from, hoisted to
-                    //   the top of this iteration. ⛔ Recomputing it here would let the two drift.
-                    if (rootBytes > 0)
-                    {
-                        byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
-                            repo, evt.Entity, behaviorId, rootBytes, KindOf(def), out _);
-
-                        // ⛔⛔ A null here USED TO BE TOLERABLE — the blackboard still carried the
-                        //   params, so the entity ran correctly and the miss was invisible. 🔴 After
-                        //   P3-C the slot is the ONLY home, so tolerating it means the behaviour runs
-                        //   on an all-zero params region: it does not crash, it just quietly does the
-                        //   wrong thing. ⇒ THROW, and name the two causes.
-                        // ⚠ This is the one place the toolkit's narrow contract (E-cap §27.2 — skip
-                        //   when the tier components are not registered) becomes visible to a host. It
-                        //   is deliberate: skipping is fine for a behaviour that merely MIGHT host an
-                        //   occurrence, and is not fine for one that HAS parameters.
-                        if (rootParams == null)
-                            throw new InvalidOperationException(
-                                $"Behaviour '{evt.BehaviorName}' parses {rootBytes} bytes of parameters, " +
-                                $"but entity {evt.Entity.Index} has nowhere to put them. Either the " +
-                                "BlueprintBlackboard* tier components are not registered on this world " +
-                                "(Hrot registers them in HrotSharedComponentRegistry; a bare test world " +
-                                "needs BlueprintTierTable.RegisterAll), or the entity's store had no " +
-                                "room, which means the tier demand under-counted (CE-302).");
-
-                        fixed (byte* src = shadow)
-                            Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
-                    }
-                }
-
-                // 2. ⭐⭐⭐ O7c-② / CE-319 — ATTACH the root tree state, then reset the cursor so the new
-                //    behaviour starts from the root. 📄 §31.
-                //
-                //    ⚠ ORDERING, and it is the same rule CE-302 paid for on the params path: this runs
-                //      AFTER provisioning (the store must exist to attach into) and AFTER
-                //      DetachHostedOccurrenceSlots (which sweeps kind Hsm|Blueprint — a BTree root slot
-                //      is invisible to it, but the ordering is kept uniform so the two root slots cannot
-                //      drift apart).
-                //
-                //    ⭐ TryAttach ZEROES a fresh payload, so the reset is redundant on first attach — but
-                //      NOT on the idempotent path, where re-assigning the SAME behaviour finds its slot
-                //      already there. ⛔ The component version reset unconditionally; so does this.
-                if (RootStateAccess.RootStateBytes(def) > 0)
-                {
-                    RootStateAccess.ResolveOrAttachRoot(repo, evt.Entity, behaviorId, KindOf(def), out _);
-                    RootStateAccess.ResetState(repo, evt.Entity);
-                }
-                ResetHostedTreeStates(repo, evt.Entity, def);
-
-                // 3. ⭐⭐⭐ O7c-④ — ATTACH the root HSM instance, then BIND it to the new behaviour's
-                //    topology. 📄 §31.14.
-                //
-                //    BHU-016 / CRITICAL FIX, unchanged in substance: InstanceHeader.MachineId must
-                //    equal the new blob's StructureHash or HsmKernelCore.ValidateInstance rejects the
-                //    instance on every subsequent tick — silently, by `continue`.
-                //
-                //    🔴🔴 ORDERING IS LOAD-BEARING, AND IN THE OPPOSITE DIRECTION FROM THE BTREE ROOT.
-                //      This slot declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots — which
-                //      sweeps exactly "kind Hsm|Blueprint and not named by the manifest" — CAN see it,
-                //      and a root key is never in a manifest. ⇒ attaching before that sweep would
-                //      remove the slot on the very assign that created it, which is the defect the
-                //      root PARAMS path already paid for once on HSM brains. ⛔ Do NOT move this block
-                //      above DetachHostedOccurrenceSlots.
-                if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
-                {
-                    RootHsmAccess.ResolveOrAttachRoot(
-                        repo, evt.Entity, behaviorId,
-                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
-                    RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
-                }
+                if (!Start(repo, evt.Entity, evt.BehaviorName, behaviorId, def, evt.JsonParams)) continue;
+                _startedByNameThisFrame[evt.Entity.Index] = behaviorId;
             }
 
             // ── ClearBehaviorEvent handler ────────────────────────────────────────────────
@@ -334,29 +123,34 @@ namespace Fdp.Toolkit.Behavior.Systems
             }
 
             // ── AssignBehaviorHashEvent handler ──────────────────────────────────────────
-            // Activates a behavior by integer hash — published by MissionDirectorSystem
-            // during phase transitions where only the hash (not the name) is known.
-            // Increments InstanceId so ChannelArbitrationSystem preempts stale channels.
+            // Activates a behavior by integer hash — published by MissionDirectorSystem on a phase advance.
+            //
+            // ⭐⭐ CE-451 (2026-09-30): THE SAME START PIPELINE as an assign by name. 🔴 This handler used to hand-write a
+            //   partial copy — detach, bump, attach the tree state / HSM instance — that never provisioned the store nor
+            //   attached the root PARAMS block and never parsed, so a behaviour WITH parameters assigned this way threw in
+            //   RootParamsAccess.RootRef on every BTree / blueprint tick. ⇒ now one path: Start(), with no JSON ("{}" —
+            //   authored defaults; the event carries none).
+            // ⚠ On CGF a phase advance ALSO produces an assign BY NAME carrying the task's parameters
+            //   (MissionAdapterSystem → tactical intent → TacticalIntentResolutionSystem). ⇒ when that one already started
+            //   THIS behaviour on this entity in this Execute, the hash event is a duplicate and is dropped — the named one
+            //   carries the parameters.
             var hashEvents = repo.Bus.Read<AssignBehaviorHashEvent>();
             foreach (var evt in hashEvents)
             {
                 if (!repo.HasComponent<BehaviorState>(evt.Entity)) continue;
+                if (_startedByNameThisFrame.TryGetValue(evt.Entity.Index, out int byName) && byName == evt.BehaviorHash)
+                    continue;
+                if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
+                    && _registry.TryGetName(evt.BehaviorHash, out var name))
+                {
+                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, "{}");
+                    continue;
+                }
 
-                // 🔴🔴 O7c-④b — RECLAIM THE OUTGOING BEHAVIOUR'S ROOT SLOTS, BEFORE THE HASH MOVES.
-                //   📄 §31.16.7.
-                //
-                //   ⛔⛔ This handler calls neither DetachStatefulSlots nor DetachHostedOccurrenceSlots,
-                //     so — unlike the AssignBehaviorEvent path — NOTHING reclaims the previous
-                //     behaviour's root slots here. §22's F14b found the same hole and fixed only the
-                //     manifest half.
-                //   📐 Harmless until now because every root cost was small and CONSTANT. It stops
-                //     being harmless the moment the root HSM instance arrives: a 128-byte instance on
-                //     the 256 tier leaves 48 payload bytes free, so a hash-reassign could not attach
-                //     the incoming one and the machine silently vanished. ⚠ Caught by A3, which does
-                //     exactly this reassign.
-                //   ⭐ Keyed by the OLD hash, so it cannot touch the incoming behaviour's slot —
-                //     which is why it must run BEFORE ActiveBehaviorHash is overwritten, the same
-                //     ordering trap the ClearBehaviorEvent handler records.
+                // ⚠ NO DEFINITION ON THIS NODE ⇒ nothing to start. The pre-CE-451 bookkeeping is kept byte for byte —
+                //   release the outgoing root slots, record the hash, bump the instance — because a node that does not
+                //   host the behaviour still tracks WHICH one is active (rails MissionDirectorSystemTests.*). ⭐ Nothing
+                //   ticks it: BrainTickSystem skips a hash with no definition.
                 int previousBehaviorId = repo.GetComponentRO<BehaviorState>(evt.Entity).ActiveBehaviorHash;
                 if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != evt.BehaviorHash)
                 {
@@ -364,52 +158,259 @@ namespace Fdp.Toolkit.Behavior.Systems
                     RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
                     RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
                 }
-
-                ref var behavior = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
-                behavior.ActiveBehaviorHash = evt.BehaviorHash;
-                unchecked { behavior.InstanceId++; }
-
-                // Resolve the definition from the registry and restore the BrainTier.
-                // Without this, entities remain brain-dead (BrainTier = 0) after a ClearBehaviorEvent.
-                if (_registry.TryGetDefinition(evt.BehaviorHash, out var def))
-                {
-                    behavior.BrainTier = def.BrainTier;
-                    // ⛔ P4-①: the second Blackboard1024 add, gone for the same reason as the first.
-                }
-
-                // ⭐⭐ O7c-② / CE-319 — attach + reset, as in the AssignBehaviorEvent handler.
-                //   🔴 ⚠ THIS HANDLER PROVISIONS NOTHING — measured, and it is a PRE-EXISTING gap this
-                //     change inherits rather than introduces: §22's F14b found the same thing
-                //     ("the handler touches no slots at all — it neither detaches the outgoing manifest
-                //     nor provisions the incoming one") and fixed the LEAK half, not the provisioning
-                //     half. ⇒ ResolveOrAttachRoot returns null when the entity has no store, and the
-                //     reset is then a no-op. ⛔ That is the SAME reachability the component had here
-                //     (it too was only touched if already present), so this is not a regression — but
-                //     it IS the reason a hash-assigned BTree brain on a store-less entity would not
-                //     tick, and it is recorded in the design rather than left to be rediscovered.
-                if (RootStateAccess.RootStateBytes(def) > 0)
-                {
-                    RootStateAccess.ResolveOrAttachRoot(repo, evt.Entity, evt.BehaviorHash, KindOf(def!), out _);
-                    RootStateAccess.ResetState(repo, evt.Entity);
-                }
-                ResetHostedTreeStates(repo, evt.Entity, def);
-
-                // ⭐⭐ O7c-④ — attach + bind, as in the AssignBehaviorEvent handler.
-                //   🔴 ⚠ THIS HANDLER PROVISIONS NO STORE — the same pre-existing gap recorded above
-                //     for the root tree state (§22's F14b). ⇒ ResolveOrAttachRoot returns null when the
-                //     entity has no store and ResetInstance is then a no-op. ⛔ That is the SAME
-                //     reachability the BrainHsm128 component had here — it too was only touched if
-                //     already present — so this is not a regression, but it IS why a hash-assigned HSM
-                //     brain on a store-less entity does not run.
-                if (def != null && def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
-                {
-                    RootHsmAccess.ResolveOrAttachRoot(
-                        repo, evt.Entity, evt.BehaviorHash,
-                        RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
-                    RootHsmAccess.ResetInstance(repo, evt.Entity, def.HsmDefinition);
-                }
+                ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
+                unhosted.ActiveBehaviorHash = evt.BehaviorHash;
+                unchecked { unhosted.InstanceId++; }
             }
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <b><c>CE-452</c> / <c>CE-451</c> — THE ONE START PIPELINE.</b> Every way a root behaviour starts runs this:
+        /// an assign by name, an assign by hash (<c>CE-451</c> — it used to hand-write a partial copy that provisioned no
+        /// params block), and a hot-reload restart (<c>CE-452</c> — which re-publishes an assign by name, so it lands here).
+        /// 🔒 User, <c>2026-09-30</c>: <i>"i hope you are reusing whatever init/setup code there is"</i>.
+        /// <para>Parse into the shadow → commit <c>BehaviorState</c> → provision → detach the previous behaviour's slots →
+        /// attach the root params / tree state / HSM instance → record what it was started with.</para>
+        /// </summary>
+        /// <returns><c>false</c> when the parse failed — the entity stays on its previous behaviour entirely.</returns>
+        private unsafe bool Start(
+            EntityRepository repo, Entity entity, string behaviorName, int behaviorId, BehaviorDefinition def, string json)
+        {
+            // DEBT-035 fix: attempt ParseParams BEFORE writing BehaviorState/BrainBTreeState.
+            // Strategy: parse into stack memory and commit only on success, so a ParseParams
+            // failure leaves the entity 100% on the old behavior.
+            //
+            // ⭐⭐⭐ P3-C — THE CLEAN CUT (2026-09-21). 🔴 The shadow used to be copied FROM and
+            //   committed back TO a per-entity BrainBlackboard component. Both halves are gone:
+            //   the parsed bytes now land in the entity's ROOT PARAMS OCCURRENCE SLOT, which is
+            //   attached further down once the store is provisioned (§29.6 / §29.7 P3-C).
+            //
+            // ⛔ NOT a dual write. R-132's second producer, and in this codebase a temporary one
+            //   becomes permanent — the user ruled CLEAN CUT for exactly that reason.
+            // ⭐⭐⭐ CE-307 — THE SHADOW IS SIZED BY THE BEHAVIOUR, NOT BY A CONSTANT.
+            //   Hoisted here because the shadow's width IS this number: the region the parser may
+            //   write is the packed variable table's extent, and that is what lands in the slot
+            //   below. ⛔ It used to be BrainBlackboardByteSize (100) — the OLD component's width —
+            //   which made a >100-byte behaviour a STACK SMASH in ParseParams and a silent
+            //   truncation in the carry-over. Impossible only because the analyzer capped at 100.
+            int rootBytes = def.ParseParams != null ? RootParamsAccess.RootParamsBytes(def) : 0;
+            Span<byte> shadow = def.ParseParams != null ? EnsureShadow(rootBytes) : default;
+
+            if (def.ParseParams != null)
+            {
+                // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
+                //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
+                //   handling, this happens rarely (certainly not every tick or two)" ⇒ always
+                //   Clear() → BAKE the whole block's defaults → OVERLAY the JSON → RESOLVE. An
+                //   unmentioned variable lands on its AUTHORED DEFAULT — predictable, inspectable in
+                //   the editor, and identical on a first assign and on a re-assign (Q76 §12.3).
+                // ⛔⛔ HISTORY — this used to SEED the shadow from the previous root slot, so a variable
+                //   with no default that the JSON did not mention kept the PREVIOUS behaviour's bytes,
+                //   reinterpreted as its own type (CE-421). CE-437 then kept the whole block on a
+                //   same-behaviour re-assign — exactly the gate CE-421's ruling had rejected, built
+                //   without reading that row. Both are gone.
+                // 📐 Measured before deleting: every production publisher of AssignBehaviorEvent sends
+                //   a COMPLETE parameter set (MissionAdapter via TacticalIntentResolution, the three
+                //   maneuver mappers) — none relies on a partial re-assign keeping untouched values.
+                // ⚠ Clear() is still load-bearing on its own: the buffer is REUSED across events and
+                //   frames, so a stale event's bytes would otherwise leak into this one.
+                shadow.Clear();
+
+                // Attempt parse on the shadow.
+                bool parseOk;
+                fixed (byte* dst = shadow)
+                {
+                    try
+                    {
+                        // ⭐ G1/E7 — `host` is null: this is a ROOT behaviour, which is its
+                        //   defined value (DESIGN_Parameter_Model.md §3.4). A HOSTED occurrence
+                        //   will pass its host's variable access here, at E7a, without another
+                        //   signature change.
+                        // ⭐⭐ CE-331 (2026-09-23): the parser is TOLD how much room it has.
+                        //   ⚠ `shadow.Length`, not `rootBytes` — the shadow IS the writable
+                        //   region, and handing anything wider would license the overrun this
+                        //   parameter exists to stop.
+                        def.ParseParams(json, dst, shadow.Length, repo, entity);
+                        parseOk = true;
+                    }
+                    catch (Exception ex)
+                    {
+                        // Suppress — do NOT rethrow; a parse failure must not crash the loop.
+                        _ = ex;
+                        parseOk = false;
+                    }
+                }
+
+                if (!parseOk) return false; // ParseParams failed — entity stays on old behavior entirely.
+            }
+
+            // ParseParams succeeded (or was not required). Commit behavior transition.
+
+            // 1. Update BehaviorState.
+            // Read previous behavior hash before overwriting (needed for S2-2 detach).
+            int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
+            behavior.ActiveBehaviorHash = behaviorId;
+            // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
+            unchecked { behavior.InstanceId++; }
+            behavior.BrainTier = def.BrainTier;
+            // ⛔ P4-① (2026-09-22): the Blackboard1024 add is GONE with the component. It was
+            //    gated on `def.HeavyDtoType != null`, which is null at every production site and
+            //    in all 30 shipped assets ⇒ this branch never ran. 📄 §30.13.
+
+            // S2-2: Synchronously provision stateful working-state partition slots.
+            // Must happen BEFORE the same frame's Simulation tick (§10 Flaw 1 fix).
+            if (def.StatefulWorkingSlots != null && def.StatefulWorkingSlots.Count > 0)
+            {
+                // Detach previous behavior's slots to avoid leaking them.
+                if (previousBehaviorId != BehaviorIds.None &&
+                    previousBehaviorId != behaviorId &&
+                    _registry.TryGetDefinition(previousBehaviorId, out var prevDef) &&
+                    prevDef.StatefulWorkingSlots != null && prevDef.StatefulWorkingSlots.Count > 0)
+                {
+                    DetachStatefulSlots(repo, entity, prevDef.StatefulWorkingSlots);
+                }
+
+                // A3/D1': declare WHAT these occurrences are, so O0's walker can filter on a
+                // declared Kind instead of on a BlueprintRegistry miss (F7 -- an accident, not
+                // a filter). The behaviour's tier IS the kind for its stateful working slots.
+                // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
+                // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
+                ProvisionStatefulSlots(repo, entity, HostedSubtree.EffectiveSlots(def.StatefulWorkingSlots), KindOf(def),
+                                       hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
+            else
+            {
+                _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                EnsureOccurrenceStore(repo, entity, def, hosted, RootParamsCost(def), RootBrainStateCost(def));
+            }
+
+            // E3a: drop the PREVIOUS assign's lazily-attached hosted occurrences, so their params
+            // re-seed from the JSON just parsed. ⛔ Omitting this makes new JSON a no-op (§28.4).
+            DetachHostedOccurrenceSlots(repo, entity, def.StatefulWorkingSlots);
+
+            // ⭐ CE-302: and the PREVIOUS behaviour's ROOT PARAMS slot, which the sweep above
+            //   cannot reach on a BTree brain — its kind is BTree, not Hsm/Blueprint. ⛔ Without
+            //   this, every behaviour change leaks one slot, and an entity reassigned a few times
+            //   exhausts MaxSlots (3 on the 256 tier) and then silently loses its params.
+            if (previousBehaviorId != BehaviorIds.None && previousBehaviorId != behaviorId)
+            {
+                RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
+                // ⭐⭐ O7c-② / CE-319: the root TREE STATE slot leaks the same way and for the same
+                //   reason — its kind is BTree, so DetachHostedOccurrenceSlots cannot see it either.
+                RootStateAccess.DetachRoot(repo, entity, previousBehaviorId);
+            }
+
+            // ⭐⭐⭐ P3 — THE ROOT BEHAVIOUR'S PARAMS GET THEIR OWN SLOT.
+            //   §29.6: ONE slot holds the WHOLE packed table, exactly as BehaviorParameters does,
+            //   so every per-state seed offset (E3b-0) keeps meaning what it means. ⛔ It is NOT a
+            //   scatter — scattering would destroy that indexing.
+            //
+            // ⚠ It must run AFTER provisioning: the occurrence store is what we attach into, and
+            //   ProvisionStatefulSlots/EnsureOccurrenceStore above is what guarantees one exists.
+            //
+            // 🔴🔴 AND AFTER DetachHostedOccurrenceSlots — measured 2026-09-21, this ordering is
+            //   LOAD-BEARING and the first version had it wrong. An HSM behaviour's root slot is
+            //   attached with OccurrenceKind.Hsm (KindOf follows the brain tier, A3/D1′), and the
+            //   sweep detaches exactly "kind Hsm|Blueprint and not named by the manifest" ⇒ it
+            //   swept the root slot away on the very same assign that created it. ⛔ Harmless only
+            //   while the blackboard commit still ran; after P3-C it is total params loss on every
+            //   HSM brain. ⚠ Do NOT move this block back above the sweep.
+            if (def.ParseParams != null)
+            {
+                // ⚠ CE-307: `rootBytes` is the SAME value the shadow was sized from, hoisted to
+                //   the top of this iteration. ⛔ Recomputing it here would let the two drift.
+                if (rootBytes > 0)
+                {
+                    byte* rootParams = RootParamsAccess.ResolveOrAttachRoot(
+                        repo, entity, behaviorId, rootBytes, KindOf(def), out _);
+
+                    // ⛔⛔ A null here USED TO BE TOLERABLE — the blackboard still carried the
+                    //   params, so the entity ran correctly and the miss was invisible. 🔴 After
+                    //   P3-C the slot is the ONLY home, so tolerating it means the behaviour runs
+                    //   on an all-zero params region: it does not crash, it just quietly does the
+                    //   wrong thing. ⇒ THROW, and name the two causes.
+                    // ⚠ This is the one place the toolkit's narrow contract (E-cap §27.2 — skip
+                    //   when the tier components are not registered) becomes visible to a host. It
+                    //   is deliberate: skipping is fine for a behaviour that merely MIGHT host an
+                    //   occurrence, and is not fine for one that HAS parameters.
+                    if (rootParams == null)
+                        throw new InvalidOperationException(
+                            $"Behaviour '{behaviorName}' parses {rootBytes} bytes of parameters, " +
+                            $"but entity {entity.Index} has nowhere to put them. Either the " +
+                            "BlueprintBlackboard* tier components are not registered on this world " +
+                            "(Hrot registers them in HrotSharedComponentRegistry; a bare test world " +
+                            "needs BlueprintTierTable.RegisterAll), or the entity's store had no " +
+                            "room, which means the tier demand under-counted (CE-302).");
+
+                    fixed (byte* src = shadow)
+                        Buffer.MemoryCopy(src, rootParams, rootBytes, rootBytes);
+                }
+            }
+
+            // 2. ⭐⭐⭐ O7c-② / CE-319 — ATTACH the root tree state, then reset the cursor so the new
+            //    behaviour starts from the root. 📄 §31.
+            //
+            //    ⚠ ORDERING, and it is the same rule CE-302 paid for on the params path: this runs
+            //      AFTER provisioning (the store must exist to attach into) and AFTER
+            //      DetachHostedOccurrenceSlots (which sweeps kind Hsm|Blueprint — a BTree root slot
+            //      is invisible to it, but the ordering is kept uniform so the two root slots cannot
+            //      drift apart).
+            //
+            //    ⭐ TryAttach ZEROES a fresh payload, so the reset is redundant on first attach — but
+            //      NOT on the idempotent path, where re-assigning the SAME behaviour finds its slot
+            //      already there. ⛔ The component version reset unconditionally; so does this.
+            if (RootStateAccess.RootStateBytes(def) > 0)
+            {
+                RootStateAccess.ResolveOrAttachRoot(repo, entity, behaviorId, KindOf(def), out _);
+                RootStateAccess.ResetState(repo, entity);
+            }
+            ResetHostedTreeStates(repo, entity, def);
+
+            // 3. ⭐⭐⭐ O7c-④ — ATTACH the root HSM instance, then BIND it to the new behaviour's
+            //    topology. 📄 §31.14.
+            //
+            //    BHU-016 / CRITICAL FIX, unchanged in substance: InstanceHeader.MachineId must
+            //    equal the new blob's StructureHash or HsmKernelCore.ValidateInstance rejects the
+            //    instance on every subsequent tick — silently, by `continue`.
+            //
+            //    🔴🔴 ORDERING IS LOAD-BEARING, AND IN THE OPPOSITE DIRECTION FROM THE BTREE ROOT.
+            //      This slot declares OccurrenceKind.Hsm, so DetachHostedOccurrenceSlots — which
+            //      sweeps exactly "kind Hsm|Blueprint and not named by the manifest" — CAN see it,
+            //      and a root key is never in a manifest. ⇒ attaching before that sweep would
+            //      remove the slot on the very assign that created it, which is the defect the
+            //      root PARAMS path already paid for once on HSM brains. ⛔ Do NOT move this block
+            //      above DetachHostedOccurrenceSlots.
+            if (def.BrainTier == BehaviorConstants.BrainTierHsm && def.HsmDefinition != null)
+            {
+                RootHsmAccess.ResolveOrAttachRoot(
+                    repo, entity, behaviorId,
+                    RootHsmAccess.InstanceBytes(def.HsmDefinition), KindOf(def), out _);
+                RootHsmAccess.ResetInstance(repo, entity, def.HsmDefinition);
+            }
+
+            // ⭐ CE-452: what it was started with, for a hot-reload restart. ⭐ Registered on first use (idempotent), as
+            //   SetSingletonManaged does — a behaviour host must not have to know this component exists.
+            if (!ReferenceEquals(_startRecordRegisteredOn, repo))
+            {
+                repo.RegisterManagedComponent<BehaviorStartRecord>();
+                _startRecordRegisteredOn = repo;
+            }
+            repo.SetManagedComponent(entity, new BehaviorStartRecord
+            {
+                BehaviorName = behaviorName,
+                JsonParams   = json,
+                InstanceId   = repo.GetComponentRO<BehaviorState>(entity).InstanceId,
+            });
+            return true;
+        }
+
+        private EntityRepository? _startRecordRegisteredOn;
+
+        /// <summary>Entities started BY NAME in the current <c>Execute</c> → the behaviour started (<c>CE-451</c>).</summary>
+        private readonly Dictionary<int, int> _startedByNameThisFrame = new();
 
         /// <summary>
         /// 🔴🔴🔴 <b><c>E-cap</c> — A BEHAVIOUR WITH NO MANIFEST STILL NEEDS A STORE.</b>
@@ -978,6 +979,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             behavior.ActiveBehaviorHash = BehaviorIds.None;
             unchecked { behavior.InstanceId++; }
             behavior.BrainTier = 0;
+
+            // ⭐ CE-452: no behaviour ⇒ nothing to restart.
+            if (repo.HasManagedComponent<BehaviorStartRecord>(entity))
+                repo.SetManagedComponent<BehaviorStartRecord>(entity, null!);
         }
 
 

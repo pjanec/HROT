@@ -32,5 +32,12 @@ namespace Fdp.Toolkit.Behavior.Components
         /// without forcing Fdp.Toolkits to reference Hrot.Common.
         /// </summary>
         public const int DebugState = 148;
+
+        /// <summary>
+        /// <c>BehaviorStartRecord</c> — CE-452: the name + parameter text the entity's current root behaviour was started
+        /// with (transient). ⚠ 154 is the first of the "154–159 next free" block <c>GlobalComponentIds</c> names — measured
+        /// free by a repo-wide search of FDP/Hrot/Stride on 2026-09-30; that comment (Fdp.Core) is not updated from here.
+        /// </summary>
+        public const int BehaviorStartRecord = 154;
     }
 }

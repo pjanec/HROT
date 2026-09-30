@@ -309,7 +309,7 @@ classDiagram
 ⭐ **Shipped demo:** `BlueprintBehaviourDemo.bp.json` — compiled by the production generator; the production registrar scan registers it on `BrainTierBlueprint` (rail `CE446_TheShippedDemo_…`).
 
 ⚠ **Still open inside `CE-446`:** ~~hot reload of a running blueprint
-behaviour whose layout changed~~ (built, §5.12) · E4 editor (§5.5).
+behaviour whose layout changed~~ (built, §5.12 — restarts with its parameters) · E4 editor (§5.5).
 
 ### 5.10 ✅ The Instance node set, PROVEN in a blueprint behaviour *(`2026-09-30`)*
 
@@ -351,49 +351,56 @@ Rails (`BlueprintBehaviourTests`): `CE446_TheOwnResolver_RunsAtAssign_FromThePar
 fails) · `…_SeesTheParameterDefault_WhenTheJsonOmitsIt` · `CE446_AResolverWritingAParameter_IsBP1675` · `CE446_TwoResolvers_AreBP1676` ·
 `CE446_AResolverDeclaringAnInput_IsBP1677`.
 
-### 5.12 ✅ BUILT `2026-09-30` — hot reload of a RUNNING blueprint behaviour
+### 5.12 ✅ BUILT `2026-09-30` — hot reload of a RUNNING behaviour restarts it, WITH ITS PARAMETERS (`CE-452`)
 
 ```mermaid
 sequenceDiagram
     participant C as "AiHotReloadCoordinator"
     participant R as "BehaviorRegistry (live)"
-    participant B as "BrainTickSystem.TickBlueprint"
-    participant S as "root block (occurrence slot)"
-    C->>R: MergeFrom(staging) — new BehaviorDefinition, BlueprintStructureHash
-    B->>B: started layout (InstanceId, hash) vs def.BlueprintStructureHash, slot width vs RootParamsBytes(def)
-    alt same layout, same width (SOFT)
-        B->>S: tick the new code over the kept state
-    else layout or width changed (HARD)
-        B->>S: ResolveOrAttachRoot at the new width, zero it
-        B->>S: def.ParseParams("{}") — authored defaults, then the own resolver
-        B->>B: IReloadLogSink.OnHardReset(old, new)
-        B->>S: tick
-    else rebuild failed (no room / resolver threw)
-        B->>B: BehaviorIngressSystem.Clear — never tick a half-built block
+    participant B as "BrainTickSystem (any arm)"
+    participant I as "BehaviorIngressSystem.Start"
+    participant K as "BehaviorStartRecord (entity)"
+    I->>K: every successful start writes name + JSON text + InstanceId
+    C->>R: MergeFrom(staging) — new BehaviorDefinition
+    B->>B: block width vs RootParamsBytes(def), blueprint layout hash vs started one
+    alt unchanged (SOFT)
+        B->>B: tick the new code over the kept state
+    else changed (HARD)
+        B->>K: read name + JSON (authored defaults if none)
+        B->>I: publish AssignBehaviorEvent, SKIP this tick, log OnHardReset
+        I->>I: next frame — the ONE start pipeline (params, own resolver, hosted children, store growth)
+    else still the same instance next tick (restart failed)
+        B->>B: BehaviorIngressSystem.Clear — never tick a block that does not fit
     end
 ```
 
-> ⭐ **Caption:** the check runs on the TICK, per entity, because no reload path tells a world which entities run the
-> reloaded behaviour (`OnHardReloadCompleted` fires only on the file-watcher path, and nothing subscribes to re-assign —
-> `DESIGN_Cgf_Editor_Sharing_Slice3_Editing_HotReload.md` §10.3, `CE-023`).
+> ⭐ **Caption:** the restart is not a reset done in the tick — it is an ordinary assign, so everything a start does (the
+> shadow, the store growth that is structural and ingress-only, the hosted-slot detach so sub-behaviours re-seed) happens
+> through ONE path. 🔒 User `2026-09-30`: *"i hope you are reusing whatever init/setup code there is"*.
 
 | design basis | how this applies it |
 |---|---|
-| `AI_Editor_Shared_Infrastructure.md` §17 — Soft keeps state, Hard *"instances reset to initial state"* | the same split, keyed on the generated `StructureHash` (now `BehaviorDefinition.BlueprintStructureHash`) |
-| `R-24` / `BlueprintTickSystem` — an Instance with a stale hash is `ResetSlot` + `InitDefault`, logged | the behaviour-tier twin, through the definition's own pipeline (so the own resolver re-runs) |
-| `btree-ai-action-binding/SLICE2-DESIGN.md` Flaw 2 — a grown layout over an old slot overwrites the next one | the width check re-attaches BEFORE the new code ticks |
+| `btree-ai-action-binding/SLICE2-DESIGN.md` Flaw 2 — *"re-publish `AssignBehaviorEvent` for every entity running that behavior"* | exactly that, per entity, from the tick (no reload path knows the entities — `DESIGN_Cgf_Editor_Sharing_Slice3` §10.3) |
+| `AI_Editor_Shared_Infrastructure.md` §17 — Soft keeps state, Hard restarts | layout hash (blueprint tier) or block width (every tier) decides |
+| `R-153` — a start begins from an empty block | the restart is a start: `InstanceId` bumps, so each channel resets once |
 
-⚠ **Decision (logged, the one that loses something):** the assigned JSON is retained nowhere, so a HARD reset lands on
-**authored defaults** — the same as an Instance's reset. ⭐ Keeping the assigned params across a Hard reset would need
-the JSON held per running instance (ingress has it only during the assign); ⛔ not built — the user's call.
-⚠ **Not covered, and pre-existing for every tier:** a BTree/HSM behaviour's root params block is not re-checked on
-reload either (the same Flaw 2 exposure); this slice closes it for the blueprint tier only.
+⭐ **What is kept:** the parameter TEXT (`BehaviorStartRecord`, transient, `ComponentId` 154) — layout-independent and
+owned by no assembly (a DTO would be a type from the old, collectible ALC). ⭐ **Sub-behaviours need nothing:** a hosted
+child seeds from its parent's block (`HostedSubtree`), which the restart rebuilds. ⚠ **Not detected:** a BTree/HSM root
+whose layout changed at the SAME width (they carry no layout hash yet).
 
-⚠ **Known debt, `CE-452`:** the reset re-sequences the ingress start pipeline instead of reusing it; the lean is to retain the JSON text and re-publish the assign (SLICE2 Flaw 2's own fix) so the ONE pipeline restarts it.
+Rails (`BrainTickSystemBlueprintArmTests`, each red-proofed): `CE452_AReloadThatKeepsTheLayout_KeepsTheRunningState` ·
+`…ChangesTheLayout_RestartsTheInstance_WithTheAssignedParameters` · `…GrowsTheBlock_BeforeItsFirstTick_RestartsItAtTheNewWidth` ·
+`CE452_ARestartWhoseStartFails_ClearsTheBehaviour_InsteadOfTickingIt` · `CE452_TheStartRecord_IsWrittenAtStart_AndDroppedAtClear`;
+`CE-451` (the hash path through the same `Start`): `CE451_AnAssignByHash_ProvisionsTheParamsBlock_AndTicks` ·
+`CE451_AnAssignByHash_ThatDuplicatesANamedAssignInTheSamePass_IsDropped`.
 
-Rails (`BrainTickSystemBlueprintArmTests`): `CE446_AReloadThatKeepsTheLayout_KeepsTheRunningState` ·
-`…ChangesTheLayout_HardResetsTheRunningInstance_AndLogsIt` · `…GrowsTheBlock_BeforeItsFirstTick_ReattachesItAtTheNewWidth` (the window the width check exists for: no started layout on record yet) ·
-`CE446_AHardResetWhoseRebuildFails_ClearsTheBehaviour_InsteadOfTickingIt`.
+<details><summary>⛔ HISTORY — the first build of §5.12 (same day), SUPERSEDED by the above</summary>
+
+The first build reset the block IN the tick (`ResolveOrAttachRoot` + `ParseParams("{}")`) — a third copy of the start
+sequence, without the shadow, the hosted detach or store growth, and on AUTHORED DEFAULTS because the JSON was not kept.
+Filed as `CE-452` and replaced.
+</details>
 
 ### 5.13 E4 — first slice BUILT `2026-09-30`; the rest is editor UI (§5.5)
 

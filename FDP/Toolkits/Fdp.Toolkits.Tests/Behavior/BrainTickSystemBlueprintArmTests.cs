@@ -166,7 +166,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
-        // ══ CE-446 step 3 — hot reload of a RUNNING blueprint behaviour (Q77 §5.12) ══════════════════════════════
+        // ══ CE-452 — hot reload of a RUNNING behaviour restarts it through the ONE start pipeline (Q77 §5.12) ══════════
 
         [StructLayout(LayoutKind.Sequential)]
         private struct WideBlock
@@ -191,7 +191,7 @@ namespace Fdp.Toolkit.Behavior.Tests
             BrainTier              = BehaviorConstants.BrainTierBlueprint,
             BlackboardLayoutType   = typeof(TBlock),
             BlueprintStructureHash = layout,
-            // ⭐ "{}" is the reset's call: no JSON ⇒ the authored default (10).
+            // ⭐ "{}" = no JSON ⇒ the authored default (10).
             ParseParams = parseThrows
                 ? static (string j, byte* mem, int capacity, EntityRepository w, Entity self) => throw new InvalidOperationException("resolver failed")
                 : static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
@@ -205,7 +205,29 @@ namespace Fdp.Toolkit.Behavior.Tests
             },
         };
 
-        private static (EntityRepository world, BehaviorRegistry registry, BrainTickSystem brain, Entity e) Running(BehaviorDefinition def, string json)
+        private sealed class Host
+        {
+            public required EntityRepository World;
+            public required BehaviorRegistry Registry;
+            public required BehaviorIngressSystem Ingress;
+            public required BrainTickSystem Brain;
+            public required Entity E;
+
+            /// <summary>One production frame: ingress (Input) → brain (Simulation) → swap.</summary>
+            public void Frames(int n)
+            {
+                for (int i = 0; i < n; i++)
+                {
+                    Ingress.Execute(World, 0.016f);
+                    Brain.Execute(World, 0.016f);
+                    World.Bus.SwapBuffers();
+                }
+            }
+
+            public uint InstanceId => World.GetComponent<BehaviorState>(E).InstanceId;
+        }
+
+        private static Host Running(BehaviorDefinition def, string json, Fdp.Toolkit.Blueprints.Systems.IReloadLogSink? log = null)
         {
             var world = TestWorldFactory.Create();
             BlueprintTierTable.RegisterAll(world);
@@ -216,8 +238,11 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState());
             world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = Name, JsonParams = json });
             world.Bus.SwapBuffers();
-            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
-            return (world, registry, new BrainTickSystem(registry), e);
+            return new Host
+            {
+                World = world, Registry = registry, Ingress = new BehaviorIngressSystem(registry),
+                Brain = new BrainTickSystem(registry, reloadLog: log), E = e,
+            };
         }
 
         private static Block ReadBlock(EntityRepository world, Entity e)
@@ -231,85 +256,165 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// (<c>AI_Editor_Shared_Infrastructure.md</c> §17 — <i>"instances retain runtime state"</i>).
         /// </summary>
         [Fact]
-        public void CE446_AReloadThatKeepsTheLayout_KeepsTheRunningState()
+        public void CE452_AReloadThatKeepsTheLayout_KeepsTheRunningState()
         {
-            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
-            TickAndCountFinished(world, brain, e, frames: 2);
-            Assert.Equal(2, ReadBlock(world, e).Count);
+            var h = Running(CountingDef<Block>(layout: 0xA1), "5");
+            h.Frames(2);
+            Assert.Equal(2, ReadBlock(h.World, h.E).Count);
+            uint instance = h.InstanceId;
 
-            Reload(registry, CountingDef<Block>(layout: 0xA1));
-            TickAndCountFinished(world, brain, e, frames: 1);
+            Reload(h.Registry, CountingDef<Block>(layout: 0xA1));
+            h.Frames(1);
 
-            Assert.Equal(3, ReadBlock(world, e).Count);   // continued, not restarted
-            Assert.Equal(5, ReadBlock(world, e).Target);  // the assigned params survived
-            world.Dispose();
+            Assert.Equal(instance, h.InstanceId);            // not restarted
+            Assert.Equal(3, ReadBlock(h.World, h.E).Count);  // continued
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target);
+            h.World.Dispose();
         }
 
         /// <summary>
-        /// ⭐⭐ A reload that changes the layout at the SAME width is HARD: the block is rebuilt by the definition's own
-        /// pipeline with no JSON — authored defaults — exactly <c>R-24</c>'s Instance reset. The reset is LOGGED.
-        /// <para>⚠ Inverse-edit red-proof: drop the <c>layoutChanged</c> term and the count continues from 2.</para>
+        /// ⭐⭐⭐ A reload that changes the layout RESTARTS the running instance through the start pipeline — ⭐ WITH THE
+        /// PARAMETERS IT WAS ASSIGNED (the <see cref="BehaviorStartRecord"/>), not authored defaults. Logged once.
+        /// <para>⚠ Inverse-edit red-proofs run: drop the <c>layoutChanged</c> term ⇒ the count continues from 2; drop the
+        /// record read ⇒ <c>Target</c> is the default 10.</para>
         /// </summary>
         [Fact]
-        public void CE446_AReloadThatChangesTheLayout_HardResetsTheRunningInstance_AndLogsIt()
+        public void CE452_AReloadThatChangesTheLayout_RestartsTheInstance_WithTheAssignedParameters()
         {
-            var (world, registry, _, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
             var log = new RecordingReloadLog();
-            var brain = new BrainTickSystem(registry, reloadLog: log);
-            TickAndCountFinished(world, brain, e, frames: 2);
+            var h = Running(CountingDef<Block>(layout: 0xA1), "5", log);
+            h.Frames(2);
+            uint instance = h.InstanceId;
 
-            Reload(registry, CountingDef<Block>(layout: 0xB2));
-            TickAndCountFinished(world, brain, e, frames: 1);
+            Reload(h.Registry, CountingDef<Block>(layout: 0xB2));
+            h.Frames(1);                                     // detects → skips → requests the restart
+            Assert.Equal(instance, h.InstanceId);
+            h.Frames(1);                                     // ingress restarts it → it ticks once
 
-            Assert.Equal(1, ReadBlock(world, e).Count);    // restarted from an empty block, then ticked once
-            Assert.Equal(10, ReadBlock(world, e).Target);  // authored default — the JSON is not retained
+            Assert.NotEqual(instance, h.InstanceId);         // a new instance
+            Assert.Equal(1, ReadBlock(h.World, h.E).Count);  // from an empty block
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target); // ⭐ the ASSIGNED parameters survived the reload
             Assert.Equal((0xA1UL, 0xB2UL), Assert.Single(log.HardResets));
-            world.Dispose();
+            h.World.Dispose();
         }
 
         /// <summary>
-        /// ⭐⭐⭐ A reload that GROWS the block re-attaches it at the new width before the new code ticks — ⛔ ticking the
-        /// wider layout over the old slot would write into whatever the allocator put after it (<c>SLICE2-DESIGN.md</c> Flaw 2).
-        /// ⭐ Landed between the assign and the FIRST tick, so no started layout is on record yet — the window the WIDTH
-        /// check exists for (the layout hash cannot see it).
-        /// <para>⚠ Inverse-edit red-proof run: drop the <c>widthChanged</c> term and the slot stays 8 bytes.</para>
+        /// ⭐⭐⭐ A reload that GROWS the block — landed between the assign and the FIRST tick, so no started layout is on record
+        /// (the window the WIDTH check exists for) — restarts it at the new width before the new code ever ticks over the old
+        /// slot (⛔ which would write into the next occurrence — <c>SLICE2-DESIGN.md</c> Flaw 2).
+        /// <para>⚠ Inverse-edit red-proof run: drop the <c>widthChanged</c> term ⇒ the slot stays 8 bytes.</para>
         /// </summary>
         [Fact]
-        public void CE446_AReloadThatGrowsTheBlock_BeforeItsFirstTick_ReattachesItAtTheNewWidth()
+        public void CE452_AReloadThatGrowsTheBlock_BeforeItsFirstTick_RestartsItAtTheNewWidth()
         {
-            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
-            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _, out int before));
+            var h = Running(CountingDef<Block>(layout: 0xA1), "5");
+            h.Ingress.Execute(h.World, 0.016f);              // assigned, never ticked
+            Assert.True(RootParamsAccess.TryGetRootBytes(h.World, h.E, out _, out int before));
             Assert.Equal(sizeof(Block), before);
 
-            int seenAtNewWidth = -1;
-            Reload(registry, CountingDef<WideBlock>(layout: 0xC3, onTick: c => seenAtNewWidth = c));
-            TickAndCountFinished(world, brain, e, frames: 1);
+            int ticksAtOldWidth = 0;
+            Reload(h.Registry, CountingDef<WideBlock>(layout: 0xC3, onTick: _ => ticksAtOldWidth +=
+                RootParamsAccess.TryGetRootBytes(h.World, h.E, out byte* wp, out int w) && w != sizeof(WideBlock) ? 1 : 0));
+            h.Brain.Execute(h.World, 0.016f);
+            h.World.Bus.SwapBuffers();
+            h.Frames(1);
 
-            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _, out int after));
+            Assert.True(RootParamsAccess.TryGetRootBytes(h.World, h.E, out _, out int after));
             Assert.Equal(sizeof(WideBlock), after);
-            Assert.Equal(1, seenAtNewWidth);
+            Assert.Equal(0, ticksAtOldWidth);
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target);
+            h.World.Dispose();
+        }
+
+        /// <summary>
+        /// ⛔ A restart whose start FAILS (the new parser / resolver throws) leaves the instance on the old block — so the next
+        /// tick, finding the same instance still pending, CLEARS it (the <c>CE-449</c> clear) instead of ticking a block that
+        /// does not fit the new code.
+        /// </summary>
+        [Fact]
+        public void CE452_ARestartWhoseStartFails_ClearsTheBehaviour_InsteadOfTickingIt()
+        {
+            var h = Running(CountingDef<Block>(layout: 0xA1), "5");
+            h.Frames(1);
+
+            int ticksAfter = 0;
+            Reload(h.Registry, CountingDef<Block>(layout: 0xB2, onTick: _ => ticksAfter++, parseThrows: true));
+            h.Frames(4);
+
+            Assert.Equal(0, ticksAfter);
+            Assert.Equal(0, h.World.GetComponent<BehaviorState>(h.E).BrainTier);
+            Assert.Equal(0, LiveBehaviourBlocks(h.World, h.E));
+            h.World.Dispose();
+        }
+
+        /// <summary>
+        /// ⭐ The record is written by EVERY successful start (with that start's <c>InstanceId</c>) and dropped by the clear —
+        /// ⛔ a stale record would restart a behaviour the entity no longer runs.
+        /// </summary>
+        [Fact]
+        public void CE452_TheStartRecord_IsWrittenAtStart_AndDroppedAtClear()
+        {
+            var h = Running(CountingDef<Block>(layout: 0xA1), "7");
+            h.Ingress.Execute(h.World, 0.016f);
+
+            Assert.True(h.World.HasManagedComponent<BehaviorStartRecord>(h.E));
+            var record = ((Fdp.ModuleHost.Abstractions.ISimulationView)h.World).GetManagedComponentRO<BehaviorStartRecord>(h.E);
+            Assert.Equal((Name, "7", h.InstanceId), (record.BehaviorName, record.JsonParams, record.InstanceId));
+
+            h.World.Bus.Publish(new ClearBehaviorEvent { Entity = h.E });
+            h.World.Bus.SwapBuffers();
+            h.Ingress.Execute(h.World, 0.016f);
+            Assert.False(h.World.HasManagedComponent<BehaviorStartRecord>(h.E));
+            h.World.Dispose();
+        }
+
+        // ══ CE-451 — an assign BY HASH runs the same start pipeline ══════════════════════════════════════════════════
+
+        /// <summary>
+        /// ⭐⭐ An assign by hash of a behaviour WITH parameters provisions its block and parses it (no JSON ⇒ authored
+        /// defaults), then ticks. ⛔ Before, it attached no params block and the tick THREW in <c>RootParamsAccess.RootRef</c>.
+        /// <para>⚠ Inverse-edit red-proof: the old hand-written handler ⇒ the first assertion fails and the tick throws.</para>
+        /// </summary>
+        [Fact]
+        public void CE451_AnAssignByHash_ProvisionsTheParamsBlock_AndTicks()
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, CountingDef<Block>(layout: 0xA1));
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = Id });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+
+            Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out _));
+            Assert.Null(Record.Exception(() => new BrainTickSystem(registry).Execute(world, 0.016f)));
+            Assert.Equal(10, ReadBlock(world, e).Target);   // authored default — the hash event carries no JSON
+            Assert.Equal(1, ReadBlock(world, e).Count);
             world.Dispose();
         }
 
         /// <summary>
-        /// ⛔ A reset whose rebuild FAILS (the resolver throws) must not tick a half-built block: the behaviour is CLEARED
-        /// — the same clear as finishing (<c>CE-449</c>) — and never ticked again.
+        /// ⭐ On CGF a phase advance produces an assign BY NAME (with the task's parameters) and one BY HASH for the same
+        /// behaviour. ⇒ when both land in one ingress pass, the hash one is dropped: ONE start, and the named parameters win.
         /// </summary>
         [Fact]
-        public void CE446_AHardResetWhoseRebuildFails_ClearsTheBehaviour_InsteadOfTickingIt()
+        public void CE451_AnAssignByHash_ThatDuplicatesANamedAssignInTheSamePass_IsDropped()
         {
-            var (world, registry, brain, e) = Running(CountingDef<Block>(layout: 0xA1), "5");
-            TickAndCountFinished(world, brain, e, frames: 1);
+            var h = Running(CountingDef<Block>(layout: 0xA1), "3");
+            h.Ingress.Execute(h.World, 0.016f);                        // first start
+            uint before = h.InstanceId;
 
-            int ticksAfter = 0;
-            var broken = CountingDef<Block>(layout: 0xB2, onTick: _ => ticksAfter++, parseThrows: true);
-            Reload(registry, broken);
-            TickAndCountFinished(world, brain, e, frames: 3);
+            // ⭐ both land in ONE ingress pass, as a phase advance on CGF can produce them
+            h.World.Bus.PublishManaged(new AssignBehaviorEvent { Entity = h.E, BehaviorName = Name, JsonParams = "5" });
+            h.World.Bus.Publish(new AssignBehaviorHashEvent { Entity = h.E, BehaviorHash = Id });
+            h.World.Bus.SwapBuffers();
+            h.Ingress.Execute(h.World, 0.016f);
 
-            Assert.Equal(0, ticksAfter);
-            Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
-            Assert.Equal(0, LiveBehaviourBlocks(world, e));
-            world.Dispose();
+            Assert.Equal(before + 1, h.InstanceId);                   // started ONCE
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target);          // with the NAMED parameters
+            h.World.Dispose();
         }
 
         private sealed class RecordingReloadLog : Fdp.Toolkit.Blueprints.Systems.IReloadLogSink
