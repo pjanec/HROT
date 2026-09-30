@@ -198,6 +198,27 @@ The only C# it adds: `HillAttackBlueprintTypes.cs` (two enums + the runner struc
 **A** empty area ⇒ platoon staged, returned, commander FINISHES · **B** 🔴 the C# and blueprint commanders on twin worlds send the
 SAME first wave (tanks, firing slots, baseline slots, attack direction, round-robin targets) · **C** full cycle: wave → runs start →
 runs end, area cleared → re-query → return → finish. Live: `scenarios/hill-attack-close-bp` (the C# scenario with
-`behaviorName: PlatoonHillAttackBp`) on `ClusterRunner --mode all` (xvfb) — ✅ both hostiles `Health 0` at t≈20 s, all
-four tanks `Arrived` on the baseline at t≈42 s (x 524–532, y 401 / 451 / 500 / 549, ≈50 m apart — the `CE-459` end state).
-The C# reference on `hill-attack-close` took 46 s / 78 s; the same end state, reached sooner.
+`behaviorName: PlatoonHillAttackBp`) on `ClusterRunner --mode all` (xvfb).
+
+**Live A/B, `2026-09-30`, read through the AI debug HTTP API** (`GET /entities/{id}/state` on the `Scenario` perspective
+— the CGF node where brains run; a FRESH cluster per run, because a second `POST /scenario/load/live` into a running
+cluster answered `sawWorldChange:false` and did not reset the world):
+
+| | C# `hill-attack-close` | blueprint `hill-attack-close-bp` |
+|---|---|---|
+| commander reports | `PlatoonHillAttack`, brainTier 2 | ⭐ **`PlatoonHillAttackBp`, brainTier 3** |
+| baseline orders | 4 × `MoveToLocation` → (523,401) (526,450) (529,499) (532,548) | **identical** |
+| wave 1 | 1002 + 1004 `HullDownAttackRun`, t≈10.9 | **1002 + 1004**, t≈12.4 |
+| wave 2 | 1001 + 1003, t≈28.1 | **1001 + 1003**, t≈35.6 |
+| firing slots used | {(580,444), (581,474), (582,504)} | same set, different picks per tank |
+| return point after a run | (528,474) | (528,474) |
+| hostiles `Health 0` | t≈17.8 / 35.1 | t≈19.8 / 46.1 |
+| return + commander finishes | t≈51.0 (same sample) | t≈56.9 (same sample) |
+| all four `Arrived` on the baseline | t≈58.1 | t≈69.1 |
+
+⇒ the same chain in the same order. The slot choice per tank differs; both implementations seed from the sim time
+(`HillAttackCommanderNodes.cs:356` CE-202, `SimRng.FromSim`), so it also differs between two runs of the same one.
+Timings differ within the scenario's known non-determinism (`RUNBOOK_Cluster_Debugging_Over_Http.md` §8).
+⚠ Not verified: node-level trace. `POST /trace/observe` answered *"Trace coordinator not available"* on `--mode all`
+for both. ⚠ Seen in BOTH runs, so not this change: a tank mid-`HullDownAttackRun` briefly shows a
+`NavigationIntent.FinalDestination` of x≈10 560.
