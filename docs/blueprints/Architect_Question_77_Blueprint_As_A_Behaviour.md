@@ -1,11 +1,12 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
+updated: 2026-09-30 (§5 — runtime half built; lean A re-opened by measurement)
 build-state: READY-TO-BUILD — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
   A–E adopted as written.
 current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
 stale-below: nothing.
-known-rot: none.
+known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
+  shape") are OVERTAKEN by measurement — see §5. §5.2 is an OPEN question to the user.
 known-conflict: none. This question does NOT reopen Q33's three rulings (§0 there) — it builds on them.
 related-designs:
   - Architect_Question_33_Blueprint_Brain_Tier.md — owns the three settled rulings (blueprint IS a brain tier; latent ≠
@@ -154,3 +155,33 @@ graph TD
 > ⭐ **Caption (module view).** The new arm lands in the system `CognitiveRuntimeModule` already ticks every frame on
 > every host that runs behaviours — so there is no host where a blueprint behaviour is registered but never ticked.
 > `BlueprintTickSystem` keeps its own module and is not on this path.
+
+## 5. Measured during the build *(`2026-09-30`)*
+
+### 5.1 ✅ Runtime half — BUILT (common to either compiler shape)
+
+| piece | where |
+|---|---|
+| `BrainTierBlueprint = 3` | `BehaviorConstants.cs` |
+| `BlueprintBehaviorTickDelegate(ref byte block, world, self, time, dt) → NodeStatus` + `BehaviorDefinition.BlueprintTick` | `BlueprintBehaviorTickDelegate.cs`, `BehaviorRegistry.cs` |
+| `BrainTickSystem.TickBlueprint` — block = root params slot; `Success`/`Failure` ⇒ `BehaviorFinishedEvent` once per `InstanceId`; ⛔ a finished instance is **not ticked again** (a blueprint tick has no restart semantics, unlike a BTree root) | `BrainTickSystem.cs` ARM 3 |
+| root block declared `OccurrenceKind.BlueprintBehavior = 4` — ⛔ not `Blueprint`, which `BlueprintTickSystem` walks as an Instance and ingress sweeps as hosted (`O9` gap ③ closed by construction) | `OccurrenceKind.cs`, ingress `KindOf` / `EnsureOccurrenceStore` |
+| rails | `BrainTickSystemBlueprintArmTests` (runs over the block, finishes once, not re-ticked; re-assign runs again from an empty block; slot kind) |
+
+### 5.2 ⚠ OPEN — the COMPILER shape: §3 A's lean is overtaken
+
+| the lean rested on | code — how it IS | design basis |
+|---|---|---|
+| the Instance tick can end a behaviour | ⛔ **no** — an Instance `Tick` returns `void` (golden `Count5.cs.txt`); it has no way to say *finished* | `Q33` ruling 2 needs a status |
+| a status-returning, latent-capable, `(Params, WorkingState)` body already exists | ✅ **AiPrimitive `TickCore(ref Params p, ref WorkingState ws, self, world, time) → NodeStatus`**, latent phase in `ws.__phase`, `Running` while suspended (`WaitLowering_AiPrimitive.cs`, golden `HillAssault2_ReverseToBaseline.cs.txt`) | ✅ exactly `§P.2`'s `[In][St]` block |
+| a new DISPATCH KIND is cheap | ⛔ **~30 compiler sites** branch on `Dispatch == AiPrimitive` to pick that body (`EmissionContext` ×6, `Stage5_Schedule` ×5, `FieldLayout` ×2, `Stage6_Lower`, `CSharpEmitter` ×5, `Stage2_Validate` ×8 …) — each would need `|| Behavior`, plus the mirrored runtime enum and ~25 editor sites | — |
+| **where** a primitive runs is already a first-class axis | ✅ `AiPrimitiveHosting { BTreeAction, BTreeCondition, HsmAction, HsmGuard, BlueprintCall }` — the emitter picks the thunks by hosting | `Q74`/`CE-383` |
+
+⭐ **Lean (awaiting the user): `AiPrimitiveHosting.Behavior`** — an AiPrimitive hosted as the entity's ROOT behaviour. Its
+emitter adds a registrar that registers a `BehaviorDefinition { BrainTier = Blueprint, BlackboardLayoutType = Block, BlueprintTick }`
+over `Block { In = Params; St = WorkingState }` and calls the existing `TickCore`. Rules: `Behavior` must be the asset's
+ONLY hosting (a behaviour's params come from its intent, an action's from its host — one asset cannot have both
+contracts, `R-155`); `BP1676` allows exactly one Construction graph there (its resolver, §3 B).
+⛔ **Rejected:** a new `BlueprintDispatchKind.Behavior` — the same emitted body behind a second discriminant, paid for
+at ~30 compiler sites + the runtime mirror enum + editor switches, with no behavioural difference. ⚠ This reverses §3 A
+as approved; the user decides.

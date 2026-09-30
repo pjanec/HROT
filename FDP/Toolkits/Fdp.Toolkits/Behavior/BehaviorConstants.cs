@@ -81,6 +81,13 @@ namespace Fdp.Toolkit.Behavior
         public const byte BrainTierBTree = 2;
 
         /// <summary>
+        /// ⭐ CE-446 (Q77) — brain tier value for a behaviour implemented by a BLUEPRINT: ticked by
+        /// <see cref="Systems.BrainTickSystem"/> through <see cref="BehaviorDefinition.BlueprintTick"/>
+        /// over the root block. A third discriminant, not a bitmask (Q33 §1.5.1).
+        /// </summary>
+        public const byte BrainTierBlueprint = 3;
+
+        /// <summary>
         /// SimTier value for Tier-1 civilian entities, driven by <see cref="Systems.TrafficBrainSystem"/>.
         /// </summary>
         public const byte SimTierCivilian = 1;

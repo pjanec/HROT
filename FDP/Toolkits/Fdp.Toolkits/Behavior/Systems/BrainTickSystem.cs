@@ -170,6 +170,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                         TickBTree(repo, entity, behavior, def, deltaTime);
                     else if (behavior.BrainTier == BehaviorConstants.BrainTierHsm)
                         TickHsm(repo, entity, behavior, def, deltaTime, mobilityLostEvent);
+                    else if (behavior.BrainTier == BehaviorConstants.BrainTierBlueprint)
+                        TickBlueprint(repo, entity, behavior, def, deltaTime);
                 }
             }
         }
@@ -323,6 +325,55 @@ namespace Fdp.Toolkit.Behavior.Systems
                     });
                     _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
                 }
+            }
+        }
+
+        // ══ ARM 3 — BLUEPRINT (CE-446, Q77) ═════════════════════════════════════════════════
+
+        /// <summary>
+        /// ⭐⭐ <b>A behaviour implemented by a blueprint.</b> 📄 <c>Architect_Question_77</c> §3 C/D.
+        ///
+        /// <para>
+        /// ⭐ The block is the root params slot (<c>[In][St]</c>), resolved exactly as the BTree arm resolves it; the
+        /// latent phase lives in <c>St</c>. ⭐ Ending is the returned status (<c>Q33</c> ruling 2: latent ≠ ended):
+        /// <c>Success</c>/<c>Failure</c> publishes <see cref="BehaviorFinishedEvent"/> once per <c>InstanceId</c>.
+        /// </para>
+        ///
+        /// <para>
+        /// ⛔ <b>A finished blueprint is NOT ticked again</b> until a new assign bumps <c>InstanceId</c>. Unlike a BTree
+        /// root — which the interpreter restarts — a blueprint's tick has no restart semantics: calling it again would
+        /// re-run the graph from phase 0 and re-issue its commands after it said it was done.
+        /// </para>
+        /// </summary>
+        private void TickBlueprint(
+            EntityRepository repo, Entity entity, in BehaviorState behavior,
+            BehaviorDefinition def, float deltaTime)
+        {
+            if (def.BlueprintTick == null)
+            {
+#if DEBUG
+                System.Diagnostics.Debug.WriteLine(
+                    $"[BrainTickSystem] Behavior hash {behavior.ActiveBehaviorHash} has no blueprint tick; entity {entity.Index} skipped.");
+#endif
+                return;
+            }
+
+            if (_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint doneFor)
+                && doneFor == behavior.InstanceId)
+                return;
+
+            // ⭐ Same predicate as the BTree arm: no params and no state ⇒ no block, and the sentinel makes a
+            //   projection from it fail loudly rather than read a stack byte.
+            ref byte block = ref BehaviorBlock.None;
+            if (RootParamsAccess.RootParamsBytes(def) > 0)
+                block = ref RootParamsAccess.RootRef(repo, entity);
+
+            var status = def.BlueprintTick(ref block, repo, entity, repo.SimulationTime, deltaTime);
+
+            if (status == NodeStatus.Success || status == NodeStatus.Failure)
+            {
+                repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = status });
+                _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
             }
         }
 

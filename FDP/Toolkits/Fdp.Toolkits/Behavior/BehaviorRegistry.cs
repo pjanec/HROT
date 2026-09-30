@@ -151,8 +151,8 @@ namespace Fdp.Toolkit.Behavior
 
         /// <summary>
         /// Brain tier for entities assigned this behavior.
-        /// Use <see cref="BehaviorConstants.BrainTierBTree"/> or
-        /// <see cref="BehaviorConstants.BrainTierHsm"/>.
+        /// Use <see cref="BehaviorConstants.BrainTierBTree"/>, <see cref="BehaviorConstants.BrainTierHsm"/> or
+        /// <see cref="BehaviorConstants.BrainTierBlueprint"/> (<c>CE-446</c>).
         /// </summary>
         public byte BrainTier { get; init; }
 
@@ -167,6 +167,12 @@ namespace Fdp.Toolkit.Behavior
         /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierHsm"/>.
         /// </summary>
         public HsmDefinitionBlob? HsmDefinition { get; init; }
+
+        /// <summary>
+        /// ⭐ <c>CE-446</c> — the tick of a behaviour implemented by a blueprint.
+        /// <c>null</c> when <see cref="BrainTier"/> is not <see cref="BehaviorConstants.BrainTierBlueprint"/>.
+        /// </summary>
+        public BlueprintBehaviorTickDelegate? BlueprintTick { get; init; }
 
         /// <summary>
         /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>

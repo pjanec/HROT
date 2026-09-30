@@ -481,15 +481,18 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// optimisation</b>. ⚠ Entities whose behaviour never hosts anything do carry it; that is
         /// accepted, and it is reversible once a manifest can say who actually hosts (<c>O7b-3</c>).</para>
         ///
-        /// <para>⚠ <b>Brain tiers only.</b> A behaviour that is neither BTree nor HSM cannot host an
-        /// occurrence, so it gets nothing — ⛔ this is not "a store for every entity".</para>
+        /// <para>⚠ <b>Brain tiers only.</b> A behaviour on no brain tier cannot host an occurrence, so it gets
+        /// nothing — ⛔ this is not "a store for every entity". ⭐ <c>CE-446</c>: a blueprint behaviour hosts
+        /// nothing but still needs the store for its root block.</para>
         /// </summary>
         private static unsafe void EnsureOccurrenceStore(
             EntityRepository repo, Entity entity, BehaviorDefinition def,
             HostedOccurrenceDemand? hosted = null, int rootParamsCost = 0, int rootStateCost = 0)
         {
+            // ⭐ CE-446: a blueprint behaviour hosts nothing, but its ROOT BLOCK is attached into this store.
             if (def.BrainTier != BehaviorConstants.BrainTierBTree &&
-                def.BrainTier != BehaviorConstants.BrainTierHsm)
+                def.BrainTier != BehaviorConstants.BrainTierHsm &&
+                def.BrainTier != BehaviorConstants.BrainTierBlueprint)
                 return;
 
             // ⭐⭐ O7b-3: size it for what this behaviour will actually host. ⚠ A null demand means
@@ -760,6 +763,8 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             BehaviorConstants.BrainTierBTree => OccurrenceKind.BTree,
             BehaviorConstants.BrainTierHsm   => OccurrenceKind.Hsm,
+            // ⭐ CE-446: the root block of a blueprint behaviour — a kind nothing walks or sweeps.
+            BehaviorConstants.BrainTierBlueprint => OccurrenceKind.BlueprintBehavior,
             _                                => OccurrenceKind.Invalid,
         };
 

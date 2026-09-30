@@ -42,4 +42,13 @@ public enum OccurrenceKind : byte
 
     /// <summary>An HSM occurrence — per-region state (from <c>O7</c>) and stateful working state.</summary>
     Hsm = 3,
+
+    /// <summary>
+    /// ⭐ <c>CE-446</c> (<c>Q77</c> C) — the ROOT BLOCK of a behaviour implemented by a blueprint
+    /// (<c>BrainTierBlueprint</c>). ⛔ Deliberately NOT <see cref="Blueprint"/>: that kind is walked by
+    /// <c>BlueprintTickSystem</c> as an attached Instance and swept by ingress as a hosted occurrence, and
+    /// an assigned root is neither (<c>O9</c> gap ③). Nothing walks this kind; <c>BrainTickSystem</c>
+    /// reaches the slot by the behaviour's key.
+    /// </summary>
+    BlueprintBehavior = 4,
 }
