@@ -1988,6 +1988,9 @@ internal sealed class GraphScheduler
                 var threatThreshold = ResolveParamPin("ThreatThreshold");
                 var publishPolicy   = ResolveParamPin("PublishPolicy");
                 var priority        = ResolveParamPin("Priority");
+                var contextSlot0    = ResolveParamPin("ContextSlot0");
+                var contextSlot1    = ResolveParamPin("ContextSlot1");
+                var contextSlot2    = ResolveParamPin("ContextSlot2");
 
                 // Emit the spawn op; result is the EqsSensorHandle
                 var handleType = new IrTypeRef { FullName = "FDP.Eqs.EqsSensorHandle", IsUnmanaged = true, SizeBytes = 8 };
@@ -2002,7 +2005,10 @@ internal sealed class GraphScheduler
                         FactionFilterValue:         factionFilter,
                         ThreatThresholdValue:       threatThreshold,
                         PublishPolicyValue:         publishPolicy,
-                        PriorityValue:              priority),
+                        PriorityValue:              priority,
+                        ContextSlot0Value:          contextSlot0,
+                        ContextSlot1Value:          contextSlot1,
+                        ContextSlot2Value:          contextSlot2),
                     Debug = DebugOf(ssn),
                 });
 

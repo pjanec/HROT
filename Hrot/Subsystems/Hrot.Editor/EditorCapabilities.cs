@@ -92,6 +92,7 @@ public static class EditorCapabilities
             .Capability(NodeRole.Brain,        new Brain(cgfPack))
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
             .Capability(NodeRole.Perception,   new PerceptionSpatial(perceptionModule))
+            .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
             .Capability(NodeRole.Perception,   new PerceptionAreaQueries())
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.Brain,        new EqsResultUpdateCapability());
@@ -196,6 +197,27 @@ public static class EditorCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
             => context.Kernel.RegisterModule(_module);
+    }
+
+    /// <summary>
+    /// The EQS 1.3 solver and its template registry — default arm only (an injected muscle brings its
+    /// own, as Stride's does).
+    /// </summary>
+    /// <remarks>
+    /// ⭐ This arm already ran the area query's solver (inside <see cref="CognitiveSpatialModule"/>) but no
+    /// EQS solver, so an EQS sensor authored here — including the area query's EQS form — never got an
+    /// answer. 📄 <c>docs/designs/eqs-2/EQS_Design_v1.3_final.md</c> §17.3.
+    /// </remarks>
+    public sealed class PerceptionEqsSolver : INodeCapability
+    {
+        public string Key => CapabilityKeys.Perception + ":eqs";
+        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
+
+        public void Register(HrotNodeContext context, NodeBootValues values)
+        {
+            Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.InstallDefault(context.World);
+            context.Kernel.RegisterModule(new EqsModule());
+        }
     }
 
     /// <summary>

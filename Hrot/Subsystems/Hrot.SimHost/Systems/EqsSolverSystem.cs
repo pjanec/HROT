@@ -199,6 +199,18 @@ namespace Hrot.SimHost.Systems
             // 1. Generation.
             Span<EqsResult> candidates = stackalloc EqsResult[template.MaxCandidates];
             int count = template.Generator.Generate(entity, ref Unsafe.AsRef(in sensor), repo, candidates);
+            if (count < 0)
+            {
+                // Not evaluable yet (IEqsGenerator contract): publish NOTHING, so the reader keeps
+                // waiting rather than reading an empty result as "nothing there". Persist evalState so
+                // a hard-reset's CurrentStructureHash is not lost.
+                evalState.CurrentStructureHash = liveHash != 0 ? liveHash : evalState.CurrentStructureHash;
+                if (repo.HasComponent<SensorEvalState>(entity))
+                    _currentCmd.SetComponent(entity, evalState);
+                else
+                    _currentCmd.AddComponent(entity, evalState);
+                return;
+            }
             if (count == 0)
             {
                 // Nothing generated: still publish an empty event so Brain's IsReady ticks.

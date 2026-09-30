@@ -186,8 +186,34 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 
-        ReadEqsResultNode         => Array.Empty<PinSchema>(),
-        SpawnEqsSensorNode        => new[] { ExecIn(), ExecOut() },
+        // ⭐ EQS nodes: FULL static schemas, mirroring the palette (WhenNodePaletteEntries) in order.
+        //    Blueprints are saved pin-less and rebuilt from here, so an exec-only / empty schema made
+        //    every data pin — and every link to it — vanish on save + reload (design EQS §17.4).
+        //    ⚠ New pins go at the END of their direction: legacy links bind positionally.
+        ReadEqsResultNode         => new[]
+        {
+            Data("Handle",      "In",  "FDP.Eqs.EqsSensorHandle"),
+            Data("ResultIndex", "In",  "System.Int32"),
+            Data("IsReady",     "Out", "System.Boolean"),
+            Data("ResultCount", "Out", "System.Int32"),
+            Data("Entity",      "Out", "Fdp.Core.Entity"),
+            Data("Position",    "Out", "System.Numerics.Vector2"),
+            Data("Score",       "Out", "System.Single"),
+        },
+        SpawnEqsSensorNode        => new[]
+        {
+            ExecIn(),
+            ExecOut(),
+            Data("SearchRadius",    "In",  "System.Single"),
+            Data("FactionFilter",   "In",  "System.UInt32"),
+            Data("ThreatThreshold", "In",  "System.Single"),
+            Data("PublishPolicy",   "In",  "System.Byte"),
+            Data("Priority",        "In",  "System.Byte"),
+            Data("Handle",          "Out", "FDP.Eqs.EqsSensorHandle"),
+            Data("ContextSlot0",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot1",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot2",    "In",  "Fdp.Core.Entity"),
+        },
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),
         PartitionElementsNode     => new[] { ExecIn(), ExecOut() },

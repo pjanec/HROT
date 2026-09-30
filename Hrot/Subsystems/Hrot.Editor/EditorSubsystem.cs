@@ -1805,6 +1805,16 @@ namespace Hrot.Editor
             var channelCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
             var engineEventCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance;
             var eqsTemplates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
+            // ⭐ The picker lists what the RUNTIME can answer: the same [EqsTemplate] discovery that
+            //    EqsTemplateRegistry.InstallDefault puts in the world. It used to be created empty and
+            //    never filled, so a SpawnEqsSensor node had no template to pick (EQS design §17.4).
+            foreach (var t in Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry
+                         .Discover(Fdp.Toolkit.Spatial.Eqs.EqsTemplateRegistry.CandidateAssemblies()).Entries)
+                eqsTemplates.Register(new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateEntry
+                {
+                    AssetId     = t.AssetId,
+                    DisplayName = t.Name.Substring(t.Name.LastIndexOf('.') + 1),
+                });
 
             // IEditService stub - no-op for now since the interface is marked as stub.
             // AIE-049: real IEditService — context (CommandHistory + markDirty) is injected
