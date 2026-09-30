@@ -389,6 +389,8 @@ the JSON held per running instance (ingress has it only during the assign); ⛔ 
 ⚠ **Not covered, and pre-existing for every tier:** a BTree/HSM behaviour's root params block is not re-checked on
 reload either (the same Flaw 2 exposure); this slice closes it for the blueprint tier only.
 
+⚠ **Known debt, `CE-452`:** the reset re-sequences the ingress start pipeline instead of reusing it; the lean is to retain the JSON text and re-publish the assign (SLICE2 Flaw 2's own fix) so the ONE pipeline restarts it.
+
 Rails (`BrainTickSystemBlueprintArmTests`): `CE446_AReloadThatKeepsTheLayout_KeepsTheRunningState` ·
 `…ChangesTheLayout_HardResetsTheRunningInstance_AndLogsIt` · `…GrowsTheBlock_BeforeItsFirstTick_ReattachesItAtTheNewWidth` (the window the width check exists for: no started layout on record yet) ·
 `CE446_AHardResetWhoseRebuildFails_ClearsTheBehaviour_InsteadOfTickingIt`.
