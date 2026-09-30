@@ -38,13 +38,26 @@ namespace Fhsm.Kernel
             return true; // No guard = always pass
         }
 
-        public static void RegisterAction(ushort id, IntPtr action) => ActionTable[id] = action;
-        public static void RegisterGuard(ushort id, IntPtr guard) => GuardTable[id] = guard;
+        /// <summary>
+        /// ⭐ <c>CE-442</c> — every WRITE to the two tables takes this lock, so two registrars running at
+        /// once (parallel test classes today; any concurrent loader tomorrow) cannot corrupt a table.
+        /// <para>⛔ The READ side (<see cref="ExecuteAction"/> / <see cref="EvaluateGuard"/>) is deliberately
+        /// NOT locked: it is the per-tick hot path, and production registers everything before the first
+        /// tick. ⚠ This does not make a registration concurrent with a TICK safe — a reload that re-registers
+        /// on another thread while ticks run would need its own design.</para>
+        /// </summary>
+        private static readonly object WriteLock = new();
+
+        public static void RegisterAction(ushort id, IntPtr action) { lock (WriteLock) ActionTable[id] = action; }
+        public static void RegisterGuard(ushort id, IntPtr guard)   { lock (WriteLock) GuardTable[id] = guard; }
 
         public static void ClearAll()
         {
-            ActionTable.Clear();
-            GuardTable.Clear();
+            lock (WriteLock)
+            {
+                ActionTable.Clear();
+                GuardTable.Clear();
+            }
         }
     }
 }

@@ -49,6 +49,13 @@ public static class HostedChildren
 
     // tree-state slot key -> what the host asked for, and the interpreter once it exists.
     private static readonly Dictionary<int, Binding> _bySlotKey = new();
+    /// <summary>
+    /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
+    /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
+    /// first tick, and the read side is on the per-tick path. Same rule as <c>HsmActionDispatcher</c>.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
 
     /// <summary>
     /// ⭐⭐ Binds <paramref name="childName"/>, resolved through <paramref name="registry"/>, to
@@ -77,7 +84,7 @@ public static class HostedChildren
         if (registry is null) throw new ArgumentNullException(nameof(registry));
         if (string.IsNullOrWhiteSpace(childName)) return;
 
-        _bySlotKey[treeStateSlotKey] = new Binding { Registry = registry, ChildName = childName };
+        lock (WriteLock) _bySlotKey[treeStateSlotKey] = new Binding { Registry = registry, ChildName = childName };
     }
 
     /// <summary>⭐ The child bound to this slot, or <c>false</c>.</summary>
@@ -157,5 +164,5 @@ public static class HostedChildren
     }
 
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
-    public static void ClearForTests() => _bySlotKey.Clear();
+    public static void ClearForTests() { lock (WriteLock) _bySlotKey.Clear(); }
 }

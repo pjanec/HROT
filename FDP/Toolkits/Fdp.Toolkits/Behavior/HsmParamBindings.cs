@@ -54,6 +54,13 @@ public static class HsmParamBindings
     // ⭐ The Guid needs no new plumbing: the emitted thunk already holds it and already passes it to
     //   HsmOccurrence.KeyFor one line above the seed. The SLOT was per-site before the SEED was.
     private static readonly Dictionary<(uint MachineId, ushort StateId, Guid SiteId), int> _offsets = new();
+    /// <summary>
+    /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
+    /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
+    /// first tick, and the read side is on the per-tick path. Same rule as <c>HsmActionDispatcher</c>.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
 
     /// <summary>
     /// ⭐⭐⭐ <b>Registers a machine's per-state seed offsets, resolving authoring Guids to the flat
@@ -114,11 +121,14 @@ public static class HsmParamBindings
         foreach (var kv in stableIds)
             indexByStableId[kv.Value] = kv.Key;
 
-        for (int i = 0; i < bindings.Count; i++)
+        lock (WriteLock)
         {
-            var (stableId, siteId, offset) = bindings[i];
-            if (!indexByStableId.TryGetValue(stableId, out ushort stateIndex)) continue;
-            _offsets[(machineId, stateIndex, siteId)] = offset;
+            for (int i = 0; i < bindings.Count; i++)
+            {
+                var (stableId, siteId, offset) = bindings[i];
+                if (!indexByStableId.TryGetValue(stableId, out ushort stateIndex)) continue;
+                _offsets[(machineId, stateIndex, siteId)] = offset;
+            }
         }
     }
 
@@ -178,14 +188,17 @@ public static class HsmParamBindings
         if (variables is null) throw new ArgumentNullException(nameof(variables));
 
         uint machineId = blob.Header.StructureHash;
-        if (!_variables.TryGetValue(machineId, out var byName))
-            _variables[machineId] = byName = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
-
-        for (int i = 0; i < variables.Count; i++)
+        lock (WriteLock)
         {
-            var (name, offset, size) = variables[i];
-            if (string.IsNullOrEmpty(name)) continue;
-            byName[name] = (offset, size);
+            if (!_variables.TryGetValue(machineId, out var byName))
+                _variables[machineId] = byName = new Dictionary<string, (int, int)>(StringComparer.Ordinal);
+
+            for (int i = 0; i < variables.Count; i++)
+            {
+                var (name, offset, size) = variables[i];
+                if (string.IsNullOrEmpty(name)) continue;
+                byName[name] = (offset, size);
+            }
         }
     }
 
@@ -211,8 +224,11 @@ public static class HsmParamBindings
     /// </summary>
     public static void ClearAll()
     {
-        _offsets.Clear();
-        _variables.Clear();
+        lock (WriteLock)
+        {
+            _offsets.Clear();
+            _variables.Clear();
+        }
     }
 
     /// <summary>How many bindings are registered. ⭐ For rails and the diagnostics surface.</summary>

@@ -36,6 +36,13 @@ public static class HostedParamResolvers
     // assetId -> the resolver, stored type-erased so this class is not generic. The cast in TryRun is
     // checked, and a mismatch is a registration error the rail names — never a silent reinterpret.
     private static readonly Dictionary<Guid, object> _byAsset = new();
+    /// <summary>
+    /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
+    /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
+    /// first tick, and the read side is on the per-tick path. Same rule as <c>HsmActionDispatcher</c>.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
 
     /// <summary>
     /// Registers the resolve stage for a hosted blueprint, keyed by its ASSET id.
@@ -49,7 +56,7 @@ public static class HostedParamResolvers
         where TParams : unmanaged
     {
         if (resolver is null) throw new ArgumentNullException(nameof(resolver));
-        _byAsset[assetId] = resolver;
+        lock (WriteLock) _byAsset[assetId] = resolver;
     }
 
     /// <summary>
@@ -63,7 +70,7 @@ public static class HostedParamResolvers
         where TState : unmanaged
     {
         if (resolver is null) throw new ArgumentNullException(nameof(resolver));
-        _byAsset[assetId] = resolver;
+        lock (WriteLock) _byAsset[assetId] = resolver;
     }
 
     /// <summary>
@@ -150,7 +157,7 @@ public static class HostedParamResolvers
     }
 
     /// <summary>Drops every registration. ⚠ Hot reload and test isolation, as with the registries beside it.</summary>
-    public static void ClearAll() => _byAsset.Clear();
+    public static void ClearAll() { lock (WriteLock) _byAsset.Clear(); }
 
     /// <summary>How many resolvers are registered. ⭐ For rails and diagnostics.</summary>
     public static int Count => _byAsset.Count;

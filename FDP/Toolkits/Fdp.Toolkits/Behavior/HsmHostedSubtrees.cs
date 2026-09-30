@@ -41,6 +41,13 @@ public static class HsmHostedSubtrees
 
     // machineId (the blob's StructureHash) -> the hosting states of that machine.
     private static readonly Dictionary<uint, Entry[]> _byMachine = new();
+    /// <summary>
+    /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
+    /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
+    /// first tick, and the read side is on the per-tick path. Same rule as <c>HsmActionDispatcher</c>.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
 
     /// <summary>
     /// ⭐⭐⭐ Registers a machine's hosting states, resolving authoring <c>StableId</c>s to flat state
@@ -88,7 +95,7 @@ public static class HsmHostedSubtrees
 
         if (resolved.Count == 0) return;
 
-        _byMachine[blob.Header.StructureHash] = resolved.ToArray();
+        lock (WriteLock) _byMachine[blob.Header.StructureHash] = resolved.ToArray();
     }
 
     /// <summary>
@@ -106,5 +113,5 @@ public static class HsmHostedSubtrees
     /// ⚠ Test seam — drops every registration. ⛔ Production never calls this; the registries beside
     /// it are process-lifetime by design.
     /// </summary>
-    public static void ClearForTests() => _byMachine.Clear();
+    public static void ClearForTests() { lock (WriteLock) _byMachine.Clear(); }
 }

@@ -38,6 +38,13 @@ public static class BTreeHostedSites
 
     // blob StructureHash -> nodeIndex -> (slot key, site binding). Mirrors HsmHostedSubtrees._byMachine.
     private static readonly Dictionary<int, Dictionary<int, (int Key, HostedSubtree.SiteBinding Binding)>> _byStructureHash = new();
+    /// <summary>
+    /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
+    /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
+    /// first tick, and the read side is on the per-tick path. Same rule as <c>HsmActionDispatcher</c>.
+    /// </summary>
+    private static readonly object WriteLock = new();
+
 
     /// <summary>
     /// ⭐⭐ <b>Derives a stable asset identity from a NAME.</b>
@@ -137,7 +144,7 @@ public static class BTreeHostedSites
 
         // ⭐ Last writer wins, deliberately: hot reload re-runs registrars and the NEW blob's map is
         //   the one that must be reachable. Same rule HostedChildren.Register follows.
-        _byStructureHash[blob.StructureHash] = map;
+        lock (WriteLock) _byStructureHash[blob.StructureHash] = map;
     }
 
     /// <summary>⭐ The slot key for a hosting node, or <c>false</c> when this node hosts nothing.</summary>
@@ -172,7 +179,7 @@ public static class BTreeHostedSites
     }
 
     /// <summary>⚠ Test seam — drops every binding. ⛔ Production never calls this.</summary>
-    public static void ClearForTests() => _byStructureHash.Clear();
+    public static void ClearForTests() { lock (WriteLock) _byStructureHash.Clear(); }
 
     // ---- internals ----------------------------------------------------------
 
