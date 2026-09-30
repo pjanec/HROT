@@ -87,6 +87,8 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Not is the one-operand case (A in, Result out only).
         BooleanOpNode    => ComparePins(),
         NotNode          => NotPins(),
+        // CE-470: one float out-pin, no inputs, no exec.
+        GetTimeNode      => new[] { new PinSchema("Value", "Out", false, "System.Single") },
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },

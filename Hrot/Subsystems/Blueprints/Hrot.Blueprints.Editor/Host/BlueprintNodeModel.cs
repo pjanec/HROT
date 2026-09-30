@@ -342,6 +342,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode bin      => $"Math {OperatorSymbol(bin.Operator)}",
         Hrot.Blueprints.Core.Assets.BooleanOpNode boo     => $"Logic {OperatorSymbol(boo.Operator)}",
         Hrot.Blueprints.Core.Assets.NotNode               => "Not (!)",
+        Hrot.Blueprints.Core.Assets.GetTimeNode gtn       => gtn.Kind == Hrot.Blueprints.Core.Assets.TimeKind.DeltaTime ? "Get Delta Time" : "Get Sim Time",
         Hrot.Blueprints.Core.Assets.EventEntryNode ee     => string.IsNullOrEmpty(ee.EventTypeId) ? "Event" : $"Event: {ShortEventName(ee.EventTypeId)}",
         Hrot.Blueprints.Core.Assets.CallPeerBlueprintNode cp => string.IsNullOrEmpty(cp.FunctionRef)
             ? "Call Peer"
@@ -406,6 +407,7 @@ internal sealed class BlueprintNodeModel : INodeModel
         Hrot.Blueprints.Core.Assets.BinaryOpNode             => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BooleanOpNode            => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.NotNode                  => NodeCategory.Pure,
+        Hrot.Blueprints.Core.Assets.GetTimeNode              => NodeCategory.Pure,
         // Q#14 Option B struct-value nodes are pure data (construct/deconstruct/copy-modify).
         Hrot.Blueprints.Core.Assets.MakeStructNode           => NodeCategory.Pure,
         Hrot.Blueprints.Core.Assets.BreakStructNode          => NodeCategory.Pure,

@@ -56,7 +56,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <see cref="ISimulationView"/>), so downcast; returns <c>0</c> for a non-repository view.
         /// </para>
         /// </summary>
-        [BlueprintCallable("World")]
+        /// <remarks>⭐ <c>CE-470</c>: superseded by the native <i>Get Sim Time</i> node (<c>GetTimeNode</c>) — ⚠ deliberately NOT
+        /// <c>[BlueprintCallable]</c> any more (one palette surface). Kept for the <c>HillAssault2_*</c> twins' baked
+        /// FunctionCalls; retires with them (<c>CE-464</c>).</remarks>
         public static float SimTime(ISimulationView view)
         {
             if (view is not EntityRepository world)

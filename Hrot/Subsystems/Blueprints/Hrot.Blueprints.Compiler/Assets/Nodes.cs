@@ -51,6 +51,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(GetTimeNode),            "GetTime")]
 [JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
 [JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
@@ -894,6 +895,26 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+/// <summary>⭐ <c>CE-470</c> — which clock a <see cref="GetTimeNode"/> reads.</summary>
+public enum TimeKind
+{
+    /// <summary>Simulation time in seconds (the emitted method's <c>time</c>).</summary>
+    SimTime,
+    /// <summary>This frame's step in seconds (the emitted method's <c>deltaTime</c>).</summary>
+    DeltaTime,
+}
+
+/// <summary>
+/// ⭐ <c>CE-470</c> — <i>Get Sim Time</i> / <i>Get Delta Time</i>: a pure data node with one <c>System.Single</c>
+/// "Value" out-pin, lowered to the existing <c>IrOp_Time</c> / <c>IrOp_DeltaTime</c> (the ops the <c>Wait</c>
+/// lowering already emits). Refused with <c>BP1679</c> where the value is not in scope — see
+/// <c>docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md</c> §8.
+/// </summary>
+public sealed class GetTimeNode : Node
+{
+    public TimeKind Kind { get; set; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────

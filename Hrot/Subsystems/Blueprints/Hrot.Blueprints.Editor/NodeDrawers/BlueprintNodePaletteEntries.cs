@@ -282,6 +282,14 @@ public static class BlueprintNodePaletteEntries
         yield return Make<NotNode>("Not", "!A",
             MathCategories.MathBool, "Logical negation of a boolean operand.");
 
+        // ⭐ CE-470 — the clocks, one row per TimeKind (BP1679 where the clock is not in scope).
+        yield return MakeBaked<GetTimeNode>("GetTime.SimTime", "Get Sim Time",
+            "World", "Simulation time in seconds. Not available in a Library function or resolver.",
+            n => n.Kind = TimeKind.SimTime);
+        yield return MakeBaked<GetTimeNode>("GetTime.DeltaTime", "Get Delta Time",
+            "World", "This frame's time step in seconds. Instance/Behavior Tick and function graphs only.",
+            n => n.Kind = TimeKind.DeltaTime);
+
         // ── Array ──────────────────────────────────────────────────────────
         // BP-09/BP-16: ArrayMake / ArrayGet palette entries REMOVED. Since BP-16 they are rejected
         // at Stage2 with a BP1420 error, so offering them in the picker would let a designer place

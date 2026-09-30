@@ -44,6 +44,13 @@ internal static class Stage5_Schedule
         SizeBytes = 0,
     };
 
+    internal static readonly IrTypeRef SingleType = new IrTypeRef
+    {
+        FullName = "System.Single",
+        IsUnmanaged = true,
+        SizeBytes = 4,
+    };
+
     internal static readonly IrTypeRef Int32Type = new IrTypeRef
     {
         FullName = "System.Int32",
@@ -3403,6 +3410,42 @@ internal sealed class GraphScheduler
                 });
                 // ResolveDataPin's own `_pinValueCache[sourcePinId] = result` below caches this, so
                 // the value is computed once no matter how many consumers read the Result pin.
+                break;
+            }
+
+            case GetTimeNode gt:
+            {
+                // ⭐ CE-470: reuse the IR ops the Wait lowering emits. Scope (Q78 §8): `time` is a parameter of every
+                // Function/Event method outside Library dispatch; `deltaTime` only of Instance/Behavior Function graphs.
+                var dispatch = _typed.Asset.Dispatch;
+                bool timeInScope = dispatch != AssetDispatchKind.Library
+                    && (_graph.Kind == GraphKind.Function || _graph.Kind == GraphKind.Event);
+                bool deltaInScope = (dispatch == AssetDispatchKind.Instance || dispatch == AssetDispatchKind.Behavior)
+                    && _graph.Kind == GraphKind.Function;
+                bool inScope = gt.Kind == TimeKind.DeltaTime ? deltaInScope : timeInScope;
+                if (!inScope)
+                {
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1679,
+                        $"'Get {(gt.Kind == TimeKind.DeltaTime ? "Delta Time" : "Sim Time")}' is not available in a "
+                        + $"{dispatch} {_graph.Kind} graph ('{_graph.Name}'): that clock is not passed to it. "
+                        + (gt.Kind == TimeKind.DeltaTime
+                            ? "Delta time exists only in an Instance/Behavior Tick or function graph."
+                            : "Sim time exists in every graph except a Library function or resolver."),
+                        _ctx.AssetId, _graph.Id, gt.Id));
+                }
+
+                var valuePin = gt.Pins.FirstOrDefault(p =>
+                    !p.IsExec && p.Direction == "Out"
+                    && string.Equals(p.Name, "Value", StringComparison.OrdinalIgnoreCase));
+                var timeResult = AllocValue(Stage5_Schedule.SingleType);
+                stmts.Add(new IrStatement
+                {
+                    ResultValue = timeResult,
+                    Operation   = gt.Kind == TimeKind.DeltaTime ? new IrOp_DeltaTime() : new IrOp_Time(),
+                    Debug       = new IrDebugAnnotation { GraphId = _graph.Id, NodeId = gt.Id, PinId = sourcePinId },
+                });
+                if (valuePin is not null) _pinValueCache[valuePin.Id] = timeResult;
+                result = timeResult;
                 break;
             }
 

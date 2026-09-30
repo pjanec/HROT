@@ -192,6 +192,10 @@ public static class DiagnosticCodes
     // Without it a float `&` surfaces as a CS0019 in a generated file the designer never saw.
     public const string BP1678 = "BP1678";  // bitwise/shift BinaryOp on a non-integer operand
 
+    // ⭐ CE-470 — Get Sim Time / Get Delta Time where the emitted method has no `time` / `deltaTime`
+    // (Library functions and resolvers have neither; AiPrimitive and Instance Event_* have no deltaTime).
+    public const string BP1679 = "BP1679";  // Get Time node where that clock is not in scope
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload

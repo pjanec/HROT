@@ -1392,6 +1392,7 @@ internal static class Stage0_Rehydrate
         BinaryOpNode          => false,
         BooleanOpNode         => false,
         NotNode               => false,
+        GetTimeNode           => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,
