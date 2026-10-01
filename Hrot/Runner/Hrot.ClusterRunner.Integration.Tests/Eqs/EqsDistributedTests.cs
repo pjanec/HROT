@@ -1000,6 +1000,55 @@ public sealed class EqsDistributedTests
             "The next lifetime on the same part id must be answered like a fresh carrier's.");
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-492</c> — an instance with TWO writers (after an authority move: the old owner's last ACTIVE sample, the new
+    /// owner's SUSPEND from its orphan sweep) ends in the state of the NEWEST sample by source time, whatever order a
+    /// late-joining Muscle receives them in. 🔴 Before: the sample that ARRIVED last won, so an ended sensor could be solved
+    /// forever (case ①) or a new lifetime silenced (case ③).
+    /// </summary>
+    /// <remarks>Real DDS gives a test control over neither arrival order nor source time, so the rail plays chosen
+    /// arrivals into a Muscle ingress over the rig's REAL Muscle world (its entity map, parent ghost, command playback).
+    /// The epochs are EQUAL on purpose: the owner run is not unique across an authority move (behaviours lane, design
+    /// §3a), so the epoch cannot tell the cases apart.</remarks>
+    [Fact(Timeout = 120_000)]
+    public void CE492_TwoWritersOnOneInstance_TheNewestSourceTimeWins_WhateverTheArrivalOrder()
+    {
+        using var rig = new LifecycleRig();
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null, rig.H.SimHost.TestHook_EntityMap);
+
+        EqsSensorConfigTopic Config(int part, bool suspended) => new()
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 0x0002_0001u,
+            SearchRadius = 25f, Suspended = suspended,
+        };
+        void Arrive(params (EqsSensorConfigTopic Data, long SourceTime)[] arrivals)
+        {
+            var cmd = new EntityCommandBuffer();
+            foreach (var (data, sourceTime) in arrivals) ingress.Receive(cmd, data, valid: true, disposed: false, sourceTime);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+
+        // ① the hazard: the new owner suspended (t=200); the old owner's last ACTIVE (t=100) arrives after it ⇒ stays ended.
+        Arrive((Config(11, suspended: true), 200), (Config(11, suspended: false), 100));
+        var c1 = rig.Carrier(11);
+        Assert.True(c1.IsNull || rig.CarrierSensor(11).Suspended,
+            "A stale ACTIVE sample from the old owner must not revive a sensor the new owner ended.");
+
+        // ② one writer ends a lifetime and starts the next (same epoch): the later one wins ⇒ solved.
+        Arrive((Config(12, suspended: true), 100), (Config(12, suspended: false), 200));
+        Assert.False(rig.Carrier(12).IsNull, "The new lifetime must get a carrier.");
+        Assert.False(rig.CarrierSensor(12).Suspended, "The new lifetime must be solved.");
+
+        // ③ the old owner had ended its sensor (t=100); the new owner's first run is ACTIVE (t=200) and arrives first ⇒
+        //    the old suspend, arriving last, must not silence it.
+        Arrive((Config(13, suspended: false), 200), (Config(13, suspended: true), 100));
+        Assert.False(rig.Carrier(13).IsNull, "The new owner's sensor must get a carrier.");
+        Assert.False(rig.CarrierSensor(13).Suspended, "A stale SUSPEND from the old owner must not silence the new owner's sensor.");
+
+        Assert.Equal(2, ingress.StaleSampleCount);
+    }
+
     private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)
     {
         int n = 0;
