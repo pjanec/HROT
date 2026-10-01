@@ -208,13 +208,13 @@ namespace Hrot.ClusterRunner.Integration.Tests
                 if (evt.Entity.Index == e.Index) count++;
             Assert.Equal(1, count);
 
-            // Assert: Terminated latch cleared after publish; Phase reset to Idle.
-            // ⭐ This one is UNCHANGED by O7c-④: the tick's own terminal handler still writes
-            //   Phase = Idle after publishing, which is a different code path from ingress's re-bind.
-            Assert.True(Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(world, e, out byte* instF2, out _));
-            InstanceHeader* hdr = (InstanceHeader*)instF2;
-            Assert.Equal(0, (int)(hdr->Flags & InstanceFlags.Terminated));
-            Assert.Equal(InstancePhase.Idle, hdr->Phase);
+            // ⭐⭐ CE-449 (2026-09-30) — FINISHING IS TERMINAL AND RUNS THE CLEAR, for every tier: the root HSM slot is
+            //   detached and the behaviour cleared, so a finished machine is not ticked again. ⛔ SUPERSEDED: "the Terminated
+            //   latch is cleared and Phase reset to Idle" — that described the instance SURVIVING its finish, which is exactly
+            //   what let a finished machine re-run. (Re-homed 2026-10-01, found when the backend lane re-ran this suite.)
+            Assert.False(Fdp.Toolkit.Behavior.RootHsmAccess.TryGetInstance(world, e, out _, out _),
+                "a finished HSM's root slot is freed at finish (CE-449)");
+            Assert.Equal(0, world.GetComponentRO<BehaviorState>(e).BrainTier);
 
             world.Dispose();
         }

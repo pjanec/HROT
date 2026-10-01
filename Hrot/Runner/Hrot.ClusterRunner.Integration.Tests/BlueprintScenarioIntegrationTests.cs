@@ -274,18 +274,17 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         var ex = Record.Exception(() => matSys.Execute(_repo, 0f));
         Assert.Null(ex);
 
-        // Valid blueprint attached
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-
-        // Slot count == 1 (only valid)
+        // Valid blueprint attached — ⭐ through the store seam: materialization provisions the tier the demand selects —
+        //   measured: NOT the 1024 tier for this small blueprint (HasComponent<BlueprintBlackboard1024> was false) — so asserting the 1024 component named a tier, not the property. (Same re-home as
+        //   ReadCount's B4 note above; found when the backend lane re-ran this suite, 2026-10-01.)
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            fixed (byte* mem = bb.Memory)
-            {
-                ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
-                Assert.Equal(1, header.SlotCount);
-            }
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            Assert.True(mem != null, "the valid blueprint must have provisioned a store");
+
+            // Slot count == 1 (only valid)
+            ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
+            Assert.Equal(1, header.SlotCount);
         }
 
         // Intent removed after materialization
@@ -418,8 +417,10 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
     private static unsafe void WriteSlotParams(
         EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def, byte[] bytes)
     {
-        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ Through the store seam: the reloaded entity is provisioned by materialization at the smallest tier that fits,
+        //   not at the 1024 tier the AUTHOR side hand-attached ("missing BlueprintBlackboard1024" was a named-tier read).
+        byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+        Assert.True(mem != null, "the entity must carry a store");
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
         BlueprintInstanceService.WriteParamsRegion(mem + off, def, bytes);
     }
@@ -427,8 +428,10 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
     private static unsafe byte[] ReadSlotParams(
         EntityRepository repo, Entity entity, int bpId, BlueprintDefinition def)
     {
-        ref var bb = ref repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-        byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+        // ⭐ Through the store seam: the reloaded entity is provisioned by materialization at the smallest tier that fits,
+        //   not at the 1024 tier the AUTHOR side hand-attached ("missing BlueprintBlackboard1024" was a named-tier read).
+        byte* mem = OccurrenceStoreAccess.TryGetStore(repo, entity, out _);
+        Assert.True(mem != null, "the entity must carry a store");
         Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(mem, bpId, out int off));
         return BlueprintInstanceService.ReadParamsRegion(mem + off, def);
     }
@@ -490,14 +493,11 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
 
         // Intent removed after materialization
         Assert.False(_repo.HasManagedComponent<InitialBlueprintsIntent>(entity));
-        // Entity has the correct tier
-        Assert.True(_repo.HasComponent<BlueprintBlackboard1024>(entity));
-
-        // Verify the slot exists and blueprint id matches
+        // Verify the store, the slot and the blueprint id — ⭐ through the seam (any tier; see Test4's note).
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            Assert.True(mem != null, "materialization must have provisioned a store");
             ref var header = ref Unsafe.AsRef<BlueprintBlackboardHeader>(mem);
             Assert.Equal(BlueprintBlackboardHeader.MagicValue, header.MagicAndVersion);
             Assert.Equal(1, header.SlotCount);
@@ -512,9 +512,8 @@ public sealed class BlueprintScenarioIntegrationTests : IDisposable
         // Direct write to verify memory is writable through the component ref
         unsafe
         {
-            ref var bb = ref _repo.GetComponentRW<BlueprintBlackboard1024>(entity);
-            byte* mem = (byte*)Unsafe.AsPointer(ref Unsafe.As<BlueprintBlackboard1024, byte>(ref bb));
-            if (BlueprintBlackboardPartitions.TryGetSlotOffset(mem, counterBpId, out int off))
+            byte* mem = OccurrenceStoreAccess.TryGetStore(_repo, entity, out _);   // ⭐ the seam, not a named tier (B4)
+            if (mem != null && BlueprintBlackboardPartitions.TryGetSlotOffset(mem, counterBpId, out int off))
             {
                 ref int countRef = ref Unsafe.As<byte, int>(ref Unsafe.AsRef<byte>(mem + off + 4));
                 countRef++;
