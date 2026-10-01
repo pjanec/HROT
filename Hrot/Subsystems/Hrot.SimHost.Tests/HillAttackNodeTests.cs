@@ -801,203 +801,159 @@ namespace Hrot.SimHost.Tests
         }
 
         // ── TASK-HA011: SC-HA011-1 through SC-HA011-5 ────────────────────────────
+        // ⭐ EQS 1.3 (DESIGN_Hill_Attack_Eqs_Migration.md §3.2): the area query is the commander's EQS child sensor.
+        //    These rails drive the nodes against a REAL sensor entity and its EqsCognitiveBuffer — the component
+        //    EqsResultUpdateSystem writes — instead of the retired AreaQueryBatchHelper ring.
 
-        /// <summary>SC-HA011-1: Action_RequestAreaQuery sets CachedEqsRequestId to a valid
-        /// (>= 0) value on first call when batch is not full.</summary>
+        /// <summary>A live area sensor under <paramref name="commander"/>; <paramref name="targets"/> == null ⇒ not answered yet.</summary>
+        private static Entity AreaSensor(EntityRepository repo, Entity commander, Entity area, params Entity[]? targets)
+        {
+            var sensor = repo.CreateEntity();
+            repo.AddComponent(sensor, new PartMetadata { ParentEntity = commander, InstanceId = HillAttackCommanderNodes.AreaSensorInstanceId });
+            repo.AddComponent(sensor, HillAttackCommanderNodes.AreaSensor(area));
+            var buffer = new EqsCognitiveBuffer();
+            if (targets != null)
+            {
+                buffer.Count = targets.Length;
+                buffer.LastUpdateTick = 1u;
+                var span = buffer.GetSpanRW();
+                for (int i = 0; i < targets.Length; i++) span[i] = new EqsResult { EntityId = (long)targets[i].PackedValue };
+            }
+            repo.AddComponent(sensor, buffer);
+            return sensor;
+        }
+
+        private static void Playback(EntityRepository repo)
+            => ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetCommandBuffer()).Playback(repo);
+
+        /// <summary>SC-HA011-1: the first ask CREATES the sensor — the creation is the question (Success, CachedEqsRequestId =
+        /// <see cref="HillAttackCommanderNodes.SensorBeingCreated"/>); once it exists it is found and awaited (Running). The NEXT
+        /// wave's ask refreshes it: a new epoch, the old answer cleared.</summary>
         [Fact]
-        public void SC_HA011_1_RequestAreaQuery_SetsCachedRequestId_OnFirstCall()
+        public void SC_HA011_1_RequestAreaQuery_CreatesTheSensor_ThenRefreshesItPerWave()
         {
             using var repo = CreateWorld();
-
-            var commander = repo.CreateEntity();
+            var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
 
             ref var s = ref GetHeavyState(repo, commander);
             s.CachedEqsRequestId = -1;
-
             var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                var result = HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(HillAttackCommanderNodes.SensorBeingCreated, s.CachedEqsRequestId);
+            Playback(repo);
 
-                Assert.Equal(NodeStatus.Success, result);
-                Assert.True(s.CachedEqsRequestId >= 0,
-                    $"Expected CachedEqsRequestId >= 0, got {s.CachedEqsRequestId}");
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            var sensor = EqsChildSensor.Find(repo, commander, HillAttackCommanderNodes.AreaSensorInstanceId);
+            Assert.False(sensor.IsNull);
+            ref readonly var cfg = ref repo.GetComponentRO<EqsSensor>(sensor);
+            Assert.Equal(1u, cfg.Epoch);
+            Assert.Equal(areaEntity, cfg.ContextSlot1);
+            Assert.Equal(1u << (int)ForceId.Hostile, cfg.FactionFilter);
+
+            // in flight: found, cached, not yet answered
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+
+            // answered, consumed by the dispatch (-1) ⇒ the next ask refreshes the same sensor
+            repo.GetComponentRW<EqsCognitiveBuffer>(sensor).LastUpdateTick = 7u;
+            s.CachedEqsRequestId = -1;
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+            Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(sensor).Epoch);
+            Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no older answer counts
         }
 
-        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running when a request is
-        /// already in-flight (CachedEqsRequestId set and result is not yet ready).</summary>
+        /// <summary>The commander asks the template the Muscle registers: its AssetId is the backend's
+        /// <c>EntitiesOfForceInArea.AssetId</c> (a cross-host identity, like a wire id), and its BlueprintId the registry's.</summary>
+        [Fact]
+        public void EQS_AreaSensor_AsksTheEntitiesOfForceInAreaTemplate()
+        {
+            Assert.Equal(Hrot.SimHost.Systems.EntitiesOfForceInArea.AssetId, HillAttackCommanderNodes.AreaTemplateAssetId);
+            var cfg = HillAttackCommanderNodes.AreaSensor(Entity.Null);
+            Assert.Equal(EqsTemplateRegistry.BlueprintIdOf(new Guid(Hrot.SimHost.Systems.EntitiesOfForceInArea.AssetId)), cfg.BlueprintId);
+            Assert.True(EqsTemplateRegistry.Discover(new[] { typeof(Hrot.SimHost.Systems.EntitiesOfForceInArea).Assembly })
+                .TryGetTemplate(cfg.BlueprintId, out _), "the Muscle's registry must resolve the commander's BlueprintId");
+        }
+
+        /// <summary>SC-HA011-2: Action_RequestAreaQuery returns Running while the question in flight is unanswered.</summary>
         [Fact]
         public void SC_HA011_2_RequestAreaQuery_ReturnsRunning_WhenRequestInFlight()
         {
             using var repo = CreateWorld();
-
             var commander  = repo.CreateEntity();
             var areaEntity = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, areaEntity, null);
 
             ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                // Submit an initial request to place a valid ID in-flight.
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-                s.CachedEqsRequestId = requestId;
-
-                // The result ring-buffer slot is primed with IsReady == false by RequestAreaQuery.
-                var p     = new PlatoonHillAttackParams { TargetAreaEntity = areaEntity };
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Running, result);
-                Assert.Equal(requestId, s.CachedEqsRequestId);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
         }
 
-        /// <summary>SC-HA011-3: Condition_IsAreaQueryResolved returns Running while
-        /// result IsReady == false.</summary>
-        // STABILITY(Broken): Component type ID 117 not registered — missing AreaQuery component registration; investigate
-        [Trait("Stability", "Broken")]
+        /// <summary>SC-HA011-3: Condition_IsAreaQueryResolved returns Running while the sensor is not ready. (Was quarantined
+        /// as Broken on an unregistered AreaQuery component; the EQS path has no such component.)</summary>
         [Fact]
         public void SC_HA011_3_IsAreaQueryResolved_ReturnsRunning_WhenResultNotReady()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), null);
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                // Submit a request.
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                // Result is not yet marked as ready — should return Running.
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Running, result);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
         }
 
-        /// <summary>SC-HA011-4: Condition_IsAreaQueryResolved returns Failure and resets
-        /// CachedEqsRequestId = -1 when IsReady == true and TargetCount == 0.</summary>
+        /// <summary>SC-HA011-4: ready with 0 targets ⇒ Failure (area clear), CachedEqsRequestId = -1, the sensor destroyed.</summary>
         [Fact]
         public void SC_HA011_4_IsAreaQueryResolved_ReturnsFailure_WhenReadyWithZeroTargets()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity());
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                // Write the result to the correct ring-buffer slot (same XOR hash used by
-                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
-                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId   = requestId,
-                    IsReady     = true,
-                    TargetCount = 0,
-                    TargetGroupHandle = -1,
-                };
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Failure, result);
-                Assert.Equal(-1L, s.CachedEqsRequestId);
-                Assert.Equal(-1, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Failure, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(-1L, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.False(repo.IsAlive(sensor));
         }
 
-        /// <summary>SC-HA011-5: Condition_IsAreaQueryResolved returns Success when
-        /// IsReady == true and TargetCount > 0. CachedEqsRequestId is NOT cleared.</summary>
+        /// <summary>SC-HA011-5: ready with targets ⇒ Success; CachedEqsRequestId is NOT cleared (the dispatch reads the answer
+        /// from the same sensor), and the sensor lives on.</summary>
         [Fact]
         public void SC_HA011_5_IsAreaQueryResolved_ReturnsSuccess_AndDoesNotClearRequestId()
         {
             using var repo = CreateWorld();
+            var commander = repo.CreateEntity();
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), repo.CreateEntity(), repo.CreateEntity());
 
-            var commander  = repo.CreateEntity();
-            var areaEntity = repo.CreateEntity();
+            ref var s = ref GetHeavyState(repo, commander);
+            s.CachedEqsRequestId = (long)sensor.PackedValue;
+            var p     = new PlatoonHillAttackParams();
+            var state = new BehaviorTreeState();
+            var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                    repo, commander, areaEntity, ForceId.Hostile);
-
-                // Write the result to the correct ring-buffer slot (same XOR hash used by
-                // AreaQueryBatchHelper.GetAreaQueryResult and AreaQueryResultMaterializationSystem).
-                int slot = (int)(((ulong)requestId ^ ((ulong)requestId >> 32)) % (uint)AreaQueryBatchData.DefaultCapacity);
-                ref var batch = ref repo.GetSingleton<AreaQueryBatchData>();
-                batch.Results[slot] = new AreaQueryResult
-                {
-                    RequestId         = requestId,
-                    IsReady           = true,
-                    TargetCount       = 2,
-                    TargetGroupHandle = 0,
-                };
-
-                ref var s = ref GetHeavyState(repo, commander);
-                s.CachedEqsRequestId = requestId;
-
-                var p     = new PlatoonHillAttackParams();
-                var state = new BehaviorTreeState();
-                var ctx   = new BTreeContext { Self = commander, World = repo };
-
-                var result = HillAttackCommanderNodes.Condition_IsAreaQueryResolved(
-                    ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
-
-                Assert.Equal(NodeStatus.Success, result);
-                // SC-HA011-5: CachedEqsRequestId must NOT be cleared on Success path.
-                Assert.Equal(requestId, s.CachedEqsRequestId);
-                Assert.Equal(0, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.True(repo.IsAlive(sensor));
         }
 
         // ── TASK-HA012: SC-HA012-1 through SC-HA012-8 ────────────────────────────
@@ -1022,12 +978,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0;
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            // Set up a single target in pool.
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -1074,11 +1025,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0;
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -1125,13 +1072,8 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots              = 4;
             s.CurrentWave             = 0;
             s.BurnedSlotsMask         = 0;
-            s.CachedTargetGroupHandle = 0;
-            s.CachedEqsRequestId      = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = (long)target1.PackedValue;
-            pool.Targets[1] = (long)target2.PackedValue;
-            // Targets[2] stays 0 => probe stops after 2.
+            // The area sensor answered two targets, in this order.
+            s.CachedEqsRequestId      = (long)AreaSensor(repo, commander, repo.CreateEntity(), target1, target2).PackedValue;
 
             var p = new PlatoonHillAttackParams
             {
@@ -1441,11 +1383,7 @@ namespace Hrot.SimHost.Tests
             s.TotalSlots          = 4;
             s.CurrentWave         = 0;
             s.BurnedSlotsMask     = 0b0001;  // slot 0 burned
-            s.CachedTargetGroupHandle = -1;
-            s.CachedEqsRequestId  = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId  = -1;   // no area answer: the wave goes out without targets
 
             var p = new PlatoonHillAttackParams
             {
@@ -1472,9 +1410,11 @@ namespace Hrot.SimHost.Tests
             }
         }
 
-        /// <summary>SC-HA012-8: CachedTargetGroupHandle == -1 after DispatchWaveWithTargets.</summary>
+        /// <summary>SC-HA012-8: after DispatchWaveWithTargets the answer is consumed (CachedEqsRequestId == -1) and the area
+        /// sensor STAYS for the next wave's question (DESIGN_Hill_Attack_Eqs_Migration.md §4 D6). Was: the retired pool
+        /// handle CachedTargetGroupHandle cleared to -1.</summary>
         [Fact]
-        public void SC_HA012_8_DispatchWave_ClearsTargetGroupHandle_AfterDispatch()
+        public void SC_HA012_8_DispatchWave_ConsumesTheAnswer_AndKeepsTheSensor()
         {
             using var repo = CreateWorld();
 
@@ -1485,15 +1425,12 @@ namespace Hrot.SimHost.Tests
                 subs[i] = repo.CreateEntity();
             AddRoster(repo, commander, subs);
 
+            var sensor = AreaSensor(repo, commander, repo.CreateEntity(), repo.CreateEntity());
             ref var s = ref GetHeavyState(repo, commander);
             s.TotalSlots              = 4;
             s.CurrentWave             = 0;
             s.BurnedSlotsMask         = 0;
-            s.CachedTargetGroupHandle = 0;
-            s.CachedEqsRequestId      = -1;
-
-            ref var pool = ref repo.GetSingleton<EqsTargetPool>();
-            pool.Targets[0] = 1L;
+            s.CachedEqsRequestId      = (long)sensor.PackedValue;
 
             var p = new PlatoonHillAttackParams
             {
@@ -1504,16 +1441,11 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            try
-            {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
 
-                Assert.Equal(-1, s.CachedTargetGroupHandle);
-            }
-            finally
-            {
-                DisposeEqsSingletons(repo);
-            }
+            Assert.Equal(-1L, s.CachedEqsRequestId);
+            Playback(repo);
+            Assert.True(repo.IsAlive(sensor));
         }
 
         // ── TASK-HA013: SC-HA013-1 through SC-HA013-3 ────────────────────────────

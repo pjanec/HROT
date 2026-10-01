@@ -270,8 +270,14 @@ public sealed class SpawnEqsSensorRuntimeTests
         Assert.False(buffer.IsReady, "Buffer should start not-ready");
     }
 
+    /// <summary>
+    /// ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3, §6): on the tick that CREATES the sensor the Handle is
+    /// pending (an ECB handle is a placeholder, never alive after playback in production); the next execution FINDS the
+    /// sensor and the handle is live — and no second sensor is made. ⛔ This rail used to pass on the creating tick only
+    /// because the test fixture's command buffer creates entities at once.
+    /// </summary>
     [Fact]
-    public void Spawn_PopulatesHandleOutput()
+    public void Spawn_PopulatesHandleOutput_OnceTheSensorExists_AndNeverDuplicatesIt()
     {
         using var fixture = new BlueprintTestFixture(new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
         RegisterEqsComponents(fixture);
@@ -281,11 +287,16 @@ public sealed class SpawnEqsSensorRuntimeTests
         fixture.AttachBlueprint(asset, entity);
 
         fixture.TickFrame(0.016f);
+        Assert.False(ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor").IsValid, "pending on the creating tick");
 
-        // After tick, the MySensor variable should hold a valid handle
+        fixture.TickFrame(0.016f);
         var handle = ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor");
-        Assert.True(handle.IsValid, "MySensor handle should point to a valid entity");
+        Assert.True(handle.IsValid, "MySensor handle should point to the sensor once it exists");
         Assert.True(fixture.World.IsAlive(handle.ChildId), "Handle's ChildId should be alive");
+
+        fixture.TickFrame(0.016f);
+        Assert.Single(QueryEntities<EqsSensor>(fixture));                       // found every tick, never re-created
+        Assert.Equal(handle, ReadSlotField<EqsSensorHandle>(fixture, asset, entity, "MySensor"));
     }
 
     [Fact]

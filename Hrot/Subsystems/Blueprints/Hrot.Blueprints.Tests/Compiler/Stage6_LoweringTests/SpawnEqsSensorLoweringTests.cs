@@ -146,12 +146,20 @@ public sealed class SpawnEqsSensorLoweringTests
     // Tests
     // -----------------------------------------------------------------------
 
+    /// <summary>
+    /// ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3): the node goes through the ONE child-sensor lifecycle,
+    /// <c>EqsChildSensor.Ensure</c> — which creates through the command buffer only when (self, InstanceId) has no sensor yet.
+    /// ⛔ It no longer hands out the ECB placeholder <c>ecb.CreateEntity()</c> returned (never alive after playback). What
+    /// Ensure creates — PartMetadata, then EqsSensor, then EqsCognitiveBuffer — is pinned on EqsChildSensor itself
+    /// (<c>EqsModuleTests.EqsChildSensor_*</c>).
+    /// </summary>
     [Fact]
-    public void Lower_EmitsCreateEntity()
+    public void Lower_FindsOrCreatesThroughEqsChildSensor()
     {
         var source = Compile(BuildSpawnAsset());
         Assert.NotNull(source);
-        Assert.Contains("ecb.CreateEntity()", source);
+        Assert.Contains("global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure(", source);
+        Assert.DoesNotContain("ecb.CreateEntity()", source);
     }
 
     /// <summary>
@@ -165,19 +173,18 @@ public sealed class SpawnEqsSensorLoweringTests
         asset.Dispatch = AssetDispatchKind.Behavior;
         var source = Compile(asset);
         Assert.NotNull(source);
-        Assert.Contains("ecb.CreateEntity()", source);
+        Assert.Contains("global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure(", source);
         Assert.Contains("public static global::Fbt.NodeStatus Tick(", source);
         Assert.Contains("BehaviorTick(", source);
     }
 
     [Fact]
-    public void Lower_EmitsPartMetadataAttach()
+    public void Lower_TheSensorIsAChildOfSelf()
     {
         var source = Compile(BuildSpawnAsset());
         Assert.NotNull(source);
-        Assert.Contains("AddComponent", source);
-        Assert.Contains("PartMetadata", source);
-        Assert.Contains("ParentEntity", source);
+        Assert.Contains("global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure(", source);
+        Assert.Matches(@"EqsChildSensor\.Ensure\([^,]+, self, -?\d+, _sensorConfig\)", source!);   // parent = self
     }
 
     [Fact]
@@ -190,11 +197,11 @@ public sealed class SpawnEqsSensorLoweringTests
     }
 
     [Fact]
-    public void Lower_EmitsCognitiveBufferAttach()
+    public void Lower_TheConfigIsAnEqsSensor()
     {
         var source = Compile(BuildSpawnAsset());
         Assert.NotNull(source);
-        Assert.Contains("EqsCognitiveBuffer", source);
+        Assert.Contains("var _sensorConfig = new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor", source);
     }
 
     [Fact]
@@ -203,21 +210,6 @@ public sealed class SpawnEqsSensorLoweringTests
         var source = Compile(BuildSpawnAsset());
         Assert.NotNull(source);
         Assert.Contains("EqsSensorHandle", source);
-    }
-
-    [Fact]
-    public void Lower_AttachmentOrder()
-    {
-        var source = Compile(BuildSpawnAsset());
-        Assert.NotNull(source);
-        // PartMetadata must come BEFORE EqsSensor and EqsCognitiveBuffer
-        int partMetaIdx  = source!.IndexOf("PartMetadata", StringComparison.Ordinal);
-        int eqsSensorIdx = source.IndexOf("EqsSensor\n", StringComparison.Ordinal);
-        if (eqsSensorIdx < 0) eqsSensorIdx = source.IndexOf("EqsSensor\r", StringComparison.Ordinal);
-        if (eqsSensorIdx < 0) eqsSensorIdx = source.IndexOf("EqsSensor {", StringComparison.Ordinal);
-        int bufferIdx    = source.IndexOf("EqsCognitiveBuffer", StringComparison.Ordinal);
-        Assert.True(partMetaIdx < eqsSensorIdx, "PartMetadata must precede EqsSensor");
-        Assert.True(eqsSensorIdx < bufferIdx,   "EqsSensor must precede EqsCognitiveBuffer");
     }
 
     [Fact]
@@ -239,8 +231,8 @@ public sealed class SpawnEqsSensorLoweringTests
 
         int bakedId = (int)BlueprintIdHash.Compute(fixedNodeId);
         Assert.NotEqual(0, bakedId);
-        Assert.Contains($"InstanceId        = {bakedId}", source1!);
-        Assert.Contains($"InstanceId        = {bakedId}", source2!);
+        Assert.Contains($", self, {bakedId}, _sensorConfig)", source1!);
+        Assert.Contains($", self, {bakedId}, _sensorConfig)", source2!);
     }
 
     [Fact]
@@ -259,8 +251,8 @@ public sealed class SpawnEqsSensorLoweringTests
         int id1 = (int)BlueprintIdHash.Compute(nodeId1);
         int id2 = (int)BlueprintIdHash.Compute(nodeId2);
         Assert.NotEqual(id1, id2); // guaranteed by the while-loop above
-        Assert.Contains($"InstanceId        = {id1}", source!);
-        Assert.Contains($"InstanceId        = {id2}", source!);
+        Assert.Contains($", self, {id1}, _sensorConfig)", source!);
+        Assert.Contains($", self, {id2}, _sensorConfig)", source!);
     }
 
     [Fact]
@@ -331,10 +323,10 @@ public sealed class SpawnEqsSensorLoweringTests
         Assert.NotNull(source2);
 
         int expectedId = (int)BlueprintIdHash.Compute(fixedNodeId);
-        Assert.Contains($"InstanceId        = {expectedId}", source1!);
-        Assert.Contains($"InstanceId        = {expectedId}", source2!);
-        Assert.Equal(source1!.Contains($"InstanceId        = {expectedId}"),
-                     source2!.Contains($"InstanceId        = {expectedId}"));
+        Assert.Contains($", self, {expectedId}, _sensorConfig)", source1!);
+        Assert.Contains($", self, {expectedId}, _sensorConfig)", source2!);
+        Assert.Equal(source1!.Contains($", self, {expectedId}, _sensorConfig)"),
+                     source2!.Contains($", self, {expectedId}, _sensorConfig)"));
     }
 
     [Fact]
@@ -348,7 +340,7 @@ public sealed class SpawnEqsSensorLoweringTests
 
         var source = Compile(BuildSpawnAsset(nodeId: nodeId));
         Assert.NotNull(source);
-        Assert.Contains($"InstanceId        = {expectedId}", source!);
+        Assert.Contains($", self, {expectedId}, _sensorConfig)", source!);
     }
 
     [Fact]

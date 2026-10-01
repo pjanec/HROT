@@ -12,6 +12,8 @@ known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep 
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
   - docs/designs/hill-attack/DESIGN.md — owns the doctrine and the AreaQuery pipeline (Phase 1), the one live consumer.
+  - docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md — the §17.6 recipe APPLIED to both hill-attack commanders (CE-478): the
+    shared Brain-side child-sensor lifecycle (EqsChildSensor) and the SpawnEqsSensor placeholder-handle fix.
   - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — §5.3 measured the two systems; the
     blueprint hill attack is the consumer waiting for the unification.
   - docs/blueprints/batches/HANDOFF_EQS_Unification.md — the frame for the unification work (draft).
@@ -741,6 +743,10 @@ Tests: **17** files mention it.
 ⚠ **Updated `2026-10-01` (behaviours lane, `CE-477`):** `TargetPoolOps` and the four `HillAssault2_*` blueprints are
 **deleted** (the twins retired). The callers left are `HillAttackCommanderNodes` (+ `PlatoonHillAttack.btree.json`) and
 `AreaQueryBatchOps`, which the blueprint `PlatoonHillAttackBp` (`CE-464`) calls — so a blueprint migration is now one asset.
+⭐ **Updated again `2026-10-01` (`CE-478`): BOTH callers are migrated** to the `EntitiesOfForceInArea` sensor
+([`DESIGN_Hill_Attack_Eqs_Migration.md`](../../blueprints/DESIGN_Hill_Attack_Eqs_Migration.md)) and `AreaQueryBatchOps` is
+deleted ⇒ **the AreaQuery pipeline has no behaviour caller left**; retiring it removes registrations, translators, the two DDS
+messages and its own rails (`AreaQuery*Tests`, `HillAttackIntegrationTests.SC_HA015_6`).
 
 ---
 

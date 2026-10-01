@@ -126,6 +126,22 @@ namespace Hrot.AI.Behaviors.StandardLibrary
             return geo == null ? Vector3.Zero : geo.ToCartesian(latitude, longitude, 0.0);
         }
 
+        // ── EQS ────────────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ Ask a sensor again: a new epoch, and its buffer cleared — <i>Read EQS Result</i>'s <c>IsReady</c> turns true only
+        /// on an answer computed after this call. Returns false when the handle is not (yet) a live sensor.
+        /// 📄 <c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §4 D2/D4 — the blueprint side of <c>EqsChildSensor.Refresh</c>.
+        /// </summary>
+        [BlueprintCallable("EQS", DisplayName = "Refresh EQS Sensor")]
+        public static bool RefreshEqsSensor(FDP.Eqs.EqsSensorHandle sensor, ISimulationView view)
+            => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Refresh(view, sensor.ChildId);
+
+        /// <summary>⭐ Destroy a sensor spawned by <i>Spawn EQS Sensor</i> (the Muscle stops evaluating it). Null / dead ⇒ no-op.</summary>
+        [BlueprintCallable("EQS", DisplayName = "Destroy EQS Sensor")]
+        public static void DestroyEqsSensor(FDP.Eqs.EqsSensorHandle sensor, ISimulationView view)
+            => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Destroy(view, sensor.ChildId);
+
         private static IGeographicTransform? Transform(ISimulationView view)
             => view is EntityRepository world && world.HasSingletonManaged<IGeographicTransform>()
                 ? world.GetSingletonManaged<IGeographicTransform>()

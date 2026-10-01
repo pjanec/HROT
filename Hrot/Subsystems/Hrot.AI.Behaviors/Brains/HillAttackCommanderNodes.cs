@@ -40,6 +40,48 @@ namespace Hrot.AI.Behaviors.Brains
         // Compared against BehaviorState.ActiveBehaviorHash to detect run start / end.
         private static readonly int HullDownAttackRunBehaviorId = BehaviorHash.FromName(BehaviorNames.HullDownAttackRun);
 
+        // ── The area query: one EQS child sensor (DESIGN_Hill_Attack_Eqs_Migration.md §3.2, §4 D2/D5/D6) ──
+
+        /// <summary>
+        /// The EQS template the commander asks — <c>EntitiesOfForceInArea</c> (<c>Hrot.SimHost</c>, Muscle side). ⭐ A Brain
+        /// behaviour names a template by its AssetId, exactly as a blueprint's <c>SpawnEqsSensor.TemplateAssetId</c> does;
+        /// <c>HillAttackNodeTests.EQS_AreaSensor_AsksTheEntitiesOfForceInAreaTemplate</c> pins it equal to the template's own constant.
+        /// </summary>
+        public const string AreaTemplateAssetId = "3e5a7c91-2b4d-4f86-a0c3-5d7e9f1b2a64";
+
+        /// <summary>The sensor's <c>PartMetadata.InstanceId</c> under the commander — its DDS key. Fixed, so a sensor left by an
+        /// aborted run is re-found, never duplicated.</summary>
+        public const int AreaSensorInstanceId = 0x48410001;
+
+        private static readonly uint AreaTemplateBlueprintId = EqsTemplateRegistry.BlueprintIdOf(new Guid(AreaTemplateAssetId));
+
+        /// <summary>The sensor configuration for <paramref name="area"/>: hostile, alive entities inside its polygon.</summary>
+        public static EqsSensor AreaSensor(Entity area) => new EqsSensor
+        {
+            BlueprintId   = AreaTemplateBlueprintId,
+            Epoch         = 1u,
+            FactionFilter = 1u << (int)ForceId.Hostile,
+            ContextSlot1  = area,
+        };
+
+        /// <summary><see cref="HillAttackMutableState.CachedEqsRequestId"/> while the sensor that answers is still being created
+        /// — its CREATION is the question (the first answer is computed after it), so no refresh is needed (§3.2).</summary>
+        public const long SensorBeingCreated = -2;
+
+        /// <summary>The sensor whose answer is awaited, or <see cref="Entity.Null"/>. While it is being created it is FOUND
+        /// (an ECB handle is not an entity) and cached once it exists.</summary>
+        private static Entity InFlightSensor(ref HillAttackMutableState s, ref BTreeContext ctx)
+        {
+            if (s.CachedEqsRequestId == -1) return Entity.Null;
+            if (s.CachedEqsRequestId == SensorBeingCreated)
+            {
+                var found = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
+                if (!found.IsNull) s.CachedEqsRequestId = (long)found.PackedValue;
+                return found;
+            }
+            return s.CachedEqsRequestId < 0 ? Entity.Null : new Entity((ulong)s.CachedEqsRequestId);
+        }
+
         // ── Phase 4.1: Setup nodes ────────────────────────────────────────────────
 
         /// <summary>
@@ -65,7 +107,6 @@ namespace Hrot.AI.Behaviors.Brains
             s.ActiveAttackerCount = 0;
             s.CurrentWave         = 0;
             s.CachedEqsRequestId  = -1;
-            s.CachedTargetGroupHandle = -1;
             s.EqsRequestTime      = 0f;
             if (BehaviorLog.IsDebugEnabled)
                 BehaviorLog.Debug(ref ctx, "Calculated slots=" + totalSlots + " spacing=" + spacing.ToString("G6", System.Globalization.CultureInfo.InvariantCulture) + "m.");
@@ -182,28 +223,31 @@ namespace Hrot.AI.Behaviors.Brains
         // ── Phase 4.2: EQS integration nodes ─────────────────────────────────────
 
         /// <summary>
-        /// Submits an area query for the target polygon.
-        /// Returns <see cref="NodeStatus.Running"/> when the batch is full or when a
-        /// previously submitted request is still being resolved.
-        /// Returns <see cref="NodeStatus.Success"/> once the request is queued.
+        /// Asks the area query: ensures the commander's EQS child sensor exists and REFRESHES it (a new epoch), so the next
+        /// answer is computed after this moment — the old per-wave request, on one persistent sensor.
+        /// Returns <see cref="NodeStatus.Running"/> while the sensor is being created or a refreshed answer is still in flight,
+        /// <see cref="NodeStatus.Success"/> once the question is asked, <see cref="NodeStatus.Failure"/> without a live area.
         /// </summary>
         public static NodeStatus Action_RequestAreaQuery(
             ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
-            // Guard: if a request is already in-flight, do not submit a duplicate.
-            if (s.CachedEqsRequestId != -1)
+            // Guard: a question already in flight is not asked twice.
+            var inFlight = InFlightSensor(ref s, ref ctx);
+            if (inFlight.IsNull && s.CachedEqsRequestId == SensorBeingCreated)
+                return NodeStatus.Running;       // still being created
+            if (!inFlight.IsNull)
             {
-                var existing = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-                if (!existing.IsReady)
+                if (ctx.World.IsAlive(inFlight) && ctx.World.HasComponent<EqsCognitiveBuffer>(inFlight))
                 {
-                    if (BehaviorLog.IsTraceEnabled)
-                        BehaviorLog.Trace(ref ctx, "EQS request in flight. RequestId=" + s.CachedEqsRequestId + ".");
-                    return NodeStatus.Running;
+                    if (!ctx.World.GetComponentRO<EqsCognitiveBuffer>(inFlight).IsReady)
+                    {
+                        if (BehaviorLog.IsTraceEnabled)
+                            BehaviorLog.Trace(ref ctx, "EQS area query in flight. Sensor=" + inFlight.Index + ".");
+                        return NodeStatus.Running;
+                    }
+                    return NodeStatus.Success;   // answered; the next node consumes it
                 }
-                // Result is ready; advance sequence so next node can consume it.
-                if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "EQS request already resolved. RequestId=" + s.CachedEqsRequestId + ".");
-                return NodeStatus.Success;
+                s.CachedEqsRequestId = -1;       // the sensor vanished: ask again below
             }
 
             // Guard: TargetAreaEntity must be alive before submitting a query.
@@ -213,69 +257,71 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Failure;
             }
 
-            // Submit fresh request.
-            long id = AreaQueryBatchHelper.RequestAreaQuery(ctx.World, ctx.Self, p.TargetAreaEntity, ForceId.Hostile);
-            if (id == -1)
+            var config = AreaSensor(p.TargetAreaEntity);
+            var sensor = EqsChildSensor.Ensure(ctx.World, ctx.Self, AreaSensorInstanceId, config);
+            if (sensor.IsNull)
             {
-                BehaviorLog.Warn(ref ctx, "EQS area query batch is full; retrying next frame. Consider increasing DefaultCapacity.");
-                return NodeStatus.Running;  // batch full; retry next frame
+                // Created this frame (it exists after the command buffer plays back): the creation IS the question.
+                s.CachedEqsRequestId = SensorBeingCreated;
             }
-
-            s.CachedEqsRequestId = id;
+            else
+            {
+                EqsChildSensor.Refresh(ctx.World, sensor, config);   // ask again: a new epoch, the old answer cleared
+                s.CachedEqsRequestId = (long)sensor.PackedValue;
+            }
             s.EqsRequestTime = ctx.World.SimulationTime;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "Submitted EQS area query. RequestId=" + id + ".");
+                BehaviorLog.Debug(ref ctx, "Asked the EQS area query. Sensor=" + (sensor.IsNull ? "creating" : sensor.Index.ToString()) + ".");
             return NodeStatus.Success;
         }
 
         /// <summary>
-        /// Polls for the area query result.
-        /// Returns <see cref="NodeStatus.Running"/> while the result is not yet ready.
-        /// Returns <see cref="NodeStatus.Failure"/> when the area is clear (TargetCount == 0).
-        /// Returns <see cref="NodeStatus.Success"/> when targets are present; caches the
-        /// <c>TargetGroupHandle</c> for use by <see cref="Action_DispatchWaveWithTargets"/>.
-        /// Per SC-HA011-5, <c>CachedEqsRequestId</c> is NOT cleared on the Success path.
+        /// Polls the area query's answer.
+        /// Returns <see cref="NodeStatus.Running"/> while no answer for the current epoch has arrived;
+        /// <see cref="NodeStatus.Failure"/> when the area is clear (0 targets) or after 5 s without an answer (⭐ with no area
+        /// on the Muscle the sensor answers NOTHING — EQS design §17.5 — so the timeout, never a false "clear", ends it);
+        /// <see cref="NodeStatus.Success"/> when targets are present. ⭐ <c>CachedEqsRequestId</c> is NOT cleared on Success
+        /// (SC-HA011-5): the dispatch reads the answer from the same sensor.
         /// </summary>
         public static NodeStatus Condition_IsAreaQueryResolved(
             ref PlatoonHillAttackParams p, ref HillAttackMutableState s, ref BehaviorTreeState state, ref BTreeContext ctx)
         {
             if (s.CachedEqsRequestId == -1)
                 return NodeStatus.Failure;  // guard; should not occur in correct topology
+            var sensor = InFlightSensor(ref s, ref ctx);
 
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-            if (!result.IsReady)
+            bool ready = ctx.World.IsAlive(sensor)
+                && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor)
+                && ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady;
+            if (!ready)
             {
                 if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
-                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s. RequestId=" + s.CachedEqsRequestId + ".");
-                    AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
+                    BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s.");
+                    EqsChildSensor.Destroy(ctx.World, sensor);
                     s.CachedEqsRequestId = -1;
-                    s.CachedTargetGroupHandle = -1;
                     return NodeStatus.Failure;
                 }
                 if (BehaviorLog.IsTraceEnabled)
-                    BehaviorLog.Trace(ref ctx, "Waiting EQS result. RequestId=" + s.CachedEqsRequestId + ".");
+                    BehaviorLog.Trace(ref ctx, "Waiting EQS result.");
                 return NodeStatus.Running;
             }
 
-            if (result.TargetCount == 0)
+            int count = ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor).Count;
+            if (count == 0)
             {
-                // Area cleared: break out of the Repeater so the BTree can finish.
-                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
-                s.CachedEqsRequestId      = -1;
-                s.CachedTargetGroupHandle = -1;
-                s.EqsRequestTime          = 0f;
+                // Area cleared: break out of the Repeater so the BTree can finish; the sensor is no longer needed.
+                EqsChildSensor.Destroy(ctx.World, sensor);
+                s.CachedEqsRequestId = -1;
+                s.EqsRequestTime     = 0f;
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. RequestId=" + result.RequestId + " targets=0.");
+                    BehaviorLog.Debug(ref ctx, "EQS resolved clear area. targets=0.");
                 return NodeStatus.Failure;
             }
 
-            // Targets found: cache the pool handle for Action_DispatchWaveWithTargets.
-            // CachedEqsRequestId is intentionally NOT cleared here (SC-HA011-5).
-            s.CachedTargetGroupHandle = result.TargetGroupHandle;
             s.EqsRequestTime = 0f;
             if (BehaviorLog.IsDebugEnabled)
-                BehaviorLog.Debug(ref ctx, "EQS resolved targets. RequestId=" + result.RequestId + " targets=" + result.TargetCount + " handle=" + result.TargetGroupHandle + ".");
+                BehaviorLog.Debug(ref ctx, "EQS resolved targets. targets=" + count + ".");
             return NodeStatus.Success;
         }
 
@@ -293,31 +339,24 @@ namespace Hrot.AI.Behaviors.Brains
             s.ActiveAttackerCount = 0;
             byte dispatchWave = s.CurrentWave;
 
-            // Resolve target count from the cached EQS result.
+            // The answer: Brain-local target entities from the area sensor's buffer (copied — the loop below publishes).
+            long* targets = stackalloc long[EqsResultPool.MaxTopK];
             int targetCount = 0;
-            if (s.CachedEqsRequestId != -1)
+            var sensor = InFlightSensor(ref s, ref ctx);
+            if (!sensor.IsNull && ctx.World.IsAlive(sensor) && ctx.World.HasComponent<EqsCognitiveBuffer>(sensor))
             {
-                var eqsResult = AreaQueryBatchHelper.GetAreaQueryResult(ctx.World, s.CachedEqsRequestId);
-                if (eqsResult.IsReady)
-                    targetCount = eqsResult.TargetCount;
-            }
-            // Fallback: probe pool if result is no longer in the batch.
-            if (targetCount == 0 && s.CachedTargetGroupHandle >= 0)
-            {
-                while (true)
+                ref readonly var answer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(sensor);
+                if (answer.IsReady)
                 {
-                    long t = AreaQueryBatchHelper.GetTargetFromPool(ctx.World, s.CachedTargetGroupHandle, targetCount);
-                    if (t == 0L) break;
-                    targetCount++;
-                    if (targetCount > 1024) break;  // safety cap
+                    var results = answer.GetSpanRO();
+                    targetCount = Math.Min(answer.Count, EqsResultPool.MaxTopK);
+                    for (int k = 0; k < targetCount; k++) targets[k] = results[k].EntityId;
                 }
             }
-            if (targetCount == 0) targetCount = 1;  // avoid divide-by-zero
+            int targetModulus = targetCount == 0 ? 1 : targetCount;  // avoid divide-by-zero
 
             if (!ctx.World.HasComponent<UnitRoster>(ctx.Self))
             {
-                s.CachedTargetGroupHandle = -1;
-                AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
                 s.CachedEqsRequestId      = -1;
                 s.EqsRequestTime          = 0f;
                 s.CurrentWave             = (byte)(1 - s.CurrentWave);
@@ -372,8 +411,8 @@ namespace Hrot.AI.Behaviors.Brains
                 int baselineSlot = PickClosestBaselineSlot(ref p, ref s, fx, fy, s.TotalSlots);
 
                 // Round-robin target assignment.
-                int targetIdx   = activeTankIndexInWave % targetCount;
-                long targetPacked = AreaQueryBatchHelper.GetTargetFromPool(ctx.World, s.CachedTargetGroupHandle, targetIdx);
+                int targetIdx   = activeTankIndexInWave % targetModulus;
+                long targetPacked = targetIdx < targetCount ? targets[targetIdx] : 0L;
                 long targetNetId  = 0L;
                 if (targetPacked != 0L)
                 {
@@ -436,9 +475,7 @@ namespace Hrot.AI.Behaviors.Brains
                 });
             }
 
-            s.CachedTargetGroupHandle = -1;
-            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
-            s.CachedEqsRequestId      = -1;
+            s.CachedEqsRequestId      = -1;   // the answer is consumed; the sensor stays for the next wave (§4 D6)
             s.EqsRequestTime          = 0f;
             s.CurrentWave             = (byte)(1 - s.CurrentWave);
             if (BehaviorLog.IsDebugEnabled)
@@ -515,10 +552,9 @@ namespace Hrot.AI.Behaviors.Brains
         // ── Deactivators ──────────────────────────────────────────────────────────
 
         /// <summary>
-        /// Deactivator for <see cref="Action_RequestAreaQuery"/>. Resets
-        /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when
-        /// the BTree execution pointer leaves the node via a mission-level abort, preventing
-        /// the in-flight EQS query slot from being orphaned indefinitely.
+        /// Deactivator for <see cref="Action_RequestAreaQuery"/>. Destroys the in-flight EQS area sensor and resets
+        /// <see cref="HillAttackMutableState.CachedEqsRequestId"/> to <c>-1</c> when the BTree execution pointer leaves the
+        /// node via a mission-level abort, so the Muscle stops evaluating it. A null or dead sensor is a no-op.
         ///
         /// <para>S3-G: five-parameter stateful deactivator. The working state <paramref name="s"/> is
         /// projected from the behaviour-scoped partition slot by the emitted wrapper (registered under the
@@ -532,7 +568,7 @@ namespace Hrot.AI.Behaviors.Brains
             ref BTreeContext ctx,
             int paramIndex)
         {
-            AreaQueryBatchHelper.FreeAreaQuerySlot(ctx.World, s.CachedEqsRequestId);
+            EqsChildSensor.Destroy(ctx.World, InFlightSensor(ref s, ref ctx));
             s.CachedEqsRequestId = -1;
         }
 

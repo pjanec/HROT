@@ -1253,10 +1253,11 @@ internal static class StatementEmitter
 
             case IrOp_SpawnEqsSensor op:
             {
-                // Emit ECB-based spawn pattern per DESIGN §7.8
-                // Result value (idx) holds the spawned EqsSensorHandle.
-                string localHandle = idx >= 0 ? $"__t{idx}" : "_spawnHandle";
-
+                // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3). The sensor's identity is
+                //    (self, InstanceId) — its DDS key — so it is FOUND by that pair through the one shared lifecycle,
+                //    EqsChildSensor. ⛔ It used to hand out the handle ecb.CreateEntity() returned: a negative-index
+                //    placeholder valid only inside that playback, so ReadEqsResult's IsAlive(handle) never held.
+                //    On the tick that CREATES the sensor the Handle is default (pending); run the node again next tick.
                 string searchRadius    = op.SearchRadiusValue    is not null ? $"__t{op.SearchRadiusValue.Value.Index}"    : "0f";
                 string factionFilter   = op.FactionFilterValue   is not null ? $"__t{op.FactionFilterValue.Value.Index}"   : "0u";
                 string threatThreshold = op.ThreatThresholdValue is not null ? $"__t{op.ThreatThresholdValue.Value.Index}" : "0f";
@@ -1272,16 +1273,7 @@ internal static class StatementEmitter
                 e.WriteLine("// BEGIN SpawnEqsSensorNode");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"var _spawnChild = ecb.CreateEntity();");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Replication.Components.PartMetadata");
-                e.WriteLine("{");
-                e.Indent();
-                e.WriteLine($"ParentEntity      = self,");
-                e.WriteLine($"InstanceId        = {op.BakedInstanceId},");
-                e.WriteLine($"DescriptorOrdinal = 0,");
-                e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
+                e.WriteLine($"var _sensorConfig = new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"BlueprintId     = {op.TemplateBlueprintIdLiteral},");
@@ -1295,10 +1287,12 @@ internal static class StatementEmitter
                 e.WriteLine($"ContextSlot1    = {contextSlot1},");
                 e.WriteLine($"ContextSlot2    = {contextSlot2},");
                 e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer());");
+                e.WriteLine("};");
+                string ensure = $"global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure({wv}, self, {op.BakedInstanceId}, _sensorConfig)";
                 if (idx >= 0)
-                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle(_spawnChild);");
+                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle({ensure});");
+                else
+                    e.WriteLine($"_ = {ensure};");
                 e.Outdent();
                 e.WriteLine("}");
                 e.WriteLine("// END SpawnEqsSensorNode");

@@ -598,6 +598,70 @@ namespace Hrot.SimHost.Tests
             Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);
         }
 
+        // ── EqsChildSensor — the ONE Brain-side child-sensor lifecycle (DESIGN_Hill_Attack_Eqs_Migration.md §4 D1–D3) ──
+
+        /// <summary>Ensure creates through the command buffer (Null on the creating call — an ECB handle is a placeholder),
+        /// with PartMetadata (parent + InstanceId), the sensor and an empty buffer; after playback it is FOUND, not re-created.</summary>
+        [Fact]
+        public void EqsChildSensor_Ensure_CreatesOnce_ThenFinds()
+        {
+            var parent = _world.CreateEntity();
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            Assert.True(EqsChildSensor.Ensure(view, parent, 7, cfg).IsNull);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+
+            var child = EqsChildSensor.Find(view, parent, 7);
+            Assert.False(child.IsNull);
+            Assert.Equal(parent, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).ParentEntity);
+            Assert.Equal(7, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).InstanceId);
+            Assert.Equal(cfg.BlueprintId, _world.GetComponentRO<EqsSensor>(child).BlueprintId);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(child).IsReady);
+
+            Assert.Equal(child, EqsChildSensor.Ensure(view, parent, 7, cfg));   // found — no second sensor
+            Assert.True(EqsChildSensor.Find(view, parent, 8).IsNull);           // another InstanceId is another sensor
+        }
+
+        /// <summary>Refresh = a new epoch and a cleared buffer, so the solver's answer for the OLD epoch is dropped and
+        /// IsReady turns true only on an answer computed after the refresh (EqsResultUpdateSystem's epoch filter).</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_DropsTheOldEpochsAnswer()
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var area = CreateAreaEntity(new List<Vector2> { new(0f, 0f), new(100f, 0f), new(100f, 100f), new(0f, 100f) });
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(area);
+            Assert.Equal(1, _world.GetComponentRO<EqsCognitiveBuffer>(sensor).Count);
+
+            // the solver answers epoch 1 ...
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            // ... but the sensor is refreshed before that answer is applied
+            Assert.True(EqsChildSensor.Refresh(view, sensor));
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(sensor).Epoch);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // the epoch-1 answer did not count
+
+            Assert.False(EqsChildSensor.Refresh(view, Entity.Null));
+        }
+
+        /// <summary>Destroy removes the sensor; a null or dead handle is a no-op.</summary>
+        [Fact]
+        public void EqsChildSensor_Destroy_RemovesIt_AndIgnoresNull()
+        {
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            var view = (ISimulationView)_world;
+            EqsChildSensor.Destroy(view, Entity.Null);
+            EqsChildSensor.Destroy(view, sensor);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            Assert.False(_world.IsAlive(sensor));
+            EqsChildSensor.Destroy(view, sensor);   // dead ⇒ no-op
+        }
+
         // Spawns a local EQS area sensor, runs the solver once and applies its result (Path B).
         private Entity RunEqsAreaSensor(Entity area)
         {

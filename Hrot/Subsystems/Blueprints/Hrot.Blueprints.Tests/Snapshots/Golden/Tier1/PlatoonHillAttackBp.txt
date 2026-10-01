@@ -1,4 +1,4 @@
-StructureHash: 0xA27A9AC6E77D6B73
+StructureHash: 0x0860D74D2696E233
 Parameters:
   FiringLineStart : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @16 size=4
   FiringLineEnd : Fdp.Toolkit.Behavior.Params.PickableGeoPoint @20 size=4
@@ -39,14 +39,13 @@ Variables:
   Best : System.Int32 @164 size=4
   CurSlot : System.Int32 @168 size=4
   CurBase : System.Int32 @172 size=4
-  TargetGroup : System.Int32 @176 size=4
-  RequestId : System.Int64 @184 size=8
-  CurNet : System.Int64 @192 size=8
-  AllArrived : System.Boolean @200 size=1
-  FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @208 size=68
-  BaselineReserved : __List_System_Boolean_16 @280 size=20
-  Runners : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @304 size=36
-  Kept : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @344 size=36
+  Sensor : FDP.Eqs.EqsSensorHandle @176 size=8
+  CurNet : System.Int64 @184 size=8
+  AllArrived : System.Boolean @192 size=1
+  FiringSlots : __List_Hrot_AI_Behaviors_Brains_HillAttackSlot_16 @200 size=68
+  BaselineReserved : __List_System_Boolean_16 @272 size=20
+  Runners : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @296 size=36
+  Kept : __List_Hrot_AI_Behaviors_Brains_HillAttackRunner_8 @336 size=36
 GraphLocalSlots:
   (empty)
 Diagnostics:

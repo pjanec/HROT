@@ -1,10 +1,11 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
+updated: 2026-10-01
 build-state: BUILT
 current-answer: §3 (diagrams) · §4 (decisions — leans TAKEN, decide-and-log, overridable) · §5 (C# → graph map) · §6 (AS BUILT — read it)
 stale-below: nothing yet
-known-rot: none
+known-rot: the area query moved from AreaQueryBatchOps to the EQS EntitiesOfForceInArea sensor on 2026-10-01 (CE-478) — the
+  §3.2 participant and the two §5 rows below were rewritten; the old helper is deleted. §6 describes the pre-EQS build.
 known-conflict: none
 related-designs:
   - docs/designs/hill-attack/DESIGN.md — owns the DOCTRINE (the spec, CE-460 quirk included); this doc owns only its blueprint form
@@ -12,6 +13,7 @@ related-designs:
   - docs/blueprints/Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint-behaviour runtime this runs on (block, BehaviorTick, own resolver §5.11)
   - docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md — owns the Send Intent node the orders go through (CE-472)
   - docs/blueprints/Blueprint_Fixed_Collections_Design.md — owns the fixed-list variables the slot and runner state use
+  - docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md — owns the area query on EQS (the sensor lifecycle, both commanders, CE-478)
   - docs/blueprints/HillAssault_Blueprint_Migration.md — HISTORICAL: the per-node HillAssault2_* twins this superseded (retired 2026-10-01, CE-477)
 -->
 
@@ -28,7 +30,7 @@ related-designs:
 | `Action_CalculateSegments` | 51–73 | float math, int cast, clamp |
 | `Action_DispatchAllToBaseline` | 81–130 | loop over the roster, alive check, lerp, **Send Intent `MoveToLocation`** |
 | `Condition_AreAllAtBaseline` | 140–180 | loop, **read another entity's** `NavigationStatus` |
-| `Action_RequestAreaQuery` / `Condition_IsAreaQueryResolved` | 190–280 | generic area-query built-ins (`AreaQueryBatchOps`), sim time |
+| `Action_RequestAreaQuery` / `Condition_IsAreaQueryResolved` | 190–280 | ⭐ since `2026-10-01`: the EQS area sensor (`Spawn EQS Sensor`, `Read EQS Result`, `Refresh/Destroy EQS Sensor`), sim time — was `AreaQueryBatchOps` |
 | `Action_DispatchWaveWithTargets` | 289–447 | loop + **inner loops** (free slots, closest baseline), seeded random, round-robin target, **Send Intent `HullDownAttack`** |
 | `Condition_IsWaveCompleted` | 457–513 | loop over runners, alive, read **another entity's** `BehaviorState`, remove finished runners |
 | `ResolvePlatoonHillAttackParams` | 667–811 | geo → Cartesian (with a Cartesian fallback), attack-direction maths, network id → entity |
@@ -111,14 +113,14 @@ sequenceDiagram
   participant Ing as BehaviorIngress
   participant T as Tick (phase machine)
   participant Bus as Event bus
-  participant EQS as AreaQuerySolver
+  participant EQS as EQS area sensor
   participant Tank as Tanks (HullDownAttackRun)
   Ing->>T: Resolve (geo to Cartesian, attack dir, area entity)
   T->>T: Setup (TotalSlots, FiringSlots, BaselineReserved)
   T->>Bus: Send Intent MoveToLocation per alive tank
   T->>T: AwaitBaseline until no tank InProgress
   loop until the area is clear
-    T->>EQS: Request area query
+    T->>EQS: Spawn (find-or-create) / Refresh EQS sensor
     T->>T: AwaitQuery (5 s timeout)
     T->>Bus: Send Intent HullDownAttack per wave tank
     Bus->>Tank: mapper to HullDownAttackRun
@@ -161,7 +163,7 @@ runs blueprint behaviours. The C# doctrine stays registered beside it (§4 A).*
 | `CalculateSegments` | Setup phase: `TotalSlots = clamp(int(len/spacing),1,16)`; Resize `FiringSlots`/`BaselineReserved` to `TotalSlots`, fill Free/false; wave 0; `RequestId = -1` |
 | `DispatchAllToBaseline` | `OrderAllToBaseline()`: clear `BaselineReserved`; ForEach roster (index i, count n): alive → `t = n>1 ? i/(n-1) : .5`; Send Intent `MoveToLocation {X,Y,Speed 15,ArrivalRadius 5}`; `i<16` ⇒ reserve i |
 | `AreAllAtBaseline` | `AllAtBaseline()`: ForEach roster: alive and (no `NavigationStatus` or `Result == InProgress`) ⇒ false |
-| `RequestAreaQuery` + `IsAreaQueryResolved` | Query/AwaitQuery phases over `AreaQueryBatchOps` (Request / IsReady / TargetCount / TargetGroupHandle / Free), 5 s timeout via `Get Sim Time`; count 0 ⇒ Return phase |
+| `RequestAreaQuery` + `IsAreaQueryResolved` | Query/AwaitQuery phases through ONE `Spawn EQS Sensor` (template `EntitiesOfForceInArea`, mask 4, `ContextSlot1` = area; a sensor that exists is refreshed) + `Read EQS Result` (`IsReady`, `ResultCount`); clear / timeout ⇒ `Destroy EQS Sensor` — [`DESIGN_Hill_Attack_Eqs_Migration`](DESIGN_Hill_Attack_Eqs_Migration.md) §6 (was `AreaQueryBatchOps`). 5 s timeout via `Get Sim Time`; count 0 ⇒ Return phase |
 | `DispatchWaveWithTargets` | `DispatchWave()`: reset WaveUsed→Free; ForEach roster (runners < 8, alive, parity unless n ≤ 3): `slot = PickFiringSlot(unit)`, skip if −1; `base = PickBaselineSlot(fx,fy)`; target = `TargetAt(handle, k % count)`, alive + `NetworkIdentity` ⇒ net id; add runner; Send Intent `HullDownAttack`; free the query; flip wave |
 | `PickFiringSlot` (inner loop) | two passes over `FiringSlots`: count Free, then take the `RandomIntSeeded(unit.Index, wave, 0, avail)`-th Free |
 | `PickClosestBaselineSlot` | pass over `BaselineReserved` (unreserved, min d²), fallback pass ignoring reservation |

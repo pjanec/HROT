@@ -1744,7 +1744,7 @@ internal sealed class GraphScheduler
 
             case FunctionCallNode fc when !fc.IsPure:
             {
-                // Impure CLR method call (curated helper, e.g. AreaQueryBatchOps.Request/Free) --
+                // Impure CLR method call (e.g. BlueprintWorldLibrary.RefreshEqsSensor) --
                 // resolve inputs, emit call, cache output. This is NOT a call into another
                 // Library-dispatch blueprint (that is IrOp_LibraryCall's actual purpose, keyed by
                 // a real LibraryBlueprintId resolved elsewhere); fc.TargetTypeId here is an

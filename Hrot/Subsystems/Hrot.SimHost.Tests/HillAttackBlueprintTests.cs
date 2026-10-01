@@ -15,6 +15,7 @@ using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Behavior.Systems;
 using Fdp.Toolkit.Blueprints.Components;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
@@ -58,7 +59,10 @@ namespace Hrot.SimHost.Tests
             private SpatialHashGrid _grid;
             private readonly BehaviorIngressSystem _ingress;
             private readonly BrainTickSystem _brain;
-            private readonly AreaQuerySolverSystem _eqs = new();
+            // ⭐ EQS 1.3 (DESIGN_Hill_Attack_Eqs_Migration.md): the area query is the EntitiesOfForceInArea sensor,
+            //    solved and applied in this one world (Path B) — no AreaQuerySolverSystem.
+            private readonly EqsSolverSystem _eqs = new();
+            private readonly EqsResultUpdateSystem _eqsUpdate = new();
 
             public World()
             {
@@ -71,6 +75,7 @@ namespace Hrot.SimHost.Tests
                 Repo.SetSingleton(new SpatialGridData { Grid = _grid });
                 Geo.SetOrigin(0.0, 0.0, 0.0);
                 Repo.SetSingletonManaged<IGeographicTransform>(Geo);
+                EqsTemplateRegistry.InstallDefault(Repo);
                 var registry = new BehaviorRegistry();
                 CgfBehaviorSetup.LoadFromAiAssembly(registry);
                 _ingress = new BehaviorIngressSystem(registry);
@@ -101,13 +106,19 @@ namespace Hrot.SimHost.Tests
                 Repo.AddComponent(e, new NetworkIdentity { Value = netId });
                 _grid.Add(e, new Vector2(x, y));
                 Repo.SetSingleton(new SpatialGridData { Grid = _grid });
+                Hostiles.Add(e);
                 return e;
             }
 
-            public void ClearGrid()
+            public readonly List<Entity> Hostiles = new();
+
+            /// <summary>The hostiles are destroyed: Health 0, bodies stay in the world (CE-272). ⭐ EQS's area template
+            /// rejects them by health (AliveFilterTest) — it walks entities, so emptying a grid no longer hides anyone.</summary>
+            public void KillHostiles()
             {
-                _grid.Clear();
-                Repo.SetSingleton(new SpatialGridData { Grid = _grid });
+                foreach (var h in Hostiles)
+                    if (Repo.HasComponent<Health>(h)) Repo.GetComponentRW<Health>(h).Current = 0f;
+                    else Repo.AddComponent(h, new Health { Current = 0f, Max = 100f });
             }
 
             public unsafe Entity[] Platoon(int n)
@@ -126,6 +137,7 @@ namespace Hrot.SimHost.Tests
             {
                 var c = Repo.CreateEntity();
                 Repo.AddComponent<BehaviorState>(c, default);
+                Repo.AddComponent(c, new NetworkIdentity { Value = 9000 + c.Index });   // a child sensor's parent needs one (EQS §16.2 H5)
                 RootStateAccess.EnsureRootState(Repo, c);
                 var roster = new UnitRoster { Count = subs.Length };
                 for (int i = 0; i < subs.Length; i++) roster.SubordinateEntities[i] = subs[i];
@@ -136,7 +148,7 @@ namespace Hrot.SimHost.Tests
             public void Assign(Entity commander, string behaviour, string json)
                 => Repo.Bus.PublishManaged(new AssignBehaviorEvent { Entity = commander, BehaviorName = behaviour, JsonParams = json });
 
-            /// <summary>ingress → brain → (read the orders) → EQS solver → materialise, like HillAttackIntegrationTests.TickOnce.</summary>
+            /// <summary>ingress → brain → (read the orders) → EQS solver → apply the answer, like HillAttackIntegrationTests.TickOnce.</summary>
             public void Tick(float dt = 0.1f)
             {
                 Repo.Bus.SwapBuffers();
@@ -146,10 +158,11 @@ namespace Hrot.SimHost.Tests
                 Orders.AddRange(Repo.Bus.ReadManaged<AssignTacticalIntentEvent>().Where(o => o != null));
                 foreach (var f in Repo.Bus.Read<BehaviorFinishedEvent>()) Finished.Add(f);
                 var ecb = (EntityCommandBuffer)((ISimulationView)Repo).GetCommandBuffer();
+                ecb.Playback(Repo);       // the brain's structural changes (a new sensor) land before the solver runs — as in production
                 _eqs.Execute(Repo, dt);
                 ecb.Playback(Repo);
                 Repo.Bus.SwapBuffers();
-                new AreaQueryResultMaterializationSystem().Execute(Repo, dt);
+                _eqsUpdate.Execute(Repo, dt);
             }
 
             public void Dispose()
@@ -276,7 +289,7 @@ namespace Hrot.SimHost.Tests
 
             foreach (var r in runners) w.Repo.GetComponentRW<BehaviorState>(r).ActiveBehaviorHash = RunHash;
             w.Tick();                                    // the commander sees the runs start
-            w.ClearGrid();                               // the hostiles are gone
+            w.KillHostiles();                            // the hostiles are destroyed
             foreach (var r in runners) w.Repo.GetComponentRW<BehaviorState>(r).ActiveBehaviorHash = 0;
 
             for (int t = 0; t < 30 && !w.Finished.Any(f => f.Entity == c); t++) w.Tick();

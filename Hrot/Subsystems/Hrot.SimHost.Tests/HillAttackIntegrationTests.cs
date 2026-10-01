@@ -43,7 +43,8 @@ namespace Hrot.SimHost.Tests
     /// <para>
     /// All SC-HA015-1…4 tests exercise the commander behavior exclusively via
     /// <see cref="BrainTickSystem"/> — no BTree node methods are called directly.
-    /// The EQS solver (<see cref="AreaQuerySolverSystem"/>) is invoked in the same
+    /// The EQS solver (<see cref="EqsSolverSystem"/>, template <c>EntitiesOfForceInArea</c> — the area query since the EQS
+    /// migration, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c>) is invoked in the same
     /// simulated tick as the BTree (collapsing the production 10-Hz EqsModule latency
     /// to zero for deterministic in-process testing).
     /// <see cref="AreaQueryInitializationSystem"/> is intentionally excluded from the
@@ -86,6 +87,8 @@ namespace Hrot.SimHost.Tests
             _grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
             _grid.Clear();
             _repo.SetSingleton(new SpatialGridData { Grid = _grid });
+            // ⭐ EQS 1.3: the commander's area query is the EntitiesOfForceInArea sensor (DESIGN_Hill_Attack_Eqs_Migration.md).
+            EqsTemplateRegistry.InstallDefault(_repo);
         }
 
         public void Dispose()
@@ -182,7 +185,7 @@ namespace Hrot.SimHost.Tests
         private static (BehaviorIngressSystem ingress,
                         TacticalIntentResolutionSystem resolution,
                         BrainTickSystem brainTick,
-                        AreaQuerySolverSystem eqs)
+                        EqsSolverSystem eqs)
             BuildPipeline(NetworkEntityMap entityMap)
         {
             var registry       = BuildRegistry(entityMap);
@@ -192,7 +195,7 @@ namespace Hrot.SimHost.Tests
                 new BehaviorIngressSystem(registry),
                 new TacticalIntentResolutionSystem(mapperRegistry, registry),
                 new BrainTickSystem(registry),
-                new AreaQuerySolverSystem()
+                new EqsSolverSystem()
             );
         }
 
@@ -208,25 +211,27 @@ namespace Hrot.SimHost.Tests
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
             BrainTickSystem brainTick,
-            AreaQuerySolverSystem eqsSolver,
+            EqsSolverSystem eqsSolver,
             float dt = 0.1f)
         {
             // Begin frame: swap previous write->read so ingress systems can see last frame's events.
             repo.Bus.SwapBuffers();
             behaviorIngress.Execute(repo, dt);
             tacticalResolution.Execute(repo, dt);
-            // BTree runs: may publish AreaQueryRequestEvent to WRITE buffer.
+            // BTree runs: may create / refresh the commander's EQS area sensor.
             brainTick.Execute(repo, dt);
 
-            // Collapse EQS latency: swap so solver can read the request events just published.
+            // Collapse EQS latency: the brain's structural changes (a new sensor) land first — as in production, where
+            // the brain's command buffer plays back before EqsModule evaluates — then the solver answers.
             repo.Bus.SwapBuffers();
             var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+            ecb.Playback(repo);
             eqsSolver.Execute(repo, dt);
             ecb.Playback(repo);
 
-            // Swap again so the result events published by the solver are readable by materialization.
+            // Swap again so the solver's result events are readable, then apply them to the sensor's buffer (Path B).
             repo.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(repo, dt);
+            new EqsResultUpdateSystem().Execute(repo, dt);
         }
 
         /// <summary>
@@ -345,7 +350,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
                         + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
@@ -405,7 +411,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
@@ -501,7 +508,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -592,7 +600,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subs at baseline.
             var subs = new Entity[2];
@@ -695,11 +704,12 @@ namespace Hrot.SimHost.Tests
             var behaviorIngress    = new BehaviorIngressSystem(registry);
             var tacticalResolution = new TacticalIntentResolutionSystem(mapperRegistry, registry);
             var brainTick          = new BrainTickSystem(registry);
-            var eqsSolver          = new AreaQuerySolverSystem();
+            var eqsSolver          = new EqsSolverSystem();
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subordinates already at the baseline.
             var subs = new Entity[2];

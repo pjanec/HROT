@@ -98,7 +98,7 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.IsReady"] = new ClrMethodSig(
+            ["Demo.Curated.QueryOps.IsReady"] = new ClrMethodSig(
                 new[]
                 {
                     new ClrParamInfo("requestId", "System.Int64"),
@@ -109,7 +109,7 @@ public sealed class FunctionCallSemanticResolveTests
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = true,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+            TargetTypeId = "Demo.Curated.QueryOps",
             MethodName = "IsReady",
             TrailingContext = FunctionCallContextKind.View,
         };
@@ -126,7 +126,7 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.AreaQueryBatchOps.Request"] = new ClrMethodSig(
+            ["Demo.Curated.QueryOps.Request"] = new ClrMethodSig(
                 new[]
                 {
                     new ClrParamInfo("targetArea", "Fdp.Core.Entity"),
@@ -138,7 +138,7 @@ public sealed class FunctionCallSemanticResolveTests
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = false,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.AreaQueryBatchOps",
+            TargetTypeId = "Demo.Curated.QueryOps",
             MethodName = "Request",
             TrailingContext = FunctionCallContextKind.SelfAndView,
         };

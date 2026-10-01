@@ -21,7 +21,11 @@ internal static class PlatoonHillAttackBpAuthoring
     private const string Runner = NS + ".HillAttackRunner";
     private const string Lib    = "Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary";
     private const string MathT  = "Fdp.Toolkit.Blueprints.BlueprintMath";
-    private const string Aq     = NS + ".AreaQueryBatchOps";
+    private const string EqsHandle = "FDP.Eqs.EqsSensorHandle";
+    // ⭐ The area query is the EQS template EntitiesOfForceInArea — the same AssetId the C# commander asks
+    //    (DESIGN_Hill_Attack_Eqs_Migration.md §4). 1 << ForceId.Hostile (= 2) ⇒ faction mask 4.
+    private static readonly Guid AreaTemplate = new(Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.AreaTemplateAssetId);
+    private const string HostileMask = "4";
     private const string Geo    = "Fdp.Toolkit.Behavior.Params.PickableGeoPoint";
 
     private const string Flt = "System.Single", Int = "System.Int32", Lng = "System.Int64", Bool = "System.Boolean",
@@ -51,8 +55,7 @@ internal static class PlatoonHillAttackBpAuthoring
         foreach (var v in new[] { "TotalSlots", "Wave", "TargetCount", "WaveIndex", "Avail", "K", "Seen", "Pick", "Best",
                                   "CurSlot", "CurBase" })
             a.Var(v, Int);
-        a.Var("TargetGroup", Int, defaultJson: "-1");
-        a.Var("RequestId", Lng, defaultJson: "-1");
+        a.Var("Sensor", EqsHandle);
         a.Var("CurNet", Lng);
         a.Var("AllArrived", Bool);
         a.Var("FiringSlots", "global::" + SlotE, capacity: 16);
@@ -193,7 +196,7 @@ internal static class PlatoonHillAttackBpAuthoring
         var bSize  = g.ListWrite("BaselineReserved", CollectionWriteOp.Resize); g.D(g.Get("TotalSlots"), bSize, "Length");
         var rClear = g.ListWrite("Runners", CollectionWriteOp.Clear);
         g.Chain(entry, total, fClear, fSize, bClear, bSize, rClear,   // ⚠ Cast is a PURE node (Stage5:3720) — never exec-chained
-            g.Set("Wave", g.I(0)), g.Set("RequestId", g.L(-1)), g.Set("TargetGroup", g.I(-1)), g.Ret());
+            g.Set("Wave", g.I(0)), g.Ret());
     }
 
     // ── OrderAllToBaseline: C# Action_DispatchAllToBaseline :81-130 ──
@@ -340,6 +343,15 @@ internal static class PlatoonHillAttackBpAuthoring
         g.X(ok, r1, "True"); g.X(ok, r2, "False");
     }
 
+    /// <summary>The area sensor: EntitiesOfForceInArea, hostile mask, ContextSlot1 = the area (find-or-create).</summary>
+    private static SpawnEqsSensorNode SpawnAreaSensor(BpGraph g)
+    {
+        var spawn = g.SpawnEqs(AreaTemplate);
+        g.D(g.Lit("System.UInt32", HostileMask), spawn, "FactionFilter");
+        g.D(g.Get("TargetArea"), spawn, "ContextSlot1");
+        return spawn;
+    }
+
     // ── DispatchWave: C# Action_DispatchWaveWithTargets :289-447 ──
     private static void BuildDispatchWave(BpGraph g, BpGraph slotT, BpGraph pickFire, BpGraph pickBase, BpGraph netId)
     {
@@ -385,9 +397,10 @@ internal static class PlatoonHillAttackBpAuthoring
         var bt = g.CallGraph(slotT, false, (g.Get("CurBase"), null), (g.Get("TotalSlots"), null));
         var curBx = g.Set("CurBx", Lerp(g, "BaseSX", "BaseEX", bt, "T"));
         var curBy = g.Set("CurBy", Lerp(g, "BaseSY", "BaseEY", bt, "T"));
-        var target = g.Call(Aq, "TargetAt", true, Ctx.View, (g.Get("TargetGroup"), null),
-            (g.Call(MathT, "ModInt", true, Ctx.None, (g.Get("WaveIndex"), null), (g.Get("TargetCount"), null)), null));
-        var net = g.CallGraph(netId, false, (target, null));
+        var target = g.ReadEqs("Sensor");                                       // round-robin over the area sensor's answer
+        g.D(g.Get("Sensor"), target, "Handle");
+        g.D(g.Call(MathT, "ModInt", true, Ctx.None, (g.Get("WaveIndex"), null), (g.Get("TargetCount"), null)), target, "ResultIndex");
+        var net = g.CallGraph(netId, false, (target, "Entity"));
         var curNet = g.Set("CurNet", net, "Net");
 
         var make = g.Make(Runner, RunnerFields);
@@ -412,11 +425,10 @@ internal static class PlatoonHillAttackBpAuthoring
         g.X(hasSlot, curSlot, "True");
         g.Chain(curSlot, ft, curFx, curFy, pb, curBase, bt, curBx, curBy, net, curNet, add, markUsed, reserve, nextIdx, send);
 
-        // :439-443 — free the query, flip the wave
-        var free = g.Call(Aq, "Free", false, Ctx.View, (g.Get("RequestId"), null));
-        g.X(fe, free, "Completed");
-        g.Chain(free, g.Set("RequestId", g.L(-1)), g.Set("TargetGroup", g.I(-1)),
-            g.Set("Wave", g.Bin(Subtract, g.I(1), g.Get("Wave"))), g.Ret());
+        // :439-443 — flip the wave (the area sensor stays for the next wave's question — EQS migration §4 D6)
+        var flip = g.Set("Wave", g.Bin(Subtract, g.I(1), g.Get("Wave")));
+        g.X(fe, flip, "Completed");
+        g.Chain(flip, g.Ret());
     }
 
     // ── UpdateRunners: C# Condition_IsWaveCompleted :457-513 — returns the runners still out ──
@@ -507,40 +519,50 @@ internal static class PlatoonHillAttackBpAuthoring
         var toQuery = Go("Query"); g.X(at1b, toQuery, "True"); g.X(toQuery, Running());
         g.X(at1b, Running(), "False");
 
-        // Query (:190-229) — a missing area ends the waves; a full batch retries next tick
+        // Query (:190-229) — a missing area ends the waves. ⭐ EQS (DESIGN_Hill_Attack_Eqs_Migration.md §3.2): Spawn EQS Sensor
+        // is find-or-create. A sensor that exists is REFRESHED (a new epoch); one created this tick needs none — its creation
+        // is the question. Either way the answer is awaited from now.
         var q = When("Query");
         var areaOk = g.Branch();
         g.D(g.Call(Lib, "EntityExists", true, Ctx.View, (g.Get("TargetArea"), null)), areaOk, "Condition");
         g.X(q, areaOk, "True");
         var noArea = Go("Return"); g.X(areaOk, noArea, "False"); g.X(noArea, Running());
-        var req = g.Call(Aq, "Request", false, Ctx.SelfAndView, (g.Get("TargetArea"), null), (g.Enum("Fdp.Core.ForceId", "Hostile"), null));
-        g.X(areaOk, req, "True");
-        var full = g.Branch(); g.D(g.Cmp(Equal, req, g.L(-1), BpGraph.Out(req)), full, "Condition"); g.X(req, full);
-        g.X(full, Running(), "True");
-        var setId = g.Set("RequestId", req, BpGraph.Out(req));
-        g.X(full, setId, "False");
-        g.Chain(setId, g.Set("RequestTime", g.Time()), Go("AwaitQuery"), Running());
+        // ⚠ ONE spawn node for both phases: a node's InstanceId — the sensor's identity — is baked from its node id, so a
+        //   second spawn node would be a second sensor.
+        var spawn = SpawnAreaSensor(g);
+        g.X(areaOk, spawn, "True");
+        var keep = g.Set("Sensor", spawn, "Handle");
+        g.X(spawn, keep);
+        var awaiting = g.Branch();
+        g.D(g.Cmp(Equal, g.Get("Phase"), g.Enum(Phase, "AwaitQuery")), awaiting, "Condition");
+        g.X(keep, awaiting);
+        var refresh = g.Call(Lib, "RefreshEqsSensor", false, Ctx.View, (g.Get("Sensor"), null));
+        g.X(awaiting, refresh, "False");
+        g.Chain(refresh, g.Set("RequestTime", g.Time()), Go("AwaitQuery"), Running());
 
-        // AwaitQuery (:239-280) — 5 s timeout; zero targets ends the waves
+        // AwaitQuery (:239-280) — 5 s timeout (with no area the sensor answers NOTHING); zero targets ends the waves.
+        // The sensor is re-found through the same spawn node first: the tick after its creation, that is where its handle
+        // comes from.
         var aq = When("AwaitQuery");
+        g.X(aq, spawn, "True");
+        var answer = g.ReadEqs("Sensor");
+        g.D(g.Get("Sensor"), answer, "Handle"); g.D(g.I(0), answer, "ResultIndex");
         var ready = g.Branch();
-        g.D(g.Call(Aq, "IsReady", true, Ctx.View, (g.Get("RequestId"), null)), ready, "Condition");
-        g.X(aq, ready, "True");
+        g.D(answer, "IsReady", ready, "Condition");
+        g.X(awaiting, ready, "True");
         var late = g.Branch();
         g.D(g.Cmp(GreaterThan, g.Bin(Subtract, g.Time(), g.Get("RequestTime")), g.F(5f)), late, "Condition");
         g.X(ready, late, "False");
         g.X(late, Running(), "False");
-        var freeLate = g.Call(Aq, "Free", false, Ctx.View, (g.Get("RequestId"), null));
-        g.X(late, freeLate, "True"); g.Chain(freeLate, g.Set("RequestId", g.L(-1)), Go("Return"), Running());
-        var count = g.Call(Aq, "TargetCount", true, Ctx.View, (g.Get("RequestId"), null));
-        var clear = g.Branch(); g.D(g.Cmp(Equal, count, g.I(0)), clear, "Condition");
+        var dropLate = g.Call(Lib, "DestroyEqsSensor", false, Ctx.View, (g.Get("Sensor"), null));
+        g.X(late, dropLate, "True"); g.Chain(dropLate, Go("Return"), Running());
+        var clear = g.Branch(); g.D(g.Cmp(Equal, answer, g.I(0), "ResultCount"), clear, "Condition");
         g.X(ready, clear, "True");
-        var freeClear = g.Call(Aq, "Free", false, Ctx.View, (g.Get("RequestId"), null));
-        g.X(clear, freeClear, "True"); g.Chain(freeClear, g.Set("RequestId", g.L(-1)), Go("Return"), Running());
-        var setCount = g.Set("TargetCount", count);
+        var dropClear = g.Call(Lib, "DestroyEqsSensor", false, Ctx.View, (g.Get("Sensor"), null));
+        g.X(clear, dropClear, "True"); g.Chain(dropClear, Go("Return"), Running());
+        var setCount = g.Set("TargetCount", answer, "ResultCount");
         g.X(clear, setCount, "False");
-        g.Chain(setCount, g.Set("TargetGroup", g.Call(Aq, "TargetGroupHandle", true, Ctx.View, (g.Get("RequestId"), null))),
-            Go("Dispatch"), Running());
+        g.Chain(setCount, Go("Dispatch"), Running());
 
         var d = When("Dispatch");
         var callDispatch = g.CallGraph(dispatch, false);

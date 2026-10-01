@@ -126,7 +126,8 @@ namespace Hrot.SimHost.Tests
         {
             var methods = typeof(BlueprintWorldLibrary).GetMethods(BindingFlags.Public | BindingFlags.Static);
             // CE-469's 7 + CE-464's RandomIntSeeded, EntityIndex, BehaviorHashOf, HasGeographicTransform, LatLonToCartesian
-            Assert.Equal(12, methods.Length);
+            // + the EQS migration's RefreshEqsSensor, DestroyEqsSensor
+            Assert.Equal(14, methods.Length);
             foreach (var m in methods)
             {
                 Assert.NotNull(m.GetCustomAttribute<BlueprintCallableAttribute>());

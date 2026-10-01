@@ -183,22 +183,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// <paramref name="parent"/> and <paramref name="instanceId"/>.
         /// Used only on first entry or after a BTree restart when the blackboard handle is empty.
         /// </summary>
+        // ⭐ One lookup for every Brain-side child sensor (DESIGN_Hill_Attack_Eqs_Migration.md §4 D1).
         private static Entity FindExistingChild(ISimulationView world, Entity parent, int instanceId)
-        {
-            // Build a fresh query each time -- EntityQuery caches internal component-array pointers;
-            // reusing it across structural mutations (add/remove components, entity creation) risks
-            // an AccessViolationException when the underlying array is reallocated.
-            // FindExistingChild is called at most once per BTree restart (idle-state guard above
-            // short-circuits on subsequent ticks), so the allocation cost is negligible.
-            var query = world.Query().With<PartMetadata>().Build();
-            foreach (var candidate in query)
-            {
-                var meta = world.GetComponentRO<PartMetadata>(candidate);
-                if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
-                    return candidate;
-            }
-            return Entity.Null;
-        }
+            => EqsChildSensor.Find(world, parent, instanceId);
 
         /// <summary>
         /// Persistent action that spawns a child sensor entity via the deferred command buffer.

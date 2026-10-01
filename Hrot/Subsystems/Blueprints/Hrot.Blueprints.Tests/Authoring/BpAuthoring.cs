@@ -284,6 +284,12 @@ internal sealed class BpGraph
 
     public GetTimeNode Time() => Add(new GetTimeNode { Kind = TimeKind.SimTime });
 
+    /// <summary>Spawn EQS Sensor (find-or-create, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §4 D3) for a template AssetId.</summary>
+    public SpawnEqsSensorNode SpawnEqs(Guid templateAssetId) => Add(new SpawnEqsSensorNode { TemplateAssetId = templateAssetId });
+
+    /// <summary>Read EQS Result from the sensor held in <paramref name="sensorVar"/> (an <c>EqsSensorHandle</c> variable).</summary>
+    public ReadEqsResultNode ReadEqs(string sensorVar) => Add(new ReadEqsResultNode { SensorVariableName = sensorVar });
+
     public CastNode Cast(string targetType, Node value, string? pin = null)
     {
         var c = Add(new CastNode { TargetTypeId = targetType });
