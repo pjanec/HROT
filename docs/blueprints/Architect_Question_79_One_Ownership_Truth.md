@@ -460,4 +460,4 @@ leg (`GhostPromotionSystem.cs:313-324`, bare `BitwiseOr`) the same table makes t
 §3.1's own rule *("owns it if, and only if, it holds the role that component belongs to")*; §3.9c records it as *"tolerated, not
 correct"*. Re-measured `2026-10-01`: the claim's production readers are still only `SimTransform` ×2, `Position` ×1, `BehaviorState`
 ×2 — none in the unclassified bucket. ⇒ **Option §9a′:** narrow the promote leg to the role's CLASSIFIED set (Brain: `brainOnly`;
-Muscle, Map2D: ∅) — local, no protocol, nothing observable changes today — and then the recompute needs no restriction of its own.
+Muscle: ∅; Map2D: `EditablePolyline`+`RoutePlan` — whether an IG promoter should claim those on someone else's entity is open) — local, no protocol, nothing observable changes today — and then the recompute needs no restriction of its own.
