@@ -235,15 +235,20 @@ public sealed class HsmGoldenCorpusTests
     /// contains an asset whose emitted output carries a <b>stateful slot manifest</b>. ⛔ Both shipped
     /// assets carry no managed blackboard at all, which is exactly why the seeds exist.
     /// </summary>
+    /// <para>⭐⭐ <b><c>CE-416</c> (<c>2026-10-01</c>):</b> the State variables' home moved from side slots to the block
+    /// (<c>{Asset}_Block.St</c>, the BTree's <c>CE-437</c> home). ⛔ SUPERSEDED: "the registrar carries a slot manifest".</para>
     [Fact]
-    public void TheSeededCorpusPutsE1sSlotManifestInTheBaseline()
+    public void TheSeededCorpusPutsTheStateBlockInTheBaseline()
     {
-        var registrar = Kind.Emit(AiAssetCorpus.ReadAsset(Kind, "HsmVariableShowcase"))
-            .Single(p => p.HintName == "Registrar.g.cs").Source;
+        var parts     = Kind.Emit(AiAssetCorpus.ReadAsset(Kind, "HsmVariableShowcase"));
+        var registrar = parts.Single(p => p.HintName == "Registrar.g.cs").Source;
+        var structs   = parts.Single(p => p.HintName == "Blackboard.g.cs").Source;
 
-        Assert.Contains("StatefulWorkingSlots", registrar);
-        Assert.Contains("\"Cursor\"", registrar);   // Role=State, Behavior scope
-        Assert.Contains("\"Ticks\"",  registrar);   // Role=State, Entity scope
+        Assert.Contains("BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmVariableShowcase_Block)", registrar);
+        Assert.Contains("public struct HsmVariableShowcase_BlockState", structs);
+        Assert.Contains(" Cursor;", structs);   // Role=State, Behavior scope
+        Assert.Contains(" Ticks;",  structs);   // Role=State, Behavior scope
+        Assert.DoesNotContain("StatefulWorkingSlots", registrar);   // one home
     }
 
     /// <summary>
@@ -273,12 +278,12 @@ public sealed class HsmGoldenCorpusTests
 
         string registrar = parts.Single(p => p.HintName.Contains("Registrar", StringComparison.Ordinal)).Source;
 
-        Assert.Contains("ParseParams   = __parseParams,", registrar);
+        Assert.Contains("ParseParams  = __parseParams,", registrar);   // CE-416: the shared emission
         Assert.Contains("case \"Threshold\":", registrar);   // the overlay arm, keyed by variable name
         Assert.Contains("\"1.5\"", registrar);               // the authored default, baked
 
         // ⛔ The topology core stays out of it: params are the bridge's job, not the blob's.
-        string core = parts.Single(p => !p.HintName.Contains("Registrar", StringComparison.Ordinal)).Source;
+        string core = parts.Single(p => p.HintName == "g.cs").Source;
         Assert.DoesNotContain("Threshold", core);
     }
 

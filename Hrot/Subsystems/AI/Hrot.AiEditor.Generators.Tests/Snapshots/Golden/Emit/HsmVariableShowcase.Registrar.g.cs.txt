@@ -30,19 +30,25 @@ public static class HsmVariableShowcaseRegistrar
         // Compile the blob from the topology-core thunk.
         var blob = HsmVariableShowcase.Compile();
 
-        // BP-281: managed parameter supply — bake defaults, then overlay from json.
-        // The SAME ParseParamsDelegate the BTree bridge emits (DESIGN_Parameter_Model.md §3).
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
-            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
             {
-                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<float>("1.5", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
                 }
+            }
+            __bakeDefaults = __BakeDefaults;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
 
                 // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
                 // variable's deserializer (DEBT-AIB-021 names this shape).
@@ -79,17 +85,15 @@ public static class HsmVariableShowcaseRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
-            ParseParams   = __parseParams,
-            BlueprintStructureHash = 1151389404110993395UL,   // CE-455: the root block's layout
+            BlueprintStructureHash = 4927500665267577139UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Threshold", typeof(float), 0),
             },
-            StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]
-            {
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(577338280, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Cursor", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
-                new global::Fdp.Toolkit.Behavior.StatefulSlotInfo(2122298340, global::System.Runtime.InteropServices.Marshal.SizeOf<int>(), unchecked(4180476474u ^ (uint)global::System.Runtime.InteropServices.Marshal.SizeOf<int>()), typeof(int), "Ticks", (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State, (byte)global::Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior),
-            },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Machines.HsmVariableShowcase_HsmVariableShowcase_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmVariableShowcase_Block),
+            ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
         });
     }
 }

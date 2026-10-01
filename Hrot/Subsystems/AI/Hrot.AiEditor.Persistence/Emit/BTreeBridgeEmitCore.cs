@@ -441,28 +441,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine();
         }
 
-        // 4a. Emit ParseParams into a local variable (must be declared in an unsafe context so
-        //     the byte* parameter in the lambda is legal). The local is then passed into the
-        //     BehaviorDefinition initializer below. Only emitted when ≥1 variable has a default.
-        bool hasParseParams = false;
-        if (isManaged && packedFields != null)
-            hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
-
-        // ⭐⭐ CE-429 — ingress allocates the root block only for a behaviour with a ParseParams
-        //   (BehaviorIngressSystem: `def.ParseParams != null`). A block with a State half and no
-        //   Role=Input variable has nothing to parse, but it must still be ALLOCATED ⇒ it declares a
-        //   parse that supplies nothing. ⚠ Stage 1 (bake) of the State half's defaults is CE-426's.
-        if (!hasParseParams && EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
-        {
-            sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
-            EmitBakeDefaultsFunction(sb, dto, packedFields,
-                System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
-            sb.AppendLine(HasResolver(dto)
-                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self); }};"
-                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);");
-            sb.AppendLine($"{pad2}}}");
-            hasParseParams = true;
-        }
+        bool hasParseParams = EmitRootParamsLocals(sb, dto, packedFields, isManaged, pad2);
 
         // 4b. Register definition
         sb.AppendLine($"{pad2}// {(hasParseParams ? "4b" : "4")}. Register the JSON-owned definition (FbtTreeCatalog cannot see in-memory defs).");
@@ -471,74 +450,7 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
-        // ⭐ CE-455 — the root block's LAYOUT hash, so a hot reload that reorders/retypes the parameters at the SAME
-        //   width restarts a running instance (BrainTickSystem.RestartIfRelaidOut already compares it for every tier).
-        if ((packedFields != null && packedFields.Count > 0) || BTreeEmitCore.BlockStateVariables(dto).Count > 0)
-        {
-            var __state = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
-            foreach (var v in BTreeEmitCore.BlockStateVariables(dto))
-                __state.Add(new System.Collections.Generic.KeyValuePair<string, string>(v.Name ?? "", v.Type?.TypeId ?? ""));
-            ulong __layout = BTreeBlackboardPackHelper.LayoutHash(packedFields, __state);
-            sb.AppendLine($"{pad2}{Indent}BlueprintStructureHash = {__layout}UL,   // CE-455: the root block's layout");
-        }
-        if (isManaged && packedFields != null && packedFields.Count > 0)
-        {
-            EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
-
-            // ⭐⭐⭐ CE-235 — the AUTHORED JSON CONTRACT for a JSON-authored asset.
-            //
-            // For a generated asset the authored shape and the blackboard layout COINCIDE, and that
-            // is the design's default case, not a shortcut: Behavior_Parameter_Resolver_Detailed_Design
-            // §3.2 — "one shape by default — the authored DTO is an auto-generated mirror; two shapes
-            // only on divergence". The emitted struct IS that mirror. Its field names are exactly the
-            // `case` labels EmitParseParamsLocal writes from this same packedFields list, so the
-            // schema cannot drift from the parser — one list, three artefacts.
-            //
-            // ⛔ The two members still hold DIFFERENT types for the curated behaviours that DO
-            //   diverge (a geo point vs a Cartesian pair; a network id vs a resolved Entity) — those
-            //   get their authored DTO from [BehaviorContract] via BehaviorSchemaDiscovery.
-            //
-            // ⚠ Guarded by `packedFields.Count > 0` because that is the exact condition under which
-            //   BTreeEmitCore.EmitBlackboardStructSource emits the struct at all; naming it otherwise
-            //   would emit a reference to a type that does not exist.
-            //
-            // ⭐⭐⭐ CE-437 + CE-429 (2026-09-29) — THE TWO MEMBERS DIVERGE, AS CE-235 SPLIT THEM TO.
-            //   JsonParamsDtoType stays the Inputs struct (the PUBLIC authored contract);
-            //   BlackboardLayoutType becomes {Asset}_Block — Inputs at offset 0 plus the State half —
-            //   and RootParamsAccess.RootParamsBytes sizes the root slot from it. 📄 Q76 §12.2b.
-            // ⭐⭐ CE-443 — with a bound resolver asset the AUTHORED contract is the resolver's own Params
-            //   (its declared Parameters, DESIGN_Parameter_Model §P.7): the resolver owns the shape it converts from.
-            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto) : BTreeEmitCore.BlackboardStructFqn(dto);
-            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
-            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
-        }
-        else if (EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
-        {
-            // ⭐⭐ CE-429 — R-151 requirement ④: a behaviour may declare NO Role=Input variable.
-            //   It still owns a block (its State half), so it names the block as its layout and
-            //   declares an EMPTY manifest — which RootParamsAccess.InputBytes reads as "0 Input
-            //   bytes", so nothing carries into the State half across a behaviour change.
-            //   ⛔ No JsonParamsDtoType: there is no authored contract to publish.
-            sb.AppendLine($"{pad2}{Indent}ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
-            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
-            if (HasResolver(dto))   // CE-443: the resolver's Parameters are the authored contract even with no Input half
-                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({ResolverParamsFqn(dto)}),");
-        }
-        if (hasParseParams)
-        {
-            sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
-            sb.AppendLine($"{pad2}{Indent}BakeDefaults = __bakeDefaults,");   // CE-427: stage 1 on its own
-            if (HasResolver(dto))
-            {
-                sb.AppendLine($"{pad2}{Indent}ResolveStage = __resolveStage,");   // CE-443: the resolver, handed a source (hosted)
-                sb.AppendLine($"{pad2}{Indent}ResolverName = \"{EscapeCSharpStringLiteral(dto.Resolver!.Name)}\",");
-            }
-        }
-        else if (HasResolver(dto))
-        {
-            // ⛔ CE-428 — a resolver refines a BLOCK; a behaviour with no managed variables has none. Loud, at compile.
-            sb.AppendLine($"#error CE-428: behaviour '{dto.Name}' names resolver asset '{dto.Resolver!.Name}' but declares no managed blackboard variables, so it has no block to resolve.");
-        }
+        EmitRootParamsMembers(sb, dto, packedFields, isManaged, hasParseParams, pad2);
         if (isManaged)
             EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, hostsSubtrees, packedFields);
         else if (hostsSubtrees)
@@ -1550,6 +1462,122 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine();
 
         return true;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-416</c> (<c>Q76</c> §12.27) — the ROOT-PARAMS LOCALS, for ANY tier: <c>__bakeDefaults</c>, <c>__parseParams</c>
+    /// (bake → supply → resolve) and the <c>CE-429</c> State-only bake. Extracted verbatim from the BTree register method so the
+    /// HSM bridge CALLS it instead of keeping its own copy. ⭐ <paramref name="dto"/> is a blackboard owner: only its name, asset
+    /// id, namespace, blackboard and resolver are read (<c>HsmBridgeEmitCore.BlackboardOwner</c> builds one for an HSM).
+    /// </summary>
+    /// <returns>true when a <c>__parseParams</c> local was emitted.</returns>
+    internal static bool EmitRootParamsLocals(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields, bool isManaged, string pad2)
+    {
+        // 4a. Emit ParseParams into a local variable (must be declared in an unsafe context so
+        //     the byte* parameter in the lambda is legal). The local is then passed into the
+        //     BehaviorDefinition initializer below. Only emitted when ≥1 variable has a default.
+        bool hasParseParams = false;
+        if (isManaged && packedFields != null)
+            hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
+
+        // ⭐⭐ CE-429 — ingress allocates the root block only for a behaviour with a ParseParams
+        //   (BehaviorIngressSystem: `def.ParseParams != null`). A block with a State half and no
+        //   Role=Input variable has nothing to parse, but it must still be ALLOCATED ⇒ it declares a
+        //   parse that supplies nothing. ⚠ Stage 1 (bake) of the State half's defaults is CE-426's.
+        if (!hasParseParams && EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            sb.AppendLine($"{pad2}// 4a. CE-429: a block with no Role=Input variable — nothing to overlay, but it must be allocated (and its State baked).");
+            EmitBakeDefaultsFunction(sb, dto, packedFields,
+                System.Array.Empty<(BTreeBlackboardPackHelper.PackedField, string)>(), pad2);
+            sb.AppendLine(HasResolver(dto)
+                ? $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => {{ __BakeDefaults(memory, capacity); __ResolveRoot(json, memory, capacity, world, self); }};"
+                : $"{pad2}{Indent}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) => __BakeDefaults(memory, capacity);");
+            sb.AppendLine($"{pad2}}}");
+            hasParseParams = true;
+        }
+
+        return hasParseParams;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-416</c> (<c>Q76</c> §12.27) — the ROOT-PARAMS MEMBERS of the <c>BehaviorDefinition</c> initializer, for ANY
+    /// tier: the layout hash, the manifest, <c>JsonParamsDtoType</c> / <c>BlackboardLayoutType</c>, and <c>ParseParams</c> /
+    /// <c>BakeDefaults</c> / <c>ResolveStage</c>. Extracted verbatim; same owner contract as <see cref="EmitRootParamsLocals"/>.
+    /// </summary>
+    internal static void EmitRootParamsMembers(
+        StringBuilder sb, BehaviorTreeAssetDto dto,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields, bool isManaged, bool hasParseParams, string pad2)
+    {
+        // ⭐ CE-455 — the root block's LAYOUT hash, so a hot reload that reorders/retypes the parameters at the SAME
+        //   width restarts a running instance (BrainTickSystem.RestartIfRelaidOut already compares it for every tier).
+        if ((packedFields != null && packedFields.Count > 0) || BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            var __state = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+            foreach (var v in BTreeEmitCore.BlockStateVariables(dto))
+                __state.Add(new System.Collections.Generic.KeyValuePair<string, string>(v.Name ?? "", v.Type?.TypeId ?? ""));
+            ulong __layout = BTreeBlackboardPackHelper.LayoutHash(packedFields, __state);
+            sb.AppendLine($"{pad2}{Indent}BlueprintStructureHash = {__layout}UL,   // CE-455: the root block's layout");
+        }
+        if (isManaged && packedFields != null && packedFields.Count > 0)
+        {
+            EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
+
+            // ⭐⭐⭐ CE-235 — the AUTHORED JSON CONTRACT for a JSON-authored asset.
+            //
+            // For a generated asset the authored shape and the blackboard layout COINCIDE, and that
+            // is the design's default case, not a shortcut: Behavior_Parameter_Resolver_Detailed_Design
+            // §3.2 — "one shape by default — the authored DTO is an auto-generated mirror; two shapes
+            // only on divergence". The emitted struct IS that mirror. Its field names are exactly the
+            // `case` labels EmitParseParamsLocal writes from this same packedFields list, so the
+            // schema cannot drift from the parser — one list, three artefacts.
+            //
+            // ⛔ The two members still hold DIFFERENT types for the curated behaviours that DO
+            //   diverge (a geo point vs a Cartesian pair; a network id vs a resolved Entity) — those
+            //   get their authored DTO from [BehaviorContract] via BehaviorSchemaDiscovery.
+            //
+            // ⚠ Guarded by `packedFields.Count > 0` because that is the exact condition under which
+            //   BTreeEmitCore.EmitBlackboardStructSource emits the struct at all; naming it otherwise
+            //   would emit a reference to a type that does not exist.
+            //
+            // ⭐⭐⭐ CE-437 + CE-429 (2026-09-29) — THE TWO MEMBERS DIVERGE, AS CE-235 SPLIT THEM TO.
+            //   JsonParamsDtoType stays the Inputs struct (the PUBLIC authored contract);
+            //   BlackboardLayoutType becomes {Asset}_Block — Inputs at offset 0 plus the State half —
+            //   and RootParamsAccess.RootParamsBytes sizes the root slot from it. 📄 Q76 §12.2b.
+            // ⭐⭐ CE-443 — with a bound resolver asset the AUTHORED contract is the resolver's own Params
+            //   (its declared Parameters, DESIGN_Parameter_Model §P.7): the resolver owns the shape it converts from.
+            string bbStructFqn = HasResolver(dto) ? ResolverParamsFqn(dto) : BTreeEmitCore.BlackboardStructFqn(dto);
+            sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({bbStructFqn}),");
+            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
+        }
+        else if (EmitsBlock(dto, packedFields) && BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            // ⭐⭐ CE-429 — R-151 requirement ④: a behaviour may declare NO Role=Input variable.
+            //   It still owns a block (its State half), so it names the block as its layout and
+            //   declares an EMPTY manifest — which RootParamsAccess.InputBytes reads as "0 Input
+            //   bytes", so nothing carries into the State half across a behaviour change.
+            //   ⛔ No JsonParamsDtoType: there is no authored contract to publish.
+            sb.AppendLine($"{pad2}{Indent}ManagedBlackboardVariables = global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>(),");
+            sb.AppendLine($"{pad2}{Indent}BlackboardLayoutType = typeof({BTreeEmitCore.BlockStructFqn(dto)}),");
+            if (HasResolver(dto))   // CE-443: the resolver's Parameters are the authored contract even with no Input half
+                sb.AppendLine($"{pad2}{Indent}JsonParamsDtoType    = typeof({ResolverParamsFqn(dto)}),");
+        }
+        if (hasParseParams)
+        {
+            sb.AppendLine($"{pad2}{Indent}ParseParams  = __parseParams,");
+            sb.AppendLine($"{pad2}{Indent}BakeDefaults = __bakeDefaults,");   // CE-427: stage 1 on its own
+            if (HasResolver(dto))
+            {
+                sb.AppendLine($"{pad2}{Indent}ResolveStage = __resolveStage,");   // CE-443: the resolver, handed a source (hosted)
+                sb.AppendLine($"{pad2}{Indent}ResolverName = \"{EscapeCSharpStringLiteral(dto.Resolver!.Name)}\",");
+            }
+        }
+        else if (HasResolver(dto))
+        {
+            // ⛔ CE-428 — a resolver refines a BLOCK; a behaviour with no managed variables has none. Loud, at compile.
+            sb.AppendLine($"#error CE-428: behaviour '{dto.Name}' names resolver asset '{dto.Resolver!.Name}' but declares no managed blackboard variables, so it has no block to resolve.");
+        }
     }
 
     /// <summary>

@@ -272,20 +272,38 @@ public sealed class AGeneratedBehaviourAdvertisesItsManifestTests
     }
 
     /// <summary>
-    /// ⚠ THE HSM ARM, and it is a MEASURED exception rather than an oversight. The HSM generator emits no
-    /// blackboard struct at all — <c>BTreeEmitCore.EmitBlackboardStructSource</c> has exactly one caller
-    /// (<c>BTreeJsonGenerator</c>), and no <c>*.Blackboard.g.cs</c> is produced for any HSM asset — so
-    /// there is no type to name and the manifest IS the authored contract. Legitimate for the same reason
-    /// as above: manifest and <c>ParseParams</c> come from one packed-field list.
+    /// ⭐⭐⭐ <c>CE-416</c> (<c>Q76</c> §12.27) — THE HSM ARM, no longer an exception. ⛔ SUPERSEDED (<c>2026-10-01</c>): <i>"the
+    /// HSM generator emits no blackboard struct, so there is no type to name and the manifest IS the authored contract"</i>.
+    /// The HSM generator now calls the same <c>EmitBlackboardStructSource</c> as the BTree, so an HSM publishes its Inputs
+    /// struct and lays out its block exactly like a BTree — and the generic block rail above covers it.
     /// </summary>
     [Fact]
-    public void AnHsmBehaviourAdvertisesFromItsManifestWithNoDtoType()
+    public void AnHsmBehaviourPublishesItsInputsStruct_AndLaysOutItsBlock()
     {
         BehaviorDefinition def = Definition(LoadProductionRegistry(), "HsmVariableShowcase");
 
-        Assert.Null(def.JsonParamsDtoType);          // no emitted struct on the HSM path
-        Assert.NotNull(def.ManagedBlackboardVariables);
+        Assert.True(IsGeneratedBlock(def), "the HSM's layout is {Asset}_Block whose In is its published Inputs struct");
+        Assert.Equal("HsmVariableShowcase_Block", def.BlackboardLayoutType!.Name);
+        Assert.NotNull(def.BlackboardLayoutType.GetField("St"));   // Cursor, Ticks — in the block, not side slots
         Assert.Contains("Threshold", PropertyNames(DtoJsonSchemaExtractor.ExtractParams(def)));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-416</c> — an HSM with State and NO Input (<c>HsmOrthogonalRegions</c>, <c>SharedCursor</c>) still owns a block
+    /// (<c>CE-429</c>'s rule, HSM half): an empty manifest, a parse that allocates and bakes, a root slot as wide as the block,
+    /// and no side slot. 🔴 RED before: no layout type and no parse ⇒ the ingress allocated nothing for it.
+    /// </summary>
+    [Fact]
+    public void AStateOnlyHsm_StillOwnsItsBlock()
+    {
+        BehaviorDefinition def = Definition(LoadProductionRegistry(), "HsmOrthogonalRegions");
+
+        Assert.Equal("HsmOrthogonalRegions_Block", def.BlackboardLayoutType?.Name);
+        Assert.Empty(def.ManagedBlackboardVariables!);
+        Assert.NotNull(def.ParseParams);
+        Assert.True(RootParamsAccess.RootParamsBytes(def) >= System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType!));
+        Assert.DoesNotContain(def.StatefulWorkingSlots ?? Array.Empty<StatefulSlotInfo>(),
+            s => s.Scope == (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
     }
 
     /// <summary>

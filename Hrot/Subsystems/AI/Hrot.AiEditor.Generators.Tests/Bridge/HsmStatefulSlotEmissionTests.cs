@@ -48,60 +48,53 @@ public sealed class HsmStatefulSlotEmissionTests
     }
 
     /// <summary>
-    /// 🔴 <b>RED before <c>E1</c>:</b> the emitted registrar carried no manifest at all, so an authored
-    /// state variable was provisioned nowhere.
+    /// 🔴 <b>RED before <c>E1</c>:</b> the emitted registrar carried no manifest at all, so an authored state variable was
+    /// provisioned nowhere. ⭐⭐ <b><c>CE-416</c> (<c>2026-10-01</c>) — its home moved, the guarantee did not:</b> it now lives in
+    /// the behaviour's BLOCK (<c>{Asset}_Block.St</c>, the BTree's <c>CE-437</c> home), which the registrar names as its layout
+    /// so the shared ingress allocates and bakes it. ⛔ SUPERSEDED: "emits a StatefulWorkingSlots entry".
     /// </summary>
     [Fact]
-    public void AnAuthoredStateVariable_EmitsASlotManifestEntry()
+    public void AnAuthoredStateVariable_ReachesTheRuntime_InTheBlock()
     {
-        var bridge = HsmBridgeEmitCore.EmitBridge(
-            MakeHsmDto(("Cursor", BlackboardVariableRole.State, WorkingStateScope.Behavior)));
+        var dto    = MakeHsmDto(("Cursor", BlackboardVariableRole.State, WorkingStateScope.Behavior));
+        var bridge = HsmBridgeEmitCore.EmitBridge(dto);
+        var structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
 
-        bridge.Should().Contain("StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]",
-            "an HSM asset with an authored Role=State variable must emit the manifest the shared "
-            + "ingress provisions from");
-        bridge.Should().Contain("\"Cursor\"");
+        bridge.Should().Contain("BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.StatefulHsm_Block)",
+            "the block is the layout the shared ingress sizes the root slot from");
+        bridge.Should().Contain("ParseParams  = __parseParams,", "a State-only block must still be allocated (CE-429)");
+        structs.Should().Contain("public struct StatefulHsm_BlockState").And.Contain(" Cursor;");
     }
 
     /// <summary>
-    /// ⭐⭐⭐ <b>The rail that matters: the key is BTREE'S ALGORITHM for the same inputs.</b>
-    ///
-    /// <para>
-    /// ⛔ A second key algorithm is the one thing that fails this item — two tiers would hash the same
-    /// variable to two slots and the shared allocator would hand out two regions for one concept. ⚠ The
-    /// expected value is <b>computed by calling <c>ComputeStatefulSlotKey</c></b>, not pasted as a
-    /// literal: a literal would still pass if BOTH sides changed together, which is exactly the drift
-    /// this guards.
-    /// </para>
+    /// ⭐⭐⭐ <b>One home (<c>CE-437</c>'s rail, HSM half):</b> a variable in <c>St</c> has NO side slot. ⚠ The key is still
+    /// computed by the BTree's algorithm — that is how <c>TryGetBlockStateVariable</c> recognises it — so a second algorithm
+    /// would show up here as a slot that should not exist.
     /// </summary>
-    [Theory]
-    [InlineData(WorkingStateScope.Behavior)]
-    public void TheSlotKeyMatchesTheBTreeAlgorithmForTheSameInputs(WorkingStateScope scope)
+    [Fact]
+    public void ABlockStateVariable_HasNoSideSlot()
     {
-        int expected = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, scope, Guid.Empty, "Cursor");
+        int key = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, WorkingStateScope.Behavior, Guid.Empty, "Cursor");
 
         var bridge = HsmBridgeEmitCore.EmitBridge(
-            MakeHsmDto(("Cursor", BlackboardVariableRole.State, scope)));
+            MakeHsmDto(("Cursor", BlackboardVariableRole.State, WorkingStateScope.Behavior)));
 
-        bridge.Should().Contain($"StatefulSlotInfo({expected},",
-            "the HSM emitter must CALL the BTree key algorithm, not reimplement it");
+        bridge.Should().NotContain($"StatefulSlotInfo({key},");
     }
 
-    /// <summary>⭐ N state variables ⇒ N distinct slots. ⚠ Distinctness matters: a shared key would
-    /// silently alias two variables onto one region.</summary>
+    /// <summary>⭐ N state variables ⇒ N distinct <c>St</c> fields. ⚠ Distinctness matters: a shared field would silently
+    /// alias two variables.</summary>
     [Fact]
-    public void NStateVariables_ProduceNDistinctSlots()
+    public void NStateVariables_ProduceNDistinctBlockFields()
     {
-        var bridge = HsmBridgeEmitCore.EmitBridge(MakeHsmDto(
+        var dto = MakeHsmDto(
             ("Alpha", BlackboardVariableRole.State, WorkingStateScope.Behavior),
-            ("Bravo", BlackboardVariableRole.State, WorkingStateScope.Behavior)));
+            ("Bravo", BlackboardVariableRole.State, WorkingStateScope.Behavior));
 
-        int keyA = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, WorkingStateScope.Behavior, Guid.Empty, "Alpha");
-        int keyB = BTreeBridgeEmitCore.ComputeStatefulSlotKey(AssetId, WorkingStateScope.Behavior, Guid.Empty, "Bravo");
+        var structs = BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), out _);
 
-        keyA.Should().NotBe(keyB);
-        bridge.Should().Contain($"StatefulSlotInfo({keyA},");
-        bridge.Should().Contain($"StatefulSlotInfo({keyB},");
+        structs.Should().Contain(" Alpha;").And.Contain(" Bravo;");
+        HsmBridgeEmitCore.EmitBridge(dto).Should().NotContain("StatefulSlotInfo(");
     }
 
     /// <summary>

@@ -2659,3 +2659,126 @@ its diagrams and the as-built-vs-target table. This section records only what it
 (`R-152`, `R-154`), no carry-over on re-assign (`R-153`), `Node` scope for an action's private working memory
 (§12.25e). ⭐ A blueprint implementing a behaviour is `CE-446` = `O9` / `Q33` and inherits §P.2.
 ⚠ **`CE-443` is BUILT (`2026-09-30`)** — the three `CE-443` rows above are as-built now (`DESIGN_Parameter_Model` §P.8); `CE-444`/`CE-445`/`CE-446` are not started.
+
+### 12.27 ⭐⭐⭐ `CE-416` BUILD DESIGN — **the HSM arm: one block, one params emission, both tiers** *(`2026-10-01`)*
+
+> 🔒 User `2026-09-28`, on `CE-416`: *"unify it as much as possible, no matter the cost."* · `2026-10-01`: ordering approved
+> (`CE-416` HSM arm → `CE-439` → `CE-417`). ⭐ This is `Q75`-`S1` + the HSM half of `CE-425`/`CE-437`/`CE-426`/`CE-427`, which
+> every one of those rows recorded as *"⏭ HSM arm not built"*.
+
+#### 12.27a INVENTORY *(graph: `search_graph name_pattern='.*(ParseParams|BakeDefaults|BlockStruct|BlackboardStruct|StatefulWorkingSlots|EmitsBlock|BlockStateVariables).*' label=Method` — 31 rows, `has_more:false`)*
+
+| concern | BTree (`BTreeBridgeEmitCore` / `BTreeEmitCore`) | HSM (`HsmBridgeEmitCore` / `HsmJsonGenerator`) |
+|---|---|---|
+| `{Asset}_Blackboard` / `_Block` / `_BlockState` structs | ✅ `EmitBlackboardStructSource` → `EmitBlockStructs` | ⛔ none — `EmitBlackboardStructSource` has ONE caller (`BTreeJsonGenerator`) |
+| params parse | ✅ `EmitParseParamsLocal` → `__BakeDefaults` + supply + `__ResolveRoot` (`CE-426`/`427`/`443`) | ⚠ its OWN `EmitParseParamsLocal` — the pre-`CE-427` copy (bake inlined, no `BakeDefaults`, no State half) |
+| State-only block allocation | ✅ `CE-429` bake-only parse | ⛔ none ⇒ `HsmOrthogonalRegions` (0 Inputs) gets no block |
+| `Role=State, Scope=Behavior` | ✅ in the block's `St` (`CE-437`; `TryGetBlockStateVariable` drops the side slot) | ⚠ its OWN `EmitStatefulWorkingSlotsArray` — side slots (`E1`, written when BTree did the same) |
+| `JsonParamsDtoType` / `BlackboardLayoutType` / `BakeDefaults` | ✅ | ⛔ none (`CE-235`'s comment: *"no struct to name"*) |
+| `BlueprintStructureHash` | ✅ Inputs + State | ⚠ Inputs only (`CE-455`) |
+| resolver asset (`CE-428`) | ✅ `BehaviorTreeAssetDto.Resolver` | ⛔ no DTO field — ⏭ out of this slice (needs the editor picker); a curated `[BehaviorResolver]` already overlays any tier |
+
+📐 **Runtime readers of HSM State, measured:** the corpus has exactly two HSM assets with `Role=State` — `HsmOrthogonalRegions`
+(`SharedCursor`) and `HsmVariableShowcase` (`Cursor`, `Ticks`) — and every state that hosts an action runs `CgfHsmNodes.StubIdle`.
+⇒ **nothing reads them**; moving them from side slots into the block changes storage, not behaviour.
+
+#### 12.27b THE CLASSES — *what the picture shows that prose hid: the HSM stops owning a copy and becomes a CALLER*
+
+```mermaid
+classDiagram
+    class BTreeEmitCore {
+        <<exists>>
+        +EmitBlackboardStructSource(dto, sizeResolver)
+        +BlockStateVariables(dto)
+        +BlockStructFqn(dto)
+    }
+    class BTreeBridgeEmitCore {
+        <<exists - gains two internal entry points>>
+        +EmitRootParamsLocals(sb, owner, packed, isManaged, pad) bool
+        +EmitRootParamsMembers(sb, owner, packed, isManaged, hasParse, pad)
+        EmitParseParamsLocal
+        EmitBakeDefaultsFunction
+        EmitStateDefaultBake
+        TryGetBlockStateVariable
+    }
+    class HsmBridgeEmitCore {
+        <<exists - loses its copies>>
+        +BlackboardOwner(HsmAssetDto) BehaviorTreeAssetDto
+        EmitStatefulWorkingSlotsArray
+    }
+    class HsmJsonGenerator {
+        <<exists>>
+    }
+    HsmBridgeEmitCore ..> BTreeBridgeEmitCore : EmitRootParamsLocals / Members
+    HsmBridgeEmitCore ..> BTreeBridgeEmitCore : TryGetBlockStateVariable
+    HsmJsonGenerator ..> BTreeEmitCore : EmitBlackboardStructSource(owner)
+    HsmJsonGenerator ..> HsmBridgeEmitCore : BlackboardOwner(dto)
+```
+
+#### 12.27c THE SEQUENCE — *assign → block, identical for both tiers once emitted*
+
+```mermaid
+sequenceDiagram
+    participant Ingress as BehaviorIngressSystem
+    participant Def as BehaviorDefinition (HSM)
+    participant Block as root slot = {Asset}_Block
+    Ingress->>Def: RootParamsBytes = sizeof(BlackboardLayoutType)
+    Ingress->>Block: allocate (ParseParams != null, incl. State-only)
+    Ingress->>Def: ParseParams(json, shadow)
+    Def->>Block: __BakeDefaults — Input defaults, then St defaults
+    Def->>Block: supply — JSON overlay by variable name onto In
+    Note over Def,Block: (resolver asset: not for HSM yet — 12.27a last row)
+    Ingress->>Block: commit shadow
+```
+
+#### 12.27d THE MODULES — *who registers it and who calls it each frame (unchanged; the new edges are emit-time only)*
+
+```mermaid
+graph TD
+    Gen[HsmJsonGenerator - build time] -->|emits| Reg["{Asset}Registrar + {Asset}.Blackboard.g.cs"]
+    Reg -->|"[BlueprintRegistrar] Register()"| BR[BehaviorRegistry]
+    BR --> BIS["BehaviorIngressSystem - every frame, every host"]
+    BIS --> BTS["BrainTickSystem - every frame"]
+```
+
+*Caption: no new runtime edge — `BehaviorIngressSystem` already allocates and parses kind-agnostically (`RootParamsAccess`), which is why the
+HSM arm is an EMITTER change. ⛔ Nothing here is reached only by the editor or only by a network module.*
+
+#### 12.27e DECISIONS *(decide-and-log; each reversible in one commit)*
+
+**Decision:** extract the BTree's root-params emission (locals + definition members) into two shared entry points and call them from both bridges;
+the HSM passes a **blackboard-owner view** of itself (a `BehaviorTreeAssetDto` carrying only name, asset id, namespace and blackboard —
+`ToPackable` already builds its variables). The HSM's own `EmitParseParamsLocal` is **deleted**; its side-slot pass drops block-resident
+variables via `TryGetBlockStateVariable`; `HsmJsonGenerator` emits `{Asset}.Blackboard.g.cs`. ⚠ BTree output must stay **byte-identical**.
+
+| rejected | the one fact that killed it |
+|---|---|
+| widen every shared emitter to an `IBlackboardOwner` interface | the shared code reads 5 members (name, id, namespace, blackboard, resolver); an interface touches ~20 signatures for the same outcome and moves BTree code the extraction leaves untouched |
+| bring the HSM's copy up to date in place | two copies is the defect (`R-132`, ruling 9) — the HSM copy is ALREADY a stale twin, which is how it missed `CE-427` |
+| keep HSM State in side slots | the BTree moved them in `CE-437`; two tiers, two homes for one concept; and an HSM action gets no typed `St` to read |
+| add the HSM resolver-asset field now | needs a file-format field AND the editor picker (`CE-434`'s surface); ⏭ its own row |
+
+**Design docs checked:** `Q75` §4-A / §5 `S1` — *applies*: this is that slice, and `S0` (`CE-418`, one layout authority) it depended on is built ·
+`Q76` §12.2 / §12.3 — *applies*: the block shape and the bake → supply → resolve order this reuses · `DESIGN_Parameter_Model.md` §P.2 —
+*applies* to the resolver half only, which this slice does not add for HSM · `E1` (in `HsmBridgeEmitCore`) — *superseded*: its side-slot
+choice mirrored the BTree of its day, and the BTree has since moved (`CE-437`).
+
+#### 12.27f ✅ AS BUILT *(`2026-10-01`)*
+
+- ⚠ **Deviation:** the two entry points are `internal` methods ON `BTreeBridgeEmitCore` (`EmitRootParamsLocals` /
+  `EmitRootParamsMembers`), not a new `RootParamsEmit` class — they call that class's private bake / parse / resolve
+  helpers, and a class boundary would have widened four of them to `internal` for no reader. The diagram above shows the
+  as-built; ⛔ SUPERSEDED: "class RootParamsEmit".
+- ⭐ BTree output **byte-identical** (generator suite 305/0, zero golden movement, measured before the HSM was touched).
+- ⭐ HSM golden movement: 4 registrars (shared bake/supply split, `JsonParamsDtoType` + `BlackboardLayoutType = {Asset}_Block`,
+  `BakeDefaults`, layout hash now covers State, `Cursor`/`Ticks`/`SharedCursor` side slots gone) + 3 new `Blackboard.g.cs`
+  (`HsmVariableShowcase`, `HsmOrthogonalRegions`, `HsmPolledGuardDemo`). ⚠ `HsmChannelE2E` has no struct golden because the
+  corpus harness runs without a size resolver (its struct-typed variables are unsizeable there) — the same under-recording its
+  registrar golden already had; production passes the Roslyn resolver and AI.Behaviors compiles it.
+- 🗑 Deleted: `HsmBridgeEmitCore.EmitParseParamsLocal` (the pre-`CE-427` copy).
+- 🧪 Rails: `AGeneratedBehaviourAdvertisesItsManifestTests.AnHsmBehaviourPublishesItsInputsStruct_AndLaysOutItsBlock` ·
+  `AStateOnlyHsm_StillOwnsItsBlock` · the generic `EveryGeneratedBehaviourHasOneBlock…` now covers the HSMs too ·
+  `HsmStatefulSlotEmissionTests` (State reaches the runtime IN THE BLOCK; one home) · `HsmParseParamsEmissionTests` (compiles and
+  runs the shared emission for an HSM) · `HsmGoldenCorpusTests.TheSeededCorpusPutsTheStateBlockInTheBaseline`.
+- ⏭ Not in this slice: the HSM resolver-asset binding (`CE-428`'s shape ③ for HSM — a DTO field + the editor picker).
+
