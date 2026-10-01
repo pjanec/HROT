@@ -454,9 +454,9 @@ public static class BTreeEmitCore
         foreach (var node in dto.Nodes)
         {
             if (node is BTreeActionNodeDto actNode && actNode.Action != null)
-                AddNamespaceFromFqn(set, actNode.Action.MethodFqn);
+                AddNamespaceFromFqn(set, actNode.Action.MethodFqn ?? string.Empty);
             if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
-                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn);
+                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn ?? string.Empty);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -486,9 +486,9 @@ public static class BTreeEmitCore
         foreach (var node in dto.Nodes)
         {
             if (node is BTreeActionNodeDto actNode && actNode.Action != null)
-                AddNamespaceFromFqn(set, actNode.Action.MethodFqn);
+                AddNamespaceFromFqn(set, actNode.Action.MethodFqn ?? string.Empty);
             if (node is BTreeConditionNodeDto condNode && condNode.Condition != null)
-                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn);
+                AddNamespaceFromFqn(set, condNode.Condition.MethodFqn ?? string.Empty);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -866,9 +866,9 @@ public static class BTreeEmitCore
                 $"Action node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn);
+        string methodRef = ShortMethodRef(p.MethodFqn ?? string.Empty);
         string? actionTargetField = p.ExpressionTargetField;
-        if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
             !string.IsNullOrEmpty(actionTargetField))
         {
             // S1-2: when variableOffsets is populated (managed blackboard), use the
@@ -889,8 +889,8 @@ public static class BTreeEmitCore
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
         }
-        else if ((p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
-                  p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
+        else if ((node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful ||
+                  node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore) &&
                  !string.IsNullOrEmpty(actionTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(actionTargetField!, out int statefulParamOffset))
@@ -908,7 +908,7 @@ public static class BTreeEmitCore
             sb.AppendLine($"{pad}{methodPrefix}Action(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
         {
             // Defense-in-depth: an AiPrimitiveTickCore node must ALWAYS resolve to the offset-keyed
             // string-blob form above — its bound method is a blueprint's generated TickCore
@@ -951,9 +951,9 @@ public static class BTreeEmitCore
                 $"Condition node {node.VisualId:D} is unbound (no method) — bind a method in the editor.");
         }
 
-        string methodRef = ShortMethodRef(p.MethodFqn);
+        string methodRef = ShortMethodRef(p.MethodFqn ?? string.Empty);
         string? condTargetField = p.ExpressionTargetField;
-        if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
+        if (node.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable &&
             !string.IsNullOrEmpty(condTargetField))
         {
             // S1-2: same offset-key logic as EmitAction.
@@ -971,7 +971,7 @@ public static class BTreeEmitCore
                 sb.AppendLine($"{pad}{Indent}{visualId}){term}");
             }
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
+        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore &&
                  !string.IsNullOrEmpty(condTargetField) &&
                  variableOffsets != null && variableOffsets.Count > 0 &&
                  variableOffsets.TryGetValue(condTargetField!, out int statefulParamOffset))
@@ -990,7 +990,7 @@ public static class BTreeEmitCore
             sb.AppendLine($"{pad}{methodPrefix}Condition(\"{blobKey}\",");
             sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
-        else if (p.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
+        else if (node.DelegateShape == BTreeDelegateShapeDto.AiPrimitiveTickCore)
         {
             // Defense-in-depth: mirrors EmitAction's AiPrimitiveTickCore guard. An AiPrimitiveTickCore
             // condition node must ALWAYS resolve to the offset-keyed string-blob form above — its bound

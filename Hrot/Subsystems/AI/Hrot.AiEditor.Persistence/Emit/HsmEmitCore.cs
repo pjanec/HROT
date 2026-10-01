@@ -198,20 +198,20 @@ public static class HsmEmitCore
         // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
         foreach (var s in dto.States)
         {
-            AddNsFromFqn(set, s.OnEntryAction);
-            AddNsFromFqn(set, s.OnExitAction);
-            AddNsFromFqn(set, s.ActivityAction);
-            AddNsFromFqn(set, s.TimerAction);
+            AddNsFromFqn(set, s.OnEntry?.MethodFqn);
+            AddNsFromFqn(set, s.OnExit?.MethodFqn);
+            AddNsFromFqn(set, s.Activity?.MethodFqn);
+            AddNsFromFqn(set, s.Timer?.MethodFqn);
         }
         foreach (var t in dto.Transitions)
         {
-            AddNsFromFqn(set, t.GuardFunction);
-            AddNsFromFqn(set, t.ActionFunction);
+            AddNsFromFqn(set, t.Guard?.MethodFqn);
+            AddNsFromFqn(set, t.Action?.MethodFqn);
         }
         foreach (var gt in dto.GlobalTransitions)
         {
-            AddNsFromFqn(set, gt.GuardFunction);
-            AddNsFromFqn(set, gt.ActionFunction);
+            AddNsFromFqn(set, gt.Guard?.MethodFqn);
+            AddNsFromFqn(set, gt.Action?.MethodFqn);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -238,20 +238,20 @@ public static class HsmEmitCore
         // Collect namespaces from action/guard FQNs in states, transitions, global transitions.
         foreach (var s in dto.States)
         {
-            AddNsFromFqn(set, s.OnEntryAction);
-            AddNsFromFqn(set, s.OnExitAction);
-            AddNsFromFqn(set, s.ActivityAction);
-            AddNsFromFqn(set, s.TimerAction);
+            AddNsFromFqn(set, s.OnEntry?.MethodFqn);
+            AddNsFromFqn(set, s.OnExit?.MethodFqn);
+            AddNsFromFqn(set, s.Activity?.MethodFqn);
+            AddNsFromFqn(set, s.Timer?.MethodFqn);
         }
         foreach (var t in dto.Transitions)
         {
-            AddNsFromFqn(set, t.GuardFunction);
-            AddNsFromFqn(set, t.ActionFunction);
+            AddNsFromFqn(set, t.Guard?.MethodFqn);
+            AddNsFromFqn(set, t.Action?.MethodFqn);
         }
         foreach (var gt in dto.GlobalTransitions)
         {
-            AddNsFromFqn(set, gt.GuardFunction);
-            AddNsFromFqn(set, gt.ActionFunction);
+            AddNsFromFqn(set, gt.Guard?.MethodFqn);
+            AddNsFromFqn(set, gt.Action?.MethodFqn);
         }
 
         return AiEmitCoreBase.SortUsings(set);
@@ -593,12 +593,14 @@ public static class HsmEmitCore
         string chain =
             $".GoTo({QuoteStr(targetName)}, visualId: new Guid({QuoteStr(t.VisualId.ToString("D"))}))";
 
-        if (!string.IsNullOrEmpty(t.GuardFunction))
-            chain += $".Guard({QuoteStr(t.GuardFunction!)})";
+        string? guardFn = t.Guard?.MethodFqn, actionFn = t.Action?.MethodFqn;   // CE-417
+        Guid guardBp = t.Guard?.BlueprintAssetId ?? Guid.Empty;
+        if (!string.IsNullOrEmpty(guardFn))
+            chain += $".Guard({QuoteStr(guardFn!)})";
         // ⭐⭐⭐ CE-384 — a BLUEPRINT guard, same reasoning as the activity above.
-        if (t.GuardBlueprintAssetId != Guid.Empty && bpId != null)
+        if (guardBp != Guid.Empty && bpId != null)
         {
-            ushort? gid = bpId(t.GuardBlueprintAssetId);
+            ushort? gid = bpId(guardBp);
             if (gid.HasValue) chain += $".GuardId({gid.Value})";
         }
         // ⭐⭐ CE-381 — the POLLED marker. ⛔ Deliberately NOT expressed by omitting the event: an
@@ -606,8 +608,8 @@ public static class HsmEmitCore
         //   polled transition onto ReservedEventIds.Polled so the two stay disjoint.
         if (t.IsPolled)
             chain += ".Polled()";
-        if (!string.IsNullOrEmpty(t.ActionFunction))
-            chain += $".Action({QuoteStr(EffectiveActionName(t.ActionFunction!, t.ExpressionTargetField, paramOffsets))})";
+        if (!string.IsNullOrEmpty(actionFn))
+            chain += $".Action({QuoteStr(EffectiveActionName(actionFn!, t.Action!.ExpressionTargetField, paramOffsets))})";
         if (t.Priority != 0)
             chain += $".Priority({t.Priority})";
 
@@ -784,9 +786,13 @@ public static class HsmEmitCore
         if (s.IsDeepHistory) parts.Add(".DeepHistory()");
         if (s.IsParallel)    parts.Add(".Parallel()");
         if (s.IsFinal)       parts.Add(".Final()");
-        if (s.OnEntryAction  != null) parts.Add($".OnEntry({QuoteStr(s.OnEntryAction)})");
-        if (s.OnExitAction   != null) parts.Add($".OnExit({QuoteStr(s.OnExitAction)})");
-        if (s.ActivityAction != null) parts.Add($".Activity({QuoteStr(s.ActivityAction)})");
+        // ⭐ CE-417: the four slots are BehaviorActionBindingDto now; read once, emit exactly as before.
+        string? onEntry = s.OnEntry?.MethodFqn, onExit = s.OnExit?.MethodFqn;
+        string? activity = s.Activity?.MethodFqn, timer = s.Timer?.MethodFqn;
+        Guid activityBp = s.Activity?.BlueprintAssetId ?? Guid.Empty;
+        if (onEntry  != null) parts.Add($".OnEntry({QuoteStr(onEntry)})");
+        if (onExit   != null) parts.Add($".OnExit({QuoteStr(onExit)})");
+        if (activity != null) parts.Add($".Activity({QuoteStr(activity)})");
         // ⭐⭐⭐ CE-384 — a BLUEPRINT activity is addressed by ASSET ID and baked as an EXPLICIT id.
         //   ⛔ There is no name to emit: the thunk registers under BlueprintId = FNV-1a32(assetId),
         //   which no authorable string hashes to (§3.2), and the generated class name embeds that
@@ -794,9 +800,9 @@ public static class HsmEmitCore
         //   ⚠ Emitted ONLY when the resolver finds it. An unresolved reference falls through with
         //   NO .ActivityId(...) — the state simply has no activity, which is the same failure mode
         //   as a dangling subtree name and is caught by the validator, not papered over with a 0.
-        if (s.ActivityBlueprintAssetId != Guid.Empty && bpId != null)
+        if (activityBp != Guid.Empty && bpId != null)
         {
-            ushort? id = bpId(s.ActivityBlueprintAssetId);
+            ushort? id = bpId(activityBp);
             if (id.HasValue)
             {
                 parts.Add($".ActivityId({id.Value})");
@@ -822,9 +828,9 @@ public static class HsmEmitCore
                 //    the SAME linked HsmActionKey (Q74 D-F) on the SAME string — the generated
                 //    class name. If they ever diverge the state binds an action nothing registered,
                 //    and the only symptom is a channel that is never released.
-                if (s.OnExitAction == null && bpClassName != null)
+                if (onExit == null && bpClassName != null)
                 {
-                    string? className = bpClassName(s.ActivityBlueprintAssetId);
+                    string? className = bpClassName(activityBp);
                     if (className != null)
                         parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(className)})");
                 }
@@ -843,14 +849,14 @@ public static class HsmEmitCore
         //    an id nothing registered and bind a non-existent action, silently.
         //
         // ⭐ Same fill-an-empty-slot guard as the blueprint arm, for the same reason.
-        if (s.ActivityAction != null && s.OnExitAction == null && csharpWritesChannel != null
-            && csharpWritesChannel(s.ActivityAction))
+        if (activity != null && onExit == null && csharpWritesChannel != null
+            && csharpWritesChannel(activity))
         {
-            int dot = s.ActivityAction.LastIndexOf('.');
-            string shortName = dot >= 0 ? s.ActivityAction.Substring(dot + 1) : s.ActivityAction;
+            int dot = activity.LastIndexOf('.');
+            string shortName = dot >= 0 ? activity.Substring(dot + 1) : activity;
             parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(shortName)})");
         }
-        if (s.TimerAction    != null) parts.Add($".TimerAction({QuoteStr(s.TimerAction)})");
+        if (timer    != null) parts.Add($".TimerAction({QuoteStr(timer)})");
         // Deferred events in ascending ID order (matching HsmFluentEmitter: OrderBy(id => id))
         var deferredIds = s.DeferredEventNames
             .Where(name => eventIdMap.ContainsKey(name))
@@ -877,19 +883,19 @@ public static class HsmEmitCore
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var s in dto.States)
         {
-            if (s.OnEntryAction  != null) set.Add(s.OnEntryAction);
-            if (s.OnExitAction   != null) set.Add(s.OnExitAction);
-            if (s.ActivityAction != null) set.Add(s.ActivityAction);
-            if (s.TimerAction    != null) set.Add(s.TimerAction);
+            if (s.OnEntry?.MethodFqn  is string a) set.Add(a);
+            if (s.OnExit?.MethodFqn   is string b) set.Add(b);
+            if (s.Activity?.MethodFqn is string c) set.Add(c);
+            if (s.Timer?.MethodFqn    is string d) set.Add(d);
         }
         // ⭐⭐ E7b — the SAME resolution the transition itself emits. ⛔ If these two disagreed the
         //    builder would register one name and the transition would address another, which is
         //    exactly the silent TryGetValue miss E6 was.
         foreach (var t in dto.Transitions)
-            if (t.ActionFunction != null)
-                set.Add(EffectiveActionName(t.ActionFunction, t.ExpressionTargetField, paramOffsets));
+            if (t.Action?.MethodFqn is string fn)
+                set.Add(EffectiveActionName(fn, t.Action.ExpressionTargetField, paramOffsets));
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.ActionFunction != null) set.Add(gt.ActionFunction);
+            if (gt.Action?.MethodFqn is string gfn) set.Add(gfn);
         return new List<string>(set);
     }
 
@@ -953,9 +959,9 @@ public static class HsmEmitCore
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var t in dto.Transitions)
-            if (t.GuardFunction != null) set.Add(t.GuardFunction);
+            if (t.Guard?.MethodFqn is string g) set.Add(g);
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.GuardFunction != null) set.Add(gt.GuardFunction);
+            if (gt.Guard?.MethodFqn is string gg) set.Add(gg);
         return new List<string>(set);
     }
 }

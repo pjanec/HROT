@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000009-0000-0000-0000-000000000000",
 	"Name": "T09_BlackboardManaged",
@@ -42,6 +42,9 @@
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
 			"VisualId": "b9030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(1s)",
@@ -51,13 +54,13 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 1.0
 			}
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 2
+			},
 			"VisualId": "b9040000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(2s)",
@@ -67,9 +70,6 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 2.0
 			}
 		}
 	],
@@ -91,31 +91,39 @@
 		"Variables": [
 			{
 				"Name": "AttackRange",
-				"Type": { "TypeId": "float", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Max distance to engage the target",
-				"IsAutoManaged": false
+				"Type": {
+					"TypeId": "float",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"Comment": "Max distance to engage the target"
 			},
 			{
 				"Name": "HomePosition",
-				"Type": { "TypeId": "Vector3", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Patrol anchor the agent returns to",
-				"IsAutoManaged": false
+				"Type": {
+					"TypeId": "Vector3",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"Comment": "Patrol anchor the agent returns to"
 			},
 			{
 				"Name": "PatrolLoops",
-				"Type": { "TypeId": "int", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Number of patrol cycles before idling",
-				"IsAutoManaged": false
+				"Type": {
+					"TypeId": "int",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"Comment": "Number of patrol cycles before idling"
 			},
 			{
 				"Name": "IsAlerted",
-				"Type": { "TypeId": "bool", "IsArray": false, "FixedLength": null },
-				"DefaultValueJson": null,
-				"Comment": "Set true when an enemy is spotted",
-				"IsAutoManaged": false
+				"Type": {
+					"TypeId": "bool",
+					"IsArray": false,
+					"FixedLength": null
+				},
+				"Comment": "Set true when an enemy is spotted"
 			}
 		]
 	}

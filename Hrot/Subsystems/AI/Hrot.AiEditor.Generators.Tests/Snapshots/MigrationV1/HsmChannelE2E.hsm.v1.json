@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Hsm",
-    "schemaVersion": 2
+    "schemaVersion": 1
   },
   "AssetId": "00000161-0000-0000-0000-000000000001",
   "Name": "HsmChannelE2E",
@@ -21,6 +21,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 0,
@@ -41,11 +45,12 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "Activity": {
-        "BlueprintAssetId": "00000160-0000-0000-0000-000000000001",
-        "BlueprintName": "HsmDriveActivity",
-        "ExpressionTargetField": "bpActivityParams"
-      },
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "ActivityBlueprintAssetId": "00000160-0000-0000-0000-000000000001",
+      "ActivityBlueprintName": "HsmDriveActivity",
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -54,7 +59,8 @@
       "SizeOverrideY": null,
       "Comment": "Activity is a BLUEPRINT commanding the locomotion channel. ExpressionTargetField=Open: the hosted blueprint's params are seeded as a contiguous window from that variable's offset, and the GUARD on this state's outgoing transition SHARES that window — so the blueprint's parameter list mirrors the blackboard from Open onward (Open, DestX, DestY). OnExitAction stays null: the channel cleanup is auto-bound (Q74 D-B1).",
       "IsCollapsed": false,
-      "ColorOverride": null
+      "ColorOverride": null,
+      "ExpressionTargetField": "bpActivityParams"
     },
     {
       "StableId": "61000000-0000-0000-0000-00000000000b",
@@ -66,11 +72,12 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "Activity": {
-        "BlueprintAssetId": "00000160-0000-0000-0000-000000000002",
-        "BlueprintName": "HsmFireActivity",
-        "ExpressionTargetField": "bpActivityParams_2"
-      },
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "ActivityBlueprintAssetId": "00000160-0000-0000-0000-000000000002",
+      "ActivityBlueprintName": "HsmFireActivity",
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 450,
@@ -79,7 +86,8 @@
       "SizeOverrideY": null,
       "Comment": "A DIFFERENT channel from Driving, so the hand-off is observable on two components rather than one. CE-414: bpActivityParams_2 IS HsmFireActivity's generated Params struct.",
       "IsCollapsed": false,
-      "ColorOverride": null
+      "ColorOverride": null,
+      "ExpressionTargetField": "bpActivityParams_2"
     }
   ],
   "Regions": [],
@@ -89,15 +97,15 @@
       "SourceStableId": "61000000-0000-0000-0000-00000000000a",
       "TargetStableId": "61000000-0000-0000-0000-00000000000b",
       "EventName": null,
-      "Guard": {
-        "BlueprintAssetId": "00000150-0000-0000-0000-000000000001",
-        "BlueprintName": "HsmGuardDemo",
-        "ExpressionTargetField": "bpGuardParams"
-      },
+      "GuardFunction": null,
+      "GuardBlueprintAssetId": "00000150-0000-0000-0000-000000000001",
+      "GuardBlueprintName": "HsmGuardDemo",
+      "ExpressionTargetField": "bpGuardParams",
+      "IsPolled": true,
+      "ActionFunction": null,
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
-      "IsPolled": true,
       "Waypoints": [],
       "Comment": "POLLED and guarded by the HsmGuardDemo BLUEPRINT (CE-397). The guard reads 'Open' from the SOURCE STATE's param window — a transition cannot seed its own, because EmitStateParamBindings only reads ExpressionTargetField from states."
     }
@@ -116,7 +124,6 @@
   "Blackboard": {
     "Managed": true,
     "TypeName": "HsmChannelE2E_Blackboard",
-    "HeavyDtoType": null,
     "Variables": [
       {
         "Name": "bpActivityParams",

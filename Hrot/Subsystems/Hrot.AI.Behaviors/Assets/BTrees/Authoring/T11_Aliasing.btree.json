@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000011-0000-0000-0000-000000000000",
 	"Name": "T11_Aliasing",
@@ -42,6 +42,11 @@
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+				"ExpressionTargetField": "counter"
+			},
+			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "bb030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Action_IncrementCounter (node A)",
@@ -51,15 +56,15 @@
 				"Comment": "First IncrementCounter — shares 'counter' variable with node B",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
-				"ExpressionTargetField": "counter",
-				"DelegateShape": "ThreeParamReusable"
 			}
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
+				"ExpressionTargetField": "counter"
+			},
+			"DelegateShape": "ThreeParamReusable",
 			"VisualId": "bb040000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Action_IncrementCounter (node B)",
@@ -69,11 +74,6 @@
 				"Comment": "Second IncrementCounter — aliases the same 'counter' variable as node A",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
-				"ExpressionTargetField": "counter",
-				"DelegateShape": "ThreeParamReusable"
 			}
 		}
 	],
@@ -95,10 +95,13 @@
 		"Variables": [
 			{
 				"Name": "counter",
-				"Type": { "TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams", "IsArray": false, "FixedLength": null },
+				"Type": {
+					"TypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCounterParams",
+					"IsArray": false,
+					"FixedLength": null
+				},
 				"DefaultValueJson": "{\"Counter\":0,\"Threshold\":10}",
-				"Comment": "Shared counter DTO — both nodes alias the same bytes at offset 0",
-				"IsAutoManaged": false
+				"Comment": "Shared counter DTO — both nodes alias the same bytes at offset 0"
 			}
 		]
 	}

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
 using Xunit;
@@ -89,11 +90,11 @@ public sealed class BTreeEmitCoreValidationTests
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = "", // empty string — effectively unbound
-                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -216,11 +217,11 @@ public sealed class BTreeEmitCoreValidationTests
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = "Test.Ns.Methods.MyAction",
-                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -409,11 +410,11 @@ public sealed class BTreeEmitCoreValidationTests
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = "Test.Ns.Methods.MyAction",
-                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                 },
             },
             Pills = new List<BTreePillDto>(),

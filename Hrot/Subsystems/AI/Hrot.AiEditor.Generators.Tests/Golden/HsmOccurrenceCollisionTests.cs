@@ -136,9 +136,9 @@ public sealed class HsmOccurrenceCollisionTests
 
         Assert.Contains(dto.States, s => s.IsParallel);
         // Two children in DIFFERENT regions, both running the same action.
-        var workers = dto.States.Where(s => s.OnEntryAction != null).ToList();
+        var workers = dto.States.Where(s => s.OnEntry?.MethodFqn != null).ToList();
         Assert.True(workers.Count >= 2);
-        Assert.Single(workers.Select(w => w.OnEntryAction).Distinct());
+        Assert.Single(workers.Select(w => w.OnEntry!.MethodFqn).Distinct());
         Assert.Equal(2, workers.Select(w => w.RegionIndex).Distinct().Count());
     }
 

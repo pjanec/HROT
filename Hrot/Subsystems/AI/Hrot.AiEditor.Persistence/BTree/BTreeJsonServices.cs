@@ -22,7 +22,9 @@ public static class BTreeJsonServices
     /// <summary>Document type identifier for *.btree.json files.</summary>
     public const string DocType = "Hrot.BTree";
     /// <summary>Schema version for this batch (Phase 1).</summary>
-    public const int SchemaVersion = 1;
+    /// <para>⭐ <c>CE-417</c>: 2 — every action / condition / activity / guard is one <c>BehaviorActionBindingDto</c>;
+    /// a v1 document is upgraded on read by <see cref="ActionBindingMigrator"/>.</para>
+    public const int SchemaVersion = ActionBindingMigrator.CurrentSchemaVersion;
 
     private static readonly JsonSerializerOptions _options;
 
@@ -61,7 +63,15 @@ public static class BTreeJsonServices
     /// Mirrors BlueprintJsonServices.Deserialize.
     /// </summary>
     public static BehaviorTreeAssetDto? Deserialize(string json)
-        => JsonSerializer.Deserialize<BehaviorTreeAssetDto>(json, _options);
+    {
+        // ⭐ CE-417: the ONE read chokepoint — a schemaVersion-1 document is upgraded here (ActionBindingMigrator), so
+        //   neither the editor nor a generator ever binds a v1 shape.
+        var node = JsonNode.Parse(json, new JsonNodeOptions { PropertyNameCaseInsensitive = true },
+                                  new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+        if (node is not JsonObject root) return node == null ? null : node.Deserialize<BehaviorTreeAssetDto>(_options);
+        ActionBindingMigrator.UpgradeBTree(root);
+        return root.Deserialize<BehaviorTreeAssetDto>(_options);
+    }
 
     /// <summary>
     /// Header-lazy discovery: reads only AssetId+Name from a *.btree.json file

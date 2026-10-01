@@ -130,7 +130,7 @@ internal static class BTreeMethodCompatibilityValidator
                 if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
                 {
                     string? reason = CheckPayload(
-                        p.MethodFqn, p.DelegateShape,
+                        p.MethodFqn!, actNode.DelegateShape,
                         p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,
@@ -145,7 +145,7 @@ internal static class BTreeMethodCompatibilityValidator
                 if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
                 {
                     string? reason = CheckPayload(
-                        p.MethodFqn, p.DelegateShape,
+                        p.MethodFqn!, condNode.DelegateShape,
                         p.ExpressionTargetField, dto.Blackboard,
                         compilation, bbSymbol, ctxSymbol,
                         behaviorTreeStateSymbol, nodeStatusSymbol,

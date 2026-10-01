@@ -100,14 +100,14 @@ public sealed class S3_SharedSlotProvisioningTests : IDisposable
     {
         VisualId = visualId,
         DisplayLabel = label,
-        Action = new BTreeActionPayloadDto
+        Action = new BehaviorActionBindingDto
         {
             MethodFqn = MethodFqn,
             ExpressionTargetField = paramField,       // param projection (DemoCursorParams)
             WorkingStateTargetField = stateField,     // working-state variable — drives scope/key
-            DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = WorkingStateTypeId,
         },
+        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
     };
 
     /// <summary>Builds a Root → Sequence → (one Action per binding) asset with the given blackboard variables.</summary>

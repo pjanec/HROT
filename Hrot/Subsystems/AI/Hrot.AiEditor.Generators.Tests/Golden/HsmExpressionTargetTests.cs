@@ -52,8 +52,8 @@ public sealed class HsmExpressionTargetTests
     private static HsmAssetDto MakeBoundAsset(string? targetField)
     {
         var dto = HsmJsonServices.Deserialize(AiAssetCorpus.ReadAsset(AiAssetKind.Hsm, "HsmVariableShowcase"))!;
-        var bound = dto.Transitions.Single(t => t.ActionFunction == BoundActionFqn);
-        bound.ExpressionTargetField = targetField;
+        var bound = dto.Transitions.Single(t => t.Action?.MethodFqn == BoundActionFqn);
+        bound.Action!.ExpressionTargetField = targetField;   // CE-417: the ACTION binding's own field
         return dto;
     }
 
@@ -105,8 +105,8 @@ public sealed class HsmExpressionTargetTests
     {
         var dto = MakeBoundAsset("Threshold");
         // "Cursor" is Role=State: it lives in the partition tier, so it is not an inline param.
-        var dto2 = dto; dto2.Transitions.Single(t => t.ActionFunction == BoundActionFqn)
-            .ExpressionTargetField = "Cursor";
+        var dto2 = dto; dto2.Transitions.Single(t => t.Action?.MethodFqn == BoundActionFqn)
+            .Action!.ExpressionTargetField = "Cursor";
 
         string core = HsmEmitCore.EmitTopologyCore(dto);
 

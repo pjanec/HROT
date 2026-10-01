@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000007-0000-0000-0000-000000000000",
 	"Name": "T06_ObserverSelector",
@@ -42,6 +42,10 @@
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"
+			},
+			"DelegateShape": "FourParamFull",
 			"VisualId": "b7030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wander",
@@ -51,15 +55,13 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
-				"ExpressionTargetField": null,
-				"DelegateShape": "FourParamFull"
 			}
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
 			"VisualId": "b7040000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(1s)",
@@ -69,9 +71,6 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 1.0
 			}
 		}
 	],

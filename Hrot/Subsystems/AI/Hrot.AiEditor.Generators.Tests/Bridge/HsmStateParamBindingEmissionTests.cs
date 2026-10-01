@@ -48,12 +48,12 @@ public sealed class HsmStateParamBindingEmissionTests
         dto.States.Add(new StateNodeDto
         {
             StableId = StateOne, Name = "One",
-            OnEntryAction = "Demo.Actions.Work", ExpressionTargetField = bindOne,
+            OnEntry = new BehaviorActionBindingDto { MethodFqn = "Demo.Actions.Work", ExpressionTargetField = bindOne },
         });
         dto.States.Add(new StateNodeDto
         {
             StableId = StateTwo, Name = "Two",
-            OnEntryAction = "Demo.Actions.Work", ExpressionTargetField = bindTwo,
+            OnEntry = new BehaviorActionBindingDto { MethodFqn = "Demo.Actions.Work", ExpressionTargetField = bindTwo },
         });
         return dto;
     }
@@ -133,10 +133,14 @@ public sealed class HsmStateParamBindingEmissionTests
             SourceStableId        = StateOne,
             TargetStableId        = StateTwo,
             IsPolled              = true,
-            GuardBlueprintAssetId = guardAssetId,
-            GuardBlueprintName    = guardAssetId == Guid.Empty ? null : "GuardBp",
-            GuardFunction         = guardMethod,
-            ExpressionTargetField = targetField,
+            // CE-417: one guard binding carries the method/blueprint AND its own field.
+            Guard                 = guardAssetId == Guid.Empty && guardMethod == null ? null : new BehaviorActionBindingDto
+            {
+                BlueprintAssetId      = guardAssetId,
+                BlueprintName         = guardAssetId == Guid.Empty ? null : "GuardBp",
+                MethodFqn             = guardMethod,
+                ExpressionTargetField = targetField,
+            },
         });
         return dto;
     }

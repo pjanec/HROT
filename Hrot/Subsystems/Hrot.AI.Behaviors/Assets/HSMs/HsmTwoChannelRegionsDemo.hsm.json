@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Hsm",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "AssetId": "00000152-0000-0000-0000-000000000001",
   "Name": "HsmTwoChannelRegionsDemo",
@@ -20,10 +20,6 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": null,
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 0,
@@ -47,10 +43,6 @@
       "IsDeepHistory": false,
       "IsParallel": true,
       "IsFinal": false,
-      "OnEntryAction": null,
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -71,10 +63,12 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
-      "OnExitAction": null,
-      "ActivityAction": "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel",
-      "TimerAction": null,
+      "OnEntry": {
+        "MethodFqn": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle"
+      },
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_DriveChannel"
+      },
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 200,
@@ -95,10 +89,12 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
-      "OnExitAction": null,
-      "ActivityAction": "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel",
-      "TimerAction": null,
+      "OnEntry": {
+        "MethodFqn": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle"
+      },
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmChannelRegionNodes.Activity_FireChannel"
+      },
       "RegionIndex": 1,
       "DeferredEventNames": [],
       "X": 200,

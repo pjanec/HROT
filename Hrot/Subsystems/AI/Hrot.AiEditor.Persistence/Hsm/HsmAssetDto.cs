@@ -50,36 +50,17 @@ public sealed class StateNodeDto
     public bool IsParallel { get; set; }
     public bool IsFinal { get; set; }
 
-    // Actions (nullable strings matching editor model)
-    public string? OnEntryAction { get; set; }
-    public string? OnExitAction { get; set; }
-    public string? ActivityAction { get; set; }
-    public string? TimerAction { get; set; }
-
-    /// <summary>
-    /// ⭐⭐⭐ <c>E3b-0</c> — <b>the blackboard variable THIS STATE's actions are bound to.</b>
-    /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
-    ///
-    /// <para>🔴 <b>Why it had to exist.</b> A site reaches a variable through
-    /// <c>ExpressionTargetField</c> — BTree action/condition nodes have one, and so do
-    /// <see cref="TransitionNodeDto"/> and <see cref="GlobalTransitionNodeDto"/>. ⛔ <b>A STATE did
-    /// not</b>, so two parallel regions hosting one asset had nothing to bind them to different
-    /// variables and both fell back to the first packed variable — <c>E3a</c>'s offset-<c>0</c> seed.
-    /// ⇒ <c>CE-298</c>'s motivating case stayed open even after the params moved into the slot.</para>
-    ///
-    /// <para>⭐ <b>ONE field for all four action slots, and that is not a shortcut.</b> The occurrence
-    /// key is <c>(region, state, childAsset)</c> ⇒ every action slot of one state hosting one blueprint
-    /// resolves to the SAME occurrence and therefore the same params region. ⛔ Four fields would offer
-    /// a distinction the storage model cannot express.</para>
-    ///
-    /// <para>⚠ <b>It names a variable in the HSM's OWN blackboard</b> — ⛔ nothing here learns about
-    /// blueprint catalogs (the user's ruling, <c>2026-09-21</c>).</para>
-    ///
-    /// <para>⛔ <c>null</c> ⇒ the state is unbound and its occurrences seed from offset <c>0</c>,
-    /// exactly as before <c>E3b-0</c>. ⭐ That is the compatible default, not a sentinel.</para>
-    /// </summary>
+    // ⭐⭐⭐ CE-417 — the four action slots, each ONE BehaviorActionBindingDto (design §3). Each carries its OWN
+    //   ExpressionTargetField (B-2); the state-wide ExpressionTargetField and the ActivityBlueprintAssetId/Name pair
+    //   are folded into these by the v1→v2 migrator (ActionBindingMigrator). Only Activity may name a blueprint.
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpressionTargetField { get; set; }
+    public BehaviorActionBindingDto? OnEntry { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? OnExit { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Activity { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Timer { get; set; }
 
     // Region membership
     public int RegionIndex { get; set; }
@@ -118,29 +99,6 @@ public sealed class StateNodeDto
     /// <remarks>⭐ Omitted from JSON when null, so every existing asset stays byte-identical.</remarks>
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public string? SubtreeParamsVariable { get; set; }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-384</c> — this state's ACTIVITY is a BLUEPRINT, addressed by asset id.</b>
-    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §7.
-    ///
-    /// <para>🔴 <b>Why a Guid and not a name.</b> A named action resolves through
-    /// <c>FNV1a16(FQN)</c>; a blueprint-hosted thunk registers under its <c>BlueprintId</c>, which is
-    /// FNV-1a32 of THIS Guid. ⛔ No authorable string bridges the two id spaces, and the generated
-    /// class name embeds the hash — so the ASSET ID is the only stable, authorable handle.</para>
-    ///
-    /// <para>⛔⛔ A state may set this OR <see cref="ActivityAction"/>, never both — a validator
-    /// rule, not a precedence rule.</para>
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Guid ActivityBlueprintAssetId { get; set; }
-
-    /// <summary>
-    /// ⭐⭐ <c>Q36-B</c> = <b>A</b> — the blueprint's NAME beside its Guid, so a rename HEALS instead
-    /// of dangling. Mirrors the shipped <c>{SubtreeAssetId, SubtreeName}</c> pair.
-    /// ⚠ Display/heal only: the Guid is what resolves.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public string? ActivityBlueprintName { get; set; }
 
     // Deferred events (by name; emit core resolves to IDs using DTO event order)
     public List<string> DeferredEventNames { get; set; } = new();
@@ -201,28 +159,15 @@ public sealed class TransitionNodeDto
     // Event (by name — EventId is runtime-only)
     public string? EventName { get; set; }
 
-    public string? GuardFunction { get; set; }
-    public string? ActionFunction { get; set; }
+    // ⭐⭐⭐ CE-417 — Guard and Action are each ONE BehaviorActionBindingDto with its OWN ExpressionTargetField (B-2:
+    //   one transition-wide field used to serve both — F2). Only Guard may name a blueprint (CE-384).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpressionTargetField { get; set; }
+    public BehaviorActionBindingDto? Guard { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Action { get; set; }
     public byte Priority { get; set; }
     public TransitionKindDto Kind { get; set; }
     public ushort SyncGroupId { get; set; }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-384</c> — this transition's GUARD is a BLUEPRINT, addressed by asset id.</b>
-    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §7. Same reasoning as
-    /// <c>StateNodeDto.ActivityBlueprintAssetId</c>: the thunk registers under its
-    /// <c>BlueprintId</c> = FNV-1a32 of this Guid, and no authorable string reaches that id space.
-    /// ⛔⛔ A transition may set this OR <see cref="GuardFunction"/>, never both.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public Guid GuardBlueprintAssetId { get; set; }
-
-    /// <summary>⭐ <c>Q36-B</c> = <b>A</b> — the blueprint's NAME beside its Guid, so a rename heals.
-    /// ⚠ Display/heal only; the Guid resolves.</summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public string? GuardBlueprintName { get; set; }
 
     /// <summary>
     /// ⭐⭐ <b><c>CE-381</c> — evaluate this transition's guard EVERY quiescent tick, with no event.</b>
@@ -246,10 +191,12 @@ public sealed class GlobalTransitionNodeDto
     public Guid VisualId { get; set; }
     public Guid TargetStableId { get; set; }
     public string? EventName { get; set; }
-    public string? GuardFunction { get; set; }
-    public string? ActionFunction { get; set; }
+    // ⭐⭐⭐ CE-417 — Guard and Action are each ONE BehaviorActionBindingDto with its OWN ExpressionTargetField (B-2:
+    //   one transition-wide field used to serve both — F2). Only Guard may name a blueprint (CE-384).
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? ExpressionTargetField { get; set; }
+    public BehaviorActionBindingDto? Guard { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public BehaviorActionBindingDto? Action { get; set; }
     public byte Priority { get; set; }
     public string? Comment { get; set; }
 }

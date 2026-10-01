@@ -130,14 +130,14 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
     {
         VisualId = visualId,
         DisplayLabel = label,
-        Action = new BTreeActionPayloadDto
+        Action = new BehaviorActionBindingDto
         {
             MethodFqn = methodFqn,
             ExpressionTargetField = ParamVarName,
             WorkingStateTargetField = StateVarName,
-            DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = StateTypeId,
         },
+        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
     };
 
     // ── Generator + Roslyn pipeline (mirrors S3_BehaviorScopedThunkTests) ──

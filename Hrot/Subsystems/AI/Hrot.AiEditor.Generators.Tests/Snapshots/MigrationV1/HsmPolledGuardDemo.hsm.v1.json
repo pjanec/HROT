@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Hsm",
-    "schemaVersion": 2
+    "schemaVersion": 1
   },
   "AssetId": "00000151-0000-0000-0000-000000000001",
   "Name": "HsmPolledGuardDemo",
@@ -21,6 +21,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 0,
@@ -41,9 +45,11 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "Activity": {
-        "ExpressionTargetField": "EngageTarget"
-      },
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
+      "ExpressionTargetField": "EngageTarget",
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -64,6 +70,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": true,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 400,
@@ -82,14 +92,14 @@
       "SourceStableId": "51000000-0000-0000-0000-00000000000a",
       "TargetStableId": "51000000-0000-0000-0000-00000000000b",
       "EventName": null,
-      "Guard": {
-        "BlueprintAssetId": "00000150-0000-0000-0000-000000000001",
-        "BlueprintName": "HsmGuardDemo"
-      },
+      "GuardFunction": null,
+      "GuardBlueprintAssetId": "00000150-0000-0000-0000-000000000001",
+      "GuardBlueprintName": "HsmGuardDemo",
+      "IsPolled": true,
+      "ActionFunction": null,
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
-      "IsPolled": true,
       "Waypoints": [],
       "Comment": "CE-397: POLLED, guarded by a BLUEPRINT. No event is ever posted -- the guard is evaluated on every quiescent tick and the machine leaves Waiting the moment it passes."
     }
@@ -118,7 +128,8 @@
           "FixedLength": null
         },
         "DefaultValueJson": "false",
-        "Comment": "CE-397: seeds HsmGuardDemo's 'Open' parameter. Role=Input, so it is packed and addressable by HsmParamBindings."
+        "Comment": "CE-397: seeds HsmGuardDemo's 'Open' parameter. Role=Input, so it is packed and addressable by HsmParamBindings.",
+        "IsAutoManaged": false
       }
     ]
   }

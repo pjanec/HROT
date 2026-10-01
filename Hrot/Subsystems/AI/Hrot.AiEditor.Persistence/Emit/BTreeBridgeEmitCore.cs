@@ -234,22 +234,12 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     /// <summary>
     /// S3-G: the variable whose declared Role/Scope govern a stateful node's slot key. Prefers the
-    /// explicit working-state variable (<see cref="BTreeActionPayloadDto.WorkingStateTargetField"/>)
+    /// explicit working-state variable (<see cref="BehaviorActionBindingDto.WorkingStateTargetField"/>)
     /// when the behavior separates params from working state (e.g. Hill Attack); falls back to the
     /// param field so Slice-2 assets and the conflated Slice-3 tests stay byte-identical.
+    /// ⭐ CE-417: one overload — actions and conditions carry the same binding.
     /// </summary>
-    internal static string? StatefulScopeVariable(BTreeActionPayloadDto p)
-        => string.IsNullOrEmpty(p.WorkingStateTargetField) ? p.ExpressionTargetField : p.WorkingStateTargetField;
-
-    /// <summary>
-    /// Slice 1 (shared working-state): condition-side mirror of
-    /// <see cref="StatefulScopeVariable(BTreeActionPayloadDto)"/>. Prefers the explicit
-    /// working-state variable (<see cref="BTreeConditionPayloadDto.WorkingStateTargetField"/>) when
-    /// the composed condition separates params from working state; falls back to
-    /// <see cref="BTreeConditionPayloadDto.ExpressionTargetField"/> so pre-Slice-1 condition assets
-    /// (no WorkingStateTargetField authored) stay byte-identical.
-    /// </summary>
-    internal static string? StatefulScopeVariable(BTreeConditionPayloadDto p)
+    internal static string? StatefulScopeVariable(BehaviorActionBindingDto p)
         => string.IsNullOrEmpty(p.WorkingStateTargetField) ? p.ExpressionTargetField : p.WorkingStateTargetField;
 
     internal static int ResolveStatefulSlotKey(BehaviorTreeAssetDto dto, string? targetField, Guid nodeVisualId)
@@ -494,7 +484,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -502,7 +492,7 @@ public static class BTreeBridgeEmitCore
             string key = $"{p.MethodFqn}@{field.ByteOffset}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset));
+            entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
         }
 
         if (entries.Count == 0) return;
@@ -550,7 +540,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeConditionNodeDto condNode) continue;
             var p = condNode.Condition;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            if (condNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -558,7 +548,7 @@ public static class BTreeBridgeEmitCore
             string key = $"{p.MethodFqn}@{field.ByteOffset}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset));
+            entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset));
         }
 
         if (entries.Count == 0) return;
@@ -616,7 +606,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -630,13 +620,13 @@ public static class BTreeBridgeEmitCore
             // WorkingState type is taken from WorkingStateTypeId (added to BTreeActionPayloadDto in S2-1).
             // If missing, fall back to the naming convention (Action_AdvanceCursor → DemoCursorState).
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
-                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
             string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
+            entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId));
         }
 
         if (entries.Count == 0) return;
@@ -869,7 +859,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -877,13 +867,13 @@ public static class BTreeBridgeEmitCore
             int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), actNode.VisualId);
             // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
-                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
             string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
+            entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
         }
 
         if (entries.Count == 0) return;
@@ -953,7 +943,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeConditionNodeDto condNode) continue;
             var p = condNode.Condition;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
+            if (condNode.DelegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -965,13 +955,13 @@ public static class BTreeBridgeEmitCore
             int slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(p), condNode.VisualId);
             // WorkingState type is the blueprint's generated WorkingState struct FQN (authored on the node).
             string wsTypeId = string.IsNullOrEmpty(p.WorkingStateTypeId)
-                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn)
+                ? DeriveWorkingStateTypeFromMethod(p.MethodFqn ?? string.Empty)
                 : p.WorkingStateTypeId!;
 
             string key = $"{p.MethodFqn}@{field.ByteOffset}@{slotKey}";
             if (!seen.Add(key)) continue;
 
-            entries.Add((key, p.MethodFqn, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
+            entries.Add((key, p.MethodFqn ?? string.Empty, field.TypeId, field.ByteOffset, slotKey, wsTypeId, field.ByteSize));
         }
 
         if (entries.Count == 0) return;
@@ -1034,8 +1024,8 @@ public static class BTreeBridgeEmitCore
             if (node is BTreeActionNodeDto actNode && actNode.Action != null)
             {
                 var p = actNode.Action;
-                methodFqn               = p.MethodFqn;
-                delegateShape           = p.DelegateShape;
+                methodFqn               = p.MethodFqn ?? string.Empty;
+                delegateShape           = actNode.DelegateShape;
                 targetField             = p.ExpressionTargetField;
                 wsTypeIdRaw             = p.WorkingStateTypeId;
                 workingStateTargetField = p.WorkingStateTargetField;
@@ -1048,8 +1038,8 @@ public static class BTreeBridgeEmitCore
                 // condition's authored working-state variable (when distinct from params) so the
                 // scope-governing variable below matches the blob/thunk slot key.
                 var p = condNode.Condition;
-                methodFqn               = p.MethodFqn;
-                delegateShape           = p.DelegateShape;
+                methodFqn               = p.MethodFqn ?? string.Empty;
+                delegateShape           = condNode.DelegateShape;
                 targetField             = p.ExpressionTargetField;
                 wsTypeIdRaw             = p.WorkingStateTypeId;
                 workingStateTargetField = p.WorkingStateTargetField;
@@ -1767,7 +1757,7 @@ public static class BTreeBridgeEmitCore
 
         // S2-1: stateful thunks need Debug.Assert for fail-loud missing-slot guard.
         bool hasStateful = dto.Blackboard.Managed && dto.Nodes.OfType<BTreeActionNodeDto>()
-            .Any(n => n.Action?.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful);
+            .Any(n => n.Action != null && n.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful);
         if (hasStateful)
         {
             set.Add("System.Diagnostics");
@@ -1820,8 +1810,8 @@ public static class BTreeBridgeEmitCore
                 {
                     var p = actNode.Action;
                     if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-                    if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable ||
-                        p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+                    if (actNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable ||
+                        actNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
                     {
                         string? targetField = p.ExpressionTargetField;
                         if (!string.IsNullOrEmpty(targetField) && offsetMap.TryGetValue(targetField!, out var field))
@@ -1836,7 +1826,7 @@ public static class BTreeBridgeEmitCore
                 {
                     var p = condNode.Condition;
                     if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-                    if (p.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable)
+                    if (condNode.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusable)
                     {
                         string? targetField = p.ExpressionTargetField;
                         if (!string.IsNullOrEmpty(targetField) && offsetMap.TryGetValue(targetField!, out var field))
@@ -1866,13 +1856,13 @@ public static class BTreeBridgeEmitCore
                 {
                     var p = actNode.Action;
                     if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                        keys.Add(p.MethodFqn);
+                        keys.Add(p.MethodFqn ?? string.Empty);
                 }
                 else if (node is BTreeConditionNodeDto condNode)
                 {
                     var p = condNode.Condition;
                     if (p != null && !string.IsNullOrEmpty(p.MethodFqn))
-                        keys.Add(p.MethodFqn);
+                        keys.Add(p.MethodFqn ?? string.Empty);
                 }
             }
         }
@@ -1978,7 +1968,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (p.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;

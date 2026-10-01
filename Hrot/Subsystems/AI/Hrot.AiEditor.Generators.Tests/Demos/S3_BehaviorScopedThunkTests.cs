@@ -92,14 +92,14 @@ public sealed class S3_BehaviorScopedThunkTests : IDisposable
     {
         VisualId = visualId,
         DisplayLabel = label,
-        Action = new BTreeActionPayloadDto
+        Action = new BehaviorActionBindingDto
         {
             MethodFqn = MethodFqn,
             ExpressionTargetField = paramField,
             WorkingStateTargetField = stateField,
-            DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
             WorkingStateTypeId = WorkingStateTypeId,
         },
+        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
     };
 
     private static BehaviorTreeAssetDto BuildAsset(

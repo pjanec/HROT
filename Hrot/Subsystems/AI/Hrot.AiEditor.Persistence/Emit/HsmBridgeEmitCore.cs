@@ -301,10 +301,13 @@ public static class HsmBridgeEmitCore
         foreach (var st in dto.States)
         {
             // ⛔ An unbound state is the COMMON case, not an error — it seeds from 0 as before.
-            if (string.IsNullOrEmpty(st.ExpressionTargetField)) continue;
+            // ⭐ CE-417: the state-wide field is the one its slot bindings carry (the migrator copied v1's single field
+            //   onto each). Slice 3 (B-2) replaces this state-wide default with per-binding addresses.
+            string? stateField = StateWideField(st);
+            if (string.IsNullOrEmpty(stateField)) continue;
             // ⚠ A target naming a variable that is not packed (State-role, or renamed away) is
             //   skipped rather than emitted as a guess — the same "fails closed" rule §3.4 states.
-            if (!offsetMap.TryGetValue(st.ExpressionTargetField!, out var field)) continue;
+            if (!offsetMap.TryGetValue(stateField!, out var field)) continue;
 
             // ⭐ Guid.Empty, not the activity blueprint's id: ONE entry then serves the activity
             //   blueprint AND all four C# action slots, which is what keeps this purely additive.
@@ -325,10 +328,12 @@ public static class HsmBridgeEmitCore
         //      HsmChannelE2E already documented as the behaviour.
         foreach (var tr in dto.Transitions)
         {
-            if (string.IsNullOrEmpty(tr.ExpressionTargetField)) continue;
-            if (tr.GuardBlueprintAssetId == Guid.Empty) continue;
-            if (!offsetMap.TryGetValue(tr.ExpressionTargetField!, out var field)) continue;
-            bound.Add((tr.SourceStableId, tr.GuardBlueprintAssetId, field.ByteOffset));
+            // ⭐ CE-417: the GUARD binding's own field (one transition-wide field used to serve guard and action).
+            var guard = tr.Guard;
+            if (guard == null || string.IsNullOrEmpty(guard.ExpressionTargetField)) continue;
+            if (guard.BlueprintAssetId == Guid.Empty) continue;
+            if (!offsetMap.TryGetValue(guard.ExpressionTargetField!, out var field)) continue;
+            bound.Add((tr.SourceStableId, guard.BlueprintAssetId, field.ByteOffset));
         }
 
         // ⛔ GlobalTransitions are NOT emitted, and that is a property of the model rather than an
@@ -719,4 +724,11 @@ public static class HsmBridgeEmitCore
             result = "_" + result;
         return result;
     }
+
+    /// <summary>⭐ CE-417 — the field a state's slot bindings share (Activity first, then OnEntry, OnExit, Timer).</summary>
+    public static string? StateWideField(StateNodeDto st)
+        => FirstField(st.Activity) ?? FirstField(st.OnEntry) ?? FirstField(st.OnExit) ?? FirstField(st.Timer);
+
+    private static string? FirstField(BehaviorActionBindingDto? b)
+        => string.IsNullOrEmpty(b?.ExpressionTargetField) ? null : b!.ExpressionTargetField;
 }

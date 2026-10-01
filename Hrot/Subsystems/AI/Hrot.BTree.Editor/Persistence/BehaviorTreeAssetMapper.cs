@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fbt;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
@@ -288,25 +289,27 @@ public static class BehaviorTreeAssetMapper
         }
         if (dto is BTreeActionNodeDto actDto && node.Action != null)
         {
-            actDto.Action = new BTreeActionPayloadDto
+            // ⭐ CE-417: one BehaviorActionBindingDto; DelegateShape sits on the node.
+            actDto.Action = new BehaviorActionBindingDto
             {
-                MethodFqn           = node.Action.MethodFqn,
+                MethodFqn           = string.IsNullOrEmpty(node.Action.MethodFqn) ? null : node.Action.MethodFqn,
                 ExpressionTargetField = node.Action.ExpressionTargetField,
-                DelegateShape       = (BTreeDelegateShapeDto)node.Action.DelegateShape,
                 WorkingStateTypeId  = node.Action.WorkingStateTypeId,
                 WorkingStateTargetField = node.Action.WorkingStateTargetField,
             };
+            actDto.DelegateShape = (BTreeDelegateShapeDto)node.Action.DelegateShape;
         }
         if (dto is BTreeConditionNodeDto condDto && node.Condition != null)
         {
-            condDto.Condition = new BTreeConditionPayloadDto
+            // ⭐ CE-417: one BehaviorActionBindingDto; DelegateShape sits on the node.
+            condDto.Condition = new BehaviorActionBindingDto
             {
-                MethodFqn           = node.Condition.MethodFqn,
+                MethodFqn           = string.IsNullOrEmpty(node.Condition.MethodFqn) ? null : node.Condition.MethodFqn,
                 ExpressionTargetField = node.Condition.ExpressionTargetField,
-                DelegateShape       = (BTreeDelegateShapeDto)node.Condition.DelegateShape,
                 WorkingStateTypeId  = node.Condition.WorkingStateTypeId,
                 WorkingStateTargetField = node.Condition.WorkingStateTargetField,
             };
+            condDto.DelegateShape = (BTreeDelegateShapeDto)node.Condition.DelegateShape;
         }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
         {
@@ -350,9 +353,9 @@ public static class BehaviorTreeAssetMapper
         {
             node.Action = new BTreeActionPayload
             {
-                MethodFqn           = actDto.Action.MethodFqn,
+                MethodFqn           = actDto.Action.MethodFqn ?? string.Empty,
                 ExpressionTargetField = actDto.Action.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)actDto.Action.DelegateShape,
+                DelegateShape       = (BTreeActionDelegateShape)actDto.DelegateShape,
                 WorkingStateTypeId  = actDto.Action.WorkingStateTypeId,
                 WorkingStateTargetField = actDto.Action.WorkingStateTargetField,
             };
@@ -361,9 +364,9 @@ public static class BehaviorTreeAssetMapper
         {
             node.Condition = new BTreeConditionPayload
             {
-                MethodFqn           = condDto.Condition.MethodFqn,
+                MethodFqn           = condDto.Condition.MethodFqn ?? string.Empty,
                 ExpressionTargetField = condDto.Condition.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)condDto.Condition.DelegateShape,
+                DelegateShape       = (BTreeActionDelegateShape)condDto.DelegateShape,
                 WorkingStateTypeId  = condDto.Condition.WorkingStateTypeId,
                 WorkingStateTargetField = condDto.Condition.WorkingStateTargetField,
             };

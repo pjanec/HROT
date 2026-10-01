@@ -6,6 +6,7 @@ using System.Reflection;
 using System.Runtime.InteropServices;
 using FluentAssertions;
 using Hrot.AiEditor.Generators;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
 using Hrot.BTree.Editor.Catalog;
@@ -735,11 +736,11 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = shape,
                     },
+                    DelegateShape = shape,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -768,11 +769,11 @@ namespace Stub
                     VisualId = condId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = shape,
                     },
+                    DelegateShape = shape,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1054,24 +1055,24 @@ namespace Stub
                     VisualId = conditionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = conditionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1158,24 +1159,24 @@ namespace Stub
                     VisualId = conditionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Condition = new BTreeConditionPayloadDto
+                    Condition = new BehaviorActionBindingDto
                     {
                         MethodFqn = conditionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Counter",   // offset 0
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Threshold",  // offset 4
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -1461,12 +1462,12 @@ namespace Stub
                 VisualId = actionId,
                 ChildVisualIds = new List<Guid>(),
                 EditorMetadata = new NodeEditorMetadataDto(),
-                Action = new BTreeActionPayloadDto
+                Action = new BehaviorActionBindingDto
                 {
                     MethodFqn = methodFqn,
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                     ExpressionTargetField = expressionTargetField,
                 },
+                DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
             });
         }
         else
@@ -1476,12 +1477,12 @@ namespace Stub
                 VisualId = actionId,
                 ChildVisualIds = new List<Guid>(),
                 EditorMetadata = new NodeEditorMetadataDto(),
-                Condition = new BTreeConditionPayloadDto
+                Condition = new BehaviorActionBindingDto
                 {
                     MethodFqn = methodFqn,
-                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                     ExpressionTargetField = expressionTargetField,
                 },
+                DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
             });
         }
 
@@ -1568,12 +1569,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = "Stub.DemoCounterNodes.Action_IncrementCounter",
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = null, // MISSING
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2005,24 +2006,24 @@ namespace Stub
                     VisualId = act1Id,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn1,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Params1",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
                 new BTreeActionNodeDto
                 {
                     VisualId = act2Id,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn2,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Params2",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2086,12 +2087,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = actionFqn,
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "NestedParam",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2394,11 +2395,11 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn     = methodFqn,
-                        DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.FourParamFull,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2429,12 +2430,12 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn             = methodFqn,
-                        DelegateShape         = BTreeDelegateShapeDto.ThreeParamReusable,
                         ExpressionTargetField = "Value",
                     },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusable,
                 },
             },
             Pills = new List<BTreePillDto>(),
@@ -2639,13 +2640,13 @@ namespace Stub
                     VisualId = actionId,
                     ChildVisualIds = new List<Guid>(),
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = methodFqn,
-                        DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                         ExpressionTargetField = "bpParams",
                         WorkingStateTypeId = workingStateTypeId,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                 },
             },
             Pills = new List<BTreePillDto>(),
