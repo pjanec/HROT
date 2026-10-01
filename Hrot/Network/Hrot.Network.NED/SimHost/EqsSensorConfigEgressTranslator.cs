@@ -23,6 +23,13 @@ namespace Hrot.Network.NED.SimHost
     {
         private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsWriter<EqsSensorConfigTopic>? _writer;
+        // ⭐ CE-490 — the brain READS its own topic too: TransientLocal hands a node every live instance, including the
+        //   ones a previous owner wrote. Only keys and last configs are kept — ⛔ no carrier is ever built on a brain.
+        private readonly DdsReader<EqsSensorConfigTopic>? _reader;
+        private readonly Dictionary<(long ParentNetworkId, int LocalChildIndex), EqsSensorConfigTopic> _onWire = new();
+        // Keys this node has already suspended and not seen re-activated since — one write per orphan, not one per scan.
+        private readonly HashSet<(long ParentNetworkId, int LocalChildIndex)> _suspendedByUs = new();
+        private readonly List<(long ParentNetworkId, int LocalChildIndex)> _orphans = new();
         private readonly NetworkEntityMap _entityMap;
 
         // What was last written per sensor entity. ⭐ A reliable topic that publishes ONCE never
@@ -30,7 +37,14 @@ namespace Hrot.Network.NED.SimHost
         // SmartEgressUtil gate did exactly that, and the distributed rails worked around it by
         // removing and re-adding the sensor. Publishing on any change is what keeps the split right.
         private readonly Dictionary<Entity, EqsSensorConfigTopic> _published = new();
+        // The parent each child sensor was published under — an ended sensor is SUSPENDED while that parent lives and
+        // disposed only once it is gone (CE-486).
+        private readonly Dictionary<Entity, Entity> _parentOf = new();
         private readonly HashSet<Entity> _seen = new();
+        // The wire keys a LIVE local sensor holds this scan — every local sensor, with authority or not. CE-486: an ended
+        // sensor whose key a live one now holds writes nothing (the same-scan write-then-end race, design §2 ①, cannot
+        // happen). CE-490: an instance a local sensor holds is never an orphan.
+        private readonly HashSet<(long ParentNetworkId, int LocalChildIndex)> _liveKeys = new();
         private readonly List<Entity> _gone = new();
 
         public string TopicName => DdsTopicName;
@@ -45,6 +59,7 @@ namespace Hrot.Network.NED.SimHost
             if (entityMap   == null) throw new ArgumentNullException(nameof(entityMap));
             _entityMap = entityMap;
             _writer = new DdsWriter<EqsSensorConfigTopic>(participant, DdsTopicName);
+            _reader = new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName);
         }
 
         /// <inheritdoc/>
@@ -58,35 +73,22 @@ namespace Hrot.Network.NED.SimHost
                 .With<EqsSensor>()
                 .Build();
 
+            ReadWire();
+
             _seen.Clear();
+            _liveKeys.Clear();
             foreach (var entity in query)
             {
+                // The wire key — the ONE rule (EqsSensorKey). A child whose parent is gone or local-only, and a
+                // local-only sensor, publish nothing.
+                var kind = EqsSensorKey.Resolve(view, entity, out long parentNetworkId, out int localChildIndex, out var parent);
+                if (kind is EqsSensorKeyKind.None or EqsSensorKeyKind.LocalOnly) continue;
+                _liveKeys.Add((parentNetworkId, localChildIndex));
+
                 if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
-
-                // 3-branch compound identity resolution.
-                long parentNetworkId;
-                int  localChildIndex;
-                if (view.HasComponent<PartMetadata>(entity))
-                {
-                    var meta   = view.GetComponentRO<PartMetadata>(entity);
-                    var parent = meta.ParentEntity;
-                    if (!view.IsAlive(parent) || !view.HasComponent<NetworkIdentity>(parent))
-                        continue; // parent gone or local-only
-                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(parent).Value;
-                    localChildIndex = meta.InstanceId;
-                }
-                else if (view.HasComponent<NetworkIdentity>(entity))
-                {
-                    parentNetworkId = view.GetComponentRO<NetworkIdentity>(entity).Value;
-                    localChildIndex = 0;
-                }
-                else
-                {
-                    // Local-only sensor: skip DDS publish.
-                    continue;
-                }
+                if (kind == EqsSensorKeyKind.Child) _parentOf[entity] = parent;
 
                 _seen.Add(entity);
 
@@ -112,6 +114,7 @@ namespace Hrot.Network.NED.SimHost
                     ContextSlot0NetworkId = slot0,
                     ContextSlot1NetworkId = slot1,
                     ContextSlot2NetworkId = slot2,
+                    Suspended             = sensor.Suspended,
                 };
 
                 if (_published.TryGetValue(entity, out var last) && SameConfig(in last, in topic))
@@ -119,13 +122,23 @@ namespace Hrot.Network.NED.SimHost
 
                 _writer.Write(topic);
                 _published[entity] = topic;
+                // What this node put on the wire is part of the wire's state — the sweep below ends it when no local
+                // sensor holds the key any more, without waiting for our own sample to echo back through the reader.
+                _onWire[(parentNetworkId, localChildIndex)] = topic;
+                if (!topic.Suspended) _suspendedByUs.Remove((parentNetworkId, localChildIndex));
                 SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
 
-            // A child sensor (LocalChildIndex != 0) that is destroyed or loses its EqsSensor must be
-            // disposed, or the Muscle's carrier keeps solving it forever. Legacy single sensors are
-            // disposed by the removal pass below and by Dispose(networkEntityId).
+            // ⭐⭐ CE-486 — a child sensor (LocalChildIndex != 0) that is destroyed or loses its EqsSensor has ENDED.
+            //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③. Its descriptor instance is NEVER disposed while the
+            //    parent lives (BDC/NED descriptor rules — a dispose means entity deletion or ownership return): the end is
+            //    a Suspended write, so the Muscle's carrier stops solving and the part id can be reused by the next
+            //    lifetime (D5 ①). ⭐ That write is NOT made here: an ended sensor is just "an instance no local sensor
+            //    holds, under an entity this node owns" — exactly what SweepOrphans ends (CE-490). ONE rule, one path
+            //    (measured: a separate end-write here was fully shadowed by the sweep). It also covers the §2 ① race —
+            //    a live sensor holding the same key this scan keeps it out of the sweep. Only when the PARENT is gone is
+            //    the instance disposed. Legacy single sensors are disposed by the removal pass below and by Dispose().
             _gone.Clear();
             foreach (var kv in _published)
             {
@@ -137,13 +150,23 @@ namespace Hrot.Network.NED.SimHost
             {
                 var last = _published[entity];
                 _published.Remove(entity);
-                if (last.LocalChildIndex != 0)
-                    _writer.DisposeInstance(new EqsSensorConfigTopic
-                    {
-                        ParentNetworkId = last.ParentNetworkId,
-                        LocalChildIndex = last.LocalChildIndex,
-                    });
+                _parentOf.Remove(entity, out var parent);
+                if (last.LocalChildIndex == 0) continue;
+
+                var key = (last.ParentNetworkId, last.LocalChildIndex);
+                if (_liveKeys.Contains(key)) continue;                         // a live sensor holds this part id now
+                if (!parent.IsNull && view.IsAlive(parent)) continue;          // ended, not deleted: the sweep suspends it
+
+                _writer.DisposeInstance(new EqsSensorConfigTopic               // the parent is gone: entity deletion
+                {
+                    ParentNetworkId = last.ParentNetworkId,
+                    LocalChildIndex = last.LocalChildIndex,
+                });
+                _onWire.Remove(key);
+                _suspendedByUs.Remove(key);
             }
+
+            SweepOrphans(view);
 
             // Removal detection: find entities with NetworkIdentity that no longer carry
             // EqsSensor. These are legacy single-sensor entities (LocalChildIndex == 0).
@@ -164,6 +187,63 @@ namespace Hrot.Network.NED.SimHost
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 _writer.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = netId.Value, LocalChildIndex = 0 });
                 state.LastPublishedTickMap.Remove(DescriptorOrdinal);
+            }
+        }
+
+        // CE-490: the latest sample of every instance on the wire. A dispose (the parent's death) forgets the key.
+        private void ReadWire()
+        {
+            if (_reader is null) return;
+            using var loan = _reader.Take();
+            foreach (var sample in loan)
+            {
+                if (sample.IsValid)
+                {
+                    var data = sample.Data;
+                    var key  = (data.ParentNetworkId, data.LocalChildIndex);
+                    _onWire[key] = data;
+                    if (!data.Suspended) _suspendedByUs.Remove(key);   // re-activated by someone: a new orphan later is new
+                    ReceivedSampleCount++;
+                }
+                else
+                {
+                    var keyData = DdsTypeSupport.FromNative<EqsSensorConfigTopic>(sample.NativePtr);
+                    var key     = (keyData.ParentNetworkId, keyData.LocalChildIndex);
+                    _onWire.Remove(key);
+                    _suspendedByUs.Remove(key);
+                }
+            }
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-486</c> + <c>CE-490</c> — <b>the ONE place a child sensor is ended on the wire:</b> every instance under
+        /// an entity this node holds authority over that no local sensor holds is written back <c>Suspended</c> — this
+        /// node's own ended sensors and the ones it inherited alike. ⭐ <b>A new authority ends the sensors it inherited.</b> 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c>
+        /// §1 D5 ④. After an authority move the old owner stops ticking the entity but never ends its behaviour
+        /// (<c>BrainTickSystem</c> ticks owned entities only), so the sensors it created are never ended either — without
+        /// this the Muscle would solve them forever. ⇒ every child-sensor instance on the wire whose parent THIS node holds
+        /// authority over, and that no local sensor holds, gets its last config written back <c>Suspended</c>. Once per
+        /// orphan; a later active write by anyone re-arms it.
+        /// </summary>
+        private void SweepOrphans(ISimulationView view)
+        {
+            _orphans.Clear();
+            foreach (var (key, last) in _onWire)
+            {
+                if (key.LocalChildIndex == 0 || last.Suspended) continue;     // legacy, or already ended
+                if (_liveKeys.Contains(key) || _suspendedByUs.Contains(key)) continue;
+                if (!_entityMap.TryGetEntity(key.ParentNetworkId, out var parent) || !view.IsAlive(parent)) continue;
+                if (!view.HasAuthority(parent, DescriptorOrdinal)) continue;    // another node's sensor
+                _orphans.Add(key);
+            }
+
+            foreach (var key in _orphans)
+            {
+                var suspended = _onWire[key];
+                suspended.Suspended = true;
+                _writer!.Write(suspended);
+                _suspendedByUs.Add(key);
+                SentSampleCount++;
             }
         }
 
@@ -200,7 +280,8 @@ namespace Hrot.Network.NED.SimHost
             && a.ScoreDeltaThreshold.Equals(b.ScoreDeltaThreshold)
             && a.ContextSlot0NetworkId == b.ContextSlot0NetworkId
             && a.ContextSlot1NetworkId == b.ContextSlot1NetworkId
-            && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId;
+            && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId
+            && a.Suspended             == b.Suspended;
     }
 }
 

@@ -41,6 +41,11 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         public long ContextSlot1NetworkId;
         /// <summary>Network ID of the entity in context slot 2 (Leader). 0 = not assigned.</summary>
         public long ContextSlot2NetworkId;
+        /// <summary>
+        /// ⭐ <c>CE-486</c> — the sensor has ended (non-key). A child sensor's instance is never disposed while its parent
+        /// lives; the Brain writes the sensor's last config with this set, and the Muscle's carrier stops solving.
+        /// </summary>
+        public bool Suspended;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────

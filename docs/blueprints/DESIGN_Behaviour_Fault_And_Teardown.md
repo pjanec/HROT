@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a);
-  CE-482/483 BUILT (section 4b); CE-486/487/490 dispatched to the backend lane.
+  CE-482/483 BUILT (section 4b); the WIRE half CE-486/487/490 BUILT by the backend lane (section 3a).
   D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
   items CE-482..CE-487). Section 2 is the claim table every decision rests on.
@@ -46,7 +46,7 @@ new instance (part id) for new sensor instance."*
 | **D2** | ⭐ a fault ends the behaviour through the existing `Finish` → `Clear` (`CE-449`); `BehaviorFinishedEvent` gains `Outcome` (Succeeded · Failed · Faulted) + `FaultCode`; a managed `BehaviorFaultNotification` is published for anyone to act on | one terminal event that cannot disagree with a second one; the notification is what tells the user |
 | **D3** | ⭐ the mission tier records each phase's outcome: Succeeded ⇒ `TASK_DONE` and advance · **Failed ⇒ `TASK_FAILED` and advance (3a)** · **Faulted ⇒ `TASK_FAILED` and HALT** until an operator command | `TASK_FAILED` is on the wire and drawn as ✗ (`MissionPanel.cs:161`) but nothing writes it |
 | **D4** | ⭐ an entity a behaviour creates through `EqsChildSensor` is **behaviour-owned**: stamped `BehaviorOwnedPart{OwnerInstanceId, SlotId}` and **destroyed when that behaviour instance ends** — at every site that bumps `BehaviorState.InstanceId` | every end (finish, clear, reassign, re-assign of the same behaviour, hot-reload restart, abort, fault) bumps it — one release step, three call sites, no per-route hook |
-| **D5** *(REVISED `2026-10-01` — see §5 for the superseded form)* | ⭐ the sensor stays a **part** of its parent's network representation (⛔ no network id) and its descriptor instance is **never disposed** while the parent lives. ① **part ids are ALLOCATED and REUSED**: the lowest id ≥ 1 not held by a live sensor child of that parent — the children ARE the table, no allocator component; `Ensure` creates the child **immediately** on the live world so a second creation in the same frame sees it · ② **the lifetime rides in the epoch**: high 16 bits = the owning behaviour run's `InstanceId`, low 16 = the refresh count ⇒ any answer to an earlier run fails the epoch check · ③ **a sensor ends by an explicit `Active = false` write** to its instance (a new non-key field on `EqsSensor` + `EqsSensorConfigTopic`); the solver skips inactive carriers · ④ **a new authority sweeps orphans**: brain nodes also read the config topic and write `Active = false` to any instance under their entity they hold no sensor for · ⑤ **Spawn EQS Sensor gains an optional `Key` pin** so one spawn node in a loop owns one sensor per key | 🔒 the BDC/NED descriptor rules: *"descriptors cannot be deleted from a live entity"* (`docs/reference/BDC_NED_SST_Descriptor_Rules.md`); a dispose of a non-master descriptor means ownership-return or entity-deletion, never "this part is gone" |
+| **D5** *(REVISED `2026-10-01` — see §5 for the superseded form)* | ⭐ the sensor stays a **part** of its parent's network representation (⛔ no network id) and its descriptor instance is **never disposed** while the parent lives. ① **part ids are ALLOCATED and REUSED**: the lowest id ≥ 1 not held by a live sensor child of that parent — the children ARE the table, no allocator component; `Ensure` creates the child **immediately** on the live world so a second creation in the same frame sees it · ② **the lifetime rides in the epoch**: high 16 bits = the owning behaviour run's `InstanceId`, low 16 = the refresh count ⇒ any answer to an earlier run fails the epoch check · ③ **a sensor ends by an explicit `Suspended = true` write** to its instance (a new non-key field on `EqsSensor` + `EqsSensorConfigTopic`; ⚠ the approved "`Active`" with its polarity flipped so `false` = running — §3a); the solver skips suspended carriers · ④ **a new authority sweeps orphans**: brain nodes also read the config topic and write `Suspended = true` to any instance under their entity they hold no sensor for · ⑤ **Spawn EQS Sensor gains an optional `Key` pin** so one spawn node in a loop owns one sensor per key | 🔒 the BDC/NED descriptor rules: *"descriptors cannot be deleted from a live entity"* (`docs/reference/BDC_NED_SST_Descriptor_Rules.md`); a dispose of a non-master descriptor means ownership-return or entity-deletion, never "this part is gone" |
 
 **Rejected — one line each:**
 - *Root Failure = fault* — breaks every tree that ends with Failure on purpose (`CE-459`).
@@ -166,7 +166,7 @@ classDiagram
     <<existing — changed>>
     uint BlueprintId  (the query TEMPLATE; rename CE-491)
     uint Epoch  ← high16 = owner run, low16 = refresh
-    +bool Active «NEW, on the wire»
+    +bool Suspended «NEW, on the wire — false = running»
   }
   class EqsChildSensor {
     <<existing — changed>>
@@ -207,7 +207,7 @@ classDiagram
   EntityMissionEgressTranslator ..> MissionPlanQueue : per-phase eTaskState
 ```
 *What the picture shows that prose hid:* the stamp is **brain-local** — the wire sees only the allocated part id, the epoch
-and the new `Active` flag; the key of both EQS topics is untouched. And the fault reaches the mission tier
+and the new `Suspended` flag; the key of both EQS topics is untouched. And the fault reaches the mission tier
 through the **existing** finish event, not a second channel.
 
 ```mermaid
@@ -242,9 +242,9 @@ sequenceDiagram
   participant M as Muscle carrier (parent, part 1)
   participant RI as EqsResult ingress
   B->>B: run k ends ⇒ Release destroys its sensor (part 1 now free)
-  CE->>M: write (parent, 1) Active=false
+  CE->>M: write (parent, 1) Suspended=true (its last config)
   B->>B: run k+1 starts ⇒ Ensure allocates part 1, epoch = (k+1)<<16 | 1
-  CE->>M: write (parent, 1) Active=true, new params, new epoch
+  CE->>M: write (parent, 1) Suspended=false, new params, new epoch
   Note over M: ONE instance, never disposed — the carrier is updated in place
   M-->>RI: a late answer for epoch k<<16 | n
   RI->>B: epoch mismatch ⇒ dropped
@@ -278,6 +278,24 @@ graph TD
 system and no new module. The one dependency to honour is the dashed edge: `MissionAdapterSystem` must read `Halted` or it
 would re-issue the halted phase.
 
+## 3a. As-built — the wire half (`CE-486`, `CE-487`, `CE-490`, backend lane, `2026-10-01`)
+
+⭐ The third sequence diagram above is true as built. What the build settled that §1 left open:
+
+| piece | where | note |
+|---|---|---|
+| `bool Suspended` (appended, non-key) | `EqsComponents.cs` `EqsSensor` · `EqsDdsTopics.cs` `EqsSensorConfigTopic` | ⚠ **deviation, approved:** the user approved "`Active`"; a struct default is `false` and 20+ sites build `new EqsSensor { … }`, so `Active` would have silenced every existing sensor. 🔒 User: *"ok Suspended is fine"* (decision B-1) |
+| ⭐ **ONE end path** — the egress's sweep writes an instance's last config back `Suspended = true` (B-2) whenever it is under an entity this node holds authority over and NO local sensor holds its key: this node's own ended sensors (`CE-486`) and inherited orphans (`CE-490`) alike. A live sensor holding the key this scan keeps it out (§2 ① closed). The egress records what it writes in the same wire table, so its own ends need no echo. **Disposed only when the parent itself is gone** | `EqsSensorConfigEgressTranslator.cs` (`SweepOrphans`) | ⚠ a separate end-write in the gone path was built first and was fully SHADOWED by the sweep (measured: reverting it changed no rail) ⇒ folded into one rule. ⚠ the dead-parent case is not in §1: writing `Suspended` there would leave a TransientLocal instance on the topic forever — a dispose IS the descriptor rule's "entity deletion" |
+| the Muscle ingress: a child-sensor dispose forgets the key and **never destroys the carrier** (`SubEntityCleanupSystem` does, when the parent dies); a `Suspended` config updates an existing carrier but **never creates one** | `EqsSensorConfigIngressTranslator.cs` | the second half is new: a late-joining Muscle receives every suspended instance and need not build a carrier to hold each |
+| the solver returns before anything is published for a suspended carrier — including the unknown-template "empty" fallback — and **drops that carrier's `SensorEvalState`** | `EqsSolverSystem.cs` | ⚠ not in §1, found while merging `CE-485`: the carrier now OUTLIVES a lifetime, so its evaluation state did too. Before `CE-486` a destroy + re-create reset it by accident; now a resumed carrier starts exactly as a fresh one |
+| ⭐ a `ScoreDelta` sensor's first answer of an epoch is never suppressed (`SensorEvalState.PublishedThisEpoch`, reset with the epoch) | `EqsEvalState.cs` · `EqsSolverSystem.cs` | ⚠ **pre-existing defect, widened by D5:** EQS 1.3 §17.6 says *"for a guaranteed-new answer bump `Epoch`"*, but the soft reset kept the last-published scores, so a refresh — or a new lifetime on a reused part id — whose scores had not moved was never answered. The default policy (`AlwaysPush`) was never affected; `ScoreDelta` is opt-in via the blueprint *Spawn EQS Sensor* pin |
+| the result-ingress cache re-checks every hit (alive · an `EqsSensor` · that parent and part id) and re-scans on a stale one; the scan now also requires `EqsSensor` (a non-sensor part with the same instance id no longer matches) | `EqsResultIngressTranslator.cs` | `CE-487` |
+| the sweep's input: the **config egress itself** reads its topic (key + last config only — no carrier on a brain); every local sensor counts as "held", authority or not, so a live one is never swept | `EqsSensorConfigEgressTranslator.cs` | ⚠ **deviation from B-3** ("a separate reader"): the reader sits inside the brain's single owner of the topic, so "which instances are mine to end" has ONE home; nothing is registered in `SimHostAuxiliaryTranslatorPack` |
+| ⚠ **known residual — multi-writer ordering** | — | an instance can have two writers (the old owner's last ACTIVE sample, the new owner's SUSPEND). TransientLocal hands a late-joining Muscle both, in arrival order, with no ordering guarantee ⇒ it can end ACTIVE. ⛔ The DDS fix (destination order by source timestamp) is not exposed by the CycloneDDS.NET binding (it sets reliability, durability, history, partition, resource limits, data representation only). ⭐ The application fix — "a lifetime, once suspended, stays suspended": drop an active sample whose epoch equals a suspended one — needs `CE-485`'s per-lifetime epoch — ⭐ **now merged**, so the follow-up is unblocked; not built in this batch (outside its three items) |
+| ⭐ **`EqsSensorKey`** — the wire key `(ParentNetworkId, LocalChildIndex)`, both directions, ONCE | `Fdp.Toolkits/Spatial/Eqs/EqsSensorKey.cs` | 🔒 *"share and unify, do not duplicate"*: the entity → key rule was written out in the egress and the solver, the key → entity rule in the result ingress and `EqsResultUpdateSystem`. `CE-487` had to change the match, so all four route through it now; `ThereIsOneNetworkIdResolverTests` drops its two allow-list entries for them |
+
+**Rails** (`EqsDistributedTests`, a real Brain + Muscle; domains 40–43): `CE486_ASensorThatEnds_IsSuspendedOnTheMuscle_NotDestroyed_AndPublishesNothing` (①) · `CE486_CE487_ASensorReplacedOnTheSameKeyInOneScan_IsSolved_AndAnsweredOnTheNewSensor` (② + ④) · `CE486_AChildDispose_DoesNotDestroyTheCarrier_AndAFollowingWriteUpdatesIt` (③ — ⚠ KeepLast-1 collapses a back-to-back dispose + write of one key into one sample on a real reader, so the rail lets the Muscle take the dispose first) · `CE490_AnInheritedInstanceWithNoLocalSensor_IsSuspendedByTheAuthority` (⑤) · `CE486_ANewLifetimeOnASuspendedCarrier_IsAnswered_LikeAFreshCarrier` and `ScoreDelta_AnEpochBump_IsAnswered_EvenWhenNoScoreMoved` (the two solver rows; a constant-score `ScoreDelta` template, so the only answers are the ones the rule must force out). ⚠ the feature's own suite `EqsScoreDeltaTests` cannot gate this: its offline T-SD1 is a pre-existing red (the EditorHarness solver never answers).
+
 ## 4. Work items
 
 | id | what | lane |
@@ -286,9 +304,9 @@ would re-issue the halted phase.
 | **CE-483** | D3: `MissionPlanQueue.Outcomes` + `Halted`; director records the outcome, halts on Faulted; `MissionAdapterSystem` honours `Halted`; mission control commands clear it. ⚠ cross-lane: `EntityMissionEgressTranslator.cs:124` sends the recorded state (today a finished task reads PLANNED) | behaviours + backend (egress) |
 | **CE-484** | the notification reaches the operator: an egress topic on the `WeaponFireNotification` precedent + a UI consumer (`NotificationOverlay`/IG) | backend + UI |
 | **CE-485** | D4+D5 brain side: `BehaviorOwnedPart{Owner, Site, Key}`, `BehaviorOwnedParts.Release` at the three InstanceId sites; `EqsChildSensor` allocates the part id (lowest free among live children), creates immediately on the live world (asserts one creation per parent per frame on any other view), stamps the epoch with the owner run, matches `Find` on owner + site + key; the `Key` pin on *Spawn EQS Sensor*; retire the three baked-id schemes; re-home the tick-count rails (`Ensure` now returns the child on the creating call ⇒ the `-2` marker goes) | behaviours |
-| **CE-486** | D5 ③ wire side: `Active` on `EqsSensor` + `EqsSensorConfigTopic`; the config egress NEVER disposes a child-sensor instance — it writes `Active=false`; the Muscle ingress stops treating a dispose as "destroy carrier"; the solver skips inactive carriers | backend |
-| **CE-487** | ③ the result ingress cache must check the cached entity is alive (and its part id still matches) on every hit — ⭐ REQUIRED by D5 | backend |
-| **CE-490** | D5 ④: brain nodes also read `EqsSensorConfig`; on gaining authority over an entity, write `Active=false` to every instance under it that has no local sensor | backend |
+| **CE-486** | D5 ③ wire side: `Suspended` on `EqsSensor` + `EqsSensorConfigTopic`; the config egress NEVER disposes a child-sensor instance while its parent lives — it writes `Suspended=true`; the Muscle ingress stops treating a dispose as "destroy carrier"; the solver skips suspended carriers — ✅ BUILT, §3a | backend |
+| **CE-487** | ③ the result ingress cache must check the cached entity is alive (and its part id still matches) on every hit — ⭐ REQUIRED by D5 — ✅ BUILT, §3a | backend |
+| **CE-490** | D5 ④: brain nodes also read `EqsSensorConfig`; on gaining authority over an entity, write `Suspended=true` to every instance under it that has no local sensor — ✅ BUILT, §3a | backend |
 | **CE-491** | rename `EqsSensor.BlueprintId` / the topic field → `TemplateId` (Roslyn rename; the field is the EQS query template) | backend |
 
 **Acceptance (behaviours lane):** ① a rail where the commander faults on a missing area ⇒ `BehaviorFinishedEvent.Outcome ==
@@ -331,6 +349,11 @@ area sensor (the 9th entity) is present while the attack runs and gone by t≈75
 sensor leaves with the run.
 
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
+
+**D5 ③/④ wording before `2026-10-01` (build):** *"a sensor ends by an explicit `Active = false` write … the solver skips inactive
+carriers … write `Active = false` to any instance"* — ⛔ the flag shipped as `Suspended` (inverse polarity, §3a); the meaning is
+unchanged.
+
 
 **D5, first form (approved `2026-10-01`, SUPERSEDED the same day):** *"each lifetime gets a new part id:
 `LocalChildIndex = Mix(SlotId, OwnerInstanceId)`."* ⛔ Withdrawn on the user's question about the BDC/NED descriptor rules: a
