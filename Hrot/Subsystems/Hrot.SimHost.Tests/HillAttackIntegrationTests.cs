@@ -47,9 +47,8 @@ namespace Hrot.SimHost.Tests
     /// migration, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c>) is invoked in the same
     /// simulated tick as the BTree (collapsing the production 10-Hz EqsModule latency
     /// to zero for deterministic in-process testing).
-    /// <see cref="AreaQueryInitializationSystem"/> is intentionally excluded from the
-    /// per-tick helper so that EQS results written by the solver in tick N remain
-    /// readable when the BTree resumes in tick N+1.  In production the results become
+    /// EQS results written by the solver in tick N remain readable when the BTree
+    /// resumes in tick N+1.  In production the results become
     /// visible within one EqsModule cycle (~100 ms); the test collapses that window
     /// to a single-frame solver call.
     /// </para>

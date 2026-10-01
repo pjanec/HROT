@@ -250,7 +250,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         ///
         /// <para>⭐⭐ <b>Why this rail drives a REAL generated blueprint</b> rather than hand-writing
         /// the channel: the defect was in the EMITTER, so a fixture that writes the channel itself
-        /// cannot see it. <c>HillAssault2ReverseToBaseline</c> is a shipped asset whose graph issues the
+        /// cannot see it. <c>ChannelMoveAndWaitDemo</c> (formerly <c>HillAssault2ReverseToBaseline</c>, renamed by <c>CE-477</c>) is a shipped asset whose graph issues the
         /// built-in <c>MoveTo</c> channel command, and its <c>TickCore</c> is the emitter's own output.</para>
         ///
         /// <para>✅ <b>Red-proof:</b> delete the <c>BehaviorInstanceId</c> stamp from
@@ -267,9 +267,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { InstanceId = 7 });
             world.AddComponent(e, new LocomotionChannel());
 
-            var p  = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.Params);
-            var ws = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.WorkingState);
-            global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
+            global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
                 .TickCore(ref p, ref ws, e, world, 0f);
 
             var issued = world.GetComponent<LocomotionChannel>(e);
@@ -301,9 +301,9 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.AddComponent(e, new BehaviorState { InstanceId = 7 });
             world.AddComponent(e, new LocomotionChannel());
 
-            var p  = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.Params);
-            var ws = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.WorkingState);
-            global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
+            global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
                 .TickCore(ref p, ref ws, e, world, 0f);
 
             // The behaviour is preempted — a new instance takes over.
@@ -320,7 +320,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         // ── CE-405 — RE-ISSUING THE SAME COMMAND MUST NOT COUNT AS A NEW ONE ───────────────
 
         /// <summary>
-        /// Drives the real generated <c>HillAssault2ReverseToBaseline_FF75553A_Bp</c> and replays
+        /// Drives the real generated <c>ChannelMoveAndWaitDemo_FF75553A_Bp</c> and replays
         /// its entry block by resetting the working state's phase, which is what a blueprint on a
         /// per-tick path does naturally. Returns the channel after <paramref name="ticks"/> issues.
         /// </summary>
@@ -337,8 +337,8 @@ namespace Fdp.Toolkit.Behavior.Tests
             var spy = new WritingSpyExecutor<LocomotionChannel>();
             dispatcher.RegisterExecutor(1, spy);   // MoveTo
 
-            var p  = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.Params);
-            var ws = default(global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp.WorkingState);
+            var p  = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.Params);
+            var ws = default(global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp.WorkingState);
 
             for (int i = 0; i < ticks; i++)
             {
@@ -349,7 +349,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                     ref var pre = ref world.GetComponentRW<LocomotionChannel>(e);
                     pre.Status = statusBetweenTicks;
                 }
-                global::Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_FF75553A_Bp
+                global::Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_FF75553A_Bp
                     .TickCore(ref p, ref ws, e, world, 0.016f);
                 dispatcher.Execute(world, 0.016f);
             }
