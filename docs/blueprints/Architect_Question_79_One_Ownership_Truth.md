@@ -81,7 +81,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? ⚠ **The designs disagree on `SimVelocity`:** Role-Affinity §3.1 (table, line ~343) puts *"spatial / kinematic — `SimTransform`, `SimVelocity`"* under the creator birthright + grant; Node_Roles §4.1 (line ~266) lists `SimVelocity` as non-birth-critical, claimed by role on promote, *"no grant"*; `SimComponents.cs:40` marks it NOT `[BirthCritical]`. The code follows neither: `BrainMuscleOwnershipStrategy.cs:40-55` grants the whole `dtWorldPos` block + `dtNavigationStatus` (per-descriptor transfer) | from O1's result + Transfer design §1 (per-descriptor transfers); reconcile the two docs |
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
-| O5 | the shard IMPLEMENTATION (R-162): where `ServesRole`'s identical, stable input comes from | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
+| O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
 
 ### 0.7 ⭐⭐⭐ PROPOSED SOLUTION *(`2026-10-01`, user: "propose a solution and explain how it would work" — awaiting approval; UML goes in a DESIGN doc before build)*
 
@@ -123,12 +123,16 @@ PROVIDED the shard obeys §3.8: inputs IDENTICAL on every node, mapping STABLE p
 implementation is `CE-506` — open: WHERE the identical, stable input comes from (§3.8: *"a shard assignment published by ONE authority and
 replicated"*), e.g. an orchestrator-published assignment, or the creator's per-entity decision as the grant already is for `dtWorldPos`.
 ⛔ Superseded same day: an earlier version of this paragraph special-cased Muscle onto the grant and kept Brain single-node.
-⚠ **"Stable" means the INITIAL assignment, not ownership** (user, `2026-10-01`: *"what assignment does not change during entity lifetime?
-ownership can."*). The shard is consulted only when a node CREATES or PROMOTES an entity — at different moments on different nodes (a late
-joiner promotes later). All of them must get the same answer to *"who got role R for this entity at birth?"*, or the creator excludes a list
-that no promoter then claims, or two claim it. ⭐ Later ownership changes go through the transfer protocol (`OwnershipUpdate`, CE-276) and
-the record follows them (R-159) — the shard is never re-asked. ⇒ the shard's input must be fixed at birth (a recorded per-entity decision, or
-a table frozen for the scenario), never live membership.
+⛔ **R-163 — the assignment is NOT stable** (user, `2026-10-01`: *"it is not stable. it can change with load"*). ⇒ Role-Affinity §3.8
+constraint ② (*"stable for the lifetime of an entity"*) is SUPERSEDED. What correctness still needs, restated:
+① **at any instant every node that asks gets the same answer** — so the answer comes from ONE authority, never from each node measuring
+itself (§3.8 ① stands); ② **a change is executed as an ownership transfer** — the existing `OwnershipUpdate` path (the wire spec lets *"an
+arbitrary node"* send it), so claim, record and publisher move together; nodes never re-evaluate the shard on their own; ③ **a node that
+asks later (a late joiner promoting) must get the CURRENT owner** — 📐 but `SST_OwnershipUpdate` is `Volatile` (`OwnershipUpdate.cs:11`), so a
+late joiner never sees past transfers ⇒ the current assignment must be readable durably by late joiners.
+📐 **The natural single authority already exists:** the orchestrator's `NodeRoster` holds every node's roles, CPU and RAM from heartbeats
+(`NodeHealthProfile.cs`). ⇒ lean for `CE-506`: the orchestrator decides (initial assignment and load rebalancing), publishes the current
+assignment durably, and executes each change as an `OwnershipUpdate`. ⚠ A durable assignment topic would be NEW — a decision under R-158.
 
 **Known unknowns:** the lists themselves (O1); a descriptor that mixes classes (O2); claim readers affected by the change, esp. attribute
 changes (O4); a role with no live node leaves its list unowned (Role-Affinity §3.8 rules: log once, no fallback); N nodes per role (O5).
