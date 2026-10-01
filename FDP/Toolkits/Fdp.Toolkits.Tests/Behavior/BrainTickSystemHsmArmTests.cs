@@ -597,6 +597,36 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
+        /// ⭐⭐⭐ <c>CE-505</c> — <b>a steady-state HSM brain tick allocates NOTHING.</b>
+        /// 🔒 User <c>2026-10-01</c>: <i>"there should be no allocation on the hot path."</i>
+        ///
+        /// <para>The real <c>HsmPolledGuardDemo</c> through the real ingress and <see cref="BrainTickSystem"/>,
+        /// guard CLOSED so it is polled every tick: root state/params/HSM-instance lookups plus a blueprint
+        /// guard's occurrence key, per tick. ⚠ Warm-up ticks first, so JIT, first attach and the one-off
+        /// dictionary growth are outside the measured window.</para>
+        /// <para>⚠ Red-proof: the old key folds (<c>Guid.ToByteArray()</c> + <c>Encoding.UTF8.GetBytes</c>).</para>
+        /// </summary>
+        [Fact]
+        public void CE505_R3_ASteadyStateHsmBrainTick_AllocatesNothing()
+        {
+            var (world, sys, e, _) = ArrangePolledGuardMachine(open: false);
+
+            for (int i = 0; i < 24; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) sys.Execute(world, 0.016f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            // ⛔ NON-VACUITY: the guard really was polled closed the whole time — the machine never finished.
+            world.Bus.SwapBuffers();
+            Assert.Equal(0, CountEventsForEntity(world, e));
+            Assert.True(allocated == 0, $"50 steady-state HSM brain ticks allocated {allocated} bytes");
+
+            world.Dispose();
+        }
+
+        /// <summary>
         /// ⭐⭐⭐ <c>CE-444</c> — <b>a guard reads its host LIVE: a host write mid-run is seen on the next poll.</b>
         /// 📄 <c>DESIGN_Parameter_Model.md</c> §P.3/§P.9 (<c>R-155</c>: an action/condition has no param copy).
         ///
