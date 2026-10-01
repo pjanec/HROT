@@ -654,3 +654,20 @@ lifecycle filter `Active`), and `Active` needs `ConstructionAck`s that are thems
 the creator's set is `ALL − ∪(other roles' claims)` (+ birthright). Today's positive sets: Brain = `brainOnly` (+ `BrainInterrupts`,
 missing), Map2D = {`EditablePolyline`, `RoutePlan`}, Muscle = **none** (its share — WorldPos block + NavigationStatus — travels only as an
 explicit grant). Open: the full Brain list, and whether Muscle gets a positive set or keeps the grant.
+
+### 11.1 Two corrections *(user questions, `2026-10-01`: "why one node per role? … Why map2d role owns EditablePolyline, RoutePlan?")*
+
+- **"One node per role" is a SCOPE LIMIT, not the design.** The design is sharding: `IRoleShardProvider.ServesRole(role, key)`
+  (Role-Affinity §3.8, user ruling `2026-09-10`: *"shard provider interface … implemented for single brain and single muscle case we have
+  now, but reimplementable later"*). 📐 Graph (`IMPLEMENTS`): ONE production implementation, `SingleNodePerRoleShardProvider`, which
+  ignores the key and answers *"do I declare this role?"* ⇒ two nodes declaring a role BOTH claim. `R-157` limited scope to what is
+  built; `CE-506` is the decider a real shard provider needs (§3.8's constraints: identical inputs on every node, stable per entity).
+  ⭐ §9c/§11 do not depend on N=1 — only on the provider being correct.
+- **The Map2D set's recorded reason is false.** `HrotRoleComponentSets.cs` says an empty Map2D row would make an IG-created overlay's
+  *"MapVisualOverlayEgress HasAuthority gate fail"*. 📐 That egress gates on the RECORD (`MapVisualOverlayEgressTranslator.cs:77`), the
+  IG creator is the entity's primary owner, `EditablePolyline` has no attribute path (written directly by the IG edit tool), and
+  nothing reads either claim ⇒ an empty row changes nothing observable today. ⚠ And the row is used as a CREATE set — "IG keeps ONLY
+  these" — the inverse of the user's rule (§11): an IG-created tank declines `EntityInfo`, which then both promoters claim.
+  ⇒ lean: `P(Map2D) = ∅` (IG is passive, `R-140`); IG owns what it creates as CREATOR, like any node.
+- **The claim has a GENERIC reader the earlier counts missed:** attribute changes — `JsonAttributeCompiler.cs:40,58` and
+  `BinaryInterpreterBuilder.cs:111` skip any field whose component the node does not claim (`EcsPatchContext.CanWrite<T>`).
