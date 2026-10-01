@@ -30,6 +30,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-159 | *"network recosrd must be recomputed on every ownership transfer, independently on if it already has an enttry"* · *"i needed to recompute on promotion AND any other ownership changes"* |
 | R-160 | *"the rule is that if i am creator, i own all but the stuff other roles own. If i am not creator, i own just what my role claims. No role claims should be allowed to overlap"* |
 | R-161 | *"yes, map2d empty list"* |
+| R-163 | *"it is not stable. it can change with load"* — ownership moves at runtime by transfer, decided by one authority |
 | R-164 | *"promoter cannot decide based on role, multiplr nodes have same role"* — the owner shards and pushes (§0.7) |
 | R-162 | *"one node per role is wrong. Map2d is a role on multiple nodes already."* — ⛔ **SUPERSEDES R-157** and its duplicate-role guard (Q79 §8 D4, never built). The design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
 | (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
