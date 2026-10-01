@@ -48,6 +48,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | F9 | `BrainInterrupts` is brain-only in use (`CognitiveRuntimeModule`, composed only by `CgfLogicPack.cs:159`) but missing from `brainOnly` | §11 |
 | F10 | sharding seam `IRoleShardProvider` has ONE implementation, `SingleNodePerRoleShardProvider` (ignores the key) | §11.1 |
 | F11 | every claim change already emits a one-shot next-frame bus event: `ConstructionOrder` (create, promote), `OwnershipUpdate` (grant, transfer, ingress); `LocalAuthorityYield` emits none | §9c |
+| F13 | an IG UI-created tank is NOT created by IG: `IgEntityCreationRequests.cs:65` sends `OwnerAppInstanceId = 0` (untargeted, deliberately — R-140, class remarks :26-28); IG is not the broadcast arbiter (`IgNodeBootstrapper.cs:544`) ⇒ forwarded, CGF creates it and CGF's strategy grants. IG creates only a request TARGETED at its node id — then IG's own strategy grants (CE-271 seams ①④, `IgNodeBootstrapper.cs:506-550`; verified live 2026-09-13, Node_Roles §4.1) | Node_Roles §4.1 |
 | F12 | side defects: `CE-507` (perception/EQS senders use a raw ordinal as key); an unused spec-shaped `OwnershipUpdate` topic (`GenericMessages.cs:33`) | §10.4-10.5 |
 
 ### 0.3 Design intent *(docs — how it was MEANT to be)*
@@ -74,7 +75,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | # | question | how to answer it |
 |---|---|---|
 | O1 | the complete **Brain** and **Muscle** claim lists | classification pass (§0.6) |
-| O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? | from O1's result + Transfer design §1 (per-descriptor transfers) |
+| O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? ⚠ **The designs disagree on `SimVelocity`:** Role-Affinity §3.1 (table, line ~343) puts *"spatial / kinematic — `SimTransform`, `SimVelocity`"* under the creator birthright + grant; Node_Roles §4.1 (line ~266) lists `SimVelocity` as non-birth-critical, claimed by role on promote, *"no grant"*; `SimComponents.cs:40` marks it NOT `[BirthCritical]`. The code follows neither: `BrainMuscleOwnershipStrategy.cs:40-55` grants the whole `dtWorldPos` block + `dtNavigationStatus` (per-descriptor transfer) | from O1's result + Transfer design §1 (per-descriptor transfers); reconcile the two docs |
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
 | O5 | sharding beyond one node per role | `CE-506`; note the creator's grant already has the §3.8 shape |
