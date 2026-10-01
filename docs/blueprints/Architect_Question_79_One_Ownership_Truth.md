@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — the consolidated state (user rulings · measured facts · design intent · open questions · the next session's task).
+current-answer: §0 ONLY — the consolidated state (user rulings · measured facts · design intent · open questions · §0.7 the proposed solution · §0.6 the next session's task).
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -82,6 +82,39 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
 | O5 | sharding beyond one node per role | `CE-506`; note the creator's grant already has the §3.8 shape |
+
+### 0.7 ⭐⭐⭐ PROPOSED SOLUTION *(`2026-10-01`, user: "propose a solution and explain how it would work" — awaiting approval; UML goes in a DESIGN doc before build)*
+
+**Three components, one rule each.**
+
+| # | piece | the rule | rests on |
+|---|---|---|---|
+| ① | **one creation composition on every ECS node** | every networked host passes the network adapters to `EntityCreationPack` (request source, ack sink, compiler, ownership strategy, egress) and registers the pre-genesis yield — no role gates on mechanism | F15, F16 · Composition §4.1d · Q65-A′/§5.3 · R-138 · `CE-508`, `CE-509` |
+| ② | **the CLAIM is exclusive** | role claims are positive, disjoint component lists **classified by who WRITES them** (Brain list, Muscle list, Map2D ∅); birth-critical components are in no list. **Creator** = ALL − (lists of roles it does not serve) + birthright. **Non-creator** = lists of roles it serves (shard-gated, one node per role today). Every host gets this policy (IG, Stride included) | R-160, R-161 · F4-F6 · Role-Affinity §3.1, §3.8 |
+| ③ | **the RECORD is derived from the claim** | on `ConstructionOrder` and every `OwnershipUpdate` (F11), for each descriptor whose components are ALL non-birth-critical: record = me iff I claim them, else the named remote owner, else UNKNOWN. Descriptors carrying a birth-critical component (`dtWorldPos`) stay **protocol-owned** — the grant/`OwnershipUpdate` hand-off and its lag (F7) are untouched | R-158, R-159 · F7, F11 · wire spec |
+
+**Why it is correct (derivation, one node per role):** a birth-critical component has one owner — the creator, until the single grantee
+confirms. A component in role R's list is claimed only by the one node serving R (creator lists exclude other roles; non-creators claim only
+their roles). Any other component is claimed only by the creator. ⇒ exactly one claimant per component. With descriptors homogeneous
+(checked by the classification), exactly one node's record says "mine" ⇒ one publisher. Because lists are classified by WRITER, the
+publisher is the producer. The save gate (`PrimaryOwnerId`) is untouched.
+
+**What changes, per creation path:** CGF creates — claims everything except the Muscle list; the grant still hands `dtWorldPos`+`dtNavigationStatus`
+to the Muscle (same node the Muscle list points at). SimHost creates — claims everything except the Brain list; CGF claims the Brain list on
+promotion and its record follows ⇒ **`CE-500` fixed**. IG creates — keeps everything except the Brain and Muscle lists (today it keeps only
+`SimTransform`); grants as today. The 17/22 double claims disappear; `MasterOnly` transfers keep the giver's other descriptors (Transfer §3
+becomes true).
+
+**Build order (each step testable alone):** S1 classification pass (no code) → S2 composition ① (`CE-508`, `CE-509`) → S3 claims ② with the
+§10 probe turned into a rail "no component claimed by two nodes, all three paths" → S4 record ③ + `EntityMissionEgressTranslator` declares
+`MissionPlanQueue` so mission plans are covered → S5 cleanups (`CE-507`, rename the `Cgf` adapters via Roslyn).
+
+**Rejected:** re-gate every sender on the claim (§8) — 30 senders, and the record is still needed for hand-off timing · recompute birth-critical
+descriptors too (§9b) — deadlocks the hand-off (F7) · promoter sends `OwnershipUpdate` — protocol change (R-158) · patch only `NavigationIntent`
+(§9) — a workaround, leaves 17/22 overlaps · Muscle list empty, grant only — contradicts Role-Affinity §3.1 / Node_Roles §4.1.
+
+**Known unknowns:** the lists themselves (O1); a descriptor that mixes classes (O2); claim readers affected by the change, esp. attribute
+changes (O4); a role with no live node leaves its list unowned (Role-Affinity §3.8 rules: log once, no fallback); N nodes per role (O5).
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
