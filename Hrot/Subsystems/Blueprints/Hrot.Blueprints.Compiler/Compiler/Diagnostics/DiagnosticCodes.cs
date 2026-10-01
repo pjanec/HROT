@@ -273,6 +273,9 @@ public static class DiagnosticCodes
     public const string BP4001 = "BP4001";
     public const string BP4002 = "BP4002";
     public const string BP4003 = "BP4003";
+    // ⭐ CE-475 (2026-10-01): an ERROR, no longer a warning. A node Stage 5 cannot lower emits no IR, so the exec
+    // chain walked on without it — the graph compiled and silently did less than it says. The macro and Cast cases
+    // that hid behind the warning are documented at BP1668 above and on BuiltInNodeRegistry.CastPins.
     public const string BP4004 = "BP4004";
 
     /// <summary>

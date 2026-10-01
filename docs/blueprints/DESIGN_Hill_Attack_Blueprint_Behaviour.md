@@ -179,14 +179,14 @@ not observable (it only decides iteration order of the completion check), so out
 Tick, Resolve, Setup, OrderAllToBaseline, AllAtBaseline, SlotT, PickFiringSlot, PickBaselineSlot, TargetNetId, DispatchWave,
 UpdateRunners). ⭐ It is AUTHORED by `Hrot.Blueprints.Tests/Authoring/PlatoonHillAttackBpAuthoring.cs` over the real asset model
 (pins from the editor's own `NodePinSchema`), and `PlatoonHillAttackBpAuthoringTests` pins the file to that output
-(`HILL_ATTACK_BP_REGENERATE=1` rewrites it) and requires ZERO compiler diagnostics (a `BP4004` warning silently drops a node).
+(`HILL_ATTACK_BP_REGENERATE=1` rewrites it) and requires ZERO compiler diagnostics (a `BP4004` used to be a warning that silently dropped a node — an error since `CE-475`).
 The only C# it adds: `HillAttackBlueprintTypes.cs` (two enums + the runner struct — data, no logic).
 
 | ⚠ deviation from §3–§5 | why |
 |---|---|
 | **no Cartesian fallback** in the resolver (C# `:732-739` used lon/lat as X/Y without a transform) | production always has a transform; porting the test convenience would need a doctrine branch in every geo read. The rails and the scenario run WITH one |
 | one extra generic built-in: `Lat/Lon To Cartesian`, `Has Geographic Transform` (§4 F said "Has Geographic Transform" only) | the `PickableGeoPoint` parameters break into lat/lon; `GeoPoint` would need a Make |
-| `Cast` used as a PURE node | ⛔ an exec-chained Cast is dropped (`BP4004`) — `CE-475` |
+| `Cast` used as a PURE node | ⭐ **resolved by `CE-475` (`2026-10-01`)**: Cast IS pure — the registry no longer gives it exec pins, and `BP4004` is now an ERROR, so no node can be silently dropped from an exec chain any more. ~~an exec-chained Cast is dropped (`BP4004`)~~ |
 
 **Compiler defects the first large blueprint behaviour exposed — FIXED in this batch** (each one was latent; none is hill-attack specific):
 

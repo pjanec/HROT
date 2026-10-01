@@ -209,6 +209,8 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
     {
         _repo   = new EntityRepository();
         SimHostComponentRegistry.RegisterAll(_repo);
+        // ⭐ CE-493: these tests drive BRAIN nodes; SimHost stopped registering the brain set on 2026-09-12 (0cda0caf9).
+        CognitiveComponentRegistry.RegisterAll(_repo);
         _parent = _repo.CreateEntity();
     }
 

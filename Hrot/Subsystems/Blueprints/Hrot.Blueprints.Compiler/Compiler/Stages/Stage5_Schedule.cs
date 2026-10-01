@@ -1682,7 +1682,7 @@ internal sealed class GraphScheduler
                 // Discriminator wins over the CLR library case below.
                 if (!Guid.TryParse(fc.TargetGraphId, out var targetGraphGuid))
                 {
-                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                         $"FunctionCallNode TargetGraphId '{fc.TargetGraphId}' is not a valid GUID -- no IR emitted.",
                         _ctx.AssetId, _graph.Id, node.Id));
                     break;
@@ -1690,7 +1690,7 @@ internal sealed class GraphScheduler
                 var targetGraph = _typed.Asset.Graphs.FirstOrDefault(g => g.Id == targetGraphGuid);
                 if (targetGraph is null || targetGraph.Kind != GraphKind.Function)
                 {
-                    _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                    _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                         $"FunctionCallNode references unknown or non-Function graph '{fc.TargetGraphId}' -- no IR emitted.",
                         _ctx.AssetId, _graph.Id, node.Id));
                     break;
@@ -2165,7 +2165,7 @@ internal sealed class GraphScheduler
 
             default:
                 // Unknown impure node kind -- emit BP4004 and skip.
-                _ctx.Diagnostics.Add(Diagnostic.Warning(DiagnosticCodes.BP4004,
+                _ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP4004,
                     $"Unknown node kind '{node.GetType().Name}' -- no IR emitted.",
                     _ctx.AssetId, _graph.Id, node.Id));
                 break;
