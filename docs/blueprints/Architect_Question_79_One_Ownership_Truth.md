@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: DESIGN — awaiting the user's approval of §4 (Q79-A…F). Nothing is built.
-current-answer: §4 (the sub-questions with leans) · §3 (what derivation LOSES — the trade-offs) · §5 (measurements)
-stale-below: nothing
+build-state: DESIGN — ⛔ NOT READY: §7's proof REFUTES Q79-B as written and corrects Q79-A's fallback. The open question is now §7.4 (how claims become exclusive). Nothing is built.
+current-answer: §7 (the logical proof, its axioms, and what it refuted) FIRST · then §4 read through §7 · §3 trade-offs · §5 measurements
+stale-below: §4 row Q79-B (refuted by §7.3) and Q79-A's fallback wording (corrected in §7.1)
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
   no sender reads the claim. Q79-B removes that tolerance: once senders derive from the claim, an over-claim is a second
@@ -170,7 +170,7 @@ generic per-type lookups through the interface, which an optimised version of to
 | # | question | ⭐ lean | blast radius | would change it |
 |---|---|---|---|---|
 | **Q79-A** | Is the component claim the ONE ownership truth, with descriptor ownership DERIVED? Rule: C = D's components the entity has; **own D ⇔ C non-empty and every component of C claimed**; C empty ⇒ the EntityMaster owner (spec default); EntityMaster itself ⇒ `PrimaryOwnerId` | ✅ **yes** — Ownership_Transfer §3 already states it; "every" not "any" because only the owner may publish | the one gate (`AuthorityExtensions`), ~28 callers unchanged | a ruling that a descriptor must be ownable independently of its components (L2) |
-| **Q79-B** | Precondition — claims disjoint: the promoter claims only **its role mask minus every other role's mask**; the creator keeps the unclassified rest | ✅ **yes** — uses the existing tables; makes "one publisher" true by construction | `GhostPromotionSystem` claim (one line of mask math) + rails | a deliberate shared component — none known |
+| ⛔ **Q79-B — REFUTED by §7.3** | Precondition — claims disjoint: the promoter claims only **its role mask minus every other role's mask**; the creator keeps the unclassified rest | ✅ **yes** — uses the existing tables; makes "one publisher" true by construction | `GhostPromotionSystem` claim (one line of mask math) + rails | a deliberate shared component — none known |
 | **Q79-C** | Precondition — ONE map: the world map carries the explicit blocks (WorldPos, NavigationStatus); a rail fails when a sender neither declares components nor is marked entity-level | ✅ **yes** | `NedReplicationModule` populate + one rail | — |
 | **Q79-D** | Per-instance: an instance IS an entity (root = 0, part = N); the gate derives on the **instance's own entity**; a part's claim is set at creation from its root's; a per-instance transfer writes the part | ✅ **yes** — honours per-instance ownership *("unused is not unneeded")*; drops the implicit root redirect | three part-creation sites (weapon mounts, EQS child sensors, personal routes) + `OwnershipIngressSystem` instance routing | — |
 | **Q79-E** | An ownership change for components not yet present is **staged** (`PendingAuthorityGrants`), applied when they appear | ✅ **yes** — reuse, do not invent | `OwnershipIngressSystem` | — |
@@ -206,3 +206,81 @@ when the map is filled; the per-entity inputs are kept current by the ECS itself
 | new: a part transferred alone publishes from its new owner, its root does not | Q79-D per-instance |
 | new: an `OwnershipUpdate` before the component exists takes effect when it appears | Q79-E |
 | unit: derived gate == today's gate on every case where the two records agree | no behaviour change outside the bug |
+
+## 7. ⭐⭐⭐ THE LOGICAL PROOF — and what it refuted *(`2026-10-01`)*
+
+> 🔒 **User:** *"testing on todays (limited) data and use cases is not what proves correctness. can the correctness be derived
+> logically?"* — ⭐ yes: correctness reduces to AXIOMS about finite DEFINITIONS (role tables, the descriptor→component map,
+> templates). The theorem is proved once; each axiom is discharged by reading the definitions, not by running use cases.
+
+### 7.1 The model and the (corrected) rule
+
+| symbol | meaning |
+|---|---|
+| `D(d)` | the components descriptor `d` binds — ⭐ **a property of the descriptor, identical on every node** (axiom M) |
+| `K(e,n)` | the components entity/instance `e` has on node `n` |
+| `A(e,n)` | node `n`'s claim on `e` (`AuthorityMask`), always `⊆ K(e,n)` |
+| `master(e)` | the EntityMaster owner (`PrimaryOwnerId`) |
+
+**owns(n,d,e) ⇔** `D(d) = ∅ ∧ n = master(e)`  **∨**  `D(d) ≠ ∅ ∧ D(d)∩K(e,n) ≠ ∅ ∧ D(d)∩K(e,n) ⊆ A(e,n)`
+
+⛔ **Correction to §4 Q79-A:** the fallback keys on `D(d) = ∅` (the GLOBAL definition), never on "this node has none of the
+components". 📐 With a local fallback, a node lacking `d`'s components would fall to the master owner while another node claims
+them — **two owners by construction**. A node holding none of `d`'s components simply cannot own `d` (it has nothing to send).
+
+### 7.2 The axioms and the two theorems
+
+| axiom | statement |
+|---|---|
+| **M** | `D(d)` is the same on every node |
+| **X — exclusivity** | for every (entity/instance, component) at most ONE node holds the claim, outside the spec's own transfer window |
+| **C — coherence** | a descriptor's components are never claimed by different nodes: whoever claims one member of `D(d)` claims every member it has |
+| **P — master uniqueness** | `master(e)` is one node on every node's view (the spec: EntityMaster has one writer) |
+| **E — claim follows execution** | a node writes a component only if it claims it (the `WithOwned` execution gate, Role_Affinity §3.5) |
+
+**Theorem 1 — safety (at most one sender).** Under M, X, C, P: if `D(d) = ∅`, only `master(e)` owns `d` (P). If `D(d) ≠ ∅` and
+`n₁ ≠ n₂` both own `d`, each claims some member of `D(d)`; by C each claims all members it has, so some component is claimed
+by both, or the two hold disjoint parts of one descriptor — the first contradicts X, the second contradicts C. ∎
+⚠ It holds **outside the transfer window**, exactly as the wire spec itself does (*"This is not true during the short time of
+ownership update"*).
+
+**Theorem 2 — liveness (the producer sends).** Under E: the node that writes `D(d)` claims it, so `D(d)∩K ⊆ A` and it owns `d`.
+⚠ E is only as strong as the execution gate — §3.5 found un-gated writers; liveness is proved only where execution is gated.
+
+**Per instance:** replace `e` by the instance's entity. Initialising a part's claim from its root's (Q79-D) copies an exclusive,
+coherent claim onto a NEW entity, so X and C are preserved.
+
+### 7.3 ⛔⛔ DISCHARGING THE AXIOMS AGAINST THE DEFINITIONS — **X FAILS, and Q79-B does not fix it**
+
+📐 `HrotRoleComponentSets.cs:163-178`: `Brain = ALL − birthCritical` · `MuscleGround = ALL − birthCritical − brainOnly`.
+⇒ ⭐ **the Muscle table is a SUBSET of the Brain table.** The overlap is not a "third bucket" — it is the **entire muscle set**.
+
+| path | creator claims | promoter claims today | X? |
+|---|---|---|---|
+| **A** — CGF creates | Brain ∪ birth = **everything** | SimHost: MuscleGround = everything − brainOnly | ⛔ **violated for every muscle component** (both claim) |
+| **B** — SimHost creates | MuscleGround ∪ birth = everything − brainOnly | CGF: Brain = everything − birth | ⛔ violated for every muscle component |
+
+⇒ today works **only because no sender reads the claim** (§3.6). A derived gate on top of these tables would create two
+senders on Path A and Path B alike.
+
+⛔⛔ **Q79-B as written ("promoter claims its role minus every other role") is REFUTED.** Brain − Muscle = brainOnly ✅ (Path B
+correct), but **Muscle − Brain = ∅** ⇒ on Path A SimHost would claim NOTHING by role, and every gated muscle system
+(perception, weapons, kinematics outside the WorldPos handover) would stop on Brain-created entities — Theorem 2 violated.
+
+**What M, C and P look like** *(read from the definitions)*: M ⛔ **fails today** (the world map is per-node and a subset — §1);
+C ✅ holds for the six declared descriptors under the current transfers (whole descriptors move); P ✅ by the spec and creation.
+
+### 7.4 ⭐ THE QUESTION THAT REMAINS — how does the claim become EXCLUSIVE?
+
+⇒ the derivation is **provably correct once X and M hold**; the open design decision is **X**, and it touches the `2026-09-13`
+ruling that the role tables are COMPLEMENTS (Role_Affinity §3.9c). Candidates, NOT yet leaned — each needs its own check
+against Theorem 2:
+
+| option | X by construction? | cost |
+|---|---|---|
+| promoter claims `role − creator's ownable set` | ✅ | Path A: the Muscle claims ∅ by role ⇒ its computed state must arrive by explicit descriptor handover (extend `DeferredTakeOwnership` beyond WorldPos/NavigationStatus) |
+| tables become disjoint POSITIVE sets | ✅ | ⛔ the `2026-09-13` ruling rejected it (fails toward un-ownership, `CE-256`) |
+| creator DECLINES every component another role in the cluster serves | ✅ | the creator must know which roles are present — the start-order race §0a removed |
+
+⛔ **Do not approve §4 until §7.4 is decided.**
+
