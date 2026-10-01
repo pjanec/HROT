@@ -135,6 +135,7 @@ public static class BTreeSelectionBridgeHelper
     /// </summary>
     public static BTreeFacetMapper? BuildFacetDispatcher(
         BehaviorTreeAsset? asset,
-        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog)
-        => asset is null ? null : new BTreeFacetMapper(asset, catalog);
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? actionSchema = null)   // CE-417 slice 4c: compose on a blueprint pick
+        => asset is null ? null : new BTreeFacetMapper(asset, catalog, actionSchema);
 }

@@ -147,7 +147,7 @@ public sealed class BTreeValidator
             switch (node.KernelType)
             {
                 case NodeType.Action:
-                    if (node.Action == null || string.IsNullOrEmpty(node.Action.MethodFqn))
+                    if (node.Action == null || node.Action.NamesNothing)   // CE-417 B-1: a method OR a blueprint
                     {
                         out_.Add(new BTreeDiagnostic(
                             node.VisualId,
@@ -158,7 +158,7 @@ public sealed class BTreeValidator
                     break;
 
                 case NodeType.Condition:
-                    if (node.Condition == null || string.IsNullOrEmpty(node.Condition.MethodFqn))
+                    if (node.Condition == null || node.Condition.NamesNothing)
                     {
                         out_.Add(new BTreeDiagnostic(
                             node.VisualId,
@@ -194,38 +194,42 @@ public sealed class BTreeValidator
     }
 
     // Phase C (AIE-053): a composed AiPrimitive node (Action or Condition with
-    // DelegateShape == AiPrimitiveTickCore) whose MethodFqn no longer resolves to any Blueprint
-    // asset in the catalog — the blueprint was renamed or deleted after the node was composed.
-    // Identity is by FQN (see ComposedBlueprintResolver), never by a persisted AssetId.
+    // DelegateShape == AiPrimitiveTickCore) whose blueprint no longer resolves in the catalog — deleted, or (for a
+    // legacy FQN binding) renamed. ⭐ CE-417 B-1: identity is the binding's BlueprintAssetId first (a rename no longer
+    // dangles); a legacy generated MethodFqn is still checked by FQN until the editor heals it on load.
+    // ⛔ SUPERSEDED: "Identity is by FQN, never by a persisted AssetId" (B-1, user 2026-10-01).
     private static void CheckDanglingBlueprintReferences(
         BehaviorTreeAsset asset, IAssetCatalog catalog, List<BTreeDiagnostic> out_)
     {
         foreach (var node in asset.Nodes)
         {
-            string? methodFqn = node.KernelType switch
+            var binding = node.KernelType switch
             {
                 NodeType.Action when (node.Action is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
-                    => node.Action.MethodFqn,
+                    => node.Action,
                 NodeType.Condition when (node.Condition is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
-                    => node.Condition.MethodFqn,
+                    => node.Condition,
                 _ => null,
             };
-            if (methodFqn is null)
+            if (binding is null)
                 continue;
 
-            // Not a composed-AiPrimitive-shaped FQN at all (shouldn't happen given the DelegateShape
-            // guard above, but Resolve/TryParse already handles it defensively) — nothing to flag.
-            if (!ComposedBlueprintResolver.TryParse(methodFqn, out _, out _))
+            // Neither a blueprint id nor a generated-blueprint FQN (a hand-written AiPrimitive-shaped C# method) —
+            // there is no blueprint to dangle.
+            bool namesBlueprint = binding.BlueprintAssetId != Guid.Empty
+                               || ComposedBlueprintResolver.TryParse(binding.MethodFqn, out _, out _);
+            if (!namesBlueprint)
                 continue;
 
-            if (ComposedBlueprintResolver.Resolve(methodFqn, catalog) != null)
+            if (ComposedBlueprintResolver.ResolveBinding(binding, catalog) != null)
                 continue; // resolves cleanly — no diagnostic.
 
+            string shown = binding.BlueprintName ?? binding.MethodFqn ?? binding.BlueprintAssetId.ToString();
             out_.Add(new BTreeDiagnostic(
                 node.VisualId,
                 BTreeDiagnosticSeverity.Error,
                 BTreeDiagnosticCode.DanglingReferenceAfterReload,
-                $"Node '{node.DisplayLabel}' references blueprint '{methodFqn}' which no longer exists — reselect or remove."));
+                $"Node '{node.DisplayLabel}' references blueprint '{shown}' which no longer exists — reselect or remove."));
         }
     }
 

@@ -235,6 +235,16 @@ internal static class GeneratedBlueprintSchemaCatalog
         return true;
     }
 
+    /// <summary>⭐ <c>CE-417</c> B-1 — the schema of the blueprint asset with this id, or <c>null</c>. ⭐ By id, not name: two
+    /// blueprints may share a name (<c>EnumDemo</c> exists twice), never an id.</summary>
+    public static GeneratedBlueprintSchema? FindByAssetId(
+        IReadOnlyList<GeneratedBlueprintSchema> schemas, Guid assetId)
+    {
+        foreach (var s in schemas)
+            if (s.AssetId == assetId) return s;
+        return null;
+    }
+
     /// <summary>Finds the schema matching a (SanitizedName, BlueprintId) pair, or <c>null</c>.</summary>
     public static GeneratedBlueprintSchema? Find(
         IReadOnlyList<GeneratedBlueprintSchema> schemas, string sanitizedName, int blueprintId)

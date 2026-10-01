@@ -8,10 +8,10 @@ namespace Hrot.BTree.Editor.Inspector;
 /// <summary>Inspector facet for Action leaf nodes.</summary>
 public struct BTreeActionFacet
 {
-    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method + target variable, drawn by ONE
-    /// <c>ActionBindingDrawer</c>. ⚠ No blueprint here until B-1 (slice 4c).</summary>
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method OR blueprint (slice 4c, B-1) + target variable,
+    /// drawn by ONE <c>ActionBindingDrawer</c>.</summary>
     [EditDisplayName("Action")]
-    [ActionBinding(BindingSlotKind.Action)]
+    [ActionBinding(BindingSlotKind.Action, allowsBlueprint: true)]
     public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Comment")]
@@ -33,10 +33,10 @@ public struct BTreeActionFacet
 /// <summary>Inspector facet for Condition leaf nodes.</summary>
 public struct BTreeConditionFacet
 {
-    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method + target variable, drawn by ONE
-    /// <c>ActionBindingDrawer</c>. ⚠ No blueprint here until B-1 (slice 4c).</summary>
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method OR blueprint (slice 4c, B-1) + target variable,
+    /// drawn by ONE <c>ActionBindingDrawer</c>.</summary>
     [EditDisplayName("Condition")]
-    [ActionBinding(BindingSlotKind.Guard)]
+    [ActionBinding(BindingSlotKind.Guard, allowsBlueprint: true)]
     public BehaviorActionBindingFacet Condition;
 
     [EditDisplayName("Comment")]

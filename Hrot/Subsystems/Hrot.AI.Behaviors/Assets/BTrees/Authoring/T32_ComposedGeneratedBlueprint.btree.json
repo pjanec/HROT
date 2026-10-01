@@ -27,7 +27,8 @@
     {
       "kind": "Action",
       "Action": {
-        "MethodFqn": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.TickCore",
+        "BlueprintAssetId": "d06f6a14-3e77-4473-962f-36a5d10dc316",
+        "BlueprintName": "EnumDemo",
         "ExpressionTargetField": "bpParams",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp+WorkingState"
       },
