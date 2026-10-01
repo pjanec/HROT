@@ -197,7 +197,7 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
   ⭐ NEW 2026-09-03: phase N₀ (§4.0) is READY-TO-BUILD — the time role becomes a HrotNodeBuilder input,
   which is the measured prerequisite for the Editor adopting the shared node bootstrap (§4.1). It is
   pulled FORWARD out of phase N on a user ruling that the Editor is in scope for unification.
-updated: 2026-09-11
+updated: 2026-10-01 (§4.1ad — the hand-wired-fixture family, measured across ClusterRunner.Integration.Tests)
 known-rot: §4.1's "Still untouched: the EDITOR (neither axis)" and §4.1L's "MuscleModuleFactory has no
   production setter" are BOTH corrected in §4.1ac (2026-09-07). The editor is on the BUILDER axis
   (CE-203) and off the CAPABILITY axis only; MuscleModuleFactory is assigned in production at
@@ -6298,6 +6298,20 @@ instead of a diff.
 integration tests timed out waiting for a buffer nothing wrote, for three weeks. ⛔ The §Gates table above never named that suite.
 ⭐ Fixed by installing both systems in the harness. ⇒ **any change that moves a system between a pack and a capability must also grep
 for hand-wired pack registrations** (`new CgfLogicPack(` / `new SimHostCoreLogicPack(` in test harnesses) — they are hosts too.
+
+📐 **The same family, measured again `2026-10-01` across the rest of that suite** — every one a test-only composition that a product
+change never reached, and none a product regression:
+
+| fixture | the product change it missed | symptom |
+|---|---|---|
+| `ClusterOpE2eScriptTests` builds its OWN `OrchestratorSubsystem` | `CE-101` — the cluster boots PAUSED (`HrotRunnerHarness.ResumeTimeAfterBoot` got the fix, this one did not) | every frame `dt = 0`; a tagged entity never moved |
+| `UrbanCombatFileLifecycleTests` stages an OFFLINE example world | scenario files carry `NetworkIdentity` · the role narrowing (§3.9a of `DESIGN_Role_Affinity_Ownership`) | extractor skipped every entity; latches read channels SimHost no longer has |
+| `GhostPromotionTests` injects descriptors by hand | `CE-265`'s derived gate (`EntityInfo` is `[PerInstanceValue]`) | ghost never promoted |
+| `SensorMechanismIntegrationTests` injects an end state | egress moved to `SensorTrackStateEvent` (transition-driven) | no Acquired sample could exist |
+| `IgApplication.TestHook_SimulateEntityClick` | `UXI-11 S-6` moved selection egress off the click handler | ExCon never saw the selection |
+
+⇒ ⭐ **the rule above generalises: a fixture that reproduces a product path BY HAND is a host of that path** — when the path changes,
+grep its test hooks and hand-built fixtures, not only `new …Pack(`. 📄 `docs/blueprints/batches/REPORT_ClusterRunner_Integration_Reds.md`.
 
 ### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
 
