@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — ⛔ NOT READY: §7's proof REFUTES Q79-B as written and corrects Q79-A's fallback. The open question is now §7.4 (how claims become exclusive). Nothing is built.
-current-answer: §7 (the logical proof, its axioms, what it refuted) FIRST — §7.5/§7.6 for option 1 · then §4 read through §7 · §3 trade-offs · §5 measurements
+current-answer: §7 (the logical proof, its axioms, what it refuted) FIRST — §7.5/§7.6 option 1 · §7.7/§7.8 sharding · then §4 read through §7 · §3 trade-offs · §5 measurements
 stale-below: §4 row Q79-B (refuted by §7.3) and Q79-A's fallback wording (corrected in §7.1)
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -323,4 +323,41 @@ a whole, the creator clears before the promoter claims.
 the role-holder asks for what its role produces, through the one transfer mechanism. ⛔ **Not yet proved:** the case of two
 promoters of the same role (sharding, §3.8) racing for one block — the shard provider's single answer per entity is the
 candidate guarantee and needs its own check.
+
+### 7.7 ⭐⭐⭐ SHARDING — Theorem 3, and what it requires *(`2026-10-01`)*
+
+**Axiom S — partition.** For every role `R` and entity key `k`, **at most one node in the cluster** answers
+`ServesRole(R, k) = true`. ⚠ Role_Affinity §3.8's contract ① (inputs identical on every node) and ② (stable for the entity's
+life) make nodes **agree**; ⛔ **neither says only ONE node answers yes.** S must be stated as contract ③.
+
+**Theorem 3 — sharded promotion with a promoter-initiated transfer (§7.6) is race-free.** Under S, ②, X and C:
+1. per (entity, role) at most one node promotes as that role's holder (S) ⇒ at most one claimant per role-exclusive component (X);
+2. a promoter requests only the descriptors its role produces; role-produced blocks are disjoint (C) ⇒ **at most one initiator
+   per descriptor**;
+3. one initiator ⇒ one `OwnershipUpdate` per descriptor ⇒ every node applies the same final owner — the spec's single-transfer
+   protocol holds;
+4. ② ⇒ no second initiator appears later (no remapping of a live entity). ∎
+
+📐 **Why one initiator is NECESSARY, not just sufficient:** `OwnershipIngressSystem.cs:57-67` applies updates **last-write-wins
+per node, in that node's arrival order**, and DDS gives no total order across different writers ⇒ two initiators for one
+descriptor can leave nodes disagreeing (A believes B owns it, B believes A does) — a silent two-writer or zero-writer state.
+
+### 7.8 ⛔⛔ DISCHARGING S AGAINST THE DEFINITIONS
+
+| deployment | S holds? | measured |
+|---|---|---|
+| **one node per role** *(every shipped launch mode: `launchSettings.json` starts one SimHost, one CGF)* | ✅ with `SingleNodePerRoleShardProvider` (it ignores the key; one declarer ⇒ one "yes") | ⚠ **not ENFORCED** — no code detects a second node declaring the same role *(searched: none)* |
+| **N > 1 nodes per role** | ⛔ **the default provider answers yes on EVERY declarer** ⇒ two muscles both promote, both claim, both initiate | ⚠ today's grant path ANTICIPATES N muscles (`BrainMuscleOwnershipStrategy` → `GetLeastLoadedNode`) — there ONE decider (the creator) picks one, which is why today does not race |
+| **N > 1 with a locally computed rule** *(e.g. hash over the roster)* | ⛔ **unprovable** — the roster comes from 1 Hz heartbeats and is not identical across nodes at the same moment (violates ①); membership changes violate ② | — |
+
+⇒ ⭐⭐ **RESULT.**
+- **One node per role: the proof is complete** — given X, C, M (§7.2-7.6) and ONE guard: ⛔ a second node declaring a role
+  already held must be **detected and refused loudly** (the roster already knows — `NodeRoster.NodesWithRole`), or S breaks
+  silently. Same shape as §5 ②'s approved boot warning.
+- **N nodes per role: provably correct only with a SINGLE DECIDER** publishing `(role, entity) → node`, fixed once assigned —
+  the shard-table authority §3.8 deliberately left undesigned. ⭐ It must assign **when a holder exists**, not only at
+  creation — that is what closes the late joiner for N > 1. ⛔ **No locally computed provider can satisfy S under changing
+  membership.**
+- ⚠ **Adopting §7.6 with the default provider would REGRESS a multi-muscle cluster** (today the creator's single decision
+  prevents the race). ⇒ the guard above is a precondition of §7.6, not an extra.
 
