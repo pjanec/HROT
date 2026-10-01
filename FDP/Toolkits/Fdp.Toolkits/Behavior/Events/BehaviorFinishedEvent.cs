@@ -27,5 +27,16 @@ namespace Fdp.Toolkit.Behavior.Events
 
         /// <summary>The terminal result of the behavior's BTree root (<see cref="NodeStatus.Success"/> or <see cref="NodeStatus.Failure"/>).</summary>
         public NodeStatus Result;
+
+        /// <summary>⭐ <c>CE-482</c>: why the run FAULTED (<see cref="BehaviorFault.Raise"/>); <see cref="BehaviorFaultCode.None"/>
+        /// for an ordinary end. A faulted run always reports <see cref="NodeStatus.Failure"/>.</summary>
+        public BehaviorFaultCode FaultCode;
+
+        /// <summary>⭐ <c>CE-482</c>: Succeeded · Failed (an ordinary end) · Faulted (fail loud). 📄
+        /// <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D2 — derived, so it can never disagree with <see cref="Result"/>.</summary>
+        public readonly BehaviorOutcome Outcome
+            => FaultCode != BehaviorFaultCode.None ? BehaviorOutcome.Faulted
+             : Result == NodeStatus.Success      ? BehaviorOutcome.Succeeded
+             : BehaviorOutcome.Failed;
     }
 }

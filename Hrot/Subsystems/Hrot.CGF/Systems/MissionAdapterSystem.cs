@@ -68,6 +68,15 @@ namespace Hrot.CGF.Systems
                     continue;
                 }
 
+                // ⭐ CE-483 — a HALTED plan (its phase's behaviour faulted) re-issues nothing. Forgetting the phase here is what
+                //   makes an operator's jump — even back to the SAME phase, a retry — start the behaviour again once the halt is
+                //   cleared. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
+                if (queue.Halted != 0)
+                {
+                    adapterState.LastPhase = byte.MaxValue;
+                    continue;
+                }
+
                 Span<MissionPhase> phases = queue.Phases;
                 var phase = phases[queue.CurrentPhase];
 

@@ -127,7 +127,7 @@ namespace Hrot.SimHost.Tests
             var methods = typeof(BlueprintWorldLibrary).GetMethods(BindingFlags.Public | BindingFlags.Static);
             // CE-469's 7 + CE-464's RandomIntSeeded, EntityIndex, BehaviorHashOf, HasGeographicTransform, LatLonToCartesian
             // + the EQS migration's RefreshEqsSensor, DestroyEqsSensor
-            Assert.Equal(14, methods.Length);
+            Assert.Equal(15, methods.Length);   // CE-482: + Fault Behaviour
             foreach (var m in methods)
             {
                 Assert.NotNull(m.GetCustomAttribute<BlueprintCallableAttribute>());
@@ -136,6 +136,32 @@ namespace Hrot.SimHost.Tests
                 Assert.True(ps.Length > 0);
                 Assert.DoesNotContain(ps.Take(ps.Length - 1), p => p.ParameterType == typeof(Fdp.ModuleHost.Abstractions.ISimulationView));
             }
+        }
+
+        /// <summary>⭐ CE-482 — <i>Fault Behaviour</i> latches the fault to the CURRENT run and publishes the notification; the
+        /// first fault of a run wins; an entity running no behaviour is a no-op. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D1.</summary>
+        [Fact]
+        public void FaultBehaviour_LatchesToTheRun_AndNotifies_FirstWins()
+        {
+            using var repo = World();
+            if (!repo.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorState), out _))
+                repo.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
+            var idle = repo.CreateEntity();
+            BlueprintWorldLibrary.FaultBehaviour(1, "nothing runs", idle, repo);
+            Assert.False(Fdp.Toolkit.Behavior.Events.BehaviorFault.IsPending(repo, idle, 0));
+
+            var self = repo.CreateEntity();
+            repo.AddComponent(self, new Fdp.Toolkit.Behavior.Components.BehaviorState { ActiveBehaviorHash = 77, InstanceId = 4 });
+            BlueprintWorldLibrary.FaultBehaviour(1001, "first", self, repo);
+            BlueprintWorldLibrary.FaultBehaviour(2, "second", self, repo);
+            Assert.True(Fdp.Toolkit.Behavior.Events.BehaviorFault.IsPending(repo, self, 4));
+            Assert.False(Fdp.Toolkit.Behavior.Events.BehaviorFault.IsPending(repo, self, 5));   // another run's
+            Assert.Equal((Fdp.Toolkit.Behavior.Events.BehaviorFaultCode)1001,
+                Fdp.Toolkit.Behavior.Events.BehaviorFault.Take(repo, self, 4));                 // the FIRST wins
+            repo.Bus.SwapBuffers();
+            var note = Assert.Single(repo.Bus.ReadManaged<Fdp.Toolkit.Behavior.Events.BehaviorFaultNotification>());
+            Assert.Equal("first", note.Message);
+            Assert.Equal(77, note.BehaviorHash);
         }
     }
 }

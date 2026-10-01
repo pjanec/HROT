@@ -219,6 +219,8 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             Data("ContextSlot0",    "In",  "Fdp.Core.Entity"),
             Data("ContextSlot1",    "In",  "Fdp.Core.Entity"),
             Data("ContextSlot2",    "In",  "Fdp.Core.Entity"),
+            // ⭐ CE-485: one sensor per KEY from a single spawn node (e.g. one per area in a loop). Unconnected ⇒ key 0.
+            Data("Key",             "In",  "Fdp.Core.Entity"),
         },
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),

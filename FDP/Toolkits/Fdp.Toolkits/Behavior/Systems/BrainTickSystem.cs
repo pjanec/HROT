@@ -180,6 +180,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                         TickHsm(repo, entity, behavior, def, deltaTime, mobilityLostEvent);
                     else if (behavior.BrainTier == BehaviorConstants.BrainTierBlueprint)
                         TickBlueprint(repo, entity, behavior, def, deltaTime);
+
+                    // ⭐ CE-482 — FAIL LOUD: a run that raised a fault this tick (and did not already finish) ends now, through
+                    //   the normal finish — so its commands, channels and owned parts are released like any other end.
+                    //   📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D2.
+                    if (BehaviorFault.IsPending(repo, entity, behavior.InstanceId))
+                        Finish(repo, entity, behavior, NodeStatus.Failure);
                 }
             }
         }
@@ -243,10 +249,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (def.BTreeInterpreter == null)
             {
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine(
-                    $"[BrainTickSystem] Behavior hash {behavior.ActiveBehaviorHash} has no BTree interpreter; entity {entity.Index} skipped.");
-#endif
+                // ⭐ CE-482: a definition that cannot run is a FAULT, not a silent skip (it used to be a DEBUG-only line).
+                BehaviorFault.Raise(repo, entity, BehaviorFaultCode.NoDefinition,
+                    $"Behavior hash {behavior.ActiveBehaviorHash} has no BTree interpreter.");
                 return;
             }
 
@@ -359,7 +364,10 @@ namespace Fdp.Toolkit.Behavior.Systems
             if (_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint prev) && prev == behavior.InstanceId)
                 return;
 
-            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result });
+            // ⭐ CE-482: a fault the run raised overrides how it ended — even a Success returned in the same tick.
+            var fault = BehaviorFault.Take(repo, entity, behavior.InstanceId);
+            if (fault != BehaviorFaultCode.None) result = NodeStatus.Failure;
+            repo.Bus.Publish(new BehaviorFinishedEvent { Entity = entity, Result = result, FaultCode = fault });
             _publishedTerminalForInstanceId[entity.Index] = behavior.InstanceId;
             BehaviorIngressSystem.Clear(repo, entity, _registry);
         }
@@ -389,10 +397,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         {
             if (def.BlueprintTick == null)
             {
-#if DEBUG
-                System.Diagnostics.Debug.WriteLine(
-                    $"[BrainTickSystem] Behavior hash {behavior.ActiveBehaviorHash} has no blueprint tick; entity {entity.Index} skipped.");
-#endif
+                // ⭐ CE-482: a definition that cannot run is a FAULT, not a silent skip (it used to be a DEBUG-only line).
+                BehaviorFault.Raise(repo, entity, BehaviorFaultCode.NoDefinition,
+                    $"Behavior hash {behavior.ActiveBehaviorHash} has no blueprint tick.");
                 return;
             }
 

@@ -79,6 +79,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// </summary>
         private readonly HashSet<int> _behaviorFinishedThisFrame = new();
 
+        /// <summary>⭐ <c>CE-483</c>: how each entity's run ended this frame (entity index ⇒ outcome).</summary>
+        private readonly Dictionary<int, BehaviorOutcome> _outcomeThisFrame = new();
+
         public unsafe void Execute(ISimulationView view, float deltaTime)
         {
             if (view is not EntityRepository repo)
@@ -92,10 +95,14 @@ namespace Fdp.Toolkit.Behavior.Systems
             // Consume all BehaviorFinishedEvents once, cache the entity indices, then
             // look them up in O(1) during the entity query loop below.
             _behaviorFinishedThisFrame.Clear();
+            _outcomeThisFrame.Clear();
             var behaviorFinishedEvents = repo.Bus.Read<BehaviorFinishedEvent>();
             foreach (var finishedEvt in behaviorFinishedEvents)
             {
                 _behaviorFinishedThisFrame.Add(finishedEvt.Entity.Index);
+                // A fault outranks any other end reported for the same entity in the same frame.
+                if (!_outcomeThisFrame.TryGetValue(finishedEvt.Entity.Index, out var seen) || seen != BehaviorOutcome.Faulted)
+                    _outcomeThisFrame[finishedEvt.Entity.Index] = finishedEvt.Outcome;
             }
 
             // ⭐ P3 step 3b — advances mission phases (GetComponentRW<MissionPlanQueue>), which is
@@ -114,10 +121,27 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // Mission complete — nothing left to do.
                 if (queue.CurrentPhase >= queue.PhaseCount) continue;
 
+                // ⭐ CE-483 — a halted plan waits for an operator command (a jump or a new plan). 📄
+                //   DESIGN_Behaviour_Fault_And_Teardown.md §1 D3.
+                if (queue.Halted != 0) continue;
+
                 // Safe access to the inline Phases buffer: cast to Span to avoid the
                 // C#/[InlineArray] defensive-copy trap when indexing a nested value-type.
                 Span<MissionPhase> phases = queue.Phases;
+                Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
                 var phase = phases[queue.CurrentPhase];
+
+                // ⭐ CE-483 — record how this phase's run ended: Succeeded ⇒ Done · Failed ⇒ Failed, and the plan goes on (3a) ·
+                //   Faulted ⇒ Failed AND HALT — the run told us it could not do its job; ⛔ do not quietly start the next phase.
+                if (_outcomeThisFrame.TryGetValue(entity.Index, out var outcome))
+                {
+                    outcomes[queue.CurrentPhase] = outcome == BehaviorOutcome.Succeeded ? MissionPhaseOutcome.Done : MissionPhaseOutcome.Failed;
+                    if (outcome == BehaviorOutcome.Faulted)
+                    {
+                        queue.Halted = 1;
+                        continue;
+                    }
+                }
 
                 bool triggered = false;
 
@@ -181,6 +205,9 @@ namespace Fdp.Toolkit.Behavior.Systems
 
                 if (triggered)
                 {
+                    // A phase advanced by its trigger (a timer, a health threshold) while nothing reported an end ⇒ Done.
+                    if (outcomes[queue.CurrentPhase] == MissionPhaseOutcome.None)
+                        outcomes[queue.CurrentPhase] = MissionPhaseOutcome.Done;
                     queue.CurrentPhase++;
                     queue.PhaseElapsedSeconds = 0f;
 

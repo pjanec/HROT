@@ -2085,6 +2085,7 @@ internal sealed class GraphScheduler
                 var contextSlot0    = ResolveParamPin("ContextSlot0");
                 var contextSlot1    = ResolveParamPin("ContextSlot1");
                 var contextSlot2    = ResolveParamPin("ContextSlot2");
+                var sensorKey       = ResolveParamPin("Key");
 
                 // Emit the spawn op; result is the EqsSensorHandle
                 var handleType = new IrTypeRef { FullName = "FDP.Eqs.EqsSensorHandle", IsUnmanaged = true, SizeBytes = 8 };
@@ -2102,7 +2103,8 @@ internal sealed class GraphScheduler
                         PriorityValue:              priority,
                         ContextSlot0Value:          contextSlot0,
                         ContextSlot1Value:          contextSlot1,
-                        ContextSlot2Value:          contextSlot2),
+                        ContextSlot2Value:          contextSlot2,
+                        KeyValue:                   sensorKey),
                     Debug = DebugOf(ssn),
                 });
 

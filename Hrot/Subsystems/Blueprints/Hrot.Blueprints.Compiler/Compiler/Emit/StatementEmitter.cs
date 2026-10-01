@@ -1253,11 +1253,10 @@ internal static class StatementEmitter
 
             case IrOp_SpawnEqsSensor op:
             {
-                // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3). The sensor's identity is
-                //    (self, InstanceId) — its DDS key — so it is FOUND by that pair through the one shared lifecycle,
-                //    EqsChildSensor. ⛔ It used to hand out the handle ecb.CreateEntity() returned: a negative-index
-                //    placeholder valid only inside that playback, so ReadEqsResult's IsAlive(handle) never held.
-                //    On the tick that CREATES the sensor the Handle is default (pending); run the node again next tick.
+                // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3) through the one shared lifecycle,
+                //    EqsChildSensor. ⭐ CE-485 (DESIGN_Behaviour_Fault_And_Teardown.md §1 D5): the baked id is the SITE
+                //    and the optional Key pin picks one sensor per key; the part id (DDS key) is allocated at runtime, the
+                //    sensor is created at once on the live world (a real Handle on the creating tick) and dies with the run.
                 string searchRadius    = op.SearchRadiusValue    is not null ? $"__t{op.SearchRadiusValue.Value.Index}"    : "0f";
                 string factionFilter   = op.FactionFilterValue   is not null ? $"__t{op.FactionFilterValue.Value.Index}"   : "0u";
                 string threatThreshold = op.ThreatThresholdValue is not null ? $"__t{op.ThreatThresholdValue.Value.Index}" : "0f";
@@ -1266,6 +1265,7 @@ internal static class StatementEmitter
                 string contextSlot0    = op.ContextSlot0Value    is not null ? $"__t{op.ContextSlot0Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
                 string contextSlot1    = op.ContextSlot1Value    is not null ? $"__t{op.ContextSlot1Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
                 string contextSlot2    = op.ContextSlot2Value    is not null ? $"__t{op.ContextSlot2Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string keyArg          = op.KeyValue             is not null ? $", (long)__t{op.KeyValue.Value.Index}.PackedValue" : "";
 
                 // Declare the result handle BEFORE the scope block so it is visible downstream.
                 if (idx >= 0)
@@ -1288,7 +1288,7 @@ internal static class StatementEmitter
                 e.WriteLine($"ContextSlot2    = {contextSlot2},");
                 e.Outdent();
                 e.WriteLine("};");
-                string ensure = $"global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure({wv}, self, {op.BakedInstanceId}, _sensorConfig)";
+                string ensure = $"global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure({wv}, self, {op.BakedInstanceId}, _sensorConfig{keyArg})";
                 if (idx >= 0)
                     e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle({ensure});");
                 else

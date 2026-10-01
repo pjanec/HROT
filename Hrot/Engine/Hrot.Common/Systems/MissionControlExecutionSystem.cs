@@ -209,6 +209,13 @@ namespace Hrot.Common.Systems
                     ref var queue = ref repo.GetComponentRW<MissionPlanQueue>(entity);
                     queue.CurrentPhase = (byte)targetIndex;
                     queue.PhaseElapsedSeconds = 0f;
+                    // ⭐ CE-483 — the operator's answer to a halted (faulted) plan: run from the target phase again.
+                    queue.Halted = 0;
+                    if (targetIndex < MissionPlanQueue.MaxPhases)
+                    {
+                        Span<MissionPhaseOutcome> outcomes = queue.Outcomes;
+                        outcomes[targetIndex] = MissionPhaseOutcome.None;
+                    }
 
                     currentVersion++;
                     _missionVersions[intent.TargetEntityId] = currentVersion;

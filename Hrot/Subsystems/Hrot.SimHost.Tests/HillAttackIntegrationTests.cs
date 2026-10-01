@@ -413,6 +413,117 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(t1, t2);        // tank 1 ≠ tank 2
         }
 
+        // ── CE-485 — the behaviour run's EQS sensor dies with the run ──────────────
+
+        private List<Entity> SensorsOf(Entity parent)
+        {
+            var list = new List<Entity>();
+            foreach (var e in _repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
+                if (_repo.GetComponentRO<PartMetadata>(e).ParentEntity.Equals(parent)) list.Add(e);
+            return list;
+        }
+
+        /// <summary>
+        /// ⭐ <b>CE-485</b> — 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4/D5, acceptance ③. Through the REAL
+        /// <see cref="BehaviorIngressSystem"/>: re-assigning the SAME behaviour destroys the ending run's sensor and the new run
+        /// gets a fresh one on the REUSED part id with its own run in the epoch; a <see cref="ClearBehaviorEvent"/> leaves
+        /// zero sensors. ✅ Red-proof: drop the <c>BehaviorOwnedParts.Release</c> call at a bump site ⇒ the old sensor survives.
+        /// </summary>
+        [Fact]
+        public void CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear()
+        {
+            const long areaNetId = 9485L;
+            var areaEntity = CreateAreaEntity(new List<Vector2> { new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f) });
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(areaNetId, areaEntity);
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            var hostile = CreateHostileAt(40f, 40f);
+            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101L });
+
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
+            var subs = new Entity[2];
+            for (int i = 0; i < 2; i++)
+            {
+                subs[i] = _repo.CreateEntity();
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent<BehaviorState>(subs[i], default);
+                _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
+            }
+            AddRoster(_repo, commander, subs);
+            string json = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,90],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
+            void Assign() => _repo.Bus.PublishManaged(new AssignBehaviorEvent
+                { Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack, JsonParams = json });
+
+            Assign();
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
+            var first = Assert.Single(SensorsOf(commander));
+            uint run1 = _repo.GetComponentRO<BehaviorState>(commander).InstanceId;
+            Assert.Equal(1, _repo.GetComponentRO<PartMetadata>(first).InstanceId);
+            Assert.Equal(run1, _repo.GetComponentRO<EqsSensor>(first).Epoch >> 16);
+
+            // Re-assign the SAME behaviour: a new run.
+            Assign();
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
+            Assert.False(_repo.IsAlive(first));                                       // the ending run's sensor is gone
+            var second = Assert.Single(SensorsOf(commander));
+            uint run2 = _repo.GetComponentRO<BehaviorState>(commander).InstanceId;
+            Assert.NotEqual(run1, run2);
+            Assert.Equal(1, _repo.GetComponentRO<PartMetadata>(second).InstanceId);   // the part id is REUSED
+            Assert.Equal(run2, _repo.GetComponentRO<EqsSensor>(second).Epoch >> 16);  // ...and the run tells them apart
+
+            // Clear: no behaviour ⇒ no sensor.
+            _repo.Bus.Publish(new ClearBehaviorEvent { Entity = commander });
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
+            Assert.False(_repo.IsAlive(second));
+            Assert.Empty(SensorsOf(commander));
+        }
+
+        /// <summary>
+        /// ⭐ <b>CE-482</b> — 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D1/D2, acceptance ①. FAIL LOUD, through the REAL
+        /// systems: the commander's target area is missing ⇒ it raises <see cref="BehaviorFaultCode.MissingInput"/>; the run ends
+        /// in the SAME tick with <see cref="BehaviorOutcome.Faulted"/> (once), a <see cref="BehaviorFaultNotification"/> names the
+        /// reason, and the behaviour is cleared (<c>BrainTier 0</c>) — ⛔ before CE-482 this was a log line and a silent Failure.
+        /// </summary>
+        [Fact]
+        public void CE482_MissingArea_FaultsTheRun_LoudlyAndOnce()
+        {
+            var entityMap = new NetworkEntityMap();             // ⛔ the area network id is NOT registered ⇒ no area
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
+            var sub = _repo.CreateEntity();
+            _repo.AddComponent(sub, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            _repo.AddComponent<BehaviorState>(sub, default);
+            _repo.AddComponent(sub, new NavigationStatus { Result = NavigationResult.Arrived });
+            AddRoster(_repo, commander, new[] { sub });
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack,
+                JsonParams = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
+                           + "\"baselineEnd\":[50,90],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
+            });
+
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
+            _repo.Bus.SwapBuffers();
+
+            var finished = _repo.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(e => e.Entity == commander).ToList();
+            var only = Assert.Single(finished);
+            Assert.Equal(BehaviorOutcome.Faulted, only.Outcome);
+            Assert.Equal(BehaviorFaultCode.MissingInput, only.FaultCode);
+            var note = Assert.Single(_repo.Bus.ReadManaged<BehaviorFaultNotification>().Where(n => n.Entity == commander));
+            Assert.Equal(BehaviorFaultCode.MissingInput, note.Code);
+            Assert.Contains("area", note.Message);
+            Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
+        }
+
         // ── SC-HA015-2 ────────────────────────────────────────────────────────────
 
         /// <summary>

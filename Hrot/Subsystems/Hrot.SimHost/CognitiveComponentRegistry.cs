@@ -30,6 +30,7 @@ namespace Hrot.SimHost
         public static void RegisterAll(EntityRepository world)
         {
             world.RegisterComponent<BehaviorState>();
+            world.RegisterComponent<BehaviorFaultLatch>();   // CE-482
             world.RegisterComponent<SimTier>();
             world.RegisterComponent<LocomotionChannel>();
             world.RegisterComponent<WeaponChannel>();
@@ -91,6 +92,7 @@ namespace Hrot.SimHost
             world.RegisterEvent<CognitiveInterruptEvent>();
             world.RegisterEvent<ClearBehaviorEvent>();
             world.RegisterEvent<BehaviorFinishedEvent>();
+            world.RegisterManagedEvent<BehaviorFaultNotification>();   // CE-482 — fail loud
             world.RegisterEvent<AssignBehaviorHashEvent>();
             world.RegisterManagedEvent<AssignTacticalIntentEvent>();
             world.RegisterManagedEvent<AssignBehaviorEvent>();

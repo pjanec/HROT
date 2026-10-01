@@ -49,8 +49,9 @@ namespace Hrot.AI.Behaviors.Brains
         /// </summary>
         public const string AreaTemplateAssetId = "3e5a7c91-2b4d-4f86-a0c3-5d7e9f1b2a64";
 
-        /// <summary>The sensor's <c>PartMetadata.InstanceId</c> under the commander — its DDS key. Fixed, so a sensor left by an
-        /// aborted run is re-found, never duplicated.</summary>
+        /// <summary>The commander's sensor SITE (<see cref="EqsChildSensor.Ensure"/>) — which of the commander's sensors this is.
+        /// ⭐ CE-485: no longer the DDS key — the part id is allocated and reused, and the sensor dies with the behaviour run
+        /// (📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4/D5).</summary>
         public const int AreaSensorInstanceId = 0x48410001;
 
         private static readonly uint AreaTemplateBlueprintId = EqsTemplateRegistry.BlueprintIdOf(new Guid(AreaTemplateAssetId));
@@ -254,15 +255,20 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.TargetAreaEntity.IsNull || !ctx.World.IsAlive(p.TargetAreaEntity))
             {
                 BehaviorLog.Error(ref ctx, "TargetAreaEntity is null or dead. Cannot execute area query.");
+                // ⭐ CE-482 — FAIL LOUD: no area means the attack cannot be planned; the run ends Faulted, the plan halts.
+                BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.MissingInput,
+                    "Hill attack: the target area entity is missing or dead.");
                 return NodeStatus.Failure;
             }
 
             var config = AreaSensor(p.TargetAreaEntity);
-            var sensor = EqsChildSensor.Ensure(ctx.World, ctx.Self, AreaSensorInstanceId, config);
+            var sensor = EqsChildSensor.Find(ctx.World, ctx.Self, AreaSensorInstanceId);
             if (sensor.IsNull)
             {
-                // Created this frame (it exists after the command buffer plays back): the creation IS the question.
-                s.CachedEqsRequestId = SensorBeingCreated;
+                // ⭐ The creation IS the question. CE-485: on the live world the sensor exists at once; only a deferred view
+                //   (Null) leaves it to be found after playback.
+                sensor = EqsChildSensor.Ensure(ctx.World, ctx.Self, AreaSensorInstanceId, config);
+                s.CachedEqsRequestId = sensor.IsNull ? SensorBeingCreated : (long)sensor.PackedValue;
             }
             else
             {
@@ -298,6 +304,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
                     BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s.");
+                    // ⭐ CE-482 — FAIL LOUD: with no area on the Muscle the sensor answers NOTHING (EQS §17.5), so silence
+                    //   means the question cannot be answered — never a quiet "area clear".
+                    BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.NoAnswerTimeout,
+                        "Hill attack: the EQS area sensor did not answer within 5 s.");
                     EqsChildSensor.Destroy(ctx.World, sensor);
                     s.CachedEqsRequestId = -1;
                     return NodeStatus.Failure;

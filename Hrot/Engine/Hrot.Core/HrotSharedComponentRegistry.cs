@@ -52,6 +52,8 @@ public static class HrotSharedComponentRegistry
 
         // ── Hierarchical entity linking (personal routes, sub-entities) ──────
         world.RegisterComponent<PartMetadata>();
+        // ⭐ CE-485: the brain-local owner stamp of a part (an EQS sensor) — every host that can create one.
+        world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();
 
         // ── Terrain / zone loading ────────────────────────────────────────────
         // ⭐ Registered UNCONDITIONALLY on every ECS host, exactly like the save handler and

@@ -237,7 +237,8 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 return candidate;
         }
         return Entity.Null;
@@ -301,7 +302,7 @@ public sealed class HideInCoverV2SmokeTests : IDisposable
         // Step 3: Playback ECB -- child entity materialised.
         PlaybackAndClearEcb();
 
-        int localChildIndex = (int)(((uint)_parent.Index << 8) | bb.SpawnConfig.ChildSlotIndex);
+        int localChildIndex = bb.SpawnConfig.ChildSlotIndex;   // CE-485: the site; the part id is allocated
         Entity child = FindChildByMeta(_parent, localChildIndex);
         Assert.False(child.IsNull, "Child entity must exist after ECB playback.");
 

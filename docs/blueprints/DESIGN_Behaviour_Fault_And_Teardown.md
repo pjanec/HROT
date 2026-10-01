@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: BUILDING — every decision APPROVED 2026-10-01 (section 1). The WIRE half (CE-486/487/490) is BUILT — section 3a;
-  the brain half (CE-482..485) is the behaviours lane's.
+build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a);
+  CE-482/483 BUILT (section 4b); the WIRE half CE-486/487/490 BUILT by the backend lane (section 3a).
   D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
   items CE-482..CE-487). Section 2 is the claim table every decision rests on.
@@ -313,6 +313,39 @@ Faulted`, one notification, task `TASK_FAILED`, plan halted · ② a plain-Failu
 finish/clear/reassign/same-behaviour re-assign each leave **zero** stamped parts of the ending instance · ④ end then
 immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted sensor answers (split Brain/Muscle rail, the
 `EqsDistributedTests` harness) · ⑤ live `--mode all` hill-attack, both commanders, unchanged outcome.
+
+## 4a. As-built — `CE-485` (`2026-10-01`)
+
+| design said | as built | why |
+|---|---|---|
+| `BehaviorOwnedPart{OwnerInstanceId, SiteId, Key}` | ✅ as designed, in `Fdp.Toolkits/Behavior/Components/BehaviorOwnedPart.cs`; component id **155** declared in the toolkit's own `BehaviorApplicationComponentIds` (precedent: `CE-452`'s 154), ⛔ not in `Fdp.Core` (a STOP path); registered beside `PartMetadata` in `HrotSharedComponentRegistry` | 155–159 measured free repo-wide |
+| `BehaviorOwnedParts.Release` at the three `InstanceId` sites | ✅ `BehaviorIngressSystem` unhosted assign / start pipeline / `Clear` — the ONLY three bump sites (grep) — destroys immediately on the repository. Generic: any part carrying the stamp, not only EQS | red-proved: drop the start-pipeline call ⇒ `CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear` fails |
+| allocate the lowest free part id among live children | ✅ `EqsChildSensor.AllocatePartId` — scoped to the parent's **EQS sensor** children only (a part id is unique per entity **per descriptor type**; weapon mounts etc. have their own) | descriptor rules: instance id unique per entity, per topic |
+| create immediately on the live world | ✅; on a non-repository view the deferred path remains and returns `Null` — ⚠ documented, **not asserted** (no production caller has such a view) | an assertion would only fire in unit-test mocks |
+| owner run in the epoch's high 16 bits | ✅ `StampOwner`; `Refresh` counts in the low 16 only | — |
+| `Find` matches owner + site + key | ✅ | — |
+| *Spawn EQS Sensor* `Key` pin | ✅ typed **`Entity`** (the per-area use), lowered as `(long)key.PackedValue`; unwired ⇒ the call is unchanged (key 0) — every shipped asset unaffected | the design's own example is "one sensor per area" |
+| the `-2` "being created" marker goes | ⚠ **kept** for the deferred path only; on the live world it is never set. The C# commander now `Find`s first and `Ensure`s only when there is none, so a brand-new sensor is not refreshed (its creation is the question) | removing it would break the deferred path for no gain |
+| retire the three baked-id schemes | ✅ the node GUID hash and the commander constant are now SITE ids; `EqsLifecycleNodes`' `(Self.Index << 8) \| slot` is gone (site = `ChildSlotIndex`) — which also closes `CE-481` (the node now publishes a live handle on the creating tick) | — |
+
+## 4b. As-built — `CE-482` + `CE-483` (`2026-10-01`)
+
+| design said | as built | why |
+|---|---|---|
+| `BehaviorFault.Raise(code, message)` | ✅ `Fdp.Toolkits/Behavior/Events/BehaviorFault.cs`: latches `BehaviorFaultLatch{InstanceId, Code}` (component id **156**, same toolkit id file) to the CURRENT run — the **first** fault of a run wins — and publishes `BehaviorFaultNotification` (entity, behaviour hash, run, code, message, sim time). No-op on an entity running no behaviour | keyed to the run so a stale latch never applies to the next run |
+| outcome on `BehaviorFinishedEvent` | ✅ `FaultCode` field + a **derived** `Outcome` property (Succeeded · Failed · Faulted) — ⚠ deviation: derived instead of a stored field | a stored field could disagree with `Result`; every existing publisher keeps working untouched |
+| the run ends through the normal finish | ✅ `BrainTickSystem`: after each arm's tick a pending fault calls `Finish(…, Failure)`; `Finish` itself takes the latch, so a fault raised in the same tick as a Success still reports **Faulted** | the CE-449 finish = clear ⇒ channels, commands and (CE-485) owned parts are released as for any end |
+| engine-raised faults | ✅ a definition with no BTree interpreter / no blueprint tick now RAISES `NoDefinition` — ⛔ it used to be a DEBUG-only `Debug.WriteLine` and a silent skip | — |
+| the commander faults | ✅ C#: missing area ⇒ `MissingInput`, 5 s silence ⇒ `NoAnswerTimeout`. Blueprint: the same two, through the new built-in **Fault Behaviour** (`BlueprintWorldLibrary`, category *Behavior*) — parity | — |
+| mission: Done / Failed+advance / Failed+halt | ✅ `MissionPlanQueue.Outcomes` (one `MissionPhaseOutcome` per phase) + `Halted`; `MissionDirectorSystem` records the outcome and halts on Faulted; a trigger-advanced phase with no reported end records Done | — |
+| the halt waits for an operator | ✅ `MissionControlExecutionSystem` `CMD_JUMP_TO_TASK` clears `Halted` (and the target's outcome); `MissionAdapterSystem` re-issues nothing while halted and forgets the phase, so a jump — even back to the SAME phase, a retry — starts the behaviour again | — |
+| registration | ✅ `CognitiveComponentRegistry`: `BehaviorFaultLatch` + `RegisterManagedEvent<BehaviorFaultNotification>` (production runs strict event registration); `Raise` also registers the latch lazily for worlds without the registry | — |
+| ⛔ not in this batch | the wire half — `EntityMissionEgressTranslator.cs:124` still derives the task state from `CurrentPhase` (CE-483's egress half) and the notification's egress/UI (`CE-484`) — backend/UI lanes | fenced in the handoff |
+
+**Live, `2026-10-01`** (acceptance ⑤) — `ClusterRunner --mode all`, a fresh cluster per run, `SimHost` perspective sampled every
+25 s: C# `hill-attack-close` and blueprint `hill-attack-close-bp` both bring hostiles 1006/1007 to `Health 0` by t≈50 s; the
+area sensor (the 9th entity) is present while the attack runs and gone by t≈75 s (8 entities) — the outcome is unchanged and the
+sensor leaves with the run.
 
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
 
