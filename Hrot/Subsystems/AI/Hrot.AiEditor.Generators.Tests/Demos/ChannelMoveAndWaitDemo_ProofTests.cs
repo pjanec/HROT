@@ -11,10 +11,13 @@ using Xunit;
 namespace Hrot.AiEditor.Generators.Tests.Demos;
 
 /// <summary>
-/// Migration slice 2 proof (<c>docs/blueprints/ReverseToBaseline_Slice_Design.md</c>).
+/// ⭐ The surviving proof of the <c>ChannelCommand</c> + <c>WaitForChannel</c> latent pattern through the REAL
+/// generator build. Was <c>HillAssault2_ReverseToBaseline</c> (migration slice 2,
+/// <c>docs/blueprints/ReverseToBaseline_Slice_Design.md</c>); renamed, not deleted, when the <c>HillAssault2_*</c>
+/// twins retired (<c>2026-10-01</c>) because no other production asset carries <c>WaitForChannel</c> (<c>R-137</c>).
 ///
 /// <para>
-/// The committed blueprint <c>Assets/Blueprints/HillAssault2_ReverseToBaseline.bp.json</c> (AiPrimitive,
+/// The committed blueprint <c>Assets/Blueprints/ChannelMoveAndWaitDemo.bp.json</c> (AiPrimitive,
 /// Intent=Action, Hostings=[BTreeAction]) is a from-scratch, blueprint-authored rebuild of the C# oracle
 /// <c>HillAttackTankNodes.Action_ReverseToBaseline</c> (~line 456), using only shipped nodes
 /// (<c>ChannelCommand</c>, <c>WaitForChannel</c>, <c>GetParameter</c>, <c>PublishEvent</c>,
@@ -39,8 +42,8 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 ///
 /// <para>
 /// It is compiled by the REAL Roslyn source generator as part of <c>Hrot.AI.Behaviors</c>'s own build
-/// (<c>obj/GeneratedFiles/Hrot.Blueprints.Generators/.../HillAssault2ReverseToBaseline_*_Bp.g.cs</c>).
-/// Mirrors <c>HillAssault2_ForEachSubordinate_ProofTests</c>'s reflection-based invocation style, driving
+/// (<c>obj/GeneratedFiles/Hrot.Blueprints.Generators/.../ChannelMoveAndWaitDemo_*_Bp.g.cs</c>).
+/// Reflection-based invocation style (as the retired <c>HillAssault2_ForEachSubordinate_ProofTests</c> did), driving
 /// the generated <c>TickCore</c> directly (bypassing the BTree/Blackboard1024 rail, which contributes
 /// nothing extra for this proof) across two ticks to exercise the latent suspend/resume: Tick 1 issues
 /// the MoveTo command and returns Running (the wait's dispatch phase is 0, so it always suspends
@@ -50,11 +53,11 @@ namespace Hrot.AiEditor.Generators.Tests.Demos;
 /// <c>ClearBehaviorEvent{Entity=self}</c>.
 /// </para>
 /// </summary>
-public sealed class HillAssault2_ReverseToBaseline_ProofTests
+public sealed class ChannelMoveAndWaitDemo_ProofTests
 {
     /// <summary>
     /// Locates the real generated blueprint class
-    /// (<c>Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_*_Bp</c>) by name pattern rather
+    /// (<c>Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_*_Bp</c>) by name pattern rather
     /// than hardcoding the BlueprintId hash baked into the class name.
     /// </summary>
     private static Type FindGeneratedBlueprintType()
@@ -62,11 +65,11 @@ public sealed class HillAssault2_ReverseToBaseline_ProofTests
         var type = typeof(DemoAiPrimitiveNodes).Assembly.GetTypes()
             .SingleOrDefault(t =>
                 t.Namespace == "Hrot.AI.Behaviors.Generated"
-                && t.Name.StartsWith("HillAssault2ReverseToBaseline_", StringComparison.Ordinal)
+                && t.Name.StartsWith("ChannelMoveAndWaitDemo_", StringComparison.Ordinal)
                 && t.Name.EndsWith("_Bp", StringComparison.Ordinal));
         type.Should().NotBeNull(
-            "HillAssault2_ReverseToBaseline.bp.json must compile via the real Roslyn source generator " +
-            "into a Hrot.AI.Behaviors.Generated.HillAssault2ReverseToBaseline_*_Bp class");
+            "ChannelMoveAndWaitDemo.bp.json must compile via the real Roslyn source generator " +
+            "into a Hrot.AI.Behaviors.Generated.ChannelMoveAndWaitDemo_*_Bp class");
         return type!;
     }
 
@@ -79,11 +82,11 @@ public sealed class HillAssault2_ReverseToBaseline_ProofTests
             "Hrot.Blueprints.Generators.BlueprintIncrementalGenerator");
 
         var file = System.IO.Directory.Exists(generatedDir)
-            ? System.IO.Directory.GetFiles(generatedDir, "HillAssault2ReverseToBaseline_*_Bp.g.cs").FirstOrDefault()
+            ? System.IO.Directory.GetFiles(generatedDir, "ChannelMoveAndWaitDemo_*_Bp.g.cs").FirstOrDefault()
             : null;
 
         file.Should().NotBeNull(
-            $"the generated .g.cs for HillAssault2_ReverseToBaseline must exist under {generatedDir}");
+            $"the generated .g.cs for ChannelMoveAndWaitDemo must exist under {generatedDir}");
         return System.IO.File.ReadAllText(file!);
     }
 

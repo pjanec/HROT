@@ -183,10 +183,17 @@ public class CE472_IntentAndJsonNodeTests
         Assert.Equal(5f, p.CreepSpeed);
         Assert.Equal(1, p.MaxRounds);
 
-        // ⭐ parity with the helper it replaces: same inputs ⇒ the receiver sees the same struct
+        // ⭐ parity with the live C# commander's own payload (HillAttackCommanderNodes, the HullDownAttack dispatch —
+        //   the retired HullDownIntentJson helper built the same DTO): same inputs ⇒ the receiver sees the same struct
+        var oracle = System.Text.Json.JsonSerializer.Serialize(
+            new HullDownAttackParams
+            {
+                SlotX = 12.5f, TargetNetworkId = 4242L, ApproachSpeed = 15f, CreepSpeed = 5f,
+                MaxRounds = 1, RoundsFired = 0, LastObservedAmmo = -1,
+            },
+            Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);
         HullDownAttackParams h;
-        HillAttackTankNodes.ParseHullDownAttackParams(HullDownIntentJson.Build(12.5f, 0f, 0f, 0f, 0f, 0f, 4242L),
-            (byte*)&h, Marshal.SizeOf<HullDownAttackParams>());
+        HillAttackTankNodes.ParseHullDownAttackParams(oracle, (byte*)&h, Marshal.SizeOf<HullDownAttackParams>());
         Assert.Equal(h, p);
     }
 

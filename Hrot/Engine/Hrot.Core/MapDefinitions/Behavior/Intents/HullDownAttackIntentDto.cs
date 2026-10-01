@@ -8,7 +8,7 @@ namespace Hrot.Map.Definitions.Behavior.Intents
     /// <para>
     /// The member names match <c>HullDownAttackParams</c>'s fields, so the receiver's parse
     /// (<c>HillAttackTankNodes.ParseHullDownAttackParams</c>, case-insensitive <c>DefaultRelaxed</c>) reads it as-is.
-    /// The defaults are the constants <c>HullDownIntentJson.Build</c> bakes. The receiver owns the run-time counters
+    /// The defaults are the constants the C# commander bakes (<c>HillAttackCommanderNodes</c>, the HullDownAttack dispatch; the <c>HullDownIntentJson</c> helper that also baked them retired <c>2026-10-01</c>). The receiver owns the run-time counters
     /// (<c>RoundsFired</c>, <c>LastObservedAmmo</c>), so they are not part of the contract.
     /// </para>
     /// 📄 <c>docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md</c> §4 D.

@@ -73,22 +73,22 @@ public sealed class FunctionCallSemanticResolveTests
     {
         var resolver = new StubResolver(new()
         {
-            ["Hrot.AI.Behaviors.Brains.WaveMonitorOps.ActiveCount"] =
+            ["Demo.TextOps.Length"] =
                 new ClrMethodSig(
-                    new[] { new ClrParamInfo("s", "Hrot.AI.Behaviors.Brains.WaveState") },
+                    new[] { new ClrParamInfo("s", "Fdp.Core.FixedString64") },
                     "System.Int32"),
         });
         var fc = new FunctionCallNode
         {
             Id = Guid.NewGuid(), IsPure = true,
-            TargetTypeId = "Hrot.AI.Behaviors.Brains.WaveMonitorOps",
-            MethodName = "ActiveCount",
+            TargetTypeId = "Demo.TextOps",
+            MethodName = "Length",
             TrailingContext = FunctionCallContextKind.None,
         };
         var pins = Rehydrate(fc, resolver).Pins.Select(P).ToList();
 
         // Registered curated struct → UNPREFIXED TypeId (resolves via the type table).
-        Assert.Equal(("s", "In", false, "Hrot.AI.Behaviors.Brains.WaveState"), pins[0]);
+        Assert.Equal(("s", "In", false, "Fdp.Core.FixedString64"), pins[0]);
         Assert.Equal(("Return", "Out", false, "System.Int32"), pins[1]);
         Assert.Equal(2, pins.Count);
     }

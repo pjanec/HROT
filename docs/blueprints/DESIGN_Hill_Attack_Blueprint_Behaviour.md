@@ -12,6 +12,7 @@ related-designs:
   - docs/blueprints/Architect_Question_77_Blueprint_As_A_Behaviour.md — owns the blueprint-behaviour runtime this runs on (block, BehaviorTick, own resolver §5.11)
   - docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md — owns the Send Intent node the orders go through (CE-472)
   - docs/blueprints/Blueprint_Fixed_Collections_Design.md — owns the fixed-list variables the slot and runner state use
+  - docs/blueprints/HillAssault_Blueprint_Migration.md — HISTORICAL: the per-node HillAssault2_* twins this superseded (retired 2026-10-01, CE-477)
 -->
 
 # The hill-attack commander as ONE blueprint behaviour — `CE-464`

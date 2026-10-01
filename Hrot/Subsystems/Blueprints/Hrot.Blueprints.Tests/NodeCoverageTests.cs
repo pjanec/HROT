@@ -431,9 +431,9 @@ public sealed class NodeCoverageTests
             [typeof(GetParameterNode)] =
                 "GetParameter's 'Value' output is resolved at lowering from the node's BAKED ParameterId " +
                 "(like GetVariable), not by pin lookup, so it round-trips pin-less without the output pin " +
-                "being reconstructed. Proven by HillAssault2_RequestAreaQuery, HillAssault2_HasTarget, " +
-                "and HsmGuardDemo, the three surviving corpus assets carrying a GetParameter node (measured " +
-                "2026-09-29; OwnParamResolverDemo, a fourth, was deleted by CE-445). " +
+                "being reconstructed. Proven by HsmGuardDemo and PlatoonHillAttackBp, the two corpus assets " +
+                "carrying a GetParameter node (measured 2026-10-01, when the HillAssault2_RequestAreaQuery / " +
+                "_HasTarget twins that also carried one retired; OwnParamResolverDemo was deleted by CE-445). " +
                 "NOTE this line previously named HillAssault2I_IsWaveCompleted as the evidence and that " +
                 "was ALREADY WRONG before CE-436 deleted it: that asset had ZERO GetParameter nodes. " +
                 "The one integrated asset that did carry one was HillAssault2I_RequestAreaQuery, whose " +
@@ -619,13 +619,15 @@ public sealed class NodeCoverageTests
         // compilation references (see BuildGetComponentMinimalAsset, which used System.Numerics.Vector3
         // precisely to avoid game-assembly deps). Stage1-7 fully exercises the PublishEventNode ->
         // IrOp_PublishBusEvent lowering (catalog lookup + self-default Target); the REAL Roslyn
-        // compile of a PublishEvent graph is proven separately by HillAssault2_ClearBehavior_ProofTests
-        // through the actual Hrot.AI.Behaviors build. Same evidence bar + reason as CallPeerBlueprint.
+        // compile of a PublishEvent graph is proven by CustomEventPublisherDemo and ChannelMoveAndWaitDemo,
+        // both built by the actual Hrot.AI.Behaviors generator (ChannelMoveAndWaitDemo_ProofTests runs it;
+        // HillAssault2_ClearBehavior_ProofTests, the earlier proof, retired 2026-10-01). Same evidence bar + reason as CallPeerBlueprint.
         yield return ("Inline/PublishEvent", new[] { BuildPublishEventMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         // FlowForEach (P1 -- GAP-1): ValidateOnlyStage1To7 -- the generated for-loop references
         // UnitRosterOps/UnitRoster (game assemblies the coverage-Roslyn compile does not reference);
         // the REAL Roslyn compile of a FlowForEach graph is proven by
-        // HillAssault2_ForEachSubordinate_ProofTests through the actual Hrot.AI.Behaviors build.
+        // PlatoonHillAttackBp (CE-464) through the actual Hrot.AI.Behaviors build, and run by
+        // HillAttackBlueprintTests (HillAssault2_ForEachSubordinate_ProofTests retired 2026-10-01).
         yield return ("Inline/FlowForEach", new[] { BuildFlowForEachMinimalAsset() }, null, CoverageMode.ValidateOnlyStage1To7);
         // FlowForEach loop-introspection outs (CurrentIndex + Count): same game-assembly reason as
         // above -> ValidateOnlyStage1To7. The GENERATED C# (count-hoist local + body index-copy +

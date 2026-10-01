@@ -5,7 +5,7 @@
   },
   "Header": {},
   "AssetId": "683ec005-3013-4f22-9b2a-98c0a942080e",
-  "Name": "HillAssault2_ReverseToBaseline",
+  "Name": "ChannelMoveAndWaitDemo",
   "Dispatch": "AiPrimitive",
   "TierHint": "Auto",
   "IsWorldSingleton": false,
@@ -252,7 +252,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "Migration slice 2 (docs/blueprints/ReverseToBaseline_Slice_Design.md): blueprint-authored rebuild of the C# oracle HillAttackTankNodes.Action_ReverseToBaseline (~line 456) -- an AiPrimitive BTreeAction. Graph: EventEntry -\u003E ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -\u003E WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -\u003E PublishEvent(ClearBehaviorEvent, Target pin left unwired =\u003E self-default, Entity=self) -\u003E Return(Success). Q#13 UPDATE (deviation removed): WaitForChannel\u0027s OnFailure exec-out is now wired to PublishEvent(ClearBehaviorEvent) -\u003E Return(Failure), so the blueprint publishes ClearBehaviorEvent on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path auto-returned Failure without publishing -- the accepted simplification once documented in design doc \u00A72, now resolved by the Q#13 failure split.) New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
+    "Description": "Channel move-and-wait demo -- the surviving proof of the ChannelCommand \u002B WaitForChannel latent pattern (was HillAssault2_ReverseToBaseline, migration slice 2, docs/blueprints/ReverseToBaseline_Slice_Design.md; renamed when the HillAssault2_* twins retired, 2026-10-01). An AiPrimitive BTreeAction. Graph: EventEntry -\u003E ChannelCommand(LocomotionChannel/MoveTo) [explicit data-in pins Destination/Speed/ArrivalRadius/ReverseAllowed; Destination wired from a pure FunctionCall VectorOps.Vec3(GetParameter(BaselineX), GetParameter(BaselineY), Literal 0f); Speed/ArrivalRadius/ReverseAllowed baked via PinDefaults] -\u003E WaitForChannel(LocomotionChannel) [AiPrimitive latent lowering: issues the command once, suspends: Running while channel Running, auto-Failure on channel Failure, continues to Out on channel Success] -\u003E PublishEvent(ClearBehaviorEvent, Target pin left unwired =\u003E self-default, Entity=self) -\u003E Return(Success). Q#13 UPDATE (deviation removed): WaitForChannel\u0027s OnFailure exec-out is now wired to PublishEvent(ClearBehaviorEvent) -\u003E Return(Failure), so the blueprint publishes ClearBehaviorEvent on BOTH the Success and Failure paths, exactly matching the C# oracle. (Previously the failure path auto-returned Failure without publishing -- the accepted simplification once documented in design doc \u00A72, now resolved by the Q#13 failure split.) New curated helper: Hrot.AI.Behaviors.Brains.VectorOps.Vec3/Vec2 (reflection-free Vector3 construction; no vector-literal node exists). Does not modify the C# oracle.",
     "Category": null,
     "Recipe": null
   }

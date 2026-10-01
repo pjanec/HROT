@@ -270,8 +270,8 @@ public sealed class FixedVariableRowSource : IVariableRowSource
 ///
 /// <para>
 /// 🔴 <b>It does NOT go through <c>Watch._valueBuffer</c>.</b> That buffer is <c>new byte[64]</c> and
-/// <c>WriteValue</c> <b>throws</b> above it, so <c>MemberSlotList</c> (96), <c>WaveState</c> (104) and
-/// <c>HillAttackSharedState</c> (136) cannot pass through it at all. ⇒ ⭐ a pinned row reads its bytes
+/// <c>WriteValue</c> <b>throws</b> above it, so any struct over 64 bytes (e.g.
+/// <c>Fdp.Core.FixedString128</c>, 128) cannot pass through it at all. ⇒ ⭐ a pinned row reads its bytes
 /// through the same <see cref="ReadRawValue"/> every other row uses, and the 64-byte limit stays a
 /// property of that one carrier.
 /// </para>

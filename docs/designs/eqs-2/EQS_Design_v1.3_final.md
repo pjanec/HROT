@@ -738,6 +738,9 @@ messages (a **wire-contract** removal, `AllDescriptors.cs`), two ImGui singleton
 Stride / editor / `StrideNodeBootstrapper`. Callers (**behaviours lane**): `HillAttackCommanderNodes` (5 methods),
 `TargetPoolOps`, `AreaQueryBatchOps`, **four `HillAssault2_*.bp.json` blueprints** and `PlatoonHillAttack.btree.json`.
 Tests: **17** files mention it.
+⚠ **Updated `2026-10-01` (behaviours lane, `CE-477`):** `TargetPoolOps` and the four `HillAssault2_*` blueprints are
+**deleted** (the twins retired). The callers left are `HillAttackCommanderNodes` (+ `PlatoonHillAttack.btree.json`) and
+`AreaQueryBatchOps`, which the blueprint `PlatoonHillAttackBp` (`CE-464`) calls — so a blueprint migration is now one asset.
 
 ---
 

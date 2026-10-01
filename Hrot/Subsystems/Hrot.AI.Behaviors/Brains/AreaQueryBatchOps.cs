@@ -13,7 +13,7 @@ namespace Hrot.AI.Behaviors.Brains
     /// the visual graph — only the batch-system touch is curated here, decomposed into scalar accessors
     /// (not a struct-returning verb) so the graph reads <c>bool</c>/<c>int</c>/<c>long</c> directly.
     /// <para>
-    /// <b>P7 trailing-context convention</b> (mirrors <see cref="WorldOps.IsAlive"/>): a trailing
+    /// <b>P7 trailing-context convention</b> (as <see cref="Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.EntityExists"/>): a trailing
     /// <c>ISimulationView view</c> is baked <c>TrailingContext:"View"</c> and auto-appended by Stage5;
     /// <see cref="Request"/> additionally takes a trailing <c>Entity self</c> baked
     /// <c>TrailingContext:"SelfAndView"</c> (Stage5 appends <c>self</c> then <c>view</c>, in that order).

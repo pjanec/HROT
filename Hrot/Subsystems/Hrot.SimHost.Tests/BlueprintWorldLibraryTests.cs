@@ -63,9 +63,6 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(e, BlueprintWorldLibrary.EntityFromNetworkId(77L, repo));
             Assert.Equal(e, NetworkEntityMapOps.ResolveTarget(77L, repo));
             Assert.Equal(Entity.Null, BlueprintWorldLibrary.EntityFromNetworkId(78L, repo));
-            Assert.True(WorldOps.IsAlive(e, repo));
-            repo.DestroyEntity(e);
-            Assert.False(WorldOps.IsAlive(e, repo));
         }
 
         [Fact]

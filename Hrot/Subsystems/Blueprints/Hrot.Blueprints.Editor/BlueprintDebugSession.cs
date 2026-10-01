@@ -2100,7 +2100,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     ///
     /// <para>
     /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
-    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.MemberSlotList</c>
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.HillAttackRunner</c>
     /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
     /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
     /// makes the FALLBACK's cost irrelevant.

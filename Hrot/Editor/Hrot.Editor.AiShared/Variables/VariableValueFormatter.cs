@@ -36,8 +36,8 @@ public delegate object? DecodeRawValue(byte[] bytes, Type type);
 ///
 /// <para>
 /// 🔴 <b>It does NOT inherit the Watch buffer's 64-byte limit.</b> <c>Watch._valueBuffer</c> is
-/// <c>new byte[64]</c> and <c>WriteValue</c> <b>throws</b> above it, so <c>MemberSlotList</c> (96),
-/// <c>WaveState</c> (104) and <c>HillAttackSharedState</c> (136) cannot go through that path. ⭐ This
+/// <c>new byte[64]</c> and <c>WriteValue</c> <b>throws</b> above it, so any struct over 64
+/// bytes (e.g. <c>Fdp.Core.FixedString128</c>, 128) cannot go through that path. ⭐ This
 /// formatter takes a span of any length — the limit is a property of that one carrier, not of
 /// rendering.
 /// </para>

@@ -336,7 +336,7 @@ public static class BlueprintNodePaletteEntries
         // REMOVED. Each one's doc comment claims it "wraps" a real FDP primitive, but that wiring
         // was never implemented: none has a Stage5_Schedule case, so all four fall to the generic
         // `default:` branch (BP4004 warning, no IR) and are silent no-ops at runtime. The quartet is
-        // superseded by MemberSlotList / SlotRotation. Inviting descriptions on nodes that do
+        // superseded by MemberSlotList / SlotRotation (both since retired). Inviting descriptions on nodes that do
         // nothing are worse than no entry at all.
         // The node classes remain (assets may still deserialize them); only the front door is gone.
     }

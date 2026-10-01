@@ -188,21 +188,21 @@ public sealed class AiPrimitiveStateMetadataTests
 
     /// <summary>
     /// 📐 <b>A struct-typed working-state variable</b> — the handoff's explicit ask.
-    /// <c>MemberSlotList</c> is a curated blittable struct (96 bytes, <c>StaticTypeRegistry</c>) and
-    /// ships in <c>HillAssault2_*</c>.
+    /// <c>Fdp.Core.FixedString64</c> is a curated blittable struct (64 bytes, <c>StaticTypeRegistry</c>). (Was
+    /// <c>MemberSlotList</c>, 96 bytes, retired with the <c>HillAssault2_*</c> twins, <c>2026-10-01</c>.)
     ///
     /// <para>
     /// ⭐ <b>What this batch owns is the OFFSET and SIZE</b>, and they are asserted. ⚠ Whether
     /// <c>MarshalFromBytes</c> can render the struct into a value is <c>S3</c>'s arm and explicitly
     /// <b>not</b> this batch — so the scalar declared AFTER the struct is what proves the descriptor
-    /// arithmetic survived a 96-byte field, whatever the renderer does with the struct itself.
+    /// arithmetic survived a 64-byte field, whatever the renderer does with the struct itself.
     /// </para>
     /// </summary>
     [Fact]
     public void AStructTypedWorkingStateField_GetsTheRightOffsetAndSize()
     {
         var asset = Primitive("AiPrimStructField")
-            .WithWorkingStateField("Runners", typeof(Hrot.AI.Behaviors.Brains.MemberSlotList))
+            .WithWorkingStateField("Runners", typeof(Fdp.Core.FixedString64))
             .WithWorkingStateField("AfterTheStruct", typeof(int))
             .Build();
         asset.WorkingState.Single(f => f.Name == "AfterTheStruct").DefaultValueJson = "77";
@@ -213,8 +213,8 @@ public sealed class AiPrimitiveStateMetadataTests
         Assert.True(fixture.Registry.TryGetById(BlueprintIdHash.Compute(asset.AssetId), out var def));
         var runners = def!.StateFields["Runners"];
         Assert.Equal(0,  runners.OffsetBytes);
-        Assert.Equal(96, runners.SizeBytes);
-        Assert.Equal(96, def.StateFields["AfterTheStruct"].OffsetBytes);
+        Assert.Equal(64, runners.SizeBytes);
+        Assert.Equal(64, def.StateFields["AfterTheStruct"].OffsetBytes);
 
         // ⭐ And the scalar past the struct really reads its own bytes at run time.
         var entity = fixture.CreateEntity();
