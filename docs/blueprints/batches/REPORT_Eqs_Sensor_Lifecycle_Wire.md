@@ -78,3 +78,48 @@ acceptance, both commanders, all on later builds — passed. I could not reconst
 is recorded, not explained. ⭐ If it recurs, CE-482 now FAULTS the run on that timeout, so it will be loud.
 
 **Ids allocated:** none. **Base sha:** `9676147e5`.
+
+## 5. Follow-up — `CE-492`, multi-writer ordering *(`2026-10-01`, after your owner-run answer)*
+
+🔒 User: *"go ahead with the follow-up batch — if it is not blocked by anything, just do it."* Not blocked: the binding exposes
+`DdsSampleInfo.SourceTimestamp` and `PublicationHandle` (measured by reflection over `CycloneDDS.Runtime` 0.3.2).
+**Id allocated: `CE-492`** — next free on `backend` and `behaviors` (`git grep` on both: unused).
+
+**Decision.** The Muscle config ingress takes samples in **source-time order per instance**: a sample older than the newest one
+already taken for its `(parent, part id)` is stale and dropped — DDS's own `BY_SOURCE_TIMESTAMP` rule, done in the application.
+New shared helper `SourceTimeOrder<TKey>` (`Fdp.Toolkits/Replication/Utilities`, no DDS dependency); the ingress's per-sample
+handling moved into `Receive(cmd, data, valid, disposed, sourceTimestamp)`, which `PollIngress` feeds from `Take()`.
+
+**Rejected:** `(writer, epoch)` — your proposal. Measured against the three cases it fails the hazard itself: the new owner's
+SUSPEND is written by the NEW owner's writer with the OLD owner's epoch (the sweep copies the last config), so the old owner's stale
+ACTIVE `(A, e)` never matches the suspension `(B, e)`. A "different writer" variant instead drops case ③ (the new owner's first
+run reusing the epoch — exactly what your answer says happens). Epoch alone: your answer rules it out.
+
+| case (equal epochs in all three) | right end state | source-time order |
+|---|---|---|
+| ① old owner's ACTIVE arrives after the new owner's SUSPEND | suspended | ✅ the active is older ⇒ dropped |
+| ② one writer: SUSPEND, then the next lifetime ACTIVE | active | ✅ |
+| ③ old owner ended its own sensor; new owner's first run (same epoch) arrives first | active | ✅ the old suspend is older ⇒ dropped |
+
+⚠ **Its limit:** cross-node clock skew larger than the gap between the old owner's last write and the new owner's sweep orders
+them wrongly (the same limit DDS's own QoS would have). ⚠ Not applied to the brain's own read-back in the egress: a stale sample
+there only causes one redundant re-suspend, which the sweep already self-heals.
+
+**Gates** (merged tree; base = `0c16f3050`, the previous head; test projects built first, then `--no-build`):
+
+| gate | result | delta |
+|---|---|---|
+| `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --filter "FullyQualifiedName~Eqs\|FullyQualifiedName~Replication"` | 162 / 0 | +2 (`SourceTimeOrderTests`) |
+| `dotnet test Hrot/Network/Hrot.Network.NED.Tests` | 119 / 0 | 0 |
+| ⭐ row 8: `… --filter FullyQualifiedName~EqsDistributedTests` (a real Brain + Muscle) | **17 / 0**, before and after the red-proof; the lifecycle subset 7/7 ×3 | +1 (`CE492_TwoWritersOnOneInstance_TheNewestSourceTimeWins_WhateverTheArrivalOrder`) |
+| `… --filter FullyQualifiedName~.Eqs.` | 53 / 31 | +1 passing; the same 31 pre-existing EditorHarness reds by name (§4 row 5) |
+| red-proof V8 — the ingress without the source-time check | ⇒ the CE-492 rail red, nothing else | |
+| docs: tracker / design-digest / mermaid (4/4) | OK | (`tracker-counts.py` counts `BP-` rows only — CE rows never move it) |
+| live `--mode all`, both commanders | hostiles `Health 0`, platoon back (t≈61 s / 56 s) | unchanged |
+
+⚠ **A stale-binary trap, caught by this batch's own rail — worth knowing for your red-proofs too.** The red-proof script backs a
+file up with `shutil.copy` and restores it with `shutil.move`; the restored file carries the BACKUP's mtime, which is OLDER than the
+variant-built DLL ⇒ the "restored build" skipped compiling and the VARIANT stayed in `bin`. The CE-492 rail then failed in the next
+class run with `stale samples=0` — the binary had no check in it. Fixed: the scripts now `os.utime` the restored file, and this run
+prints source vs DLL mtime (15:12:23 < 15:12:33 — rebuilt). The `CE-486/487/490` gate numbers above are unaffected: after each of
+those red-proofs, the rails each variant reddens passed again, so those binaries held the fix.
