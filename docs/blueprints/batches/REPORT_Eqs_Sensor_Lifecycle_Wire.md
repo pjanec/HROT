@@ -56,4 +56,25 @@ writes · ⑤ ✅ `CE490_AnInheritedInstanceWithNoLocalSensor_IsSuspendedByTheAu
 
 ## 4. Gates *(base `3f2be54ba`)*
 
-GATES_PLACEHOLDER
+Merged tree = `68b34d870` (+ this report); **base = `9676147e5`** (`behaviors` head I merged = this tree without my changes),
+built in a separate worktree. Every test project was BUILT first (`dotnet build <tests.csproj> --no-restore`), then `--no-build`.
+
+| # | gate (verbatim, `--no-build`) | merged | base | delta |
+|---|---|---|---|---|
+| 1 | `dotnet test Hrot/Subsystems/Hrot.SimHost.Tests` | 1020 / **4** / 3 | 1020 / **4** / 3 | 0 — the same 4 reds on base: `NodeRolePersistenceRails.TheSaveHandlerSetIsStillComplete`, `MapPresentationParityRails.EveryTkbSpawningHost_…(EditorStrideSubsystem.cs)`, `EcsRecordReplayControllerTests.PrepareRecordingAsync_InstallsRecordingModule`, `FullBranchPipelineTests.BranchedRecording_CapturesHistoricalStateAsKeyframe` |
+| 2 | `dotnet test FDP/Toolkits/Fdp.Toolkits.Tests --filter FullyQualifiedName~Eqs` | 61 / 0 | — | 0 |
+| 3 | `dotnet test Hrot/Network/Hrot.Network.NED.Tests` | 119 / 0 (×2) | — | 0. ⚠ one run in the gate script showed `DdsIntegrationTests.CanPublishAndSubscribeEntityMaster` red: a diagnostic cluster I had left running shared the DDS domain. Re-run with no cluster up: 119/0 twice |
+| 4 | `dotnet test Hrot/Subsystems/Hrot.Editor.Tests --filter FullyQualifiedName~ThereIsOneNetworkIdResolverTests` | 3 / 0 | — | 0 (two allow-list entries removed — `EqsSensorKey`) |
+| 5 | `dotnet test Hrot/Runner/Hrot.ClusterRunner.Integration.Tests --filter FullyQualifiedName~.Eqs.` | 52 / **31** | 46 / **31** | **+6 passing = the six new rails**; the same 31 reds on base, by name (the EditorHarness-hosted EQS suites — offline solver never answers: `EqsRoundTrip*`, `EqsSolverSystem*`, `EqsMultiSensor*`, `EqsScoreDeltaTests.T-SD1`, `AccurateLos*`, `FindCover*`, golden, …) |
+| ⭐ 8 | **row 8 — the integration suite for the wire invariant:** `… --filter "FullyQualifiedName~EqsDistributedTests.CE4\|FullyQualifiedName~EqsDistributedTests.ScoreDelta"` (a real Brain + Muscle over DDS) | **6 / 0, five runs** | — | +6 new |
+| R | red-proofs (each variant built + the six rails run) | V2 ingress destroys ⇒ ③ red · V3 cache trusts hits ⇒ ②④ red · V4 no sweep ⇒ ① ⑤ red · V5 no same-key guard ⇒ ①②③ red · V6 suspended keeps eval state ⇒ lifetime rail red only · V7 ScoreDelta ignores epoch ⇒ epoch-bump rail red only | | V2–V5 measured before the merge (that code did not change after it) |
+| 7 | `tracker-counts.py --check` · `design-digest.py --check` · `mermaid-check.mjs DESIGN_Behaviour_Fault_And_Teardown.md` · `rulings-check.py` | OK · OK · 4/4 parse · OK (one staleness note on `Q78`, not touched here) | | |
+| 5 | working tree after every run | clean | | |
+| ⑦ | **live**, `ClusterRunner --mode all`, a fresh cluster per scenario, two rounds | `hill-attack-close-bp` t≈61 s ×2 · `hill-attack-close` t≈61 / 56 s — every run: hostiles 1006/1007 `Health 0`, platoon back | | unchanged outcome |
+
+⚠ **Live, told straight:** two runs on an EARLIER build of this batch had both commanders' area query time out at 5 s. Rebuilt with
+temporary egress logging, the brain wrote the sensor once and never suspended it, and every run since — 3 diagnostic + 2 + 4
+acceptance, both commanders, all on later builds — passed. I could not reconstruct what the failing binary held, so this
+is recorded, not explained. ⭐ If it recurs, CE-482 now FAULTS the run on that timeout, so it will be loud.
+
+**Ids allocated:** none. **Base sha:** `9676147e5`.
