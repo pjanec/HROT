@@ -549,7 +549,7 @@ frame by frame from spawn. Raw output kept out of the repo (scratchpad).
 | proposal | refuted by |
 |---|---|
 | ⛔ **§9b** — recompute the record from the claim on EVERY change, overwriting | ① the claim is **not exclusive on either path** (17 / 22 shared components) ⇒ CGF would publish `EntityInfo`/`EntityDamage` beside SimHost on Path A, SimHost beside CGF… ② ⛔⛔ **the record lags the claim ON PURPOSE during handover**: at frames 1-4 the creator has already yielded its `SimTransform` claim but its record still says "mine", and that is what sends the first WorldPos. Recomputed, no position is ever sent ⇒ SimHost's ghost never gets `SimTransform` (a derived HARD promotion gate, `tkb-1` §6.6a) ⇒ never promotes ⇒ never takes over. **Deadlock.** `DeferredTakeoverSystem.cs:71-74` states the intent: *"Brain publishes the initial WorldPos before delegating authority, GhostPromotionSystem promotes the ghost, and only then we claim here."* — the wire spec's *"not true during the short time of ownership update"* |
-| ⛔ **§9a′** — promote leg claims only the role's positive list | `BrainInterrupts` is in neither special set yet is READ through the claim by `CognitiveInterruptSystem.cs:74,92` and `CognitiveCleanupSystem.cs:40` (gate ON for CGF, §6i) ⇒ CGF would stop processing interrupts on Path B. And `DESIGN_Node_Roles_And_Policies.md` §4.1 relies on promote-leg claims of non-role components for IG-created entities |
+| ⚠ **§9a′** — promote leg claims only the role's positive list — ⭐ **REFUTATION WITHDRAWN `2026-10-01`**: `BrainInterrupts` is read ONLY by the brain (`CognitiveRuntimeModule` is composed only by `CgfLogicPack.cs:159`) ⇒ it is a brain component MISSING from `brainOnly` — a classification gap, not a flaw in the rule. Original objection: | `BrainInterrupts` is in neither special set yet is READ through the claim by `CognitiveInterruptSystem.cs:74,92` and `CognitiveCleanupSystem.cs:40` (gate ON for CGF, §6i) ⇒ CGF would stop processing interrupts on Path B. And `DESIGN_Node_Roles_And_Policies.md` §4.1 relies on promote-leg claims of non-role components for IG-created entities |
 | ⚠ my earlier readership count ("SimTransform ×2, Position, BehaviorState ×2") | **undercount** — I grepped `HasAuthority<`/`WithOwned<` and missed `WithOwnedWhen<` and `Stride/`. Real claim readers: `SimTransform` (kinematics, 6 Stride physics systems, `GeoSpatialIngress`), `BehaviorState` (brain tick, channel arbitration, mission director, tactical intent ×2), `BrainInterrupts` (interrupt + cleanup), `Position` |
 
 ### 10.2 What survives
@@ -643,3 +643,14 @@ lifecycle filter `Active`), and `Active` needs `ConstructionAck`s that are thems
 | each claim change emits an event | ✅ table above | ✅ ELM `BeginConstruction` contract; wire spec `OwnershipUpdate` |
 | next-frame, once, non-consuming delivery | ✅ `FdpEventBus.cs` doc; `ConstructionOrder` already has 3 readers | — |
 | intent cannot precede the record | ✅ `QueryBuilder.cs:125` + §10 timeline | ⛔ none found |
+
+## 11. ⭐⭐⭐ THE USER'S OWNERSHIP RULE, STATED *(`2026-10-01`)*
+
+> 🔒 **User, verbatim:** *"the rule is that if i am creator, i own all but the stuff other roles own. If i am not creator, i own just what
+> my role claims. No role claims should be allowed to overlap, should they?"*
+
+⭐ This is Role-Affinity §3.1's own rule. The overlap measured in §10 is NOT in the rule — it comes from using ONE complement table
+(`ALL − birthCritical[− brainOnly]`) as "what my role claims" on the PROMOTE leg. ⇒ a role's claim must be a POSITIVE, disjoint set;
+the creator's set is `ALL − ∪(other roles' claims)` (+ birthright). Today's positive sets: Brain = `brainOnly` (+ `BrainInterrupts`,
+missing), Map2D = {`EditablePolyline`, `RoutePlan`}, Muscle = **none** (its share — WorldPos block + NavigationStatus — travels only as an
+explicit grant). Open: the full Brain list, and whether Muscle gets a positive set or keeps the grant.

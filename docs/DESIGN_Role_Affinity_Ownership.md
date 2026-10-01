@@ -954,7 +954,7 @@ correct**, and the first thing a positive enumeration would tighten.
 `CognitiveInterruptSystem.cs:74,92` / `CognitiveCleanupSystem.cs:40` — ⚠ the §3.9c revisit trigger has fired for that one component
 (harmless today: only CGF composes those systems).
 
-#### ⛔ `2026-10-01` — REFUTED SAME DAY: "THE PROMOTE LEG SHOULD USE A DIFFERENT SET" *(kept as the record of the proposal)*
+#### ⭐ `2026-10-01` — THE PROMOTE LEG SHOULD USE A POSITIVE SET *(user rule; an interim "refuted" verdict was WITHDRAWN — its only objection, `BrainInterrupts`, is a brain component missing from `brainOnly`; see `Architect_Question_79` §11)*
 
 > 🔒 **User, verbatim:** *"'everything minus named list' is ok from the point of the creator only. if non-creator node takes
 > ownership because of its role, it should take just the ownership of component belonging to its role, shouldn't it?"*
