@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
-current-answer: §9a (recompute the network record from the claim — the user's variant, awaiting approval) FIRST, §9 is the one-gate alternative; §8 is the deferred full unification; §7 is the proof both rest on.
+current-answer: §9b (recompute the record from the claim on EVERY ownership change — user rule 2026-10-01) FIRST; §9a/§9a′ are its steps toward it, §9 the one-gate alternative; §8 is the deferred full unification; §7 is the proof both rest on.
 stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -461,3 +461,59 @@ leg (`GhostPromotionSystem.cs:313-324`, bare `BitwiseOr`) the same table makes t
 correct"*. Re-measured `2026-10-01`: the claim's production readers are still only `SimTransform` ×2, `Position` ×1, `BehaviorState`
 ×2 — none in the unclassified bucket. ⇒ **Option §9a′:** narrow the promote leg to the role's CLASSIFIED set (Brain: `brainOnly`;
 Muscle: ∅; Map2D: ∅ — its two are inside the Brain/Muscle create tables, see Role-Affinity §3.9c `2026-10-01`) — local, no protocol, nothing observable changes today — and then the recompute needs no restriction of its own.
+
+### 9b. ⭐⭐⭐ RECOMPUTE ON EVERY OWNERSHIP CHANGE — overwrite, not fill *(user rule, `2026-10-01`; CURRENT lean, not built)*
+
+> 🔒 **User, verbatim:** *"network record must be recomputed on every ownership transfer, independently on if it already has an entry"*
+
+**The rule** (node `n`, entity/part `e`, every descriptor `d` in `n`'s descriptor map whose components are present, `D(d)∩K ≠ ∅`;
+`EntityMaster` excluded — `PrimaryOwnerId` stays as the protocols write it):
+
+```
+claimed(n, d, e)  ⇒  Map[d,inst] = n
+otherwise         ⇒  Map[d,inst] = the remote owner if the entry already names one, else UNKNOWN (-1)   // "not me"
+```
+
+**When:** at the create claim (`NetworkSpawningSystem`) and the promote claim (`GhostPromotionSystem`, with §9a′'s role list), and
+after EVERY `OwnershipUpdate` the node sees. Every transfer path already puts one on the local bus — `DeferredTakeoverSystem` and
+`OwnershipTransferInitiationSystem` publish it, the receiver gets it from DDS — so ONE new system, scheduled after
+`OwnershipIngressSystem`, covers all transfers **without editing any protocol handler**.
+
+```mermaid
+sequenceDiagram
+    participant W as DDS / local bus
+    participant OI as OwnershipIngressSystem (unchanged)
+    participant R as OwnershipRecomputeSystem (new)
+    participant M as AuthorityMask (claim)
+    participant D as DescriptorOwnership.Map (record)
+    W->>OI: OwnershipUpdate(entity, descriptor, newOwner)
+    OI->>D: Map[descriptor] = newOwner
+    OI->>M: set or clear the descriptor's bits
+    W->>R: the same OwnershipUpdate
+    R->>M: read the claim for every mapped descriptor
+    R->>D: claimed gives local, else remote or UNKNOWN
+```
+
+*What the picture shows: the protocol handler is untouched; the recompute is a second reader of the same event and overwrites only
+the local record.*
+
+| the rule rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| a record entry means "mine iff it names me" | ✅ `AuthorityExtensions.cs:47-52` (`specificOwner == LocalNodeId`) | ✅ wire spec, per-descriptor owner |
+| nothing publishes the record | ✅ `OwnershipEgressSystem` unregistered in NED (§9a) | ✅ |
+| every transfer emits a local `OwnershipUpdate` | ✅ `DeferredTakeoverSystem.cs:125` · `OwnershipTransferInitiationSystem.cs:99-105` · ingress via `OwnershipUpdateTranslator.cs:122` | ✅ `DESIGN_Entity_Ownership_Transfer.md` §2.2 |
+| transfer resolution is already claim-based | ✅ `OwnershipTransferInitiationSystem.Owns` → gate; §3 says "authority-based, not Map-based" | ✅ `DESIGN_Entity_Ownership_Transfer.md` §3 |
+| claims are exclusive | ⛔ not today — needs §9a′ (promote leg claims only the role list) | ✅ Role-Affinity §3.1 rule |
+
+**Behaviour changes, named:**
+1. Path B: CGF publishes `NavigationIntent` (`CE-500`).
+2. ⚠ **`MasterOnly` transfer:** today the giver's spawn-owned descriptors have no entry, so they FOLLOW the master in the record. After
+   9b the giver keeps them — which is exactly `DESIGN_Entity_Ownership_Transfer.md` §3: *"just `EntityMaster` … leave every other
+   descriptor where it is"*. ⇒ today's record contradicts that design; 9b makes it true.
+3. A creator's declined brain-only descriptors read "not mine" instead of "mine by default" — no sender for them is composed on a
+   Muscle node, so nothing observable.
+Everything else (Path A, `DeferredTakeover`, `AllOwnedByThisNode`) produces the record it produces today.
+
+**Not covered:** descriptors with no component mapping (`dtEntityMission`) keep their protocol-written entry; the per-node descriptor
+map is a subset (axiom M) — a node recomputes only descriptors it has translators for, which are the only ones its gate is asked about.
+A transfer for a component not yet present (`D7`) leaves that descriptor's entry as the protocol wrote it.
