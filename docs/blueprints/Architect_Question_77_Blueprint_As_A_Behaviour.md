@@ -405,11 +405,11 @@ sequence, without the shadow, the hosted detach or store growth, and on AUTHORED
 Filed as `CE-452` and replaced.
 </details>
 
-### 5.13 E4 — first slice BUILT `2026-09-30`; the rest is editor UI (§5.5)
+### 5.13 E4 — BUILT (`2026-09-30` first slice; `2026-10-01` merged the UI lane's `CE-460`–`CE-462`)
 
 | §5.5 item | state |
 |---|---|
 | the assignment picker lists every `BrainTier` | ✅ `ScenarioMissionService.AppendEditorBTreeBehaviors` now admits BTree, HSM and Blueprint (rail `EditorMissionServiceTests.CE446_GetAvailableBehaviors_ListsEveryTechnology`, red-proofed by restoring the BTree-only predicate). ⚠ The method keeps its old name — renaming is a Roslyn job, left for the slice that touches it next |
-| the technology shown as a label | ⛔ not built — `IMissionEditorService.GetAvailableBehaviors` returns bare names (four implementations incl. `Hrot.ExCon`), so a label is an interface change |
-| New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ⛔ not built — editor menus, the UI lane's surface. ⭐ Handoff (draft): [`HANDOFF_E4_Product_First_Authoring.md`](batches/HANDOFF_E4_Product_First_Authoring.md) |
+| the technology shown as a label | ✅ `CE-462` (UI lane, `2026-09-30`): `BehaviorChoice(Name, Technology)` + `IMissionEditorService.GetAvailableBehaviorChoices`, shown in the assignment picker and the HSM action/guard combos. ⛔ SUPERSEDED: *"not built — returns bare names"* |
+| New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ✅ `CE-460` + `CE-461` (UI lane, `2026-09-30`): File / New Behaviour… · New Action… · New Condition…, product first, technology second, plus the blueprint Behavior / Action / Condition blank templates. 📄 [`DESIGN_Product_First_Authoring.md`](DESIGN_Product_First_Authoring.md). Still open: C# as a technology (`CE-459`, design slice) and the stale method name (`CE-457`) |
 | the editor panels agree with the compiler about a behaviour | ✅ `CE-496` (`2026-10-01`): the Return-node panel shows Status for the behaviour's `Tick` (Outputs for its helper functions) by calling `BehaviorDispatch.IsTickGraph` — the rule Stage 5 uses; the EQS-spawn panel's dispatch guard mirrors `BP2030` |

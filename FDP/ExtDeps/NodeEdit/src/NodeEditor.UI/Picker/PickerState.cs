@@ -58,6 +58,13 @@ internal sealed class PickerState
     /// so mouse-wheel scrolling isn't snapped back on subsequent frames.</summary>
     public bool ScrollToFocus;
 
+    // ── Initial selection (PickerRequest.InitialSelectionId) ─────────────────
+    /// <summary>Category path whose folders the Tree layout force-opens on its next draw, then clears.</summary>
+    public string? RevealCategory;
+
+    /// <summary>Filtered index of a leaf the Tree layout must make the focused visual row on its next draw.</summary>
+    public int FocusLeafOnDraw = -1;
+
     // ── Misc ─────────────────────────────────────────────────────────────────
     public bool Confirmed;
     public bool FocusSearchNextFrame = true;
@@ -66,6 +73,42 @@ internal sealed class PickerState
     // ── Methods ──────────────────────────────────────────────────────────────
 
     /// <summary>Recompute <see cref="Filtered"/> from <see cref="AllEntries"/> using the current query.</summary>
+    /// <summary>
+    /// Pre-selects the (enabled) entry whose <see cref="PickerEntry.Id"/> is <paramref name="id"/> in the
+    /// current filtered list. Returns <see langword="false"/> — and changes nothing — when there is none.
+    /// </summary>
+    public bool ApplyInitialSelection(string? id)
+    {
+        if (string.IsNullOrEmpty(id)) return false;
+        int idx = Filtered.FindIndex(r => r.Entry.Id == id && r.Entry.IsEnabled);
+        if (idx < 0) return false;
+
+        SelectedFilteredIndices.Clear();
+        SelectedFilteredIndices.Add(idx);
+        KeyboardFocusIndex = idx;
+        SelectionAnchorIndex = idx;
+        RevealCategory = Filtered[idx].Entry.Category;
+        FocusLeafOnDraw = idx;
+        ScrollToFocus = true;
+        return true;
+    }
+
+    /// <summary>
+    /// What a confirm returns: the selected entries (or, with none selected, the focused one), in list
+    /// order, with DISABLED entries removed. <paramref name="onlyDisabled"/> is true when something was
+    /// selected but all of it was disabled — the window then stays open instead of returning nothing.
+    /// </summary>
+    public List<RankedEntry> ConfirmableSelection(out bool onlyDisabled)
+    {
+        var picked = SelectedFilteredIndices.Count > 0
+            ? SelectedFilteredIndices.Where(i => i >= 0 && i < Filtered.Count).OrderBy(i => i).ToList()
+            : Filtered.Count > 0 ? new List<int> { KeyboardFocusIndex >= 0 ? KeyboardFocusIndex : 0 } : new List<int>();
+
+        var enabled = picked.Select(i => Filtered[i]).Where(r => r.Entry.IsEnabled).ToList();
+        onlyDisabled = picked.Count > 0 && enabled.Count == 0;
+        return enabled;
+    }
+
     public void Refilter()
     {
         LastQuery = SearchText;
@@ -134,6 +177,8 @@ internal sealed class PickerState
         PendingToggleFolderPath = null;
         PendingToggleOpen       = false;
         VisualRows.Clear();
+        RevealCategory          = null;
+        FocusLeafOnDraw         = -1;
         TreeFocusRow            = 0;
         ScrollToFocus           = false;
         Confirmed               = false;

@@ -101,22 +101,30 @@ public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
         return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-462</c> (E4 ④) — the SHOWN text: name + technology. ⛔ <see cref="GetItems"/> still returns
+    /// the stored FQNs, so every consumer that binds by value is unchanged.
+    /// </summary>
+    public string Label(string fqn) => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.PickerLabel(fqn, _schema);
+
     /// <inheritdoc/>
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmact", GetItems());
+        return HsmPickerHelper.RenderCombo(ref value, "##hsmact", GetItems(), Label);
     }
 }
 
 /// <summary>Internal rendering helpers shared by all HSM picker drawers.</summary>
 internal static class HsmPickerHelper
 {
-    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items)
+    internal static bool RenderCombo(ref object value, string id, IReadOnlyList<string> items,
+                                     Func<string, string>? label = null)
     {
         var current = value as string ?? string.Empty;
+        label ??= s => s;
         bool changed = false;
-        if (ImGuiNET.ImGui.BeginCombo(id, current))
+        if (ImGuiNET.ImGui.BeginCombo(id, label(current)))
         {
             // Allow clearing.
             if (ImGuiNET.ImGui.Selectable("(none)", string.IsNullOrEmpty(current)) && !string.IsNullOrEmpty(current))
@@ -127,7 +135,8 @@ internal static class HsmPickerHelper
             foreach (var name in items)
             {
                 bool sel = name == current;
-                if (ImGuiNET.ImGui.Selectable(name, sel) && !sel)
+                // ⚠ "##"+name keeps the ImGui id the VALUE, so two entries with the same label stay distinct.
+                if (ImGuiNET.ImGui.Selectable($"{label(name)}##{name}", sel) && !sel)
                 {
                     value   = name;
                     changed = true;
@@ -178,10 +187,16 @@ public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
         return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
+    /// <summary>
+    /// ⭐ <c>CE-462</c> (E4 ④) — the SHOWN text: name + technology. ⛔ <see cref="GetItems"/> still returns
+    /// the stored FQNs, so every consumer that binds by value is unchanged.
+    /// </summary>
+    public string Label(string fqn) => Hrot.Editor.AiShared.Blackboard.AiPrimitiveNaming.PickerLabel(fqn, _schema);
+
     public bool DrawInput(ref object value, EditNode node)
     {
         if (ImGuiNET.ImGui.GetCurrentContext() == IntPtr.Zero) return false;
-        return HsmPickerHelper.RenderCombo(ref value, "##hsmguard", GetItems());
+        return HsmPickerHelper.RenderCombo(ref value, "##hsmguard", GetItems(), Label);
     }
 }
 

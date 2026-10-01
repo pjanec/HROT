@@ -183,6 +183,32 @@ public sealed class HsmPickerDrawerTests
     }
 
     /// <summary>
+    /// ⭐⭐ <b><c>CE-462</c> (E4 ④) — every HSM guard is SHOWN with its technology.</b> A blueprint guard reads by
+    /// its authored name + <c>[Blueprint]</c> (its FQN is the generated <c>{Name}_{id:X8}_Bp.TickCore</c>), a
+    /// hand-written one by its FQN + <c>[C#]</c>, and a name the catalog does not know stays bare. ⭐ The
+    /// VALUES are unchanged — <c>GetItems</c> still returns FQNs. 🔴 Red-proof: return <c>fqn</c> from
+    /// <c>AiPrimitiveNaming.PickerLabel</c> ⇒ both labelled assertions fail.
+    /// </summary>
+    [Fact]
+    public void CE462_Guards_are_shown_with_their_technology()
+    {
+        const string bpFqn = "Hrot.Generated.GateConditionDemo_1A2B3C4D_Bp.TickCore";
+        var exporter = ThreeKinds();
+        ((System.Collections.Generic.Dictionary<string, Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry>)
+            exporter.All)[bpFqn] = new Hrot.Editor.AiShared.Blackboard.ActionSchemaEntry(
+                bpFqn, typeof(float),
+                Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmGuard,
+                Hrot.Editor.AiShared.Blackboard.BlackboardAccess.ReadWrite, IsCondition: true, IsAiPrimitive: true);
+
+        var drawer = new HsmGuardPickerDrawer(MakeAsset(), exporter);
+
+        drawer.GetItems().Should().Contain(bpFqn, "the stored value is still the FQN");
+        drawer.Label(bpFqn).Should().Be("GateConditionDemo  [Blueprint]");
+        drawer.Label("Ns.Catalog.InRange").Should().Be("Ns.Catalog.InRange  [C#]");
+        drawer.Label("Ns.Unknown.Dangling").Should().Be("Ns.Unknown.Dangling");
+    }
+
+    /// <summary>
     /// ⭐⭐ <b>The asset's own names stay in the union, even WITH a catalog.</b> ⛔ Dropping a name
     /// the current assembly no longer exports would HIDE a dangling binding rather than show it —
     /// the same never-erase reasoning as the subtree reference.

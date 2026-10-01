@@ -358,6 +358,37 @@ namespace Hrot.Editor.Tests.Adapters
             Assert.Contains("AuthoredBlueprint", behaviors);
         }
 
+        /// <summary>
+        /// ⭐⭐ CE-462 (E4 ④, D4): each behaviour carries its TECHNOLOGY, read off the definition's brain tier, and
+        /// the plain name list is DERIVED from the labelled one — so the two cannot disagree.
+        /// <para>⚠ Inverse-edit red-proof: map <c>BrainTierBlueprint</c> to null in <c>TechnologyOf</c> ⇒ the
+        /// Blueprint assertion fails.</para>
+        /// </summary>
+        [Fact]
+        public void CE462_Each_behavior_is_labelled_with_its_technology()
+        {
+            _registry.Register(43, "AuthoredHsm", new BehaviorDefinition
+            {
+                Name = "AuthoredHsm", BrainTier = BehaviorConstants.BrainTierHsm,
+            });
+            _registry.Register(44, "AuthoredBlueprint", new BehaviorDefinition
+            {
+                Name = "AuthoredBlueprint", BrainTier = BehaviorConstants.BrainTierBlueprint,
+            });
+
+            var entity = _repo.CreateEntity();
+            _repo.AddComponent(entity, new TkbIdentity { TkbType = TkbEntityTypes.MilitaryApc });
+            _repo.AddComponent(entity, new NetworkIdentity { Value = NetIdFor(entity) });
+
+            var service = new ScenarioMissionService(_bus, _repo, _registry);
+            var choices = service.GetAvailableBehaviorChoices(NetIdFor(entity));
+
+            Assert.Equal("HSM",       Assert.Single(choices, c => c.Name == "AuthoredHsm").Technology);
+            Assert.Equal("Blueprint", Assert.Single(choices, c => c.Name == "AuthoredBlueprint").Technology);
+            Assert.Equal("AuthoredBlueprint  [Blueprint]", choices.Single(c => c.Name == "AuthoredBlueprint").Label);
+            Assert.Equal(choices.Select(c => c.Name), service.GetAvailableBehaviors(NetIdFor(entity)));
+        }
+
         [Fact]
         public void GetAvailableBehaviors_DoesNotDuplicateCuratedEntries()
         {

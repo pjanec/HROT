@@ -325,6 +325,9 @@ public sealed class NewAssetServiceTests
     [Theory]
     [InlineData("Empty", "Tick")]
     [InlineData("Function Library", "NewFunction")]
+    [InlineData("Behavior", "Tick")]   // ⭐ CE-460 — the brain ticks the graph NAMED Tick
+    [InlineData("Action", "Main")]     // ⭐ CE-461
+    [InlineData("Condition", "Main")]  // ⭐ CE-461
     public void CreateNew_FromBlankTemplate_SeedsAFunctionGraph_WithAnEntryNode(
         string templateName, string expectedGraphName)
     {
@@ -352,6 +355,9 @@ public sealed class NewAssetServiceTests
     [Theory]
     [InlineData("Empty")]
     [InlineData("Function Library")]
+    [InlineData("Behavior")]   // ⭐ CE-460 (E4 ②) — a new blueprint behaviour compiles as minted
+    [InlineData("Action")]     // ⭐ CE-461 — with EVERY hosting its intent allows
+    [InlineData("Condition")]  // ⭐ CE-461
     public void CreateNew_FromBlankTemplate_ResolveInitialGraph_DoesNotReturnNull(string templateName)
     {
         var svc      = new BlueprintNewAssetService();
@@ -370,6 +376,9 @@ public sealed class NewAssetServiceTests
     [Theory]
     [InlineData("Empty")]
     [InlineData("Function Library")]
+    [InlineData("Behavior")]   // ⭐ CE-460 (E4 ②) — a new blueprint behaviour compiles as minted
+    [InlineData("Action")]     // ⭐ CE-461 — with EVERY hosting its intent allows
+    [InlineData("Condition")]  // ⭐ CE-461
     public void CreateNew_FromBlankTemplate_CompilesImmediately_NoErrors(string templateName)
     {
         var svc      = new BlueprintNewAssetService();
@@ -401,5 +410,68 @@ public sealed class NewAssetServiceTests
         Assert.DoesNotContain(compileResult.Diagnostics, d => d.Code == DiagnosticCodes.BP5001);
         Assert.True(compileResult.Succeeded,
             $"Blueprint compile failed: {string.Join(", ", compileResult.Diagnostics.Select(d => d.Code))}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-460</c> (E4 ②) — the Behavior blank template mints a <c>Dispatch=Behavior</c> blueprint, and
+    /// <see cref="BlueprintNewAssetService.ProductOf"/> reads the product off the ASSET: Behavior ⇒ Behavior,
+    /// an AiPrimitive ⇒ its intent, Instance/Library ⇒ none. 🔴 Red-proof: swap the Behavior arm to
+    /// <c>null</c> ⇒ the first assertion on ProductOf fails.
+    /// </summary>
+    [Fact]
+    public void CE460_Behavior_template_and_ProductOf_read_the_asset()
+    {
+        var svc     = new BlueprintNewAssetService();
+        var recipes = svc.AvailableRecipes();
+
+        var behavior = recipes.First(r => r.Name == "Behavior");
+        Assert.True(svc.IsBlankTemplate(behavior));
+        Assert.Equal(BlueprintDispatchKind.Behavior,
+            Assert.IsType<BlueprintEditableAssetAdapter>(svc.CreateNew(behavior, "Patrol", "")).Asset.Dispatch);
+
+        Assert.Equal(Hrot.Editor.AiShared.Recipes.AuthoringProduct.Behavior, svc.ProductOf(behavior));
+        Assert.Null(svc.ProductOf(recipes.First(r => r.Name == "Empty")));
+        Assert.Null(svc.ProductOf(recipes.First(r => r.Name == "Function Library")));
+
+        static BlueprintEditableAssetAdapter Primitive(AiPrimitiveIntent intent) => new(new BlueprintAsset
+        {
+            Header = new Header(), AssetId = Guid.NewGuid(), Name = "P",
+            Dispatch = BlueprintDispatchKind.AiPrimitive,
+            Primitive = new AiPrimitiveDecl { Intent = intent },
+            EditorMetadata = new AssetMetadata(),
+        });
+        Assert.Equal(Hrot.Editor.AiShared.Recipes.AuthoringProduct.Action,    svc.ProductOf(Primitive(AiPrimitiveIntent.Action)));
+        Assert.Equal(Hrot.Editor.AiShared.Recipes.AuthoringProduct.Condition, svc.ProductOf(Primitive(AiPrimitiveIntent.Condition)));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-461</c> (E4 ③) — the Action / Condition templates declare EVERY hosting their intent allows,
+    /// read from the compiler's <see cref="AiPrimitiveHostingRules"/>. 🔒 User, <c>2026-09-30</c>: <i>"actions
+    /// should be usable for btrees/hsms and blueprint behaviors"</i> · <i>"same for blueprint conditions (usable
+    /// as btree conditions AND hsm guards)"</i> — pinned literally, so a change to the table is a visible
+    /// decision, not a silent one. 🔴 Red-proof: mint with <c>new List { BTreeAction }</c> ⇒ the Action
+    /// assertion fails.
+    /// </summary>
+    [Theory]
+    [InlineData("Action", AiPrimitiveIntent.Action,
+                new[] { AiPrimitiveHosting.BTreeAction, AiPrimitiveHosting.HsmAction, AiPrimitiveHosting.BlueprintCall })]
+    [InlineData("Condition", AiPrimitiveIntent.Condition,
+                new[] { AiPrimitiveHosting.BTreeCondition, AiPrimitiveHosting.HsmGuard, AiPrimitiveHosting.BlueprintCall })]
+    public void CE461_Primitive_templates_declare_every_hosting_their_intent_allows(
+        string template, AiPrimitiveIntent intent, AiPrimitiveHosting[] expected)
+    {
+        var svc    = new BlueprintNewAssetService();
+        var recipe = svc.AvailableRecipes().First(r => r.Name == template);
+        var bp     = Assert.IsType<BlueprintEditableAssetAdapter>(svc.CreateNew(recipe, "Mine", "")).Asset;
+
+        Assert.Equal(BlueprintDispatchKind.AiPrimitive, bp.Dispatch);
+        Assert.Equal(intent, bp.Primitive!.Intent);
+        Assert.Equal(expected, bp.Primitive.Hostings);
+        Assert.Equal(AiPrimitiveHostingRules.AllValidFor(intent), bp.Primitive.Hostings);
+        Assert.True(svc.IsBlankTemplate(recipe));
+        Assert.Equal(intent == AiPrimitiveIntent.Action
+                ? Hrot.Editor.AiShared.Recipes.AuthoringProduct.Action
+                : Hrot.Editor.AiShared.Recipes.AuthoringProduct.Condition,
+            svc.ProductOf(recipe));
     }
 }

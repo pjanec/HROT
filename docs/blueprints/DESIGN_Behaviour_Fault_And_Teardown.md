@@ -514,7 +514,7 @@ CGF, Stride and the ClusterRunner window), so an IG-only operator does not see t
 | W4 | ✅ `Hrot.Network.NED/BehaviorFaultMessages.cs` (`BehaviorFaultReport`, IDL `hrot-behavior-fault`), `dtBehaviorFault = 97`; `Translators/BehaviorFaultTranslators.cs` — egress in `CognitiveTranslatorPack`, ingress in `SharedTranslatorPack` |
 | W5 | ✅ `Fdp.Toolkits/Behavior/Events/BehaviorFaultLog.cs` (tab *Behaviour Faults*, Error rows, de-dup memory 4096 keys); `BehaviorFault.Raise` reports locally; registered in `EditorSubsystem` + `CgfSubsystem` next to `AiBehaviorLogTarget` |
 | ⚠ note 1 | the LOCAL row names the behaviour by its hash (`#XXXXXXXX`) — `Raise` has no `BehaviorRegistry`; a remote row carries the registered name. On one node with both, the first report wins the de-dup |
-| ⚠ note 2 | IG has no Message Log window ⇒ an IG-only operator sees nothing — filed `CE-495` |
+| ⚠ note 2 | IG has no Message Log window ⇒ an IG-only operator saw nothing — filed `CE-495`. ✅ **Closed `2026-10-01` (UI lane):** IG subscribes `BehaviorFaultLog.Shared.OnMessageAdded` and writes each row to its normal NLog log at Error (`IgApplication.WriteBehaviorFaultToLog`), per the user's "nothing more required for now" |
 
 **Rails:** `EntityMissionTranslatorTests.CE483_*` (state mapping, halted, round-trip ×3, ingress restore, egress re-publish — **red-proved**: with the progress check removed the egress test fails) · `BehaviorFaultTranslatorTests` (egress fields + no-net-id skip; ingress row, duplicate, own-origin, next run) · `HillAttackIntegrationTests.CE482_MissingArea_FaultsTheRun_LoudlyAndOnce` now also asserts the one Error row.
 
