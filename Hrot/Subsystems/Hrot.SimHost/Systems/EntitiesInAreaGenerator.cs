@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Numerics;
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
@@ -13,17 +14,17 @@ namespace Hrot.SimHost.Systems
     /// <c>EntitiesInArea</c>).
     /// </summary>
     /// <remarks>
-    /// <para>⭐ <b>Parity with <see cref="AreaQuerySolverSystem"/> by construction</b>: the same candidate
-    /// set (every entity with <see cref="SimTransform"/> — what <c>LocalGridBuilderSystem</c> puts in the
-    /// perception grid), the same relative-to-origin polygon (<see cref="EditablePolyline"/> points are
-    /// offsets from the area's <see cref="SimTransform"/>), and the SAME
-    /// <see cref="AreaQuerySolverSystem.PointInPolygon"/> call. Force and wreck filtering are the
-    /// template's tests, not this generator's.</para>
+    /// <para>⭐ <b>Built in parity with the retired <c>AreaQuerySolverSystem</c></b>: the same candidate set
+    /// (every entity with <see cref="SimTransform"/>), the same relative-to-origin polygon
+    /// (<see cref="EditablePolyline"/> points are offsets from the area's <see cref="SimTransform"/>), and
+    /// the SAME <see cref="PointInPolygon"/> — which moved here when that pipeline was retired
+    /// (EQS design §18). Force and wreck filtering are the template's tests, not this generator's.</para>
     ///
     /// <para>⚠ <b>A walk, not a grid query</b> (user, <c>2026-09-30</c>: "slow walk is ok for now"). The
     /// perception grid is handed by constructor to <c>CognitiveSpatialModule</c> and rebuilt on its
     /// thread, so reading it from <c>EqsModule</c> would race; the CarKinem <c>SpatialGridData</c> holds
-    /// only collider entities and would silently drop targets. A polygon bounding-box test prunes the walk.</para>
+    /// only collider entities and would silently drop targets. A polygon bounding-box test prunes the walk.
+    /// ⭐ It also means no reach limit: the retired query's grid saw only x, y ∈ [0, 1000) m.</para>
     ///
     /// <para>⭐ <b>No area ⇒ no answer.</b> When the area entity is absent, not yet replicated here, or
     /// has no polygon, this returns <c>-1</c> and the solver publishes nothing — the reader keeps waiting
@@ -31,7 +32,7 @@ namespace Hrot.SimHost.Systems
     /// </remarks>
     public sealed class EntitiesInAreaGenerator : IEqsGenerator
     {
-        // Same vertex cap as AreaQuerySolverSystem.MaxPolyVertices.
+        // The vertex cap the retired AreaQuerySolverSystem used.
         private const int MaxPolyVertices = 64;
 
         /// <inheritdoc/>
@@ -68,7 +69,7 @@ namespace Hrot.SimHost.Systems
                 ref readonly var tf = ref view.GetComponentRO<SimTransform>(candidate);
                 var local = new Vector2(tf.Position.X, tf.Position.Y) - origin;
                 if (local.X < minX || local.X > maxX || local.Y < minY || local.Y > maxY) continue;
-                if (!AreaQuerySolverSystem.PointInPolygon(local, points, nVerts)) continue;
+                if (!PointInPolygon(local, points, nVerts)) continue;
 
                 candidates[count++] = new EqsResult
                 {
@@ -80,6 +81,28 @@ namespace Hrot.SimHost.Systems
             }
 
             return count;
+        }
+
+        /// <summary>
+        /// 2-D point-in-polygon by ray casting (crossing count). ⚠ The comparison is STRICT, so a point on
+        /// a vertical right-hand edge is OUTSIDE (pinned by <c>EqsDistributedTests</c> T-DIS7). Zero heap
+        /// allocations — reads the list by index.
+        /// </summary>
+        /// <remarks>Moved verbatim from <c>AreaQuerySolverSystem</c> when that pipeline was retired.</remarks>
+        internal static bool PointInPolygon(Vector2 point, IList<Vector2> polygon, int nVerts)
+        {
+            bool inside = false;
+            int j = nVerts - 1;
+            for (int i = 0; i < nVerts; j = i++)
+            {
+                float xi = polygon[i].X, yi = polygon[i].Y;
+                float xj = polygon[j].X, yj = polygon[j].Y;
+                bool intersects =
+                    ((yi > point.Y) != (yj > point.Y))
+                    && (point.X < (xj - xi) * (point.Y - yi) / (yj - yi) + xi);
+                if (intersects) inside = !inside;
+            }
+            return inside;
         }
     }
 

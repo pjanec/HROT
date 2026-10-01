@@ -38,9 +38,10 @@ namespace Hrot.NED.Descriptors
         dtMissionControlAck     = 91,
         // Tactical intent (Brain-to-Brain)
         dtTacticalIntentRequest = 92,
-        // EQS area-query pipeline (Brain <-> Muscle)
-        dtAreaQueryRequestBatch  = 93,
-        dtAreaQueryResponseBatch = 94,
+        // ⛔ 93 / 94 — RETIRED 2026-10-01 with the AreaQuery pipeline (dtAreaQueryRequestBatch /
+        //   dtAreaQueryResponseBatch, topics "AreaQueryRequestBatch" / "AreaQueryResponseBatch"). A WIRE-CONTRACT
+        //   REMOVAL: a peer still on the old build publishes topics nobody reads. ⛔ Never reuse 93 or 94.
+        //   📄 docs/designs/eqs-2/EQS_Design_v1.3_final.md §18.
         // EQS v1.3 sensor config and result topics
         dtEqsSensorConfig        = 95,
         dtEqsResult              = 96,

@@ -93,7 +93,6 @@ public static class EditorCapabilities
             .Capability(NodeRole.MuscleGround, new MuscleGround(musclePack))
             .Capability(NodeRole.Perception,   new PerceptionSpatial(perceptionModule))
             .Capability(NodeRole.Perception,   new PerceptionEqsSolver())
-            .Capability(NodeRole.Perception,   new PerceptionAreaQueries())
             .Capability(NodeRole.Brain,        new CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.Brain,        new EqsResultUpdateCapability());
     }
@@ -104,8 +103,8 @@ public static class EditorCapabilities
     /// </summary>
     /// <remarks>
     /// The injected arm has no <c>SimHostCoreLogicPack</c> and no <c>CognitiveSpatialModule</c>: the
-    /// supplying host owns both. It still gets the Brain and the area-query materialisation, exactly as
-    /// the hand-written block does. ⚠ Keeping the two arms as two plan shapes — rather than one plan
+    /// supplying host owns both. It still gets the Brain *(and, until the AreaQuery pipeline was retired
+    /// on 2026-10-01, the area-query materialisation — EQS design §18)*. ⚠ Keeping the two arms as two plan shapes — rather than one plan
     /// with nullable capabilities — is what stops a null capability being registered as if it were
     /// real, which is the silent-default shape this programme keeps finding.
     /// </remarks>
@@ -120,13 +119,12 @@ public static class EditorCapabilities
             .Capability(NodeRole.Brain, new Brain(cgfPack));
 
         // ⭐ S2b — the host hands over CAPABILITIES, not bare modules. They are added in the host's
-        //    own order, between Brain and the area queries, which is where the muscle tier sat when
+        //    own order, after Brain and before the Brain's EQS result update, which is where it sat when
         //    this was a Func returning IEcsModule (registration order is execution order).
         foreach (INodeCapability capability in injectedMuscleCapabilities)
             plan = plan.Capability(NodeRole.MuscleGround, capability);
 
         return plan
-            .Capability(NodeRole.Perception, new PerceptionAreaQueries())
             .Capability(NodeRole.Brain,      new CoreInfrastructureCapabilities.UnitHierarchy())
             .Capability(NodeRole.Brain,      new EqsResultUpdateCapability());
     }
@@ -217,16 +215,4 @@ public static class EditorCapabilities
             => EqsSolverStartup.Register(context);
     }
 
-    /// <summary>
-    /// Area-query materialisation — registered on <b>both</b> arms, which is why it is its own
-    /// capability rather than part of <see cref="PerceptionSpatial"/>.
-    /// </summary>
-    public sealed class PerceptionAreaQueries : INodeCapability
-    {
-        public string Key => CapabilityKeys.Perception;
-        public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
-
-        public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
-    }
 }

@@ -25,8 +25,9 @@ namespace Hrot.SimHost;
 /// behaviour-preserving, which is the whole constraint <c>B1</c>–<c>B4</c> operate under.</para>
 ///
 /// <para>⚠ <b>That is why perception appears as TWO capabilities.</b> Today SimHost registers
-/// <c>EqsModule</c>, then the navigation module, then <c>AreaQueryResultMaterializationSystem</c> and
-/// <c>CognitiveSpatialModule</c> — perception concerns interleaved <i>around</i> navigation. Collapsing
+/// <c>EqsModule</c>, then the navigation module, then <c>CognitiveSpatialModule</c> — perception concerns
+/// interleaved <i>around</i> navigation *(<c>AreaQueryResultMaterializationSystem</c> sat before the module
+/// until the AreaQuery pipeline was retired, 2026-10-01)*. Collapsing
 /// them into one contiguous <c>Perception</c> capability would move the navigation module later in the
 /// list. Whether that interleaving is meaningful or merely historical is <b>not measured</b>, so this
 /// split preserves it exactly rather than guessing. ⇒ <b>a follow-up should establish whether the two
@@ -100,7 +101,7 @@ internal static class SimHostCapabilities
             => context.Kernel.RegisterModule(_module);
     }
 
-    /// <summary>Perception's spatial half: area-query materialisation and the cognitive grid systems.</summary>
+    /// <summary>Perception's spatial half: the cognitive grid systems.</summary>
     internal sealed class PerceptionSpatial : INodeCapability
     {
         private readonly Action<CognitiveSpatialModule> _publishModule;
@@ -113,10 +114,7 @@ internal static class SimHostCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
-            context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
-
             var module = new CognitiveSpatialModule(
-                context.World,
                 colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
                     ? view.GetComponentRO<PhysicsCollider>(e).Radius
                     : 0f);

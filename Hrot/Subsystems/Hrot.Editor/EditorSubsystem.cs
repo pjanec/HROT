@@ -1503,7 +1503,6 @@ namespace Hrot.Editor
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
                 perceptionMod    = new CognitiveSpatialModule(
-                    _world,
                     colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
                         ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                         : 0f);

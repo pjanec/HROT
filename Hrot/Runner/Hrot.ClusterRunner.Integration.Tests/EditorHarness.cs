@@ -283,7 +283,7 @@ public sealed class EditorHarness : IDisposable
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys);
 
-        Kernel.RegisterModule(new CognitiveSpatialModule(Repo));
+        Kernel.RegisterModule(new CognitiveSpatialModule());
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);

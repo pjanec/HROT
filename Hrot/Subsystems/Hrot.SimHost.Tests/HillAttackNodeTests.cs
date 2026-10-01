@@ -41,16 +41,6 @@ namespace Hrot.SimHost.Tests
 
         private static void DisposeEqsSingletons(EntityRepository world)
         {
-            if (world.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var batch = ref world.GetSingleton<AreaQueryBatchData>();
-                if (batch.Results.IsCreated) batch.Results.Dispose();
-            }
-            if (world.HasSingleton<EqsTargetPool>())
-            {
-                var pool = world.GetSingleton<EqsTargetPool>();
-                if (pool.Targets.IsCreated) pool.Targets.Dispose();
-            }
             if (world.HasSingleton<EqsResultPool>())
             {
                 var rp = world.GetSingleton<EqsResultPool>();

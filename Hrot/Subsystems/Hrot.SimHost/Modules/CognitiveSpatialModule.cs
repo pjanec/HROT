@@ -20,11 +20,9 @@ namespace Hrot.SimHost.Modules
         // B3 -- RECEIVED, not allocated. See the constructor.
         private readonly SpatialHashGrid _localGrid;
         private readonly PerceptionGridProvider? _ownedGridProvider;
-        private readonly EntityRepository _liveWorld;
         private readonly FdpEventBus _scopedBus;
 
         private IEcsModuleSystem _localGridBuilder = null!;
-        private IEcsModuleSystem _areaQuerySolver = null!;
         private IEcsModuleSystem _visionBroadphase = null!;
         private IEcsModuleSystem _losRequestBatching = null!;
         private IEcsModuleSystem _sensorTrackDebounce = null!;
@@ -34,7 +32,6 @@ namespace Hrot.SimHost.Modules
         /// <summary>
         /// <b>B3 — the capability RECEIVES its grid.</b>
         /// </summary>
-        /// <param name="liveWorld">The live world the area-query solver reads.</param>
         /// <param name="gridProvider">
         /// The perception grid's owner. <b>Pass one.</b> When <c>null</c> this module allocates and owns a
         /// private provider, which is the pre-B3 behaviour and is kept ONLY so the existing tests and any
@@ -44,11 +41,9 @@ namespace Hrot.SimHost.Modules
         /// </param>
         /// <param name="colliderRadiusReader">Optional collider-radius reader for LOS batching.</param>
         public CognitiveSpatialModule(
-            EntityRepository liveWorld,
             PerceptionGridProvider? gridProvider = null,
             Func<ISimulationView, Entity, float>? colliderRadiusReader = null)
         {
-            _liveWorld = liveWorld;
 
             // Own one only if nobody handed us one; _ownedGridProvider records which case we are in so
             // Dispose frees exactly what this module allocated and never what it borrowed.
@@ -68,7 +63,6 @@ namespace Hrot.SimHost.Modules
         public void RegisterSystems(ISystemRegistry registry)
         {
             _localGridBuilder = registry.RegisterManualSystem(new LocalGridBuilderSystem(_localGrid));
-            _areaQuerySolver = registry.RegisterManualSystem(new AreaQuerySolverSystem(_localGrid, _liveWorld));
             _visionBroadphase = registry.RegisterManualSystem(new VisionBroadphaseSystem(_localGrid));
             _losRequestBatching = registry.RegisterManualSystem(new LosRequestBatchingSystem(
                 mockMode: false,
@@ -83,7 +77,6 @@ namespace Hrot.SimHost.Modules
             var scopedView = new PerceptionScopedView(view, _scopedBus);
 
             _localGridBuilder.Execute(scopedView, dt);
-            _areaQuerySolver.Execute(view, dt);
 
             _visionBroadphase.Execute(scopedView, dt);
             _scopedBus.SwapBuffers();

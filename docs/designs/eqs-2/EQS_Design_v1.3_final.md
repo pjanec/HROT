@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30
-build-state: BUILT (§17 — the area query inside EQS 1.3; AreaQuery itself untouched and still live)
+updated: 2026-10-01
+build-state: BUILT (§17 — the area query inside EQS 1.3) · §18 — the AreaQuery pipeline RETIRED (2026-10-01)
 current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
   unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
 stale-below: nothing is superseded, but §6.4 (hot reload) and §6.6 (starter pack of 8) describe intent that was
@@ -20,6 +20,8 @@ related-designs:
   - docs/projects/FDP/Toolkits/Fdp.Toolkits.Spatial.Eqs.md — the toolkit reference; already calls AreaQuery "legacy".
   - docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md — the cgf==editor roadmap; §17.8 closes one of its gaps (Blueprint node
     Details on CGF).
+  - docs/blueprints/batches/HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md — the frame for §18 (part A).
+  - docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md — part B of the same handoff (CE-476); owns nothing here.
 -->
 # EQS (Environment Query System) — Design v1.3
 
@@ -747,6 +749,7 @@ Tests: **17** files mention it.
 ([`DESIGN_Hill_Attack_Eqs_Migration.md`](../../blueprints/DESIGN_Hill_Attack_Eqs_Migration.md)) and `AreaQueryBatchOps` is
 deleted ⇒ **the AreaQuery pipeline has no behaviour caller left**; retiring it removes registrations, translators, the two DDS
 messages and its own rails (`AreaQuery*Tests`, `HillAttackIntegrationTests.SC_HA015_6`).
+⭐ **Done `2026-10-01` — see §18.**
 
 ---
 
@@ -963,3 +966,48 @@ the same template list, and the same pill providers naming the area template) ·
 leave with their node) · `BlueprintDocumentFactoryTests` (the factory hands them to the model) ·
 `AiDocumentViewStateBinderTests.ABlueprintCanvas_ShowsThePillsOfTheHostsNodeAuthoring` (a real opened canvas through the
 shared binder) · `TheEqsBrainStartupIsSharedTests` (both hosts pass the authoring; peer names are a cached scan).
+
+---
+
+## 18. The AreaQuery pipeline — RETIRED *(`2026-10-01`, build-state: BUILT)*
+
+> Frame: [`HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md`](../../blueprints/batches/HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md)
+> §A. Precondition met: no behaviour caller left (§16.3, `CE-478`).
+
+**INVENTORY** — `search_graph(".*AreaQuery.*")` → 12 production types + `search_graph(".*EqsTargetPool.*")` → 1; grep for the
+reference sites (the graph under-reports call sites): 42 files.
+
+```mermaid
+graph TD
+    subgraph Before["before — two area-query paths"]
+        B1["Brain: AreaQueryBatchHelper.Request"] -->|"AreaQueryRequestEvent"| B2["AreaQueryBrainEgressTranslator"]
+        B2 -->|"DDS AreaQueryRequestBatch (93)"| B3["AreaQueryMuscleIngressTranslator"]
+        B3 --> B4["CognitiveSpatialModule → AreaQuerySolverSystem (perception grid 0..1000 m)"]
+        B4 -->|"AreaQueryResultEvent"| B5["AreaQueryMuscleEgressTranslator"]
+        B5 -->|"DDS AreaQueryResponseBatch (94)"| B6["AreaQueryBrainIngressTranslator → AreaQueryBatchData + EqsTargetPool"]
+        B6 --> B7["AreaQueryResultMaterializationSystem"]
+    end
+    subgraph After["after — one"]
+        A1["Brain: EqsSensor (child of commander)"] -->|"EqsSensorConfig (95)"| A2["EqsModule → EqsSolverSystem → EntitiesInAreaGenerator (+PointInPolygon)"]
+        A2 -->|"EqsResult (96)"| A3["EqsResultUpdateSystem → EqsCognitiveBuffer"]
+    end
+    style Before stroke-dasharray: 5 5
+```
+*What the picture shows that prose hid:* the old path was SEVEN pieces across two nodes and two topics to answer the question
+the new path answers with the sensor pipeline that already carries every other EQS query. `CognitiveSpatialModule` stays —
+it is perception (grid, vision, LOS); only its solver call went.
+
+| decision | as built |
+|---|---|
+| **A-D1** parity rails | ⭐ every scenario kept as an EQS-only rail with the expected set **written down** — the set both pipelines agreed on when last compared (§17.5, 10/10 twice). `EqsDistributedTests` T-DIS4, T-DIS6…10; `EqsModuleTests` `AreaTemplate_ReportsTheLiveHostilesInside` + two re-homed solver scenarios (polygon local to the area origin; a polygon with no target ⇒ READY, empty). The edge point of T-DIS7 is written as OUTSIDE — the ray-cast is strict |
+| **A-D2** the two DDS messages | ⛔ **removed — a wire-contract change.** `AreaQueryRequestBatch` / `AreaQueryResponseBatch` and descriptor ordinals **93 / 94** are gone; `AllDescriptors.cs` keeps a "retired, never reuse" comment. A peer on an older build would publish topics nobody reads; ⚠ none is deployed that we know of |
+| **A-D3** `EqsTargetPool` | ⛔ removed — no EQS reader (`search_graph`: 1 type, its only readers were the AreaQuery systems and a renderer). ⚠ Its id **203** and `AreaQueryBatchData`'s **202** stay in `GlobalComponentIds` — `Fdp.Core` is a STOP path for this batch; they are now unused and must not be reused |
+| **A-D4** the 0..1000 m blind spot | gone with the solver. The perception grid itself stays (`LocalGridBuilderSystem`, `VisionBroadphaseSystem`) |
+| `PointInPolygon` | moved verbatim into `EntitiesInAreaGenerator` — its one remaining caller |
+| `CognitiveSpatialModule(liveWorld, …)` | the `liveWorld` parameter was only for the solver ⇒ removed (8 call sites) |
+| editor `PerceptionAreaQueries` capability | it registered only the old materialiser ⇒ deleted, from both plan arms |
+
+⚠ **Names that survive, deliberately:** the behaviours lane's doctrine methods `Action_RequestAreaQuery` /
+`Condition_IsAreaQueryResolved` / `Deactivate_RequestAreaQuery` (and the BTree asset that binds them by FQN) now drive the EQS
+sensor (`CE-478`); renaming them is a behaviours-lane change touching `PlatoonHillAttack.btree.json` and `Hrot.IG.Tests`.
+

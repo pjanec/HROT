@@ -27,15 +27,16 @@ namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 ///   <item>T-DIS1 (EQS-023) -- Distributed round-trip: solver runs on Muscle, result populates Brain.</item>
 ///   <item>T-DIS2 (EQS-027) -- Stale epoch results are silently rejected by EqsResultUpdateSystem.</item>
 ///   <item>T-DIS3 (EQS-028) -- Mid-evaluation abort: sensor removal replicates without crashing.</item>
-///   <item>T-DIS4 -- The area query in EQS 1.3 (<see cref="EntitiesOfForceInArea"/>) returns the SAME
-///         targets as the old AreaQuery pipeline, both computed on the Muscle and read on the Brain,
-///         and they agree again after a target leaves the area.</item>
+///   <item>T-DIS4 -- The area query in EQS 1.3 (<see cref="EntitiesOfForceInArea"/>), computed on the
+///         Muscle and read on the Brain, reports exactly the live hostiles inside, and drops one that
+///         leaves.</item>
 ///   <item>T-DIS5 -- A later sensor parameter change (a new area) reaches the Muscle without the
 ///         remove/re-add workaround T-DIS2 needs.</item>
-///   <item>T-DIS6..10 -- the PARITY MATRIX: the old AreaQuery and EQS 1.3 compared step by step under
-///         runtime changes, on concave / irregular areas with concurrent sensors, with more than 16
-///         targets (the one designed difference), with an area that has no polygon yet, and outside the
-///         old query's 0..1000 m perception-grid footprint.</item>
+///   <item>T-DIS6..10 -- the scenario matrix: runtime changes, concave / irregular areas with concurrent
+///         sensors, more than 16 targets, an area with no polygon yet, and areas outside the 0..1000 m
+///         perception-grid footprint. ⭐ These were PARITY rails against the old AreaQuery until it was
+///         retired (2026-10-01); each now states its expected set, which is exactly what the old
+///         pipeline answered on the run that last compared them (EQS design §17.5).</item>
 /// </list>
 /// <para>Domain range: 201-210.</para>
 /// </summary>
@@ -296,13 +297,12 @@ public sealed class EqsDistributedTests
     private const int AreaChildIndex = 7;
 
     /// <summary>
-    /// T-DIS4: one area polygon on the Muscle, targets inside / outside / friendly / wrecked. The old
-    /// AreaQuery (request → Muscle solver → Brain ring) and the EQS sensor (child of a networked
-    /// commander, as the blueprint SpawnEqsSensor node makes it) must report the SAME network ids —
-    /// exactly the two live hostiles inside — and must agree again after one of them leaves the area.
+    /// T-DIS4: one area polygon on the Muscle, targets inside / outside / friendly / wrecked. The EQS
+    /// sensor (child of a networked commander, as the blueprint SpawnEqsSensor node makes it) must report
+    /// exactly the two live hostiles inside, as Brain-local entities, and drop one that leaves.
     /// </summary>
     [Fact(Timeout = 90_000)]
-    public void AreaQuery_And_EqsEntitiesOfForceInArea_ReportTheSameTargetsAcrossHosts()
+    public void EqsEntitiesOfForceInArea_ReportsTheLiveHostilesInside_AcrossHosts()
     {
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
@@ -367,16 +367,10 @@ public sealed class EqsDistributedTests
                  && sim.GetSingletonManaged<IEqsTemplateRegistry>()!.TryGetTemplate(EntitiesOfForceInArea.BlueprintId, out _),
             "The Muscle must answer from the production registry (CE-465).");
 
-        // Stage 2: the old AreaQuery answers the same question.
-        var oldFirst = AreaQueryTargets(harness, cgfCommander, cgfArea);
-        Assert.True(expected.SetEquals(oldFirst),
-            $"old AreaQuery: [{string.Join(",", oldFirst)}]; muscle state: {Describe(harness, everything)}");
-
-        // Stage 3: EQS reports the same set on the Brain.
+        // Stage 2: EQS reports the set on the Brain.
         Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), expected), timeoutFrames: 3000),
-            $"EQS must report exactly the two live hostiles inside the area. Got: [{string.Join(",", EqsTargets(harness, sensor))}]");
-        var oldAnswer = AreaQueryTargets(harness, cgfCommander, cgfArea);
-        Assert.Equal(expected, oldAnswer);
+            $"EQS must report exactly the two live hostiles inside the area. Got: [{string.Join(",", EqsTargets(harness, sensor))}]; " +
+            $"muscle state: {Describe(harness, everything)}");
 
         // ⭐ The Brain-side buffer holds BRAIN-LOCAL entities (the split fix): each is alive here.
         ref readonly var buf = ref cgf.GetComponentRO<EqsCognitiveBuffer>(sensor);
@@ -384,12 +378,11 @@ public sealed class EqsDistributedTests
             Assert.True(cgf.IsAlive(new Entity((ulong)buf.GetSpanRO()[i].EntityId)),
                 "EqsCognitiveBuffer.EntityId must be a Brain-local entity, not a network id.");
 
-        // ── A target leaves the area: both must drop it ──
+        // ── A target leaves the area: EQS must drop it ──
         Place(sim, SimEntity(harness, hostileB), 400f, -300f, ForceId.Hostile);
         var afterMove = new SortedSet<long> { hostileA };
         Assert.True(harness.PumpUntil(() => SameSet(EqsTargets(harness, sensor), afterMove), timeoutFrames: 3000),
             "EQS must drop a hostile that left the area.");
-        Assert.Equal(afterMove, AreaQueryTargets(harness, cgfCommander, cgfArea));
     }
 
     /// <summary>
@@ -450,13 +443,13 @@ public sealed class EqsDistributedTests
             $"brain epoch={cgf.GetComponentRO<EqsSensor>(sensor).Epoch}");
     }
 
-    // ── T-DIS6..10: the PARITY MATRIX — old AreaQuery vs EQS 1.3, scenario by scenario ─────
-    // 📄 docs/designs/eqs-2/EQS_Design_v1.3_final.md §17.5. Every step: change the Muscle-owned world,
-    //    pump until EQS settles on the EXPECTED set on the Brain, then ask the old AreaQuery the same
-    //    question at that moment — it must return the same network ids. Order is not compared (neither
-    //    pipeline guarantees one).
-    // ⚠ Parity scenarios stay inside x, y ∈ [0, 1000) m: the old AreaQuery's broad phase is the
-    //    perception grid, which covers only that square (T-DIS10 records what happens outside it).
+    // ── T-DIS6..10: the SCENARIO MATRIX ─────────────────────────────────────────────────
+    // 📄 docs/designs/eqs-2/EQS_Design_v1.3_final.md §17.5 + §18. Every step: change the Muscle-owned
+    //    world, then pump until EQS settles on the EXPECTED set on the Brain. Order is not compared.
+    // ⭐ Until 2026-10-01 each step also asked the old AreaQuery and required the same answer (10/10,
+    //    twice). The old pipeline is retired; every expected set below is the one both agreed on.
+    // ⚠ The scenarios sit inside x, y ∈ [0, 1000) m only because the old query could not see outside
+    //    it; T-DIS10 covers outside.
 
     /// <summary>
     /// T-DIS6: one area, then a sequence of runtime changes — a target enters, one dies, one turns
@@ -557,26 +550,23 @@ public sealed class EqsDistributedTests
         var triSens  = rig.Sensor(commanderA, AreaChildIndex + 1, triangle, ForceId.Hostile);
         var lFriend  = rig.Sensor(commanderB, AreaChildIndex,     lArea,    ForceId.Friend);
 
-        // The edge point is decided by the SAME PointInPolygon in both pipelines — parity is the claim,
-        // not a particular side. ⇒ take the old answer, check the unambiguous members, require EQS to match.
+        // ⭐ The edge point (60, 10) is OUTSIDE: on the edge (60,0)–(60,20) the ray-cast's intersection x is
+        //   60 and the test is strict (60 < 60 is false). The old AreaQuery answered the same on the last
+        //   compared run.
         rig.WaitForces((ForceId.Hostile, new[] { inArmOne, inArmTwo, inNotch, onEdge, inTri, bboxOnly }),
                        (ForceId.Friend,  new[] { friendInL }));
-        var oldL = AreaQueryTargets(rig.H, rig.Brain(commanderA), rig.Brain(lArea));
-        Assert.Contains(inArmOne, oldL);
-        Assert.Contains(inArmTwo, oldL);
-        Assert.DoesNotContain(inNotch, oldL);
-        rig.Converge("L, hostile", lHostile, commanderA, lArea, ForceId.Hostile, oldL);
+        rig.Converge("L, hostile", lHostile, commanderA, lArea, ForceId.Hostile, Set(inArmOne, inArmTwo));
         rig.Converge("triangle, hostile", triSens, commanderA, triangle, ForceId.Hostile, Set(inTri));
         rig.Converge("L, friendly (second commander)", lFriend, commanderB, lArea, ForceId.Friend, Set(friendInL));
     }
 
     /// <summary>
-    /// T-DIS8: more targets than EQS keeps. ⭐ The ONE designed difference (§17.5, §16 H8): the old
-    /// AreaQuery returns every one (≤ 64); EQS returns exactly <c>EqsResultPool.MaxTopK</c> = 16 of them,
-    /// all drawn from the old set.
+    /// T-DIS8: more targets than EQS keeps — 20 live hostiles inside. EQS returns exactly
+    /// <c>EqsResultPool.MaxTopK</c> = 16 of them (the designed cap, §17.5 / §16 H8); the retired AreaQuery
+    /// returned all 20.
     /// </summary>
     [Fact(Timeout = 240_000)]
-    public void MoreThan16Targets_EqsReturns16_AllFromTheOldSet()
+    public void MoreThan16Targets_EqsReturns16_AllOfThemInside()
     {
         using var rig = new ParityRig();
         long area = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
@@ -590,23 +580,19 @@ public sealed class EqsDistributedTests
         var sensor = rig.Sensor(commander, AreaChildIndex, area, ForceId.Hostile);
         rig.WaitForces((ForceId.Hostile, targets));
 
-        var old = AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area));
-        Assert.Equal(Set(targets), old);
-
         Assert.True(rig.H.PumpUntil(() => EqsTargets(rig.H, sensor).Count == EqsResultPool.MaxTopK, timeoutFrames: 3000),
             $"EQS must report {EqsResultPool.MaxTopK} targets. Got {EqsTargets(rig.H, sensor).Count}.");
         var eqs = EqsTargets(rig.H, sensor);
-        Assert.True(eqs.IsSubsetOf(old), $"every EQS target must be one the old query reports: [{string.Join(",", eqs.Except(old))}]");
+        Assert.True(eqs.IsSubsetOf(Set(targets)), $"every EQS target must be one of the 20 inside: [{string.Join(",", eqs.Except(Set(targets)))}]");
     }
 
     /// <summary>
-    /// T-DIS9: the area exists but has no usable polygon yet (two points). ⭐ A designed difference: the
-    /// old AreaQuery answers READY with 0 targets — which its consumer reads as "area clear"
-    /// (<c>AreaQuerySolverSystem.PublishEmptyResult</c>) — while EQS publishes NOTHING, so a reader keeps
-    /// waiting. Once the polygon arrives, both report the same target.
+    /// T-DIS9: the area exists but has no usable polygon yet (two points). EQS publishes NOTHING, so a
+    /// reader keeps waiting (no false "area clear" — the retired AreaQuery answered READY with 0 targets
+    /// here); once the polygon arrives, EQS reports the target.
     /// </summary>
     [Fact(Timeout = 240_000)]
-    public void AnAreaWithoutAPolygon_OldSaysClear_EqsSaysNothing_ThenBothAgree()
+    public void AnAreaWithoutAPolygon_EqsPublishesNothing_UntilThePolygonArrives()
     {
         using var rig = new ParityRig();
         long area   = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
@@ -619,7 +605,6 @@ public sealed class EqsDistributedTests
         var sensor = rig.Sensor(commander, AreaChildIndex, area, ForceId.Hostile);
         rig.WaitForces((ForceId.Hostile, new[] { inside }));
 
-        Assert.Empty(AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area)));   // READY, 0 targets
         rig.H.PumpFrames(300);                                                          // ~30 solver refreshes
         Assert.False(rig.Cgf.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady,
             "EQS must publish nothing for an area with no polygon (no false 'area clear').");
@@ -629,16 +614,13 @@ public sealed class EqsDistributedTests
     }
 
     /// <summary>
-    /// T-DIS10: targets OUTSIDE the perception-grid footprint. ⭐ A difference, and the old query is the
-    /// one that is wrong: its broad phase is the perception grid — 200 × 200 cells of 5 m anchored at the
-    /// world origin (<c>PerceptionConstants.LocalGrid*</c>, "Perception grid footprint 1000 m × 1000 m —
-    /// not perceived" in the programmers' guide) — and <c>SpatialHashGrid.Add</c> skips anything outside
-    /// it. EQS walks the entities, so it sees them.
+    /// T-DIS10: targets OUTSIDE the perception-grid footprint (x = 1510 and x = -190). EQS walks the
+    /// entities, so it sees them. ⭐ The retired AreaQuery did not: its broad phase was the perception grid
+    /// — 200 × 200 cells of 5 m anchored at the world origin — and <c>SpatialHashGrid.Add</c> skips
+    /// anything outside it.
     /// </summary>
-    /// <remarks>⚠ The old-query half pins a KNOWN LIMIT of the old pipeline (left as it is, by the user's
-    /// ruling). If it starts failing, the old query has learned to see beyond the grid — update this rail.</remarks>
     [Fact(Timeout = 240_000)]
-    public void BeyondThePerceptionGrid_EqsSeesTargets_TheOldQueryDoesNot()
+    public void BeyondThePerceptionGrid_EqsSeesTargets()
     {
         using var rig = new ParityRig();
         long farArea  = rig.Spawn(TkbEntityTypes.TacGraphic_Area);
@@ -656,12 +638,7 @@ public sealed class EqsDistributedTests
         var westSensor = rig.Sensor(commander, AreaChildIndex + 1, westArea, ForceId.Hostile);
 
         foreach (var (sensor, area, target, label) in new[] { (farSensor, farArea, far, "x = 1510"), (westSensor, westArea, west, "x = -190") })
-        {
-            Assert.True(rig.H.PumpUntil(() => SameSet(EqsTargets(rig.H, sensor), Set(target)), timeoutFrames: 3000),
-                $"[{label}] EQS must see the target. Got [{string.Join(",", EqsTargets(rig.H, sensor))}].");
-            Assert.True(AreaQueryTargets(rig.H, rig.Brain(commander), rig.Brain(area)).Count == 0,
-                $"[{label}] the old AreaQuery was expected to be blind outside its 0..1000 m grid — it now sees the target; update this rail.");
-        }
+            rig.Converge(label, sensor, commander, area, ForceId.Hostile, Set(target));
     }
 
     private static Vector2[] Square(float half)
@@ -739,17 +716,13 @@ public sealed class EqsDistributedTests
             => Assert.True(H.PumpUntil(() => groups.All(g => ForceIs(H, g.Force, g.Nets)), timeoutFrames: 2000),
                 $"Forces must settle on the Muscle. {Describe(H, _all.ToArray())}");
 
-        /// <summary>EQS settles on <paramref name="expected"/>, then the old AreaQuery must say the same.</summary>
+        /// <summary>EQS settles on <paramref name="expected"/> on the Brain.</summary>
+        /// <remarks>⚠ <paramref name="commanderNet"/>, <paramref name="areaNet"/> and <paramref name="force"/>
+        /// name the question for the failure message; they are what the retired AreaQuery comparison asked.</remarks>
         public void Converge(string step, Entity sensor, long commanderNet, long areaNet, ForceId force, SortedSet<long> expected)
-        {
-            Assert.True(H.PumpUntil(() => SameSet(EqsTargets(H, sensor), expected), timeoutFrames: 3000),
-                $"[{step}] EQS: expected [{string.Join(",", expected)}], got [{string.Join(",", EqsTargets(H, sensor))}]. " +
-                $"Muscle: {Describe(H, _all.ToArray())}");
-            var old = AreaQueryTargets(H, Brain(commanderNet), Brain(areaNet), force);
-            Assert.True(SameSet(old, expected),
-                $"[{step}] old AreaQuery: expected [{string.Join(",", expected)}], got [{string.Join(",", old)}]. " +
-                $"Muscle: {Describe(H, _all.ToArray())}");
-        }
+            => Assert.True(H.PumpUntil(() => SameSet(EqsTargets(H, sensor), expected), timeoutFrames: 3000),
+                $"[{step}] EQS ({force} in area {areaNet}, commander {commanderNet}): expected [{string.Join(",", expected)}], " +
+                $"got [{string.Join(",", EqsTargets(H, sensor))}]. Muscle: {Describe(H, _all.ToArray())}");
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────
@@ -872,27 +845,6 @@ public sealed class EqsDistributedTests
         return result;
     }
 
-    // The old AreaQuery's answer on the Brain for the same area and force, as network ids.
-    private static SortedSet<long> AreaQueryTargets(
-        HrotRunnerHarness harness, Entity commander, Entity area, ForceId force = ForceId.Hostile)
-    {
-        var world = harness.Cgf!.World!;
-        long requestId = AreaQueryBatchHelper.RequestAreaQuery(world, commander, area, force);
-        Assert.NotEqual(-1L, requestId);
-        Assert.True(harness.PumpUntil(() => AreaQueryBatchHelper.GetAreaQueryResult(world, requestId).IsReady,
-                timeoutFrames: 3000), "The old AreaQuery must answer across hosts.");
-
-        var answer = AreaQueryBatchHelper.GetAreaQueryResult(world, requestId);
-        var result = new SortedSet<long>();
-        for (int i = 0; i < answer.TargetCount; i++)
-        {
-            long packed = AreaQueryBatchHelper.GetTargetFromPool(world, answer.TargetGroupHandle, i);
-            var local = new Entity((ulong)packed);
-            result.Add(harness.Cgf!.GhostEntityMap!.TryGetNetworkId(local, out long net) ? net : -packed);
-        }
-        AreaQueryBatchHelper.FreeAreaQuerySlot(world, requestId);
-        return result;
-    }
 
     private static bool SameSet(SortedSet<long> actual, SortedSet<long> expected) => actual.SetEquals(expected);
 }
