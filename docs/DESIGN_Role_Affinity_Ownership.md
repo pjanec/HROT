@@ -396,6 +396,8 @@ keeps the handshake it already has, and needs it.
 
 ### 3.2 The two insertion points — both in shared code
 
+> ⛔ **`2026-10-01` — the PROMOTE row is SUPERSEDED by `R-164` (push-only):** a promoting node claims nothing by role; its ownership comes only from the owner's grant or a transfer. 📄 `Architect_Question_79` §0.7. The CREATE row stands.
+
 | leg | file | change |
 |---|---|---|
 | **CREATE** — the creator declines | `NetworkSpawningSystem.cs:181` | `metaNS.AuthorityMask = compNS & policy.OwnableMask(...)` instead of `= compNS` |

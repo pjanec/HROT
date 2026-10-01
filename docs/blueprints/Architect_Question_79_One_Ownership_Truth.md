@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — the consolidated state (user rulings · measured facts · design intent · open questions · §0.7 the proposed solution · §0.6 the next session's task).
+current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -30,6 +30,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-159 | *"network recosrd must be recomputed on every ownership transfer, independently on if it already has an enttry"* · *"i needed to recompute on promotion AND any other ownership changes"* |
 | R-160 | *"the rule is that if i am creator, i own all but the stuff other roles own. If i am not creator, i own just what my role claims. No role claims should be allowed to overlap"* |
 | R-161 | *"yes, map2d empty list"* |
+| R-164 | *"promoter cannot decide based on role, multiplr nodes have same role"* — the owner shards and pushes (§0.7) |
 | R-162 | *"one node per role is wrong. Map2d is a role on multiple nodes already."* — ⛔ **SUPERSEDES R-157** and its duplicate-role guard (Q79 §8 D4, never built). The design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
 | (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 
@@ -64,7 +65,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | Role-Affinity §2.3 | ownership is network-agnostic: role sets are COMPONENT masks, never descriptors |
 | wire spec | per-descriptor owners; only the owner publishes; ownership is "not true during the short time of ownership update" (= F7) |
 
-### 0.4 What R-160 implies *(derived; not built)*
+### 0.4 ⛔ SUPERSEDED by §0.7 push-only — what R-160 implied under the role-list model *(kept for the record)*
 
 - role claims are **positive, disjoint** lists; **creator** = ALL − ∪(claims of roles it does not serve) + birthright; **non-creator** = ∪(claims of
   roles it serves), shard-gated. ⇒ every component has exactly one claimant per entity (with a correct shard provider).
@@ -83,59 +84,55 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
 | O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
 
-### 0.7 ⭐⭐⭐ PROPOSED SOLUTION *(`2026-10-01`, user: "propose a solution and explain how it would work" — awaiting approval; UML goes in a DESIGN doc before build)*
+### 0.7 ⭐⭐⭐ PROPOSED SOLUTION — **PUSH-ONLY** *(`2026-10-01`, user-directed; awaiting final approval; UML goes in a DESIGN doc before build)*
 
-**Three components, one rule each.**
+> 🔒 **User (R-164):** *"promoter cannot decide based on role, multiplr nodes have same role"* · *"sharding func assigning compoennt to node is
+> evaluated from owner's node perspective … this comes with the defered takeover request FROM OWNER"* · *"yes, write push-only into Q79"*.
+
+**One decider per entity — its owner. Every other node takes exactly what it is given.**
 
 | # | piece | the rule | rests on |
 |---|---|---|---|
-| ① | **one creation composition on every ECS node** | every networked host passes the network adapters to `EntityCreationPack` (request source, ack sink, compiler, ownership strategy, egress) and registers the pre-genesis yield — no role gates on mechanism | F15, F16 · Composition §4.1d · Q65-A′/§5.3 · R-138 · `CE-508`, `CE-509` |
-| ② | **the CLAIM is exclusive** | role claims are positive, disjoint component lists **classified by who WRITES them** (Brain list, Muscle list, Map2D ∅); birth-critical components are in no list. **Creator** = ALL − (lists of roles it does not serve) + birthright. **Non-creator** = lists of roles it serves (shard-gated, one node per role today). Every host gets this policy (IG, Stride included) | R-160, R-161 · F4-F6 · Role-Affinity §3.1, §3.8 |
-| ③ | **the RECORD is derived from the claim** | on `ConstructionOrder` and every `OwnershipUpdate` (F11), for each descriptor whose components are ALL non-birth-critical: record = me iff I claim them, else the named remote owner, else UNKNOWN. Descriptors carrying a birth-critical component (`dtWorldPos`) stay **protocol-owned** — the grant/`OwnershipUpdate` hand-off and its lag (F7) are untouched | R-158, R-159 · F7, F11 · wire spec |
+| ① | **one creation composition on every ECS node** | every networked host passes the network adapters (request source, ack sink, compiler, **ownership strategy**, egress) and runs the pre-genesis yield | F15, F16 · Composition §4.1d · Q65-A′ · R-138 · `CE-508`, `CE-509` |
+| ② | **the owner shards and PUSHES** | at creation the creator's strategy picks, per role, the target node (today: least-loaded by heartbeat, `SimpleClusterStateCache.cs:29-43`) and sends ONE `DeferredTakeOwnership` whose grants carry their own target (`DescriptorGrant.NodeId`): **brain descriptors → the chosen Brain node, `dtWorldPos`+`dtNavigationStatus` → the chosen Muscle node; no grant where the target IS the creator.** Later moves (load, late joiners) are ownership TRANSFERS (`OwnershipUpdate`, CE-276) issued by the owner/one authority | R-158, R-163, R-164 · wire spec |
+| ③ | **no promote-leg claim** | a promoting node claims NOTHING by role (`GhostPromotionSystem.cs:313-324` retired); its claim comes only from a grant or a transfer. The creator keeps everything it did not grant away | R-164 · R-160 (creator half) |
+| ④ | **the record follows the claim** | grants and transfers already write claim + record together (`DeferredTakeoverSystem.cs:94-136`, `OwnershipIngressSystem.cs:54-79`); R-159's recompute on `ConstructionOrder`/`OwnershipUpdate` keeps them equal; descriptors carrying `SimTransform` keep the hand-off lag (F7) | R-159 · F7, F11 |
 
-**Why it is correct (derivation):** the requirement is NOT one node per role — it is that the **shard picks exactly one node per role per
-entity** (Role-Affinity §3.8's `ServesRole` contract), however many nodes hold the role. Map2D's list is empty, so any number of IGs is fine. A birth-critical component
-has one owner — the creator, until the single grantee confirms. A component in role R's list is claimed only by the node serving R for that
-entity (creator lists exclude other roles; non-creators claim only their roles). Any other component is claimed only by the creator. ⇒ exactly one claimant per component. With descriptors homogeneous
-(checked by the classification), exactly one node's record says "mine" ⇒ one publisher. Because lists are classified by WRITER, the
-publisher is the producer. The save gate (`PrimaryOwnerId`) is untouched.
+**Why one owner per component:** the creator owns everything at birth; each granted descriptor's components move to exactly ONE target (one grant
+per descriptor, one decider); no other node claims anything. Transfers move a descriptor from one node to one node. ⇒ no node-agreement
+requirement exists — only the owner decides (R-162: any number of nodes per role).
 
-**What changes, per creation path:** CGF creates — claims everything except the Muscle list; the grant still hands `dtWorldPos`+`dtNavigationStatus`
-to the Muscle (same node the Muscle list points at). SimHost creates — claims everything except the Brain list; CGF claims the Brain list on
-promotion and its record follows ⇒ **`CE-500` fixed**. IG creates — keeps everything except the Brain and Muscle lists (today it keeps only
-`SimTransform`); grants as today. The 17/22 double claims disappear; `MasterOnly` transfers keep the giver's other descriptors (Transfer §3
-becomes true).
+**Per creation path (same code everywhere):**
 
-**Build order (each step testable alone):** S1 classification pass (no code) → S2 composition ① (`CE-508`, `CE-509`) → S3 claims ② with the
-§10 probe turned into a rail "no component claimed by two nodes, all three paths" → S4 record ③ + `EntityMissionEgressTranslator` declares
-`MissionPlanQueue` so mission plans are covered → S5 cleanups (`CE-507`, rename the `Cgf` adapters via Roslyn).
+| creator | brain descriptors | `dtWorldPos`, `dtNavigationStatus` |
+|---|---|---|
+| CGF (Brain) | kept, if CGF is the chosen Brain; else granted | granted to the chosen Muscle |
+| SimHost (Muscle) | **granted to the chosen Brain ⇒ `CE-500` fixed** | kept, if SimHost is the chosen Muscle |
+| IG / Stride / any | granted | granted |
+| offline editor | no network ⇒ no grants, owns all | — |
 
-**Rejected:** re-gate every sender on the claim (§8) — 30 senders, and the record is still needed for hand-off timing · recompute birth-critical
-descriptors too (§9b) — deadlocks the hand-off (F7) · promoter sends `OwnershipUpdate` — protocol change (R-158) · patch only `NavigationIntent`
-(§9) — a workaround, leaves 17/22 overlaps · Muscle list empty, grant only — contradicts Role-Affinity §3.1 / Node_Roles §4.1.
+**What must be built (measured gaps):**
+- **G1 brain-ward grants** — the strategy grants only toward a Muscle today (Q65 §5.3 ②); add the Brain role (policy, same message).
+- **G2 brain components that have NO descriptor** (`BehaviorState`, the channels, `BrainInterrupts`, the blackboard tiers — in none of the 6 mapped
+  descriptors, §10 probe): lean — map them onto the brain descriptor the grant carries, exactly as `dtWorldPos` already maps
+  `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (`NedReplicationModule.cs:620-628`, `RegisterMapping`). ⚠ tension with Role-Affinity
+  §2.3 (*"ownership must be network-agnostic"*): push is descriptor-keyed by nature, as the WorldPos grant already is — needs a ruling.
+- **G3 mission plans** — `EntityMissionEgressTranslator` declares no component ⇒ declare `MissionPlanQueue` so the brain grant covers it.
+- **G4 late grants** — `DeferredTakeoverSystem` acts only on `Constructing` entities (`:153-155`); after creation a move is a transfer. ⚠ who
+  TRIGGERS a move when a Brain/Muscle appears late (`CE-256`) or load shifts is new policy (`CE-506`: the one authority).
+- **G5** the strategy ignores entity type ⇒ grant brain descriptors only for templates with a brain (`BrainTier != 0`).
 
-**⭐ Sharding (R-162; user: *"multiple nodes can have same claim list. sharding selects what node gets the ownership"*):** generic for EVERY
-role — Role-Affinity §3.8 (user ruling `2026-09-10`). Several nodes may hold the same role and the same list; `ServesRole(role, entity)`
-picks the one that owns that list for that entity. The rule reads: **creator** = ALL − ∪{list(R) : the shard says I do NOT serve R for this
-entity} + birthright; **non-creator** = ∪{list(R) : the shard says I serve R for this entity}. ⇒ exclusive for any number of nodes per role,
-PROVIDED the shard obeys §3.8: inputs IDENTICAL on every node, mapping STABLE per entity. ⚠ Today's only implementation
-(`SingleNodePerRoleShardProvider`) answers "do I declare R?" — exclusive only while each role with a non-empty list has one node. The real
-implementation is `CE-506` — open: WHERE the identical, stable input comes from (§3.8: *"a shard assignment published by ONE authority and
-replicated"*), e.g. an orchestrator-published assignment, or the creator's per-entity decision as the grant already is for `dtWorldPos`.
-⛔ Superseded same day: an earlier version of this paragraph special-cased Muscle onto the grant and kept Brain single-node.
-⛔ **R-163 — the assignment is NOT stable** (user, `2026-10-01`: *"it is not stable. it can change with load"*). ⇒ Role-Affinity §3.8
-constraint ② (*"stable for the lifetime of an entity"*) is SUPERSEDED. What correctness still needs, restated:
-① **at any instant every node that asks gets the same answer** — so the answer comes from ONE authority, never from each node measuring
-itself (§3.8 ① stands); ② **a change is executed as an ownership transfer** — the existing `OwnershipUpdate` path (the wire spec lets *"an
-arbitrary node"* send it), so claim, record and publisher move together; nodes never re-evaluate the shard on their own; ③ **a node that
-asks later (a late joiner promoting) must get the CURRENT owner** — 📐 but `SST_OwnershipUpdate` is `Volatile` (`OwnershipUpdate.cs:11`), so a
-late joiner never sees past transfers ⇒ the current assignment must be readable durably by late joiners.
-📐 **The natural single authority already exists:** the orchestrator's `NodeRoster` holds every node's roles, CPU and RAM from heartbeats
-(`NodeHealthProfile.cs`). ⇒ lean for `CE-506`: the orchestrator decides (initial assignment and load rebalancing), publishes the current
-assignment durably, and executes each change as an `OwnershipUpdate`. ⚠ A durable assignment topic would be NEW — a decision under R-158.
+**Supersedes:** Role-Affinity §3 promote leg (P3 step 3) and §3.8's per-node shard evaluation; §0a's *"re-grant is a second mechanism"*
+(under push-only it is the only mechanism); §0.4's role-list derivation below; the earlier §0.7 (claims by role lists).
 
-**Known unknowns:** the lists themselves (O1); a descriptor that mixes classes (O2); claim readers affected by the change, esp. attribute
-changes (O4); a role with no live node leaves its list unowned (Role-Affinity §3.8 rules: log once, no fallback); N nodes per role (O5).
+**Build order:** S1 measure (classification of descriptor ↔ component for G2/G3) → S2 ① composition → S3 G1-G3, G5 (grants cover the brain)
+→ S4 retire the promote-leg claim ③ (only now — CGF's brain on SimHost-created entities depends on it today, `gateOnAuthority`) →
+S5 ④ record recompute → S6 G4 with `CE-506`. Proof: `CE-500` rail; §10's probe as a rail "no component claimed by two nodes, every creation path";
+`SplitAuthoritySpawnTests` (hand-off unchanged).
+
+**Rejected:** promoter claims by role — several nodes share a role (R-164) · all nodes evaluate a shard identically — unnecessary with one decider,
+and impossible with live load (R-163) · re-gate every sender on the claim (§8) · patch only `NavigationIntent` (§9) — workaround · promoter sends
+`OwnershipUpdate` — protocol change (R-158).
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
