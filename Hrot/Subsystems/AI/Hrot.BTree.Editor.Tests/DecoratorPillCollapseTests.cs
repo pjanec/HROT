@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using FluentAssertions;
 using Fbt;
@@ -59,11 +60,11 @@ public sealed class DecoratorPillCollapseTests
         {
             VisualId = new Guid("33000000-0000-0000-0000-000000000001"),
             KernelType = NodeType.Action,
-            Action = new BTreeActionPayload
+            Action = new BehaviorActionBinding
             {
                 MethodFqn = "Ns.Class.Method",
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(seq.VisualId);

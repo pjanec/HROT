@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -6,17 +7,18 @@ using Fbt;
 using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 using Xunit;
 
 namespace Hrot.BTree.Editor.Tests.Inspector;
 
 /// <summary>
-/// Fix 1 — DelegateShape guard: headless tests proving that
-/// <see cref="BlackboardFieldPickerDrawer.HasNoCompatibleVariables"/> and the Promote
-/// affordance are suppressed for <see cref="BTreeActionDelegateShape.FourParamFull"/>
-/// (whole-blackboard) actions, and still work normally for
-/// <see cref="BTreeActionDelegateShape.ThreeParamReusable"/> actions.
+/// Fix 1 — DelegateShape guard: headless tests proving that the binding drawer's "no compatible variables" state and
+/// the Promote affordance are suppressed for <see cref="BTreeActionDelegateShape.FourParamFull"/> (whole-blackboard)
+/// actions, and still work normally for <see cref="BTreeActionDelegateShape.ThreeParamReusable"/> actions.
+/// ⭐ <c>CE-417</c> slice 4b: the shape reaches the drawer ON the binding facet (<c>TargetsWholeBlackboard</c>), set by the
+/// mapper — not through the retired <c>BTreeFacetFqnContext</c>.
 /// </summary>
 public sealed class DelegateShapeGuardTests
 {
@@ -77,7 +79,7 @@ public sealed class DelegateShapeGuardTests
 
         // Patch the DelegateShape on the projected node's payload.
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
-        actionNode.Action!.DelegateShape = shape;
+        actionNode.DelegateShape = shape;
         actionVisualId = actionNode.VisualId;
         return asset;
     }
@@ -85,40 +87,35 @@ public sealed class DelegateShapeGuardTests
     private static BlackboardVariableEntry Var(string name, Type t) =>
         new BlackboardVariableEntry(name, t, null);
 
+    private static ActionBindingSources Sources(BehaviorTreeAsset asset, IActionSchemaExporter exporter)
+        => new(asset, _ => Array.Empty<string>(), exporter);
+
+    private static BehaviorActionBindingFacet Binding(string fqn, bool wholeBlackboard) =>
+        new() { MethodFqn = fqn, SiteId = Guid.NewGuid().ToString(), TargetsWholeBlackboard = wholeBlackboard };
+
+    private static readonly ActionSchemaEntry FloatAction =
+        new("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
+    private static readonly ActionSchemaEntry WanderAction =
+        new("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
+
     // ── HasNoCompatibleVariables for ThreeParamReusable ───────────────────────
 
     [Fact]
     public void HasNoCompatibleVariables_True_WhenThreeParamReusable_AndNoMatchingVars()
     {
-        var asset    = MakeAsset(Var("intVar", typeof(int)));  // int var, but action needs float
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
-        var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext
-        {
-            CurrentActionFqn     = "Ns.FloatAction",
-            CurrentDelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
-        };
-        var drawer = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var asset = MakeAsset(Var("intVar", typeof(int)));  // int var, but action needs float
 
-        drawer.HasNoCompatibleVariables.Should().BeTrue(
-            "ThreeParamReusable with no matching vars should show the Promote affordance");
+        Sources(asset, new StubExporter(FloatAction)).HasNoCompatibleVariables(Binding("Ns.FloatAction", false))
+            .Should().BeTrue("ThreeParamReusable with no matching vars should show the Promote affordance");
     }
 
     [Fact]
     public void HasNoCompatibleVariables_False_WhenThreeParamReusable_AndMatchingVarExists()
     {
-        var asset    = MakeAsset(Var("floatVar", typeof(float)));
-        var entry    = new ActionSchemaEntry("Ns.FloatAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
-        var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext
-        {
-            CurrentActionFqn     = "Ns.FloatAction",
-            CurrentDelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
-        };
-        var drawer = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var asset = MakeAsset(Var("floatVar", typeof(float)));
 
-        drawer.HasNoCompatibleVariables.Should().BeFalse(
-            "matching var exists — Promote affordance should not appear");
+        Sources(asset, new StubExporter(FloatAction)).HasNoCompatibleVariables(Binding("Ns.FloatAction", false))
+            .Should().BeFalse("matching var exists — Promote affordance should not appear");
     }
 
     // ── HasNoCompatibleVariables suppressed for FourParamFull ────────────────
@@ -126,100 +123,51 @@ public sealed class DelegateShapeGuardTests
     [Fact]
     public void HasNoCompatibleVariables_False_WhenFourParamFull_EvenWithNoMatchingVars()
     {
-        var asset    = MakeAsset(Var("intVar", typeof(int)));  // no float match
-        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
-        var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext
-        {
-            CurrentActionFqn     = "Ns.WanderAction",
-            CurrentDelegateShape = BTreeActionDelegateShape.FourParamFull,
-        };
-        var drawer = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var asset = MakeAsset(Var("intVar", typeof(int)));  // no float match
 
-        drawer.HasNoCompatibleVariables.Should().BeFalse(
-            "FourParamFull operates on the full blackboard — no per-DTO binding, so Promote must be suppressed");
+        Sources(asset, new StubExporter(WanderAction)).HasNoCompatibleVariables(Binding("Ns.WanderAction", true))
+            .Should().BeFalse(
+                "FourParamFull operates on the full blackboard — no per-DTO binding, so Promote must be suppressed");
     }
 
     [Fact]
     public void HasNoCompatibleVariables_False_WhenFourParamFull_EvenWithZeroVarsInAsset()
     {
-        var asset    = MakeAsset();   // no vars at all
-        var entry    = new ActionSchemaEntry("Ns.WanderAction", typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
-        var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext
-        {
-            CurrentActionFqn     = "Ns.WanderAction",
-            CurrentDelegateShape = BTreeActionDelegateShape.FourParamFull,
-        };
-        var drawer = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var asset = MakeAsset();   // no vars at all
 
-        drawer.HasNoCompatibleVariables.Should().BeFalse(
-            "FourParamFull should never trigger Promote regardless of blackboard contents");
-    }
-
-    // ── Mapper sets CurrentDelegateShape ─────────────────────────────────────
-
-    [Fact]
-    public void Mapper_SetsCurrentDelegateShape_ForFourParamFullAction()
-    {
-        const string fqn = "Ns.WanderAction";
-        var asset  = MakeAssetWithAction(fqn, BTreeActionDelegateShape.FourParamFull, out var nodeVisualId);
-        var ctx    = new BTreeFacetFqnContext();
-        var mapper = new BTreeFacetMapper(asset, ctx);
-
-        mapper.GetFacet(new BTreeNodeSelection(nodeVisualId));
-
-        ctx.CurrentDelegateShape.Should().Be(BTreeActionDelegateShape.FourParamFull,
-            "mapper must propagate DelegateShape from the node's Action payload to the context");
+        Sources(asset, new StubExporter(WanderAction)).HasNoCompatibleVariables(Binding("Ns.WanderAction", true))
+            .Should().BeFalse("FourParamFull should never trigger Promote regardless of blackboard contents");
     }
 
     [Fact]
-    public void Mapper_SetsCurrentDelegateShape_ForThreeParamReusableAction()
+    public void Promote_CreatesNothing_WhenFourParamFull()
     {
-        const string fqn = "Ns.FloatAction";
-        var asset  = MakeAssetWithAction(fqn, BTreeActionDelegateShape.ThreeParamReusable, out var nodeVisualId);
-        var ctx    = new BTreeFacetFqnContext();
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var asset = MakeAsset();
 
-        mapper.GetFacet(new BTreeNodeSelection(nodeVisualId));
+        Sources(asset, new StubExporter(WanderAction)).Promote(Binding("Ns.WanderAction", true)).Should().BeNull();
+        asset.BlackboardVariables.Should().BeEmpty("a whole-blackboard binding has no per-binding variable to create");
+    }
 
-        ctx.CurrentDelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
-            "mapper must propagate ThreeParamReusable to context");
+    // ── Mapper puts the shape on the binding facet ───────────────────────────
+
+    [Fact]
+    public void Mapper_MarksTheBinding_WholeBlackboard_ForFourParamFullAction()
+    {
+        var asset  = MakeAssetWithAction("Ns.WanderAction", BTreeActionDelegateShape.FourParamFull, out var nodeVisualId);
+
+        var facet = (BTreeActionFacet)new BTreeFacetMapper(asset).GetFacet(new BTreeNodeSelection(nodeVisualId))!;
+
+        facet.Action.TargetsWholeBlackboard.Should().BeTrue(
+            "mapper must carry the node's FourParamFull shape to the binding the drawer draws");
     }
 
     [Fact]
-    public void Mapper_ClearsCurrentDelegateShape_ForNonActionNode()
+    public void Mapper_DoesNotMarkTheBinding_ForThreeParamReusableAction()
     {
-        // Build a tree with root + sequence so we can select a non-action node.
-        var blob = new BehaviorTreeBlob
-        {
-            TreeName        = "T",
-            Nodes           = new[]
-            {
-                new NodeDefinition { Type = NodeType.Root,     ChildCount = 1, SubtreeOffset = 2 },
-                new NodeDefinition { Type = NodeType.Sequence, ChildCount = 0, SubtreeOffset = 1 },
-            },
-            MethodNames     = Array.Empty<string>(),
-            FloatParams     = Array.Empty<float>(),
-            IntParams       = Array.Empty<int>(),
-            SubtreeAssetIds = Array.Empty<string>(),
-        };
-        var asset   = BehaviorTreeAssetProjector.Project(
-            blob, null, null, Guid.NewGuid(), "T", "/t.cs", false, "", "");
-        var seqNode = asset.Nodes.First(n => n.KernelType == NodeType.Sequence);
+        var asset  = MakeAssetWithAction("Ns.FloatAction", BTreeActionDelegateShape.ThreeParamReusable, out var nodeVisualId);
 
-        var ctx = new BTreeFacetFqnContext
-        {
-            CurrentActionFqn     = "SomePrevious.Fqn",
-            CurrentDelegateShape = BTreeActionDelegateShape.FourParamFull,
-        };
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var facet = (BTreeActionFacet)new BTreeFacetMapper(asset).GetFacet(new BTreeNodeSelection(nodeVisualId))!;
 
-        mapper.GetFacet(new BTreeNodeSelection(seqNode.VisualId));
-
-        ctx.CurrentDelegateShape.Should().BeNull(
-            "mapper must clear CurrentDelegateShape when a non-action/condition node is selected");
-        ctx.CurrentActionFqn.Should().BeNull(
-            "mapper must also clear CurrentActionFqn for non-action nodes");
+        facet.Action.TargetsWholeBlackboard.Should().BeFalse("ThreeParamReusable binds its own variable");
     }
 }

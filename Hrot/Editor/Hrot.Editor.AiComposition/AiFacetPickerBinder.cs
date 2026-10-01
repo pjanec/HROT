@@ -22,7 +22,8 @@ public sealed record AiFacetPickerServices
     public PerspectiveWorkspaceRegistrar? BTreeRegistrar { get; init; }
     public PerspectiveWorkspaceRegistrar? HsmRegistrar   { get; init; }
 
-    /// <summary>⚠ Without this the pickers cannot be attached at all — the drawers hang off it.</summary>
+    /// <summary>⚠ Without this the pickers cannot be attached at all — the drawers hang off it.
+    /// ⭐ <c>CE-417</c> slice 4b: build it with <c>AiFacetEditService.Build()</c>, or every binding draws read-only.</summary>
     public IComponentEditService? FacetEditService { get; init; }
 
     /// <summary>⚠ BTree drawers only: <c>BuildDrawers</c> requires a non-null registry.</summary>
@@ -56,9 +57,8 @@ public sealed record AiFacetPickerServices
 /// that removed four. 🔒 One implementation, both callers; the editor's inline arms are deleted in
 /// the same commit.</para>
 ///
-/// <para>⭐ <b>The <c>FqnContext</c> is shared between dispatcher and drawer DELIBERATELY</b>
-/// (<c>BB1D</c>): the blackboard-field picker filters by the current action's DTO type, and it must see
-/// the FQN the dispatcher wrote <b>in the same frame</b>. ⛔ Two contexts would render a frame stale.</para>
+/// <para>⭐ <c>CE-417</c> slice 4b: the BB1D <c>FqnContext</c> side channel between dispatcher and drawer is GONE — each
+/// binding facet carries its own method, and ONE <c>ActionBindingDrawer</c> draws the whole binding.</para>
 /// </summary>
 public static class AiFacetPickerBinder
 {
@@ -79,21 +79,18 @@ public static class AiFacetPickerBinder
             && active.Asset is Hrot.BTree.Editor.Model.BehaviorTreeAsset btreeAsset
             && services.BehaviorRegistry is not null)
         {
-            // ⭐ BB1D — ONE context, written by the dispatcher and read by the drawer.
-            var ctx     = new BTreeFacetFqnContext();
             var drawers = BTreePickerDrawerFactory.BuildDrawers(
-                btreeAsset, services.BehaviorRegistry, services.ActionSchema, ctx, services.Catalog);
+                btreeAsset, services.BehaviorRegistry, services.ActionSchema, services.Catalog);
 
             services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
-                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, ctx, services.Catalog));   // CE-439
+                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, services.Catalog));   // CE-439
         }
         else if (active?.Kind == AssetKind.Hsm
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)
         {
-            var ctx     = new HsmFacetFqnContext();
             var drawers = HsmPickerDrawerFactory.BuildDrawers(
-                hsmAsset, services.ActionSchema, ctx, services.Catalog);
+                hsmAsset, services.ActionSchema, services.Catalog);
 
             services.HsmRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             // ⭐ The dispatcher needs the SAME catalogue: it captures the picked asset's Guid at
@@ -104,7 +101,7 @@ public static class AiFacetPickerBinder
             //   so it composes no variable and the author is back to hand-mirroring a byte layout.
             services.HsmRegistrar?.NodeProperties.SetFacetDispatcher(
                 new Hrot.Hsm.Editor.Inspector.HsmFacetDispatcher(
-                    hsmAsset, ctx, services.Catalog, services.ActionSchema));
+                    hsmAsset, services.Catalog, services.ActionSchema));
         }
         else
         {

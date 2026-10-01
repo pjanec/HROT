@@ -84,7 +84,7 @@ public sealed class HsmSubtreeAuthoringTests
     {
         var tree = new Tree();
         var hsm  = MakeMachine(out var state);
-        var d    = new HsmFacetDispatcher(hsm, null, new FakeCatalog(tree));
+        var d    = new HsmFacetDispatcher(hsm, new FakeCatalog(tree));
 
         var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
         facet.SubtreeName = "PatrolTree";
@@ -104,7 +104,7 @@ public sealed class HsmSubtreeAuthoringTests
         state.SubtreeName    = "PatrolTree";
         state.SubtreeAssetId = tree.AssetId;
 
-        var d     = new HsmFacetDispatcher(hsm, null, new FakeCatalog(tree));
+        var d     = new HsmFacetDispatcher(hsm, new FakeCatalog(tree));
         var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
         facet.SubtreeName = null;
         d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
@@ -232,7 +232,7 @@ public sealed class HsmSubtreeAuthoringTests
     private static (HsmAsset Hsm, StateNode State, HsmFacetDispatcher D) Pick(Tree tree, string name = "PatrolTree")
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, new FakeCatalog(tree));
+        var d   = new HsmFacetDispatcher(hsm, new FakeCatalog(tree));
         var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
         facet.SubtreeName = name;
         d.ApplyFacet(new HsmStateSelection(state.StableId), facet);

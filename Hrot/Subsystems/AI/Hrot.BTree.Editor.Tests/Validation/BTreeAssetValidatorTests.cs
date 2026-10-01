@@ -103,7 +103,7 @@ public class BTreeAssetValidatorTests
         {
             VisualId   = Guid.NewGuid(),
             KernelType = NodeType.Action,
-            Action     = new BTreeActionPayload { MethodFqn = "Hrot.Test.DoSomething" },
+            Action     = new BehaviorActionBinding { MethodFqn = "Hrot.Test.DoSomething" },
         };
         root.ChildVisualIds.Add(sequence.VisualId);
         sequence.ChildVisualIds.Add(action.VisualId);

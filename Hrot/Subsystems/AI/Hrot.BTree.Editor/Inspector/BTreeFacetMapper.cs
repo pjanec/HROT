@@ -2,6 +2,7 @@ using System;
 using Fbt;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 
 namespace Hrot.BTree.Editor.Inspector;
@@ -15,27 +16,18 @@ namespace Hrot.BTree.Editor.Inspector;
 public sealed class BTreeFacetMapper : IFacetDispatcher
 {
     private readonly BehaviorTreeAsset    _asset;
-    private readonly BTreeFacetFqnContext? _fqnContext;
     // ⭐ CE-439 — the catalogue the subtree pick resolves against (asset id + the child's Inputs contract). ⚠ Optional so a
     //   headless fixture need not supply one; ⛔ a production host HAS one and passes it (AiFacetPickerBinder).
     private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
-    public BTreeFacetMapper(BehaviorTreeAsset asset)
-        : this(asset, null)
-    {
-    }
-
     /// <summary>
-    /// Constructs a mapper that writes the current action/condition FQN to
-    /// <paramref name="fqnContext"/> before returning each facet, so the
-    /// <see cref="BlackboardFieldPickerDrawer"/> can filter variables by DtoType.
+    /// ⭐ <c>CE-417</c> slice 4b: no side channel any more — each action/condition facet carries its whole binding, so the
+    /// one binding drawer filters the variables by the binding's own method (the retired <c>BTreeFacetFqnContext</c>).
     /// </summary>
-    public BTreeFacetMapper(BehaviorTreeAsset asset, BTreeFacetFqnContext? fqnContext,
-                            Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
+    public BTreeFacetMapper(BehaviorTreeAsset asset, Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
-        _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
-        _fqnContext = fqnContext;
-        _catalog    = catalog;
+        _asset   = asset ?? throw new ArgumentNullException(nameof(asset));
+        _catalog = catalog;
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -51,22 +43,10 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         var node = _asset.FindNode(sel.VisualId);
         if (node is null) return null;
 
-        // Clear the FQN context for non-action/condition nodes so the blackboard picker
-        // shows all variables when a composite or wait node is selected.
-        if (node.KernelType != NodeType.Action && node.KernelType != NodeType.Condition)
-        {
-            if (_fqnContext is not null)
-            {
-                _fqnContext.CurrentActionFqn    = null;
-                _fqnContext.CurrentNodeVisualId = null;
-                _fqnContext.CurrentDelegateShape = null;
-            }
-        }
-
         return node.KernelType switch
         {
-            NodeType.Action   => BuildActionFacet(node, _fqnContext),
-            NodeType.Condition => BuildConditionFacet(node, _fqnContext),
+            NodeType.Action   => BuildActionFacet(node),
+            NodeType.Condition => BuildConditionFacet(node),
             NodeType.Wait     => BuildWaitFacet(node),
             NodeType.Sequence => BuildSequenceFacet(node),
             NodeType.Selector => BuildSelectorFacet(node),
@@ -94,21 +74,16 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
         switch (facet)
         {
             case BTreeActionFacet af:
+                // ⭐ CE-417 slice 4b — THE shared applier. A BTree node always carries its binding (KeepWhenEmpty).
                 if (node.Action is not null)
-                {
-                    node.Action.MethodFqn           = af.MethodFqn;
-                    node.Action.ExpressionTargetField = af.ExpressionTargetField;
-                }
+                    node.Action = BehaviorActionBindingEditor.Apply(node.Action, af.Action, ApplyContext);
                 node.Comment      = af.Comment;
                 node.IsBreakpoint = af.IsBreakpoint;
                 break;
 
             case BTreeConditionFacet cf:
                 if (node.Condition is not null)
-                {
-                    node.Condition.MethodFqn             = cf.MethodFqn;
-                    node.Condition.ExpressionTargetField = cf.ExpressionTargetField;
-                }
+                    node.Condition = BehaviorActionBindingEditor.Apply(node.Condition, cf.Condition, ApplyContext);
                 node.Comment      = cf.Comment;
                 node.IsBreakpoint = cf.IsBreakpoint;
                 break;
@@ -185,47 +160,37 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
 
     // ── Private builders ──────────────────────────────────────────────────────
 
-    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
-    {
-        var fqn = node.Action?.MethodFqn ?? string.Empty;
-        if (ctx is not null)
-        {
-            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
-            ctx.CurrentDelegateShape = node.Action?.DelegateShape;
-        }
-        return new BTreeActionFacet
-        {
-            MethodFqn              = fqn,
-            ExpressionTargetField  = node.Action?.ExpressionTargetField,
-            Comment                = node.Comment,
-            IsBreakpoint           = node.IsBreakpoint,
-            VisualId               = node.VisualId.ToString(),
-            LastResult             = string.Empty,
-            TickCount              = 0,
-        };
-    }
+    /// <summary>⭐ The BTree apply rules: a node keeps its binding even when empty; no blueprint compose until B-1 (slice 4c).</summary>
+    private ActionBindingApplyContext ApplyContext => new(_asset, _catalog, KeepWhenEmpty: true);
 
-    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node, BTreeFacetFqnContext? ctx)
-    {
-        var fqn = node.Condition?.MethodFqn ?? string.Empty;
-        if (ctx is not null)
+    /// <summary>The node's binding as the inspector shows it. ⚠ A <c>FourParamFull</c> method operates on the whole
+    /// blackboard, so the drawer offers no per-binding variable.</summary>
+    private static BehaviorActionBindingFacet BindingFacet(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? binding)
+        => BehaviorActionBindingEditor.ToFacet(
+               binding, node.VisualId.ToString(),
+               targetsWholeBlackboard: binding is not null && node.DelegateShape == BTreeActionDelegateShape.FourParamFull);
+
+    private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node) =>
+        new BTreeActionFacet
         {
-            ctx.CurrentActionFqn     = string.IsNullOrEmpty(fqn) ? null : fqn;
-            ctx.CurrentNodeVisualId  = node.VisualId.ToString();
-            ctx.CurrentDelegateShape = node.Condition?.DelegateShape;
-        }
-        return new BTreeConditionFacet
-        {
-            MethodFqn              = fqn,
-            ExpressionTargetField  = node.Condition?.ExpressionTargetField,
-            Comment                = node.Comment,
-            IsBreakpoint           = node.IsBreakpoint,
-            VisualId               = node.VisualId.ToString(),
-            LastResult             = string.Empty,
-            TickCount              = 0,
+            Action       = BindingFacet(node, node.Action),
+            Comment      = node.Comment,
+            IsBreakpoint = node.IsBreakpoint,
+            VisualId     = node.VisualId.ToString(),
+            LastResult   = string.Empty,
+            TickCount    = 0,
         };
-    }
+
+    private static BTreeConditionFacet BuildConditionFacet(BTreeEditorNode node) =>
+        new BTreeConditionFacet
+        {
+            Condition    = BindingFacet(node, node.Condition),
+            Comment      = node.Comment,
+            IsBreakpoint = node.IsBreakpoint,
+            VisualId     = node.VisualId.ToString(),
+            LastResult   = string.Empty,
+            TickCount    = 0,
+        };
 
     private static BTreeWaitFacet BuildWaitFacet(BTreeEditorNode node) =>
         new BTreeWaitFacet

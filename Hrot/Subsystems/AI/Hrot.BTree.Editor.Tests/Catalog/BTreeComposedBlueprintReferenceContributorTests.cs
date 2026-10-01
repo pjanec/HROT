@@ -64,11 +64,11 @@ public sealed class BTreeComposedBlueprintReferenceContributorTests
                 VisualId     = nodeId,
                 KernelType   = NodeType.Action,
                 DisplayLabel = "ComposedAction",
-                Action       = new BTreeActionPayload
+                Action       = new BehaviorActionBinding
                 {
                     MethodFqn     = ComposedFqn(),
-                    DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,
                 },
+                DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
             },
         });
 
@@ -96,11 +96,11 @@ public sealed class BTreeComposedBlueprintReferenceContributorTests
                 VisualId     = nodeId,
                 KernelType   = NodeType.Condition,
                 DisplayLabel = "ComposedCondition",
-                Condition    = new BTreeConditionPayload
+                Condition    = new BehaviorActionBinding
                 {
                     MethodFqn     = ComposedFqn(condClassName),
-                    DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,
                 },
+                DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
             },
         });
 
@@ -123,11 +123,11 @@ public sealed class BTreeComposedBlueprintReferenceContributorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "HandWrittenAction",
-                Action       = new BTreeActionPayload
+                Action       = new BehaviorActionBinding
                 {
                     MethodFqn     = "Hrot.Game.Combat.CombatActions.AimAndFire",
-                    DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
                 },
+                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
             },
         });
 
@@ -182,11 +182,11 @@ public sealed class BTreeComposedBlueprintReferenceContributorTests
                 VisualId     = nodeId,
                 KernelType   = NodeType.Action,
                 DisplayLabel = "ComposedAction",
-                Action       = new BTreeActionPayload
+                Action       = new BehaviorActionBinding
                 {
                     MethodFqn     = ComposedFqn(),
-                    DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,
                 },
+                DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
             },
         });
 

@@ -5,6 +5,7 @@ using System.Numerics;
 using Fbt;
 using Hrot.AiEditor.Persistence;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 using NodeEditor.Core.Commands;
 using NodeEditor.Core.Interfaces;
@@ -144,7 +145,7 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
             node.DisplayLabel = fqn.Substring(fqn.LastIndexOf('.') + 1);
             if (isCond)
             {
-                var condition = new BTreeConditionPayload { MethodFqn = fqn };
+                var condition = new BehaviorActionBinding { MethodFqn = fqn };
                 node.Condition = condition;
 
                 // E2: mirror the action-side AiPrimitive composition (see below) for conditions.
@@ -155,13 +156,13 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 var condEntry = _actionSchema?.Lookup(fqn);
                 if (condEntry is { IsAiPrimitive: true })
                 {
-                    ComposeAiPrimitiveCondition(condition, condEntry);
+                    ComposeAiPrimitive(node, condition, condEntry);
                     node.DisplayLabel = BTreeNodeCatalog.AiPrimitiveDisplayName(fqn);
                 }
             }
             else
             {
-                var action = new BTreeActionPayload { MethodFqn = fqn };
+                var action = new BehaviorActionBinding { MethodFqn = fqn };
                 node.Action = action;
 
                 // E2: a Blueprint-compiled AiPrimitive action must be placed as a fully composed
@@ -173,7 +174,7 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
                 var entry = _actionSchema?.Lookup(fqn);
                 if (entry is { IsAiPrimitive: true })
                 {
-                    ComposeAiPrimitiveAction(action, entry);
+                    ComposeAiPrimitive(node, action, entry);
                     // A composed blueprint's method is always "{Blueprint}_{id:X8}_Bp.TickCore", so the
                     // bare method name ("TickCore") is a useless node label. Show the blueprint name,
                     // matching how the palette entry is labelled.
@@ -209,65 +210,30 @@ internal sealed class BTreeCommandSink : IGraphCommandSink
     }
 
     /// <summary>
-    /// E2: composes a placed Action node onto a Blueprint-compiled AiPrimitive (T31 shape).
-    /// Sets <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
-    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
-    /// variable (mirroring the "Promote to new variable" IsAutoManaged convention — see
-    /// <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it up via ExpressionTargetField.
-    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
-    /// variable (Node scope by default) and binds it via WorkingStateTargetField, so the designer can
-    /// flip that variable's Scope to Behavior in the blackboard Role/Scope panel — two composed nodes
-    /// bound to the same Behavior-scoped variable then resolve to the same partition slot.
+    /// E2: composes a placed Action OR Condition node onto a Blueprint-compiled AiPrimitive (T31 shape). Sets
+    /// <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> on the node, derives the generated WorkingState type FQN
+    /// from the schema entry's Params type, and auto-creates a blackboard variable (the "Promote to new variable"
+    /// IsAutoManaged convention — see <see cref="ApplyRemoveNodes"/>) to hold the Params, wiring it via
+    /// ExpressionTargetField. Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
+    /// variable (Node scope by default) bound via WorkingStateTargetField, so the designer can flip its Scope to Behavior —
+    /// two composed nodes bound to the same Behavior-scoped variable then share one partition slot.
+    /// <para>A composed CONDITION is composed identically: edge-detection/hysteresis need cross-tick memory, so it gets a
+    /// partition-slot WorkingState exactly like an action — never a transient/zeroed state.</para>
+    /// <para>⭐ <c>CE-417</c>: ONE method for both — they used to be two only because <c>BTreeActionPayload</c> and
+    /// <c>BTreeConditionPayload</c> were two sealed classes with identical members and no common base.</para>
+    /// <para>⭐⭐⭐ The variables come from <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, which the HSM host calls
+    /// too. 🔒 User, <c>2026-09-28</c>: <i>"If btree does something right, hsm should reuse it by sharing wherever possible,
+    /// not by duplication."</i></para>
     /// </summary>
-    private void ComposeAiPrimitiveAction(BTreeActionPayload action, ActionSchemaEntry entry)
+    private void ComposeAiPrimitive(BTreeEditorNode node, BehaviorActionBinding binding, ActionSchemaEntry entry)
     {
-        var composed = ComposeAiPrimitiveVariables(entry);
+        var composed = AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
 
-        action.DelegateShape           = BTreeActionDelegateShape.AiPrimitiveTickCore;
-        action.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
-        action.ExpressionTargetField   = composed.ParamsVariable;
-        action.WorkingStateTargetField = composed.WorkingStateVariable;
+        node.DelegateShape              = BTreeActionDelegateShape.AiPrimitiveTickCore;
+        binding.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
+        binding.ExpressionTargetField   = composed.ParamsVariable;
+        binding.WorkingStateTargetField = composed.WorkingStateVariable;
     }
-
-    /// <summary>
-    /// ⭐⭐⭐ <b>The composition itself — <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, which
-    /// the HSM host calls too.</b> 🔒 User, <c>2026-09-28</c>: <i>"If btree does something right, hsm
-    /// should reuse it by sharing wherever possible, not by duplication."</i>
-    ///
-    /// <para>⚠⚠ <b>CORRECTED:</b> flipping the asset into editor-managed mode used to live here and was
-    /// described as BTree-specific. 📐 It is not — <c>HsmBridgeEmitCore.PackParams:464</c> gates the HSM
-    /// params path on the same flag, and does so <b>silently</b>. ⇒ it moved INTO
-    /// <see cref="AutoManagedVariables.ComposeForAiPrimitive"/>, where both hosts get it.</para>
-    ///
-    /// <para>⛔ The two CALLERS stay separate only because <c>BTreeActionPayload</c> and
-    /// <c>BTreeConditionPayload</c> are two sealed classes with identical members and no common base —
-    /// ⚠ a model duplication that predates this and is NOT resolved here.</para>
-    /// </summary>
-    private ComposedBlueprintVariables ComposeAiPrimitiveVariables(ActionSchemaEntry entry)
-        => AutoManagedVariables.ComposeForAiPrimitive(_asset, entry);
-
-    /// <summary>
-    /// E2: composes a placed Condition node onto a Blueprint-compiled AiPrimitive (T31 shape),
-    /// mirroring <see cref="ComposeAiPrimitiveAction"/>. Sets
-    /// <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>, derives the generated
-    /// WorkingState type FQN from the schema entry's Params type, and auto-creates a blackboard
-    /// variable to hold the Params, wiring it up via ExpressionTargetField. A composed condition
-    /// MUST get a partition-slot WorkingState exactly like an action (edge-detection/hysteresis
-    /// need cross-tick memory) — never a transient/zeroed state.
-    /// Slice 1 (shared working-state): also auto-creates a SEPARATE Role=State WorkingState host
-    /// variable (Node scope by default) and binds it via WorkingStateTargetField, mirroring the
-    /// action path — see <see cref="ComposeAiPrimitiveAction"/>.
-    /// </summary>
-    private void ComposeAiPrimitiveCondition(BTreeConditionPayload condition, ActionSchemaEntry entry)
-    {
-        var composed = ComposeAiPrimitiveVariables(entry);
-
-        condition.DelegateShape           = BTreeActionDelegateShape.AiPrimitiveTickCore;
-        condition.WorkingStateTypeId      = composed.WorkingStateType?.FullName;
-        condition.ExpressionTargetField   = composed.ParamsVariable;
-        condition.WorkingStateTargetField = composed.WorkingStateVariable;
-    }
-
 
     /// <summary>Human-readable default title for a freshly-created node of the given kind.</summary>
     private static string FriendlyLabel(NodeType type) => type switch

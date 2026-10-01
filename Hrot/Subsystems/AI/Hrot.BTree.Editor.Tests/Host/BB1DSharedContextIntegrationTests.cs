@@ -8,6 +8,7 @@ using Hrot.BTree.Editor.Host;
 using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 using Xunit;
 
@@ -30,14 +31,14 @@ file sealed class StubExporterForBB1D : IActionSchemaExporter
 }
 
 /// <summary>
-/// BB1D integration tests: verify that a SINGLE <see cref="BTreeFacetFqnContext"/>
-/// shared between <see cref="BTreeSelectionBridgeHelper.BuildFacetDispatcher(BehaviorTreeAsset?, BTreeFacetFqnContext?)"/>
-/// (writer) and <see cref="BTreePickerDrawerFactory.BuildDrawers"/> (reader) causes the
-/// <see cref="BlackboardFieldPickerDrawer"/> to return ONLY the type-compatible variables.
+/// BB1D integration tests: the production dispatcher (<see cref="BTreeSelectionBridgeHelper.BuildFacetDispatcher(BehaviorTreeAsset?)"/>)
+/// and the production drawers (<see cref="BTreePickerDrawerFactory.BuildDrawers"/>), wired together, offer ONLY the
+/// type-compatible variables for the selected node's binding.
 ///
-/// <para>This is the test that would have caught the BB1D gap: if the context is NOT shared,
-/// the drawer receives a null or disconnected context and shows ALL variables instead of the
-/// filtered set.</para>
+/// <para>⭐ <c>CE-417</c> slice 4b: BB1D's gap was a side channel (<c>BTreeFacetFqnContext</c>) that the dispatcher wrote and
+/// the drawer read, and that broke when the two were not handed the same instance. The side channel is gone — the
+/// facet's binding carries its own method — so the claim is now that the dispatcher's facet, handed to the factory's
+/// binding drawer, filters; and that one node's selection cannot leak into another's list.</para>
 /// </summary>
 public sealed class BB1DSharedContextIntegrationTests
 {
@@ -73,22 +74,17 @@ public sealed class BB1DSharedContextIntegrationTests
 
     private static BehaviorRegistry EmptyRegistry() => new BehaviorRegistry();
 
-    // ── Core integration test: shared context causes type-filtering ───────────
+    // ── Core integration test: the dispatcher's binding filters the drawer's list ──
+
+    private static ActionBindingSources BindingSources(IReadOnlyDictionary<Type, Fdp.Presentation.Editing.IImGuiFieldDrawer> drawers)
+        => drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
 
     /// <summary>
-    /// CRITICAL: The BB1D wiring test.
-    ///
-    /// Build the BTree dispatcher via BuildFacetDispatcher(asset, ctx) and the drawers via
-    /// BuildDrawers(asset, registry, exporter, ctx) using the SAME ctx instance.
-    /// Drive dispatcher.GetFacet(actionNodeSelection) which writes CurrentActionFqn to ctx.
-    /// Then assert the BlackboardFieldPickerDrawer returns ONLY the T-typed variable,
-    /// not the U-typed one.
-    ///
-    /// If the context is NOT shared (old code before BB1D), the drawer has no FQN context
-    /// and falls back to returning ALL variables — the test would fail.
+    /// CRITICAL: The BB1D wiring test. Build the dispatcher and the drawers the way <c>AiFacetPickerBinder</c> does, drive
+    /// <c>GetFacet</c> on the action node, and assert the binding drawer offers ONLY the T-typed variable.
     /// </summary>
     [Fact]
-    public void SharedContext_BTree_DispatcherWritesFqn_DrawerFiltersToTType()
+    public void Dispatcher_BTree_FacetCarriesTheMethod_DrawerFiltersToTType()
     {
         const string fqn = "Ns.FloatAction";
 
@@ -100,117 +96,80 @@ public sealed class BB1DSharedContextIntegrationTests
         var exporter = new StubExporterForBB1D();
         exporter.Register(fqn, typeof(float));
 
-        var registry = EmptyRegistry();
-
-        // ONE shared context — this is the key to BB1D.
-        var sharedCtx = new BTreeFacetFqnContext();
-
-        // Build dispatcher (writer) and drawers (reader) with the SAME sharedCtx.
-        var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset, sharedCtx);
-        var drawerMap  = BTreePickerDrawerFactory.BuildDrawers(asset, registry, exporter, sharedCtx);
-
+        var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset);
+        var drawerMap  = BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter);
         dispatcher.Should().NotBeNull("dispatcher must be built from a non-null asset");
 
-        // Find the action node and drive the dispatcher.
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
         var facet = dispatcher!.GetFacet(new BTreeNodeSelection(actionNode.VisualId));
 
-        // Dispatcher must have written the FQN to the shared context.
-        sharedCtx.CurrentActionFqn.Should().Be(fqn,
-            "dispatcher.GetFacet must write the action FQN to the shared context");
-        sharedCtx.CurrentNodeVisualId.Should().NotBeNullOrEmpty(
-            "dispatcher.GetFacet must write the VisualId to the shared context");
-
-        // The facet must be a BTreeActionFacet with the correct FQN.
         facet.Should().BeOfType<BTreeActionFacet>();
-        ((BTreeActionFacet)facet!).MethodFqn.Should().Be(fqn);
-
-        // Now verify the drawer filters: extract the BlackboardFieldPickerDrawer from the composite.
-        var composite = drawerMap[typeof(string)] as CompositeStringDrawer;
-        composite.Should().NotBeNull("the drawer map must contain a CompositeStringDrawer for string");
-
-        // Build a synthetic EditNode with BlackboardFieldPickerAttribute to resolve the drawer.
-        var editNode = MakeNodeWithAttr(new BlackboardFieldPickerAttribute());
-        var bbDrawer = composite!.Resolve(editNode) as BlackboardFieldPickerDrawer;
-        bbDrawer.Should().NotBeNull("composite must dispatch to BlackboardFieldPickerDrawer for BlackboardFieldPickerAttribute");
+        var binding = ((BTreeActionFacet)facet!).Action;
+        binding.MethodFqn.Should().Be(fqn);
+        binding.SiteId.Should().Be(actionNode.VisualId.ToString(), "Promote names the variable after the node");
 
         // The key assertion: only float var is returned, not int var.
-        var items = bbDrawer!.GetItems();
-        items.Should().ContainSingle(
-            "only the float variable is compatible with the float DtoType — the shared context wrote the action FQN so the drawer can filter");
-        items[0].Should().Be("floatVar",
-            "only the float-typed variable must be returned");
+        var items = BindingSources(drawerMap).GetVariables(binding);
+        items.Should().ContainSingle("only the float variable is compatible with the float DtoType");
+        items[0].Should().Be("floatVar", "only the float-typed variable must be returned");
+    }
+
+    /// <summary>A binding with no method yet offers every variable — there is no type to filter by.</summary>
+    [Fact]
+    public void NoMethodYet_BTree_DrawerReturnsAllVars()
+    {
+        var asset = MakeBTreeAsset("Ns.FloatAction",
+            new BlackboardVariableEntry("floatVar", typeof(float), null),
+            new BlackboardVariableEntry("intVar",   typeof(int),   null));
+        var exporter = new StubExporterForBB1D();
+        exporter.Register("Ns.FloatAction", typeof(float));
+
+        BindingSources(BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter))
+            .GetVariables(default).Should().HaveCount(2, "no method means no filtering");
     }
 
     /// <summary>
-    /// Verify that WITHOUT a shared context (null) the drawer falls back to ALL variables
-    /// (this is the pre-BB1D behavior).  This documents the failure mode and ensures
-    /// the context-less path still works.
+    /// ⭐ What the old side channel could get wrong: the list for one node must not depend on which node was selected
+    /// BEFORE it. Two action nodes with different parameter types, selected in turn, each filter by their own method.
     /// </summary>
     [Fact]
-    public void NoContext_BTree_DrawerReturnsAllVars()
+    public void TwoNodes_BTree_EachFiltersByItsOwnMethod_RegardlessOfSelectionOrder()
     {
-        const string fqn = "Ns.FloatAction";
-
-        var asset = MakeBTreeAsset(fqn,
+        var blob = new BehaviorTreeBlob
+        {
+            TreeName        = "BB1DTwo",
+            Nodes           = new[]
+            {
+                new NodeDefinition { Type = NodeType.Root,     ChildCount = 1, SubtreeOffset = 4 },
+                new NodeDefinition { Type = NodeType.Sequence, ChildCount = 2, SubtreeOffset = 3 },
+                new NodeDefinition { Type = NodeType.Action,   ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 },
+                new NodeDefinition { Type = NodeType.Action,   ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 1 },
+            },
+            MethodNames     = new[] { "Ns.FloatAction", "Ns.IntAction" },
+            FloatParams     = Array.Empty<float>(),
+            IntParams       = Array.Empty<int>(),
+            SubtreeAssetIds = Array.Empty<string>(),
+        };
+        var asset = BehaviorTreeAssetProjector.Project(
+            blob, null, null, Guid.NewGuid(), "BB1DTwo", "/bb1d.cs", false, "", "");
+        asset.SetBlackboardVariables(new[]
+        {
             new BlackboardVariableEntry("floatVar", typeof(float), null),
-            new BlackboardVariableEntry("intVar",   typeof(int),   null));
-
+            new BlackboardVariableEntry("intVar",   typeof(int),   null),
+        });
         var exporter = new StubExporterForBB1D();
-        exporter.Register(fqn, typeof(float));
+        exporter.Register("Ns.FloatAction", typeof(float));
+        exporter.Register("Ns.IntAction",   typeof(int));
 
-        var registry = EmptyRegistry();
+        var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset)!;
+        var sources    = BindingSources(BTreePickerDrawerFactory.BuildDrawers(asset, EmptyRegistry(), exporter));
+        var actions    = asset.Nodes.Where(n => n.KernelType == NodeType.Action).ToArray();
 
-        // No shared context — old behavior.
-        var drawerMap = BTreePickerDrawerFactory.BuildDrawers(asset, registry, exporter, null);
+        var first  = ((BTreeActionFacet)dispatcher.GetFacet(new BTreeNodeSelection(actions[0].VisualId))!).Action;
+        var second = ((BTreeActionFacet)dispatcher.GetFacet(new BTreeNodeSelection(actions[1].VisualId))!).Action;
 
-        var composite = drawerMap[typeof(string)] as CompositeStringDrawer;
-        var editNode  = MakeNodeWithAttr(new BlackboardFieldPickerAttribute());
-        var bbDrawer  = composite!.Resolve(editNode) as BlackboardFieldPickerDrawer;
-
-        // Without context, fqnAccessor is null → all vars returned (no filtering).
-        var items = bbDrawer!.GetItems();
-        items.Should().HaveCount(2, "without context all variables are shown (no filtering)");
-    }
-
-    /// <summary>
-    /// Context is cleared when a non-action node is selected (e.g. Root or Sequence node).
-    /// The drawer should then show all variables.
-    /// </summary>
-    [Fact]
-    public void SharedContext_BTree_ClearedForNonActionNode_DrawerShowsAllVars()
-    {
-        const string fqn = "Ns.FloatAction";
-
-        var asset = MakeBTreeAsset(fqn,
-            new BlackboardVariableEntry("floatVar", typeof(float), null),
-            new BlackboardVariableEntry("intVar",   typeof(int),   null));
-
-        var exporter = new StubExporterForBB1D();
-        exporter.Register(fqn, typeof(float));
-
-        var registry  = EmptyRegistry();
-        var sharedCtx = new BTreeFacetFqnContext();
-
-        var dispatcher = BTreeSelectionBridgeHelper.BuildFacetDispatcher(asset, sharedCtx);
-        var drawerMap  = BTreePickerDrawerFactory.BuildDrawers(asset, registry, exporter, sharedCtx);
-
-        // First select the action node to prime the FQN.
-        var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
-        dispatcher!.GetFacet(new BTreeNodeSelection(actionNode.VisualId));
-        sharedCtx.CurrentActionFqn.Should().Be(fqn);
-
-        // Now select the root node — dispatcher must clear the FQN context.
-        var rootNode = asset.Nodes.First(n => n.KernelType == NodeType.Root);
-        dispatcher.GetFacet(new BTreeNodeSelection(rootNode.VisualId));
-        sharedCtx.CurrentActionFqn.Should().BeNull(
-            "selecting a non-action node must clear CurrentActionFqn");
-
-        // Drawer must now show all vars (no filtering).
-        var composite = drawerMap[typeof(string)] as CompositeStringDrawer;
-        var editNode  = MakeNodeWithAttr(new BlackboardFieldPickerAttribute());
-        var bbDrawer  = composite!.Resolve(editNode) as BlackboardFieldPickerDrawer;
-        bbDrawer!.GetItems().Should().HaveCount(2, "cleared FQN context returns all variables");
+        sources.GetVariables(first).Should().Equal(new[] { "floatVar" }, "the first node's list is its own, read after the second was selected");
+        sources.GetVariables(second).Should().Equal(new[] { "intVar" });
     }
 
     /// <summary>
@@ -227,15 +186,14 @@ public sealed class BB1DSharedContextIntegrationTests
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
         actionNode.Action!.ExpressionTargetField = "myAutoVar";
 
-        var ctx    = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var mapper = new BTreeFacetMapper(asset);
         var facet  = mapper.GetFacet(new BTreeNodeSelection(actionNode.VisualId));
 
         // BTree-only accessor (HSM types tested in AiShared.Tests).
         Func<object?, string?> accessor = f => f switch
         {
-            BTreeActionFacet af    => af.ExpressionTargetField,
-            BTreeConditionFacet cf => cf.ExpressionTargetField,
+            BTreeActionFacet af    => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf => cf.Condition.ExpressionTargetField,
             _                      => null,
         };
 
@@ -249,26 +207,12 @@ public sealed class BB1DSharedContextIntegrationTests
         // BTree-only accessor (HSM types tested in AiShared.Tests).
         Func<object?, string?> accessor = f => f switch
         {
-            BTreeActionFacet af    => af.ExpressionTargetField,
-            BTreeConditionFacet cf => cf.ExpressionTargetField,
+            BTreeActionFacet af    => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf => cf.Condition.ExpressionTargetField,
             _                      => null,
         };
 
         accessor(new BTreeWaitFacet { Duration = 1.0f }).Should().BeNull("wait facet has no ETF");
         accessor(null).Should().BeNull("null returns null");
-    }
-
-    // ── Utility ───────────────────────────────────────────────────────────────
-
-    private static StructEdit.Core.EditNode MakeNodeWithAttr(params Attribute[] attrs)
-    {
-        var meta = new StructEdit.Core.EditNodeMetadata { CustomAttributes = attrs };
-        return new StructEdit.Core.EditNode(
-            id:       new StructEdit.Core.EditNodeId(0),
-            name:     "Field",
-            jsonPath: "$.Field",
-            kind:     StructEdit.Core.EditNodeKind.String,
-            clrType:  typeof(string),
-            metadata: meta);
     }
 }

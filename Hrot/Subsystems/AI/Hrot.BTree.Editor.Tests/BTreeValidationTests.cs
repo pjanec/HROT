@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using FluentAssertions;
 using Fbt;
@@ -45,7 +46,7 @@ public sealed class BTreeValidationTests
         var root   = MakeNode(NodeType.Root);
         var seq    = MakeNode(NodeType.Sequence);
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "Ns.Class.Method" };
+        action.Action = new BehaviorActionBinding { MethodFqn = "Ns.Class.Method" };
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(action.VisualId);
@@ -99,7 +100,7 @@ public sealed class BTreeValidationTests
         var root   = MakeNode(NodeType.Root);
         var seq    = MakeNode(NodeType.Sequence);
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "" };
+        action.Action = new BehaviorActionBinding { MethodFqn = "" };
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(action.VisualId);
@@ -121,7 +122,7 @@ public sealed class BTreeValidationTests
         var root      = MakeNode(NodeType.Root);
         var seq       = MakeNode(NodeType.Sequence);
         var condition = MakeNode(NodeType.Condition);
-        condition.Condition = new BTreeConditionPayload { MethodFqn = "" };
+        condition.Condition = new BehaviorActionBinding { MethodFqn = "" };
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(condition.VisualId);
@@ -142,7 +143,7 @@ public sealed class BTreeValidationTests
         var root   = MakeNode(NodeType.Root);
         var seq    = MakeNode(NodeType.Sequence);
         var action = MakeNode(NodeType.Action);
-        action.Action = new BTreeActionPayload { MethodFqn = "Ns.C.M" };
+        action.Action = new BehaviorActionBinding { MethodFqn = "Ns.C.M" };
 
         root.ChildVisualIds.Add(seq.VisualId);
         seq.ChildVisualIds.Add(action.VisualId);
@@ -221,7 +222,7 @@ public sealed class BTreeValidationTests
         var asset   = MakeAsset();
         var root    = MakeNode(NodeType.Root);
         var orphan  = MakeNode(NodeType.Action);
-        orphan.Action = new BTreeActionPayload { MethodFqn = "Ns.C.M" };
+        orphan.Action = new BehaviorActionBinding { MethodFqn = "Ns.C.M" };
 
         // Root has no children; orphan is not linked.
         asset.AddNode(root);

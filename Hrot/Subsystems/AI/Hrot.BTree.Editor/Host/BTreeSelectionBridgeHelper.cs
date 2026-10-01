@@ -130,16 +130,11 @@ public static class BTreeSelectionBridgeHelper
         => asset is null ? null : new BTreeFacetMapper(asset);
 
     /// <summary>
-    /// Builds a <see cref="BTreeFacetMapper"/> that also updates <paramref name="fqnContext"/>
-    /// with the selected action/condition FQN on each <c>GetFacet</c> call.
-    /// Pass the same <paramref name="fqnContext"/> to
-    /// <see cref="BTreePickerDrawerFactory.BuildDrawers"/> so the blackboard-field picker
-    /// filters variables by the current action's DtoType.
+    /// Builds a <see cref="BTreeFacetMapper"/> whose subtree pick resolves against <paramref name="catalog"/> (⭐ CE-439).
     /// Returns <see langword="null"/> when <paramref name="asset"/> is <see langword="null"/>.
     /// </summary>
     public static BTreeFacetMapper? BuildFacetDispatcher(
-        BehaviorTreeAsset?    asset,
-        BTreeFacetFqnContext? fqnContext,
-        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)   // ⭐ CE-439: the subtree pick resolves against it
-        => asset is null ? null : new BTreeFacetMapper(asset, fqnContext, catalog);
+        BehaviorTreeAsset? asset,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog)
+        => asset is null ? null : new BTreeFacetMapper(asset, catalog);
 }

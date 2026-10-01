@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.IO;
 using Fbt;
 using Hrot.AiEditor.Persistence.Emit;
@@ -50,11 +51,11 @@ public sealed class SaveBTreeEmitTests
         {
             VisualId    = new Guid("30000000-0000-0000-0000-000000000001"),
             KernelType  = NodeType.Action,
-            Action      = new BTreeActionPayload
+            Action      = new BehaviorActionBinding
             {
                 MethodFqn     = "Hrot.AI.Behaviors.Trees.Actions.Patrol",
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(seq.VisualId);

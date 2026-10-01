@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Kernel.Data;
@@ -81,7 +82,7 @@ public sealed class ExpressionTargetFieldCountTests
     public void ATransitionBoundThroughExpressionTargetField_IsCounted()
     {
         var (asset, t, _) = MakeAsset();
-        t.ExpressionTargetField = "Result";
+        (t.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "Result";
 
         Assert.Equal(1, asset.CountNodesReferencingVariable("Result"));
     }
@@ -95,7 +96,7 @@ public sealed class ExpressionTargetFieldCountTests
     public void AGlobalTransitionBoundThroughExpressionTargetField_IsCounted()
     {
         var (asset, _, g) = MakeAsset();
-        g.ExpressionTargetField = "Result";
+        (g.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "Result";
 
         Assert.Equal(1, asset.CountNodesReferencingVariable("Result"));
     }
@@ -105,8 +106,8 @@ public sealed class ExpressionTargetFieldCountTests
     public void BothTransitionKinds_Sum()
     {
         var (asset, t, g) = MakeAsset();
-        t.ExpressionTargetField = "Result";
-        g.ExpressionTargetField = "Result";
+        (t.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "Result";
+        (g.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "Result";
 
         Assert.Equal(2, asset.CountNodesReferencingVariable("Result"));
     }
@@ -116,7 +117,7 @@ public sealed class ExpressionTargetFieldCountTests
     public void TheComparisonIsCaseInsensitive_LikeTheConflictRule()
     {
         var (asset, t, _) = MakeAsset();
-        t.ExpressionTargetField = "rESULT";
+        (t.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "rESULT";
 
         Assert.Equal(1, asset.CountNodesReferencingVariable("Result"));
     }
@@ -126,7 +127,7 @@ public sealed class ExpressionTargetFieldCountTests
     public void ABindingToAnotherVariable_IsNotCounted()
     {
         var (asset, t, _) = MakeAsset();
-        t.ExpressionTargetField = "SomethingElse";
+        (t.Action ??= new BehaviorActionBinding()).ExpressionTargetField = "SomethingElse";
 
         Assert.Equal(0, asset.CountNodesReferencingVariable("Result"));
     }

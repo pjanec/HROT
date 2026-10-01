@@ -241,7 +241,7 @@ internal sealed class HsmCommandSink : IGraphCommandSink
             //    not user-deletable) and cannot see the owner of.
             foreach (var s in subtree)
             {
-                RemoveAutoManagedTargetVariable(s.ExpressionTargetField);
+                foreach (var b in s.Bindings) RemoveAutoManagedTargetVariable(b.ExpressionTargetField);   // CE-417: each slot's own
                 _asset.UnregisterState(s);
             }
         }
@@ -253,7 +253,8 @@ internal sealed class HsmCommandSink : IGraphCommandSink
     /// </summary>
     private void RemoveTransitionInternal(TransitionNode transition)
     {
-        RemoveAutoManagedTargetVariable(transition.ExpressionTargetField);
+        RemoveAutoManagedTargetVariable(transition.Guard?.ExpressionTargetField);    // CE-417: each binding's own
+        RemoveAutoManagedTargetVariable(transition.Action?.ExpressionTargetField);
         _asset.UnregisterTransition(transition.VisualId);
     }
 

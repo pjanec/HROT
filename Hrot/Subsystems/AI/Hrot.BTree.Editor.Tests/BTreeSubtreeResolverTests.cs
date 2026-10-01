@@ -64,7 +64,7 @@ public sealed class BTreeSubtreeResolverTests
             VisualId    = Guid.NewGuid(),
             KernelType  = NodeType.Action,
             KernelBlobIndex = -1,
-            Action      = new BTreeActionPayload { MethodFqn = "Ns.C.M" },
+            Action      = new BehaviorActionBinding { MethodFqn = "Ns.C.M" },
         };
     }
 

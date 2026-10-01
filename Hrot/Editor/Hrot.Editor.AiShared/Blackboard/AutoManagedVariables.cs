@@ -106,12 +106,21 @@ public static class AutoManagedVariables
     /// back to its site. ⭐ An existing variable of that name is returned as-is, never duplicated.</para>
     /// </summary>
     public static string? PromoteForSite(IBlackboardManagedAsset asset, string? visualId, Type fieldType)
+        => PromoteForSite(asset, visualId, slot: null, fieldType);
+
+    /// <summary>
+    /// ⭐ <c>CE-417</c> slice 4b — the same promote for one binding SLOT of a site (B-2: every binding has its own
+    /// variable). A node with several bindings (an HSM state's entry/exit/activity/timer, a transition's guard/action)
+    /// names its secondary slots <c>_auto_{visualId:N}_{slot}</c>; ⭐ <paramref name="slot"/> <see langword="null"/> is the
+    /// site's PRIMARY binding and keeps the pre-4b name, so variables promoted before 4b still match their site.
+    /// </summary>
+    public static string? PromoteForSite(IBlackboardManagedAsset asset, string? visualId, string? slot, Type fieldType)
     {
         if (asset is null) throw new ArgumentNullException(nameof(asset));
         if (fieldType is null) throw new ArgumentNullException(nameof(fieldType));
         if (!Guid.TryParse(visualId, out var guid)) return null;
 
-        string name = $"_auto_{guid:N}";
+        string name = string.IsNullOrEmpty(slot) ? $"_auto_{guid:N}" : $"_auto_{guid:N}_{slot}";
         if (asset.BlackboardVariables.Any(v => v.Name == name)) return name;
 
         asset.AddVariable(new BlackboardVariableEntry(

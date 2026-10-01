@@ -79,9 +79,9 @@ internal sealed class BTreeNodeContextMenuProvider : INodeContextMenuProvider
 
         string? methodFqn = editorNode.KernelType switch
         {
-            NodeType.Action when editorNode.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+            NodeType.Action when (editorNode.Action is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
                 => editorNode.Action.MethodFqn,
-            NodeType.Condition when editorNode.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+            NodeType.Condition when (editorNode.Condition is not null && editorNode.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
                 => editorNode.Condition.MethodFqn,
             _ => null,
         };

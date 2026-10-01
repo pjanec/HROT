@@ -333,12 +333,13 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     public int CountNodesReferencingVariable(string name)
     {
         int count = 0;
+        // ⭐ CE-417: a NODE counts once if any of its bindings targets the variable.
         foreach (var t in AllTransitions)
-            if (IsExpressionTargetOf(t.ExpressionTargetField, name)) count++;
+            if (AnyTargets(name, t.Guard, t.Action)) count++;
         foreach (var g in AllGlobalTransitions)
-            if (IsExpressionTargetOf(g.ExpressionTargetField, name)) count++;
+            if (AnyTargets(name, g.Guard, g.Action)) count++;
         foreach (var s in AllStates)
-            if (IsExpressionTargetOf(s.ExpressionTargetField, name)) count++;
+            if (AnyTargets(name, s.OnEntry, s.OnExit, s.Activity, s.Timer)) count++;
         return count;
     }
 
@@ -347,6 +348,13 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     /// <c>HsmValidator.IsLocallyBoundTo</c> delegates here rather than repeating the comparison —
     /// two spellings of one predicate is how the count and the conflict rule drift apart.
     /// </summary>
+    private static bool AnyTargets(string name, params BehaviorActionBinding?[] bindings)
+    {
+        foreach (var b in bindings)
+            if (b is not null && IsExpressionTargetOf(b.ExpressionTargetField, name)) return true;
+        return false;
+    }
+
     public static bool IsExpressionTargetOf(string? expressionTargetField, string variableName)
         => !string.IsNullOrEmpty(expressionTargetField)
         && string.Equals(expressionTargetField, variableName, StringComparison.OrdinalIgnoreCase);
@@ -893,11 +901,34 @@ public sealed class StateNode : IContainerNodeModel
     // the node body background is drawn transparent.
     public bool IsPseudostate => IsHistory || IsDeepHistory || IsFinal;
 
-    // Action names (resolved from MachineMetadata; null means no action)
-    public string? OnEntryAction;
-    public string? OnExitAction;
-    public string? ActivityAction;
-    public string? TimerAction;
+    // ⭐⭐⭐ CE-417 (slice 4a) — the state's four action slots, each ONE BehaviorActionBinding (null = slot unbound).
+    // 📄 docs/blueprints/DESIGN_Behavior_Action_Binding.md §3, §5.4. Each binding carries its OWN target field (B-2).
+    public BehaviorActionBinding? OnEntry;
+    public BehaviorActionBinding? OnExit;
+
+    /// <summary>
+    /// The per-tick activity: a C# method (<see cref="BehaviorActionBinding.MethodFqn"/>) OR a blueprint
+    /// (<see cref="BehaviorActionBinding.BlueprintAssetId"/> + name).
+    /// <para>⭐⭐⭐ CE-385 — the two are MUTUALLY EXCLUSIVE: a NAMED activity resolves through FNV1a16(FQN); a
+    /// blueprint-hosted thunk registers under its BlueprintId = FNV-1a32 of the Guid — two id spaces no authorable string
+    /// bridges (CE-383/CE-384). The validator says so (design §9 ③). ⭐ The Guid is the identity and the RENAME SURVIVOR;
+    /// the name is display + re-resolution only. 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.</para>
+    /// </summary>
+    public BehaviorActionBinding? Activity;
+
+    public BehaviorActionBinding? Timer;
+
+    /// <summary>The four slots, unbound ones skipped.</summary>
+    public IEnumerable<BehaviorActionBinding> Bindings
+    {
+        get
+        {
+            if (OnEntry  is not null) yield return OnEntry;
+            if (OnExit   is not null) yield return OnExit;
+            if (Activity is not null) yield return Activity;
+            if (Timer    is not null) yield return Timer;
+        }
+    }
 
     // Inferred from action declarations; read-only in the editor
     public byte OutputLaneMask;
@@ -936,41 +967,45 @@ public sealed class StateNode : IContainerNodeModel
     //    the asset it describes and claim a dangling reference is fine.
     public bool IsSubtreeResolved;
 
-    // ⭐⭐⭐ CE-385 — the state's ACTIVITY (per-tick action) is hosted by a BLUEPRINT.
-    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.
-    //
-    // ⛔⛔ This is NOT an alternative spelling of ActivityAction. A NAMED activity resolves through
-    //    FNV1a16(FQN); a blueprint-hosted thunk registers under its BlueprintId = FNV-1a32 of THIS
-    //    Guid — two id spaces no authorable string bridges (CE-383/CE-384). ⇒ the two fields are
-    //    MUTUALLY EXCLUSIVE, and the validator says so (design §9 ③).
-    // ⭐ Shaped exactly like the SubtreeAssetId/SubtreeName pair above: the Guid is the identity and
-    //    the RENAME SURVIVOR, the name is what the designer sees and picks.
-    public Guid ActivityBlueprintAssetId;
-
-    /// <summary>⭐ The picked blueprint's catalogue NAME, beside <see cref="ActivityBlueprintAssetId"/>.
-    /// ⚠ Display + re-resolution only — ⛔ the emitted id comes from the Guid, never from this.</summary>
-    public string? ActivityBlueprintName;
-
     /// <summary>
-    /// ⭐⭐⭐ <b><c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its
-    /// params from.</b> 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4;
-    /// <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
+    /// ⭐⭐⭐ <b><c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its params from.</b>
+    /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.4; <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
     ///
-    /// <para>🔴 <b>The emitter has consumed this since <c>E3b-0</c> and the editor could never
-    /// produce it.</b> <c>StateNodeDto.ExpressionTargetField</c> existed and
-    /// <c>HsmBridgeEmitCore.EmitStateParamBindings</c> already turns it into a
-    /// <c>HsmParamBindings.Register</c> table — but <c>StateNode</c> had no such field and the mapper
-    /// mapped it for TRANSITIONS only ⇒ it was **always null**, and every state seeded from offset
-    /// 0.</para>
+    /// <para>⭐ <c>CE-417</c>: DERIVED from the slots — Activity's target, else OnEntry's, OnExit's, Timer's — the SAME rule
+    /// as <c>HsmBridgeEmitCore.StateWideField</c>, so the editor and the emitter cannot disagree about the seed. The setter is
+    /// the v1 shape (one field per state, slice-2 migration rule): it goes to every bound slot, and a state with no slot
+    /// keeps it on an Activity binding that names nothing.</para>
     ///
-    /// <para>⛔⛔ <b>SAME NAME, DIFFERENT CONCEPT from <see cref="TransitionNode.ExpressionTargetField"/>
-    /// — do not unify them.</b> A transition's is an OUTPUT: the field that RECEIVES the expression
-    /// result of its action, which is why it participates in the cross-region WRITER-conflict rule.
-    /// A state's is an INPUT: the variable its occurrence SEEDS FROM. ⇒ a state binding must NEVER be
-    /// added to that conflict rule — concurrent readers are legal, and adding it would manufacture
-    /// false conflicts.</para>
+    /// <para>⛔⛔ <b>A state's target field is an INPUT</b> (the variable its occurrence SEEDS FROM); a transition ACTION's is
+    /// an OUTPUT (the field that RECEIVES its result), which is why only the latter is in the cross-region WRITER-conflict
+    /// rule. ⇒ a state binding must NEVER be added to that rule — concurrent readers are legal.</para>
     /// </summary>
-    public string? ExpressionTargetField;
+    public string? StateWideTargetField
+    {
+        get => Field(Activity) ?? Field(OnEntry) ?? Field(OnExit) ?? Field(Timer);
+        set
+        {
+            string? v = string.IsNullOrEmpty(value) ? null : value;
+            bool any = false;
+            foreach (var b in Bindings)
+            {
+                if (b.NamesNothing) continue;
+                b.ExpressionTargetField = v;
+                any = true;
+            }
+            if (any)
+            {
+                // an Activity that names nothing only ever existed to carry the field — drop it once a real slot does
+                if (Activity is { NamesNothing: true }) Activity = null;
+                return;
+            }
+            Activity = v is null ? null : new BehaviorActionBinding { ExpressionTargetField = v };
+        }
+    }
+
+    private static string? Field(BehaviorActionBinding? b)
+        => b is null || string.IsNullOrEmpty(b.ExpressionTargetField) ? null : b.ExpressionTargetField;
+
 
     // Editor-only (persisted in layout method)
     public Vector2 Position { get; set; }
@@ -1120,24 +1155,22 @@ public sealed class TransitionNode
     public StateNode Target = null!;
     public ushort EventId;
     public string? EventName;    // symbolicated from MachineMetadata; for display
-    public string? GuardFunction;
-    public string? ActionFunction;
+
     /// <summary>
-    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
-    /// Null when no field binding is authored. Persisted.
+    /// ⭐ CE-417 — the guard: a C# method OR (CE-385) a blueprint, MUTUALLY EXCLUSIVE for the same two-id-space reason as
+    /// <see cref="StateNode.Activity"/>. Its target field is an INPUT: the variable the guard blueprint seeds from (CE-413).
     /// </summary>
-    public string? ExpressionTargetField;
+    public BehaviorActionBinding? Guard;
+
+    /// <summary>
+    /// ⭐ CE-417 — the transition action. Its target field is an OUTPUT: the blackboard field that receives the action's
+    /// result — the one binding in this node that the cross-region WRITER-conflict rule considers.
+    /// </summary>
+    public BehaviorActionBinding? Action;
+
     public byte Priority;
     public TransitionKind Kind;
     public ushort SyncGroupId;
-
-    // ⭐⭐⭐ CE-385 — the transition's GUARD is hosted by a BLUEPRINT.
-    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7. Same two-id-space reasoning as
-    // StateNode.ActivityBlueprintAssetId, and likewise MUTUALLY EXCLUSIVE with GuardFunction.
-    public Guid GuardBlueprintAssetId;
-
-    /// <summary>⭐ The picked blueprint's catalogue NAME. ⚠ Display + re-resolution only.</summary>
-    public string? GuardBlueprintName;
 
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-381</c>/<c>CE-385</c> — POLLED: this transition's guard is evaluated on every
@@ -1170,13 +1203,13 @@ public sealed class GlobalTransitionNode
     public StateNode Target = null!;
     public ushort EventId;
     public string? EventName;
-    public string? GuardFunction;
-    public string? ActionFunction;
-    /// <summary>
-    /// Blackboard field that receives the expression result of <see cref="ActionFunction"/>.
-    /// Null when no field binding is authored. Persisted.
-    /// </summary>
-    public string? ExpressionTargetField;
+
+    /// <summary>⭐ CE-417 (B-3) — the same two bindings as a <see cref="TransitionNode"/>.</summary>
+    public BehaviorActionBinding? Guard;
+
+    /// <summary>⭐ CE-417 (B-3) — its target field is an OUTPUT, as on a <see cref="TransitionNode"/>.</summary>
+    public BehaviorActionBinding? Action;
+
     public byte Priority;
     public string? Comment;
     public bool IsBreakpoint;

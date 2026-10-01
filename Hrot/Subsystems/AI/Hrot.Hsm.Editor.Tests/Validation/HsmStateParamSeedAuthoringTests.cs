@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -62,13 +63,16 @@ public sealed class HsmStateParamSeedAuthoringTests
         var d   = new HsmFacetDispatcher(hsm);
         var sel = new HsmStateSelection(state.StableId);
 
+        // ⭐ CE-417 slice 4b — the seed is authored on the ACTIVITY binding (each slot has its own variable, B-2); the
+        //   state's seed is derived from it (StateWideTargetField: the Activity's variable first). ⚠ Typed BEFORE any
+        //   activity is picked, so the binding names nothing yet and must still be kept.
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ExpressionTargetField.Should().BeNull("unbound is the common case, not an error");
-        facet.ExpressionTargetField = "Alpha";
+        facet.Activity.ExpressionTargetField.Should().BeNull("unbound is the common case, not an error");
+        facet.Activity.ExpressionTargetField = "Alpha";
         d.ApplyFacet(sel, facet);
 
-        state.ExpressionTargetField.Should().Be("Alpha");
-        ((StateFacet)d.GetFacet(sel)!).ExpressionTargetField.Should().Be("Alpha");
+        state.StateWideTargetField.Should().Be("Alpha");
+        ((StateFacet)d.GetFacet(sel)!).Activity.ExpressionTargetField.Should().Be("Alpha");
     }
 
     // ── the mapper carries it BOTH ways ───────────────────────────────────────
@@ -81,13 +85,13 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void TheSeedBindingSurvivesSaveAndReopen()
     {
         var hsm = MakeMachine(out var state);
-        state.ExpressionTargetField = "Alpha";
+        state.StateWideTargetField = "Alpha";
 
         string json = HsmJsonServices.Serialize(HsmAssetMapper.ToDto(hsm));
         var    back = HsmAssetMapper.ToModel(HsmJsonServices.Deserialize(json)!, "", true);
 
         back.AllStates.Single(s => s.Name == "Patrolling")
-            .ExpressionTargetField.Should().Be("Alpha");
+            .StateWideTargetField.Should().Be("Alpha");
     }
 
     /// <summary>⛔ The no-churn property: an unbound state must not emit the key. 📄 §8a ⑥.</summary>
@@ -110,7 +114,7 @@ public sealed class HsmStateParamSeedAuthoringTests
         var hsm = MakeMachine(out var state);
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(0);
 
-        state.ExpressionTargetField = "Alpha";
+        state.StateWideTargetField = "Alpha";
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(1);
     }
 
@@ -120,7 +124,7 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void TheCountUsesTheOneSharedCaseInsensitivePredicate()
     {
         var hsm = MakeMachine(out var state);
-        state.ExpressionTargetField = "alpha";
+        state.StateWideTargetField = "alpha";
         hsm.CountNodesReferencingVariable("Alpha").Should().Be(1);
     }
 
@@ -150,8 +154,8 @@ public sealed class HsmStateParamSeedAuthoringTests
         parallel.RegionNodes.Add(new RegionNode("R0") { RegionIndex = 0, InitialChild = left });
         parallel.RegionNodes.Add(new RegionNode("R1") { RegionIndex = 1, InitialChild = right });
 
-        left.ExpressionTargetField  = "Alpha";
-        right.ExpressionTargetField = "Alpha";
+        left.StateWideTargetField  = "Alpha";
+        right.StateWideTargetField = "Alpha";
 
         var hsm = new HsmAsset(
             Guid.NewGuid(), "Twin", "", false, "",
@@ -198,8 +202,8 @@ public sealed class HsmStateParamSeedAuthoringTests
     {
         // ── ARRANGE: the editor model, as the state inspector leaves it ──────────────────────────
         var root = new StateNode("__root__");
-        var one  = new StateNode("One") { IsInitial = true, Parent = root, ExpressionTargetField = "Alpha" };
-        var two  = new StateNode("Two") { Parent = root, ExpressionTargetField = "Beta" };
+        var one  = new StateNode("One") { IsInitial = true, Parent = root, StateWideTargetField = "Alpha" };
+        var two  = new StateNode("Two") { Parent = root, StateWideTargetField = "Beta" };
         root.Children.Add(one);
         root.Children.Add(two);
 
@@ -299,11 +303,11 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R1_PickingAnActivityBlueprint_ComposesAStructTypedParamsVariable()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
         // ⭐⭐ THE RAIL. One variable, and its TYPE is the blueprint's generated Params struct.
@@ -311,7 +315,7 @@ public sealed class HsmStateParamSeedAuthoringTests
         composed.FieldType.Should().Be(typeof(Patrol_0000ABCD_Bp.Params),
             "the variable IS the DTO — that is what makes the offsets the compiler's, not the author's");
         composed.IsAutoManaged.Should().BeTrue("the editor owns it, so the author cannot rename it apart");
-        state.ExpressionTargetField.Should().Be(composed.Name,
+        state.StateWideTargetField.Should().Be(composed.Name,
             "the hosting site must seed from the variable its own pick created");
     }
 
@@ -323,19 +327,19 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R2_UnpickingTheBlueprint_RemovesTheComposedVariable()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
         var cleared = (StateFacet)d.GetFacet(sel)!;
-        cleared.ActivityBlueprintName = null;
+        cleared.Activity.BlueprintName = null;
         d.ApplyFacet(sel, cleared);
 
         hsm.BlackboardVariables.Should().BeEmpty();
-        state.ExpressionTargetField.Should().BeNull();
+        state.StateWideTargetField.Should().BeNull();
     }
 
     /// <summary>
@@ -349,13 +353,13 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R3_ReapplyingTheSameFacet_DoesNotChurnVariables()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
-        string composedName = state.ExpressionTargetField!;
+        string composedName = state.StateWideTargetField!;
 
         for (int i = 0; i < 3; i++)
         {
@@ -365,7 +369,7 @@ public sealed class HsmStateParamSeedAuthoringTests
         }
 
         hsm.BlackboardVariables.Should().ContainSingle();
-        state.ExpressionTargetField.Should().Be(composedName, "the binding must survive unrelated edits");
+        state.StateWideTargetField.Should().Be(composedName, "the binding must survive unrelated edits");
     }
 
     /// <summary>
@@ -383,11 +387,11 @@ public sealed class HsmStateParamSeedAuthoringTests
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
-        state.ActivityBlueprintName.Should().Be("Patrol", "the pick itself still lands");
+        (state.Activity?.BlueprintName).Should().Be("Patrol", "the pick itself still lands");
         hsm.BlackboardVariables.Should().BeEmpty("nothing can resolve the Params type, so nothing is guessed");
-        state.ExpressionTargetField.Should().BeNull();
+        state.StateWideTargetField.Should().BeNull();
     }
 }

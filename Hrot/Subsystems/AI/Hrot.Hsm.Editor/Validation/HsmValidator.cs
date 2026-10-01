@@ -307,13 +307,13 @@ public sealed class HsmValidator
     {
         foreach (var s in asset.AllStates)
         {
-            if (s.ActivityBlueprintAssetId == Guid.Empty) continue;
-            if (string.IsNullOrEmpty(s.ActivityAction))   continue;
+            if ((s.Activity?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty) continue;   // CE-417: one binding, both halves
+            if (string.IsNullOrEmpty(s.Activity!.MethodFqn))                    continue;
 
             out_.Add(new HsmDiagnostic(
                 HsmDiagnosticCode.MethodAndBlueprintBothBound,
                 HsmDiagnosticSeverity.Error,
-                $"State '{s.Name}' binds BOTH the activity action '{s.ActivityAction}' and an "
+                $"State '{s.Name}' binds BOTH the activity action '{s.Activity.MethodFqn}' and an "
               + "activity blueprint — the blueprint would win and the action be discarded silently. "
               + "Clear one.",
                 new[] { s.StableId }));
@@ -321,14 +321,14 @@ public sealed class HsmValidator
 
         foreach (var t in asset.AllTransitions)
         {
-            if (t.GuardBlueprintAssetId == Guid.Empty) continue;
-            if (string.IsNullOrEmpty(t.GuardFunction))  continue;
+            if ((t.Guard?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty) continue;
+            if (string.IsNullOrEmpty(t.Guard!.MethodFqn))                    continue;
 
             out_.Add(new HsmDiagnostic(
                 HsmDiagnosticCode.MethodAndBlueprintBothBound,
                 HsmDiagnosticSeverity.Error,
                 $"Transition '{t.Source.Name}' → '{t.Target.Name}' binds BOTH the guard function "
-              + $"'{t.GuardFunction}' and a guard blueprint — the blueprint would win and the "
+              + $"'{t.Guard.MethodFqn}' and a guard blueprint — the blueprint would win and the "
               + "function be discarded silently. Clear one.",
                 new[] { t.Source.StableId }));
         }
@@ -645,12 +645,15 @@ public sealed class HsmValidator
             //   and cannot participate in a cross-region conflict — excluded, deliberately.
             foreach (var t in asset.AllTransitions)
             {
-                if (!IsLocallyBoundTo(t.ExpressionTargetField, variable.Name)) continue;
+                // ⭐ CE-417: bound when EITHER binding targets the variable; a WRITER only through the ACTION (its field is
+                //   the output; a guard's is the input its blueprint seeds from).
+                bool actionTargets = IsLocallyBoundTo(t.Action?.ExpressionTargetField, variable.Name);
+                if (!actionTargets && !IsLocallyBoundTo(t.Guard?.ExpressionTargetField, variable.Name)) continue;
                 if (t.Source == null) continue;
                 if (!TryRegionOf(t.Source, out var compositeId, out int regionIndex)) continue;
                 writers.Add(new WriterSite(
                     compositeId, regionIndex, $"{t.Source.Name} → {t.Target?.Name}", "expression target",
-                    IsWriter: IsWritingFqn(t.ActionFunction), ElementId: t.VisualId));
+                    IsWriter: actionTargets && IsWritingFqn(t.Action?.MethodFqn), ElementId: t.VisualId));
             }
 
             // ── the pair check, over the UNION ──────────────────────────────────────────
@@ -745,10 +748,10 @@ public sealed class HsmValidator
         if (_schema == null) return true;
 
         string?[] fqns = {
-            state.OnEntryAction,
-            state.OnExitAction,
-            state.ActivityAction,
-            state.TimerAction,
+            state.OnEntry?.MethodFqn,
+            state.OnExit?.MethodFqn,
+            state.Activity?.MethodFqn,
+            state.Timer?.MethodFqn,
         };
         foreach (var fqn in fqns)
             if (IsWritingFqn(fqn)) return true;

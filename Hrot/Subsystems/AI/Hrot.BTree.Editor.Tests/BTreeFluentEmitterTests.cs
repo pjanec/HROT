@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using FluentAssertions;
 using Fbt;
@@ -42,11 +43,11 @@ public sealed class BTreeFluentEmitterDeterminismTests
         var action = new BTreeEditorNode
         {
             VisualId = actionId, KernelType = NodeType.Action, KernelBlobIndex = 2,
-            Action = new BTreeActionPayload
+            Action = new BehaviorActionBinding
             {
                 MethodFqn = "Hrot.Game.Combat.CombatActions.DoSomething",
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(sequenceId);
@@ -221,18 +222,21 @@ public sealed class BTreeFluentEmitterRoslynTests
         var act1  = new BTreeEditorNode
         {
             VisualId = action1Id, KernelType = NodeType.Action, KernelBlobIndex = 2,
-            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionOne", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+            Action = new BehaviorActionBinding { MethodFqn = "My.NS.Actions.ActionOne" },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
         var sel   = new BTreeEditorNode { VisualId = selId,     KernelType = NodeType.Selector, KernelBlobIndex = 3 };
         var act2  = new BTreeEditorNode
         {
             VisualId = action2Id, KernelType = NodeType.Action, KernelBlobIndex = 4,
-            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionTwo", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+            Action = new BehaviorActionBinding { MethodFqn = "My.NS.Actions.ActionTwo" },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
         var act3  = new BTreeEditorNode
         {
             VisualId = action3Id, KernelType = NodeType.Action, KernelBlobIndex = 5,
-            Action = new BTreeActionPayload { MethodFqn = "My.NS.Actions.ActionThree", DelegateShape = BTreeActionDelegateShape.FourParamFull },
+            Action = new BehaviorActionBinding { MethodFqn = "My.NS.Actions.ActionThree" },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
 
         root.ChildVisualIds.Add(seqId);

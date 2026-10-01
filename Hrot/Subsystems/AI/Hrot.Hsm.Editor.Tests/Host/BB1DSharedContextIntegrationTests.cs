@@ -1,15 +1,16 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Hsm.Editor.Host;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
-using StructEdit.Core;
 using Xunit;
 
 namespace Hrot.Hsm.Editor.Tests.Host;
@@ -31,14 +32,12 @@ file sealed class StubExporterForHsmBB1D : IActionSchemaExporter
 }
 
 /// <summary>
-/// BB1D integration tests: verify that a SINGLE <see cref="HsmFacetFqnContext"/>
-/// shared between <see cref="HsmSelectionBridgeHelper.BuildFacetDispatcher(HsmAsset?, HsmFacetFqnContext?)"/>
-/// (writer) and <see cref="HsmPickerDrawerFactory.BuildDrawers"/> (reader) causes the
-/// <see cref="HsmBlackboardFieldPickerDrawer"/> to return ONLY the type-compatible variables.
+/// BB1D integration tests, HSM: the production dispatcher and the production drawers, wired as
+/// <c>AiFacetPickerBinder</c> wires them, offer ONLY the type-compatible variables for the selected binding.
 ///
-/// <para>This is the HSM counterpart of the BTree BB1D integration test.
-/// If the context is NOT shared, the drawer has no FQN context and shows ALL variables
-/// — this test would fail.</para>
+/// <para>⭐ <c>CE-417</c> slice 4b: the HSM counterpart of the BTree test. BB1D's gap was the <c>HsmFacetFqnContext</c>
+/// side channel; it is gone, and every binding facet carries its own method — which also makes a transition's guard
+/// and action filter SEPARATELY (B-2), something one shared context could never express.</para>
 /// </summary>
 public sealed class BB1DHsmSharedContextIntegrationTests
 {
@@ -71,158 +70,80 @@ public sealed class BB1DHsmSharedContextIntegrationTests
         return asset;
     }
 
-    private static EditNode MakeNodeWithAttr(params Attribute[] attrs)
-    {
-        var meta = new EditNodeMetadata { CustomAttributes = attrs };
-        return new EditNode(
-            id:       new EditNodeId(0),
-            name:     "Field",
-            jsonPath: "$.Field",
-            kind:     EditNodeKind.String,
-            clrType:  typeof(string),
-            metadata: meta);
-    }
+    private static ActionBindingSources BindingSources(HsmAsset asset, IActionSchemaExporter exporter)
+        => HsmPickerDrawerFactory.BuildDrawers(asset, exporter)[typeof(BehaviorActionBindingFacet)]
+               .Should().BeOfType<ActionBindingDrawer>().Subject.Sources;
 
-    // ── Core integration test: shared context causes type-filtering ───────────
+    // ── Core integration test: the dispatcher's binding filters the drawer's list ──
 
-    /// <summary>
-    /// CRITICAL: The BB1D HSM wiring test.
-    ///
-    /// Build the HSM dispatcher via BuildFacetDispatcher(asset, ctx) and the drawers via
-    /// BuildDrawers(asset, exporter, ctx) using the SAME ctx instance.
-    /// Drive dispatcher.GetFacet(transitionSelection) which writes CurrentActionFqn to ctx.
-    /// Then assert the HsmBlackboardFieldPickerDrawer returns ONLY the float-typed variable,
-    /// not the int-typed one.
-    ///
-    /// If the context is NOT shared (old code before BB1D), the drawer has no FQN context
-    /// and falls back to returning ALL variables — the test would fail.
-    /// </summary>
+    /// <summary>CRITICAL: the BB1D HSM wiring test — the transition's action binding filters to the float variable.</summary>
     [Fact]
-    public void SharedContext_Hsm_DispatcherWritesFqn_DrawerFiltersToTType()
+    public void Dispatcher_Hsm_ActionBindingCarriesTheMethod_DrawerFiltersToTType()
     {
-        const string fqn = "Ns.HsmFloatAction";
-
+        const string fqn = "Ns.FloatAction";
         var asset = MakeHsmAssetWithTransitionAction(fqn,
             new BlackboardVariableEntry("floatVar", typeof(float), null),
             new BlackboardVariableEntry("intVar",   typeof(int),   null));
-
         var exporter = new StubExporterForHsmBB1D();
         exporter.Register(fqn, typeof(float));
 
-        // ONE shared context — this is the key to BB1D.
-        var sharedCtx = new HsmFacetFqnContext();
+        var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset);
+        dispatcher.Should().NotBeNull();
+        var transition = asset.AllTransitions.First();
+        var facet = dispatcher!.GetFacet(new HsmTransitionSelection(transition.VisualId));
 
-        // Build dispatcher (writer) and drawers (reader) with the SAME sharedCtx.
-        var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset, sharedCtx);
-        var drawerMap  = HsmPickerDrawerFactory.BuildDrawers(asset, exporter, sharedCtx);
-
-        dispatcher.Should().NotBeNull("dispatcher must be built from a non-null asset");
-
-        // Find the transition from Idle → Active (the one with the action).
-        var transition = asset.AllTransitions
-            .FirstOrDefault(t => !string.IsNullOrEmpty(t.ActionFunction));
-        transition.Should().NotBeNull("the test asset must have a transition with an action function");
-
-        // Drive the dispatcher with a transition selection.
-        var facet = dispatcher!.GetFacet(new HsmTransitionSelection(transition!.VisualId));
-
-        // Dispatcher must have written the FQN to the shared context.
-        sharedCtx.CurrentActionFqn.Should().Be(fqn,
-            "dispatcher.GetFacet must write the transition action FQN to the shared context");
-        sharedCtx.CurrentVisualId.Should().NotBeNullOrEmpty(
-            "dispatcher.GetFacet must write the VisualId to the shared context");
-
-        // The facet must be a TransitionFacet with the correct action.
         facet.Should().BeOfType<TransitionFacet>();
-        ((TransitionFacet)facet!).ActionFunction.Should().Be(fqn);
+        var action = ((TransitionFacet)facet!).Action;
+        action.MethodFqn.Should().Be(fqn);
 
-        // Verify the drawer filters: extract the HsmBlackboardFieldPickerDrawer from the composite.
-        var composite = drawerMap[typeof(string)] as HsmCompositeStringDrawer;
-        composite.Should().NotBeNull("the drawer map must contain an HsmCompositeStringDrawer for string");
-
-        var editNode  = MakeNodeWithAttr(new HsmBlackboardFieldPickerAttribute());
-        var bbDrawer  = composite!.Resolve(editNode) as HsmBlackboardFieldPickerDrawer;
-        bbDrawer.Should().NotBeNull("composite must dispatch to HsmBlackboardFieldPickerDrawer");
-
-        // The key assertion: only float var is returned, not int var.
-        var items = bbDrawer!.GetItems();
+        var items = BindingSources(asset, exporter).GetVariables(action);
         items.Should().ContainSingle("only the float variable is compatible with the float DtoType");
-        items[0].Should().Be("floatVar",
-            "only the float-typed variable must be returned via the shared context");
+        items[0].Should().Be("floatVar");
     }
 
     /// <summary>
-    /// Verify that WITHOUT a shared context (null) the drawer falls back to ALL variables.
-    /// This documents the pre-BB1D failure mode.
+    /// ⭐⭐ B-2 — a transition's guard and action each filter by their OWN method. 🔴 With one shared context (and one
+    /// shared target field) before 4b, the guard's list was the action's.
     /// </summary>
     [Fact]
-    public void NoContext_Hsm_DrawerReturnsAllVars()
+    public void Dispatcher_Hsm_GuardAndAction_EachFilterByTheirOwnMethod()
     {
-        const string fqn = "Ns.HsmFloatAction";
-
-        var asset = MakeHsmAssetWithTransitionAction(fqn,
+        var asset = MakeHsmAssetWithTransitionAction("Ns.FloatAction",
             new BlackboardVariableEntry("floatVar", typeof(float), null),
             new BlackboardVariableEntry("intVar",   typeof(int),   null));
-
+        var transition = asset.AllTransitions.First();
+        transition.Guard = BehaviorActionBinding.ForMethod("Ns.IntGuard");
         var exporter = new StubExporterForHsmBB1D();
-        exporter.Register(fqn, typeof(float));
+        exporter.Register("Ns.FloatAction", typeof(float));
+        exporter.Register("Ns.IntGuard",    typeof(int));
 
-        // No shared context — old behavior.
-        var drawerMap = HsmPickerDrawerFactory.BuildDrawers(asset, exporter, null);
+        var facet   = (TransitionFacet)HsmSelectionBridgeHelper.BuildFacetDispatcher(asset)!
+                          .GetFacet(new HsmTransitionSelection(transition.VisualId))!;
+        var sources = BindingSources(asset, exporter);
 
-        var composite = drawerMap[typeof(string)] as HsmCompositeStringDrawer;
-        var editNode  = MakeNodeWithAttr(new HsmBlackboardFieldPickerAttribute());
-        var bbDrawer  = composite!.Resolve(editNode) as HsmBlackboardFieldPickerDrawer;
-
-        // Without context, all vars returned.
-        bbDrawer!.GetItems().Should().HaveCount(2, "without context all variables are shown");
+        sources.GetVariables(facet.Action).Should().Equal(new[] { "floatVar" });
+        sources.GetVariables(facet.Guard).Should().Equal(new[] { "intVar" });
     }
 
-    /// <summary>
-    /// After selecting a non-transition element (e.g. a state), the context FQN is cleared
-    /// and the drawer falls back to showing all variables.
-    /// </summary>
+    /// <summary>A state's slots that bind nothing yet offer every variable.</summary>
     [Fact]
-    public void SharedContext_Hsm_ClearedForStateSelection_DrawerShowsAllVars()
+    public void Dispatcher_Hsm_AnUnboundStateSlot_ListsAllVars()
     {
-        const string fqn = "Ns.HsmFloatAction";
-
-        var asset = MakeHsmAssetWithTransitionAction(fqn,
+        var asset = MakeHsmAssetWithTransitionAction("Ns.FloatAction",
             new BlackboardVariableEntry("floatVar", typeof(float), null),
             new BlackboardVariableEntry("intVar",   typeof(int),   null));
+        var exporter = new StubExporterForHsmBB1D();
+        exporter.Register("Ns.FloatAction", typeof(float));
+        var idle = asset.AllStates.First(s => s.Name == "Idle");
 
-        var exporter  = new StubExporterForHsmBB1D();
-        exporter.Register(fqn, typeof(float));
+        var facet = (StateFacet)HsmSelectionBridgeHelper.BuildFacetDispatcher(asset)!
+                        .GetFacet(new HsmStateSelection(idle.StableId))!;
 
-        var sharedCtx  = new HsmFacetFqnContext();
-        var dispatcher = HsmSelectionBridgeHelper.BuildFacetDispatcher(asset, sharedCtx);
-        var drawerMap  = HsmPickerDrawerFactory.BuildDrawers(asset, exporter, sharedCtx);
-
-        // Prime the FQN by selecting the transition.
-        var transition = asset.AllTransitions.First(t => !string.IsNullOrEmpty(t.ActionFunction));
-        dispatcher!.GetFacet(new HsmTransitionSelection(transition.VisualId));
-        sharedCtx.CurrentActionFqn.Should().Be(fqn);
-
-        // Now select a state — the dispatcher must clear the FQN.
-        var idleState = asset.AllStates.First(s => s.Name == "Idle");
-        dispatcher.GetFacet(new HsmStateSelection(idleState.StableId));
-        sharedCtx.CurrentActionFqn.Should().BeNull(
-            "selecting a state must clear CurrentActionFqn in the shared context");
-
-        // Drawer must now show all vars.
-        var composite = drawerMap[typeof(string)] as HsmCompositeStringDrawer;
-        var editNode  = MakeNodeWithAttr(new HsmBlackboardFieldPickerAttribute());
-        var bbDrawer  = composite!.Resolve(editNode) as HsmBlackboardFieldPickerDrawer;
-        bbDrawer!.GetItems().Should().HaveCount(2, "cleared FQN returns all variables");
+        BindingSources(asset, exporter).GetVariables(facet.Activity).Should().HaveCount(2, "no method means no filtering");
     }
 
-    /// <summary>
-    /// BuildFacetDispatcher(asset: null, ctx) returns null and does not throw.
-    /// </summary>
+    /// <summary>BuildFacetDispatcher(asset: null) returns null and does not throw.</summary>
     [Fact]
-    public void BuildFacetDispatcher_WithContext_NullAsset_ReturnsNull()
-    {
-        var ctx = new HsmFacetFqnContext();
-        HsmSelectionBridgeHelper.BuildFacetDispatcher(null, ctx).Should().BeNull();
-    }
+    public void BuildFacetDispatcher_NullAsset_ReturnsNull()
+        => HsmSelectionBridgeHelper.BuildFacetDispatcher(null).Should().BeNull();
 }

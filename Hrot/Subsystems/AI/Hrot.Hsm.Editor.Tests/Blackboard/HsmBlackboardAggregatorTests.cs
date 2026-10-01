@@ -82,7 +82,7 @@ public sealed class HsmBlackboardAggregatorTests
         var builder = new HsmBuilder("M");
         builder.State("Active").Initial();
         var asset = BuildAndProject(builder);
-        asset.AllStates.First(s => s.Name == "Active").OnEntryAction = fqn;
+        (asset.AllStates.First(s => s.Name == "Active").OnEntry ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -103,7 +103,7 @@ public sealed class HsmBlackboardAggregatorTests
         var builder = new HsmBuilder("M");
         builder.State("Active").Initial();
         var asset = BuildAndProject(builder);
-        asset.AllStates.First(s => s.Name == "Active").OnExitAction = fqn;
+        (asset.AllStates.First(s => s.Name == "Active").OnExit ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -124,7 +124,7 @@ public sealed class HsmBlackboardAggregatorTests
         var builder = new HsmBuilder("M");
         builder.State("Patrolling").Initial();
         var asset = BuildAndProject(builder);
-        asset.AllStates.First(s => s.Name == "Patrolling").ActivityAction = fqn;
+        (asset.AllStates.First(s => s.Name == "Patrolling").Activity ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -145,7 +145,7 @@ public sealed class HsmBlackboardAggregatorTests
         var builder = new HsmBuilder("M");
         builder.State("Idle").Initial();
         var asset = BuildAndProject(builder);
-        asset.AllStates.First(s => s.Name == "Idle").TimerAction = fqn;
+        (asset.AllStates.First(s => s.Name == "Idle").Timer ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -168,7 +168,7 @@ public sealed class HsmBlackboardAggregatorTests
         builder.State("Alert");
         builder.State("Idle").Initial().On("E").GoTo("Alert");
         var asset = BuildAndProject(builder);
-        asset.AllTransitions[0].GuardFunction = fqn;
+        (asset.AllTransitions[0].Guard ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -191,7 +191,7 @@ public sealed class HsmBlackboardAggregatorTests
         builder.State("Alert");
         builder.State("Idle").Initial().On("E").GoTo("Alert");
         var asset = BuildAndProject(builder);
-        asset.AllTransitions[0].ActionFunction = fqn;
+        (asset.AllTransitions[0].Action ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -215,7 +215,7 @@ public sealed class HsmBlackboardAggregatorTests
         builder.State("Dead").Final();
         builder.GlobalTransition("OnDeath", "Dead");
         var asset = BuildAndProject(builder);
-        asset.AllGlobalTransitions[0].GuardFunction = fqn;
+        (asset.AllGlobalTransitions[0].Guard ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 
@@ -253,7 +253,7 @@ public sealed class HsmBlackboardAggregatorTests
         var builder = new HsmBuilder("M");
         builder.State("Idle").Initial();
         var asset = BuildAndProject(builder);
-        asset.AllStates.First(s => s.Name == "Idle").OnEntryAction = fqn;
+        (asset.AllStates.First(s => s.Name == "Idle").OnEntry ??= new BehaviorActionBinding()).MethodFqn = fqn;
 
         var result = service.Aggregate(asset);
 

@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -210,23 +211,23 @@ public sealed class BTreeMapperRoundTripTests
             VisualId = new Guid("30000000-0000-0000-0000-000000000001"),
             KernelType = NodeType.Action,
             Position = new Vector2(300f, 250f),
-            Action = new BTreeActionPayload
+            Action = new BehaviorActionBinding
             {
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Action_Test",
                 ExpressionTargetField = "ActiveTarget",
-                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
             },
+            DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
         };
         var condition = new BTreeEditorNode
         {
             VisualId = new Guid("40000000-0000-0000-0000-000000000001"),
             KernelType = NodeType.Condition,
             Position = new Vector2(100f, 250f),
-            Condition = new BTreeConditionPayload
+            Condition = new BehaviorActionBinding
             {
                 MethodFqn = "Hrot.AI.Behaviors.Brains.TestNodes.Condition_HasTarget",
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
         var subtree = new BTreeEditorNode
         {
@@ -330,7 +331,7 @@ public sealed class BTreeMapperRoundTripTests
         restAction!.Action.Should().NotBeNull();
         restAction.Action!.MethodFqn.Should().Be(origAction.Action!.MethodFqn);
         restAction.Action.ExpressionTargetField.Should().Be(origAction.Action.ExpressionTargetField);
-        restAction.Action.DelegateShape.Should().Be(origAction.Action.DelegateShape);
+        restAction.DelegateShape.Should().Be(origAction.DelegateShape);
     }
 
     [Fact]
@@ -345,7 +346,7 @@ public sealed class BTreeMapperRoundTripTests
         restCond.Should().NotBeNull();
         restCond!.Condition.Should().NotBeNull();
         restCond.Condition!.MethodFqn.Should().Be(origCond.Condition!.MethodFqn);
-        restCond.Condition.DelegateShape.Should().Be(origCond.Condition.DelegateShape);
+        restCond.DelegateShape.Should().Be(origCond.DelegateShape);
     }
 
     [Fact]

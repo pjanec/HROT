@@ -6,6 +6,8 @@ using FluentAssertions;
 using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
+using Hrot.Hsm.Editor.Inspector;
 using Hrot.Editor.AiShared.Refactor;
 using Hrot.Editor.AiShared.References;
 using Hrot.Editor.AiShared.Selection;
@@ -27,9 +29,10 @@ public sealed class SE1_StructEditFacetRenderTests
 {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    /// <summary>Builds a minimal IComponentEditService (no custom drawers needed for headless).</summary>
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the PRODUCTION facet edit service (both hosts build it with this call): it makes
+    /// every binding facet ONE leaf for the one binding drawer.</summary>
     private static IComponentEditService BuildEditService()
-        => new ComponentEditServiceBuilder().Build();
+        => Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
 
     /// <summary>Opens a managed (boxed) edit session for a value-type facet.</summary>
     private static IEditSession OpenSession(IComponentEditService svc, object facet)
@@ -52,8 +55,7 @@ public sealed class SE1_StructEditFacetRenderTests
         var svc   = BuildEditService();
         var facet = new BTreeActionFacet
         {
-            MethodFqn            = "Ns.C.DoThing",
-            ExpressionTargetField = null,
+            Action               = new BehaviorActionBindingFacet { MethodFqn = "Ns.C.DoThing" },
             Comment              = "test comment",
             IsBreakpoint         = false,
             VisualId             = Guid.NewGuid().ToString(),
@@ -69,8 +71,8 @@ public sealed class SE1_StructEditFacetRenderTests
         var nodes = AllNodes(session.Document.Root).ToList();
 
         // There must be a node for every public field (root = the struct itself).
-        nodes.Should().Contain(n => n.Name == nameof(BTreeActionFacet.MethodFqn),
-            "MethodFqn is a public field");
+        nodes.Should().Contain(n => n.Name == nameof(BTreeActionFacet.Action),
+            "Action (the binding) is a public field");
         nodes.Should().Contain(n => n.Name == nameof(BTreeActionFacet.IsBreakpoint),
             "IsBreakpoint is a public bool field");
         nodes.Should().Contain(n => n.Name == nameof(BTreeActionFacet.Comment),
@@ -92,39 +94,64 @@ public sealed class SE1_StructEditFacetRenderTests
             "bool fields must render as EditNodeKind.Boolean");
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-417</c> slice 4b — a binding facet is ONE Custom leaf, typed by the binding, carrying its slot attribute:
+    /// exactly what <c>ComponentEditDrawer</c> needs to hand it to the one binding drawer (<c>_customDrawers[ClrType]</c>).
+    /// </summary>
     [Fact]
-    public void EditService_StringFieldWithBehaviorHashPicker_CarriesPickerAttribute()
+    public void EditService_BindingField_IsOneCustomLeaf_CarryingItsSlot()
     {
         var svc   = BuildEditService();
-        var facet = new BTreeActionFacet { MethodFqn = "Ns.C.DoThing" };
+        var facet = new BTreeActionFacet { Action = new BehaviorActionBindingFacet { MethodFqn = "Ns.C.DoThing" } };
 
         using var session = OpenSession(svc, facet);
-        var nodes = AllNodes(session.Document.Root).ToList();
+        var node = AllNodes(session.Document.Root).Single(n => n.Name == nameof(BTreeActionFacet.Action));
 
-        var methodNode = nodes.FirstOrDefault(n => n.Name == nameof(BTreeActionFacet.MethodFqn));
-        methodNode.Should().NotBeNull("MethodFqn field must exist in the document");
-
-        // The [BehaviorHashPicker] attribute on the field must be collected in CustomAttributes.
-        methodNode!.Metadata.CustomAttributes
-            .Should().Contain(a => a is BehaviorHashPickerAttribute,
-                "MethodFqn carries [BehaviorHashPicker] — must flow into EditNodeMetadata.CustomAttributes");
+        node.Kind.Should().Be(EditNodeKind.Custom);
+        node.ClrType.Should().Be(typeof(BehaviorActionBindingFacet));
+        node.Children.Should().BeEmpty("the drawer draws the whole binding — no per-field children");
+        node.Metadata.CustomAttributes.OfType<ActionBindingAttribute>().Single().Kind.Should().Be(BindingSlotKind.Action);
     }
 
+    /// <summary>
+    /// 🔴 Red-proof of the rail above, and the reason the hosts build the service through <c>AiFacetEditService</c>: a plain
+    /// builder leaves the binding a CONTAINER, which StructEdit draws read-only (<c>DrawContainerNode</c>).
+    /// </summary>
     [Fact]
-    public void EditService_StringFieldWithBlackboardFieldPicker_CarriesPickerAttribute()
+    public void WithoutTheFieldEditor_TheBindingIsAContainer_NotADrawnLeaf()
     {
-        var svc   = BuildEditService();
-        var facet = new BTreeActionFacet { ExpressionTargetField = "speed" };
+        var svc   = new ComponentEditServiceBuilder().Build();
+        var facet = new BTreeActionFacet { Action = new BehaviorActionBindingFacet { MethodFqn = "Ns.C.DoThing" } };
 
         using var session = OpenSession(svc, facet);
-        var nodes = AllNodes(session.Document.Root).ToList();
+        var node = AllNodes(session.Document.Root).Single(n => n.Name == nameof(BTreeActionFacet.Action));
 
-        var exprNode = nodes.FirstOrDefault(n => n.Name == nameof(BTreeActionFacet.ExpressionTargetField));
-        exprNode.Should().NotBeNull("ExpressionTargetField must exist in the document");
+        node.Kind.Should().NotBe(EditNodeKind.Custom);
+        node.Children.Should().NotBeEmpty();
+    }
 
-        exprNode!.Metadata.CustomAttributes
-            .Should().Contain(a => a is BlackboardFieldPickerAttribute,
-                "ExpressionTargetField carries [BlackboardFieldPicker]");
+    /// <summary>⭐ The slot attribute says which sites may run a blueprint: the HSM activity and a transition's guard.</summary>
+    [Fact]
+    public void EditService_HsmFacets_MarkTheBlueprintCapableSlots()
+    {
+        var svc = BuildEditService();
+
+        using var state = OpenSession(svc, new StateFacet { Name = "S" });
+        var slots = AllNodes(state.Document.Root)
+            .Where(n => n.ClrType == typeof(BehaviorActionBindingFacet))
+            .ToDictionary(n => n.Name, n => n.Metadata.CustomAttributes.OfType<ActionBindingAttribute>().Single());
+        slots.Keys.Should().BeEquivalentTo(new[] { "OnEntry", "OnExit", "Activity", "Timer" });
+        slots.Where(kv => kv.Value.AllowsBlueprint).Select(kv => kv.Key).Should().Equal("Activity");
+        slots.Values.Should().OnlyContain(a => a.Kind == BindingSlotKind.Action);
+
+        using var transition = OpenSession(svc, new TransitionFacet());
+        var t = AllNodes(transition.Document.Root)
+            .Where(n => n.ClrType == typeof(BehaviorActionBindingFacet))
+            .ToDictionary(n => n.Name, n => n.Metadata.CustomAttributes.OfType<ActionBindingAttribute>().Single());
+        t["Guard"].Kind.Should().Be(BindingSlotKind.Guard);
+        t["Guard"].AllowsBlueprint.Should().BeTrue();
+        t["Action"].Kind.Should().Be(BindingSlotKind.Action);
+        t["Action"].AllowsBlueprint.Should().BeFalse();
     }
 
     // ── Enum node test ────────────────────────────────────────────────────────
@@ -162,7 +189,7 @@ public sealed class SE1_StructEditFacetRenderTests
         var svc   = BuildEditService();
         var facet = new BTreeActionFacet
         {
-            MethodFqn    = "Ns.C.Action",
+            Action       = new BehaviorActionBindingFacet { MethodFqn = "Ns.C.Action" },
             IsBreakpoint = false,
             VisualId     = Guid.NewGuid().ToString(),
             LastResult   = "Running",
@@ -248,13 +275,15 @@ public sealed class SE1_StructEditFacetRenderTests
 
         // Get the initial facet.
         var original = (BTreeActionFacet)source.FacetFor(context)!;
-        original.MethodFqn.Should().Be("Ns.C.Original");
+        original.Action.MethodFqn.Should().Be("Ns.C.Original");
 
         // Open a session, mutate, commit through the window.
         using var session = svc.Open(original, typeof(BTreeActionFacet));
         var nodes   = AllNodes(session.Document.Root).ToList();
-        var mfqNode = nodes.First(n => n.Name == nameof(BTreeActionFacet.MethodFqn));
-        mfqNode.Binding!.SetBoxed("Ns.C.Updated");
+        var bindingNode = nodes.First(n => n.Name == nameof(BTreeActionFacet.Action));
+        var edited      = (BehaviorActionBindingFacet)bindingNode.Binding!.GetBoxed()!;
+        ActionBindingDrawer.PickMethod(ref edited, "Ns.C.Updated");   // what the drawer does on a pick
+        bindingNode.Binding.SetBoxed(edited);
         var committed = session.Commit();
 
         source.CommitFacet(context, committed);

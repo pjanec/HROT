@@ -7,6 +7,7 @@ using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.BTree.Editor.Persistence;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 using Xunit;
 
@@ -15,11 +16,11 @@ namespace Hrot.BTree.Editor.Tests.Inspector;
 /// <summary>
 /// Corrective Task 0: headless tests proving that the Promote gesture creates an
 /// auto-variable AND binds ExpressionTargetField via the ApplyFacet path.
-/// The ImGui button click that drives <see cref="BlackboardFieldPickerDrawer.DrawInput"/> is
-/// replaced by the equivalent headless sequence:
-///   1. mapper.GetFacet  (populates fqnContext.CurrentNodeVisualId)
-///   2. drawer.Promote(visualId)  → returns newName
-///   3. Build an edited facet with ExpressionTargetField = newName
+/// The ImGui button click that drives <c>ActionBindingDrawer.DrawInput</c> is replaced by the equivalent headless
+/// sequence (⭐ <c>CE-417</c> slice 4b — the facet's binding carries the site id the promote names the variable after):
+///   1. mapper.GetFacet
+///   2. sources.Promote(facet.Action)  → returns newName
+///   3. Build an edited facet with Action.ExpressionTargetField = newName
 ///   4. mapper.ApplyFacet  → persists into asset
 /// </summary>
 public sealed class PromoteBindTests
@@ -67,6 +68,9 @@ public sealed class PromoteBindTests
 
         // Discover the action node from the projected asset.
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
+        // ⚠ A blob carries no delegate shape, so the projector says FourParamFull (whole blackboard) — which has no
+        //   per-binding variable to promote (DelegateShapeGuardTests). A promotable action binds ONE variable.
+        actionNode.DelegateShape = BTreeActionDelegateShape.ThreeParamReusable;
         return (asset, actionNode.VisualId);
     }
 
@@ -79,22 +83,20 @@ public sealed class PromoteBindTests
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
         var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper   = new BTreeFacetMapper(asset, ctx);
-        var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var mapper   = new BTreeFacetMapper(asset);
+        var sources  = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
-        // Step 1: Get the facet (populates CurrentNodeVisualId via mapper).
+        // Step 1: Get the facet (its binding carries the node's id).
         var sel   = new BTreeNodeSelection(nodeVisualId);
         var facet = (BTreeActionFacet)mapper.GetFacet(sel)!;
 
         // Step 2: Simulate DrawInput clicking "Promote".
-        var visualId = ctx.CurrentNodeVisualId;
-        visualId.Should().Be(nodeVisualId.ToString(), "mapper must populate CurrentNodeVisualId");
-        var newName = drawer.Promote(visualId!);
+        facet.Action.SiteId.Should().Be(nodeVisualId.ToString(), "the mapper must carry the node id on the binding");
+        var newName = sources.Promote(facet.Action);
         newName.Should().NotBeNull("Promote must succeed for a known FQN");
 
         // Step 3: Apply the facet with the new name bound.
-        facet.ExpressionTargetField = newName;
+        facet.Action.ExpressionTargetField = newName;
         mapper.ApplyFacet(sel, facet);
 
         // Assert: auto-variable created in asset.
@@ -116,15 +118,14 @@ public sealed class PromoteBindTests
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
         var entry    = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper   = new BTreeFacetMapper(asset, ctx);
-        var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var mapper   = new BTreeFacetMapper(asset);
+        var sources  = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
         // Simulate promote + bind.
         var sel    = new BTreeNodeSelection(nodeVisualId);
         var facet  = (BTreeActionFacet)mapper.GetFacet(sel)!;
-        var name   = drawer.Promote(ctx.CurrentNodeVisualId!)!;
-        facet.ExpressionTargetField = name;
+        var name   = sources.Promote(facet.Action)!;
+        facet.Action.ExpressionTargetField = name;
         mapper.ApplyFacet(sel, facet);
 
         // Round-trip through DTO.
@@ -148,32 +149,27 @@ public sealed class PromoteBindTests
         var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
         var entry    = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.BTree, BlackboardAccess.ReadWrite);
         var exporter = new StubExporter(entry);
-        var ctx      = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper   = new BTreeFacetMapper(asset, ctx);
-        var drawer   = new BlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var mapper   = new BTreeFacetMapper(asset);
+        var sources  = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
         var sel   = new BTreeNodeSelection(nodeVisualId);
-        mapper.GetFacet(sel);  // populate context
-        var name1 = drawer.Promote(ctx.CurrentNodeVisualId!)!;
-        var name2 = drawer.Promote(ctx.CurrentNodeVisualId!)!;
+        var facet = (BTreeActionFacet)mapper.GetFacet(sel)!;
+        var name1 = sources.Promote(facet.Action)!;
+        var name2 = sources.Promote(facet.Action)!;
 
         name1.Should().Be(name2, "same visualId must always produce the same auto-name");
         asset.BlackboardVariables.Should().HaveCount(1, "second promote is idempotent — no duplicate");
     }
 
     [Fact]
-    public void FqnContext_CurrentNodeVisualId_IsSetByMapper_BTree()
+    public void TheMappersBinding_CarriesTheNodeId_BTree()
     {
-        const string fqn = "Ns.BoolAction";
-        var (asset, nodeVisualId) = MakeAssetWithAction(fqn);
-        var ctx    = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var (asset, nodeVisualId) = MakeAssetWithAction("Ns.BoolAction");
 
-        ctx.CurrentNodeVisualId.Should().BeNull("not set yet");
+        var facet = (BTreeActionFacet)new BTreeFacetMapper(asset).GetFacet(new BTreeNodeSelection(nodeVisualId))!;
 
-        mapper.GetFacet(new BTreeNodeSelection(nodeVisualId));
-
-        ctx.CurrentNodeVisualId.Should().Be(nodeVisualId.ToString(),
-            "mapper.GetFacet must write CurrentNodeVisualId to the shared context");
+        facet.Action.SiteId.Should().Be(nodeVisualId.ToString(),
+            "the promoted variable is named after the node (_auto_{id}), so the binding must carry it");
+        facet.Action.SiteSlot.Should().BeNull("a BTree node has one binding — the primary one");
     }
 }

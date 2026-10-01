@@ -205,10 +205,12 @@ public sealed class DefaultValueAuthoringTests
     {
         return facet => facet switch
         {
-            BTreeActionFacet af    => af.ExpressionTargetField,
-            BTreeConditionFacet cf => cf.ExpressionTargetField,
-            TransitionFacet tf     => tf.ExpressionTargetField,
-            GlobalTransitionFacet gtf => gtf.ExpressionTargetField,
+            // ⭐ CE-417 slice 4b — the same arms as EditorSubsystem.ResolveExpressionTargetField: each binding has its
+            //   own variable; a transition's action variable leads, else its guard's.
+            BTreeActionFacet af    => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf => cf.Condition.ExpressionTargetField,
+            TransitionFacet tf     => tf.Action.ExpressionTargetField ?? tf.Guard.ExpressionTargetField,
+            GlobalTransitionFacet gtf => gtf.Action.ExpressionTargetField ?? gtf.Guard.ExpressionTargetField,
             _                      => null,
         };
     }
@@ -223,8 +225,7 @@ public sealed class DefaultValueAuthoringTests
         // Set ExpressionTargetField on the action node.
         actionNode.Action!.ExpressionTargetField = "myAutoVar";
 
-        var ctx    = new BTreeFacetFqnContext { CurrentActionFqn = fqn };
-        var mapper = new BTreeFacetMapper(asset, ctx);
+        var mapper = new BTreeFacetMapper(asset);
         var sel    = new BTreeNodeSelection(actionNode.VisualId);
         var facet  = mapper.GetFacet(sel)!;
 
@@ -262,7 +263,8 @@ public sealed class DefaultValueAuthoringTests
         {
             SourceStateName       = "Idle",
             TargetStateName       = "Active",
-            ExpressionTargetField = "hsmAutoVar",
+            Action                = new Hrot.Editor.AiShared.Inspector.ActionBinding.BehaviorActionBindingFacet
+                                        { ExpressionTargetField = "hsmAutoVar" },
             EventId               = 0,
         };
 

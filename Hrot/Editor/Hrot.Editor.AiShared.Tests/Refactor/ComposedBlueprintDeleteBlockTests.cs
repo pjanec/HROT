@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using Fbt;
 using FluentAssertions;
@@ -75,11 +76,11 @@ public sealed class ComposedBlueprintDeleteBlockTests
             VisualId     = Guid.NewGuid(),
             KernelType   = NodeType.Action,
             DisplayLabel = "ComposedAction",
-            Action       = new BTreeActionPayload
+            Action       = new BehaviorActionBinding
             {
                 MethodFqn     = methodFqn,
-                DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,
             },
+            DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
         };
         asset.ReplaceAll(new List<BTreeEditorNode> { node }, new List<BTreeEditorPill>(), EmptyBlob());
         return asset;

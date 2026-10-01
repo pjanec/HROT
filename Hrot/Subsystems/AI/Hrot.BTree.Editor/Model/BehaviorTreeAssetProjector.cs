@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Numerics;
 using Fbt;
 using Hrot.BTree.Editor.Layout;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Layout;
 
 namespace Hrot.BTree.Editor.Model;
@@ -154,17 +155,11 @@ internal static class BehaviorTreeAssetProjector
         switch (nodeDef.Type)
         {
             case NodeType.Action:
-                editorNode.Action = new BTreeActionPayload
-                {
-                    MethodFqn     = blob.MethodNames[nodeDef.PayloadIndex],
-                    DelegateShape = BTreeActionDelegateShape.FourParamFull,
-                };
+                editorNode.Action        = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };
+                editorNode.DelegateShape = BTreeActionDelegateShape.FourParamFull;
                 break;
             case NodeType.Condition:
-                editorNode.Condition = new BTreeConditionPayload
-                {
-                    MethodFqn = blob.MethodNames[nodeDef.PayloadIndex],
-                };
+                editorNode.Condition = new BehaviorActionBinding { MethodFqn = blob.MethodNames[nodeDef.PayloadIndex] };
                 break;
             case NodeType.Wait:
                 editorNode.Wait = new BTreeWaitPayload
