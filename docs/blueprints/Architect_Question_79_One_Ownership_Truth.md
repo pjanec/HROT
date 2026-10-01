@@ -123,6 +123,12 @@ PROVIDED the shard obeys §3.8: inputs IDENTICAL on every node, mapping STABLE p
 implementation is `CE-506` — open: WHERE the identical, stable input comes from (§3.8: *"a shard assignment published by ONE authority and
 replicated"*), e.g. an orchestrator-published assignment, or the creator's per-entity decision as the grant already is for `dtWorldPos`.
 ⛔ Superseded same day: an earlier version of this paragraph special-cased Muscle onto the grant and kept Brain single-node.
+⚠ **"Stable" means the INITIAL assignment, not ownership** (user, `2026-10-01`: *"what assignment does not change during entity lifetime?
+ownership can."*). The shard is consulted only when a node CREATES or PROMOTES an entity — at different moments on different nodes (a late
+joiner promotes later). All of them must get the same answer to *"who got role R for this entity at birth?"*, or the creator excludes a list
+that no promoter then claims, or two claim it. ⭐ Later ownership changes go through the transfer protocol (`OwnershipUpdate`, CE-276) and
+the record follows them (R-159) — the shard is never re-asked. ⇒ the shard's input must be fixed at birth (a recorded per-entity decision, or
+a table frozen for the scenario), never live membership.
 
 **Known unknowns:** the lists themselves (O1); a descriptor that mixes classes (O2); claim readers affected by the change, esp. attribute
 changes (O4); a role with no live node leaves its list unowned (Role-Affinity §3.8 rules: log once, no fallback); N nodes per role (O5).
