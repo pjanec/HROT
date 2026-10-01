@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
-current-answer: §9 (the minimal fix for CE-500, awaiting approval) FIRST; §8 is the deferred full unification; §7 is the proof both rest on.
+current-answer: §9a (recompute the network record from the claim — the user's variant, awaiting approval) FIRST, §9 is the one-gate alternative; §8 is the deferred full unification; §7 is the proof both rest on.
 stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -422,3 +422,33 @@ arise — no grant is involved.
 **What stays open (named, not fixed):** other Brain-produced descriptors that a SimHost-created entity needs published get the same
 one-line treatment **only when a rail shows the gap**. The network record and the claim still disagree for every other sender; §8 is
 the record of how to unify them later.
+
+### 9a. ⭐⭐⭐ THE USER'S VARIANT — recompute the network record from the claim *(`2026-10-01`, the CURRENT lean)*
+
+> 🔒 **User, `2026-10-01`:** *"but we can recompute the network ownership from component ownership. This must be doable without
+> changing the network protocols"*
+
+**Decision:** yes, if it is restricted twice. **At the promote leg** (`GhostPromotionSystem.cs:313-324`, right after the claim), for
+every descriptor `d` whose components are **all in the local role's EXCLUSIVE set** (its table minus every other role's table) and
+are claimed: write `DescriptorOwnership.Map[d] = local`, **only if `Map` has no entry for `d`**. No sender gate changes.
+
+| the variant rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| writing `Map` puts nothing on the wire | ✅ the only `Map`-diff→`OwnershipUpdate` publisher, `OwnershipEgressSystem`, is registered only in FDP's `ReplicationLogicModule.cs:46` (examples); NED registers `OwnershipIngress`/`TransferInitiation`/`DeferredTakeover` only (`NedReplicationModule.cs:275,483,489`) | ✅ wire spec: `OwnershipUpdate` is the transfer protocol, not a mirror of local state |
+| the protocols always write mask AND `Map` together | ✅ `OwnershipIngressSystem.cs:64-77` · `DeferredTakeoverSystem.cs:94+` · `OwnershipTransferInitiationSystem.cs:76+` | ✅ §7.2 C (coherence) |
+| ⛔ an UNRESTRICTED recompute breaks a sender | ✅ `EntityInfo` is not `[BirthCritical]` (`EntityInfo.cs:9`) ⇒ in BOTH the Brain and Muscle tables (`HrotRoleComponentSets.cs:172-175`). On Path B both nodes claim it ⇒ CGF's `EntityInfoEgressTranslator.cs:116` would publish beside SimHost's, and CGF's `EntityInfoIngressTranslator.cs:176` would DROP SimHost's samples. Same for `EntityDamage` | ✅ §7.3 (X fails) · Role-Affinity §3.9c (the over-claim is "tolerated" only because no sender reads it) |
+| the exclusive sets | ✅ Brain = `brainOnly` (incl. `NavigationIntent`); Muscle = ∅ (Muscle ⊂ Brain); Map2D = ∅ (Brain ⊇ Map2D) | ✅ `HrotRoleComponentSets` "Brain and Muscle are still DISJOINT over the classified set" |
+| "no entry only" ⇒ never overrides a protocol | ✅ by construction; DeferredTakeover's `WorldPos`/`NavigationStatus` are muscle components, disjoint from `brainOnly` | — |
+
+⇒ **The only node that ever writes is a Brain promoter, and only brain-only descriptors** (today: `dtNavigationIntent`). Path A
+(CGF is master) and every SimHost/IG promotion are byte-identical to today. One-shot at promotion ⇒ zero per-frame cost.
+
+**Behaviour changes, named:** ① Path B — CGF publishes `NavigationIntent` (the fix). ② An IG-created tank promoted on CGF — same.
+③ After an EntityMaster hand-away FROM CGF (Path A, `CE-276`), CGF keeps its brain-only descriptors — but only if they were written at
+promotion, which on Path A they are not ⇒ unchanged.
+
+**Gaps it does not close:** `EntityMissionEgressTranslator` gates on `MissionPlanQueue` but declares no `TargetComponentIds`, so no
+descriptor→component entry exists and the recompute cannot see it (axiom M). Not needed for movement.
+
+**vs §9:** same reach for `NavigationIntent`; §9a leaves every gate untouched and covers every future brain-only descriptor, at the
+cost of ~20 lines in a shared FDP system instead of one line in one translator.
