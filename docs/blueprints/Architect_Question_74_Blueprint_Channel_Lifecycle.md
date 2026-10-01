@@ -34,6 +34,8 @@ known-rot: nothing outstanding; two corrections are recorded IN PLACE and must n
   InlineActionCall surface only, and is marked NOT YET MEASURED.
 known-conflict: nothing.
 related-designs:
+  - DESIGN_Behaviour_Fault_And_Teardown.md - applies this question's ownership-by-BehaviorInstanceId pattern to
+    behaviour-owned ENTITIES (parts such as EQS sensors), CE-485.
   - DESIGN_Hsm_Blueprint_Behaviour_Authoring.md - OWNS CE-388 (its section 8, item G5) and the
     whole HSM-hosts-a-blueprint programme. This question resolves the one item that design left
     unspecified. It does NOT own the channel components or the arbitration system.

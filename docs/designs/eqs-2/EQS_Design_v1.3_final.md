@@ -11,6 +11,8 @@ known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordina
 known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
   the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
 related-designs:
+  - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — owns WHEN a behaviour's child sensor dies (at its behaviour
+    instance's end) and WHAT goes in LocalChildIndex (a per-lifetime mixed part id, CE-485); the races it fixes are its §2.
   - docs/designs/hill-attack/DESIGN.md — owns the doctrine and the AreaQuery pipeline (Phase 1), the one live consumer.
   - docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md — the §17.6 recipe APPLIED to both hill-attack commanders (CE-478): the
     shared Brain-side child-sensor lifecycle (EqsChildSensor) and the SpawnEqsSensor placeholder-handle fix.
