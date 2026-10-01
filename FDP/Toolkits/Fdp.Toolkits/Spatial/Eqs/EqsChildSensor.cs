@@ -1,5 +1,6 @@
 using Fdp.Core;
 using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
 
 namespace Fdp.Toolkit.Spatial.Eqs
@@ -8,46 +9,106 @@ namespace Fdp.Toolkit.Spatial.Eqs
     /// ⭐ The ONE Brain-side lifecycle of a child EQS sensor — find, ensure, refresh, destroy.
     /// 📄 <c>docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md</c> §3.1, §4 D1–D3; recipe: EQS design §17.6.
     ///
-    /// <para>A child sensor is an entity carrying <see cref="PartMetadata"/> (parent + <c>InstanceId</c>),
-    /// <see cref="EqsSensor"/> and <see cref="EqsCognitiveBuffer"/>. Its identity is <c>(parent, InstanceId)</c> — that is
-    /// also its DDS key — so it is always FOUND by that pair, never remembered as the handle an ECB returned: an ECB
-    /// <c>CreateEntity()</c> handle is a negative-index placeholder, valid only inside its own playback
-    /// (<c>EntityCommandBuffer.CreateEntity</c>).</para>
+    /// <para>A child sensor is an entity carrying <see cref="PartMetadata"/> (parent + part id), <see cref="EqsSensor"/>,
+    /// <see cref="EqsCognitiveBuffer"/> and — ⭐ CE-485 — a <see cref="BehaviorOwnedPart"/> stamp (owning run, site, key).
+    /// The behaviour FINDS its sensor by the stamp; the part id is only the network address (<c>(parent, part id)</c> is the
+    /// DDS key), allocated and reused. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4/D5.</para>
     ///
     /// <para>Used by the C# hill-attack commander, the BTree <c>EqsLifecycleNodes</c> and the code the blueprint compiler emits
     /// for <c>SpawnEqsSensor</c> / the <c>RefreshEqsSensor</c> and <c>DestroyEqsSensor</c> built-ins.</para>
     /// </summary>
     public static class EqsChildSensor
     {
-        /// <summary>The live child sensor of <paramref name="parent"/> with <paramref name="instanceId"/>, or <see cref="Entity.Null"/>.</summary>
-        public static Entity Find(ISimulationView view, Entity parent, int instanceId)
+        /// <summary>
+        /// ⭐ <b>CE-485</b> — the live child sensor that the parent's CURRENT behaviour run created at <paramref name="siteId"/>
+        /// (and <paramref name="key"/>), or <see cref="Entity.Null"/>. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D5.
+        /// <para>⭐ Matched on the brain-local <see cref="BehaviorOwnedPart"/> stamp, never on the part id: the part id is an
+        /// allocated, reused network address, and a sensor of an earlier run is never this run's sensor.</para>
+        /// </summary>
+        public static Entity Find(ISimulationView view, Entity parent, int siteId, long key = 0)
         {
+            uint owner = BehaviorOwnedParts.OwnerOf(view, parent);
             // A fresh query each call: an EntityQuery caches component-array pointers that a structural change can move.
-            foreach (var candidate in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            foreach (var candidate in view.Query().With<PartMetadata>().With<EqsSensor>().With<BehaviorOwnedPart>().Build())
             {
                 ref readonly var meta = ref view.GetComponentRO<PartMetadata>(candidate);
-                if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+                if (!meta.ParentEntity.Equals(parent)) continue;
+                ref readonly var stamp = ref view.GetComponentRO<BehaviorOwnedPart>(candidate);
+                if (stamp.SiteId == siteId && stamp.Key == key && stamp.OwnerInstanceId == owner)
                     return candidate;
             }
             return Entity.Null;
         }
 
         /// <summary>
-        /// The child sensor, created on first call. ⚠ Returns <see cref="Entity.Null"/> on the call that CREATES it — the entity
-        /// exists only after the command buffer plays back, so the caller waits a tick and asks again.
+        /// The child sensor of the current run at <paramref name="siteId"/>/<paramref name="key"/>, created on first call.
+        /// <list type="bullet">
+        ///   <item>⭐ The part id (<see cref="PartMetadata.InstanceId"/>, the DDS key) is ALLOCATED: the lowest id ≥ 1 not held by
+        ///     a live sensor child of the parent — the children ARE the table (§1 D5 ①). Ids are reused; the descriptor
+        ///     instance is never disposed while the parent lives (BDC/NED descriptor rules).</item>
+        ///   <item>⭐ The epoch's high 16 bits carry the owning run (§1 D5 ②), so an answer computed for an earlier run's
+        ///     sensor on a reused part id fails <c>EqsResultUpdateSystem</c>'s epoch check.</item>
+        ///   <item>⭐ On the live world (<see cref="EntityRepository"/> — what every behaviour tick is handed) the child is
+        ///     created IMMEDIATELY and returned, so a second creation in the same frame sees it and takes the next id.
+        ///     ⚠ On any other view it goes through the command buffer and <see cref="Entity.Null"/> is returned; only one
+        ///     creation per parent per frame is then safe (unit-test views only — measured, no production caller).</item>
+        /// </list>
         /// </summary>
-        public static Entity Ensure(ISimulationView view, Entity parent, int instanceId, in EqsSensor sensor)
+        public static Entity Ensure(ISimulationView view, Entity parent, int siteId, in EqsSensor sensor, long key = 0)
         {
-            var existing = Find(view, parent, instanceId);
+            var existing = Find(view, parent, siteId, key);
             if (!existing.IsNull) return existing;
 
-            var cmd   = view.GetCommandBuffer();
-            var child = cmd.CreateEntity();
-            cmd.AddComponent(child, new PartMetadata { ParentEntity = parent, InstanceId = instanceId, DescriptorOrdinal = 0 });
-            cmd.AddComponent(child, sensor);
-            cmd.AddComponent(child, default(EqsCognitiveBuffer));
+            uint owner  = BehaviorOwnedParts.OwnerOf(view, parent);
+            int partId  = AllocatePartId(view, parent);
+            var config  = sensor;
+            config.Epoch = StampOwner(config.Epoch, owner);
+            var meta    = new PartMetadata { ParentEntity = parent, InstanceId = partId, DescriptorOrdinal = 0 };
+            var stamp   = new BehaviorOwnedPart { OwnerInstanceId = owner, SiteId = siteId, Key = key };
+
+            if (view is EntityRepository repo)
+            {
+                var child = repo.CreateEntity();
+                repo.AddComponent(child, meta);
+                repo.AddComponent(child, config);
+                repo.AddComponent(child, default(EqsCognitiveBuffer));
+                repo.AddComponent(child, stamp);
+                return child;
+            }
+
+            var cmd     = view.GetCommandBuffer();
+            var pending = cmd.CreateEntity();
+            cmd.AddComponent(pending, meta);
+            cmd.AddComponent(pending, config);
+            cmd.AddComponent(pending, default(EqsCognitiveBuffer));
+            cmd.AddComponent(pending, stamp);
             return Entity.Null;
         }
+
+        /// <summary>The lowest part id ≥ 1 not held by a live EQS sensor child of <paramref name="parent"/> (0 is the legacy
+        /// "sensor on the entity itself").</summary>
+        public static int AllocatePartId(ISimulationView view, Entity parent)
+        {
+            ulong low = 0;                       // ids 1..64 as a bitset — the common case
+            System.Collections.Generic.HashSet<int>? high = null;
+            foreach (var candidate in view.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                ref readonly var meta = ref view.GetComponentRO<PartMetadata>(candidate);
+                if (!meta.ParentEntity.Equals(parent)) continue;
+                int id = meta.InstanceId;
+                if (id >= 1 && id <= 64) low |= 1ul << (id - 1);
+                else if (id > 64) (high ??= new System.Collections.Generic.HashSet<int>()).Add(id);
+            }
+            for (int id = 1; id <= 64; id++)
+                if ((low & (1ul << (id - 1))) == 0) return id;
+            int next = 65;
+            while (high != null && high.Contains(next)) next++;
+            return next;
+        }
+
+        /// <summary>The epoch with its high 16 bits set to the owning run (low 16 bits = the refresh count).</summary>
+        public static uint StampOwner(uint epoch, uint ownerInstanceId)
+            => (ownerInstanceId << 16) | (epoch & 0xFFFFu);
 
         /// <summary>
         /// Ask again: bump the sensor's <c>Epoch</c> and clear its buffer, so <see cref="EqsCognitiveBuffer.IsReady"/> turns true
@@ -76,7 +137,8 @@ namespace Fdp.Toolkit.Spatial.Eqs
 
         private static bool Apply(ISimulationView view, Entity child, EqsSensor sensor)
         {
-            sensor.Epoch++;
+            // ⭐ CE-485: only the low 16 bits count refreshes; the high 16 carry the owning run and never change.
+            sensor.Epoch = (sensor.Epoch & 0xFFFF0000u) | ((sensor.Epoch + 1u) & 0xFFFFu);
             if (view is EntityRepository repo)
             {
                 repo.GetComponentRW<EqsSensor>(child) = sensor;

@@ -39,5 +39,12 @@ namespace Fdp.Toolkit.Behavior.Components
         /// free by a repo-wide search of FDP/Hrot/Stride on 2026-09-30; that comment (Fdp.Core) is not updated from here.
         /// </summary>
         public const int BehaviorStartRecord = 154;
+
+        /// <summary>
+        /// <c>BehaviorOwnedPart</c> — CE-485: stamps a child part (an EQS sensor) with the behaviour run that created it, so the
+        /// run's end destroys it. ⚠ 155 measured free by a repo-wide search of FDP/Hrot/Stride on 2026-10-01 (154 above is the
+        /// precedent); the <c>GlobalComponentIds</c> free-block comment (Fdp.Core) is not updated from here.
+        /// </summary>
+        public const int BehaviorOwnedPart = 155;
     }
 }

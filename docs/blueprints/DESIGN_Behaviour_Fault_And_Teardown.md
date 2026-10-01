@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: READY-TO-BUILD — every decision below APPROVED by the user on 2026-10-01 (section 1). Nothing is built.
+build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a);
+  CE-482/483 next; CE-486/487/490 dispatched to the backend lane.
   D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
   items CE-482..CE-487). Section 2 is the claim table every decision rests on.
@@ -295,6 +296,20 @@ Faulted`, one notification, task `TASK_FAILED`, plan halted · ② a plain-Failu
 finish/clear/reassign/same-behaviour re-assign each leave **zero** stamped parts of the ending instance · ④ end then
 immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted sensor answers (split Brain/Muscle rail, the
 `EqsDistributedTests` harness) · ⑤ live `--mode all` hill-attack, both commanders, unchanged outcome.
+
+## 4a. As-built — `CE-485` (`2026-10-01`)
+
+| design said | as built | why |
+|---|---|---|
+| `BehaviorOwnedPart{OwnerInstanceId, SiteId, Key}` | ✅ as designed, in `Fdp.Toolkits/Behavior/Components/BehaviorOwnedPart.cs`; component id **155** declared in the toolkit's own `BehaviorApplicationComponentIds` (precedent: `CE-452`'s 154), ⛔ not in `Fdp.Core` (a STOP path); registered beside `PartMetadata` in `HrotSharedComponentRegistry` | 155–159 measured free repo-wide |
+| `BehaviorOwnedParts.Release` at the three `InstanceId` sites | ✅ `BehaviorIngressSystem` unhosted assign / start pipeline / `Clear` — the ONLY three bump sites (grep) — destroys immediately on the repository. Generic: any part carrying the stamp, not only EQS | red-proved: drop the start-pipeline call ⇒ `CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear` fails |
+| allocate the lowest free part id among live children | ✅ `EqsChildSensor.AllocatePartId` — scoped to the parent's **EQS sensor** children only (a part id is unique per entity **per descriptor type**; weapon mounts etc. have their own) | descriptor rules: instance id unique per entity, per topic |
+| create immediately on the live world | ✅; on a non-repository view the deferred path remains and returns `Null` — ⚠ documented, **not asserted** (no production caller has such a view) | an assertion would only fire in unit-test mocks |
+| owner run in the epoch's high 16 bits | ✅ `StampOwner`; `Refresh` counts in the low 16 only | — |
+| `Find` matches owner + site + key | ✅ | — |
+| *Spawn EQS Sensor* `Key` pin | ✅ typed **`Entity`** (the per-area use), lowered as `(long)key.PackedValue`; unwired ⇒ the call is unchanged (key 0) — every shipped asset unaffected | the design's own example is "one sensor per area" |
+| the `-2` "being created" marker goes | ⚠ **kept** for the deferred path only; on the live world it is never set. The C# commander now `Find`s first and `Ensure`s only when there is none, so a brand-new sensor is not refreshed (its creation is the question) | removing it would break the deferred path for no gain |
+| retire the three baked-id schemes | ✅ the node GUID hash and the commander constant are now SITE ids; `EqsLifecycleNodes`' `(Self.Index << 8) \| slot` is gone (site = `ChildSlotIndex`) — which also closes `CE-481` (the node now publishes a live handle on the creating tick) | — |
 
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
 

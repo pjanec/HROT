@@ -242,27 +242,120 @@ namespace Hrot.SimHost.Tests
 
         // ── EqsChildSensor — the ONE Brain-side child-sensor lifecycle (DESIGN_Hill_Attack_Eqs_Migration.md §4 D1–D3) ──
 
-        /// <summary>Ensure creates through the command buffer (Null on the creating call — an ECB handle is a placeholder),
-        /// with PartMetadata (parent + InstanceId), the sensor and an empty buffer; after playback it is FOUND, not re-created.</summary>
-        [Fact]
-        public void EqsChildSensor_Ensure_CreatesOnce_ThenFinds()
+        private Entity BehaviourParent(uint runInstanceId)
         {
+            // SimHostComponentRegistry registers no BehaviorState (the cognitive registry does) — register it for these rails.
+            if (!_world.TryGetTable(typeof(Fdp.Toolkit.Behavior.Components.BehaviorState), out _))
+                _world.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>();
             var parent = _world.CreateEntity();
+            _world.AddComponent(parent, new Fdp.Toolkit.Behavior.Components.BehaviorState { InstanceId = runInstanceId });
+            return parent;
+        }
+
+        private int PartIdOf(Entity child)
+            => _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).InstanceId;
+
+        /// <summary>⭐ CE-485 — on the live world Ensure creates the child AT ONCE (no placeholder), stamped with the owning run
+        /// and its site, with part id 1 (the lowest free) and the run in the epoch's high 16 bits; a second call FINDS it.</summary>
+        [Fact]
+        public void EqsChildSensor_Ensure_CreatesImmediately_Stamped_ThenFinds()
+        {
+            var parent = BehaviourParent(5);
             var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
             var view = (ISimulationView)_world;
 
-            Assert.True(EqsChildSensor.Ensure(view, parent, 7, cfg).IsNull);
-            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
-
-            var child = EqsChildSensor.Find(view, parent, 7);
+            var child = EqsChildSensor.Ensure(view, parent, 7, cfg);
             Assert.False(child.IsNull);
+            Assert.True(_world.IsAlive(child));
             Assert.Equal(parent, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).ParentEntity);
-            Assert.Equal(7, _world.GetComponentRO<Fdp.Toolkit.Replication.Components.PartMetadata>(child).InstanceId);
+            Assert.Equal(1, PartIdOf(child));                                         // allocated, not the site id
+            var stamp = _world.GetComponentRO<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(child);
+            Assert.Equal(5u, stamp.OwnerInstanceId);
+            Assert.Equal(7, stamp.SiteId);
+            Assert.Equal((5u << 16) | (cfg.Epoch & 0xFFFFu), _world.GetComponentRO<EqsSensor>(child).Epoch);
             Assert.Equal(cfg.BlueprintId, _world.GetComponentRO<EqsSensor>(child).BlueprintId);
             Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(child).IsReady);
 
-            Assert.Equal(child, EqsChildSensor.Ensure(view, parent, 7, cfg));   // found — no second sensor
-            Assert.True(EqsChildSensor.Find(view, parent, 8).IsNull);           // another InstanceId is another sensor
+            Assert.Equal(child, EqsChildSensor.Ensure(view, parent, 7, cfg));      // found — no second sensor
+            Assert.Equal(child, EqsChildSensor.Find(view, parent, 7));
+            Assert.True(EqsChildSensor.Find(view, parent, 8).IsNull);              // another site is another sensor
+        }
+
+        /// <summary>⭐ CE-485 — two creations in ONE frame get DIFFERENT part ids (the second sees the first); a key separates
+        /// two sensors of one site; a freed id is REUSED by the next creation.</summary>
+        [Fact]
+        public void EqsChildSensor_AllocatesLowestFreePartId_SameFrame_Keys_AndReuse()
+        {
+            var parent = BehaviourParent(3);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+
+            var a = EqsChildSensor.Ensure(view, parent, 10, cfg);
+            var b = EqsChildSensor.Ensure(view, parent, 20, cfg);
+            var c = EqsChildSensor.Ensure(view, parent, 20, cfg, key: 42);
+            Assert.Equal(new[] { 1, 2, 3 }, new[] { PartIdOf(a), PartIdOf(b), PartIdOf(c) });
+            Assert.NotEqual(b, c);
+
+            _world.DestroyEntity(a);                                                  // part id 1 is free again
+            var d = EqsChildSensor.Ensure(view, parent, 30, cfg);
+            Assert.Equal(1, PartIdOf(d));
+
+            var other = BehaviourParent(3);                                           // ids are per parent
+            Assert.Equal(1, PartIdOf(EqsChildSensor.Ensure(view, other, 10, cfg)));
+        }
+
+        /// <summary>⭐ CE-485 — a sensor of an EARLIER run is never this run's sensor: after the run changes, Find misses it and
+        /// Ensure creates a fresh one (with a fresh owner in the epoch).</summary>
+        [Fact]
+        public void EqsChildSensor_Find_IsScopedToTheCurrentRun()
+        {
+            var parent = BehaviourParent(1);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var first = EqsChildSensor.Ensure(view, parent, 7, cfg);
+
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 2;
+            Assert.True(EqsChildSensor.Find(view, parent, 7).IsNull);
+            var second = EqsChildSensor.Ensure(view, parent, 7, cfg);
+            Assert.NotEqual(first, second);
+            Assert.Equal(2u, _world.GetComponentRO<EqsSensor>(second).Epoch >> 16);
+        }
+
+        /// <summary>⭐ CE-485 — Release destroys exactly the ending run's parts of that parent: not another run's, not another
+        /// parent's.</summary>
+        [Fact]
+        public void BehaviorOwnedParts_Release_DestroysOnlyTheEndingRunsParts()
+        {
+            var parent = BehaviourParent(4);
+            var cfg = EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile);
+            var view = (ISimulationView)_world;
+            var mine1 = EqsChildSensor.Ensure(view, parent, 1, cfg);
+            var mine2 = EqsChildSensor.Ensure(view, parent, 2, cfg);
+            var otherParent = BehaviourParent(4);
+            var theirs = EqsChildSensor.Ensure(view, otherParent, 1, cfg);
+            _world.GetComponentRW<Fdp.Toolkit.Behavior.Components.BehaviorState>(parent).InstanceId = 5;
+            var nextRun = EqsChildSensor.Ensure(view, parent, 1, cfg);
+
+            Assert.Equal(2, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 4));
+            Assert.False(_world.IsAlive(mine1));
+            Assert.False(_world.IsAlive(mine2));
+            Assert.True(_world.IsAlive(theirs));
+            Assert.True(_world.IsAlive(nextRun));
+            Assert.Equal(0, Fdp.Toolkit.Behavior.Components.BehaviorOwnedParts.Release(_world, parent, 0));   // 0 = unowned
+        }
+
+        /// <summary>⭐ CE-485 — Refresh counts in the epoch's LOW 16 bits only; the owner in the high 16 never changes.</summary>
+        [Fact]
+        public void EqsChildSensor_Refresh_KeepsTheOwnerBits()
+        {
+            var parent = BehaviourParent(9);
+            var view = (ISimulationView)_world;
+            var child = EqsChildSensor.Ensure(view, parent, 1, EntitiesOfForceInArea.SensorFor(Entity.Null, ForceId.Hostile));
+            uint before = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.True(EqsChildSensor.Refresh(view, child));
+            uint after = _world.GetComponentRO<EqsSensor>(child).Epoch;
+            Assert.Equal(before >> 16, after >> 16);
+            Assert.Equal((before & 0xFFFFu) + 1u, after & 0xFFFFu);
         }
 
         /// <summary>Refresh = a new epoch and a cleared buffer, so the solver's answer for the OLD epoch is dropped and

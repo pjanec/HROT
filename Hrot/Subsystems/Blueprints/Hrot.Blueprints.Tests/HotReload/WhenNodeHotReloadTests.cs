@@ -740,6 +740,7 @@ public sealed class WhenNodeHotReloadTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var assetId     = Guid.NewGuid();
         var sensorVarId = Guid.NewGuid();
         var sensorVar   = new VariableDecl
@@ -776,6 +777,7 @@ public sealed class WhenNodeHotReloadTests
         fixture.World.RegisterComponent<EqsCognitiveBuffer>();
         fixture.World.RegisterComponent<EqsSensor>();
         fixture.World.RegisterComponent<PartMetadata>();
+        fixture.World.RegisterComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>();   // CE-485: Ensure stamps the owner
         var assetId     = Guid.NewGuid();
         var sensorVarId = Guid.NewGuid();
         var sensorVar   = new VariableDecl

@@ -799,7 +799,9 @@ namespace Hrot.SimHost.Tests
         private static Entity AreaSensor(EntityRepository repo, Entity commander, Entity area, params Entity[]? targets)
         {
             var sensor = repo.CreateEntity();
-            repo.AddComponent(sensor, new PartMetadata { ParentEntity = commander, InstanceId = HillAttackCommanderNodes.AreaSensorInstanceId });
+            repo.AddComponent(sensor, new PartMetadata { ParentEntity = commander, InstanceId = 1 });
+            // CE-485: the commander finds its sensor by the owner stamp (site), not by the part id.
+            repo.AddComponent(sensor, new Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart { SiteId = HillAttackCommanderNodes.AreaSensorInstanceId });
             repo.AddComponent(sensor, HillAttackCommanderNodes.AreaSensor(area));
             var buffer = new EqsCognitiveBuffer();
             if (targets != null)
@@ -816,9 +818,9 @@ namespace Hrot.SimHost.Tests
         private static void Playback(EntityRepository repo)
             => ((EntityCommandBuffer)((Fdp.ModuleHost.Abstractions.ISimulationView)repo).GetCommandBuffer()).Playback(repo);
 
-        /// <summary>SC-HA011-1: the first ask CREATES the sensor — the creation is the question (Success, CachedEqsRequestId =
-        /// <see cref="HillAttackCommanderNodes.SensorBeingCreated"/>); once it exists it is found and awaited (Running). The NEXT
-        /// wave's ask refreshes it: a new epoch, the old answer cleared.</summary>
+        /// <summary>SC-HA011-1: the first ask CREATES the sensor — the creation is the question (Success; ⭐ CE-485: on the live
+        /// world it exists at once, so it is cached immediately, epoch counter 1); then it is awaited (Running). The NEXT wave's
+        /// ask refreshes it: a new epoch, the old answer cleared.</summary>
         [Fact]
         public void SC_HA011_1_RequestAreaQuery_CreatesTheSensor_ThenRefreshesItPerWave()
         {
@@ -833,13 +835,11 @@ namespace Hrot.SimHost.Tests
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
             Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
-            Assert.Equal(HillAttackCommanderNodes.SensorBeingCreated, s.CachedEqsRequestId);
-            Playback(repo);
-
             var sensor = EqsChildSensor.Find(repo, commander, HillAttackCommanderNodes.AreaSensorInstanceId);
             Assert.False(sensor.IsNull);
+            Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);   // created at once — no placeholder
             ref readonly var cfg = ref repo.GetComponentRO<EqsSensor>(sensor);
-            Assert.Equal(1u, cfg.Epoch);
+            Assert.Equal(1u, cfg.Epoch & 0xFFFFu);                           // asked once; no run owns a bare commander
             Assert.Equal(areaEntity, cfg.ContextSlot1);
             Assert.Equal(1u << (int)ForceId.Hostile, cfg.FactionFilter);
 
@@ -852,7 +852,7 @@ namespace Hrot.SimHost.Tests
             s.CachedEqsRequestId = -1;
             Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
-            Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(sensor).Epoch);
+            Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(sensor).Epoch & 0xFFFFu);
             Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no older answer counts
         }
 

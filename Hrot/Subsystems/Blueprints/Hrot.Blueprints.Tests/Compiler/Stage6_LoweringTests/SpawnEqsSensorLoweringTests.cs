@@ -442,7 +442,7 @@ public sealed class SpawnEqsSensorLoweringTests
         Stage0_Rehydrate.Run(asset, DefaultOptions());
 
         foreach (var name in new[] { "SearchRadius", "FactionFilter", "ThreatThreshold", "PublishPolicy", "Priority",
-                                     "ContextSlot0", "ContextSlot1", "ContextSlot2" })
+                                     "ContextSlot0", "ContextSlot1", "ContextSlot2", "Key" })
             Assert.Single(spawn.Pins, p => p.Name == name && p.Direction == "In");
         Assert.Single(spawn.Pins, p => p.Name == "Handle" && p.Direction == "Out");
         foreach (var name in new[] { "IsReady", "ResultCount", "Entity", "Position", "Score" })
@@ -464,5 +464,47 @@ public sealed class SpawnEqsSensorLoweringTests
         Assert.Contains("ContextSlot0    = default(global::Fdp.Core.Entity),", source!);
         Assert.Contains("ContextSlot1    = default(global::Fdp.Core.Entity),", source!);
         Assert.Contains("ContextSlot2    = default(global::Fdp.Core.Entity),", source!);
+    }
+
+    /// <summary>
+    /// ⭐ CE-485 (📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D5 ⑤) — a wired <c>Key</c> pin reaches
+    /// <c>EqsChildSensor.Ensure</c> as the sensor's key, so ONE spawn node in a loop owns one sensor per key; unwired, the call
+    /// is unchanged (key 0 — every existing asset).
+    /// </summary>
+    [Fact]
+    public void CE485_Lower_AWiredKey_ReachesEnsure()
+    {
+        var spawn = new SpawnEqsSensorNode { Id = Guid.NewGuid(), TemplateAssetId = Guid.NewGuid() };
+        var read  = new ReadEqsResultNode  { Id = Guid.NewGuid(), SensorVariableName = "Sensor" };
+        var entry = new EventEntryNode { Id = Guid.NewGuid() };
+        var asset = new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "Keyed",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   =
+            {
+                new Graph
+                {
+                    Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event, Nodes = { entry, spawn, read },
+                    Links =
+                    {
+                        new Link { FromNodeId = entry.Id, FromPinId = DeterministicIds.PinId(entry.Id, "ExecOut", "Out"),
+                                   ToNodeId = spawn.Id, ToPinId = DeterministicIds.PinId(spawn.Id, "In", "In") },
+                        new Link { FromNodeId = read.Id, FromPinId = DeterministicIds.PinId(read.Id, "Entity", "Out"),
+                                   ToNodeId = spawn.Id, ToPinId = DeterministicIds.PinId(spawn.Id, "Key", "In") },
+                    },
+                },
+            },
+        };
+        Stage0_Rehydrate.Run(asset, DefaultOptions());
+        Assert.Equal("Fdp.Core.Entity", spawn.Pins.Single(p => p.Name == "Key").TypeRef.TypeId);
+
+        var keyed = Compile(asset);
+        Assert.NotNull(keyed);
+        Assert.Matches(@"EqsChildSensor\.Ensure\([^,]+, self, -?\d+, _sensorConfig, \(long\)__t\d+\.PackedValue\)", keyed!);
+
+        var plain = Compile(BuildSpawnAsset());
+        Assert.Matches(@"EqsChildSensor\.Ensure\([^,]+, self, -?\d+, _sensorConfig\)", plain!);
     }
 }

@@ -715,7 +715,8 @@ public sealed record IrOp_ReadEqsResult(
 public sealed record IrOp_SpawnEqsSensor(
     /// <summary>Template's BlueprintId as a hex uint literal (e.g. "0xA3F7C218u").</summary>
     string TemplateBlueprintIdLiteral,
-    /// <summary>Baked InstanceId derived from node.Id.GetHashCode() at compile time.</summary>
+    /// <summary>The sensor's SITE id, baked from the node id at compile time. ⭐ CE-485: no longer the DDS key — the part id
+    /// is allocated at runtime (<c>EqsChildSensor.Ensure</c>).</summary>
     int BakedInstanceId,
     /// <summary>IrValue for SearchRadius input (or null -> literal 0f).</summary>
     IrValue? SearchRadiusValue,
@@ -733,7 +734,9 @@ public sealed record IrOp_SpawnEqsSensor(
     /// the area query's EQS form.</summary>
     IrValue? ContextSlot1Value = null,
     /// <summary>IrValue for the ContextSlot2 entity input (or null -> default Entity).</summary>
-    IrValue? ContextSlot2Value = null
+    IrValue? ContextSlot2Value = null,
+    /// <summary>⭐ CE-485 — IrValue for the Key entity input (or null -> key 0): one sensor per key from this node.</summary>
+    IrValue? KeyValue = null
 ) : IrOperation;
 
 /// <summary>

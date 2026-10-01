@@ -158,6 +158,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     RootStateAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
                     RootParamsAccess.DetachRoot(repo, evt.Entity, previousBehaviorId);
                 }
+                // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+                BehaviorOwnedParts.Release(repo, evt.Entity, repo.GetComponentRO<BehaviorState>(evt.Entity).InstanceId);
                 ref var unhosted = ref repo.GetComponentRW<BehaviorState>(evt.Entity);
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unchecked { unhosted.InstanceId++; }
@@ -249,6 +251,9 @@ namespace Fdp.Toolkit.Behavior.Systems
             // 1. Update BehaviorState.
             // Read previous behavior hash before overwriting (needed for S2-2 detach).
             int previousBehaviorId = repo.GetComponentRW<BehaviorState>(entity).ActiveBehaviorHash;
+            // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            //   ⚠ Also on a re-assign of the SAME behaviour: a new run asks its own questions.
+            BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             behavior.ActiveBehaviorHash = behaviorId;
             // Intentional unsigned wrap — InstanceId is a monotonic preemption token.
@@ -975,6 +980,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 RootParamsAccess.DetachRoot(repo, entity, previousBehaviorId);
             }
 
+            // ⭐ CE-485: the run ends here (InstanceId is bumped below) ⇒ its owned parts (EQS sensors) end with it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D4.
+            BehaviorOwnedParts.Release(repo, entity, repo.GetComponentRO<BehaviorState>(entity).InstanceId);
             ref var behavior = ref repo.GetComponentRW<BehaviorState>(entity);
             behavior.ActiveBehaviorHash = BehaviorIds.None;
             unchecked { behavior.InstanceId++; }
