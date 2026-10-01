@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using Fdp.Core;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Orchestration.Handlers;
+using Fdp.Core.Orchestration;
 using Xunit;
 
 namespace Fdp.Toolkit.Orchestration.Tests;
@@ -115,5 +116,69 @@ public sealed class ReferenceHandlerTests
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    // ── CE-497 — "seek to the end" must not wrap ────────────────────────────────
+
+    /// <summary>
+    /// ⭐ <c>CE-497</c> — a relative seek of <c>long.MaxValue</c> ("the end": the handler's own default and what scripts
+    /// send) reaches the controller as the END, not as a wrapped negative tick. 🔴 Before: <c>start + MaxValue</c>
+    /// overflowed, the playback clamped the negative target to frame 0, and "seek to the end" restored the FIRST frame.
+    /// </summary>
+    [Theory]
+    [InlineData(long.MaxValue)]
+    [InlineData(long.MaxValue - 1)]
+    public async Task ReplaySeek_ToTheEnd_DoesNotWrapNegative(long relativeTicks)
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 638_000_000_000_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(relativeTicks),
+        }, CancellationToken.None);
+
+        Assert.Equal(long.MaxValue, controller.LastSeekTarget);
+    }
+
+    /// <summary>An ordinary relative seek is still start + offset.</summary>
+    [Fact]
+    public async Task ReplaySeek_RelativeOffset_IsAddedToTheRecordingStart()
+    {
+        var controller = new SeekCapturingController { ActiveRecordingStartWallTicks = 1_000_000L };
+        var handler    = new ReferenceReplayLoadHandler(controller, null, null, null, null, null, Path.GetTempPath());
+
+        await handler.PrepareAsync(new ExecuteNodeOpIntent
+        {
+            TransactionId = Guid.NewGuid(),
+            TargetNodeId  = 1,
+            Operation     = NodeOpType.NodeReplaySeek,
+            DomainPayload = new ReplaySeekPayload(5_000L),
+        }, CancellationToken.None);
+
+        Assert.Equal(1_005_000L, controller.LastSeekTarget);
+    }
+
+    private sealed class SeekCapturingController : IRecordReplayController
+    {
+        public long LastSeekTarget { get; private set; }
+        public long ActiveRecordingStartWallTicks { get; set; }
+        public Task<GlobalTime> SeekToTimeAsync(long targetWallClockTicks)
+        {
+            LastSeekTarget = targetWallClockTicks;
+            return Task.FromResult(new GlobalTime { TotalWallTicks = ActiveRecordingStartWallTicks });
+        }
+        public Task PrepareRecordingAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        public Task FinalizeRecordingAsync(long maxNetworkId = 0) => Task.CompletedTask;
+        public Task PrepareReplayAsync(Guid exerciseId, string storageDirectory) => Task.CompletedTask;
+        public void ProcessPlaybackTick(GlobalTime currentTime) { }
+        public Task TeardownReplayAsync() => Task.CompletedTask;
+        public bool IsReplayActive => true;
+        public GlobalTime GetCurrentReplayTime() => default;
+        public float ActiveReplayDurationSeconds => 0f;
+        public long ActiveMaxNetworkId => 0;
     }
 }

@@ -123,6 +123,19 @@ public sealed class ClusterOpE2eScriptTests
             executor.RegisterHandler(new AssertEntityCountActionHandler(world, logger));
             executor.RegisterHandler(new AddMovingTagActionHandler(world, logger));
             executor.RegisterHandler(new ClusterOpActionHandler(clusterMaster, statusReader, logger, timeoutSeconds: 30.0));
+
+            // ⭐⭐ The cluster BOOTS PAUSED (CE-101) — press play, as an operator does. Same fix as
+            //   HrotRunnerHarness.ResumeTimeAfterBoot, which this fixture never got because it builds its
+            //   own OrchestratorSubsystem. ⛔ Without it every frame runs at dt = 0 (measured 2026-10-01:
+            //   one non-zero frame in 14 000), so MovingEntitySystem never moves the tagged entity and
+            //   RecordAndReplaySeek records a stationary x = 0. ResumeTime bypasses 2PC and publishes no
+            //   op status, so it is fired here rather than as a script step the handler would wait on.
+            clusterMaster.HandleClusterOpRequestAsync(new ClusterOpRequest
+            {
+                RequestId     = Guid.NewGuid(),
+                OperationType = ClusterOpType.ResumeTime,
+                PayloadJson   = string.Empty,
+            }).GetAwaiter().GetResult();
         };
 
         int exitCode = await executor.RunAsync().ConfigureAwait(false);

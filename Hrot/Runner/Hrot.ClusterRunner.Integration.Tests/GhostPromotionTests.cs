@@ -39,6 +39,12 @@ public class GhostPromotionTests
 
         harness.Ig.App.TestHook_InjectEntityMasterDescriptor(entityId, TkbEntityTypes.Tank_M1Abrams);
 
+        // ⭐ CE-157 — an owner publishes EntityInfo too (SmartEgressUtil's first-publish baseline). It is
+        //   [PerInstanceValue], so CE-265's derived gate HOLDS promotion until it arrives — by design: the
+        //   template default must not win over the instance's own name/faction (docs/designs/tkb-1/DESIGN.md
+        //   §6.6a). ⛔ This test injected only GeoSpatial + EntityMaster, so the ghost waited forever.
+        harness.Ig.App.World.SetComponent(ghostEntity, new Fdp.Core.EntityInfo());
+
         bool promoted = harness.PumpUntil(() =>
         {
             if (!harness.Ig.App.World.IsAlive(ghostEntity)) return false;

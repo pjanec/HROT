@@ -56,6 +56,69 @@ namespace Fdp.Toolkit.Navigation.Tests
         }
 
         /// <summary>
+        /// CE-498 — an intent written while the entity is still <c>Constructing</c> must reach
+        /// <see cref="NavState"/>. The bridge scans by DELTA and activation bumps no component
+        /// version, so with the default Active-only filter the intent was skipped while
+        /// Constructing and then never seen again once Active — the unit never moved.
+        /// </summary>
+        [Fact]
+        public void Intent_WrittenWhileConstructing_IsAppliedAndNotLostOnActivation()
+        {
+            var repo = CreateWorld();
+            var system = new NavigationIntentBridgeSystem();
+
+            var entity = repo.CreateEntity();
+            repo.SetLifecycleState(entity, EntityLifecycle.Constructing);
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode             = NavigationMode.DirectPoint,
+                FinalDestination = new Vector3(500f, 500f, 0f),
+                TargetSpeed      = 15f,
+                IntentId         = 1u,
+            });
+            repo.AddComponent(entity, new NavState());
+
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+
+            repo.SetLifecycleState(entity, EntityLifecycle.Active);
+            repo.Tick();
+            system.Execute(repo, 0.016f);
+
+            var nav = repo.GetComponent<NavState>(entity);
+            Assert.Equal(KinematicsMode.Direct, nav.Mode);
+            Assert.Equal(new Vector3(500f, 500f, 0f), nav.FinalDestination);
+
+            repo.Dispose();
+        }
+
+        /// <summary>CE-498 guard — widening the scan to Constructing must not drive a TearDown entity.</summary>
+        [Fact]
+        public void Intent_OnTearDownEntity_IsNotApplied()
+        {
+            var repo = CreateWorld();
+            var system = new NavigationIntentBridgeSystem();
+
+            var entity = repo.CreateEntity();
+            repo.SetLifecycleState(entity, EntityLifecycle.TearDown);
+            repo.AddComponent(entity, new NavigationIntent
+            {
+                Mode             = NavigationMode.DirectPoint,
+                FinalDestination = new Vector3(10f, 10f, 0f),
+                TargetSpeed      = 5f,
+                IntentId         = 1u,
+            });
+            repo.AddComponent(entity, new NavState());
+
+            repo.Bus.SwapBuffers();
+            system.Execute(repo, 0.016f);
+
+            Assert.NotEqual(KinematicsMode.Direct, repo.GetComponent<NavState>(entity).Mode);
+
+            repo.Dispose();
+        }
+
+        /// <summary>
         /// FollowRoute intent with a new TrajectoryId is mapped to CustomTrajectory mode
         /// and ProgressS is reset to 0 on a new intent.
         /// </summary>

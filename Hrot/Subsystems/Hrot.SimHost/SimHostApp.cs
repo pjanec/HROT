@@ -906,6 +906,13 @@ namespace Hrot.SimHost
             intent.ArrivalRadius    = 20f;
             unchecked { intent.IntentId++; }
 
+            // ⭐ Stamp this write NEWER than any delta scan already made. ⛔ A hook writes BETWEEN frames, at the version
+            //   NavigationIntentBridgeSystem recorded as `_lastScanTick` at the end of the last frame — its QueryDelta
+            //   asks for "newer than", so the intent was skipped forever and the vehicle never moved
+            //   (SpawnMovingVehicleIntegrationTests, measured 2026-10-01: NavigationStatus.IntentId=1, NavState.Mode=None).
+            //   Production intents arrive DURING a frame (ingress, after Tick()), so they never hit this.
+            _world.BumpMemoryVersion();
+
             if (hasIntent)
                 _world.SetComponent(entity, intent);
             else

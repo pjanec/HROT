@@ -15,6 +15,7 @@ using Hrot.Map.Common.Scenario;
 using Hrot.NED.Descriptors.Orchestration;
 using Fdp.ModuleHost;
 using Xunit;
+using Fdp.Toolkit.Replication.Components;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
@@ -41,24 +42,14 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
     private readonly string _scenarioId;
-    private readonly string _stagingDir;
 
     public UrbanCombatFileLifecycleTests()
     {
         _scenarioId = Guid.NewGuid().ToString();
-        _stagingDir = Path.Combine(@"C:\FDP_Temp", _scenarioId);
     }
 
     /// <inheritdoc/>
-    public void Dispose()
-    {
-        // Clean up staging directory even if the test fails.
-        if (Directory.Exists(_stagingDir))
-        {
-            try { Directory.Delete(_stagingDir, recursive: true); }
-            catch { /* best-effort */ }
-        }
-    }
+    public void Dispose() => NasScenarioStaging.Remove(_scenarioId);   // even if the test fails
 
     // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -72,7 +63,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
     {
         // â”€â”€ 1. Extract scenario to a local JSON file â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         ExtractScenarioToFile();
-        var scenarioFilePath = System.IO.Path.Combine(_stagingDir, "scenario.json");
+        var scenarioFilePath = System.IO.Path.Combine(NasScenarioStaging.DirectoryOf(_scenarioId), "scenario.json");
         Assert.True(System.IO.File.Exists(scenarioFilePath),
             $"Scenario file must exist before cluster boot: {scenarioFilePath}");
 
@@ -148,7 +139,11 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             harness.PumpFrames(1);
             cgf.PumpFrames(1);
 
-            var world = harness.SimHost.World;
+            // ⭐ The narrative latches read BRAIN state — WeaponChannel / LocomotionChannel and the damage the
+            //   brain applies — so they are evaluated on the CGF world. ⛔ Since the role narrowing
+            //   (DESIGN_Role_Affinity_Ownership §3.9a/§6j) SimHost registers no channels, and reading them
+            //   there threw "missing WeaponChannel" (measured 2026-10-01).
+            var world = cgf.CgfSvc.World;
             if (world != null)
             {
                 finalEntityCount = world.EntityCount;
@@ -160,7 +155,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
             $"All 4 ambush latches should fire within 800 frames. " +
             $"Latches: ambush={validator.LatchAmbushFired}, apcHalt={validator.LatchApcHalted}, " +
             $"hit={validator.LatchInsurgentHit}, killed={validator.LatchInsurgentKilled}. " +
-            $"EntityCount in world after 800 ticks: {finalEntityCount}.");
+            $"EntityCount in the CGF world after 800 ticks: {finalEntityCount}.");
     }
 
     // â”€â”€ Private helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -168,8 +163,7 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
     /// <summary>
     /// Creates <see cref="UrbanCombatNewScenario"/>, configures it into a temporary
     /// <see cref="EntityRepository"/>, serialises the ECS state to
-    /// <c>C:\FDP_Temp\{_scenarioId}\scenario.json</c> using
-    /// <see cref="HrotSerializerOptions.HrotJsonOptions"/>, then disposes the
+    /// the shared scenarios root (<see cref="NasScenarioStaging"/>), then disposes the
     /// temporary world.
     /// </summary>
     private void ExtractScenarioToFile()
@@ -183,6 +177,16 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         scenario.Configure(extractRepo, kernel);
         kernel.Initialize();
 
+        // ⭐ An editor-saved scenario carries a NetworkIdentity on every spawned entity; this offline example
+        //   world has none. ⛔ Without it StagingEntityExtractor skips every entity (it keys the request on the
+        //   id) and IsEmbarkedTagTranslator cannot resolve the APC an embarked soldier rides — the live load
+        //   faulted "Entity … missing NetworkIdentity", the 2PC failed and both worlds stayed EMPTY
+        //   (measured 2026-10-01). Ids from 5000, off the live allocator's range, as DistributedScenarioLoadTests.
+        extractRepo.RegisterComponent<NetworkIdentity>();
+        long nextNetworkId = 5000;
+        foreach (var entity in extractRepo.Query().With<TkbIdentity>().Build())
+            extractRepo.AddComponent(entity, new NetworkIdentity { Value = nextNetworkId++ });
+
         // Build the serializer AFTER Configure so all UC component types are registered
         // in the global ComponentTypeRegistry and included in the compiled delegates.
         // TargetMemoryTranslator and PassengerBufferTranslator are registered here to
@@ -191,25 +195,11 @@ public sealed class UrbanCombatFileLifecycleTests : IDisposable
         // survive the JSON round-trip as GUID-tracked handles.
         var behaviorRegistry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
         var serializer = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
-        var fdpDom     = serializer.Serialize(extractRepo, new ScenarioHeader("Hrot.Scenario"));
 
-        // Wrap in the application-layer DTO.  SubsystemType must match "Hrot.Scenario" so
-        // that HrotScenarioLoader (which uses the SimHost serializer's SubsystemType) can
-        // select this file during the cluster load.
-        var envelope = new HrotScenarioEnvelopeDto
-        {
-            Header = new ScenarioHeaderDto
-            {
-                SubsystemType = "Hrot.Scenario",
-            },
-
-            Entities = fdpDom["Entities"]?.AsObject(),
-        };
-
-        Directory.CreateDirectory(_stagingDir);
-        File.WriteAllText(
-            Path.Combine(_stagingDir, "scenario.json"),
-            JsonSerializer.Serialize(envelope, HrotSerializerOptions.HrotJsonOptions));
+        // ⭐ Staged where the cluster loads from, through the ONE scenario writer (NasScenarioStaging). ⛔ It used to
+        //   hand-build a legacy-header envelope into a hard-coded C:\FDP_Temp\{id} — not the shared root the
+        //   orchestrator prefetches from, so the load was abandoned and the cluster never left state 0.
+        NasScenarioStaging.Write(serializer, extractRepo, _scenarioId);
 
         // Dispose the extraction world; scenario systems are no longer needed.
         scenario.OnShutdown();

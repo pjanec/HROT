@@ -247,7 +247,10 @@ public sealed class EditorHarness : IDisposable
 
         var behaviorRegistry = new BehaviorRegistry();
         var clusterSlave     = new ClusterSlave(0, "EditorHarness", OrchBus);
-        var serializer       = new ScenarioSerializerBuilder("Hrot.Scenario").Build();
+        // ⭐ The editor's OWN serializer (EditorBootstrap.CreateFileService), not a bare builder: the bare one has no
+        //   translators, so a scenario saved here dropped ActiveMissionPlan (MissionPlanTranslator) and a live load of it
+        //   had no missions — the drift this harness's header warns about (DistributedScenarioLoadTests).
+        var serializer       = Hrot.SimHost.Serializers.HrotScenarioSerializerFactory.Build(behaviorRegistry);
         // ⛔ No zone service (F1): a zone is an authored entity and rides the ordinary save gate.
         var fileService      = new ScenarioFileService(serializer, Bus);
         _fileService = fileService;
@@ -255,6 +258,9 @@ public sealed class EditorHarness : IDisposable
         // ── TKB + ELM + spawn system ─────────────────────────────────────────
         var tkbDb = new TkbDatabase();
         tkbDb.Register(new TkbTemplate("TestUnit", tkbType: 1L));
+        // ⭐ A type the CLUSTER's TKB also has, so a scenario authored here can be loaded into a live cluster
+        //   (DistributedScenarioLoadTests). ⛔ Type 1 exists only here: CGF rejects it ("TkbType=1 not found").
+        tkbDb.Register(new TkbTemplate("Tank_M1Abrams", tkbType: Hrot.Map.Common.TkbEntityTypes.Tank_M1Abrams));
 
         var translators = new List<ITkbEntityTranslator>
         {

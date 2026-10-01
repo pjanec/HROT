@@ -1,8 +1,10 @@
 ﻿using System;
+using System;
 using System.Threading;
 using Fdp.Core;
 using Fdp.Toolkit.Perception;
 using Fdp.Toolkit.Perception.Components;
+using Fdp.Toolkit.Perception.Events;
 using Hrot.Map.Common;
 using Xunit;
 
@@ -14,9 +16,9 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 /// <para>
 /// Proves that the full CQRS sensor pipeline works:
 /// <list type="number">
-///   <item>SimHost <c>SensorContactList</c> (Acquired) is picked up by
-///     <c>SensorTrackStateEgressTranslator</c> and published as a
-///     <c>SensorTrackState</c> DDS sample.</item>
+///   <item>SimHost <c>TargetVisibleEvent</c> sightings drive <c>SensorTrackDebounceSystem</c> to an
+///     Acquired transition, whose <c>SensorTrackStateEvent</c> <c>SensorTrackStateEgressTranslator</c>
+///     publishes as a <c>SensorTrackState</c> DDS sample.</item>
 ///   <item>CGF <c>SensorTrackStateIngressTranslator</c> receives the sample and
 ///     writes <c>ActiveSensorTracks</c> onto the observer entity.</item>
 ///   <item><c>CgfThreatEvaluationSystem</c> (<c>ThreatEvaluationSystem</c> wrapped as a
@@ -39,7 +41,7 @@ public sealed class SensorMechanismIntegrationTests
 
     /// <summary>
     /// Verifies the complete sensor mechanism pipeline end-to-end:
-    /// SimHost SensorContactList (Acquired) -> DDS SensorTrackState ->
+    /// SimHost sightings -> debounce (Acquired) -> DDS SensorTrackState ->
     /// CGF ActiveSensorTracks -> CGF TargetMemory boosted -> then decay after contact lost.
     /// </summary>
     [Fact]
@@ -88,38 +90,36 @@ public sealed class SensorMechanismIntegrationTests
         harness.SimHost.TestHook_EntityMap.TryGetEntity(targetNetId,   out Entity targetSimEntity);
         harness.Cgf!.GhostEntityMap!.TryGetEntity(observerNetId, out Entity cgfObserverEntity);
 
-        // Inject SensorContactList on the SimHost observer.
-        // SensorContactList.EntityIds stores packed ECS entity handles (not network IDs).
-        // SensorTrackStateEgressTranslator reconstructs the Entity from the packed value and
-        // maps it to a network ID via _entityMap.TryGetNetworkId.
-        var sc = new SensorContactList();
-        sc.EntityIds[0]    = (long)targetSimEntity.PackedValue;
-        sc.LastSeenTick[0] = 1u;
-        sc.State[0]        = (byte)SensorContactState.Acquired;
-        sc.Count           = 1;
-
-        // AddComponent has upsert semantics in FDP's EntityRepository.
-        harness.SimHost.World!.AddComponent(observerSimEntity, sc);
-
-        // Diagnostic step 1: verify SensorContactList is visible on SimHost.
-        Assert.True(harness.SimHost.World!.HasComponent<SensorContactList>(observerSimEntity),
-            "SensorContactList must be visible on the SimHost entity immediately after AddComponent.");
+        // ⭐⭐ CE-158 — drive a real SIGHTING STREAM, not an end state. SensorTrackStateEgressTranslator forwards
+        //   SensorTrackStateEvent, which SensorTrackDebounceSystem emits only on a TRANSITION
+        //   (Pending/Lost → Acquired when a TargetVisibleEvent lands this tick; Acquired → Lost after
+        //   TrackLostThresholdTicks of silence). ⛔ This test used to inject a SensorContactList already in
+        //   state Acquired with LastSeenTick = 1 — a contact that can only AGE into Lost — so no Acquired
+        //   event ever crossed the wire and ActiveSensorTracks stayed empty (measured 2026-10-01).
+        var simBus = harness.SimHost.World!.Bus;
+        bool sighting = true;
+        bool Sighted(Func<bool> condition)
+        {
+            if (sighting)
+                simBus.Publish(new TargetVisibleEvent { Observer = observerSimEntity, Target = targetSimEntity });
+            return condition();
+        }
 
         // Diagnostic step 2: wait for CGF entity to gain ActiveSensorTracks.
         bool activeSensorTracksPopulated = harness.PumpUntil(
-            () =>
+            () => Sighted(() =>
             {
                 var cgfWorld = harness.Cgf!.World;
                 if (cgfWorld == null || !cgfWorld.IsAlive(cgfObserverEntity)) return false;
                 if (!cgfWorld.HasComponent<ActiveSensorTracks>(cgfObserverEntity)) return false;
                 var tracks = cgfWorld.GetComponent<ActiveSensorTracks>(cgfObserverEntity);
                 return tracks.Count > 0;
-            },
+            }),
             SensorPipelineTimeoutMs / PumpSleepMs);
 
         Assert.True(activeSensorTracksPopulated,
             "CGF entity must gain ActiveSensorTracks with Count > 0 after SensorTrackState(Acquired) " +
-            "is transmitted from SimHost. Pipeline: SensorContactList -> SensorTrackStateEgressTranslator " +
+            "is transmitted from SimHost. Pipeline: TargetVisibleEvent -> SensorTrackDebounceSystem -> SensorTrackStateEgressTranslator " +
             "-> DDS -> SensorTrackStateIngressTranslator -> ActiveSensorTracks.");
 
         // Diagnostic: verify CGF entity has TargetMemory (required for ThreatEvaluationSystem).
@@ -130,7 +130,7 @@ public sealed class SensorMechanismIntegrationTests
         //
         // Pipeline: ActiveSensorTracks -> CgfThreatEvaluationSystem (boost 50/s) -> TargetMemory.Count > 0
         bool targetMemoryPopulated = harness.PumpUntil(
-            () =>
+            () => Sighted(() =>
             {
                 var cgfWorld = harness.Cgf!.World;
                 if (cgfWorld == null || !cgfWorld.IsAlive(cgfObserverEntity)) return false;
@@ -138,13 +138,13 @@ public sealed class SensorMechanismIntegrationTests
                 var mem = cgfWorld.GetComponent<TargetMemory>(cgfObserverEntity);
                 // First check: at least one entry must exist.
                 return mem.Count > 0;
-            },
+            }),
             SensorPipelineTimeoutMs / PumpSleepMs);
 
         Assert.True(targetMemoryPopulated,
             "CGF TargetMemory must be populated (Count > 0) after " +
-            "SensorContactList(Acquired) is injected on the SimHost observer. " +
-            "The pipeline: SensorContactList -> SensorTrackStateEgressTranslator -> " +
+            "the SimHost observer starts sighting the target. " +
+            "The pipeline: TargetVisibleEvent -> SensorTrackDebounceSystem -> SensorTrackStateEgressTranslator -> " +
             "DDS SensorTrackState(Acquired) -> SensorTrackStateIngressTranslator -> " +
             "ActiveSensorTracks -> CgfThreatEvaluationSystem -> TargetMemory must fire.");
 
@@ -152,14 +152,14 @@ public sealed class SensorMechanismIntegrationTests
         // The boost rate is 50 threat-score units per second; even at minimum DeltaTime
         // a non-zero score must appear within a few frames.
         bool scorePositive = harness.PumpUntil(
-            () =>
+            () => Sighted(() =>
             {
                 var cgfWorld = harness.Cgf!.World;
                 if (cgfWorld == null || !cgfWorld.IsAlive(cgfObserverEntity)) return false;
                 if (!cgfWorld.HasComponent<TargetMemory>(cgfObserverEntity))  return false;
                 var mem = cgfWorld.GetComponent<TargetMemory>(cgfObserverEntity);
                 return mem.Count > 0 && mem.ThreatScores[0] > 0f;
-            },
+            }),
             SensorPipelineTimeoutMs / PumpSleepMs);
 
         Assert.True(scorePositive,
@@ -171,12 +171,9 @@ public sealed class SensorMechanismIntegrationTests
 
         // ── Assert: decay logic runs after the contact is cleared ────────────────────
         //
-        // Clear SensorContactList (Count = 0): SensorTrackStateEgressTranslator detects the
-        // Acquired -> Lost transition and emits SensorTrackState(Lost). On CGF:
-        // SensorTrackStateIngressTranslator removes the target from ActiveSensorTracks, so
-        // ThreatEvaluationSystem applies only decay (no boost) and the score falls.
-        var emptyList = new SensorContactList(); // Count = 0; AddComponent has upsert semantics
-        harness.SimHost.World!.AddComponent(observerSimEntity, emptyList);
+        // Stop sighting: after TrackLostThresholdTicks of silence the debounce emits Acquired → Lost, the
+        // egress sends SensorTrackState(Lost), the CGF ingress drops the track, and only decay applies.
+        sighting = false;
 
         bool scoreDecayed = harness.PumpUntil(
             () =>
@@ -192,7 +189,7 @@ public sealed class SensorMechanismIntegrationTests
             DecayTimeoutMs / PumpSleepMs);
 
         Assert.True(scoreDecayed,
-            $"After SensorContactList is cleared (Lost state), CgfThreatEvaluationSystem must " +
+            $"After the sightings stop (track Lost), CgfThreatEvaluationSystem must " +
             $"stop boosting TargetMemory. The decay rate " +
             $"({PerceptionConstants.ThreatScoreDecayPerSecond * 100f:F0}% per second) must " +
             $"reduce the score below {scoreAtAcquisition:F1} within {DecayTimeoutMs} ms.");

@@ -10,6 +10,7 @@ using Fdp.Toolkit.NetworkSpawning;
 using Fdp.Toolkit.NetworkSpawning.Events;
 using Fdp.Toolkit.Orchestration;
 using Fdp.Toolkit.Replication;
+using Hrot.Map.Common;
 using Hrot.NED.Descriptors.Orchestration;
 using Xunit;
 using ClusterOpType = Hrot.NED.Descriptors.Orchestration.ClusterOpType;
@@ -34,27 +35,20 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
-    // Offline staging IDs assigned by EditorHarness.SequentialIdAllocator (starts at 1000,
-    // returns _next++ so first entity gets 1000, second gets 1001).
-    private const long OfflineAttackerId = 1000L;
-    private const long OfflineTargetId   = 1001L;
+    // Offline staging IDs, given EXPLICITLY. ⛔ They used to be auto-allocated (1000/1001) — but the live cluster's
+    // allocator also starts at 1000 (deterministic network ids), so offline and live ids coincided and the remap this
+    // test exists to prove could not be observed. Ids outside the live range make the remap visible.
+    private const long OfflineAttackerId = 5000L;
+    private const long OfflineTargetId   = 5001L;
 
     private readonly string _scenarioId;
-    private readonly string _stagingDir;
 
     public DistributedScenarioLoadTests()
     {
         _scenarioId = "test_dist_load_" + Guid.NewGuid().ToString("N");
-        _stagingDir = Path.Combine(OrchestrationConstants.ResolveStagingRoot(), _scenarioId);
     }
 
-    public void Dispose()
-    {
-        if (Directory.Exists(_stagingDir))
-        {
-            try { Directory.Delete(_stagingDir, recursive: true); } catch { /* best-effort */ }
-        }
-    }
+    public void Dispose() => NasScenarioStaging.Remove(_scenarioId);
 
     /// <summary>
     /// Saves a two-entity scenario (attacker with FireAtTarget mission plan targeting a
@@ -200,20 +194,20 @@ public sealed class DistributedScenarioLoadTests : IDisposable
     {
         using var harness = new EditorHarness();
 
-        // Spawn the attacker (offline ID 1000 from SequentialIdAllocator that starts at 1000).
+        // Spawn the attacker (offline ID 5000).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = 1L,
-            NetworkId  = 0,  // auto-allocated; first entity gets 1000
+            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            NetworkId  = OfflineAttackerId,
             OwnerNodeId = 0,
             InitType   = ReliableInitType.None,
         });
 
-        // Spawn the target (offline ID 1001).
+        // Spawn the target (offline ID 5001).
         harness.Bus.PublishManaged(new SpawnEntityCommand
         {
-            TkbType    = 1L,
-            NetworkId  = 0,  // auto-allocated; second entity gets 1001
+            TkbType    = TkbEntityTypes.Tank_M1Abrams,   // ⛔ was 1L — not in the CLUSTER's TKB: CGF rejected both creates
+            NetworkId  = OfflineTargetId,
             OwnerNodeId = 0,
             InitType   = ReliableInitType.None,
         });
@@ -250,11 +244,17 @@ public sealed class DistributedScenarioLoadTests : IDisposable
         };
 
         harness.Repo.SetManagedComponent(attackerEntity, missionPlan);
+        // ⭐ Its runtime queue too — production never has one without the other (MissionControlExecutionSystem adds the
+        //   queue when it assigns a plan; BehaviorTkbTranslator at spawn), and MissionPlanTranslator saves them as a pair.
+        if (!harness.Repo.HasComponent<MissionPlanQueue>(attackerEntity))
+            harness.Repo.AddComponent(attackerEntity, new MissionPlanQueue());
 
         // Pump a couple of frames so the component assignment is flushed.
         harness.PumpFrames(2);
 
-        harness.Editor.SaveScenarioAs(_scenarioId);
+        // ⭐ Stage the authored scenario where the cluster loads it from. ⛔ Not harness.Editor.SaveScenarioAs: since the
+        //   distributed save it writes no file — it publishes a storage request that only a cluster serves (NasScenarioStaging).
+        NasScenarioStaging.Write(harness.FileService, harness.Repo, _scenarioId);
     }
 
     // ── Private DTO for assertion ─────────────────────────────────────────────

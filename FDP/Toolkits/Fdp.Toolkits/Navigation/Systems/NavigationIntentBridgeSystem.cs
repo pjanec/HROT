@@ -98,14 +98,25 @@ namespace Fdp.Toolkit.Navigation.Systems
                 _lastAppliedIntentId.Clear();
             }
 
+            // ⭐ CE-498 — Constructing entities too, not only Active (the query default). An intent written while the entity
+            //   is still CONSTRUCTING was otherwise lost for good: becoming Active changes no component version, so this
+            //   DELTA query never revisited the entity (measured 2026-10-01: NavState.Mode stayed None, velocity 0 — a
+            //   spawn-then-move order never moved). Applying NavState early is safe: the kinematics run on Active entities
+            //   only, so motion still starts at activation. ⚠ Ghost → Active PROMOTION has the same blind spot and is NOT
+            //   covered here (whether a ghost may take NavState is the navigation design's call) — filed with CE-498.
             var query = repo.Query()
                 .With<NavigationIntent>()
                 .With<NavState>()
+                .IncludeAll()
                 .Build();
 
             // 1. Coarse unmanaged filter
             foreach (var entity in repo.QueryDelta(query, _lastScanTick))
             {
+                var lifecycle = repo.GetLifecycleState(entity);
+                if (lifecycle != EntityLifecycle.Active && lifecycle != EntityLifecycle.Constructing)
+                    continue;
+
                 var intent = repo.GetComponent<NavigationIntent>(entity);
 
                 // 2. Fine-grained filter using the full Entity struct

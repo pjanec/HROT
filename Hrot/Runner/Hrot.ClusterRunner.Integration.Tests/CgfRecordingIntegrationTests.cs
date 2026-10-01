@@ -32,8 +32,18 @@ public sealed class CgfRecordingIntegrationTests
     private const int SimHostNodeId = 1;
     private const int CgfNodeId     = 400;
 
+    // ⭐ Through the SAME function the recorder uses (OrchestrationConstants.GetExerciseRecordingFilePath — its own doc
+    //   names this trap: a hand-composed path missing the `exercises/` segment reads as "recording file not found",
+    //   i.e. as a broken recorder, and it is not one). ⛔ The old hand-built `{staging}/{id}/node_N.fdp` failed exactly so.
+    // 📐 Each host's storage root, measured 2026-10-01: SimHost records under the staging root itself
+    //   (NodeBootstrapper's localTempRoot), CGF under its own node root (CgfSubsystem's isolatedTempRoot).
     private static string RecordingFile(string exerciseId, int nodeId) =>
-        Path.Combine(OrchestrationConstants.ResolveStagingRoot(), exerciseId, $"node_{nodeId}.fdp");
+        OrchestrationConstants.GetExerciseRecordingFilePath(
+            nodeId == CgfNodeId
+                ? OrchestrationConstants.GetNodeStagingRoot(nodeId)
+                : OrchestrationConstants.ResolveStagingRoot(),
+            Guid.Parse(exerciseId),
+            nodeId);
 
     // Issue a TransitionState cluster op and pump until the master reaches the target state.
     private static async Task TransitionAsync(

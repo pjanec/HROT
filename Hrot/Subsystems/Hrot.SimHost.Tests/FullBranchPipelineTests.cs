@@ -194,7 +194,10 @@ namespace Hrot.SimHost.Tests
             await kernelL2;
 
             // ══ Phase 5: read branched recording frame 0 — must be a keyframe ══════════
-            var branchedFilePath = Path.Combine(_tempDir, branchedExerciseId.ToString("D"), "node_1.fdp");
+            // ⭐ Through the recorder's own path function — ⛔ the hand-built `{dir}/{id}/node_1.fdp` lacked the `exercises/`
+            //   segment, so this asserted "file not found" for a recording that existed (QA-031).
+            var branchedFilePath = Fdp.Toolkit.Orchestration.OrchestrationConstants.GetExerciseRecordingFilePath(
+                _tempDir, branchedExerciseId, nodeId: 1);
             Assert.True(File.Exists(branchedFilePath),
                 $"Branched recording file not found: {branchedFilePath}");
 

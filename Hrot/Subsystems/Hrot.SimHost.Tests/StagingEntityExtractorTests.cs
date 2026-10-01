@@ -1,3 +1,4 @@
+using Hrot.Core.Network;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -345,8 +346,7 @@ namespace Hrot.SimHost.Tests
 
         // ── Test 4: Network ID remapping in ActiveMissionPlan BehaviorParams ──────
 
-        // STABILITY(Broken): Component type ID 183 not registered — missing component registration in test fixture; investigate StagingEntityExtractor setup
-        [Trait("Stability", "Broken")]
+        // (A stale "STABILITY(Broken)" label sat here — the test runs and passes; removed 2026-10-01.)
         [Fact]
         public void Extract_WithBehaviorRemapper_ReplacesNetworkIdInBehaviorParams()
         {
@@ -387,6 +387,49 @@ namespace Hrot.SimHost.Tests
                 .OfType<ActiveMissionPlan>()
                 .Single();
 
+            Assert.Contains("2001", plan.Plan.Tasks[0].BehaviorParams);
+            Assert.DoesNotContain("1001", plan.Plan.Tasks[0].BehaviorParams);
+        }
+
+        /// <summary>
+        /// ⭐⭐ The same remap, reached THROUGH <see cref="IScenarioEntityExtractor"/> — the path every live load takes
+        /// (<c>ScenarioLoadStep</c> holds the interface). 🔴 The interface's default for the remapping member ignores the
+        /// remapper, and this class did not implement it ⇒ the test above (concrete call) stayed green while every live
+        /// load dropped CGF's remapper. 📄 <c>DESIGN_Cluster_Load_Phase.md</c> §4.1c.
+        /// </summary>
+        [Fact]
+        public void Extract_ThroughTheInterface_StillAppliesTheBehaviorRemapper()
+        {
+            const long oldNetId = 1001L;
+            const long newNetId = 2001L;
+
+            var e = _goldRepo.CreateEntity();
+            _goldRepo.SetComponent(e, new NetworkIdentity { Value = oldNetId });
+            _goldRepo.SetComponent(e, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan
+                {
+                    Tasks = new List<DomainMissionTask>
+                    {
+                        new DomainMissionTask
+                        {
+                            BehaviorName   = "FireAtTarget",
+                            BehaviorParams = "{\"targetNetworkId\":1001,\"maxRounds\":5,\"cooldownSeconds\":1.0}",
+                        }
+                    }
+                }
+            });
+
+            var serializer = BuildSerializer(extraTranslator: new MissionPlanTranslator());
+            var json = SerializeGoldRepo(_goldRepo, serializer);
+
+            var remapper = new ScenarioBehaviorRemapper();
+            remapper.Register<FireAtTargetParamsJsonDto>("FireAtTarget");
+
+            IScenarioEntityExtractor extractor = new StagingEntityExtractor();
+            var requests = extractor.Extract(serializer, json, new StubIdAllocator(newNetId), remapper);
+
+            var plan = Assert.Single(requests).InitialComponents!.OfType<ActiveMissionPlan>().Single();
             Assert.Contains("2001", plan.Plan.Tasks[0].BehaviorParams);
             Assert.DoesNotContain("1001", plan.Plan.Tasks[0].BehaviorParams);
         }

@@ -197,8 +197,15 @@ namespace Fdp.Toolkit.Orchestration.Handlers
                     ? rsp.TargetWallTicks
                     : long.MaxValue;
 
-                // Shift the relative slider ticks into absolute UTC indexing time
-                long absoluteTargetTicks = _controller.ActiveRecordingStartWallTicks + relativeTicks;
+                // Shift the relative slider ticks into absolute UTC indexing time — SATURATING.
+                // 🔴 A plain add overflowed for "seek to the end" (long.MaxValue — this handler's own default, and what
+                //    scripts send): start + MaxValue wrapped NEGATIVE, the playback clamped that to frame 0, and a
+                //    "seek to the end" restored the FIRST frame (measured: ClusterOpE2eScriptTests.RecordAndReplaySeek,
+                //    target -8584107341263421530, an empty world). CE-497.
+                long startTicks          = _controller.ActiveRecordingStartWallTicks;
+                long absoluteTargetTicks = relativeTicks > 0 && startTicks > long.MaxValue - relativeTicks
+                    ? long.MaxValue
+                    : startTicks + relativeTicks;
 
                 GlobalTime restoredTime = await _controller.SeekToTimeAsync(absoluteTargetTicks)
                     .ConfigureAwait(false);
