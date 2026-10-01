@@ -1030,10 +1030,13 @@ public sealed class EqsDistributedTests
         }
 
         // ① the hazard: the new owner suspended (t=200); the old owner's last ACTIVE (t=100) arrives after it ⇒ stays ended.
+        var before = rig.Carrier(11);
         Arrive((Config(11, suspended: true), 200), (Config(11, suspended: false), 100));
         var c1 = rig.Carrier(11);
         Assert.True(c1.IsNull || rig.CarrierSensor(11).Suspended,
-            "A stale ACTIVE sample from the old owner must not revive a sensor the new owner ended.");
+            "A stale ACTIVE sample from the old owner must not revive a sensor the new owner ended. "
+            + $"(carrier before={before}, after={c1}, stale samples={ingress.StaleSampleCount}"
+            + (c1.IsNull ? ")" : $", its epoch={rig.CarrierSensor(11).Epoch:X} radius={rig.CarrierSensor(11).SearchRadius} template={rig.CarrierSensor(11).BlueprintId})"));
 
         // ② one writer ends a lifetime and starts the next (same epoch): the later one wins ⇒ solved.
         Arrive((Config(12, suspended: true), 100), (Config(12, suspended: false), 200));
