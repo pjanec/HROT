@@ -1,3 +1,24 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+build-state: BUILT (§17 — the area query inside EQS 1.3; AreaQuery itself untouched and still live)
+current-answer: §1–§15 are the v1.3 intent. §16 is the MEASURED as-built state (2026-09-30) and what the
+  unification with AreaQuery needs — read it before quoting any "is live / is wired" claim from §6 or §14.
+stale-below: nothing is superseded, but §6.4 (hot reload) and §6.6 (starter pack of 8) describe intent that was
+  never built — see §16.
+known-rot: §6.1 "registrar ... with RegisterAll" and §6.4 "AiHotReloadCoordinator ... registrars invoked" — the
+  generated registrar registers a BlueprintDefinition, not the template, and the coordinator has no EQS code (§16).
+known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep area query separate) — overtaken by
+  the user's 2026-09-30 decision to unify into EQS 1.3 (R-156).
+related-designs:
+  - docs/designs/hill-attack/DESIGN.md — owns the doctrine and the AreaQuery pipeline (Phase 1), the one live consumer.
+  - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — §5.3 measured the two systems; the
+    blueprint hill attack is the consumer waiting for the unification.
+  - docs/blueprints/batches/HANDOFF_EQS_Unification.md — the frame for the unification work (draft).
+  - docs/projects/FDP/Toolkits/Fdp.Toolkits.Spatial.Eqs.md — the toolkit reference; already calls AreaQuery "legacy".
+  - docs/PROGRAMME_Cgf_Equals_Editor_Gap_Map.md — the cgf==editor roadmap; §17.8 closes one of its gaps (Blueprint node
+    Details on CGF).
+-->
 # EQS (Environment Query System) — Design v1.3
 
 Consolidated design from the brainstorming sessions between the project owner and Claude, incorporating responses from the engine architect.
@@ -651,3 +672,285 @@ Suggested order for incremental implementation, each phase testable end-to-end:
 | Convoy | Snapshot sharing across modules running at the same frequency |
 | Soft reload | Hot-reload that only changes parameters; live sensors keep state |
 | Hard reset | Hot-reload that changes structure; live sensors wipe state |
+
+---
+
+## 16. As-built state and the AreaQuery unification — measured `2026-09-30`
+
+⭐ **Why this section exists.** §1 says EQS *"upgrades the engine's current minimalistic `AreaQuerySolverSystem`"*.
+That never happened: two pipelines with separate solvers exist (`EqsModule.cs:17-19`). The user ruled on
+`2026-09-30` to unify them into EQS 1.3 (`R-156`). This section holds what the measurement found. ⛔ It is a state
+record: re-measure before you build on it.
+
+### 16.1 What is already there — reuse, do not rebuild
+
+| piece | where | state |
+|---|---|---|
+| solver pipeline (generate → filter → Top-K → score → pool → event) | `EqsSolverSystem.cs:84-290` | ✅ complete |
+| Brain-side buffer write, local + DDS paths | `EqsResultUpdateSystem.cs` Path A / Path B | ✅ complete |
+| DDS wiring | `SimHostAuxiliaryTranslatorPack.cs:67-68` (Brain arm), `:92-93` (Muscle arm) — beside AreaQuery's `:64-65`, `:89-90` | ✅ symmetric with AreaQuery |
+| force filter | `FactionFilterTest` (bitmask `1 << ForceId`) | ✅ reusable as-is |
+| BTree nodes | `EqsLifecycleNodes`: `Action_MaintainEqsSensor`, `Action_WaitForSensor`, `Action_SpawnEqsSensorChild` | ✅ exist |
+| blueprint nodes | `SpawnEqsSensorNode`, `ReadEqsResultNode`, `When` EQS triggers (`Nodes.cs:455-486`) | ✅ exist — ⚠ see 16.2 H6 |
+| snapshot carries the registry | `EntityRepository.Sync.cs:118` syncs singleton id 210 | ✅ |
+
+### 16.2 What blocks it — each with its evidence
+
+| # | finding | evidence |
+|---|---|---|
+| **H1** | ⛔ **no production registry** (`CE-465`): every `IEqsTemplateRegistry` install is in a test, so every sensor gets the empty stub. The `[EqsTemplate]` generator emits a `BlueprintDefinition` (name + hash), and **drops the template itself** | `EqsSolverSystem.cs:143-158`; `EqsTemplateGenerator.cs:75-88` |
+| **H2** | ⛔ **hot reload does not exist** — `AiHotReloadCoordinator` has no EQS code; `EqsModule.cs:21` says otherwise | `CE-465` |
+| **H3** | 🔴 **two different spatial grids.** EQS generators read `SpatialGridData` = CarKinem's grid, **only entities with `PhysicsCollider`**, only where `SpatialHashSystem` runs. AreaQuery reads the perception grid = **every entity with `SimTransform`**. An area generator on `SpatialGridData` would silently drop collider-less targets | `SpatialHashSystem.cs:54-57`; `LocalGridBuilderSystem.cs:94`; `EntitiesInRadiusGenerator.cs:19` |
+| **H4** | ⚠ the perception grid is deliberately **not** a singleton — it is handed by constructor to `CognitiveSpatialModule`'s systems; `EqsModule` is a separate background module, so reading it from there races its rebuild | `PerceptionGridProvider.cs:23-29` |
+| **H5** | ⚠ **a child sensor whose parent has no `NetworkIdentity` returns NOTHING** — not even the empty event — so a waiter hangs until its timeout | `EqsSolverSystem.cs:100-101` |
+| **H6** | ⛔ the blueprint `SpawnEqsSensor` emits **no context slots** — so a graph cannot pass the area entity. It also always makes a `PartMetadata` child (⇒ H5) and has no update/despawn | `StatementEmitter.cs:1233-1257` |
+| **H7** | ⚠ the **editor** host registers AreaQuery (`EditorCapabilities.cs:211`, `EditorSubsystem.cs:1513`) but **not `EqsModule`**. Retiring AreaQuery without adding it drops area queries there (`R-141`: just register it) | `grep "new EqsModule"` — SimHost + Stride only |
+| **H8** | ⭐ **Top-K 16 vs AreaQuery's 64 costs the one consumer nothing:** a wave assigns at most one target per tank, and a roster holds 16 (`UnitRoster.Capacity`). ⚠ It is still a generic cap (§4.3 accepted 16 by design) | `UnitRoster.cs:32`; `HillAttackCommanderNodes.cs:374` |
+| **H9** | ⚠ **order is not parity.** AreaQuery returns grid order; EQS sorts by `Score` (0 for all without a scoring test). The doctrine picks targets by `index % count`, so *which* tank fires at *which* target can change. Parity is set-parity; the outcome rail is `hill-attack-close` | `EqsSolverSystem.cs:286`; `HillAttackCommanderNodes.cs:374` |
+| **H10** | ⚠ AreaQuery also filters **wrecks** (`Health.Current <= 0`) — the area template needs that filter too | `AreaQuerySolverSystem.cs:159-163` |
+| **H12** | 🔴 **the Brain never maps result entities back to local entities.** Egress turns each local entity into a network id; the Brain ingress hands `data.Results` straight to the bus, and `EqsResultUpdateSystem` Path A copies `EntityId` into the buffer as-is. ⇒ in the Muscle→Brain split the buffer holds **network ids**; on one node (Path B) it holds **packed local entities**. Same field, two meanings. §4.1 intends *"`NetworkId` — resolves to local entity on Brain"*; AreaQuery does it (`AreaQueryTranslators.cs:422-424`). ⚠ Never exercised: every distributed EQS rail uses positional results (`EntityId = 0`, `EqsDistributedTests.cs:48`, `EqsRoundTripTests.cs:82`) | `EqsResultEventEgressTranslator.cs` (local→net); `EqsResultIngressTranslator.cs` (no reverse); `EqsResultUpdateSystem.cs` Path A |
+| **H13** | ⚠ a target the Muscle cannot map to a network id is sent as `EntityId = 0`, which the Brain reads as a **positional** candidate. AreaQuery **skips** such targets (`AreaQueryTranslators.cs:308`) | `EqsResultEventEgressTranslator.cs` (`TryGetNetworkId` result ignored) |
+| **H14** | ⚠ context slots cross the wire as network ids and are resolved **once per config sample** (`EqsSensorConfigIngressTranslator` `ResolveSlot` → `Entity.Null` when not yet mapped). An area entity that reaches the Muscle after the sensor stays `Null` until the next epoch bump ⇒ an empty result that reads as *"area clear"*. The generator must tell *"no area"* from *"no targets"* | `EqsSensorConfigIngressTranslator.cs` `ResolveSlot` |
+| **H11** | ⚠ the invariant rail `HillAttackIntegrationTests` hand-wires `AreaQuerySolverSystem` into its tick loop, so it must be rewired and **cannot alone prove "unchanged"** — the live cluster run must | `HillAttackIntegrationTests.cs:185-229` |
+
+### 16.2a The node split — **same as AreaQuery, and it must stay that way** *(user, `2026-09-30`)*
+
+> 🔒 *"the area query is distributed, calculated on muscle node, evaluated on brain node; same split expected from
+> EQS 1.3"*
+
+| | AreaQuery | EQS 1.3 |
+|---|---|---|
+| Brain → Muscle | `AreaQueryRequestEvent` → `DdsAreaQueryRequest` (area as network id) | `EqsSensor` → `EqsSensorConfigTopic` (`TransientLocal`, context slots as network ids) |
+| computed on Muscle | `AreaQuerySolverSystem` in `CognitiveSpatialModule` | `EqsSolverSystem` in `EqsModule` — same `Perception` role (`SimHostNodeBootstrapper.cs:312-314`) |
+| Muscle → Brain | `DdsAreaQueryResponse` — targets as network ids, **mapped back** to local entities | `EqsResultTopic` — ⛔ **not mapped back** (H12) |
+| read on Brain | `AreaQueryBatchData` ring + `EqsTargetPool` | `EqsCognitiveBuffer` on the sensor entity |
+
+⇒ the split exists in both, over the same translator pack. ⭐ **The area generator runs on the Muscle** and needs the
+area entity (its `EditablePolyline` + `SimTransform`) and the targets' `EntityInfo` there — ✅ the same data
+AreaQuery's Muscle solver already reads, so no new replication. ⛔ **H12 must be fixed before any entity-shaped EQS
+result is used across nodes**, and the parity rail must run split, not only in one process.
+
+### 16.3 AreaQuery's full footprint *(what retirement removes)*
+
+`search_graph(".*AreaQuery.*", Class)` → **21**. Production: `AreaQueryEvents`, `AreaQueryBatchData` (+`EqsTargetPool`),
+`AreaQueryBatchHelper`, `AreaQuerySolverSystem`, `AreaQueryResultMaterializationSystem`, four translators + two DDS
+messages (a **wire-contract** removal, `AllDescriptors.cs`), two ImGui singleton renderers, registrations in SimHost /
+Stride / editor / `StrideNodeBootstrapper`. Callers (**behaviours lane**): `HillAttackCommanderNodes` (5 methods),
+`TargetPoolOps`, `AreaQueryBatchOps`, **four `HillAssault2_*.bp.json` blueprints** and `PlatoonHillAttack.btree.json`.
+Tests: **17** files mention it.
+
+---
+
+## 17. The area query inside EQS 1.3 — design *(`2026-09-30`, build-state: BUILT — as-built in §17.7)*
+
+🔒 **User, `2026-09-30`:** *"just integrate area query into eqs and leave old area query as it is … the behavior lane
+still works with it"* · *"every parent has network identity"* · *"slow walk is ok for now"* · *"getting the split right
+is critical, the area query feature must work properly at least as the old one does"* · *"new EQS must be properly
+usable in blueprint"* · *"a test comparing the old (still working) area query with EQS1.3 … across hosts"*.
+
+⇒ **Scope:** add the capability to EQS, make EQS live, fix the split, make it reachable from blueprints, prove parity
+across hosts. ⛔ **Out of scope:** callers (`HillAttackCommanderNodes`, `AreaQueryBatchOps`, `HillAssault2_*`) and
+retiring AreaQuery — both pipelines keep running side by side.
+
+### 17.1 Classes — what is new, what is reused
+
+```mermaid
+classDiagram
+    direction LR
+    class IEqsTemplateRegistry { <<interface>> +TryGetTemplate(id, out t) bool }
+    class EqsTemplateRegistry { <<NEW · Fdp.Toolkits>> +Register(assetId, t) +Entries +Discover(assemblies)$ +InstallDefault(world)$ +BlueprintIdOf(guid)$ uint }
+    class IEqsGenerator { <<interface>> +Generate(...) int }
+    class EntitiesInAreaGenerator { <<NEW · Hrot.SimHost>> area = ContextSlot1 · returns -1 when no area }
+    class EntitiesOfForceInArea { <<NEW template>> +BlueprintId$ +Build(b)$ }
+    class FactionFilterTest { <<existing>> }
+    class AliveFilterTest { <<NEW · Fdp.Toolkits>> Health.Current > 0 }
+    class AreaQuerySolverSystem { <<existing, untouched>> +PointInPolygon()$ internal }
+    class EqsSolverSystem { <<existing>> count &lt; 0 ⇒ publish nothing }
+    IEqsTemplateRegistry <|.. EqsTemplateRegistry
+    IEqsGenerator <|.. EntitiesInAreaGenerator
+    EntitiesOfForceInArea ..> EntitiesInAreaGenerator
+    EntitiesOfForceInArea ..> FactionFilterTest
+    EntitiesOfForceInArea ..> AliveFilterTest
+    EntitiesInAreaGenerator ..> AreaQuerySolverSystem : reuses PointInPolygon
+    EqsSolverSystem ..> IEqsTemplateRegistry : singleton 210
+```
+
+*What the picture shows that prose hid:* the area capability is **one generator + two filters**, and the polygon test is
+**the old solver's own function** — parity by construction, not by re-derivation. The force filter already existed.
+
+### 17.2 The split — one sensor, Brain to Muscle and back
+
+```mermaid
+sequenceDiagram
+    participant B as Brain (CGF)
+    participant CE as EqsSensorConfig egress
+    participant CI as EqsSensorConfig ingress
+    participant M as Muscle solver (EqsModule)
+    participant RE as EqsResult egress
+    participant RI as EqsResult ingress
+    B->>CE: child sensor (PartMetadata → parent with NetworkIdentity), ContextSlot1 = area
+    CE->>CE: FIX ① publish on ANY change (not once) · hold while a slot has no network id
+    CE->>CI: EqsSensorConfigTopic (slots as network ids)
+    CI->>CI: FIX ② keep sample pending until parent AND slots resolve, then apply
+    CI->>M: carrier ghost + EqsSensor (slots = Muscle entities)
+    M->>M: generate (walk SimTransform, point-in-polygon) → force → alive → Top-16
+    M->>RE: EqsResultEvent (pool handle)
+    RE->>RE: FIX ③ drop targets with no network id (never send as positional 0)
+    RE->>RI: EqsResultTopic (targets as network ids)
+    RI->>RI: FIX ④ map network id → Brain-local entity · drop unmapped
+    RI->>B: EqsCognitiveBuffer.EntityId = Brain-local packed entity (same meaning as one-node Path B)
+```
+
+*What the picture shows that prose hid:* the four fixes sit **one per translator**, each the mirror of what the AreaQuery
+translators already do (`AreaQueryTranslators.cs:86, :181, :308, :422`). ② is what *"report the entity if it is there"*
+needs: a sample that arrives before the area or the parent exists is no longer lost.
+
+### 17.3 Who registers and who ticks, per host
+
+```mermaid
+graph TD
+    subgraph SimHost["SimHost — MuscleGround + Perception"]
+        PS["PerceptionSolver cap"] -->|RegisterModule| EM["EqsModule (10 Hz bg)"]
+        PS -->|NEW: InstallDefault| REG["IEqsTemplateRegistry singleton"]
+        EM --> SOLV["EqsSolverSystem"]
+        SOLV -. reads .-> REG
+    end
+    subgraph Stride["Stride muscle"]
+        SC["StrideCapabilities :202"] -->|RegisterModule| EM2["EqsModule"]
+        SC -->|NEW: InstallDefault| REG2["registry"]
+    end
+    subgraph Editor["Editor (default in-process muscle)"]
+        EQ["NEW: PerceptionEqsSolver cap"] -->|RegisterModule| EM3["EqsModule"]
+        EQ -->|InstallDefault| REG3["registry"]
+    end
+    subgraph CGF["CGF — Brain"]
+        RU["EqsResultUpdateCapability"] --> RUS["EqsResultUpdateSystem"]
+    end
+    subgraph Shared["SHARED — §17.8"]
+        SOLV_START["EqsSolverStartup.Register"]
+        AUTH["AiBlueprintNodeAuthoringBinder"] --> PICK["drawers + EQS template picker + Details node view"]
+        AUTH --> PILLS["canvas pill providers"]
+        DVB["AiDocumentViewStateBinder"] -->|attachmentProviders| FAC["BlueprintDocumentFactory"]
+        FAC --> GM["BlueprintGraphModel.GetAttachmentsForNode"]
+        PILLS -.->|BlueprintNodeAuthoring| DVB
+    end
+    PS --> SOLV_START
+    SC --> SOLV_START
+    EQ --> SOLV_START
+    Editor -->|CreateDrawers + InstallDetails| AUTH
+    CGF -->|CreateDrawers + InstallDetails| AUTH
+    Editor -->|Bind| DVB
+    CGF -->|Bind| DVB
+```
+
+*What the picture shows that prose hid:* before this change **no host** had a registry (so every sensor returned the
+empty stub), and the **editor** ran AreaQuery but no EQS solver at all.
+
+### 17.4 Blueprint reachability — three defects, all in the pin schema path
+
+| defect | fix |
+|---|---|
+| blueprints save pin-less and rebuild from `BuiltInNodeRegistry`, which lists **exec pins only** for `SpawnEqsSensor` and **nothing** for `ReadEqsResult` ⇒ after save + load every data pin and every link to it is gone | full static pin schemas for both nodes, mirroring the palette |
+| `SpawnEqsSensor` has **no context-slot pins** ⇒ a graph cannot name the area | `ContextSlot0/1/2` (`Fdp.Core.Entity`) pins → IR → emitted `EqsSensor` |
+| the editor's template picker is created **empty** (`EditorSubsystem.cs:1807`) | filled from `EqsTemplateRegistry.Discover` |
+
+⭐ **Identity.** `BlueprintId = FNV-1a over the GUID's 16 bytes` (`Fdp.Toolkit.Blueprints.BlueprintIdHash`) — the
+hash the blueprint compiler already bakes. The registry keys every `[EqsTemplate]` by it, so a blueprint and a C#
+caller reach the same template. ⚠ `FindCoverFromTarget.BlueprintId` is a hand-typed constant that matches neither hash;
+the registry also registers a template under its own `BlueprintId` so existing C# callers keep working.
+
+### 17.5 Parity — what "the same as AreaQuery" means, measured
+
+| aspect | AreaQuery | EQS `EntitiesOfForceInArea` |
+|---|---|---|
+| candidate set | perception grid = `Query().With<SimTransform>()` | the same query, walked directly (no grid) |
+| inside test | `PointInPolygon`, points relative to the area's `SimTransform` | **the same function** |
+| force | `EntityInfo.ForceId == force` | `FactionFilterTest`, mask `1 << force` |
+| wrecks | `Health.Current <= 0` rejected | `AliveFilterTest` — same rule |
+| cap | 256 candidates, 64 results | 256 candidates, **16 results** — enough for a 16-slot roster (§16 H8) |
+| order | grid order | not guaranteed — ⭐ parity is **set** parity |
+| reach | ⛔ only **x, y ∈ [0, 1000) m** — its broad phase is the perception grid (200 × 200 × 5 m, anchored at the origin; programmers' guide: *"footprint 1000 m × 1000 m — not perceived"*); `SpatialHashGrid.Add` skips anything outside. Found by the parity matrix `2026-09-30` | ⭐ everywhere — the generator walks the entities |
+| area missing / no polygon | ⚠ answers **READY with 0 targets** (`AreaQuerySolverSystem.PublishEmptyResult`) — a consumer reads that as *"area clear"*. *(Corrected `2026-09-30`: this row used to say "drops the request", measured false.)* | generator returns `-1` ⇒ solver publishes **nothing**, the reader keeps waiting — a **designed** difference |
+
+⭐ **The proof** is the parity matrix in `EqsDistributedTests` — real CGF Brain + real SimHost Muscle over DDS. Each step
+changes the Muscle's world, waits for EQS to settle on the expected set, then asks the old AreaQuery at that moment; both
+must return the **same network ids**:
+
+| rail | scenarios |
+|---|---|
+| T-DIS4 | one area · inside / outside / friendly / wrecked · a target leaves |
+| T-DIS6 | runtime changes in sequence: a target enters · dies inside · a friendly turns hostile · a hostile turns friendly · a target is deleted · a target leaves · **the area moves** |
+| T-DIS7 | a concave **L** (a target in the notch: inside the bounding box, outside the polygon) · a triangle · a target exactly on an edge (parity, not a side) · **three sensors live at once** — two children of one commander on different areas, one of a second commander asking for the other force |
+| T-DIS8 | 20 targets ⇒ old returns all 20; EQS returns exactly 16, all from the old set — the designed cap (§16 H8) |
+| T-DIS9 | area with no polygon ⇒ old: READY, 0 targets; EQS: nothing. Then the polygon arrives ⇒ both agree |
+| T-DIS10 | targets at x = 1510 and x = −190 ⇒ EQS sees them, the old query does not (its grid footprint). ⚠ The old half pins a known limit of a pipeline left as it is |
+
+⭐ **Verdict:** inside the old query's footprint, the two agree in every scenario above. They differ in exactly three, all listed in the table: more than 16 targets, an area with no polygon, and anything outside `[0, 1000)` m — where EQS is the one that is right.
+
+### 17.6 Migration recipe for the callers *(behaviours lane — not done here, by the user's ruling)*
+
+| AreaQuery call | EQS 1.3 equivalent |
+|---|---|
+| `RequestAreaQuery(world, self, area, force)` | spawn a child sensor once: `PartMetadata{Parent=self, InstanceId=k}` + `EntitiesOfForceInArea.SensorFor(area, force)` + `EqsCognitiveBuffer` (blueprint: `SpawnEqsSensor`, template *EntitiesOfForceInArea*, `FactionFilter = 1 << force`, `ContextSlot1 = area`) |
+| `GetAreaQueryResult(...).IsReady` / `TargetCount` | `EqsCognitiveBuffer.IsReady` / `Count` (blueprint: `ReadEqsResult` → `IsReady`, `ResultCount`) |
+| `GetTargetFromPool(handle, i)` | `buffer.GetSpanRO()[i].EntityId` — a **local** entity on the reading node (blueprint: `ReadEqsResult` `ResultIndex` → `Entity`) |
+| a fresh answer per wave (free + re-request) | the sensor re-evaluates at 10 Hz; for a guaranteed-new answer bump `Epoch` (any parameter change now reaches the Muscle) and wait for `LastUpdateTick` to advance |
+| `FreeAreaQuerySlot` | destroy the child sensor entity (its config is disposed; the Muscle carrier goes with it) |
+| ⚠ 5 s timeout ⇒ Failure | keep it: with no area on the Muscle the sensor publishes **nothing** (§17.5), so a timeout still means "no answer", never "area clear" |
+
+### 17.7 As-built *(`2026-09-30`)* — what the build found that the design above did not know
+
+⭐ The classes, sequence and module diagrams above are TRUE as built. Two **pre-existing** defects in the split sat
+underneath them and were fixed because the cross-host rail could not pass without them:
+
+| found by | defect | fix |
+|---|---|---|
+| T-DIS5 red: Muscle carrier stayed at epoch 1 | 🔴 `EqsSensorConfigIngressTranslator` cached the carrier as the handle `cmd.CreateEntity()` returned — an **ECB placeholder**, valid only inside that playback. Every later update and dispose of a child sensor on the Muscle went to a dead handle ⇒ **a child sensor's parameters never changed after its first sample, and a disposed sensor's carrier was never destroyed.** This, not only the publish-once egress, is why T-DIS2 needed remove/re-add | carriers are resolved from the WORLD (`TryFindCarrier`); a created carrier waits for playback (`_awaitingPlayback`) instead of being duplicated |
+| T-DIS4 red: forces reverted to Neutral within 60 frames on BOTH nodes | 🔴 `EntityInfoIngressTranslator.ProcessSample` applied a sample **before** checking authority ⇒ the owner took back its own stale loopback sample, then republished that stale value. ⇒ **no runtime force change on an owning node ever replicated** (the old AreaQuery was affected equally) | the owner no longer applies incoming `EntityInfo` (the file's own "loopback prevention" intent). ⚠ Only where authority is TRACKED (`NetworkAuthority` present): `HasAuthority` is true for an entity with no `NetworkAuthority`, which includes a ghost still being created — that one must take its `EntityInfo` or it never promotes (`MiniExConIntegrationTests`, caught on the first attempt) |
+| full `Hrot.SimHost.Tests` run: 9 unrelated classes red | 🔴 the test type `PreviewTestPos` declared `[ComponentId(210)]` — **production's `IEqsTemplateRegistry` id**; the registry is process-global, so once a SimHost boot installed an EQS registry the second registrant threw *"Component ID collision"*. Same shape as the documented `EpisodeTestPos`/215 case | moved to `507` (top of the space, where test components live) |
+
+| deviation from §17.1–17.4 | why |
+|---|---|
+| the generator lives in `Hrot.SimHost/Systems/EntitiesInAreaGenerator.cs`, not `Fdp.Toolkits` | `EditablePolyline` is in `Hrot.Core`; the generator sits beside the solver whose `PointInPolygon` it reuses |
+| a golden scenario was added (`EntitiesOfForceInArea.flat.golden.json`) | `RegisteredTemplates_AllHaveAGoldenScenario` requires one per template. ⭐ It runs the real solver on a plain world, NOT `EditorHarness` (see below) |
+| ⚠ not fixed — `(ForceId)(int)eForceIdentifier` in the `EntityInfo` ingress | `FORCE_NEUTRAL` = 3 arrives as `ForceId` 3 (the enum stops at 2) and `FORCE_UNKNOWN` = 0 as `Neutral`. Out of this scope; recorded here |
+| ⚠ not fixed — 31 EQS rails red on the base commit | they run on `EditorHarness`, which registers its own `EqsModule` but pumps a clock switched to deterministic mode; e.g. `EqsCombatNodesTests` fails on *"LocomotionChannel is not registered"*. Pre-existing (base `196c7f7c9`), unrelated to templates |
+
+**Rails** *(all new, red-proofed where the fix is not self-evidencing)*:
+`EqsDistributedTests` T-DIS4 (cross-host parity, and again after a target leaves) · T-DIS5 (a parameter change
+reaches the Muscle) · `EqsModuleTests` (canonical id, production install, one-world parity, no-area ⇒ nothing) ·
+`SpawnEqsSensorLoweringTests` (pin-less reload keeps every pin and the saved link into `ContextSlot1`; unwired slots
+emit a default entity) · `EqsFlatTerrainGoldenTests.EntitiesOfForceInArea_FlatTerrain_MatchesGolden`.
+
+### 17.8 The Brain part is ONE implementation on the editor AND CGF *(`2026-09-30`)*
+
+> 🔒 **User:** *"the EQS brain part must be a shared code including the startup code for editor and CGF alike"* ·
+> *"anything like 'which only the editor provides' sounds suspicious, as CGF == editor in most features, unification
+> and sharing desired"*.
+
+| piece | before | after |
+|---|---|---|
+| result ingestion (`EqsResultUpdateSystem`) | ✅ already one class, `EqsResultUpdateCapability`, in both plans | unchanged |
+| Brain DDS translators | CGF via the NED aux pack; the editor is always offline (`OfflineNetworkFactory`) and runs its own muscle, so it needs none | unchanged — a role fact, not a host fork |
+| 🔴 Blueprint node drawers + the `SpawnEqsSensor` **template picker** + the Details **node view** | editor only (picker filled inline by §17.4); **CGF had none** — a blueprint opened on CGF had no node Details, so no EQS template could be picked | ⭐ `Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder` — `CreateDrawers` (template discovery inside) + `InstallDetails` (active Blueprint PULLED from the document manager). **Both hosts call both.** The editor's inline code and its `_blueprintActiveAsset` copy are deleted |
+| solver startup (template registry + `EqsModule`) | three hand-written copies (SimHost, Stride, editor) | ⭐ `Hrot.SimHost.EqsSolverStartup.Register` — the capability classes stay per host (keys pinned by rails), each calls this |
+| 🔴 Blueprint **canvas pills** — the `SpawnEqsSensor` template badge, the `When` condition summary, the `ReadEqsResult` pill, the cross-asset `🔗` badge *(When design §9)* | the editor built the providers into a local nobody read; CGF built none; and `BlueprintGraphModel` never implemented `IGraphModel`'s attachment members ⇒ **no pill rendered on either host** | ⭐ `CreateDrawers` also builds the providers (same template list as the picker; peer names from a cached scan) → `AiDocumentHostServices.BlueprintNodeAuthoring` → the shared `AiDocumentViewStateBinder` → `BlueprintDocumentFactory` → `BlueprintGraphModel`. **Both hosts pass it.** Pills are **pulled** per node per frame (the Details picker mutates the node without a rebuild) and refreshed in place, so ids are stable |
+
+⭐ Same pattern and home as `CE-340`/`CE-343`/`CE-347` (`DESIGN_Occurrence_Scoped_Storage.md` §32.18–32.21): a gap on
+one host is closed by ONE shared binder, never by a copy.
+
+⭐ **Pills are derived, not authored.** `BlueprintCommandSink` accepts `RemoveAttachments`/`AddAttachment` as explicit
+no-ops: a Delete over a selection that includes a pill still deletes its nodes (a failing inner command would abort the
+batch), and the pill goes with its host node. ⚠ **Not fixed — the `When` firing pulse.** `WhenFiringPulseRenderer` is
+already built inside `BlueprintDocumentFactory` on both hosts (so the editor's `CreateCanvasRenderers()` local was a
+duplicate and is deleted), but **nothing calls its `OnNodeFired`** — When design §9.5 says the host feeds it from the
+debug session's node-executed callback. It draws nothing on either host until that feed exists.
+
+**Rails:** `TheEqsBrainStartupIsSharedTests` (`Hrot.Editor.Tests` — both hosts call the binder and no host builds the
+pieces itself; every solver host calls the shared startup; the picker lists every runtime template) ·
+`EqsAuthoringOnBothHostsTests` (ClusterRunner — the CONSTRUCTED editor and CGF both hold the `SpawnEqsSensor` drawer, 
+the same template list, and the same pill providers naming the area template) · pills:
+`WhenNodeEditorWiringTests.CanvasPill*` (the model: template name, a picker edit without a rebuild, When stacking, pills
+leave with their node) · `BlueprintDocumentFactoryTests` (the factory hands them to the model) ·
+`AiDocumentViewStateBinderTests.ABlueprintCanvas_ShowsThePillsOfTheHostsNodeAuthoring` (a real opened canvas through the
+shared binder) · `TheEqsBrainStartupIsSharedTests` (both hosts pass the authoring; peer names are a cached scan).

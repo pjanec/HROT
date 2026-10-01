@@ -726,7 +726,14 @@ public sealed record IrOp_SpawnEqsSensor(
     /// <summary>IrValue for PublishPolicy input (or null -> literal (byte)0).</summary>
     IrValue? PublishPolicyValue,
     /// <summary>IrValue for Priority input (or null -> literal (byte)0).</summary>
-    IrValue? PriorityValue
+    IrValue? PriorityValue,
+    /// <summary>IrValue for the ContextSlot0 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot0Value = null,
+    /// <summary>IrValue for the ContextSlot1 entity input (or null -> default Entity) — the area for
+    /// the area query's EQS form.</summary>
+    IrValue? ContextSlot1Value = null,
+    /// <summary>IrValue for the ContextSlot2 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot2Value = null
 ) : IrOperation;
 
 /// <summary>

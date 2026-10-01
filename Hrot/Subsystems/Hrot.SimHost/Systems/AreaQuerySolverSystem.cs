@@ -208,8 +208,10 @@ namespace Hrot.SimHost.Systems
         /// <summary>
         /// 2D point-in-polygon test using the ray casting algorithm.
         /// Zero heap allocations — reads directly from the list by index.
+        /// <para>⭐ Internal so the EQS area generator (<c>EntitiesInAreaGenerator</c>) runs THIS test —
+        /// the two area queries agree by construction, not by re-derivation.</para>
         /// </summary>
-        private static bool PointInPolygon(Vector2 point, IList<Vector2> polygon, int nVerts)
+        internal static bool PointInPolygon(Vector2 point, IList<Vector2> polygon, int nVerts)
         {
             bool inside = false;
             int j = nVerts - 1;

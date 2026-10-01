@@ -370,7 +370,10 @@ namespace Hrot.Editor
         private AiHotReloadCoordinator?    _aiCoordinator;
         private HotReloadMessageLogSource? _hotReloadSource;
         private BlueprintRegistry          _blueprintRegistry = new();
-        private Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry? _blueprintNodeDrawers;
+        private Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? _blueprintNodeAuthoring;
+
+        /// <summary>The Blueprint node drawers this host built (rail access — asserted on the constructed host).</summary>
+        internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
         private Hrot.Blueprints.Editor.NodeDrawers.NodeKindRegistry? _blueprintPaletteEntries;
         // AN7: unified behavior-action catalog (channel commands + [SharedAiAction]/AiPrimitive
         // schema entries). Constructed once after the shared ActionSchemaExporter and reused by the
@@ -459,17 +462,6 @@ namespace Hrot.Editor
         internal AssetBrowserDockedWindow? AssetBrowserForTest => _aiAssetBrowser;
         // AIE-047: My Blueprint window (hosts NodeEdit MyBlueprintPanel).
         private Hrot.Blueprints.Editor.Windows.BlueprintMyBlueprintWindow? _blueprintMyBlueprintWindow;
-        /// <summary>
-        /// ⭐⭐⭐ <b><c>S1</c> — the active Blueprint asset, PULLED by the node Details view.</b>
-        /// 📄 <c>DESIGN_Details_Panel_View_Switching.md</c> §7.3 ①.
-        ///
-        /// <para>⚠⚠ <b>This field replaces <c>BlueprintDetailsWindow.Retarget(bpAsset)</c>.</b>
-        /// 🔴 That was a PUSH the composition root had to remember; ⭐ 📌 <c>R-126</c> —
-        /// <i>"no path can forget to raise what is never raised"</i> — so the view asks for the asset on
-        /// the frame it needs it. ⛔ The ASSIGNMENT still happens in the same place
-        /// *(<c>ActiveChanged</c>)*, so the timing is unchanged; only the direction is.</para>
-        /// </summary>
-        private Hrot.Blueprints.Core.Assets.BlueprintAsset? _blueprintActiveAsset;
         // BATCH-03D2: Graph Signature window (edits Function graph Inputs/Outputs).
         private Hrot.Blueprints.Editor.Windows.GraphSignatureWindow? _blueprintSignatureWindow;
         // AIE-048: legacy selection store bridging AiShared → BlueprintVariablesWindow.
@@ -1804,7 +1796,6 @@ namespace Hrot.Editor
             // Dependencies: use existing breakpoint infrastructure components.
             var channelCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance;
             var engineEventCatalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance;
-            var eqsTemplates = new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry();
 
             // IEditService stub - no-op for now since the interface is marked as stub.
             // AIE-049: real IEditService — context (CommandHistory + markDirty) is injected
@@ -1826,16 +1817,25 @@ namespace Hrot.Editor
                     _bpRootDir ?? Hrot.Editor.AiShared.AssetRoots.AssetsFor(
                         Hrot.Editor.AiShared.AssetKind.Blueprint)));
 
-            _blueprintNodeDrawers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateNodeDrawerRegistry(
-                channelCatalog, engineEventCatalog, blueprintEditService, bpPredicateCompiler, eqsTemplates,
-                peerProvider: blueprintPeerProvider);
+            // ⭐⭐⭐ The drawers — and the EQS template picker inside them — come from the binder CGF calls
+            //    too (user, 2026-09-30: "the EQS brain part must be a shared code including the startup
+            //    code for editor and CGF alike"). 📄 EQS design §17.8.
+            _blueprintNodeAuthoring = Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.CreateDrawers(
+                new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringServices
+                {
+                    EditService       = blueprintEditService,
+                    PredicateCompiler = bpPredicateCompiler,
+                    PeerProvider      = blueprintPeerProvider,
+                });
             // Blueprint palette is built below (after the BehaviorActionCatalog is constructed) with BOTH
             // the channel-command catalog (AN4: per-channel-action entries) AND the unified behavior-action
             // catalog (AN7: non-channel "Action:{FQN}" entries). _blueprintPaletteEntries is only consumed
             // later at doc-open, so the single build below suffices.
-            var blueprintAttachmentProviders = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateAttachmentProviders(
-                eqsTemplates, peerNameResolver: _ => null);
-            var blueprintCanvasRenderers = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreateCanvasRenderers();
+            // ⭐ The canvas pills (When summary · EQS template · ReadEqsResult · cross-asset badge) are in
+            //    _blueprintNodeAuthoring.AttachmentProviders and reach the canvas through the shared
+            //    document binder below. 🔴 They WERE built here as locals nobody read, so no pill ever
+            //    rendered on either host. The When pulse renderer is built inside
+            //    BlueprintDocumentFactory itself. 📄 EQS design §17.8.
 
             // Store registries for later use by blueprint editor windows (opened on-demand).
             // The actual UI panels that consume these will be initialized in headless gate below.
@@ -3637,10 +3637,6 @@ namespace Hrot.Editor
                     var ctx = active.ViewState as Hrot.Editor.AiShared.Windows.AiCanvasContext;
                     var bpAsset = ctx?.AssetRef as Hrot.Blueprints.Core.Assets.BlueprintAsset;
 
-                    // ⭐ S1 — the Details node view PULLS this (see the field's remarks); the assignment
-                    //   stays exactly where BlueprintDetailsWindow.Retarget(bpAsset) used to be.
-                    _blueprintActiveAsset = bpAsset;
-
                     // Retarget Variables window via legacy bridge store.
                     _blueprintLegacySelectionStore.SelectAsset(bpAsset);
 
@@ -3654,7 +3650,6 @@ namespace Hrot.Editor
                 else
                 {
                     // Clear Blueprint windows when switching away from Blueprint perspective.
-                    _blueprintActiveAsset = null;
                     _blueprintLegacySelectionStore.SelectAsset(null);
                     _blueprintSignatureWindow?.Retarget(null);
                 }
@@ -4448,13 +4443,16 @@ namespace Hrot.Editor
             //    this root supplies is the two things the reference wall keeps out of AiShared: the
             //    node view and the Properties form. 📌 One call, so a rail on the constructed editor
             //    covers all of it (the 2026-08-16 control).
-            Hrot.Blueprints.Editor.Windows.BlueprintDetailsContribution.InstallInto(
+            // ⭐⭐⭐ Through the binder CGF calls too — the active Blueprint is PULLED from the document
+            //    manager every frame (R-126), the same on both hosts. 📄 EQS design §17.8.
+            Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.InstallDetails(
                 registrar:       _blueprintRegistrar!,
                 windowManager:   windowManager,
-                // ⭐ Re-asked every frame — R-126's pull. Set in ActiveChanged, exactly where the
-                //   retired Retarget(bpAsset) call stood.
-                asset:           () => _blueprintActiveAsset,
-                drawerRegistry:  _blueprintNodeDrawers ?? new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                documentManager: _aiDocumentManager!,
+                authoring:       _blueprintNodeAuthoring ?? new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring(
+                                     new Hrot.Blueprints.Editor.NodeDrawers.BlueprintNodeDrawerRegistry(),
+                                     new Hrot.Blueprints.Editor.NodeDrawers.EqsTemplateRegistry(),
+                                     System.Array.Empty<Hrot.Blueprints.Editor.Visuals.IAttachmentProvider>()),
                 // ⭐⭐ Batch 99 (99a) — the Properties form's RENAME runs this. 📌 The silent-default
                 //    ruling: "a production caller that HAS a dependency must PASS it" — this method
                 //    hands the SAME service to BlueprintVariablesManagedWindow seven lines below, and
@@ -4520,6 +4518,7 @@ namespace Hrot.Editor
                     BlueprintEditService = _blueprintEditService,
                     BlueprintPalette     = _blueprintPaletteEntries,
                     BlueprintPeerCatalog = blueprintPeerCatalog,
+                    BlueprintNodeAuthoring = _blueprintNodeAuthoring,
                     BehaviorActions      = _behaviorActionCatalog,
                     ChannelCommands      = Hrot.Blueprints.Core.Compiler.Catalogs
                                                .BuiltInChannelCommandCatalog.Instance,

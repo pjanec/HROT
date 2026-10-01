@@ -199,7 +199,8 @@ public static class StrideCapabilities
             //    shape. Tracked, not papered over.
             NavigationSolverComponentRegistry.RegisterAll(context.World);
 
-            context.Kernel.RegisterModule(new EqsModule());
+            // ⭐ The shared EQS solver startup (template registry + module) — EQS design §17.8.
+            Hrot.SimHost.EqsSolverStartup.Register(context);
         }
     }
 

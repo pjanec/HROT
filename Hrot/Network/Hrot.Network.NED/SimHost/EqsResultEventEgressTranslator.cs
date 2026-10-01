@@ -67,11 +67,14 @@ namespace Hrot.Network.NED.SimHost
 
                         // For entity-shaped results translate local EntityId -> NetworkId.
                         // EntityId = 0 means positional candidate (no translation needed).
+                        // ⭐ A target with no network id cannot be named on the wire — DROP it, as the
+                        // area-query egress does. Sending it as 0 would make the Brain read it as a
+                        // POSITIONAL candidate at the target's position.
                         long resolvedNetId = 0L;
                         if (r.EntityId != 0L && r.EntityId != -1L)
                         {
                             var targetEntity = new Entity((ulong)r.EntityId);
-                            _entityMap.TryGetNetworkId(targetEntity, out resolvedNetId);
+                            if (!_entityMap.TryGetNetworkId(targetEntity, out resolvedNetId)) continue;
                         }
 
                         entries.Add(new EqsResultEntry

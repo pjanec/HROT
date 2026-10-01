@@ -104,7 +104,7 @@ namespace Hrot.Network.NED.CGF
                     Observer    = observer,
                     Epoch       = data.Epoch,
                     RefreshTick = data.RefreshTick,
-                    Results     = data.Results,
+                    Results     = MapToLocal(data.Results, _entityMap),
                 });
             }
         }
@@ -119,6 +119,32 @@ namespace Hrot.Network.NED.CGF
         public void Dispose(long networkEntityId) { }
 
         // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
+
+        /// <summary>
+        /// Rewrites every entity-shaped entry's <c>EntityId</c> from the wire's NETWORK id to this node's
+        /// packed local entity, and drops entries whose entity is not (yet) known here. Positional
+        /// entries (<c>EntityId == 0</c>) pass through.
+        /// </summary>
+        /// <remarks>
+        /// ⭐ Without this the Brain's <c>EqsCognitiveBuffer</c> held network ids across nodes but packed
+        /// entities on one node — one field, two meanings — so <c>new Entity((ulong)EntityId)</c> (every
+        /// reader, including the blueprint <c>ReadEqsResult</c> node) was wrong exactly in the split. Design
+        /// §4.1 says the id "resolves to local entity on Brain"; the area-query ingress always did.
+        /// </remarks>
+        internal static List<EqsResultEntry> MapToLocal(List<EqsResultEntry>? results, NetworkEntityMap entityMap)
+        {
+            var mapped = new List<EqsResultEntry>(results?.Count ?? 0);
+            if (results is null) return mapped;
+            foreach (var entry in results)
+            {
+                if (entry.EntityId == 0L) { mapped.Add(entry); continue; }
+                if (!entityMap.TryGetEntity(entry.EntityId, out var local)) continue;
+                var copy = entry;
+                copy.EntityId = (long)local.PackedValue;
+                mapped.Add(copy);
+            }
+            return mapped;
+        }
 
         /// <summary>
         /// Removes a cache entry for the given composite key.

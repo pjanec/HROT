@@ -1262,6 +1262,9 @@ internal static class StatementEmitter
                 string threatThreshold = op.ThreatThresholdValue is not null ? $"__t{op.ThreatThresholdValue.Value.Index}" : "0f";
                 string publishPolicy   = op.PublishPolicyValue   is not null ? $"(byte)__t{op.PublishPolicyValue.Value.Index}" : "(byte)0";
                 string priority        = op.PriorityValue        is not null ? $"(byte)__t{op.PriorityValue.Value.Index}"  : "(byte)0";
+                string contextSlot0    = op.ContextSlot0Value    is not null ? $"__t{op.ContextSlot0Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot1    = op.ContextSlot1Value    is not null ? $"__t{op.ContextSlot1Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot2    = op.ContextSlot2Value    is not null ? $"__t{op.ContextSlot2Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
 
                 // Declare the result handle BEFORE the scope block so it is visible downstream.
                 if (idx >= 0)
@@ -1288,6 +1291,9 @@ internal static class StatementEmitter
                 e.WriteLine($"ThreatThreshold = {threatThreshold},");
                 e.WriteLine($"PublishPolicy   = {publishPolicy},");
                 e.WriteLine($"Priority        = {priority},");
+                e.WriteLine($"ContextSlot0    = {contextSlot0},");
+                e.WriteLine($"ContextSlot1    = {contextSlot1},");
+                e.WriteLine($"ContextSlot2    = {contextSlot2},");
                 e.Outdent();
                 e.WriteLine("});");
                 e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer());");

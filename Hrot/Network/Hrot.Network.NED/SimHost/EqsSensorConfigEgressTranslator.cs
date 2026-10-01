@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using CycloneDDS.Runtime;
 using Fdp.Core;
 using Fdp.Interfaces;
@@ -23,6 +24,14 @@ namespace Hrot.Network.NED.SimHost
         private const string DdsTopicName = "EqsSensorConfig";
         private readonly DdsWriter<EqsSensorConfigTopic>? _writer;
         private readonly NetworkEntityMap _entityMap;
+
+        // What was last written per sensor entity. ⭐ A reliable topic that publishes ONCE never
+        // carries a later parameter change (epoch bump, new area) to the Muscle — the old
+        // SmartEgressUtil gate did exactly that, and the distributed rails worked around it by
+        // removing and re-adding the sensor. Publishing on any change is what keeps the split right.
+        private readonly Dictionary<Entity, EqsSensorConfigTopic> _published = new();
+        private readonly HashSet<Entity> _seen = new();
+        private readonly List<Entity> _gone = new();
 
         public string TopicName => DdsTopicName;
         public long DescriptorOrdinal => (long)EDescriptorType.dtEqsSensorConfig;
@@ -49,12 +58,10 @@ namespace Hrot.Network.NED.SimHost
                 .With<EqsSensor>()
                 .Build();
 
+            _seen.Clear();
             foreach (var entity in query)
             {
                 if (!view.HasAuthority(entity, DescriptorOrdinal)) continue;
-
-                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
-                    continue;
 
                 ref readonly var sensor = ref view.GetComponentRO<EqsSensor>(entity);
 
@@ -81,7 +88,16 @@ namespace Hrot.Network.NED.SimHost
                     continue;
                 }
 
-                _writer.Write(new EqsSensorConfigTopic
+                _seen.Add(entity);
+
+                // Hold while a context slot names an entity that has no network id yet: sending 0
+                // would tell the Muscle "no entity", and nothing would re-send once the id existed.
+                if (!TrySlotNetId(sensor.ContextSlot0, out long slot0)
+                    || !TrySlotNetId(sensor.ContextSlot1, out long slot1)
+                    || !TrySlotNetId(sensor.ContextSlot2, out long slot2))
+                    continue;
+
+                var topic = new EqsSensorConfigTopic
                 {
                     ParentNetworkId       = parentNetworkId,
                     LocalChildIndex       = localChildIndex,
@@ -93,13 +109,40 @@ namespace Hrot.Network.NED.SimHost
                     PublishPolicy         = sensor.PublishPolicy,
                     Priority              = sensor.Priority,
                     ScoreDeltaThreshold   = sensor.ScoreDeltaThreshold,
-                    ContextSlot0NetworkId = SlotNetId(sensor.ContextSlot0),
-                    ContextSlot1NetworkId = SlotNetId(sensor.ContextSlot1),
-                    ContextSlot2NetworkId = SlotNetId(sensor.ContextSlot2),
-                });
+                    ContextSlot0NetworkId = slot0,
+                    ContextSlot1NetworkId = slot1,
+                    ContextSlot2NetworkId = slot2,
+                };
 
+                if (_published.TryGetValue(entity, out var last) && SameConfig(in last, in topic))
+                    continue;
+
+                _writer.Write(topic);
+                _published[entity] = topic;
                 SentSampleCount++;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
+            }
+
+            // A child sensor (LocalChildIndex != 0) that is destroyed or loses its EqsSensor must be
+            // disposed, or the Muscle's carrier keeps solving it forever. Legacy single sensors are
+            // disposed by the removal pass below and by Dispose(networkEntityId).
+            _gone.Clear();
+            foreach (var kv in _published)
+            {
+                if (_seen.Contains(kv.Key)) continue;
+                if (view.IsAlive(kv.Key) && view.HasComponent<EqsSensor>(kv.Key)) continue; // e.g. authority moved
+                _gone.Add(kv.Key);
+            }
+            foreach (var entity in _gone)
+            {
+                var last = _published[entity];
+                _published.Remove(entity);
+                if (last.LocalChildIndex != 0)
+                    _writer.DisposeInstance(new EqsSensorConfigTopic
+                    {
+                        ParentNetworkId = last.ParentNetworkId,
+                        LocalChildIndex = last.LocalChildIndex,
+                    });
             }
 
             // Removal detection: find entities with NetworkIdentity that no longer carry
@@ -136,12 +179,28 @@ namespace Hrot.Network.NED.SimHost
             _writer?.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = networkEntityId, LocalChildIndex = 0 });
         }
 
-        // Returns the network ID of a context-slot entity, or 0 if the entity is null/unregistered.
-        private long SlotNetId(Entity slotEntity)
+        // A null slot is 0 on the wire. A non-null slot must have a network id; false = not yet.
+        private bool TrySlotNetId(Entity slotEntity, out long netId)
         {
-            if (slotEntity.IsNull) return 0L;
-            return _entityMap.TryGetNetworkId(slotEntity, out long netId) ? netId : 0L;
+            netId = 0L;
+            if (slotEntity.IsNull) return true;
+            return _entityMap.TryGetNetworkId(slotEntity, out netId);
         }
+
+        private static bool SameConfig(in EqsSensorConfigTopic a, in EqsSensorConfigTopic b)
+            => a.ParentNetworkId       == b.ParentNetworkId
+            && a.LocalChildIndex       == b.LocalChildIndex
+            && a.BlueprintId           == b.BlueprintId
+            && a.Epoch                 == b.Epoch
+            && a.SearchRadius.Equals(b.SearchRadius)
+            && a.FactionFilter         == b.FactionFilter
+            && a.ThreatThreshold.Equals(b.ThreatThreshold)
+            && a.PublishPolicy         == b.PublishPolicy
+            && a.Priority              == b.Priority
+            && a.ScoreDeltaThreshold.Equals(b.ScoreDeltaThreshold)
+            && a.ContextSlot0NetworkId == b.ContextSlot0NetworkId
+            && a.ContextSlot1NetworkId == b.ContextSlot1NetworkId
+            && a.ContextSlot2NetworkId == b.ContextSlot2NetworkId;
     }
 }
 

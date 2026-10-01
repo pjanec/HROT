@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
@@ -54,6 +55,8 @@ public sealed class EqsFlatTerrainGoldenTests
         new Dictionary<uint, (string, Func<EqsGoldenTemplate>)>
         {
             [FindCoverFromTarget.BlueprintId] = (nameof(FindCoverFromTarget), CaptureFindCoverFromTarget),
+            [Hrot.SimHost.Systems.EntitiesOfForceInArea.BlueprintId] =
+                (nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea), CaptureEntitiesOfForceInArea),
         };
 
     [Fact]
@@ -85,6 +88,12 @@ public sealed class EqsFlatTerrainGoldenTests
     public void FindCoverFromTarget_FlatTerrain_MatchesGolden()
     {
         RunGoldenForTemplate(nameof(FindCoverFromTarget));
+    }
+
+    [Fact]
+    public void EntitiesOfForceInArea_FlatTerrain_MatchesGolden()
+    {
+        RunGoldenForTemplate(nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea));
     }
 
     // ── core capture/compare driver ────────────────────────────────────────────
@@ -203,6 +212,87 @@ public sealed class EqsFlatTerrainGoldenTests
                 pool.Results.Dispose();
         }
 
+        return golden;
+    }
+
+    /// <summary>
+    /// The area query's EQS form on flat ground: a ±15 m square around (50, 50); two live hostiles
+    /// inside, one hostile outside, one hostile wreck inside, one friendly inside. ⭐ Runs the real
+    /// solver on a plain SimHost world with the PRODUCTION registry — not <see cref="EditorHarness"/>,
+    /// whose EQS pumping is red on the base commit for reasons unrelated to templates.
+    /// </summary>
+    private static EqsGoldenTemplate CaptureEntitiesOfForceInArea()
+    {
+        using var repo = new EntityRepository();
+        Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
+        EqsTemplateRegistry.InstallDefault(repo);
+
+        var area = repo.CreateEntity();
+        repo.AddComponent(area, new SimTransform { Position = new Vector3(50f, 50f, 0f), Rotation = Quaternion.Identity });
+        var ecb = (EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+        ecb.AddManagedComponent(area, new Hrot.IG.Components.EditablePolyline
+        {
+            Points = new List<Vector2> { new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f) },
+        });
+        ecb.Playback(repo);
+
+        Entity Unit(float x, float y, ForceId force, float? health = null)
+        {
+            var e = repo.CreateEntity();
+            repo.AddComponent(e, new SimTransform { Position = new Vector3(x, y, 0f), Rotation = Quaternion.Identity });
+            repo.AddComponent(e, new EntityInfo { ForceId = force });
+            if (health is float h) repo.AddComponent(e, new Fdp.Toolkit.Combat.Components.Health { Current = h, Max = 100f });
+            return e;
+        }
+        Unit(50f, 50f, ForceId.Hostile);
+        Unit(60f, 40f, ForceId.Hostile);
+        Unit(80f, 80f, ForceId.Hostile);          // outside
+        Unit(45f, 55f, ForceId.Hostile, 0f);      // wreck
+        Unit(55f, 55f, ForceId.Friend);           // friendly
+
+        var sensor = repo.CreateEntity();
+        repo.AddComponent(sensor, Hrot.SimHost.Systems.EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+        repo.AddComponent(sensor, new EqsCognitiveBuffer());
+
+        var view = (ISimulationView)repo;
+        new Hrot.SimHost.Systems.EqsSolverSystem().Execute(view, 0.1f);
+        ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(repo);
+        repo.Bus.SwapBuffers();
+        new Hrot.SimHost.Systems.EqsResultUpdateSystem().Execute(view, 0.1f);
+
+        ref readonly var buffer = ref repo.GetComponentRO<EqsCognitiveBuffer>(sensor);
+        Assert.True(buffer.IsReady, "EntitiesOfForceInArea golden scenario produced no result");
+        var golden = new EqsGoldenTemplate
+        {
+            Name        = nameof(Hrot.SimHost.Systems.EntitiesOfForceInArea),
+            BlueprintId = Hrot.SimHost.Systems.EntitiesOfForceInArea.BlueprintId,
+            Count       = buffer.Count,
+        };
+        // Order is not part of the contract (all scores are 0 — design §17.5) ⇒ record rows sorted.
+        var span = buffer.GetSpanRO();
+        var rows = new List<EqsResult>();
+        for (int i = 0; i < buffer.Count; i++) rows.Add(span[i]);
+        foreach (var r in rows.OrderBy(r => r.EntityId))
+        {
+            golden.Rows.Add(new EqsGoldenRow
+            {
+                EntityId        = r.EntityId,
+                PositionX       = r.PositionX,
+                PositionY       = r.PositionY,
+                Score           = r.Score,
+                Flags           = r.Flags,
+                FlagsMeaningful = r.FlagsMeaningful,
+            });
+#if EQS_HAS_POSITIONZ
+            golden.MaxAbsPositionZ = MathF.Max(golden.MaxAbsPositionZ, MathF.Abs(r.PositionZ));
+#endif
+        }
+
+        if (repo.HasSingleton<EqsResultPool>())
+        {
+            var pool = repo.GetSingleton<EqsResultPool>();
+            if (pool.Results.IsCreated) pool.Results.Dispose();
+        }
         return golden;
     }
 }

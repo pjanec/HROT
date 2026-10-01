@@ -413,4 +413,64 @@ public sealed class SpawnEqsSensorLoweringTests
         Assert.NotNull(source);
         Assert.Contains("SearchRadius    = 0f,", source!);
     }
+    // -----------------------------------------------------------------------
+    // EQS design §17.4 — saved blueprints are pin-less; the registry rebuilds EVERY pin
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// A blueprint is saved projection-only (<c>"Pins": []</c>) and rebuilt from
+    /// <see cref="BuiltInNodeRegistry"/>. The EQS nodes must come back with all their data pins —
+    /// including the context slots — under the deterministic ids links bind by; before §17.4 the
+    /// schema was exec-only / empty and every data link was lost on reload.
+    /// </summary>
+    [Fact]
+    public void PinLessSavedEqsNodes_RehydrateEveryDataPin_IncludingContextSlots()
+    {
+        var spawn = new SpawnEqsSensorNode { Id = Guid.NewGuid(), TemplateAssetId = Guid.NewGuid() };
+        var read  = new ReadEqsResultNode  { Id = Guid.NewGuid(), SensorVariableName = "Sensor" };
+
+        // A saved link: both ends name their pin by the deterministic id (node, pin name, direction).
+        var fromEntity = DeterministicIds.PinId(read.Id,  "Entity",       "Out");
+        var toSlot1    = DeterministicIds.PinId(spawn.Id, "ContextSlot1", "In");
+        var asset = new BlueprintAsset
+        {
+            AssetId  = Guid.NewGuid(),
+            Name     = "PinLess",
+            Dispatch = AssetDispatchKind.Instance,
+            Graphs   =
+            {
+                new Graph
+                {
+                    Id = Guid.NewGuid(), Name = "Tick", Kind = GraphKind.Event, Nodes = { spawn, read },
+                    Links = { new Link { FromNodeId = read.Id, FromPinId = fromEntity, ToNodeId = spawn.Id, ToPinId = toSlot1 } },
+                },
+            },
+        };
+
+        Stage0_Rehydrate.Run(asset, DefaultOptions());
+
+        foreach (var name in new[] { "SearchRadius", "FactionFilter", "ThreatThreshold", "PublishPolicy", "Priority",
+                                     "ContextSlot0", "ContextSlot1", "ContextSlot2" })
+            Assert.Single(spawn.Pins, p => p.Name == name && p.Direction == "In");
+        Assert.Single(spawn.Pins, p => p.Name == "Handle" && p.Direction == "Out");
+        foreach (var name in new[] { "IsReady", "ResultCount", "Entity", "Position", "Score" })
+            Assert.Single(read.Pins, p => p.Name == name && p.Direction == "Out");
+
+        // ⭐ The saved link binds to the rebuilt pins — the area reaches ContextSlot1 after a reload.
+        var slot1 = spawn.Pins.Single(p => p.Name == "ContextSlot1");
+        Assert.Equal(toSlot1, slot1.Id);
+        Assert.Equal("Fdp.Core.Entity", slot1.TypeRef.TypeId);
+        Assert.Equal(fromEntity, read.Pins.Single(p => p.Name == "Entity").Id);
+    }
+
+    /// <summary>An unwired context slot is emitted as a default entity, so the field is always written.</summary>
+    [Fact]
+    public void Lower_UnconnectedContextSlots_EmitDefaultEntity()
+    {
+        var source = Compile(BuildSpawnAsset());
+        Assert.NotNull(source);
+        Assert.Contains("ContextSlot0    = default(global::Fdp.Core.Entity),", source!);
+        Assert.Contains("ContextSlot1    = default(global::Fdp.Core.Entity),", source!);
+        Assert.Contains("ContextSlot2    = default(global::Fdp.Core.Entity),", source!);
+    }
 }

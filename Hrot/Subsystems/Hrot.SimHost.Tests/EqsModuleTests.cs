@@ -7,6 +7,7 @@ using Fdp.Core;
 using Fdp.Core.Collections;
 using Fdp.ModuleHost.Abstractions;
 using Fdp.ModuleHost.Providers;
+using Fdp.Toolkit.Combat.Components;
 using Fdp.Toolkit.Spatial.Eqs;
 using Hrot.IG.Components;
 using Hrot.SimHost.Modules;
@@ -513,6 +514,114 @@ namespace Hrot.SimHost.Tests
             public void RegisterSystem<T>(T system) where T : IEcsModuleSystem { }
             public IEcsModuleSystem RegisterManualSystem<T>(T system) where T : IEcsModuleSystem
                 => system;
+        }
+    
+        // ── The area query inside EQS 1.3 (design EQS §17) ─────────────────────────
+
+        /// <summary>
+        /// The template's baked id is the canonical hash of its AssetId — the id a blueprint
+        /// <c>SpawnEqsSensor</c> node bakes — so blueprint and C# callers reach the same template.
+        /// </summary>
+        [Fact]
+        public void EntitiesOfForceInArea_BlueprintId_IsTheCanonicalHashOfItsAssetId()
+        {
+            Assert.Equal(
+                EqsTemplateRegistry.BlueprintIdOf(new Guid(EntitiesOfForceInArea.AssetId)),
+                EntitiesOfForceInArea.BlueprintId);
+        }
+
+        /// <summary>
+        /// CE-465 red-proof: the production install finds the [EqsTemplate] classes, so a sensor gets a
+        /// real template instead of the empty-result stub.
+        /// </summary>
+        [Fact]
+        public void InstallDefault_RegistersTheAreaTemplate_AndKeepsAnExistingRegistry()
+        {
+            var registry = EqsTemplateRegistry.InstallDefault(_world);
+
+            Assert.True(registry.TryGetTemplate(EntitiesOfForceInArea.BlueprintId, out var t));
+            Assert.IsType<EntitiesInAreaGenerator>(t.Generator);
+            Assert.True(registry.TryGetTemplate(FindCoverFromTarget.BlueprintId, out _),
+                "a hand-typed template id must keep resolving for its C# callers");
+            Assert.Same(registry, EqsTemplateRegistry.InstallDefault(_world));
+        }
+
+        /// <summary>
+        /// ⭐ PARITY on one world: the old AreaQuery solver and the EQS area template, over the same
+        /// polygon and targets, report the SAME entities — hostile + inside + not wrecked. Covers the
+        /// relative-to-origin polygon, force, wreck and outside cases at once.
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_ReportsTheSameEntitiesAsAreaQuerySolver()
+        {
+            var area = CreateAreaEntity(new List<Vector2>
+            {
+                new(-15f, -15f), new(15f, -15f), new(15f, 15f), new(-15f, 15f),
+            });
+            _world.GetComponentRW<SimTransform>(area).Position = new Vector3(50f, 50f, 0f); // offset origin
+
+            var inside1  = CreateEnemyAt(new Vector2(50f, 50f));
+            var inside2  = CreateEnemyAt(new Vector2(60f, 40f));
+            CreateEnemyAt(new Vector2(80f, 80f));                       // outside
+            var wreck    = CreateEnemyAt(new Vector2(45f, 55f));
+            _world.AddComponent(wreck, new Health { Current = 0f, Max = 100f });
+            var friendly = CreateEnemyAt(new Vector2(55f, 55f));
+            _world.GetComponentRW<EntityInfo>(friendly).ForceId = ForceId.Friend;
+
+            // Old: AreaQuery.
+            var requester = _world.CreateEntity();
+            long requestId = AreaQueryBatchHelper.RequestAreaQuery(_world, requester, area, ForceId.Hostile);
+            RunSolverPipeline();
+            var old = AreaQueryBatchHelper.GetAreaQueryResult(_world, requestId);
+            var oldSet = new HashSet<long>();
+            for (int i = 0; i < old.TargetCount; i++)
+                oldSet.Add(AreaQueryBatchHelper.GetTargetFromPool(_world, old.TargetGroupHandle, i));
+
+            // New: EQS sensor with the production registry.
+            var sensor = RunEqsAreaSensor(area);
+            var newSet = BufferEntities(sensor);
+
+            var expected = new HashSet<long> { (long)inside1.PackedValue, (long)inside2.PackedValue };
+            Assert.Equal(expected, oldSet);
+            Assert.Equal(expected, newSet);
+        }
+
+        /// <summary>
+        /// "No area ⇒ no answer": when the area entity is not (yet) present, the EQS solver publishes
+        /// NOTHING — the buffer stays not-ready — instead of an empty result that reads as "area clear".
+        /// </summary>
+        [Fact]
+        public void AreaTemplate_WithNoArea_PublishesNothing()
+        {
+            CreateEnemyAt(new Vector2(50f, 50f));
+            var sensor = RunEqsAreaSensor(Entity.Null);
+            Assert.False(_world.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);
+        }
+
+        // Spawns a local EQS area sensor, runs the solver once and applies its result (Path B).
+        private Entity RunEqsAreaSensor(Entity area)
+        {
+            EqsTemplateRegistry.InstallDefault(_world);
+            var sensor = _world.CreateEntity();
+            _world.AddComponent(sensor, EntitiesOfForceInArea.SensorFor(area, ForceId.Hostile));
+            _world.AddComponent(sensor, new EqsCognitiveBuffer());
+
+            var view = (ISimulationView)_world;
+            new EqsSolverSystem().Execute(view, 0.1f);
+            ((EntityCommandBuffer)view.GetCommandBuffer()).Playback(_world);
+            _world.Bus.SwapBuffers();
+            new EqsResultUpdateSystem().Execute(view, 0.1f);
+            return sensor;
+        }
+
+        private HashSet<long> BufferEntities(Entity sensor)
+        {
+            var set = new HashSet<long>();
+            ref readonly var buf = ref _world.GetComponentRO<EqsCognitiveBuffer>(sensor);
+            Assert.True(buf.IsReady, "the EQS buffer must be ready after one solver pass");
+            var span = buf.GetSpanRO();
+            for (int i = 0; i < buf.Count; i++) set.Add(span[i].EntityId);
+            return set;
         }
     }
 }

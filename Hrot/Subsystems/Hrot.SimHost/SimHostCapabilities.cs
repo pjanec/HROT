@@ -76,7 +76,7 @@ internal static class SimHostCapabilities
         public IReadOnlyList<string> Needs { get; } = Array.Empty<string>();
 
         public void Register(HrotNodeContext context, NodeBootValues values)
-            => context.Kernel.RegisterModule(new EqsModule());
+            => EqsSolverStartup.Register(context);
     }
 
     /// <summary>On-demand pathfinding, backed by the engine's navmesh and road graph.</summary>

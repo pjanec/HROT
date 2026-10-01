@@ -44,6 +44,13 @@ public sealed record AiDocumentHostServices
     public Hrot.Blueprints.Editor.ActionCatalog.IBehaviorActionCatalog? BehaviorActions { get; init; }
     public Hrot.Blueprints.Core.Compiler.Catalogs.IChannelCommandCatalog? ChannelCommands { get; init; }
 
+    /// <summary>
+    /// ⭐ The host's Blueprint node authoring (<see cref="AiBlueprintNodeAuthoringBinder.CreateDrawers"/>)
+    /// — the canvas pills come from its <see cref="AiBlueprintNodeAuthoring.AttachmentProviders"/>.
+    /// ⚠ <c>null</c> ⇒ a Blueprint canvas with no pills; both production hosts pass it.
+    /// </summary>
+    public AiBlueprintNodeAuthoring? BlueprintNodeAuthoring { get; init; }
+
     // ── The per-host DIFFERENCES, and they are few ──────────────────────────
 
     /// <summary>⚠ <c>null</c> on a host that constructs no BTree debug session — CGF says so explicitly
@@ -148,7 +155,8 @@ public static class AiDocumentViewStateBinder
                         peerAssetCatalog: services.BlueprintPeerCatalog,
                         behaviorActions:  services.BehaviorActions,
                         debugSession:     services.BlueprintDebugSession,
-                        extraRenderers:   extraRenderers);
+                        extraRenderers:   extraRenderers,
+                        attachmentProviders: services.BlueprintNodeAuthoring?.AttachmentProviders);
                     break;
 
                 default:

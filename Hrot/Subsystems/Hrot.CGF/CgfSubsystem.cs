@@ -185,6 +185,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// this argument — so "I forgot" would have been expressible as "I built a fresh one".</para>
     /// </summary>
     private StructEdit.Core.IComponentEditService? _facetEditService;
+    private Fdp.Toolkit.ReplayBrowser.Search.IPredicateCompiler? _bpPredicateCompiler;
+    private Hrot.Blueprints.Editor.NodeDrawers.EditService? _blueprintEditService;
+    private Hrot.Blueprints.Editor.BlueprintPeerSource?     _blueprintPeerCatalog;
+    private Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? _blueprintNodeAuthoring;
+
+    /// <summary>The Blueprint node drawers this host built (rail access — asserted on the constructed host).</summary>
+    internal Hrot.Editor.AiComposition.AiBlueprintNodeAuthoring? BlueprintNodeAuthoringForTest => _blueprintNodeAuthoring;
 
     /// <summary>
     /// ⭐⭐ <c>BP-510</c> — this node's view of the current load's staging⇄runtime id table.
@@ -1487,6 +1494,26 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // See BP-29: without _blueprintRegistry, CompileBlueprintVariablePredicate returns a
         // constant-false delegate and blueprint conditional breakpoints silently never fire.
         var bpPredicateCompiler    = new PredicateCompiler(bpEditSvc, _behaviorRegistry, _blueprintRegistry);
+        // ⭐ Kept: the Blueprint node drawers need the SAME compiler (EQS design §17.8) — a production
+        //   caller that HAS a dependency must pass it, not build a second one.
+        _bpPredicateCompiler       = bpPredicateCompiler;
+
+        // ⭐⭐⭐ The Blueprint node drawers — and the EQS template picker inside them — built by the SAME
+        //    binder, at the SAME point, as the editor (its AI-debug block in Initialize). 📄 EQS design §17.8.
+        //    🔒 User: "the EQS brain part must be a shared code including the startup code for editor and
+        //    CGF alike". ⭐ The edit service and peer source are FIELDS so the document factories built in
+        //    RegisterWindows get the very same instances (the editor's _blueprintEditService shape).
+        _blueprintEditService   = new Hrot.Blueprints.Editor.NodeDrawers.EditService();
+        _blueprintPeerCatalog   = new Hrot.Blueprints.Editor.BlueprintPeerSource(
+                                      Hrot.Editor.AiShared.AssetRoots.AssetsFor(
+                                          Hrot.Editor.AiShared.AssetKind.Blueprint));
+        _blueprintNodeAuthoring = Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.CreateDrawers(
+            new Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringServices
+            {
+                EditService       = _blueprintEditService,
+                PredicateCompiler = bpPredicateCompiler,
+                PeerProvider      = new Hrot.Blueprints.Editor.NodeDrawers.BlueprintPeerSourceProvider(_blueprintPeerCatalog),
+            });
         var bpEventScannerCompiler = new EventScannerCompiler(bpEditSvc);
         _bpSnapshotProvider        = new DebugSnapshotProvider(_bpPreTickSnapshot);
         _bpManager                 = new DataBreakpointManager(
@@ -2215,8 +2242,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                                        bpChannelCatalog, schemaExporter);
         var blueprintPalette     = Hrot.Blueprints.Editor.BlueprintEditorBootstrap.CreatePaletteRegistry(
                                        bpChannelCatalog, behaviorActionCatalog: behaviorActions);
-        var blueprintEditService = new Hrot.Blueprints.Editor.NodeDrawers.EditService();
-        var blueprintPeerCatalog = new Hrot.Blueprints.Editor.BlueprintPeerSource(
+        // ⭐ Built in Initialize (with the node drawers) so both use the same instances — §17.8.
+        var blueprintEditService = _blueprintEditService ?? new Hrot.Blueprints.Editor.NodeDrawers.EditService();
+        var blueprintPeerCatalog = _blueprintPeerCatalog ?? new Hrot.Blueprints.Editor.BlueprintPeerSource(
                                        Hrot.Editor.AiShared.AssetRoots.AssetsFor(
                                            Hrot.Editor.AiShared.AssetKind.Blueprint));
 
@@ -2244,6 +2272,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 BlueprintEditService = blueprintEditService,
                 BlueprintPalette     = blueprintPalette,
                 BlueprintPeerCatalog = blueprintPeerCatalog,
+                // ⭐ The canvas pills — built with the drawers in Initialize, same binder as the editor.
+                BlueprintNodeAuthoring = _blueprintNodeAuthoring,
                 BehaviorActions      = behaviorActions,
                 ChannelCommands      = bpChannelCatalog,
                 // 🔴🔴 CE-344 — CGF *DOES* HAVE A BLUEPRINT DEBUG SESSION, AND IT WAS NOT PASSED.
@@ -2267,6 +2297,22 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                 //   hosts genuinely differ. 📄 docs/DESIGN_Mcp_Authoring.md §10.4.
                 OnDocumentOpened = doc => doc.Asset.Changed += () => doc.MarkDirty(),
             });
+
+        // ── BLUEPRINT NODE DETAILS + THE EQS TEMPLATE PICKER (EQS design §17.8) ─────
+        // 🔴 Measured 2026-09-30: this host built NO node drawers and never installed the Blueprint
+        //    Details node view — a blueprint opened here had no node Details at all, so e.g. no EQS
+        //    template could be picked for a SpawnEqsSensor node. ⛔ No CGF slice design says CGF should
+        //    lack it ⇒ a GAP. 🔒 User: "the EQS brain part must be a shared code including the startup
+        //    code for editor and CGF alike" · "CGF == editor in most features".
+        // ⭐ The drawers were built in Initialize by the SAME binder the editor calls; this installs the
+        //   node view over them, pulling the active Blueprint exactly as the editor does.
+        if (_blueprintNodeAuthoring != null)
+            Hrot.Editor.AiComposition.AiBlueprintNodeAuthoringBinder.InstallDetails(
+                registrar:       _blueprintRegistrar!,
+                windowManager:   windowManager,
+                documentManager: _aiDocumentManager!,
+                authoring:       _blueprintNodeAuthoring,
+                refactorService: refactorService);
 
         // ── RETARGET ON ACTIVE-DOCUMENT CHANGE (CE-015b) ───────────────────────
         // ⭐⭐⭐ MEASURED `2026-08-25`, second half of the same finding. With the factories wired the
