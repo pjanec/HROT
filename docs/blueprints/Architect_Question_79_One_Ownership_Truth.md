@@ -1,28 +1,100 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
-current-answer: §9c (recompute on promotion AND every ownership change, restricted to single-role components — the user's rule within what §10 measured; awaiting approval) FIRST; §10 is the measurement it rests on (it REFUTES §9a′ and the unrestricted §9b); §9 is the one-line alternative; §8 is the deferred full unification; §7 is the proof both rest on.
-stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
-known-rot: nothing known
-known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
-  no sender reads the claim. Q79-B removes that tolerance: once senders derive from the claim, an over-claim is a second
-  publisher. Not reconciled until Q79-B is approved.
+build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
+current-answer: §0 ONLY — the consolidated state (user rulings · measured facts · design intent · open questions · the next session's task).
+stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
+known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
+known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
 related-designs:
-  - docs/DESIGN_Role_Affinity_Ownership.md — owns WHO claims WHICH component (role tables, birthright, promote leg); §3.6 found
-    that no sender reads the claim; §4.2 carries CE-500. THIS question owns how a SENDER turns that claim into "may I publish".
-  - docs/DESIGN_Entity_Ownership_Transfer.md — owns transfer INITIATION; its §3 already states the derivation rule
-    ("authority-based, not Map-based") for transfers only; §4 keeps save ownership on EntityMaster. THIS question applies §3
-    to every sender.
-  - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE GATE (`NetworkAuthority.PrimaryOwnerId`), which this
-    question leaves exactly as it is.
-  - FDP/Docs/projects/toolkits/FDP.Toolkit.Replication.md §2 — the ORIGINAL three-level model (primary · descriptor override ·
-    hierarchical) that the current gate implements.
-  - docs/reference/BDC_NED_SST_Descriptor_Rules.md — the wire spec: per-descriptor partial owners, "only the descriptor
-    owner is allowed to publish", a disposed descriptor returns to the EntityMaster owner.
+  - docs/DESIGN_Role_Affinity_Ownership.md — owns WHO claims WHICH component (role tables, birthright, promote leg, shard seam §3.8); §0 changes its tables' meaning.
+  - docs/DESIGN_Entity_Ownership_Transfer.md — owns transfer INITIATION (CE-276); unchanged by §0.
+  - docs/DESIGN_Node_Roles_And_Policies.md — §4.1 the two distribution mechanisms; §0 supersedes its IG create-leg row.
+  - docs/DESIGN_Entity_Genesis_End_To_End.md — the stage sequence (create → grant → ghost → promote → takeover).
+  - docs/DESIGN_Distributed_Scenario_Persistence.md — owns the SAVE gate (PrimaryOwnerId); untouched.
+  - docs/reference/BDC_NED_SST_Descriptor_Rules.md — the wire spec (per-descriptor owners, OwnershipUpdate, default-to-master).
 -->
 
-# Architect Question 79 — **one ownership truth: senders derive descriptor ownership from the component claim**
+# Architect Question 79 — **ownership: one owner per component, and the network record derived from it**
+
+## 0. ⭐⭐⭐ CURRENT STATE — consolidated `2026-10-01` *(read THIS; everything else is history)*
+
+**Started from `CE-500`** *(SimHost-created entity: CGF's brain writes `NavigationIntent`, nothing sends it)* and widened, at the user's
+direction, into the ownership model itself. ⛔ **No interim fix** — user: *"yes, consolidate first, skip the interim fix"*.
+
+### 0.1 The user's rulings *(verbatim, all `2026-10-01`; ledger rows R-157…R-161)*
+
+| id | ruling |
+|---|---|
+| R-158 | *"basically i do not want to change the existing network protocols like deferred takover. This took lots of effort to make them working. Every change is very risky. It means i need a minimalistic change"* · *"We should not invent workarounds to a bug."* |
+| R-159 | *"network recosrd must be recomputed on every ownership transfer, independently on if it already has an enttry"* · *"i needed to recompute on promotion AND any other ownership changes"* |
+| R-160 | *"the rule is that if i am creator, i own all but the stuff other roles own. If i am not creator, i own just what my role claims. No role claims should be allowed to overlap"* |
+| R-161 | *"yes, map2d empty list"* |
+| R-157 | *"one node per role with the guard for now"* — ⚠ a SCOPE limit: the design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
+| (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
+
+### 0.2 Measured facts *(code — how it IS)*
+
+| # | fact | where |
+|---|---|---|
+| F1 | two records: the per-component **claim** (`AuthorityMask`) and the **network record** (`NetworkAuthority.PrimaryOwnerId` + `DescriptorOwnership.Map`) | §10.3 |
+| F2 | every SENDER gates on the record (`AuthorityExtensions.cs:16-56`, ~30 sites); the claim is read by kinematics/Stride (`SimTransform`), the brain (`BehaviorState`, `BrainInterrupts`) and **every attribute change** (`JsonAttributeCompiler.cs:40,58`, `BinaryInterpreterBuilder.cs:111`) | §10.1, §11.1 |
+| F3 | the claim is set in 4 places: create (`NetworkSpawningSystem.cs:263`), promote (`GhostPromotionSystem.cs:324`), grant (`DeferredTakeoverSystem.cs:118`), transfers (`OwnershipIngressSystem.cs:79`, `OwnershipTransferInitiationSystem.cs:93`, `LocalAuthorityYieldSystem` `NedReplicationModule.cs:752`) | §10.5 |
+| F4 | `RoleAffinityPolicy.OwnableMask` = ∪(tables of the roles I serve) **+ birthright if creator** — creator-ness adds ONLY the birthright (`RoleAffinityPolicy.cs:148-193`) | §11.2 |
+| F5 | tables (`HrotRoleComponentSets.cs:163-215`): Brain = ALL − birthCritical; Muscle = Brain − brainOnly; Map2D = {EditablePolyline, RoutePlan} | §11 |
+| F6 | ⇒ live probe: **17 (CGF creates) / 22 (SimHost creates) components claimed by BOTH nodes**; record exclusive | §10 |
+| F7 | handover: the creator yields its `SimTransform` claim at frame 1 but its record says "mine" until the Muscle's `OwnershipUpdate` (frame 5) — **that window carries the only initial WorldPos sample**; without it the Muscle's ghost never promotes | §10 timeline |
+| F8 | the Muscle's share today arrives ONLY by the creator's grant: `BrainMuscleOwnershipStrategy` (least-loaded Muscle from 1 Hz heartbeats) → `dtWorldPos`+`dtNavigationStatus`; composed on CGF/IG only (`NedNetworkFactory.cs:303`) | §11.3 |
+| F9 | `BrainInterrupts` is brain-only in use (`CognitiveRuntimeModule`, composed only by `CgfLogicPack.cs:159`) but missing from `brainOnly` | §11 |
+| F10 | sharding seam `IRoleShardProvider` has ONE implementation, `SingleNodePerRoleShardProvider` (ignores the key) | §11.1 |
+| F11 | every claim change already emits a one-shot next-frame bus event: `ConstructionOrder` (create, promote), `OwnershipUpdate` (grant, transfer, ingress); `LocalAuthorityYield` emits none | §9c |
+| F12 | side defects: `CE-507` (perception/EQS senders use a raw ordinal as key); an unused spec-shaped `OwnershipUpdate` topic (`GenericMessages.cs:33`) | §10.4-10.5 |
+
+### 0.3 Design intent *(docs — how it was MEANT to be)*
+
+| doc | intent |
+|---|---|
+| Role-Affinity §3.1 · Node_Roles §4.1 | **two mechanisms:** non-birth-critical components ⇒ derived from role (*"the creator declines, the role-holder claims on promotion"*, no message); birth-critical (`SimTransform` only) ⇒ creator birthright, then the EXISTING grant hand-off |
+| Role-Affinity §0a / `CE-256` | the grant path is the failure mode (no Muscle known at creation ⇒ never granted); re-grant REJECTED as a second mechanism. ⚠ derivation fixes it only for non-birth-critical components |
+| Role-Affinity §3.8 | several nodes per role ⇒ `ServesRole` from inputs IDENTICAL on every node, stable per entity; balancing = one authority publishes the assignment |
+| Role-Affinity §2.3 | ownership is network-agnostic: role sets are COMPONENT masks, never descriptors |
+| wire spec | per-descriptor owners; only the owner publishes; ownership is "not true during the short time of ownership update" (= F7) |
+
+### 0.4 What R-160 implies *(derived; not built)*
+
+- role claims are **positive, disjoint** lists; **creator** = ALL − ∪(claims of roles it does not serve) + birthright; **non-creator** = ∪(claims of
+  roles it serves), shard-gated. ⇒ every component has exactly one claimant per entity (with a correct shard provider).
+- Map2D claim = ∅ (R-161). Brain claim = `brainOnly` + `BrainInterrupts` + …. Muscle claim = its non-birth-critical components (§0.3) + ….
+- `SimTransform` keeps the grant; the record for the descriptors carrying it keeps the protocols' handover timing (F7).
+- then R-159: the record is recomputed from the claim on create, promote and every `OwnershipUpdate` (F11) — for every descriptor
+  whose components are all non-birth-critical.
+
+### 0.5 OPEN — the only questions left
+
+| # | question | how to answer it |
+|---|---|---|
+| O1 | the complete **Brain** and **Muscle** claim lists | classification pass (§0.6) |
+| O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? | from O1's result + Transfer design §1 (per-descriptor transfers) |
+| O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
+| O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
+| O5 | sharding beyond one node per role | `CE-506`; note the creator's grant already has the §3.8 shape |
+
+### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
+
+1. `RELEARN`, then read §0 only.
+2. **Classification pass** — for every component present on a CGF- or SimHost-created entity (the §10 probe lists them): which
+   systems WRITE it, composed on which host *(graph `search_graph`/`trace_path` + grep; the graph under-reports extension and
+   generic dispatch — F2)*. Output: one table component → writer hosts → proposed claimant (Brain / Muscle / creator).
+3. Answer O2–O4 from that table, then bring the user **ONE** complete proposal covering all three creation paths
+   (CGF, SimHost, IG creates), with UML, a claim table and rejected alternatives one line each.
+4. Only then: build (R-160 tables + policy; R-159 recompute system), proven through `CE-500`'s rail and the role-affinity rails.
+
+
+## ⛔ HISTORY — the trail that led to §0 *(2026-10-01)*
+
+⛔ **Everything below this heading is history: proposals, refutations and corrections in the order they happened. Do NOT quote any of it as current — §0 is the state. Kept because the measurements in §10 and the proofs in §7 are cited from §0.**
+
+### (original title) one ownership truth: senders derive descriptor ownership from the component claim
 
 > 🔒 **User, `2026-10-01`:** *"How can we make them agree in a clean way? We should not invent workarounds to a bug."* ·
 > *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* ·
