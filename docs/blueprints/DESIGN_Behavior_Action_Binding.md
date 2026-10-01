@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: DESIGN — awaiting the user on §4 (B-1 … B-5). ⛔ Nothing in the file format moves until then.
+build-state: DESIGN — B-1 APPROVED in full 2026-10-01; awaiting the user on B-2 … B-5. ⛔ Nothing in the file format moves until then.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
 stale-below: nothing yet.
@@ -128,7 +128,7 @@ graph TD
 
 | | decision | ⚖️ lean | rejected (one line each) |
 |---|---|---|---|
-| **B-1** | **what names a blueprint target** (F5) | **both fields on the carrier: `BlueprintAssetId`+`BlueprintName` for identity, `MethodFqn` kept.** HSM resolves by Guid (unchanged); BTree keeps resolving by the generated FQN this slice and gains the Guid for heal/display. Unifying resolution is a separate, later step | *BTree resolves by Guid now* — needs the blueprint catalog inside the netstandard2.0 emitter and the migrator cannot invert the FQN hash; doubles the slice |
+| **B-1** | **what names a blueprint target** (F5) | ✅ **APPROVED IN FULL by the user `2026-10-01`: both hosts resolve a blueprint by `BlueprintAssetId` (+`BlueprintName` to heal a rename); for a blueprint binding `MethodFqn` is DERIVED by the emitter from the blueprint catalog, never persisted.** BTree's generator already loads that catalog (`GeneratedBlueprintSchemaCatalog`). The 24 `.btree.json` files are rewritten where the catalog is reachable, because the generated FQN's hash cannot be inverted | *store both, BTree keeps resolving by FQN* — one record, two meanings for one field (my first lean, withdrawn) |
 | **B-2** | **what a binding's `ExpressionTargetField` addresses** (F1, F2, F4) | **(a) every binding's ETF is its own full address — no state-wide base.** A state slot's C# action binds like a transition's (`Fqn@offset`, compile-time, already built for E7b); the activity blueprint keeps the `(state, childAsset)` site it has. Migration preserves today's lookups exactly: the state's one ETF goes to its **Activity** binding **and** to every outgoing transition's guard-blueprint binding that has no ETF of its own (today such a guard falls back to the state-wide site — 📐 `HsmPolledGuardDemo`'s `Waiting` binds `EngageTarget` with no activity at all, purely for its guard); the transition's ETF goes to **each** of guard/action that is set. Corpus: 3 bound states, 1 bound transition, 1 bound C# action. Fixes F4 by deleting the base add for transition actions | **(b)** widen the runtime site key to `(childAssetId, slotKind)` — the kernel stamps no slot kind, so it needs a FastHSM change for a distinction (a), being compile-time, gets for free · **(c)** keep one ETF per state — leaves F2 and F4 in place |
 | **B-3** | **global transitions** (F3) | **in** — eight sites. Same two bindings as a transition; their guard still reads the ACTIVE state's site (§28.6c), unchanged | *leave them flat* — a ninth spelling of the concept survives the unification |
 | **B-4** | **how files migrate** | **schemaVersion 2 + an in-`Deserialize` DOM upgrade**, plus a one-time rewrite of the 31 corpus files so the tree is v2 and the goldens show the move once | *a separate migration tool* — unmigrated files stop compiling · *STJ setter shims on the DTO* — legacy names live forever on the public DTO |
@@ -142,6 +142,7 @@ graph TD
 | 2 | DTO record + migrator + schemaVersion 2 + migrator round-trip rail over all 31 files | DTO, both `JsonServices`; no emit change |
 | 3 | both emit cores read the carrier; B-2's per-binding address; F4 rail green | goldens, whole HSM corpus + BTree corpus |
 | 4 | editor model record, both mappers, facets, one shared drawer, validators | editor rails |
+| 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived | BTree goldens unchanged by construction |
 | 5 | rewrite the 31 corpus files to v2; delete the four payload classes and the flat HSM fields | corpus |
 
 ## 6. Rails owed
