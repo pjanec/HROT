@@ -945,7 +945,16 @@ third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `Bi
 imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
 correct**, and the first thing a positive enumeration would tighten.
 
-#### ⭐⭐⭐ `2026-10-01` — THE PROMOTE LEG SHOULD USE A DIFFERENT SET *(user, proposal — not built)*
+#### 📐 `2026-10-01` — MEASURED: how big the overlap is, and who reads it
+
+📐 Live probe (`Architect_Question_79` §10): **17 components claimed by BOTH CGF and SimHost on Path A, 22 on Path B** — `EntityInfo`,
+`Health`, `WeaponState`, `BrainInterrupts`, the perception components, and on Path B also `SimVelocity`/`VehicleState`/`NavState`/
+`NavigationStatus`. ⚠ So the title's *"no two nodes ever claim the same component"* holds only for the CLASSIFIED sets.
+⛔ **And the overlap is no longer read by nothing:** `BrainInterrupts` is unclassified and gated through the claim by
+`CognitiveInterruptSystem.cs:74,92` / `CognitiveCleanupSystem.cs:40` — ⚠ the §3.9c revisit trigger has fired for that one component
+(harmless today: only CGF composes those systems).
+
+#### ⛔ `2026-10-01` — REFUTED SAME DAY: "THE PROMOTE LEG SHOULD USE A DIFFERENT SET" *(kept as the record of the proposal)*
 
 > 🔒 **User, verbatim:** *"'everything minus named list' is ok from the point of the creator only. if non-creator node takes
 > ownership because of its role, it should take just the ownership of component belonging to its role, shouldn't it?"*

@@ -290,8 +290,8 @@ answered by **`AuthorityMask` over D's component ids** (`DescriptorOwnershipMap.
 ⚠ **Measured `2026-10-01` — the record does NOT honour the `MasterOnly` row today.** A spawn-owned descriptor has no `Map` entry, and
 the gate (`AuthorityExtensions.cs:47-55`) falls back to `PrimaryOwnerId` — so after `MasterOnly` the giver's other descriptors FOLLOW
 the master in the record (the giver stops publishing them, the receiver starts), while the claim stays put. ⇒ record and claim disagree
-and the row above is false for publication. 📄 [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §9b
-(recompute the record from the claim on every transfer) makes the row true.
+and the row above is false for publication. 📄 [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §10
+(measured): the claim is not exclusive, so deriving the record from it is not the fix; the row is still false for publication.
 
 ⛔ **The API names `EDescriptorType`, never component types** (the `2026-09-15` ruling). A component→descriptor
 helper may exist elsewhere, but it is **not** the transfer API — that would reintroduce the leaky

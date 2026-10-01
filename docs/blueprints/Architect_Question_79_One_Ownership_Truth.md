@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
-current-answer: §9b (recompute the record from the claim on EVERY ownership change — user rule 2026-10-01) FIRST; §9a/§9a′ are its steps toward it, §9 the one-gate alternative; §8 is the deferred full unification; §7 is the proof both rest on.
+current-answer: §10 (MEASURED state, 2026-10-01) FIRST — it REFUTES §9a′ and §9b; §9a and §9 survive; §8 is the deferred full unification; §7 is the proof both rest on.
 stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -517,3 +517,62 @@ Everything else (Path A, `DeferredTakeover`, `AllOwnedByThisNode`) produces the 
 **Not covered:** descriptors with no component mapping (`dtEntityMission`) keep their protocol-written entry; the per-node descriptor
 map is a subset (axiom M) — a node recomputes only descriptors it has translators for, which are the only ones its gate is asked about.
 A transfer for a component not yet present (`D7`) leaves that descriptor's entry as the protocol wrote it.
+
+## 10. ⭐⭐⭐ MEASURED — the live ownership state on both paths *(`2026-10-01`, probe in `ClusterRunner.Integration.Tests`, deleted after)*
+
+> 🔒 **User, `2026-10-01`:** *"i still feel like you have not enough info … can you read owning designs … can you measure the current
+> state? every my question changes something. This is the sign your leans are not grounded well enough."*
+
+📐 One `simhost,cgf` cluster per path, entity `Tank_M1Abrams`, dumped after both nodes reach `Active` + 120 frames; Path A also
+frame by frame from spawn. Raw output kept out of the repo (scratchpad).
+
+| | Path A — CGF creates, grants WorldPos+NavStatus | Path B — SimHost creates |
+|---|---|---|
+| **record**, CGF | `PrimaryOwnerId=400` (self) · Map `{WorldPos→1, NavStatus→1}` | `PrimaryOwnerId=-1` · Map **absent** ⇒ every gate "no" |
+| **record**, SimHost | `PrimaryOwnerId=-1` · Map `{WorldPos→1, NavStatus→1}` | `PrimaryOwnerId=1` (self) · Map absent ⇒ every gate "mine" |
+| **claim**, components BOTH nodes claim | ⛔ **17** — `EntityInfo`, `Health`, `WeaponState`, `BrainInterrupts`, `SensorContactList`, `PerceptionReceptor`, `TargetMemory`, `PhysicsCollider`, `FormationController`, … | ⛔ **22** — the 17 + `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState`, `NavigationStatus` |
+| claim, CGF only | the brain set (`BehaviorState`, channels, `NavigationIntent`, `MissionPlanQueue`, `PreviousCapabilities`, …) | the same brain set |
+| claim, SimHost only | `SimTransform` + the WorldPos/NavStatus grant block | `SimTransform` |
+| senders that fired | CGF: EntityMaster, EntityInfo, EntityDamage, **WorldPos ×1**, EntityMission · SimHost: WorldPos, NavStatus | SimHost: EntityMaster, EntityInfo, EntityDamage, WorldPos, NavStatus · CGF: **none** (`NavigationIntent` claimed, gate "no") = `CE-500` |
+
+**Path A, frame by frame** — the handover:
+
+| frame | CGF (creator) | SimHost |
+|---|---|---|
+| 1 | claim `SimTransform` **false** (pre-genesis yield, `NedReplicationModule.cs:718-757`) · record gate `dtWorldPos` **true** | Ghost, no `SimTransform`, `PendingAuthorityGrants` |
+| 2 | (unchanged) — **the one WorldPos sample CGF ever sends goes out here** | Ghost, `SimTransform` arrived |
+| 3 | (unchanged) | promoted; takeover claims, Map→self |
+| 5 | Map `WorldPos→1` ⇒ record gate false | Active |
+
+### 10.1 What this refutes
+
+| proposal | refuted by |
+|---|---|
+| ⛔ **§9b** — recompute the record from the claim on EVERY change, overwriting | ① the claim is **not exclusive on either path** (17 / 22 shared components) ⇒ CGF would publish `EntityInfo`/`EntityDamage` beside SimHost on Path A, SimHost beside CGF… ② ⛔⛔ **the record lags the claim ON PURPOSE during handover**: at frames 1-4 the creator has already yielded its `SimTransform` claim but its record still says "mine", and that is what sends the first WorldPos. Recomputed, no position is ever sent ⇒ SimHost's ghost never gets `SimTransform` (a derived HARD promotion gate, `tkb-1` §6.6a) ⇒ never promotes ⇒ never takes over. **Deadlock.** `DeferredTakeoverSystem.cs:71-74` states the intent: *"Brain publishes the initial WorldPos before delegating authority, GhostPromotionSystem promotes the ghost, and only then we claim here."* — the wire spec's *"not true during the short time of ownership update"* |
+| ⛔ **§9a′** — promote leg claims only the role's positive list | `BrainInterrupts` is in neither special set yet is READ through the claim by `CognitiveInterruptSystem.cs:74,92` and `CognitiveCleanupSystem.cs:40` (gate ON for CGF, §6i) ⇒ CGF would stop processing interrupts on Path B. And `DESIGN_Node_Roles_And_Policies.md` §4.1 relies on promote-leg claims of non-role components for IG-created entities |
+| ⚠ my earlier readership count ("SimTransform ×2, Position, BehaviorState ×2") | **undercount** — I grepped `HasAuthority<`/`WithOwned<` and missed `WithOwnedWhen<` and `Stride/`. Real claim readers: `SimTransform` (kinematics, 6 Stride physics systems, `GeoSpatialIngress`), `BehaviorState` (brain tick, channel arbitration, mission director, tactical intent ×2), `BrainInterrupts` (interrupt + cleanup), `Position` |
+
+### 10.2 What survives
+
+- **§9a** — at promotion, fill an EMPTY record entry for a descriptor whose components are all brain-only and claimed. Its premises,
+  now measured: SimHost claims **none** of the brain set on either path; CGF's record has **no** entry on Path B; it never touches a
+  handover entry (Path A's Map is untouched; a Muscle promoter's exclusive set is ∅). Covers `dtNavigationIntent` only —
+  `dtEntityMission` maps no components.
+- **§9** — the one-line gate in `NavigationIntentEgressTranslator`.
+
+### 10.3 What the two records actually are *(stated from the measurement, not from a principle)*
+
+| | claim (`AuthorityMask`) | record (`NetworkAuthority` + `DescriptorOwnership`) |
+|---|---|---|
+| answers | "may I **simulate/write** this locally" | "may I **publish** this" |
+| derived from | the role tables (network-agnostic, `R`-ruling 2026-09-01) + birthright + grants | the entity master + explicit transfers (wire spec) |
+| exclusive across nodes? | ⛔ no — by the complement ruling, tolerated (§3.9c) | ✅ yes, by construction |
+| during a handover | the creator yields FIRST | the creator keeps publishing until the new owner confirms |
+
+⇒ they are **not two copies of one fact**. The record cannot be derived from today's claim without first making the claim exclusive —
+which the complement ruling (§3.9c) deliberately does not do, and which the handover lag rules out at the transfer moments anyway.
+
+### 10.4 Side finding — `CE-507`
+`PerceptionTranslators.cs:62` and `EqsSensorConfigEgressTranslator.cs:88,180,236` call `view.HasAuthority(entity, DescriptorOrdinal)`
+with the RAW ordinal; the record is keyed by `PackKey(d,i) = d<<32 | i` (`OwnershipExtensions.cs:16-18`), so the descriptor lookup can
+never hit and the gate is always the entity-master owner.

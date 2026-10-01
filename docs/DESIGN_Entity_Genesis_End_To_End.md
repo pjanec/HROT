@@ -286,6 +286,8 @@ same system that handled the parent's request, each getting its own network id a
 | **explicit grant** ⑧ | after promotion, only where a grant was addressed | **overrides both** — it is additive and deliberate |
 
 ⛔ **The two role legs must stay complementary or two nodes own one component and their egress fights.**
+⚠ **MEASURED `2026-10-01`: they are NOT complementary** — 17 (Path A) / 22 (Path B) components are claimed by both nodes; egress does not
+fight only because every sender reads the entity-level record, not the claim. 📄 [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §10.
 That property is not maintained by agreement — **both nodes evaluate the same function over the same
 entity**, which is why the tables live in one place and take a role and nothing else.
 📄 The rule and its rails: [`DESIGN_Role_Affinity_Ownership.md`](DESIGN_Role_Affinity_Ownership.md) §3.9c.
