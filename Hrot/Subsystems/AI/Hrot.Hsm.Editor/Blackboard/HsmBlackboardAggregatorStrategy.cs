@@ -33,26 +33,26 @@ public sealed class HsmBlackboardAggregatorStrategy : IBlackboardAggregatorStrat
         // States
         foreach (var state in hsmAsset.AllStates)
         {
-            EmitIfFound(state.OnEntryAction,  $"{hsmAsset.Name} > State '{state.Name}' OnEntry",  hsmAsset, state.StableId, schema, requirements, warnings);
-            EmitIfFound(state.OnExitAction,   $"{hsmAsset.Name} > State '{state.Name}' OnExit",   hsmAsset, state.StableId, schema, requirements, warnings);
-            EmitIfFound(state.ActivityAction, $"{hsmAsset.Name} > State '{state.Name}' Activity", hsmAsset, state.StableId, schema, requirements, warnings);
-            EmitIfFound(state.TimerAction,    $"{hsmAsset.Name} > State '{state.Name}' Timer",    hsmAsset, state.StableId, schema, requirements, warnings);
+            EmitIfFound(state.OnEntry?.MethodFqn,  $"{hsmAsset.Name} > State '{state.Name}' OnEntry",  hsmAsset, state.StableId, schema, requirements, warnings);
+            EmitIfFound(state.OnExit?.MethodFqn,   $"{hsmAsset.Name} > State '{state.Name}' OnExit",   hsmAsset, state.StableId, schema, requirements, warnings);
+            EmitIfFound(state.Activity?.MethodFqn, $"{hsmAsset.Name} > State '{state.Name}' Activity", hsmAsset, state.StableId, schema, requirements, warnings);
+            EmitIfFound(state.Timer?.MethodFqn,    $"{hsmAsset.Name} > State '{state.Name}' Timer",    hsmAsset, state.StableId, schema, requirements, warnings);
         }
 
         // Transitions
         foreach (var t in hsmAsset.AllTransitions)
         {
             string label = $"{hsmAsset.Name} > Transition '{t.Source?.Name}' -> '{t.Target?.Name}'";
-            EmitIfFound(t.GuardFunction,  label + " Guard",  hsmAsset, t.VisualId, schema, requirements, warnings);
-            EmitIfFound(t.ActionFunction, label + " Action", hsmAsset, t.VisualId, schema, requirements, warnings);
+            EmitIfFound(t.Guard?.MethodFqn,  label + " Guard",  hsmAsset, t.VisualId, schema, requirements, warnings);
+            EmitIfFound(t.Action?.MethodFqn, label + " Action", hsmAsset, t.VisualId, schema, requirements, warnings);
         }
 
         // Global transitions
         foreach (var g in hsmAsset.AllGlobalTransitions)
         {
             string label = $"{hsmAsset.Name} > GlobalTransition -> '{g.Target?.Name}'";
-            EmitIfFound(g.GuardFunction,  label + " Guard",  hsmAsset, g.VisualId, schema, requirements, warnings);
-            EmitIfFound(g.ActionFunction, label + " Action", hsmAsset, g.VisualId, schema, requirements, warnings);
+            EmitIfFound(g.Guard?.MethodFqn,  label + " Guard",  hsmAsset, g.VisualId, schema, requirements, warnings);
+            EmitIfFound(g.Action?.MethodFqn, label + " Action", hsmAsset, g.VisualId, schema, requirements, warnings);
         }
 
         return new AggregationResult(requirements, warnings);

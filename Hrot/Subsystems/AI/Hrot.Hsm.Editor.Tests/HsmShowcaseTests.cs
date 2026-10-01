@@ -239,12 +239,12 @@ public sealed class HsmShowcaseTests
 
         foreach (var t in asset.AllTransitions)
         {
-            t.GuardFunction.Should().BeNull(
+            (t.Guard?.MethodFqn).Should().BeNull(
                 $"Transition {t.VisualId} must have GuardFunction=null (VE-DEBT-004)");
         }
         foreach (var g in asset.AllGlobalTransitions)
         {
-            g.GuardFunction.Should().BeNull(
+            (g.Guard?.MethodFqn).Should().BeNull(
                 $"Global transition {g.VisualId} must have GuardFunction=null (VE-DEBT-004)");
         }
     }
@@ -257,7 +257,7 @@ public sealed class HsmShowcaseTests
         var stubIdleFqn = "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle";
 
         var transitionsWithAction = asset.AllTransitions
-            .Where(t => t.ActionFunction == stubIdleFqn).ToList();
+            .Where(t => (t.Action?.MethodFqn) == stubIdleFqn).ToList();
         transitionsWithAction.Should().NotBeEmpty(
             $"Showcase must have ≥1 transition with ActionFunction bound to {stubIdleFqn}");
     }
@@ -270,10 +270,10 @@ public sealed class HsmShowcaseTests
         var stubIdleFqn = "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle";
 
         var statesWithStubIdle = asset.AllStates.Where(s =>
-            s.OnEntryAction == stubIdleFqn ||
-            s.OnExitAction == stubIdleFqn ||
-            s.ActivityAction == stubIdleFqn ||
-            s.TimerAction == stubIdleFqn).ToList();
+            (s.OnEntry?.MethodFqn) == stubIdleFqn ||
+            (s.OnExit?.MethodFqn) == stubIdleFqn ||
+            (s.Activity?.MethodFqn) == stubIdleFqn ||
+            (s.Timer?.MethodFqn) == stubIdleFqn).ToList();
 
         statesWithStubIdle.Should().NotBeEmpty(
             $"Showcase must have ≥1 state with an action bound to {stubIdleFqn}");

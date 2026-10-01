@@ -74,11 +74,11 @@ public sealed class BTreeValidatorDanglingBlueprintTests
             VisualId     = nodeId,
             KernelType   = NodeType.Action,
             DisplayLabel = "ComposedAction",
-            Action       = new BTreeActionPayload
+            Action       = new BehaviorActionBinding
             {
                 MethodFqn     = methodFqn,
-                DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,
             },
+            DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
         };
         root.ChildVisualIds.Add(action.VisualId);
 
@@ -165,11 +165,11 @@ public sealed class BTreeValidatorDanglingBlueprintTests
             VisualId     = Guid.NewGuid(),
             KernelType   = NodeType.Action,
             DisplayLabel = "HandWrittenAction",
-            Action       = new BTreeActionPayload
+            Action       = new BehaviorActionBinding
             {
                 MethodFqn     = methodFqn,
-                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,
             },
+            DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
         };
         root.ChildVisualIds.Add(action.VisualId);
         asset.ReplaceAll(new List<BTreeEditorNode> { root, action }, new List<BTreeEditorPill>(), EmptyBlob());

@@ -169,7 +169,7 @@ sequenceDiagram
 | 2 | ✅ **AS-BUILT** *(see the box below)*: DTO record at all 8 sites + `ActionBindingMigrator` inside both `Deserialize` + schemaVersion 2 + **all 31 corpus files rewritten to v2** + the four payload DTO classes and the flat HSM DTO fields deleted; both emit cores, both mappers, the generator validator read the record | ⭐ **emitted source byte-identical** (every emitted-source golden unchanged); only the two persistence-shape snapshots moved |
 | 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
 | 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
-| 4 | ⏳ editor side — designed in §5.4, built as 4a (model, no visible change) then 4b (one facet, one drawer, one applier) | editor rails |
+| 4 | ⏳ editor side — designed in §5.4. ✅ 4a (model, no visible change; as-built box in §5.4) · ⏳ 4b (one facet, one drawer, one applier) | editor rails |
 | 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid | BTree goldens unchanged by construction |
 
 > ⭐⭐ **Slice 2 AS-BUILT (`2026-10-01`) — where it deviated from the plan above, and why.**
@@ -346,6 +346,17 @@ graph TD
 | builds | `BehaviorActionBinding` in `Hrot.Editor.AiShared`; `BTreeActionPayload`/`BTreeConditionPayload` deleted (the node carries `DelegateShape` + a binding); `StateNode` / `TransitionNode` / `GlobalTransitionNode` carry bindings; both persistence mappers become straight copies; every model reader moves | the facet, the field editor, the drawer, the applier, the one builder; per-binding pickers and both `*FacetFqnContext` retired; validators read the binding |
 | facets | keep their CURRENT shape; the flat↔record translation moves from the persistence mapper to the facet boundary (the slice-2 rule: one state field goes to every set slot) | one `BehaviorActionBindingFacet` per site ⇒ each slot edits its OWN target field (B-2) |
 | proof | every existing editor rail green, no golden moves | new drawer/applier rails; HSM authoring rails re-homed |
+
+> ⭐⭐ **Slice 4a AS-BUILT (`2026-10-01`) — the editor model is one record; nothing visible changed.**
+> | | |
+> |---|---|
+> | **built** | `BehaviorActionBinding` (`Hrot.Editor.AiShared`) + `BehaviorActionBindingMapping` (ONE copy, both hosts' mappers). BTree: `BTreeActionPayload`/`BTreeConditionPayload` deleted, `BTreeEditorNode.DelegateShape` added; `ComposeAiPrimitiveAction`/`…Condition` merged into ONE `ComposeAiPrimitive` (they existed only because the two payload classes shared no base). HSM: `StateNode.OnEntry/OnExit/Activity/Timer`, `TransitionNode.Guard/Action`, `GlobalTransitionNode.Guard/Action`; every model reader moved (validator, reference contributor, aggregator, lane-mask inferrer, label renderer, projector, command sink, pickers) |
+> | **the state seed** | `StateNode.StateWideTargetField` — DERIVED by `HsmBridgeEmitCore.StateWideField`'s rule (Activity, else OnEntry, OnExit, Timer), so the editor and the emitter cannot disagree; its setter is the v1 shape (every bound slot; else an Activity that names nothing) |
+> | **writer rule kept exact** | a transition is bound to a variable when EITHER binding targets it, a WRITER only through the Action (its field is the output, the guard's the input it seeds from) — identical to before while 4a's facets keep one field per node |
+> | ⭐ **deviation: two editor-only rules the plan did not name** | ① `BehaviorActionBinding.NamesNothing` — stricter than the DTO's `IsEmpty`: a blueprint picked with no catalogue keeps its NAME and an empty Guid (§7.1a ③ never-erase), and the editor must keep that pick; saving still drops a Guid-less name. 📐 Caught by `CE414_R1/R3/R4`, which reddened when the first cut used `IsEmpty`. ② a transition target field typed BEFORE any guard/action is held on an Action that names nothing (the state already had this, on Activity) — otherwise the next frame's facet commit lost it |
+> | **the boundary translation** | `HsmFacetBindings` — the slice-2 flat↔record rules, now at the facet boundary only. ⛔ Retired by 4b |
+> | **save output** | unchanged: BTree keeps writing a node's binding even when empty (`keepWhenEmpty`), HSM writes an unbound slot as absent — the two slice-2 mappers' rules |
+> | **gates** | Hsm.Editor 623/0 · BTree.Editor 639/0 · Persistence 148/0 · AiShared 2101/0 (1 skip) · Generators 322/0 (no golden moved) · Blueprints 4011/0 (17 known skips) · Toolkits 2399/1 = `SquadInputsP3Tests.AllReaders_ZeroAlloc_After1MillionCalls`, an allocation-count test that passes 3/3 alone (4a touches nothing under `FDP/`) · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`). Editor and CGF hosts build. ~40 test files migrated mechanically; every rewritten read is parenthesised (`(s.Activity?.BlueprintName).Should()`) so a missing binding fails the assertion instead of short-circuiting it |
 
 **Rejected**
 - *A nested struct with per-field attribute drawers*: a container renders read-only (`DrawContainerNode`), and a field drawer cannot see its sibling method.

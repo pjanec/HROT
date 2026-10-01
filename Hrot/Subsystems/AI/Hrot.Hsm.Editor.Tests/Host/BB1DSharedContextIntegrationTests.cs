@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Compiler;
@@ -120,7 +121,7 @@ public sealed class BB1DHsmSharedContextIntegrationTests
 
         // Find the transition from Idle → Active (the one with the action).
         var transition = asset.AllTransitions
-            .FirstOrDefault(t => !string.IsNullOrEmpty(t.ActionFunction));
+            .FirstOrDefault(t => !string.IsNullOrEmpty((t.Action?.MethodFqn)));
         transition.Should().NotBeNull("the test asset must have a transition with an action function");
 
         // Drive the dispatcher with a transition selection.
@@ -199,7 +200,7 @@ public sealed class BB1DHsmSharedContextIntegrationTests
         var drawerMap  = HsmPickerDrawerFactory.BuildDrawers(asset, exporter, sharedCtx);
 
         // Prime the FQN by selecting the transition.
-        var transition = asset.AllTransitions.First(t => !string.IsNullOrEmpty(t.ActionFunction));
+        var transition = asset.AllTransitions.First(t => !string.IsNullOrEmpty((t.Action?.MethodFqn)));
         dispatcher!.GetFacet(new HsmTransitionSelection(transition.VisualId));
         sharedCtx.CurrentActionFqn.Should().Be(fqn);
 

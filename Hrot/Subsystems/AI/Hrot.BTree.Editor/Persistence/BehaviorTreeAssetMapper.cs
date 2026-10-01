@@ -6,6 +6,7 @@ using Fbt;
 using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Blackboard;
 
 namespace Hrot.BTree.Editor.Persistence;
@@ -287,29 +288,16 @@ public static class BehaviorTreeAssetMapper
         {
             // Similarly no FloatParam at node level (pill carries it).
         }
+        // ⭐ CE-417 (slice 4a): one binding in the model too — a straight copy; DelegateShape sits on the node.
         if (dto is BTreeActionNodeDto actDto && node.Action != null)
         {
-            // ⭐ CE-417: one BehaviorActionBindingDto; DelegateShape sits on the node.
-            actDto.Action = new BehaviorActionBindingDto
-            {
-                MethodFqn           = string.IsNullOrEmpty(node.Action.MethodFqn) ? null : node.Action.MethodFqn,
-                ExpressionTargetField = node.Action.ExpressionTargetField,
-                WorkingStateTypeId  = node.Action.WorkingStateTypeId,
-                WorkingStateTargetField = node.Action.WorkingStateTargetField,
-            };
-            actDto.DelegateShape = (BTreeDelegateShapeDto)node.Action.DelegateShape;
+            actDto.Action        = BehaviorActionBindingMapping.ToDto(node.Action, keepWhenEmpty: true);
+            actDto.DelegateShape = (BTreeDelegateShapeDto)node.DelegateShape;
         }
         if (dto is BTreeConditionNodeDto condDto && node.Condition != null)
         {
-            // ⭐ CE-417: one BehaviorActionBindingDto; DelegateShape sits on the node.
-            condDto.Condition = new BehaviorActionBindingDto
-            {
-                MethodFqn           = string.IsNullOrEmpty(node.Condition.MethodFqn) ? null : node.Condition.MethodFqn,
-                ExpressionTargetField = node.Condition.ExpressionTargetField,
-                WorkingStateTypeId  = node.Condition.WorkingStateTypeId,
-                WorkingStateTargetField = node.Condition.WorkingStateTargetField,
-            };
-            condDto.DelegateShape = (BTreeDelegateShapeDto)node.Condition.DelegateShape;
+            condDto.Condition     = BehaviorActionBindingMapping.ToDto(node.Condition, keepWhenEmpty: true);
+            condDto.DelegateShape = (BTreeDelegateShapeDto)node.DelegateShape;
         }
         if (dto is BTreeWaitNodeDto waitDto && node.Wait != null)
         {
@@ -351,25 +339,13 @@ public static class BehaviorTreeAssetMapper
 
         if (dto is BTreeActionNodeDto actDto && actDto.Action != null)
         {
-            node.Action = new BTreeActionPayload
-            {
-                MethodFqn           = actDto.Action.MethodFqn ?? string.Empty,
-                ExpressionTargetField = actDto.Action.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)actDto.DelegateShape,
-                WorkingStateTypeId  = actDto.Action.WorkingStateTypeId,
-                WorkingStateTargetField = actDto.Action.WorkingStateTargetField,
-            };
+            node.Action        = BehaviorActionBindingMapping.FromDto(actDto.Action, keepWhenEmpty: true);
+            node.DelegateShape = (BTreeActionDelegateShape)actDto.DelegateShape;
         }
         if (dto is BTreeConditionNodeDto condDto && condDto.Condition != null)
         {
-            node.Condition = new BTreeConditionPayload
-            {
-                MethodFqn           = condDto.Condition.MethodFqn ?? string.Empty,
-                ExpressionTargetField = condDto.Condition.ExpressionTargetField,
-                DelegateShape       = (BTreeActionDelegateShape)condDto.DelegateShape,
-                WorkingStateTypeId  = condDto.Condition.WorkingStateTypeId,
-                WorkingStateTargetField = condDto.Condition.WorkingStateTargetField,
-            };
+            node.Condition     = BehaviorActionBindingMapping.FromDto(condDto.Condition, keepWhenEmpty: true);
+            node.DelegateShape = (BTreeActionDelegateShape)condDto.DelegateShape;
         }
         if (dto is BTreeWaitNodeDto waitDto && waitDto.Wait != null)
         {

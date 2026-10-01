@@ -36,21 +36,22 @@ public sealed class HsmFacetMapper
         return new StateFacet
         {
             Name                    = s.Name,
-            OnEntryAction           = s.OnEntryAction,
-            OnExitAction            = s.OnExitAction,
-            ActivityAction          = s.ActivityAction,
-            TimerAction             = s.TimerAction,
+            // ⭐ CE-417 (slice 4a): the model holds bindings; this facet keeps its flat shape until 4b.
+            OnEntryAction           = s.OnEntry?.MethodFqn,
+            OnExitAction            = s.OnExit?.MethodFqn,
+            ActivityAction          = s.Activity?.MethodFqn,
+            TimerAction             = s.Timer?.MethodFqn,
             // ⭐ §11.1a — the authored name, plus its two derived companions.
             SubtreeName             = s.SubtreeName,
             SubtreeAssetId          = s.SubtreeAssetId == Guid.Empty ? string.Empty
                                                                      : s.SubtreeAssetId.ToString(),
             IsSubtreeResolved       = s.IsSubtreeResolved,
             // ⭐ CE-385 — the blueprint-hosted activity, same name+id shape as the subtree pair.
-            ActivityBlueprintName    = s.ActivityBlueprintName,
-            ActivityBlueprintAssetId = s.ActivityBlueprintAssetId == Guid.Empty
+            ActivityBlueprintName    = s.Activity?.BlueprintName,
+            ActivityBlueprintAssetId = (s.Activity?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty
                                          ? string.Empty
-                                         : s.ActivityBlueprintAssetId.ToString(),
-            ExpressionTargetField    = s.ExpressionTargetField,   // CE-387
+                                         : s.Activity!.BlueprintAssetId.ToString(),
+            ExpressionTargetField    = s.StateWideTargetField,   // CE-387 / CE-417
             Flags                   = BuildStateFlags(s),
             DeferredEventIds        = new List<ushort>(s.DeferredEventIds),
             OutputLanesSummary      = "",  // populated by HS-S1-19
@@ -70,7 +71,7 @@ public sealed class HsmFacetMapper
         var lcaCost = (ushort)(DepthOf(t.Source) + DepthOf(t.Target) - 2 * DepthOf(lca));
         if (_fqnContext is not null)
         {
-            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(t.ActionFunction) ? null : t.ActionFunction;
+            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(t.Action?.MethodFqn) ? null : t.Action!.MethodFqn;
             _fqnContext.CurrentVisualId  = t.VisualId.ToString();
         }
         return new TransitionFacet
@@ -78,15 +79,15 @@ public sealed class HsmFacetMapper
             SourceStateName       = t.Source.Name,
             TargetStateName       = t.Target.Name,
             EventId               = t.EventId,
-            GuardFunction         = t.GuardFunction,
+            GuardFunction         = t.Guard?.MethodFqn,
             // ⭐ CE-385 / CE-381 — the blueprint-hosted guard and the polled marker.
-            GuardBlueprintName    = t.GuardBlueprintName,
-            GuardBlueprintAssetId = t.GuardBlueprintAssetId == Guid.Empty
+            GuardBlueprintName    = t.Guard?.BlueprintName,
+            GuardBlueprintAssetId = (t.Guard?.BlueprintAssetId ?? Guid.Empty) == Guid.Empty
                                        ? string.Empty
-                                       : t.GuardBlueprintAssetId.ToString(),
+                                       : t.Guard!.BlueprintAssetId.ToString(),
             IsPolled              = t.IsPolled,
-            ActionFunction        = t.ActionFunction,
-            ExpressionTargetField = t.ExpressionTargetField,
+            ActionFunction        = t.Action?.MethodFqn,
+            ExpressionTargetField = HsmFacetBindings.TransitionTargetField(t.Guard, t.Action),   // CE-417 (4a)
             Priority              = t.Priority,
             Kind                  = t.Kind,
             SyncGroupId           = t.SyncGroupId,
@@ -141,16 +142,16 @@ public sealed class HsmFacetMapper
             ?? throw new KeyNotFoundException($"Global transition {visualId} not found");
         if (_fqnContext is not null)
         {
-            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(g.ActionFunction) ? null : g.ActionFunction;
+            _fqnContext.CurrentActionFqn = string.IsNullOrEmpty(g.Action?.MethodFqn) ? null : g.Action!.MethodFqn;
             _fqnContext.CurrentVisualId  = g.VisualId.ToString();
         }
         return new GlobalTransitionFacet
         {
             EventId               = g.EventId,
             TargetStateName       = g.Target.Name,
-            GuardFunction         = g.GuardFunction,
-            ActionFunction        = g.ActionFunction,
-            ExpressionTargetField = g.ExpressionTargetField,
+            GuardFunction         = g.Guard?.MethodFqn,
+            ActionFunction        = g.Action?.MethodFqn,
+            ExpressionTargetField = HsmFacetBindings.TransitionTargetField(g.Guard, g.Action),   // CE-417 (4a)
             Priority              = g.Priority,
             Comment               = g.Comment,
             VisualId              = g.VisualId.ToString(),
@@ -203,9 +204,9 @@ public sealed class HsmFacetMapper
         if (s.IsHistory)              f |= StateFlags.IsHistory;
         if (s.IsDeepHistory)          f |= StateFlags.IsDeepHistory;
         if (s.IsParallel)             f |= StateFlags.IsParallel;
-        if (s.OnEntryAction != null)  f |= StateFlags.HasOnEntry;
-        if (s.OnExitAction  != null)  f |= StateFlags.HasOnExit;
-        if (s.ActivityAction != null) f |= StateFlags.HasOnUpdate;
+        if (s.OnEntry?.MethodFqn  != null) f |= StateFlags.HasOnEntry;
+        if (s.OnExit?.MethodFqn   != null) f |= StateFlags.HasOnExit;
+        if (s.Activity?.MethodFqn != null) f |= StateFlags.HasOnUpdate;
         if (s.IsInitial)              f |= StateFlags.IsInitial;
         if (s.IsFinal)                f |= StateFlags.IsFinal;
         return f;

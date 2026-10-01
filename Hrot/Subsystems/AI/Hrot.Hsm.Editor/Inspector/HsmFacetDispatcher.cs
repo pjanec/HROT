@@ -143,11 +143,11 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         if (s is null) return;
 
         s.Name           = f.Name;
-        s.OnEntryAction  = f.OnEntryAction;
-        s.OnExitAction   = f.OnExitAction;
-        s.ActivityAction = f.ActivityAction;
-        s.TimerAction    = f.TimerAction;
-        s.ExpressionTargetField = f.ExpressionTargetField;   // CE-387
+        // ⭐ CE-417 (slice 4a): the facet is still flat; the slots are bindings (HsmFacetBindings — retired by 4b).
+        s.OnEntry        = HsmFacetBindings.WithMethod(s.OnEntry,  f.OnEntryAction);
+        s.OnExit         = HsmFacetBindings.WithMethod(s.OnExit,   f.OnExitAction);
+        s.Activity       = HsmFacetBindings.WithMethod(s.Activity, f.ActivityAction);
+        s.Timer          = HsmFacetBindings.WithMethod(s.Timer,    f.TimerAction);
         s.Comment        = f.Comment;
         s.IsBreakpoint   = f.IsBreakpoint;
         s.DeferredEventIds.Clear();
@@ -163,26 +163,26 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
 
         // ⭐⭐ CE-385 — the blueprint-hosted activity, captured by the SAME rule as the subtree pick.
         // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2.
-        string? previousActivity = s.ActivityBlueprintName;
-        if (string.IsNullOrWhiteSpace(f.ActivityBlueprintName))
-        {
-            s.ActivityBlueprintName    = null;
-            s.ActivityBlueprintAssetId = Guid.Empty;
-        }
-        else
-        {
-            s.ActivityBlueprintName    = f.ActivityBlueprintName;
-            s.ActivityBlueprintAssetId = ResolvePickedAssetId(
-                f.ActivityBlueprintName,
-                Hrot.Editor.AiShared.AssetKind.Blueprint,
-                s.ActivityBlueprintAssetId).Id;
-        }
+        string? previousActivity = s.Activity?.BlueprintName;
+        s.Activity = HsmFacetBindings.WithBlueprint(
+            s.Activity, f.ActivityBlueprintName,
+            string.IsNullOrWhiteSpace(f.ActivityBlueprintName)
+                ? Guid.Empty
+                : ResolvePickedAssetId(f.ActivityBlueprintName!, Hrot.Editor.AiShared.AssetKind.Blueprint,
+                                       s.Activity?.BlueprintAssetId ?? Guid.Empty).Id);
+
+        // ⭐ CE-387 — the state's ONE seed field, written by the slice-2 rule (every bound slot; else an Activity that names nothing).
+        s.OnEntry  = HsmFacetBindings.DropIfEmpty(s.OnEntry);
+        s.OnExit   = HsmFacetBindings.DropIfEmpty(s.OnExit);
+        s.Activity = HsmFacetBindings.DropIfEmpty(s.Activity);
+        s.Timer    = HsmFacetBindings.DropIfEmpty(s.Timer);
+        s.StateWideTargetField = f.ExpressionTargetField;
 
         // ⭐⭐⭐ CE-414 — COMPOSE. The state's ExpressionTargetField becomes ONE variable whose TYPE is
         //   the picked blueprint's generated Params struct.
         ComposeBlueprintParams(
-            previousActivity, s.ActivityBlueprintName, "bpActivityParams",
-            () => s.ExpressionTargetField, v => s.ExpressionTargetField = v);
+            previousActivity, s.Activity?.BlueprintName, "bpActivityParams",
+            () => s.StateWideTargetField, v => s.StateWideTargetField = v);
 
         _asset.MarkDirty();
     }
@@ -300,10 +300,9 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         if (t is null) return;
 
         t.EventId               = f.EventId;
-        t.GuardFunction         = f.GuardFunction;
+        t.Guard                 = HsmFacetBindings.WithMethod(t.Guard, f.GuardFunction);   // CE-417 (4a)
         t.IsPolled              = f.IsPolled;             // CE-381
-        t.ActionFunction        = f.ActionFunction;
-        t.ExpressionTargetField = f.ExpressionTargetField;
+        t.Action                = HsmFacetBindings.WithMethod(t.Action, f.ActionFunction);
         t.Priority              = f.Priority;
         t.Kind                  = f.Kind;
         t.SyncGroupId           = f.SyncGroupId;
@@ -311,20 +310,14 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         t.IsBreakpoint          = f.IsBreakpoint;
 
         // ⭐⭐ CE-385 — the blueprint-hosted guard, same pick rule as everything else.
-        string? previousGuard = t.GuardBlueprintName;
-        if (string.IsNullOrWhiteSpace(f.GuardBlueprintName))
-        {
-            t.GuardBlueprintName    = null;
-            t.GuardBlueprintAssetId = Guid.Empty;
-        }
-        else
-        {
-            t.GuardBlueprintName    = f.GuardBlueprintName;
-            t.GuardBlueprintAssetId = ResolvePickedAssetId(
-                f.GuardBlueprintName,
-                Hrot.Editor.AiShared.AssetKind.Blueprint,
-                t.GuardBlueprintAssetId).Id;
-        }
+        string? previousGuard = t.Guard?.BlueprintName;
+        t.Guard = HsmFacetBindings.WithBlueprint(
+            t.Guard, f.GuardBlueprintName,
+            string.IsNullOrWhiteSpace(f.GuardBlueprintName)
+                ? Guid.Empty
+                : ResolvePickedAssetId(f.GuardBlueprintName!, Hrot.Editor.AiShared.AssetKind.Blueprint,
+                                       t.Guard?.BlueprintAssetId ?? Guid.Empty).Id);
+        HsmFacetBindings.SetTransitionTargetField(ref t.Guard, ref t.Action, f.ExpressionTargetField);
 
         // ⭐⭐⭐ CE-414 / CE-413 — COMPOSE the guard's own params variable.
         //
@@ -332,8 +325,9 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         //      with its SOURCE STATE, so before CE-414 this variable and the source state's activity
         //      variable were the same bytes read through two different Params types.
         ComposeBlueprintParams(
-            previousGuard, t.GuardBlueprintName, "bpGuardParams",
-            () => t.ExpressionTargetField, v => t.ExpressionTargetField = v);
+            previousGuard, t.Guard?.BlueprintName, "bpGuardParams",
+            () => HsmFacetBindings.TransitionTargetField(t.Guard, t.Action),
+            v => HsmFacetBindings.SetTransitionTargetField(ref t.Guard, ref t.Action, v));
 
         // TargetStateName: find the state by name and rewire.
         if (!string.IsNullOrWhiteSpace(f.TargetStateName))
@@ -389,9 +383,9 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         var g = _asset.AllGlobalTransitions.FirstOrDefault(x => x.VisualId == visualId);
         if (g is null) return;
 
-        g.GuardFunction         = f.GuardFunction;
-        g.ActionFunction        = f.ActionFunction;
-        g.ExpressionTargetField = f.ExpressionTargetField;
+        g.Guard                 = HsmFacetBindings.WithMethod(g.Guard, f.GuardFunction);   // CE-417 (4a)
+        g.Action                = HsmFacetBindings.WithMethod(g.Action, f.ActionFunction);
+        HsmFacetBindings.SetTransitionTargetField(ref g.Guard, ref g.Action, f.ExpressionTargetField);
         g.Priority              = f.Priority;
         g.Comment               = f.Comment;
 

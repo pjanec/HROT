@@ -204,9 +204,9 @@ public sealed class BTreeValidator
         {
             string? methodFqn = node.KernelType switch
             {
-                NodeType.Action when node.Action?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+                NodeType.Action when (node.Action is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
                     => node.Action.MethodFqn,
-                NodeType.Condition when node.Condition?.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore
+                NodeType.Condition when (node.Condition is not null && node.DelegateShape == BTreeActionDelegateShape.AiPrimitiveTickCore)
                     => node.Condition.MethodFqn,
                 _ => null,
             };

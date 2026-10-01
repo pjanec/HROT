@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Numerics;
 using FluentAssertions;
 using Hrot.Hsm.Editor.Model;
@@ -24,13 +25,13 @@ public sealed class HsmTransitionLabelRendererTests
         {
             VisualId = Guid.NewGuid(),
             EventName = eventName,
-            GuardFunction = guardFqn,
-            ActionFunction = actionFqn,
             Priority = priority,
             SyncGroupId = syncGroupId,
             Kind = kind,
             Source = src,
             Target = src,
+            Guard  = BehaviorActionBinding.ForMethod(guardFqn),   // CE-417
+            Action = BehaviorActionBinding.ForMethod(actionFqn),
         };
         return t;
     }

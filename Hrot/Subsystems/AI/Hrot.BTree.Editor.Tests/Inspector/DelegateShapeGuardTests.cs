@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using FluentAssertions;
@@ -77,7 +78,7 @@ public sealed class DelegateShapeGuardTests
 
         // Patch the DelegateShape on the projected node's payload.
         var actionNode = asset.Nodes.First(n => n.KernelType == NodeType.Action);
-        actionNode.Action!.DelegateShape = shape;
+        actionNode.DelegateShape = shape;
         actionVisualId = actionNode.VisualId;
         return asset;
     }

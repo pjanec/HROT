@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fbt;
@@ -155,12 +156,12 @@ public sealed class BlackboardRenameTests
                 VisualId     = nodeId,
                 KernelType   = NodeType.Action,
                 DisplayLabel = "AimAndFire",
-                Action = new BTreeActionPayload
+                Action = new BehaviorActionBinding
                 {
                     MethodFqn            = "Combat.Actions.AimAndFire",
                     ExpressionTargetField = "speed",
-                    DelegateShape        = BTreeActionDelegateShape.ThreeParamReusable,
                 },
+                DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
             },
         };
         asset.ReplaceAll(nodes, new List<BTreeEditorPill>(), EmptyBlob());
@@ -190,11 +191,11 @@ public sealed class BlackboardRenameTests
             {
                 VisualId   = Guid.NewGuid(),
                 KernelType = NodeType.Action,
-                Action     = new BTreeActionPayload
+                Action     = new BehaviorActionBinding
                 {
                     ExpressionTargetField = null,   // no binding
-                    DelegateShape         = BTreeActionDelegateShape.FourParamFull,
                 },
+                DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
             },
         };
         asset.ReplaceAll(nodes, new List<BTreeEditorPill>(), EmptyBlob());

@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Text.RegularExpressions;
 using FluentAssertions;
 using Fbt;
@@ -41,11 +42,11 @@ public sealed class BTreeFluentEmitterEmitTests
         new()
         {
             VisualId = id, KernelType = NodeType.Action, KernelBlobIndex = 2,
-            Action = new BTreeActionPayload
+            Action = new BehaviorActionBinding
             {
                 MethodFqn = fqn,
-                DelegateShape = BTreeActionDelegateShape.FourParamFull,
             },
+            DelegateShape = BTreeActionDelegateShape.FourParamFull,   // CE-417: the shape sits on the node
         };
 
     // ── BPF-018: EmitSubtree ──────────────────────────────────────────────────

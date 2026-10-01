@@ -116,7 +116,7 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "AimAndFire",
-                Action       = new BTreeActionPayload { MethodFqn = fqn },
+                Action       = new BehaviorActionBinding { MethodFqn = fqn },
             },
         });
 
@@ -144,7 +144,7 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Condition,
                 DisplayLabel = "IsEnemyVisible",
-                Condition    = new BTreeConditionPayload { MethodFqn = fqn },
+                Condition    = new BehaviorActionBinding { MethodFqn = fqn },
             },
         });
 
@@ -170,7 +170,7 @@ public sealed class BTreeBlackboardAggregatorTests
             {
                 VisualId   = Guid.NewGuid(),
                 KernelType = NodeType.Action,
-                Action     = new BTreeActionPayload { MethodFqn = fqn },
+                Action     = new BehaviorActionBinding { MethodFqn = fqn },
             },
         });
 
@@ -230,7 +230,7 @@ public sealed class BTreeBlackboardAggregatorTests
             {
                 VisualId   = Guid.NewGuid(),
                 KernelType = NodeType.Action,
-                Action     = new BTreeActionPayload { MethodFqn = fqn },
+                Action     = new BehaviorActionBinding { MethodFqn = fqn },
             },
         });
 
@@ -279,7 +279,7 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "AimAndFire",
-                Action       = new BTreeActionPayload
+                Action       = new BehaviorActionBinding
                 {
                     MethodFqn           = fqn,
                     ExpressionTargetField = "counter",   // locally bound
@@ -310,7 +310,7 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Condition,
                 DisplayLabel = "IsEnemyVisible",
-                Condition    = new BTreeConditionPayload
+                Condition    = new BehaviorActionBinding
                 {
                     MethodFqn             = fqn,
                     ExpressionTargetField = "accum",   // locally bound
@@ -350,21 +350,21 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "IncrementCounter",
-                Action       = new BTreeActionPayload { MethodFqn = actionFqn1, ExpressionTargetField = "counter" },
+                Action       = new BehaviorActionBinding { MethodFqn = actionFqn1, ExpressionTargetField = "counter" },
             },
             new BTreeEditorNode
             {
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Condition,
                 DisplayLabel = "CheckCounter",
-                Condition    = new BTreeConditionPayload { MethodFqn = conditionFqn, ExpressionTargetField = "counter" },
+                Condition    = new BehaviorActionBinding { MethodFqn = conditionFqn, ExpressionTargetField = "counter" },
             },
             new BTreeEditorNode
             {
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "Accumulate",
-                Action       = new BTreeActionPayload { MethodFqn = actionFqn2, ExpressionTargetField = "accum" },
+                Action       = new BehaviorActionBinding { MethodFqn = actionFqn2, ExpressionTargetField = "accum" },
             },
         });
 
@@ -393,7 +393,7 @@ public sealed class BTreeBlackboardAggregatorTests
                 VisualId     = Guid.NewGuid(),
                 KernelType   = NodeType.Action,
                 DisplayLabel = "AimAndFire",
-                Action       = new BTreeActionPayload
+                Action       = new BehaviorActionBinding
                 {
                     MethodFqn             = fqn,
                     ExpressionTargetField = null,   // unbound — must still produce a requirement
@@ -430,7 +430,7 @@ public sealed class BTreeBlackboardAggregatorTests
             {
                 VisualId   = Guid.NewGuid(),
                 KernelType = NodeType.Action,
-                Action     = new BTreeActionPayload { MethodFqn = childFqn },   // unbound
+                Action     = new BehaviorActionBinding { MethodFqn = childFqn },   // unbound
             },
         });
 
@@ -442,7 +442,7 @@ public sealed class BTreeBlackboardAggregatorTests
             {
                 VisualId   = Guid.NewGuid(),
                 KernelType = NodeType.Action,
-                Action     = new BTreeActionPayload { MethodFqn = parentFqn, ExpressionTargetField = "parentVar" },
+                Action     = new BehaviorActionBinding { MethodFqn = parentFqn, ExpressionTargetField = "parentVar" },
             },
             new BTreeEditorNode
             {

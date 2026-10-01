@@ -85,19 +85,17 @@ public sealed class HsmActionPickerDrawer : IImGuiFieldDrawer, IPickerListSource
 
         foreach (var t in _asset.AllTransitions)
         {
-            if (!string.IsNullOrEmpty(t.ActionFunction)) names.Add(t.ActionFunction!);
-            if (!string.IsNullOrEmpty(t.Source?.OnEntryAction)) names.Add(t.Source.OnEntryAction!);
-            if (!string.IsNullOrEmpty(t.Source?.OnExitAction))  names.Add(t.Source.OnExitAction!);
+            if (!string.IsNullOrEmpty(t.Action?.MethodFqn)) names.Add(t.Action!.MethodFqn!);
+            if (!string.IsNullOrEmpty(t.Source?.OnEntry?.MethodFqn)) names.Add(t.Source.OnEntry!.MethodFqn!);
+            if (!string.IsNullOrEmpty(t.Source?.OnExit?.MethodFqn))  names.Add(t.Source.OnExit!.MethodFqn!);
         }
         foreach (var s in _asset.AllStates)
         {
-            if (!string.IsNullOrEmpty(s.OnEntryAction)) names.Add(s.OnEntryAction!);
-            if (!string.IsNullOrEmpty(s.OnExitAction))  names.Add(s.OnExitAction!);
-            if (!string.IsNullOrEmpty(s.ActivityAction)) names.Add(s.ActivityAction!);
-            if (!string.IsNullOrEmpty(s.TimerAction))   names.Add(s.TimerAction!);
+            foreach (var b in s.Bindings)
+                if (!string.IsNullOrEmpty(b.MethodFqn)) names.Add(b.MethodFqn!);
         }
         foreach (var g in _asset.AllGlobalTransitions)
-            if (!string.IsNullOrEmpty(g.ActionFunction)) names.Add(g.ActionFunction!);
+            if (!string.IsNullOrEmpty(g.Action?.MethodFqn)) names.Add(g.Action!.MethodFqn!);
         return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 
@@ -181,9 +179,9 @@ public sealed class HsmGuardPickerDrawer : IImGuiFieldDrawer, IPickerListSource
                     names.Add(kv.Key);
 
         foreach (var t in _asset.AllTransitions)
-            if (!string.IsNullOrEmpty(t.GuardFunction)) names.Add(t.GuardFunction!);
+            if (!string.IsNullOrEmpty(t.Guard?.MethodFqn)) names.Add(t.Guard!.MethodFqn!);
         foreach (var g in _asset.AllGlobalTransitions)
-            if (!string.IsNullOrEmpty(g.GuardFunction)) names.Add(g.GuardFunction!);
+            if (!string.IsNullOrEmpty(g.Guard?.MethodFqn)) names.Add(g.Guard!.MethodFqn!);
         return names.OrderBy(n => n, StringComparer.Ordinal).ToList();
     }
 

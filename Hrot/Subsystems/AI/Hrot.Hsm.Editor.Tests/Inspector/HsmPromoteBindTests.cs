@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Compiler;
@@ -65,7 +66,7 @@ public sealed class HsmPromoteBindTests
         var asset = HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "T", "", false, "");
 
         var transition = asset.AllTransitions
-            .FirstOrDefault(t => t.ActionFunction == actionFqn)
+            .FirstOrDefault(t => (t.Action?.MethodFqn) == actionFqn)
             ?? asset.AllTransitions.First();
 
         return (asset, transition.VisualId);
@@ -106,7 +107,7 @@ public sealed class HsmPromoteBindTests
 
         // Assert: ExpressionTargetField persisted on the transition.
         var transition = asset.FindTransitionByVisualId(transitionVisualId)!;
-        transition.ExpressionTargetField.Should().Be(newName,
+        (transition.Action?.ExpressionTargetField ?? transition.Guard?.ExpressionTargetField).Should().Be(newName,
             "ApplyFacet must persist ExpressionTargetField from the edited transition facet");
     }
 
@@ -139,7 +140,7 @@ public sealed class HsmPromoteBindTests
         // ExpressionTargetField preserved on transition.
         var restoredTransition = restored.FindTransitionByVisualId(transitionVisualId)!;
         restoredTransition.Should().NotBeNull("transition must exist in restored asset");
-        restoredTransition.ExpressionTargetField.Should().Be(name,
+        (restoredTransition.Action?.ExpressionTargetField ?? restoredTransition.Guard?.ExpressionTargetField).Should().Be(name,
             "ExpressionTargetField must survive HSM model→DTO→model round-trip");
     }
 

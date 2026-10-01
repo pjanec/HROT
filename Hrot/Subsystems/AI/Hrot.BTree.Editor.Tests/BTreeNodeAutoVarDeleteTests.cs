@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Numerics;
 using FluentAssertions;
@@ -64,7 +65,7 @@ public sealed class BTreeNodeAutoVarDeleteTests
             KernelType      = NodeType.Action,
             KernelBlobIndex = -1,
             DisplayLabel    = "Action",
-            Action          = new BTreeActionPayload
+            Action          = new BehaviorActionBinding
             {
                 MethodFqn             = "Ns.TestAction",
                 ExpressionTargetField = expressionTargetField,
@@ -175,13 +176,13 @@ public sealed class BTreeNodeAutoVarDeleteTests
             KernelType      = NodeType.Action,
             KernelBlobIndex = -1,
             DisplayLabel    = "Composed",
-            Action          = new BTreeActionPayload
+            Action          = new BehaviorActionBinding
             {
                 MethodFqn               = "Ns.Generated.Demo_1A2B3C4D_Bp.TickCore",
-                DelegateShape           = BTreeActionDelegateShape.AiPrimitiveTickCore,
                 ExpressionTargetField   = paramsVar,
                 WorkingStateTargetField = workingStateVar,
             },
+            DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore,   // CE-417: the shape sits on the node
         });
         asset.AddVariable(new BlackboardVariableEntry(paramsVar, typeof(int), null, IsAutoManaged: true));
         if (asset.BlackboardVariables.All(v => v.Name != workingStateVar))

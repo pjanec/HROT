@@ -36,51 +36,9 @@ public enum BTreeActionDelegateShape
     AiPrimitiveTickCore = 3,
 }
 
-/// <summary>Payload for Action leaf nodes.</summary>
-public sealed class BTreeActionPayload
-{
-    /// <summary>Fully-qualified method name, e.g. "Hrot.Game.Combat.CombatActions.AimAndFire".</summary>
-    public string MethodFqn = string.Empty;
-    /// <summary>Blackboard field referenced by the expression target (null when not using ThreeParamReusable).</summary>
-    public string? ExpressionTargetField;
-    public BTreeActionDelegateShape DelegateShape;
-    /// <summary>
-    /// E2: for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> bindings, the CLR FQN of
-    /// the blueprint's generated WorkingState struct (second ref param after Params), e.g.
-    /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
-    /// </summary>
-    public string? WorkingStateTypeId;
-    /// <summary>
-    /// Slice 1 (shared working-state): for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>
-    /// bindings, the Name of the authored working-state blackboard variable (Role=State), distinct
-    /// from <see cref="ExpressionTargetField"/> (the Params variable). Its declared Scope governs the
-    /// partition slot key — Behavior-scoped nodes bound to the same variable share one slot. Null
-    /// falls back to <see cref="ExpressionTargetField"/> for scope resolution (back-compat).
-    /// </summary>
-    public string? WorkingStateTargetField;
-}
-
-/// <summary>Payload for Condition leaf nodes.</summary>
-public sealed class BTreeConditionPayload
-{
-    public string MethodFqn = string.Empty;
-    public string? ExpressionTargetField;
-    public BTreeActionDelegateShape DelegateShape;
-    /// <summary>
-    /// E2: for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/> bindings, the CLR FQN
-    /// of the blueprint's generated WorkingState struct (second ref param after Params), e.g.
-    /// "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState". Null for other shapes.
-    /// </summary>
-    public string? WorkingStateTypeId;
-    /// <summary>
-    /// Slice 1 (shared working-state): for <see cref="BTreeActionDelegateShape.AiPrimitiveTickCore"/>
-    /// bindings, the Name of the authored working-state blackboard variable (Role=State), distinct
-    /// from <see cref="ExpressionTargetField"/> (the Params variable). Its declared Scope governs the
-    /// partition slot key — Behavior-scoped nodes bound to the same variable share one slot. Null
-    /// falls back to <see cref="ExpressionTargetField"/> for scope resolution (back-compat).
-    /// </summary>
-    public string? WorkingStateTargetField;
-}
+// ⭐⭐⭐ CE-417 (slice 4a) — BTreeActionPayload / BTreeConditionPayload are RETIRED: an Action or Condition node carries
+//   ONE Hrot.Editor.AiShared.BehaviorActionBinding (the same record the HSM's eight sites use) and its DelegateShape
+//   sits on the NODE (B-5). 📄 docs/blueprints/DESIGN_Behavior_Action_Binding.md §3, §5.4.
 
 /// <summary>Payload for Wait leaf nodes.</summary>
 public sealed class BTreeWaitPayload
@@ -151,8 +109,15 @@ public sealed class BTreeEditorNode
     public List<Guid> ChildVisualIds = new();
 
     // Per-node-type payloads (mutually exclusive; at most one is non-null).
-    public BTreeActionPayload?    Action;
-    public BTreeConditionPayload? Condition;
+    /// <summary>⭐ CE-417 — an Action node's binding (the method, its target field, its working state).</summary>
+    public BehaviorActionBinding? Action;
+    /// <summary>⭐ CE-417 — a Condition node's binding; the same record as <see cref="Action"/>.</summary>
+    public BehaviorActionBinding? Condition;
+    /// <summary>
+    /// ⭐ CE-417 (B-5) — which delegate overload an Action or Condition node's method uses. A BTree interpreter arity, so it
+    /// lives on the node, not in the host-neutral binding (Q75 §5.1b). Meaningless for other node types.
+    /// </summary>
+    public BTreeActionDelegateShape DelegateShape;
     public BTreeWaitPayload?      Wait;
     public BTreeSubtreePayload?   Subtree;
 
@@ -483,7 +448,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     {
         foreach (var node in _nodes)
         {
-            var shape = node.Action?.DelegateShape ?? node.Condition?.DelegateShape;
+            var shape = node.Action is not null || node.Condition is not null ? node.DelegateShape : (BTreeActionDelegateShape?)null;   // CE-417: shape on the node
             if (shape is null) continue;
             if (shape == BTreeActionDelegateShape.ThreeParamReusableStateful
              || shape == BTreeActionDelegateShape.AiPrimitiveTickCore) return true;

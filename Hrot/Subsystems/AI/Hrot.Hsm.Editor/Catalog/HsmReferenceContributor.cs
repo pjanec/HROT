@@ -37,10 +37,10 @@ public sealed class HsmReferenceContributor : IReferenceCatalogContributor
         // State action references (OnEntry, OnExit, Activity, Timer).
         foreach (var state in hsmAsset.AllStates)
         {
-            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.OnEntryAction);
-            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.OnExitAction);
-            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.ActivityAction);
-            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.TimerAction);
+            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.OnEntry?.MethodFqn);
+            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.OnExit?.MethodFqn);
+            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.Activity?.MethodFqn);
+            AddActionRef(result, hsmAsset, state.StableId, state.Name, state.Timer?.MethodFqn);
         }
 
         // Transition references: event usage (machine-scoped key), guard, action.
@@ -57,8 +57,8 @@ public sealed class HsmReferenceContributor : IReferenceCatalogContributor
                         $"{hsmAsset.AssetId:D}::{evt.Name}", SubElementKind.EventName));
             }
 
-            AddGuardRef(result, hsmAsset, t.VisualId, path, t.GuardFunction);
-            AddActionRef(result, hsmAsset, t.VisualId, path, t.ActionFunction);
+            AddGuardRef(result, hsmAsset, t.VisualId, path, t.Guard?.MethodFqn);
+            AddActionRef(result, hsmAsset, t.VisualId, path, t.Action?.MethodFqn);
         }
 
         // Global-transition references.
@@ -75,8 +75,8 @@ public sealed class HsmReferenceContributor : IReferenceCatalogContributor
                         $"{hsmAsset.AssetId:D}::{evt.Name}", SubElementKind.EventName));
             }
 
-            AddGuardRef(result, hsmAsset, gt.VisualId, path, gt.GuardFunction);
-            AddActionRef(result, hsmAsset, gt.VisualId, path, gt.ActionFunction);
+            AddGuardRef(result, hsmAsset, gt.VisualId, path, gt.Guard?.MethodFqn);
+            AddActionRef(result, hsmAsset, gt.VisualId, path, gt.Action?.MethodFqn);
         }
 
         return result;

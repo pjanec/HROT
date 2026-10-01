@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using Fhsm.Kernel.Data;
@@ -226,8 +227,8 @@ public sealed class HsmValidatorBlackboardConflictTests
     {
         var (asset, parallel, child0, child1) = MakeParallelAsset();
         
-        child0.ActivityAction = "ReadOnlyAction";
-        child1.ActivityAction = "ReadOnlyAction";
+        (child0.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
+        (child1.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
 
         var assetId = Guid.NewGuid();
         var bb = new StubBlackboardAsset();
@@ -247,8 +248,8 @@ public sealed class HsmValidatorBlackboardConflictTests
     {
         var (asset, parallel, child0, child1) = MakeParallelAsset();
 
-        child0.ActivityAction = "ReadOnlyAction";
-        child1.ActivityAction = "ReadWriteAction";
+        (child0.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
+        (child1.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadWriteAction";
 
         var assetId = Guid.NewGuid();
         var bb = new StubBlackboardAsset();
@@ -271,8 +272,8 @@ public sealed class HsmValidatorBlackboardConflictTests
     {
         var (asset, parallel, child0, child1) = MakeParallelAsset();
 
-        child0.ActivityAction = "ReadOnlyAction";
-        child1.ActivityAction = "ReadOnlyAction";
+        (child0.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
+        (child1.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
 
         var assetId = Guid.NewGuid();
         var bb = new StubBlackboardAsset();
@@ -293,7 +294,7 @@ public sealed class HsmValidatorBlackboardConflictTests
         var (asset, parallel, child0, child1) = MakeParallelAsset();
 
         // child0 has NO actions
-        child1.ActivityAction = "ReadOnlyAction";
+        (child1.Activity ??= new BehaviorActionBinding()).MethodFqn = "ReadOnlyAction";
 
         var assetId = Guid.NewGuid();
         var bb = new StubBlackboardAsset();
@@ -357,8 +358,7 @@ public sealed class HsmValidatorBlackboardConflictTests
             VisualId              = Guid.NewGuid(),
             Source                = child1,
             Target                = child1,
-            ActionFunction        = "Some.Action",
-            ExpressionTargetField = "speed",
+            Action = new BehaviorActionBinding { MethodFqn = "Some.Action", ExpressionTargetField = "speed" },   // CE-417: the action's field is the output
         };
         var withTransition = MakeAsset(
             RootOf(parallel), new List<StateNode> { parallel, child0, child1 },
@@ -450,8 +450,7 @@ public sealed class HsmValidatorBlackboardConflictTests
             VisualId              = Guid.NewGuid(),
             Source                = child1,
             Target                = child1,
-            ActionFunction        = "Some.Action",
-            ExpressionTargetField = "speed",
+            Action = new BehaviorActionBinding { MethodFqn = "Some.Action", ExpressionTargetField = "speed" },   // CE-417: the action's field is the output
         };
         var withThird = MakeAsset(
             child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },
@@ -522,8 +521,8 @@ public sealed class HsmValidatorBlackboardConflictTests
             VisualId              = Guid.NewGuid(),
             Source                = byRegion[w.Region],
             Target                = byRegion[w.Region],
-            ActionFunction        = "Some.Action",   // ⚠ unknown FQN ⇒ conservatively a writer (§9.6)
-            ExpressionTargetField = w.Variable,
+            // ⚠ unknown FQN ⇒ conservatively a writer (§9.6). CE-417: the action's field is the output.
+            Action = new BehaviorActionBinding { MethodFqn = "Some.Action", ExpressionTargetField = w.Variable },
         }).ToList();
 
         return (MakeAsset(root, states, regions, transitions), parallel);
@@ -587,8 +586,7 @@ public sealed class HsmValidatorBlackboardConflictTests
             VisualId              = Guid.NewGuid(),
             Source                = child1,
             Target                = child1,
-            ActionFunction        = "Some.Action",
-            ExpressionTargetField = "speed",
+            Action = new BehaviorActionBinding { MethodFqn = "Some.Action", ExpressionTargetField = "speed" },   // CE-417: the action's field is the output
         };
         var withThird = MakeAsset(
             child0.Parent!.Parent!, new List<StateNode> { child0.Parent!, child0, child1 },

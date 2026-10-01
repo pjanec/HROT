@@ -45,10 +45,10 @@ public sealed class HsmOutputLaneMaskInferrer
         IReadOnlyDictionary<string, CommandLane> laneMap)
     {
         byte mask = 0;
-        mask |= LaneBit(state.OnEntryAction, laneMap);
-        mask |= LaneBit(state.OnExitAction, laneMap);
-        mask |= LaneBit(state.ActivityAction, laneMap);
-        mask |= LaneBit(state.TimerAction, laneMap);
+        mask |= LaneBit(state.OnEntry?.MethodFqn, laneMap);
+        mask |= LaneBit(state.OnExit?.MethodFqn, laneMap);
+        mask |= LaneBit(state.Activity?.MethodFqn, laneMap);
+        mask |= LaneBit(state.Timer?.MethodFqn, laneMap);
         return mask;
     }
 

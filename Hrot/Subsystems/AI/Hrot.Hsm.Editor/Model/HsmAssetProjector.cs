@@ -1,3 +1,4 @@
+using Hrot.Editor.AiShared;
 using System;
 using System.Collections.Generic;
 using System.Numerics;
@@ -53,10 +54,10 @@ internal static class HsmAssetProjector
             node.OutputLaneMask = def.OutputLaneMask;
 
             // Resolve action names from metadata (0xFFFF = no action)
-            if (def.OnEntryActionId  != 0xFFFF) node.OnEntryAction  = metadata.GetActionName(def.OnEntryActionId);
-            if (def.OnExitActionId   != 0xFFFF) node.OnExitAction   = metadata.GetActionName(def.OnExitActionId);
-            if (def.ActivityActionId != 0xFFFF) node.ActivityAction = metadata.GetActionName(def.ActivityActionId);
-            if (def.TimerActionId    != 0xFFFF) node.TimerAction    = metadata.GetActionName(def.TimerActionId);
+            if (def.OnEntryActionId  != 0xFFFF) node.OnEntry  = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.OnEntryActionId));
+            if (def.OnExitActionId   != 0xFFFF) node.OnExit   = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.OnExitActionId));
+            if (def.ActivityActionId != 0xFFFF) node.Activity = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.ActivityActionId));
+            if (def.TimerActionId    != 0xFFFF) node.Timer    = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.TimerActionId));
 
             // BPF-011: populate deferred event IDs from metadata (keyed by flat index).
             if (metadata.DeferredEventsByState.TryGetValue((ushort)i, out var deferredIds))
@@ -138,9 +139,9 @@ internal static class HsmAssetProjector
             if (def.EventId != 0)
                 tn.EventName = metadata.GetEventName(def.EventId);
             if (def.GuardId != 0xFFFF)
-                tn.GuardFunction = metadata.GetActionName(def.GuardId);
+                tn.Guard = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.GuardId));
             if (def.ActionId != 0xFFFF)
-                tn.ActionFunction = metadata.GetActionName(def.ActionId);
+                tn.Action = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.ActionId));
 
             // Register with source state's outgoing list
             if (def.SourceStateIndex < stateNodes.Length)
@@ -228,9 +229,9 @@ internal static class HsmAssetProjector
             if (def.EventId != 0)
                 gtn.EventName = metadata.GetEventName(def.EventId);
             if (def.GuardId != 0xFFFF)
-                gtn.GuardFunction = metadata.GetActionName(def.GuardId);
+                gtn.Guard = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.GuardId));
             if (def.ActionId != 0xFFFF)
-                gtn.ActionFunction = metadata.GetActionName(def.ActionId);
+                gtn.Action = BehaviorActionBinding.ForMethod(metadata.GetActionName(def.ActionId));
 
             globalTransNodes.Add(gtn);
         }

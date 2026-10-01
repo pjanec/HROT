@@ -1,4 +1,5 @@
 using System;
+using Hrot.Editor.AiShared;
 using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
@@ -361,7 +362,7 @@ public sealed class BTreeDynamicCatalogTests
         node!.KernelType.Should().Be(NodeType.Action);
         node.Action.Should().NotBeNull();
         node.Action!.MethodFqn.Should().Be(fqn);
-        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.AiPrimitiveTickCore,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.AiPrimitiveTickCore,
             "T31's Action node uses DelegateShape=AiPrimitiveTickCore");
         node.Action.WorkingStateTypeId.Should().Be(
             typeof(FakeGeneratedAiPrimitive_Bp.WorkingState).FullName,
@@ -441,7 +442,7 @@ public sealed class BTreeDynamicCatalogTests
 
         var node = asset.FindNode(nodeId.Value);
         node!.Action!.MethodFqn.Should().Be(fqn);
-        node.Action.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable,
             "default enum value; non-AiPrimitive placement must stay unaffected by E2");
         node.Action.WorkingStateTypeId.Should().BeNull();
         node.Action.ExpressionTargetField.Should().BeNull();

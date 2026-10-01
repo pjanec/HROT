@@ -133,18 +133,18 @@ public sealed class HsmTransitionLabelRenderer : ICustomCanvasRenderer
         string eventPart = t.EventName ?? "";
 
         string guardPart = "";
-        if (t.GuardFunction is not null)
+        if (t.Guard?.MethodFqn is { } guardFqn)   // CE-417
         {
-            int dot = t.GuardFunction.LastIndexOf('.');
-            string guardShort = dot >= 0 ? t.GuardFunction[(dot + 1)..] : t.GuardFunction;
+            int dot = guardFqn.LastIndexOf('.');
+            string guardShort = dot >= 0 ? guardFqn[(dot + 1)..] : guardFqn;
             guardPart = "[" + guardShort + "]";
         }
 
         string actionPart = "";
-        if (t.ActionFunction is not null)
+        if (t.Action?.MethodFqn is { } actionFqn)   // CE-417
         {
-            int dot = t.ActionFunction.LastIndexOf('.');
-            string actionShort = dot >= 0 ? t.ActionFunction[(dot + 1)..] : t.ActionFunction;
+            int dot = actionFqn.LastIndexOf('.');
+            string actionShort = dot >= 0 ? actionFqn[(dot + 1)..] : actionFqn;
             actionPart = "/" + actionShort;
         }
 

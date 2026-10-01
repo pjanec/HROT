@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Hrot.Editor.AiShared;
 using System.Reflection;
 using Fhsm.Kernel.Attributes;
 using Fhsm.Kernel.Data;
@@ -58,7 +59,7 @@ public class OutputLaneMaskInferenceTests
         var dict = HsmOutputLaneMaskInferrer.BuildLaneDictionary(
             new[] { typeof(TestActions).Assembly });
         var animFqn = typeof(TestActions).FullName + ".AnimAction";
-        var state = new StateNode("S") { OnEntryAction = animFqn };
+        var state = new StateNode("S") { OnEntry = BehaviorActionBinding.ForMethod(animFqn) };
 
         var mask = HsmOutputLaneMaskInferrer.ComputeMask(state, dict);
 
@@ -74,8 +75,8 @@ public class OutputLaneMaskInferenceTests
         var navFqn = typeof(TestActions).FullName + ".NavAction";
         var state = new StateNode("S")
         {
-            OnEntryAction = animFqn,
-            ActivityAction = navFqn,
+            OnEntry = BehaviorActionBinding.ForMethod(animFqn),
+            Activity = BehaviorActionBinding.ForMethod(navFqn),
         };
 
         var mask = HsmOutputLaneMaskInferrer.ComputeMask(state, dict);
