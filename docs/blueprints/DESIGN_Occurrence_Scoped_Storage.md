@@ -2765,6 +2765,7 @@ determinism check.
 |---|---|
 | **runtime** | `OccurrenceSlots` *(reserved names, `IdentityOf`, `SiteId`, `TreeStateKeyFor`)* · `HostedSubtree.Tick` / `.Reset` |
 | **the wall** | the names + arithmetic moved into the **LINKED** `OccurrenceSlotKey`, so emitter and runtime cannot drift — the `BlueprintTierLadder` pattern (§17.5) |
+| ⭐ **allocation-free** *(`CE-505`, `2026-10-01`)* | 🔒 user: *"there should be no allocation on the hot path."* Keys are computed per entity per brain tick (root state/params/HSM instance) and per hosted HSM call, so `OccurrenceSlotKey` folds the Guid and the UTF-8 of the variable id **in place** — ⛔ never `ToByteArray()`/`Encoding.UTF8.GetBytes`/string concat. Keys byte-identical (oracle rail over 400 inputs, `OccurrenceSlotKeyParityTests.CE505_R1`); a steady-state HSM brain tick allocates 0 bytes (`BrainTickSystemHsmArmTests.CE505_R3`, red-proved) |
 | **emitter** | `BTreeBridgeEmitCore` declares one tree-state slot per hosted subtree · `BTreeOrchestratorEmitCore` routes **both** sites through `HostedSubtree.Tick` |
 | **editor** | `BTreeOrchestratorEmitter` now carries the real site/child ids — ⛔ it would have baked a key from `Guid.Empty`: well-formed, deterministic, **wrong**, and only detectable at runtime |
 | **rails** | 6 runtime *(`HostedSubtreeCursorTests`)* + 2 emit-level guards |
