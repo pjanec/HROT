@@ -9,6 +9,8 @@ known-conflict: docs/blueprints/When_Reactivity_Iteration_Design_v2_2.md says Sp
   each execution creates a new sensor child entity". §4 D3 changes that to find-or-create; that doc's §7 is NOT edited (its
   own banner says it is the original iteration design) — this doc is the newer record for the node's runtime semantics.
 related-designs:
+  - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — closes this doc's §6 abort residual (sensor destroyed at
+    behaviour-instance end, CE-485) and makes the commander's silent failures fault loudly (CE-482).
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS area template, the Brain/Muscle split (§17.2) and the migration
     recipe (§17.6) this follows; §16.3 lists the AreaQuery footprint this empties of callers
   - docs/blueprints/DESIGN_Hill_Attack_Blueprint_Behaviour.md — owns PlatoonHillAttackBp (CE-464); this doc changes only its

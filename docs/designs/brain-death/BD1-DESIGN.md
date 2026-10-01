@@ -20,6 +20,8 @@ known-rot: ⛔⛔ §2 / Phase 2 — "Right-Click Mission UX" — IS SPECIFIED HE
   answerable there. Step 16 of the end-to-end lifecycle below is the capability that a capability-only
   rule would cost.
 related-designs:
+  - ../../blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — ADDS an outcome (Succeeded/Failed/Faulted) to §1.0a's
+    event and a release of behaviour-owned parts to §1.0b's clear (CE-482, CE-485); the mission tier's TASK_FAILED/halt (CE-483).
   - ../../blueprints/Architect_Question_77_Blueprint_As_A_Behaviour.md — the blueprint brain tier (CE-446); §5.7 is
     where CE-449 was measured. It owns the blueprint arm; this document owns what "finished" means for every arm.
   - ../../blueprints/Architect_Question_74_Blueprint_Channel_Lifecycle.md — ⭐ REUSES §1.1's
