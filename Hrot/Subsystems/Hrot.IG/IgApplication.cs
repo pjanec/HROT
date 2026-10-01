@@ -624,6 +624,16 @@ public class IgApplication : IDisposable
         Hrot.Core.Network.INetworkFactory? networkFactory = null)
 
     {
+        // ⭐ CE-495 — IG has no Message Log window, so a behaviour fault (which every node receives over
+        //   the "BehaviorFault" topic into BehaviorFaultLog.Shared) is written to IG's normal log instead.
+        //   🔒 User, 2026-10-01: "simply write message to its message log using normal nlog log write for
+        //   the time being, nothing more required regarding notification". Unsubscribed in Shutdown, so a
+        //   torn-down IG (tests create many) does not keep logging.
+        if (!_loggingBehaviorFaults)
+        {
+            _loggingBehaviorFaults = true;
+            AcquireBehaviorFaultLogging();
+        }
 
         _headless = headless;
 
@@ -1729,6 +1739,39 @@ public class IgApplication : IDisposable
     /// <summary>Dispose alias for <see cref="Shutdown"/> (headless / test cleanup).</summary>
     public void Dispose() => Shutdown(ownsWindow: false);
 
+    /// <summary>⭐ CE-495 — whether THIS IG holds a reference on the process-wide fault logging.</summary>
+    private bool _loggingBehaviorFaults;
+
+    // ⭐ CE-495 — ONE subscription per PROCESS, reference-counted across IG instances. ⚠ The fault log is a
+    //   process-wide singleton and NLog is process-wide, so a subscription per IG wrote every fault once per
+    //   live IG — measured: 2 lines for 1 fault with two IGs alive (also the `--mode all` case).
+    private static readonly object s_faultLogLock = new();
+    private static int s_faultLogRefs;
+
+    private static void AcquireBehaviorFaultLogging()
+    {
+        lock (s_faultLogLock)
+            if (s_faultLogRefs++ == 0)
+                Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.OnMessageAdded += WriteBehaviorFaultToLog;
+    }
+
+    private static void ReleaseBehaviorFaultLogging()
+    {
+        lock (s_faultLogLock)
+            if (--s_faultLogRefs == 0)
+                Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.OnMessageAdded -= WriteBehaviorFaultToLog;
+    }
+
+    /// <summary>
+    /// ⭐ CE-495 — one behaviour fault, as a plain NLog error on IG's log. The row is already de-duplicated
+    /// and formatted by <c>BehaviorFaultLog</c> (<i>"entity N (node M): behaviour 'X' FAULTED (Code): message"</i>).
+    /// </summary>
+    internal static void WriteBehaviorFaultToLog(Fdp.Core.Logging.MessageLogEntry entry)
+        => FdpLog<IgApplication>.Error("[BehaviourFault] {0}", entry.Message);
+
+    /// <summary>Test hook: true while this IG is subscribed to behaviour faults.</summary>
+    internal bool TestHook_IsLoggingBehaviorFaults => _loggingBehaviorFaults;
+
     /// Pass <c>ownsWindow = false</c> when the orchestrator owns the Raylib window.
 
     /// </summary>
@@ -1736,6 +1779,11 @@ public class IgApplication : IDisposable
     public void Shutdown(bool ownsWindow = true)
 
     {
+        if (_loggingBehaviorFaults)
+        {
+            _loggingBehaviorFaults = false;
+            ReleaseBehaviorFaultLogging();
+        }
 
         _clusterSlave?.Dispose();
         _clusterSlave = null;
