@@ -92,7 +92,7 @@ deactivate-then-restart path. Revised D5: no dispose ⇒ ① ② cannot happen �
 | same-frame immediate creation is safe and visible | behaviours get the live world (`BrainTickSystem.cs:312`, `:414`); a created entity is Active at once (`EntityRepository.cs:327`) and the default query is Active (`QueryBuilder.cs:125`); component storage is reserve-and-commit, never moved (`NativeChunkTable.cs:231-245`); a sensor child carries no `BehaviorState`, so the tier walk never visits it (`BrainTickSystem.cs:129-166`) | — |
 | an unknown template is NOT idle today | `EqsSolverSystem.cs:147-159` publishes an empty answer every solve | — |
 | a new authority holds no record of old part ids | brain nodes register only the config EGRESS (`SimHostAuxiliaryTranslatorPack.cs:67`; ingress is Muscle-only, `:92`); the old node stops ticking but never ends the behaviour (`BrainTickSystem.cs:129`, owned-only) | — |
-| `BlueprintId` is the EQS query TEMPLATE, not a behaviour blueprint | `EqsComponents.cs:138`; `EqsTemplateRegistry.BlueprintIdOf` (`:40`); the C# commander fills it too (`HillAttackCommanderNodes.cs:56-61`) | EQS 1.3 — templates were authored as "query blueprints" ⇒ rename filed as `CE-489` |
+| `BlueprintId` is the EQS query TEMPLATE, not a behaviour blueprint | `EqsComponents.cs:138`; `EqsTemplateRegistry.BlueprintIdOf` (`:40`); the C# commander fills it too (`HillAttackCommanderNodes.cs:56-61`) | EQS 1.3 — templates were authored as "query blueprints" ⇒ rename filed as `CE-491` |
 
 **INVENTORY** — ① fault/notification: `search_graph name_pattern=.*(Fault|Notification|BehaviorFinished|BehaviorOwned|OwnedPart|TaskFailed).*`
 (Class, 53 rows, `has_more:false`) found **no behaviour fault or notification type**. The near misses, and why each does not
@@ -163,7 +163,7 @@ classDiagram
   }
   class EqsSensor {
     <<existing — changed>>
-    uint BlueprintId  (the query TEMPLATE; rename CE-489)
+    uint BlueprintId  (the query TEMPLATE; rename CE-491)
     uint Epoch  ← high16 = owner run, low16 = refresh
     +bool Active «NEW, on the wire»
   }
@@ -287,8 +287,8 @@ would re-issue the halted phase.
 | **CE-485** | D4+D5 brain side: `BehaviorOwnedPart{Owner, Site, Key}`, `BehaviorOwnedParts.Release` at the three InstanceId sites; `EqsChildSensor` allocates the part id (lowest free among live children), creates immediately on the live world (asserts one creation per parent per frame on any other view), stamps the epoch with the owner run, matches `Find` on owner + site + key; the `Key` pin on *Spawn EQS Sensor*; retire the three baked-id schemes; re-home the tick-count rails (`Ensure` now returns the child on the creating call ⇒ the `-2` marker goes) | behaviours |
 | **CE-486** | D5 ③ wire side: `Active` on `EqsSensor` + `EqsSensorConfigTopic`; the config egress NEVER disposes a child-sensor instance — it writes `Active=false`; the Muscle ingress stops treating a dispose as "destroy carrier"; the solver skips inactive carriers | backend |
 | **CE-487** | ③ the result ingress cache must check the cached entity is alive (and its part id still matches) on every hit — ⭐ REQUIRED by D5 | backend |
-| **CE-488** | D5 ④: brain nodes also read `EqsSensorConfig`; on gaining authority over an entity, write `Active=false` to every instance under it that has no local sensor | backend |
-| **CE-489** | rename `EqsSensor.BlueprintId` / the topic field → `TemplateId` (Roslyn rename; the field is the EQS query template) | backend |
+| **CE-490** | D5 ④: brain nodes also read `EqsSensorConfig`; on gaining authority over an entity, write `Active=false` to every instance under it that has no local sensor | backend |
+| **CE-491** | rename `EqsSensor.BlueprintId` / the topic field → `TemplateId` (Roslyn rename; the field is the EQS query template) | backend |
 
 **Acceptance (behaviours lane):** ① a rail where the commander faults on a missing area ⇒ `BehaviorFinishedEvent.Outcome ==
 Faulted`, one notification, task `TASK_FAILED`, plan halted · ② a plain-Failure behaviour ⇒ `TASK_FAILED`, plan advances · ③
