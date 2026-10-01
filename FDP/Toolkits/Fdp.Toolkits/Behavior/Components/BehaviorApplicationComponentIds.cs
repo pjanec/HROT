@@ -46,5 +46,9 @@ namespace Fdp.Toolkit.Behavior.Components
         /// precedent); the <c>GlobalComponentIds</c> free-block comment (Fdp.Core) is not updated from here.
         /// </summary>
         public const int BehaviorOwnedPart = 155;
+
+        /// <summary><c>BehaviorFaultLatch</c> — CE-482: the fault a running behaviour raised, consumed by <c>BrainTickSystem</c>.
+        /// ⚠ 156 measured free by a repo-wide search on 2026-10-01.</summary>
+        public const int BehaviorFaultLatch = 156;
     }
 }

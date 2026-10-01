@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a);
-  CE-482/483 next; CE-486/487/490 dispatched to the backend lane.
+  CE-482/483 BUILT (section 4b); CE-486/487/490 dispatched to the backend lane.
   D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
   items CE-482..CE-487). Section 2 is the claim table every decision rests on.
@@ -310,6 +310,20 @@ immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted
 | *Spawn EQS Sensor* `Key` pin | ✅ typed **`Entity`** (the per-area use), lowered as `(long)key.PackedValue`; unwired ⇒ the call is unchanged (key 0) — every shipped asset unaffected | the design's own example is "one sensor per area" |
 | the `-2` "being created" marker goes | ⚠ **kept** for the deferred path only; on the live world it is never set. The C# commander now `Find`s first and `Ensure`s only when there is none, so a brand-new sensor is not refreshed (its creation is the question) | removing it would break the deferred path for no gain |
 | retire the three baked-id schemes | ✅ the node GUID hash and the commander constant are now SITE ids; `EqsLifecycleNodes`' `(Self.Index << 8) \| slot` is gone (site = `ChildSlotIndex`) — which also closes `CE-481` (the node now publishes a live handle on the creating tick) | — |
+
+## 4b. As-built — `CE-482` + `CE-483` (`2026-10-01`)
+
+| design said | as built | why |
+|---|---|---|
+| `BehaviorFault.Raise(code, message)` | ✅ `Fdp.Toolkits/Behavior/Events/BehaviorFault.cs`: latches `BehaviorFaultLatch{InstanceId, Code}` (component id **156**, same toolkit id file) to the CURRENT run — the **first** fault of a run wins — and publishes `BehaviorFaultNotification` (entity, behaviour hash, run, code, message, sim time). No-op on an entity running no behaviour | keyed to the run so a stale latch never applies to the next run |
+| outcome on `BehaviorFinishedEvent` | ✅ `FaultCode` field + a **derived** `Outcome` property (Succeeded · Failed · Faulted) — ⚠ deviation: derived instead of a stored field | a stored field could disagree with `Result`; every existing publisher keeps working untouched |
+| the run ends through the normal finish | ✅ `BrainTickSystem`: after each arm's tick a pending fault calls `Finish(…, Failure)`; `Finish` itself takes the latch, so a fault raised in the same tick as a Success still reports **Faulted** | the CE-449 finish = clear ⇒ channels, commands and (CE-485) owned parts are released as for any end |
+| engine-raised faults | ✅ a definition with no BTree interpreter / no blueprint tick now RAISES `NoDefinition` — ⛔ it used to be a DEBUG-only `Debug.WriteLine` and a silent skip | — |
+| the commander faults | ✅ C#: missing area ⇒ `MissingInput`, 5 s silence ⇒ `NoAnswerTimeout`. Blueprint: the same two, through the new built-in **Fault Behaviour** (`BlueprintWorldLibrary`, category *Behavior*) — parity | — |
+| mission: Done / Failed+advance / Failed+halt | ✅ `MissionPlanQueue.Outcomes` (one `MissionPhaseOutcome` per phase) + `Halted`; `MissionDirectorSystem` records the outcome and halts on Faulted; a trigger-advanced phase with no reported end records Done | — |
+| the halt waits for an operator | ✅ `MissionControlExecutionSystem` `CMD_JUMP_TO_TASK` clears `Halted` (and the target's outcome); `MissionAdapterSystem` re-issues nothing while halted and forgets the phase, so a jump — even back to the SAME phase, a retry — starts the behaviour again | — |
+| registration | ✅ `CognitiveComponentRegistry`: `BehaviorFaultLatch` + `RegisterManagedEvent<BehaviorFaultNotification>` (production runs strict event registration); `Raise` also registers the latch lazily for worlds without the registry | — |
+| ⛔ not in this batch | the wire half — `EntityMissionEgressTranslator.cs:124` still derives the task state from `CurrentPhase` (CE-483's egress half) and the notification's egress/UI (`CE-484`) — backend/UI lanes | fenced in the handoff |
 
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
 

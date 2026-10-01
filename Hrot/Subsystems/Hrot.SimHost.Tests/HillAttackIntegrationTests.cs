@@ -483,6 +483,47 @@ namespace Hrot.SimHost.Tests
             Assert.Empty(SensorsOf(commander));
         }
 
+        /// <summary>
+        /// ⭐ <b>CE-482</b> — 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D1/D2, acceptance ①. FAIL LOUD, through the REAL
+        /// systems: the commander's target area is missing ⇒ it raises <see cref="BehaviorFaultCode.MissingInput"/>; the run ends
+        /// in the SAME tick with <see cref="BehaviorOutcome.Faulted"/> (once), a <see cref="BehaviorFaultNotification"/> names the
+        /// reason, and the behaviour is cleared (<c>BrainTier 0</c>) — ⛔ before CE-482 this was a log line and a silent Failure.
+        /// </summary>
+        [Fact]
+        public void CE482_MissingArea_FaultsTheRun_LoudlyAndOnce()
+        {
+            var entityMap = new NetworkEntityMap();             // ⛔ the area network id is NOT registered ⇒ no area
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
+            var sub = _repo.CreateEntity();
+            _repo.AddComponent(sub, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            _repo.AddComponent<BehaviorState>(sub, default);
+            _repo.AddComponent(sub, new NavigationStatus { Result = NavigationResult.Arrived });
+            AddRoster(_repo, commander, new[] { sub });
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack,
+                JsonParams = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
+                           + "\"baselineEnd\":[50,90],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
+            });
+
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
+            _repo.Bus.SwapBuffers();
+
+            var finished = _repo.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(e => e.Entity == commander).ToList();
+            var only = Assert.Single(finished);
+            Assert.Equal(BehaviorOutcome.Faulted, only.Outcome);
+            Assert.Equal(BehaviorFaultCode.MissingInput, only.FaultCode);
+            var note = Assert.Single(_repo.Bus.ReadManaged<BehaviorFaultNotification>().Where(n => n.Entity == commander));
+            Assert.Equal(BehaviorFaultCode.MissingInput, note.Code);
+            Assert.Contains("area", note.Message);
+            Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
+        }
+
         // ── SC-HA015-2 ────────────────────────────────────────────────────────────
 
         /// <summary>

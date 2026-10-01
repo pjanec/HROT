@@ -255,6 +255,9 @@ namespace Hrot.AI.Behaviors.Brains
             if (p.TargetAreaEntity.IsNull || !ctx.World.IsAlive(p.TargetAreaEntity))
             {
                 BehaviorLog.Error(ref ctx, "TargetAreaEntity is null or dead. Cannot execute area query.");
+                // ⭐ CE-482 — FAIL LOUD: no area means the attack cannot be planned; the run ends Faulted, the plan halts.
+                BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.MissingInput,
+                    "Hill attack: the target area entity is missing or dead.");
                 return NodeStatus.Failure;
             }
 
@@ -301,6 +304,10 @@ namespace Hrot.AI.Behaviors.Brains
                 if (ctx.World.SimulationTime - s.EqsRequestTime > 5.0f)
                 {
                     BehaviorLog.Error(ref ctx, "EQS area query timed out after 5.0s.");
+                    // ⭐ CE-482 — FAIL LOUD: with no area on the Muscle the sensor answers NOTHING (EQS §17.5), so silence
+                    //   means the question cannot be answered — never a quiet "area clear".
+                    BehaviorFault.Raise(ctx.World, ctx.Self, BehaviorFaultCode.NoAnswerTimeout,
+                        "Hill attack: the EQS area sensor did not answer within 5 s.");
                     EqsChildSensor.Destroy(ctx.World, sensor);
                     s.CachedEqsRequestId = -1;
                     return NodeStatus.Failure;

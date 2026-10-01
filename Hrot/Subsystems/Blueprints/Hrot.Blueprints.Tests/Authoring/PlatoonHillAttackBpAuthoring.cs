@@ -526,7 +526,10 @@ internal static class PlatoonHillAttackBpAuthoring
         var areaOk = g.Branch();
         g.D(g.Call(Lib, "EntityExists", true, Ctx.View, (g.Get("TargetArea"), null)), areaOk, "Condition");
         g.X(q, areaOk, "True");
-        var noArea = Go("Return"); g.X(areaOk, noArea, "False"); g.X(noArea, Running());
+        // ⭐ CE-482 — FAIL LOUD, the same as the C# commander: no area ⇒ Fault Behaviour (the run ends Faulted after this tick).
+        var faultNoArea = g.Call(Lib, "FaultBehaviour", false, Ctx.SelfAndView,
+            (g.I(1), null), (g.S("Hill attack: the target area entity is missing or dead."), null));
+        g.X(areaOk, faultNoArea, "False"); g.Chain(faultNoArea, Go("Return"), Running());
         // ⚠ ONE spawn node for both phases: a node's InstanceId — the sensor's identity — is baked from its node id, so a
         //   second spawn node would be a second sensor.
         var spawn = SpawnAreaSensor(g);
@@ -555,7 +558,10 @@ internal static class PlatoonHillAttackBpAuthoring
         g.X(ready, late, "False");
         g.X(late, Running(), "False");
         var dropLate = g.Call(Lib, "DestroyEqsSensor", false, Ctx.View, (g.Get("Sensor"), null));
-        g.X(late, dropLate, "True"); g.Chain(dropLate, Go("Return"), Running());
+        // ⭐ CE-482 — FAIL LOUD: silence for 5 s means the question cannot be answered (EQS §17.5), never a quiet "clear".
+        var faultLate = g.Call(Lib, "FaultBehaviour", false, Ctx.SelfAndView,
+            (g.I(2), null), (g.S("Hill attack: the EQS area sensor did not answer within 5 s."), null));
+        g.X(late, dropLate, "True"); g.Chain(dropLate, faultLate, Go("Return"), Running());
         var clear = g.Branch(); g.D(g.Cmp(Equal, answer, g.I(0), "ResultCount"), clear, "Condition");
         g.X(ready, clear, "True");
         var dropClear = g.Call(Lib, "DestroyEqsSensor", false, Ctx.View, (g.Get("Sensor"), null));

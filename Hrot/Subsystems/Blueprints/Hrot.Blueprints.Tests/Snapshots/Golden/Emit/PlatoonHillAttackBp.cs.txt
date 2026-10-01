@@ -149,7 +149,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     
     
     [global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]
-    private struct _EqsResultRead_43d0aba6
+    private struct _EqsResultRead_a87e8159
     {
         public bool  IsReady;
         public int   ResultCount;
@@ -159,12 +159,12 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     }
     
     [global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]
-    private static _EqsResultRead_43d0aba6 ReadEqsResult_43d0aba6(
+    private static _EqsResultRead_a87e8159 ReadEqsResult_a87e8159(
         ref State s,
         global::Fdp.ModuleHost.Abstractions.ISimulationView view,
         int resultIndex)
     {
-        var result = default(_EqsResultRead_43d0aba6);
+        var result = default(_EqsResultRead_a87e8159);
         
         ref readonly var handle = ref s.Sensor;
         if (!view.IsAlive(handle.ChildId))
@@ -378,7 +378,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         var __t18 = s.TargetArea;
         var __t19 = global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.EntityExists(__t18, view);
         if (__t19)
-            goto __block_merge_1cc12e41;
+            goto __block_merge_63eb1ef6;
         else
             goto __block_branch_91dc2ab4_false;
         
@@ -387,11 +387,11 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         var __t21 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitQuery;
         var __t22 = __t20 == __t21;
         if (__t22)
-            goto __block_merge_1cc12e41;
+            goto __block_merge_63eb1ef6;
         else
-            goto __block_branch_9a4d7f67_false;
+            goto __block_branch_0c93dfce_false;
         
-        __block_merge_1cc12e41:
+        __block_merge_63eb1ef6:
         var __t23 = 4U;
         var __t24 = s.TargetArea;
         global::FDP.Eqs.EqsSensorHandle __t25 = default;
@@ -410,7 +410,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
                 ContextSlot1    = __t24,
                 ContextSlot2    = default(global::Fdp.Core.Entity),
             };
-            __t25 = new global::FDP.Eqs.EqsSensorHandle(global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure(((global::Fdp.Core.EntityRepository)view), self, 2001494840, _sensorConfig));
+            __t25 = new global::FDP.Eqs.EqsSensorHandle(global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure(((global::Fdp.Core.EntityRepository)view), self, -2047682296, _sensorConfig));
         }
         // END SpawnEqsSensorNode
         s.Sensor = __t25;
@@ -418,172 +418,178 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         var __t27 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitQuery;
         var __t28 = __t26 == __t27;
         if (__t28)
-            goto __block_branch_3353b8dd_true;
+            goto __block_branch_70599370_true;
         else
-            goto __block_branch_3353b8dd_false;
+            goto __block_branch_70599370_false;
         
         __block_branch_91dc2ab4_false:
-        var __t29 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
-        s.Phase = __t29;
+        var __t29 = 1;
+        var __t30 = "Hill attack: the target area entity is missing or dead.";
+        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.FaultBehaviour(__t29, __t30, self, view);
+        var __t31 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
+        s.Phase = __t31;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_9a4d7f67_false:
-        var __t30 = s.Phase;
-        var __t31 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Dispatch;
-        var __t32 = __t30 == __t31;
-        if (__t32)
-            goto __block_branch_fae78927_true;
+        __block_branch_0c93dfce_false:
+        var __t32 = s.Phase;
+        var __t33 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Dispatch;
+        var __t34 = __t32 == __t33;
+        if (__t34)
+            goto __block_branch_91fd54ee_true;
         else
-            goto __block_branch_fae78927_false;
+            goto __block_branch_91fd54ee_false;
         
-        __block_branch_3353b8dd_true:
-        var __t33 = 0;
-        var __t34 = ReadEqsResult_43d0aba6(ref s, ((global::Fdp.Core.EntityRepository)view), __t33);
-        var __t35 = __t34.IsReady;
-        var __t36 = __t34.ResultCount;
-        var __t37 = __t34.Entity;
-        var __t38 = __t34.Position;
-        var __t39 = __t34.Score;
-        if (__t35)
-            goto __block_branch_13ff27f8_true;
+        __block_branch_70599370_true:
+        var __t35 = 0;
+        var __t36 = ReadEqsResult_a87e8159(ref s, ((global::Fdp.Core.EntityRepository)view), __t35);
+        var __t37 = __t36.IsReady;
+        var __t38 = __t36.ResultCount;
+        var __t39 = __t36.Entity;
+        var __t40 = __t36.Position;
+        var __t41 = __t36.Score;
+        if (__t37)
+            goto __block_branch_5f6788b5_true;
         else
-            goto __block_branch_13ff27f8_false;
+            goto __block_branch_5f6788b5_false;
         
-        __block_branch_3353b8dd_false:
-        var __t40 = s.Sensor;
-        var __t41 = global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.RefreshEqsSensor(__t40, view);
-        var __t42 = time;
-        s.RequestTime = __t42;
-        var __t43 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitQuery;
-        s.Phase = __t43;
-        return global::Fbt.NodeStatus.Running;
-        
-        __block_branch_fae78927_true:
-        Func_DispatchWave(ref s, view, ecb, self, time, deltaTime, instanceVersion);
-        var __t45 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitWave;
+        __block_branch_70599370_false:
+        var __t42 = s.Sensor;
+        var __t43 = global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.RefreshEqsSensor(__t42, view);
+        var __t44 = time;
+        s.RequestTime = __t44;
+        var __t45 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitQuery;
         s.Phase = __t45;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_fae78927_false:
-        var __t46 = s.Phase;
+        __block_branch_91fd54ee_true:
+        Func_DispatchWave(ref s, view, ecb, self, time, deltaTime, instanceVersion);
         var __t47 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitWave;
-        var __t48 = __t46 == __t47;
-        if (__t48)
-            goto __block_branch_c864d7ab_true;
-        else
-            goto __block_branch_c864d7ab_false;
-        
-        __block_branch_13ff27f8_true:
-        var __t49 = 0;
-        var __t50 = ReadEqsResult_43d0aba6(ref s, ((global::Fdp.Core.EntityRepository)view), __t49);
-        var __t51 = __t50.IsReady;
-        var __t52 = __t50.ResultCount;
-        var __t53 = __t50.Entity;
-        var __t54 = __t50.Position;
-        var __t55 = __t50.Score;
-        var __t56 = 0;
-        var __t57 = __t52 == __t56;
-        if (__t57)
-            goto __block_branch_b20f3e19_true;
-        else
-            goto __block_branch_b20f3e19_false;
-        
-        __block_branch_13ff27f8_false:
-        var __t58 = time;
-        var __t59 = s.RequestTime;
-        var __t60 = __t58 - __t59;
-        var __t61 = 5F;
-        var __t62 = __t60 > __t61;
-        if (__t62)
-            goto __block_branch_fa4eae48_true;
-        else
-            goto __block_branch_fa4eae48_false;
-        
-        __block_branch_c864d7ab_true:
-        var __t63 = Func_UpdateRunners(ref s, view, ecb, self, time, deltaTime, instanceVersion);
-        var __t64 = 0;
-        var __t65 = __t63 == __t64;
-        if (__t65)
-            goto __block_branch_3ec72221_true;
-        else
-            goto __block_branch_3ec72221_false;
-        
-        __block_branch_c864d7ab_false:
-        var __t66 = s.Phase;
-        var __t67 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
-        var __t68 = __t66 == __t67;
-        if (__t68)
-            goto __block_branch_fbffa50e_true;
-        else
-            goto __block_branch_fbffa50e_false;
-        
-        __block_branch_b20f3e19_true:
-        var __t69 = s.Sensor;
-        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.DestroyEqsSensor(__t69, view);
-        var __t70 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
-        s.Phase = __t70;
+        s.Phase = __t47;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_b20f3e19_false:
-        var __t71 = 0;
-        var __t72 = ReadEqsResult_43d0aba6(ref s, ((global::Fdp.Core.EntityRepository)view), __t71);
-        var __t73 = __t72.IsReady;
-        var __t74 = __t72.ResultCount;
-        var __t75 = __t72.Entity;
-        var __t76 = __t72.Position;
-        var __t77 = __t72.Score;
-        s.TargetCount = __t74;
-        var __t78 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Dispatch;
-        s.Phase = __t78;
+        __block_branch_91fd54ee_false:
+        var __t48 = s.Phase;
+        var __t49 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitWave;
+        var __t50 = __t48 == __t49;
+        if (__t50)
+            goto __block_branch_7d8a858b_true;
+        else
+            goto __block_branch_7d8a858b_false;
+        
+        __block_branch_5f6788b5_true:
+        var __t51 = 0;
+        var __t52 = ReadEqsResult_a87e8159(ref s, ((global::Fdp.Core.EntityRepository)view), __t51);
+        var __t53 = __t52.IsReady;
+        var __t54 = __t52.ResultCount;
+        var __t55 = __t52.Entity;
+        var __t56 = __t52.Position;
+        var __t57 = __t52.Score;
+        var __t58 = 0;
+        var __t59 = __t54 == __t58;
+        if (__t59)
+            goto __block_branch_9f0c1a2c_true;
+        else
+            goto __block_branch_9f0c1a2c_false;
+        
+        __block_branch_5f6788b5_false:
+        var __t60 = time;
+        var __t61 = s.RequestTime;
+        var __t62 = __t60 - __t61;
+        var __t63 = 5F;
+        var __t64 = __t62 > __t63;
+        if (__t64)
+            goto __block_branch_b6a80175_true;
+        else
+            goto __block_branch_b6a80175_false;
+        
+        __block_branch_7d8a858b_true:
+        var __t65 = Func_UpdateRunners(ref s, view, ecb, self, time, deltaTime, instanceVersion);
+        var __t66 = 0;
+        var __t67 = __t65 == __t66;
+        if (__t67)
+            goto __block_branch_1c644748_true;
+        else
+            goto __block_branch_1c644748_false;
+        
+        __block_branch_7d8a858b_false:
+        var __t68 = s.Phase;
+        var __t69 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
+        var __t70 = __t68 == __t69;
+        if (__t70)
+            goto __block_branch_07e059d7_true;
+        else
+            goto __block_branch_07e059d7_false;
+        
+        __block_branch_9f0c1a2c_true:
+        var __t71 = s.Sensor;
+        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.DestroyEqsSensor(__t71, view);
+        var __t72 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
+        s.Phase = __t72;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_fa4eae48_true:
-        var __t79 = s.Sensor;
-        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.DestroyEqsSensor(__t79, view);
-        var __t80 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
+        __block_branch_9f0c1a2c_false:
+        var __t73 = 0;
+        var __t74 = ReadEqsResult_a87e8159(ref s, ((global::Fdp.Core.EntityRepository)view), __t73);
+        var __t75 = __t74.IsReady;
+        var __t76 = __t74.ResultCount;
+        var __t77 = __t74.Entity;
+        var __t78 = __t74.Position;
+        var __t79 = __t74.Score;
+        s.TargetCount = __t76;
+        var __t80 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Dispatch;
         s.Phase = __t80;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_fa4eae48_false:
+        __block_branch_b6a80175_true:
+        var __t81 = s.Sensor;
+        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.DestroyEqsSensor(__t81, view);
+        var __t82 = 2;
+        var __t83 = "Hill attack: the EQS area sensor did not answer within 5 s.";
+        global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.FaultBehaviour(__t82, __t83, self, view);
+        var __t84 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Return;
+        s.Phase = __t84;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_3ec72221_true:
-        var __t81 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Query;
-        s.Phase = __t81;
+        __block_branch_b6a80175_false:
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_3ec72221_false:
+        __block_branch_1c644748_true:
+        var __t85 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Query;
+        s.Phase = __t85;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_fbffa50e_true:
+        __block_branch_1c644748_false:
+        return global::Fbt.NodeStatus.Running;
+        
+        __block_branch_07e059d7_true:
         Func_OrderAllToBaseline(ref s, view, ecb, self, time, deltaTime, instanceVersion);
-        var __t83 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitReturn;
-        s.Phase = __t83;
+        var __t87 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitReturn;
+        s.Phase = __t87;
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_fbffa50e_false:
-        var __t84 = s.Phase;
-        var __t85 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitReturn;
-        var __t86 = __t84 == __t85;
-        if (__t86)
-            goto __block_branch_f91fa291_true;
+        __block_branch_07e059d7_false:
+        var __t88 = s.Phase;
+        var __t89 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.AwaitReturn;
+        var __t90 = __t88 == __t89;
+        if (__t90)
+            goto __block_branch_653adc9f_true;
         else
-            goto __block_branch_f91fa291_false;
+            goto __block_branch_653adc9f_false;
         
-        __block_branch_f91fa291_true:
-        var __t87 = Func_AllAtBaseline(ref s, view, ecb, self, time, deltaTime, instanceVersion);
-        if (__t87)
-            goto __block_branch_183ad60e_true;
+        __block_branch_653adc9f_true:
+        var __t91 = Func_AllAtBaseline(ref s, view, ecb, self, time, deltaTime, instanceVersion);
+        if (__t91)
+            goto __block_branch_fa9df71e_true;
         else
-            goto __block_branch_183ad60e_false;
+            goto __block_branch_fa9df71e_false;
         
-        __block_branch_f91fa291_false:
+        __block_branch_653adc9f_false:
         return global::Fbt.NodeStatus.Running;
         
-        __block_branch_183ad60e_true:
+        __block_branch_fa9df71e_true:
         return global::Fbt.NodeStatus.Success;
         
-        __block_branch_183ad60e_false:
+        __block_branch_fa9df71e_false:
         return global::Fbt.NodeStatus.Running;
         
     }

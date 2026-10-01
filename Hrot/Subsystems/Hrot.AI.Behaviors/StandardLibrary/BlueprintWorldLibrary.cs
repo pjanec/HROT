@@ -142,6 +142,20 @@ namespace Hrot.AI.Behaviors.StandardLibrary
         public static void DestroyEqsSensor(FDP.Eqs.EqsSensorHandle sensor, ISimulationView view)
             => Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Destroy(view, sensor.ChildId);
 
+        // ── Behaviour ──────────────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐ <b>CE-482 — FAIL LOUD.</b> The behaviour cannot do its job: the run ends FAULTED after this tick (the mission plan
+        /// halts, the operator is notified), with <paramref name="message"/> as the reason. ⛔ Not an ordinary Failure — use this
+        /// only when the situation needs a person. <paramref name="code"/> ≥ 1000 for behaviour-specific reasons; 1 = missing
+        /// input, 2 = no answer in time. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D1/D2.
+        /// </summary>
+        [BlueprintCallable("Behavior", DisplayName = "Fault Behaviour")]
+        public static void FaultBehaviour(int code, string message, Entity self, ISimulationView view)
+            => Fdp.Toolkit.Behavior.Events.BehaviorFault.Raise(view, self,
+                   code <= 0 ? Fdp.Toolkit.Behavior.Events.BehaviorFaultCode.Custom : (Fdp.Toolkit.Behavior.Events.BehaviorFaultCode)code,
+                   message);
+
         private static IGeographicTransform? Transform(ISimulationView view)
             => view is EntityRepository world && world.HasSingletonManaged<IGeographicTransform>()
                 ? world.GetSingletonManaged<IGeographicTransform>()
