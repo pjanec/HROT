@@ -417,6 +417,67 @@ namespace Fdp.Toolkit.Behavior.Tests
             h.World.Dispose();
         }
 
+        // ══ CE-456 — an assign BY HASH from a mission phase runs on the PHASE's parameters ═══════════════════════════
+
+        private static (EntityRepository World, Entity E) MissionPhaseWorld(string taskBehaviour, string taskParams)
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            if (!world.IsComponentTypeRegistered<MissionPlanQueue>()) world.RegisterComponent<MissionPlanQueue>();
+            if (!world.TryGetTable(typeof(ActiveMissionPlan), out _)) world.RegisterManagedComponent<ActiveMissionPlan>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.AddComponent(e, new MissionPlanQueue { PhaseCount = 2, CurrentPhase = 1 });     // the director just advanced
+            world.SetManagedComponent(e, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan
+                {
+                    Tasks =
+                    {
+                        new DomainMissionTask { BehaviorName = "Other", BehaviorParams = "99" },
+                        new DomainMissionTask { BehaviorName = taskBehaviour, BehaviorParams = taskParams },
+                    },
+                },
+            });
+            return (world, e);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-456</c>: a mission phase started by HASH (the director's phase advance — no JSON on the event) starts with
+        /// the phase task's parameters from <see cref="ActiveMissionPlan"/>. ⛔ Before, on every host without CGF's
+        /// <c>MissionAdapterSystem</c>, it ran on its authored defaults (<c>Target == 10</c>).
+        /// </summary>
+        [Fact]
+        public void CE456_AnAssignByHash_FromAMissionPhase_RunsOnThePhaseTasksParameters()
+        {
+            var (world, e) = MissionPhaseWorld(Name, "7");
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, CountingDef<Block>(layout: 0xA1));
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = Id });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            new BrainTickSystem(registry).Execute(world, 0.016f);
+
+            Assert.Equal(7, ReadBlock(world, e).Target);
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-456</c>: a task that names a DIFFERENT behaviour lends its parameters to nobody — authored defaults.</summary>
+        [Fact]
+        public void CE456_ATaskNamingAnotherBehaviour_IsNotUsed()
+        {
+            var (world, e) = MissionPhaseWorld("SomethingElse", "7");
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, CountingDef<Block>(layout: 0xA1));
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = Id });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            new BrainTickSystem(registry).Execute(world, 0.016f);
+
+            Assert.Equal(10, ReadBlock(world, e).Target);
+            world.Dispose();
+        }
+
         private sealed class RecordingReloadLog : Fdp.Toolkit.Blueprints.Systems.IReloadLogSink
         {
             public readonly System.Collections.Generic.List<(ulong, ulong)> HardResets = new();

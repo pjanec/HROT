@@ -143,7 +143,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                 if (_registry.TryGetDefinition(evt.BehaviorHash, out var def)
                     && _registry.TryGetName(evt.BehaviorHash, out var name))
                 {
-                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, "{}");
+                    // ⭐ CE-456: the phase's own parameters, not "{}" — the hash event has no JSON, but the plan it came from does.
+                    Start(repo, evt.Entity, name, evt.BehaviorHash, def, MissionPhaseParams(repo, evt.Entity, evt.BehaviorHash));
                     continue;
                 }
 
@@ -164,6 +165,32 @@ namespace Fdp.Toolkit.Behavior.Systems
                 unhosted.ActiveBehaviorHash = evt.BehaviorHash;
                 unchecked { unhosted.InstanceId++; }
             }
+        }
+
+        /// <summary>
+        /// ⭐ <b><c>CE-456</c> — the parameters of the mission phase an <see cref="AssignBehaviorHashEvent"/> starts.</b>
+        /// 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §31.16.7.
+        /// <para>The hash event's ONE producer is <c>MissionDirectorSystem</c> advancing a <see cref="MissionPlanQueue"/>, and
+        /// the event carries no JSON (it is unmanaged). The plan it advanced still holds the text: the entity's
+        /// <see cref="ActiveMissionPlan"/> task at the queue's current phase. ⭐ This is what makes a phase behaviour run on its
+        /// task's parameters on EVERY host — ⛔ before, only CGF did, through <c>MissionAdapterSystem</c>'s named assign
+        /// (which the hash assign then yields to); everywhere else the phase ran on its authored defaults.</para>
+        /// <para>Returns <c>"{}"</c> when there is no plan, the phase is out of range, or the task names a DIFFERENT behaviour
+        /// (a plan edited under the queue) — never another behaviour's parameters.</para>
+        /// </summary>
+        internal string MissionPhaseParams(EntityRepository repo, Entity entity, int behaviorHash)
+        {
+            if (!repo.IsComponentTypeRegistered<MissionPlanQueue>() || !repo.HasComponent<MissionPlanQueue>(entity)
+                || !repo.HasManagedComponent<ActiveMissionPlan>(entity))
+                return "{}";
+            int phase = repo.GetComponentRO<MissionPlanQueue>(entity).CurrentPhase;
+            var tasks = ((ISimulationView)repo).GetManagedComponentRO<ActiveMissionPlan>(entity)?.Plan?.Tasks;
+            if (tasks == null || phase >= tasks.Count) return "{}";
+            var task = tasks[phase];
+            if (string.IsNullOrWhiteSpace(task.BehaviorName)
+                || !_registry.TryGetId(task.BehaviorName, out int taskHash) || taskHash != behaviorHash)
+                return "{}";
+            return string.IsNullOrWhiteSpace(task.BehaviorParams) ? "{}" : task.BehaviorParams;
         }
 
         /// <summary>
