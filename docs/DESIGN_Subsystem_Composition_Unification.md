@@ -6291,7 +6291,7 @@ instead of a diff.
 | ⚠ **four rails changed expectation** | all four updated with the count **and** an assertion encoding why *(`DoesNotContain`, and the publisher/consumer ordering)*; ⭐ the coverage removed from the pack tests was **re-homed**, not deleted — `TheInfrastructureCapabilitiesSupplyExactlyOneOfEachHoistedSystem` |
 | ⚠ **not mine, measured** | `Fdp.ModuleHost.Tests` 6 red *(zero `FDP/` files modified)* · `FullBranchPipelineTests` red **identically at base `94156812d`** · 31 `Hrot.Editor.Tests` source-scan reds caused by an **untracked local `Hrot/docs/ReactiveGuards.md`** — moving it aside gives **368/0/1**, and those rails stop their upward walk at `…/Hrot` |
 
-#### ⚠ `CE-492` — **a HAND-WIRED harness is a host the plan cannot reach** *(found `2026-10-01`)*
+#### ⚠ `CE-493` — **a HAND-WIRED harness is a host the plan cannot reach** *(found `2026-10-01`)*
 
 📐 `Hrot.ClusterRunner.Integration.Tests`' offline `EditorHarness` registers `CgfLogicPack`/`SimHostCoreLogicPack` directly, not through a
 `NodeCompositionPlan` ⇒ the hoist above silently removed `EqsResultUpdateSystem` and `UnitHierarchySystem` from it, and **26** EQS

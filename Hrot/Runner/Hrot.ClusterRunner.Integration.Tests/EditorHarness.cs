@@ -288,7 +288,7 @@ public sealed class EditorHarness : IDisposable
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
-        // ⭐ CE-492: CE-221 (2026-09-07) moved EqsResultUpdateSystem and UnitHierarchySystem out of the role packs into
+        // ⭐ CE-493: CE-221 (2026-09-07) moved EqsResultUpdateSystem and UnitHierarchySystem out of the role packs into
         //   node capabilities. This harness wires the packs by hand, so it must install them as every production host does
         //   (EditorCapabilities) — without it the solver answers and NOTHING writes EqsCognitiveBuffer.
         Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("EqsResultUpdate", new Hrot.SimHost.Systems.EqsResultUpdateSystem()));
