@@ -5040,6 +5040,8 @@ namespace Hrot.Editor
                 windowManager.MessageLogRegistry?.RegisterSource(_hotReloadSource);
             // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
             windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
+            // ⭐ CE-484 — the operator's "Behaviour Faults" tab (red until looked at). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+            windowManager.MessageLogRegistry?.RegisterSource(Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared);
 
             // ?? Time transport controls in status bar ?????????????????????????
             if (_previewController != null && _timeController != null && _world != null

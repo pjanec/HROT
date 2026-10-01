@@ -105,6 +105,18 @@ namespace Fdp.Toolkit.Behavior.Events
                 repo.AddComponent(entity, new BehaviorFaultLatch { InstanceId = behavior.InstanceId, Code = code });
             }
 
+            // ⭐ CE-484: the operator's tab, on THIS node — the DDS egress carries it to the others (and the offline editor,
+            //   which has no egress, still shows it). De-duplicated against the ingress by entity + run + behaviour.
+            long entityKey = repo.IsComponentTypeRegistered<Fdp.Toolkit.Replication.Components.NetworkIdentity>()
+                             && repo.HasComponent<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity)
+                ? repo.GetComponentRO<Fdp.Toolkit.Replication.Components.NetworkIdentity>(entity).Value
+                : BehaviorFaultLog.LocalEntityKey(entity.Index);
+            BehaviorFaultLog.Shared.Report(
+                new BehaviorFaultLog.FaultKey(entityKey, behavior.InstanceId, behavior.ActiveBehaviorHash),
+                $"#{behavior.ActiveBehaviorHash:X8}",
+                entityKey >= 0 ? $"entity {entityKey}" : $"entity #{entity.Index}",
+                (int)code, message ?? string.Empty);
+
             repo.Bus.PublishManaged(new BehaviorFaultNotification
             {
                 Entity       = entity,

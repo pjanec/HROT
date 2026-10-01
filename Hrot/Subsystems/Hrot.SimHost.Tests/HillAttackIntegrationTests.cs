@@ -522,6 +522,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(BehaviorFaultCode.MissingInput, note.Code);
             Assert.Contains("area", note.Message);
             Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
+            // ⭐ CE-484: the operator's "Behaviour Faults" tab got ONE Error row for this run, keyed by the network id.
+            long netId = 8000 + commander.Index;
+            var rows = Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.GetMessages()
+                .Where(m => m.Message.StartsWith($"entity {netId}:")).ToList();
+            var row = Assert.Single(rows);
+            Assert.Equal(Fdp.Core.Logging.LogSeverity.Error, row.Severity);
+            Assert.Contains("MissingInput", row.Message);
         }
 
         // ── SC-HA015-2 ────────────────────────────────────────────────────────────
