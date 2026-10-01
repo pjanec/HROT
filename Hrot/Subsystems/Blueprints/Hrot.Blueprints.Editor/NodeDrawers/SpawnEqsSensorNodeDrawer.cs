@@ -67,10 +67,11 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
 
     private void DrawDispatchGuard()
     {
-        if (_parent.Dispatch != BlueprintDispatchKind.Instance)
+        // CE-496: mirrors BP2030 (Stage2_Validate) — Instance and Behavior (a behaviour IS an Instance body).
+        if (_parent.Dispatch is not (BlueprintDispatchKind.Instance or BlueprintDispatchKind.Behavior))
         {
             ImGui.TextColored(EditorColors.Error,
-                "⚠ SpawnEqsSensorNode is only allowed in Instance Blueprints.");
+                "⚠ SpawnEqsSensorNode is only allowed in Instance and Behaviour Blueprints.");
             ImGui.Separator();
         }
     }
