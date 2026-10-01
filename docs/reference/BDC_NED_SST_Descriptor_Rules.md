@@ -7,6 +7,8 @@ current-answer: this is the AUTHORITATIVE BDC/NED "descriptors + entity + owners
 owns: the wire contract for entities-as-descriptors, EntityMaster lifecycle, per-descriptor ownership,
   and the OwnershipUpdate handoff. It is a SPEC, not a design of our code.
 related-designs:
+  - ../blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — applies the no-dispose rule to EQS child sensors (multi-instance
+    descriptors): part ids allocated and reused, an `Active=false` write instead of a dispose (D5).
   - ../DESIGN_Distributed_Scenario_Persistence.md — §6c maps this spec onto our ECS (PrimaryOwnerId as
     the mirror of EntityMaster ownership) and records the compliance gap.
 -->

@@ -2,9 +2,10 @@
 state: LIVE
 updated: 2026-10-01
 build-state: READY-TO-BUILD — every decision below APPROVED by the user on 2026-10-01 (section 1). Nothing is built.
+  D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
   items CE-482..CE-487). Section 2 is the claim table every decision rests on.
-stale-below: nothing.
+stale-below: section 5 (HISTORY) — the superseded per-lifetime-part-id D5.
 known-rot: none.
 known-conflict: none.
 related-designs:
@@ -15,11 +16,14 @@ related-designs:
     (ownership stamped with BehaviorInstanceId, reset by ChannelArbitrationSystem). Section 1 D4 is the same pattern applied to
     behaviour-owned ENTITIES (parts).
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — OWNS the child sensor, its wire key (ParentNetworkId, LocalChildIndex) and the
-    Muscle carrier. D5 changes what VALUE goes into LocalChildIndex, not the key's shape.
+    Muscle carrier. D5 changes how LocalChildIndex is CHOSEN (allocated, reused), adds `Active`, and puts the lifetime in
+    the epoch — the key's shape is unchanged.
   - docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md — the behaviour-side sensor lifecycle (EqsChildSensor) this extends; its
     §6 records the abort residual (a sensor surviving a cleared behaviour) that D4 closes.
   - docs/designs/SIM/DESIGN-SIMHOST.md — designed MarkTaskFailed (around line 787) for the SimHost mission path; never built.
     D3 is the first writer of TASK_FAILED.
+  - docs/reference/BDC_NED_SST_Descriptor_Rules.md — OWNS the descriptor lifecycle rule ("descriptors cannot be deleted from a
+    live entity") that shapes D5; a SPEC, not a design of our code.
   - docs/designs/ai-btree-deactivator-1/DESIGN.md — BTree-only per-node deactivators. Kept for per-node cleanup; NOT the
     behaviour-wide mechanism (rejected in section 1).
 -->
@@ -41,7 +45,7 @@ new instance (part id) for new sensor instance."*
 | **D2** | ⭐ a fault ends the behaviour through the existing `Finish` → `Clear` (`CE-449`); `BehaviorFinishedEvent` gains `Outcome` (Succeeded · Failed · Faulted) + `FaultCode`; a managed `BehaviorFaultNotification` is published for anyone to act on | one terminal event that cannot disagree with a second one; the notification is what tells the user |
 | **D3** | ⭐ the mission tier records each phase's outcome: Succeeded ⇒ `TASK_DONE` and advance · **Failed ⇒ `TASK_FAILED` and advance (3a)** · **Faulted ⇒ `TASK_FAILED` and HALT** until an operator command | `TASK_FAILED` is on the wire and drawn as ✗ (`MissionPanel.cs:161`) but nothing writes it |
 | **D4** | ⭐ an entity a behaviour creates through `EqsChildSensor` is **behaviour-owned**: stamped `BehaviorOwnedPart{OwnerInstanceId, SlotId}` and **destroyed when that behaviour instance ends** — at every site that bumps `BehaviorState.InstanceId` | every end (finish, clear, reassign, re-assign of the same behaviour, hot-reload restart, abort, fault) bumps it — one release step, three call sites, no per-route hook |
-| **D5** | ⭐ the sensor stays a **part** of its parent's network representation — ⛔ no network id of its own — but each lifetime gets a **new part id**: `LocalChildIndex = Mix(SlotId, OwnerInstanceId)` | a fixed part id makes a dying and a newborn sensor share one wire key ⇒ the five races of section 2 |
+| **D5** *(REVISED `2026-10-01` — see §5 for the superseded form)* | ⭐ the sensor stays a **part** of its parent's network representation (⛔ no network id) and its descriptor instance is **never disposed** while the parent lives. ① **part ids are ALLOCATED and REUSED**: the lowest id ≥ 1 not held by a live sensor child of that parent — the children ARE the table, no allocator component; `Ensure` creates the child **immediately** on the live world so a second creation in the same frame sees it · ② **the lifetime rides in the epoch**: high 16 bits = the owning behaviour run's `InstanceId`, low 16 = the refresh count ⇒ any answer to an earlier run fails the epoch check · ③ **a sensor ends by an explicit `Active = false` write** to its instance (a new non-key field on `EqsSensor` + `EqsSensorConfigTopic`); the solver skips inactive carriers · ④ **a new authority sweeps orphans**: brain nodes also read the config topic and write `Active = false` to any instance under their entity they hold no sensor for · ⑤ **Spawn EQS Sensor gains an optional `Key` pin** so one spawn node in a loop owns one sensor per key | 🔒 the BDC/NED descriptor rules: *"descriptors cannot be deleted from a live entity"* (`docs/reference/BDC_NED_SST_Descriptor_Rules.md`); a dispose of a non-master descriptor means ownership-return or entity-deletion, never "this part is gone" |
 
 **Rejected — one line each:**
 - *Root Failure = fault* — breaks every tree that ends with Failure on purpose (`CE-459`).
@@ -51,7 +55,13 @@ new instance (part id) for new sensor instance."*
 - *Fire BTree deactivators on clear* — BTree only; HSM and blueprints get nothing.
 - *A reaper system later in the frame* — a same-frame restart would see the old sensor before it is reaped.
 - *Give the sensor its own network id* — id allocation plus an acknowledged spawn/teardown on every restart, seen by every node, first answer later.
-- *A new key field on the two EQS topics* — a wire-contract change; a mixed part id gives the same separation without one.
+- *A new key field on the two EQS topics* — the same unbounded-instance problem as a per-lifetime part id.
+- *A per-lifetime (mixed) part id* — the first form of D5: a new descriptor instance per restart that may never be disposed ⇒ unbounded, and a late-joining Muscle solves every dead one.
+- *Baked or hashed part ids* (today: node-GUID hash, a C# constant, `entityIndex << 8 | slot`) — no loops, no repeated subtrees, collisions undetectable, and the index form overflows.
+- *An allocator component on the parent* — a second record of which ids are used; it drifts whenever a child dies outside our release step.
+- *`BlueprintId = 0` as the idle marker* — overloads "which query" with "on/off", and a template hash can be 0.
+- *The unused `PublishPolicy` value 2 as idle* — that field says when to publish, not whether to solve.
+- *Let the Muscle age out unrefreshed sensors* — a long-running sensor is legitimately never refreshed.
 - *Wait for the dispose acknowledgement before re-creating* — adds a wait state to every behaviour, and acknowledgements are lost when a node drops.
 
 ## 2. Claim table
@@ -73,16 +83,29 @@ new instance (part id) for new sensor instance."*
 | ⑤ `Find` returns a doomed sensor | `EqsChildSensor.Find` matches parent + id only | — |
 
 ⇒ ①–③ make a restarted sensor **silent**; ④ gives it **the old question's answer**. All five exist today on the C# commander's
-deactivate-then-restart path. D5 removes the shared key, which is what all five need.
+deactivate-then-restart path. Revised D5: no dispose ⇒ ① ② cannot happen · lifetime in the epoch ⇒ ④ · owner-stamped `Find` ⇒
+⑤ · ③ stays and makes `CE-487` REQUIRED.
 
-⚠ Inventory: `search_graph name_pattern=.*(Fault|Notification|BehaviorFinished|BehaviorOwned|OwnedPart|TaskFailed).*`
+| revised-D5 claim | code — how it IS | design basis |
+|---|---|---|
+| a descriptor instance may not be disposed while its entity lives | the config egress disposes today (`EqsSensorConfigEgressTranslator.cs:141`) and the Muscle reads it as "destroy carrier" (`EqsSensorConfigIngressTranslator.cs:111`) — ⛔ both against the spec; the result egress never disposes (`EqsResultEventEgressTranslator.cs:113`) | Descriptor Rules, *Disposal* |
+| same-frame immediate creation is safe and visible | behaviours get the live world (`BrainTickSystem.cs:312`, `:414`); a created entity is Active at once (`EntityRepository.cs:327`) and the default query is Active (`QueryBuilder.cs:125`); component storage is reserve-and-commit, never moved (`NativeChunkTable.cs:231-245`); a sensor child carries no `BehaviorState`, so the tier walk never visits it (`BrainTickSystem.cs:129-166`) | — |
+| an unknown template is NOT idle today | `EqsSolverSystem.cs:147-159` publishes an empty answer every solve | — |
+| a new authority holds no record of old part ids | brain nodes register only the config EGRESS (`SimHostAuxiliaryTranslatorPack.cs:67`; ingress is Muscle-only, `:92`); the old node stops ticking but never ends the behaviour (`BrainTickSystem.cs:129`, owned-only) | — |
+| `BlueprintId` is the EQS query TEMPLATE, not a behaviour blueprint | `EqsComponents.cs:138`; `EqsTemplateRegistry.BlueprintIdOf` (`:40`); the C# commander fills it too (`HillAttackCommanderNodes.cs:56-61`) | EQS 1.3 — templates were authored as "query blueprints" ⇒ rename filed as `CE-489` |
+
+**INVENTORY** — ① fault/notification: `search_graph name_pattern=.*(Fault|Notification|BehaviorFinished|BehaviorOwned|OwnedPart|TaskFailed).*`
 (Class, 53 rows, `has_more:false`) found **no behaviour fault or notification type**. The near misses, and why each does not
 apply: `ModuleFaultReportingRails`/`CE-189` (an engine EXCEPTION in a module — not a behaviour outcome) · `DebugApiFault` (HTTP
 error shape) · `EditorNotification`/`NotificationOverlay` (editor-local UI — a possible CONSUMER of D2) ·
 `WeaponFireNotification` + its egress translator (the precedent for a notification that crosses the wire) ·
 `DetonationNotification`, `SelectionChangedNotification` (unrelated domains). Struct pass for `BehaviorOwned|PartMetadata` — 0
 rows (PartMetadata is a component the graph labels otherwise; grep confirms `Fdp.Toolkit.Replication.Components`).
-`check_index_coverage` was not run.
+② part-id allocation: `search_graph name_pattern=.*(PartId|ChildIndex|InstanceIdAlloc|IdAllocator|ChildMap|PartMetadata).*`
+label Class ⇒ **21** (`has_more:false`): every allocator is a NETWORK ENTITY id allocator (`DdsIdAllocator(Server)`,
+`SequentialIdAllocator`, `IgSequentialIdAllocator`, `HostedIdAllocatorServer`, test stubs) or StructEdit's union `IdAllocator`;
+`ChildMap` is an id→entity lookup kept by the receiving side; `PartMetadata` is the stamp ⇒ **no part-id allocator exists**, and
+D5's scan-the-children allocator duplicates nothing. `check_index_coverage` was not run.
 
 ## 3. Diagrams
 
@@ -135,13 +158,20 @@ classDiagram
   class BehaviorOwnedPart {
     <<component NEW, brain-local, never on the wire>>
     uint OwnerInstanceId
-    int SlotId
+    int SiteId
+    long Key
+  }
+  class EqsSensor {
+    <<existing — changed>>
+    uint BlueprintId  (the query TEMPLATE; rename CE-489)
+    uint Epoch  ← high16 = owner run, low16 = refresh
+    +bool Active «NEW, on the wire»
   }
   class EqsChildSensor {
     <<existing — changed>>
-    +Find(view, parent, slotId)
-    +Ensure(view, parent, slotId, config)
-    +PartId(slotId, ownerInstanceId) int «NEW»
+    +Find(view, parent, siteId, key)
+    +Ensure(view, parent, siteId, key, config)
+    -AllocatePartId(parent) int «NEW: lowest free among live children»
   }
   class PartMetadata {
     <<existing>>
@@ -168,14 +198,15 @@ classDiagram
   BehaviorIngressSystem ..> BehaviorOwnedParts : Release at each InstanceId bump (3 sites)
   BehaviorOwnedParts ..> BehaviorOwnedPart : destroys owners != live instance
   EqsChildSensor ..> BehaviorOwnedPart : stamps on create
-  EqsChildSensor ..> PartMetadata : InstanceId = PartId(slot, owner)
+  EqsChildSensor ..> PartMetadata : InstanceId = allocated part id
+  EqsChildSensor ..> EqsSensor : epoch carries the owner run
   BehaviorFinishedEvent --> BehaviorOutcome
   MissionDirectorSystem ..> BehaviorFinishedEvent : reads
   MissionDirectorSystem ..> MissionPlanQueue : records outcome, halts on Faulted
   EntityMissionEgressTranslator ..> MissionPlanQueue : per-phase eTaskState
 ```
-*What the picture shows that prose hid:* the stamp is **brain-local** — the wire only ever sees the mixed number in
-`PartMetadata.InstanceId`, so the Muscle and both EQS topics are untouched in shape. And the fault reaches the mission tier
+*What the picture shows that prose hid:* the stamp is **brain-local** — the wire sees only the allocated part id, the epoch
+and the new `Active` flag; the key of both EQS topics is untouched. And the fault reaches the mission tier
 through the **existing** finish event, not a second channel.
 
 ```mermaid
@@ -207,19 +238,20 @@ for any other end.
 sequenceDiagram
   participant B as Brain (behaviour run k, then k+1)
   participant CE as EqsSensorConfig egress
-  participant M as Muscle carriers
+  participant M as Muscle carrier (parent, part 1)
   participant RI as EqsResult ingress
-  B->>B: run k ends ⇒ Release destroys sensor (part id = Mix(slot,k))
-  B->>B: run k+1 starts ⇒ Ensure creates sensor (part id = Mix(slot,k+1))
-  CE->>M: write key (parent, Mix(slot,k+1))
-  CE->>M: dispose key (parent, Mix(slot,k))
-  Note over M: two DIFFERENT instances — the dispose can only kill run k's carrier
-  M-->>RI: results for Mix(slot,k) (late) and Mix(slot,k+1)
-  RI->>B: late k results resolve to no live sensor ⇒ dropped
-  RI->>B: k+1 results ⇒ the new sensor, epoch check as today
+  B->>B: run k ends ⇒ Release destroys its sensor (part 1 now free)
+  CE->>M: write (parent, 1) Active=false
+  B->>B: run k+1 starts ⇒ Ensure allocates part 1, epoch = (k+1)<<16 | 1
+  CE->>M: write (parent, 1) Active=true, new params, new epoch
+  Note over M: ONE instance, never disposed — the carrier is updated in place
+  M-->>RI: a late answer for epoch k<<16 | n
+  RI->>B: epoch mismatch ⇒ dropped
+  M-->>RI: answer for the new epoch ⇒ accepted
 ```
-*What it shows:* races ①–⑤ need **two lifetimes to share one key**; with a per-lifetime part id there is nothing to race on.
-The brief coexistence of two carriers on the Muscle remains and is harmless (a few solves whose answers go nowhere).
+*What it shows:* the descriptor instance outlives every sensor that uses it, exactly as the descriptor rules require; what tells
+two lifetimes apart is the EPOCH, not the key. ⚠ the brain-side result cache (key → local entity) still points at run k's dead
+entity after the swap ⇒ `CE-487` is load-bearing.
 
 ```mermaid
 graph TD
@@ -252,12 +284,22 @@ would re-issue the halted phase.
 | **CE-482** | D1+D2: `BehaviorFault.Raise`, `BehaviorFaultLatch`, `BehaviorOutcome`/`FaultCode` on `BehaviorFinishedEvent`, `BehaviorFaultNotification`; the blueprint *Fault Behaviour* node; the commander faults on missing area and on 5 s silence; `BrainTickSystem` faults (`NoDefinition`) instead of `Debug.WriteLine` | behaviours |
 | **CE-483** | D3: `MissionPlanQueue.Outcomes` + `Halted`; director records the outcome, halts on Faulted; `MissionAdapterSystem` honours `Halted`; mission control commands clear it. ⚠ cross-lane: `EntityMissionEgressTranslator.cs:124` sends the recorded state (today a finished task reads PLANNED) | behaviours + backend (egress) |
 | **CE-484** | the notification reaches the operator: an egress topic on the `WeaponFireNotification` precedent + a UI consumer (`NotificationOverlay`/IG) | backend + UI |
-| **CE-485** | D4+D5: `BehaviorOwnedPart`, `BehaviorOwnedParts.Release` at the three InstanceId sites, `EqsChildSensor` mixes the part id and matches on owner + slot; `Ensure` faults (`PartIdCollision`) if a live sibling holds the mixed id; re-home the rails that assert the baked id | behaviours |
-| **CE-486** | ① the config egress must not dispose a key it wrote in the same scan, and must re-send a live sensor after any dispose of its key — stands on its own | backend |
-| **CE-487** | ③ the result ingress cache must check the cached entity is alive (and its part id still matches) on every hit — stands on its own | backend |
+| **CE-485** | D4+D5 brain side: `BehaviorOwnedPart{Owner, Site, Key}`, `BehaviorOwnedParts.Release` at the three InstanceId sites; `EqsChildSensor` allocates the part id (lowest free among live children), creates immediately on the live world (asserts one creation per parent per frame on any other view), stamps the epoch with the owner run, matches `Find` on owner + site + key; the `Key` pin on *Spawn EQS Sensor*; retire the three baked-id schemes; re-home the tick-count rails (`Ensure` now returns the child on the creating call ⇒ the `-2` marker goes) | behaviours |
+| **CE-486** | D5 ③ wire side: `Active` on `EqsSensor` + `EqsSensorConfigTopic`; the config egress NEVER disposes a child-sensor instance — it writes `Active=false`; the Muscle ingress stops treating a dispose as "destroy carrier"; the solver skips inactive carriers | backend |
+| **CE-487** | ③ the result ingress cache must check the cached entity is alive (and its part id still matches) on every hit — ⭐ REQUIRED by D5 | backend |
+| **CE-488** | D5 ④: brain nodes also read `EqsSensorConfig`; on gaining authority over an entity, write `Active=false` to every instance under it that has no local sensor | backend |
+| **CE-489** | rename `EqsSensor.BlueprintId` / the topic field → `TemplateId` (Roslyn rename; the field is the EQS query template) | backend |
 
 **Acceptance (behaviours lane):** ① a rail where the commander faults on a missing area ⇒ `BehaviorFinishedEvent.Outcome ==
 Faulted`, one notification, task `TASK_FAILED`, plan halted · ② a plain-Failure behaviour ⇒ `TASK_FAILED`, plan advances · ③
 finish/clear/reassign/same-behaviour re-assign each leave **zero** stamped parts of the ending instance · ④ end then
 immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted sensor answers (split Brain/Muscle rail, the
 `EqsDistributedTests` harness) · ⑤ live `--mode all` hill-attack, both commanders, unchanged outcome.
+
+## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
+
+**D5, first form (approved `2026-10-01`, SUPERSEDED the same day):** *"each lifetime gets a new part id:
+`LocalChildIndex = Mix(SlotId, OwnerInstanceId)`."* ⛔ Withdrawn on the user's question about the BDC/NED descriptor rules: a
+new part id per lifetime is a new descriptor instance that may never be disposed while the parent lives ⇒ instances grow
+without bound and TransientLocal hands every dead one to a late-joining Muscle. Replaced by allocated, reused part ids with the
+lifetime in the epoch (§1 D5).
