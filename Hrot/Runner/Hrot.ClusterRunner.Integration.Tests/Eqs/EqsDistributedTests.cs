@@ -37,8 +37,11 @@ namespace Hrot.ClusterRunner.Integration.Tests.Eqs;
 ///         perception-grid footprint. ⭐ These were PARITY rails against the old AreaQuery until it was
 ///         retired (2026-10-01); each now states its expected set, which is exactly what the old
 ///         pipeline answered on the run that last compared them (EQS design §17.5).</item>
+///   <item>CE-486 / CE-487 / CE-490 -- the sensor lifecycle on the wire: an end is a Suspended write (never a
+///         dispose), a reused part id reaches the new sensor, and the authority suspends inherited orphans
+///         (docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md §1 D5).</item>
 /// </list>
-/// <para>Domain range: 201-210.</para>
+/// <para>Domain range: 201-210; the lifecycle rails 40-43.</para>
 /// </summary>
 [Collection("EqsIntegrationTests")]
 public sealed class EqsDistributedTests
@@ -723,6 +726,205 @@ public sealed class EqsDistributedTests
             => Assert.True(H.PumpUntil(() => SameSet(EqsTargets(H, sensor), expected), timeoutFrames: 3000),
                 $"[{step}] EQS ({force} in area {areaNet}, commander {commanderNet}): expected [{string.Join(",", expected)}], " +
                 $"got [{string.Join(",", EqsTargets(H, sensor))}]. Muscle: {Describe(H, _all.ToArray())}");
+    }
+
+    // ══ CE-486 / CE-487 / CE-490 — the sensor lifecycle on the wire ═════════════════════════════════════════════
+    //  📄 docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md §1 D5, §2 (the races), §3 (the third sequence).
+    //  A child sensor's descriptor instance is NEVER disposed while its parent lives: an end is a Suspended write, a part
+    //  id is reused by the next lifetime, and a new authority suspends the instances it inherited.
+    //  Domain range: 40-43. ⚠ NOT 146-149: the harness auto-range is documented as 100-145, but 50 call sites use it, so a
+    //  full run walks it past 145 into the explicit ranges above — measured as a CE-490 timeout in the folder-wide run.
+
+    private static int _lifecycleDomain = 39;
+
+    private sealed class LifecycleRig : IDisposable
+    {
+        public readonly HrotRunnerHarness H;
+        public readonly long Commander;
+        public EntityRepository Sim => H.SimHost.World!;
+        public EntityRepository Cgf => H.Cgf!.World!;
+
+        public LifecycleRig()
+        {
+            H = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _lifecycleDomain));
+            Commander = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+            Assert.True(H.PumpUntil(() => H.SimHost.TestHook_EntityMap.TryGetEntity(Commander, out _)
+                                       && H.Cgf!.GhostEntityMap!.TryGetEntity(Commander, out _), timeoutFrames: 3000),
+                "The commander must exist on both nodes.");
+        }
+
+        public void Dispose() => H.Dispose();
+
+        // A Brain child sensor on the commander. Template 1 is unknown ⇒ the Muscle answers "empty" every solve —
+        // a steady stream of answers this rig can watch (EqsTranslatorTests T9 relies on the same stub).
+        public Entity Sensor(int part, uint epoch, float radius)
+        {
+            H.Cgf!.GhostEntityMap!.TryGetEntity(Commander, out Entity parent);
+            var e = Cgf.CreateEntity();
+            Cgf.AddComponent(e, new PartMetadata { ParentEntity = parent, InstanceId = part });
+            Cgf.AddComponent(e, new EqsSensor { BlueprintId = 1u, Epoch = epoch, SearchRadius = radius });
+            Cgf.AddComponent(e, new EqsCognitiveBuffer());
+            return e;
+        }
+
+        // The Muscle carrier of (commander, part), or Null.
+        public Entity Carrier(int part)
+        {
+            if (!H.SimHost.TestHook_EntityMap.TryGetEntity(Commander, out Entity parent)) return Entity.Null;
+            foreach (var e in Sim.Query().With<PartMetadata>().With<EqsSensor>().Build())
+            {
+                var meta = Sim.GetComponentRO<PartMetadata>(e);
+                if (meta.ParentEntity == parent && meta.InstanceId == part) return e;
+            }
+            return Entity.Null;
+        }
+
+        public EqsSensor CarrierSensor(int part) => Sim.GetComponentRO<EqsSensor>(Carrier(part));
+
+        public bool Ready(Entity brainSensor)
+            => Cgf.IsAlive(brainSensor) && Cgf.HasComponent<EqsCognitiveBuffer>(brainSensor)
+            && Cgf.GetComponentRO<EqsCognitiveBuffer>(brainSensor).IsReady;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-486</c> acceptance ① — ending a sensor publishes NO dispose: the Muscle carrier stays, <c>Suspended</c>,
+    /// and the solver publishes nothing for it. 🔴 Before: the Brain disposed the instance and the Muscle destroyed the
+    /// carrier — against the descriptor rules (a dispose means the parent died).
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE486_ASensorThatEnds_IsSuspendedOnTheMuscle_NotDestroyed_AndPublishesNothing()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 3;
+        var sensor = rig.Sensor(part, epoch: 1, radius: 25f);
+        Assert.True(rig.H.PumpUntil(() => !rig.Carrier(part).IsNull && rig.Ready(sensor), timeoutFrames: 3000),
+            "The sensor must reach the Muscle and answer before it ends.");
+        var carrier = rig.Carrier(part);
+
+        rig.Cgf.DestroyEntity(sensor);   // the behaviour run ended (CE-485 releases its parts this way)
+
+        Assert.True(rig.H.PumpUntil(() => rig.Sim.IsAlive(carrier) && rig.CarrierSensor(part).Suspended, timeoutFrames: 3000),
+            $"The carrier must stay and become Suspended (alive={rig.Sim.IsAlive(carrier)}).");
+        Assert.Equal(carrier, rig.Carrier(part));
+
+        // ⭐ "publishes nothing": no answer for this key after the end. A fresh reader is drained first (TransientLocal
+        //   hands it the last pre-end answer), then watched for 120 frames — several 10 Hz solves.
+        using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
+        using var results     = new CycloneDDS.Runtime.DdsReader<EqsResultTopic>(participant, "EqsResult");
+        rig.H.PumpUntil(() => false, timeoutFrames: 10);
+        CountAnswers(results, rig.Commander, part);
+        rig.H.PumpUntil(() => false, timeoutFrames: 120);
+        Assert.Equal(0, CountAnswers(results, rig.Commander, part));
+        Assert.True(rig.Sim.IsAlive(carrier), "The suspended carrier must still be there.");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-486</c> acceptance ② + <c>CE-487</c> acceptance ④ — a sensor ends and a new one takes the SAME part id in the
+    /// SAME scan (design §2 ①, the reuse D5 ① makes routine): the Muscle solves the NEW one, and its answer reaches the
+    /// NEW local sensor. 🔴 Before: the egress wrote the new config, then disposed the old one's identical key, and the
+    /// Muscle destroyed the carrier (②); the result ingress cache kept answering the dead entity (④).
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE486_CE487_ASensorReplacedOnTheSameKeyInOneScan_IsSolved_AndAnsweredOnTheNewSensor()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 4;
+        var first = rig.Sensor(part, epoch: 1, radius: 25f);
+        Assert.True(rig.H.PumpUntil(() => !rig.Carrier(part).IsNull && rig.Ready(first), timeoutFrames: 3000),
+            "The first sensor must reach the Muscle and answer.");
+
+        // ⭐ One scan: the old lifetime ends and the next one takes the same part id (epoch carries the new run).
+        rig.Cgf.DestroyEntity(first);
+        var second = rig.Sensor(part, epoch: 2, radius: 40f);
+
+        Assert.True(rig.H.PumpUntil(() =>
+        {
+            var c = rig.Carrier(part);
+            if (c.IsNull) return false;
+            var s = rig.Sim.GetComponentRO<EqsSensor>(c);
+            return !s.Suspended && s.Epoch == 2 && s.SearchRadius == 40f;
+        }, timeoutFrames: 3000), $"The Muscle must solve the NEW sensor (carrier={rig.Carrier(part)}).");
+
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(second), timeoutFrames: 3000),
+            "The answer for the new lifetime must reach the NEW local sensor, not the destroyed one (CE-487).");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-486</c> acceptance ③ — a child-sensor DISPOSE does not destroy the Muscle carrier; a write that follows
+    /// updates that same carrier (design §2 ②). 🔴 Before: the ingress read a child dispose as "destroy carrier".
+    /// </summary>
+    /// <remarks>⚠ <b>Measured while red-proving:</b> the topic is KeepLast-1, so a dispose and a write of ONE key written
+    /// back-to-back collapse into a single valid sample on a real reader — the literal "both in one Take" cannot be
+    /// produced over DDS (a rail written that way stayed green on the old ingress). ⇒ this rail lets the Muscle TAKE the
+    /// dispose first, then writes: the old ingress destroyed the carrier at the dispose, the new one keeps it.</remarks>
+    [Fact(Timeout = 120_000)]
+    public void CE486_AChildDispose_DoesNotDestroyTheCarrier_AndAFollowingWriteUpdatesIt()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 5;
+        rig.Sensor(part, epoch: 1, radius: 25f);
+        Assert.True(rig.H.PumpUntil(() => !rig.Carrier(part).IsNull, timeoutFrames: 3000), "The carrier must exist.");
+        var carrier = rig.Carrier(part);
+
+        using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
+        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        writer.DisposeInstance(new EqsSensorConfigTopic { ParentNetworkId = rig.Commander, LocalChildIndex = part });
+        rig.H.PumpUntil(() => false, timeoutFrames: 60);   // the Muscle takes the dispose and plays its commands back
+        Assert.True(rig.Sim.IsAlive(carrier), "A child-sensor dispose must not destroy the carrier (only the parent's death does).");
+
+        writer.Write(new EqsSensorConfigTopic
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 9, SearchRadius = 55f,
+        });
+        Assert.True(rig.H.PumpUntil(() => rig.Sim.IsAlive(carrier) && rig.CarrierSensor(part).SearchRadius == 55f,
+            timeoutFrames: 3000), $"The same carrier must be updated (alive={rig.Sim.IsAlive(carrier)}).");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-490</c> acceptance ⑤ — an instance on the wire under an entity THIS node holds authority over, with no
+    /// local sensor (what a previous owner leaves behind after an authority move — it stops ticking but never ends its
+    /// behaviour), is SUSPENDED by this node. 🔴 Before: nobody ended it, and the Muscle solved it forever.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE490_AnInheritedInstanceWithNoLocalSensor_IsSuspendedByTheAuthority()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 8;
+
+        // The previous owner's last word: an ACTIVE config for a sensor no node runs any more.
+        using var participant = new CycloneDDS.Runtime.DdsParticipant((uint)rig.H.DomainId);
+        using var writer      = new CycloneDDS.Runtime.DdsWriter<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        using var reader      = new CycloneDDS.Runtime.DdsReader<EqsSensorConfigTopic>(participant, "EqsSensorConfig");
+        // ⚠ Let this writer finish discovery FIRST. Measured: written at once, it could reach the Muscle only after the
+        //   Brain had already suspended the key (the Brain matched sooner) — TransientLocal then delivered the stale active
+        //   sample LAST and the carrier stayed active (3 of 5 runs passed). In production the old owner's sample is long
+        //   delivered before an authority move; the late-joiner ordering hazard that remains is in the batch report.
+        rig.H.PumpUntil(() => false, timeoutFrames: 150);
+        writer.Write(new EqsSensorConfigTopic
+        {
+            ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 1, SearchRadius = 25f,
+        });
+
+        bool suspendedOnTheWire = false;
+        Assert.True(rig.H.PumpUntil(() =>
+        {
+            using var loan = reader.Take();
+            foreach (var sample in loan)
+                if (sample.IsValid && sample.Data.ParentNetworkId == rig.Commander
+                    && sample.Data.LocalChildIndex == part && sample.Data.Suspended)
+                    suspendedOnTheWire = true;
+            var c = rig.Carrier(part);
+            return suspendedOnTheWire && (c.IsNull || rig.Sim.GetComponentRO<EqsSensor>(c).Suspended);
+        }, timeoutFrames: 3000), $"The authority must suspend the orphan (wire={suspendedOnTheWire}, carrier={rig.Carrier(part)}).");
+    }
+
+    private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)
+    {
+        int n = 0;
+        using var loan = reader.Take();
+        foreach (var sample in loan)
+            if (sample.IsValid && sample.Data.ParentNetworkId == parent && sample.Data.LocalChildIndex == part) n++;
+        return n;
     }
 
     // ── helpers ──────────────────────────────────────────────────────────────────

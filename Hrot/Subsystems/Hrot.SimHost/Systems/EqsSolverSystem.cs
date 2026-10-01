@@ -87,32 +87,16 @@ namespace Hrot.SimHost.Systems
 
             ref readonly var sensor = ref repo.GetComponentRO<EqsSensor>(entity);
 
-            // --- 3-branch compound identity resolution ---
-            // Branch 1: child entity with PartMetadata -> derive key from parent's NetworkIdentity.
-            // Branch 2: entity directly has NetworkIdentity -> legacy single-sensor path.
-            // Branch 3: no NetworkIdentity anywhere -> local-only (offline/editor) path.
-            long parentNetworkId;
-            int  localChildIndex;
-            if (repo.HasComponent<PartMetadata>(entity))
-            {
-                var meta   = repo.GetComponentRO<PartMetadata>(entity);
-                var parent = meta.ParentEntity;
-                if (!repo.IsAlive(parent) || !repo.HasComponent<NetworkIdentity>(parent))
-                    return; // parent gone or local-only child
-                parentNetworkId = repo.GetComponentRO<NetworkIdentity>(parent).Value;
-                localChildIndex = meta.InstanceId;
-            }
-            else if (repo.HasComponent<NetworkIdentity>(entity))
-            {
-                parentNetworkId = repo.GetComponentRO<NetworkIdentity>(entity).Value;
-                localChildIndex = 0;
-            }
-            else
-            {
-                // Purely local sensor (offline / editor).
-                parentNetworkId = 0;
-                localChildIndex = entity.Index;
-            }
+            // ⭐ CE-486 — an ended sensor publishes NOTHING. ⚠ It must return before the unknown-template fallback
+            //   below, which answers "empty" every solve. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
+            if (sensor.Suspended) return;
+
+            // --- the wire key: the ONE rule (EqsSensorKey) ---
+            // A child whose parent is gone or local-only is not solved; a purely local sensor (offline / editor) is keyed
+            // (0, its entity index) — the local path EqsResultUpdateSystem matches.
+            var kind = EqsSensorKey.Resolve(repo, entity, out long parentNetworkId, out int localChildIndex, out _);
+            if (kind == EqsSensorKeyKind.None) return;
+            if (kind == EqsSensorKeyKind.LocalOnly) localChildIndex = entity.Index;
 
             // --- SensorEvalState management ---
             // Lazy-read SensorEvalState if present; otherwise create a default.

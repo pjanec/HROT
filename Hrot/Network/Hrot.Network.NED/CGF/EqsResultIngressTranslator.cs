@@ -76,20 +76,23 @@ namespace Hrot.Network.NED.CGF
                 {
                     // Child-entity sensor: look up via dictionary cache.
                     var cacheKey = (data.ParentNetworkId, data.LocalChildIndex);
-                    if (!_childEntityCache.TryGetValue(cacheKey, out observer))
+                    // ⭐⭐ CE-487 — a hit is RE-CHECKED every time. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5, §2 ③.
+                    //    Part ids are allocated and REUSED (D5 ①): when a behaviour run ends, its sensor is destroyed
+                    //    and the next run's sensor takes the same (parent, part id) — a NEW local entity. The instance is
+                    //    never disposed (CE-486), so no dispose sample evicts the entry; and on a KeepLast-1 topic one
+                    //    could collapse anyway. ⇒ without this check every answer for the new sensor went to the dead one.
+                    if (!_childEntityCache.TryGetValue(cacheKey, out observer)
+                        || !EqsSensorKey.IsChildSensor(repo, observer, data.ParentNetworkId, data.LocalChildIndex))
                     {
-                        // Cache miss: one-shot scan for the child entity.
+                        _childEntityCache.Remove(cacheKey);
+
+                        // Cache miss (or a stale hit): one-shot scan for the child sensor.
                         Entity? found = null;
-                        foreach (var e in repo.Query().With<PartMetadata>().Build())
+                        foreach (var e in repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
                         {
-                            var meta = repo.GetComponentRO<PartMetadata>(e);
-                            if (meta.InstanceId == data.LocalChildIndex &&
-                                repo.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
-                                repo.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == data.ParentNetworkId)
-                            {
-                                found = e;
-                                break;
-                            }
+                            if (!EqsSensorKey.IsChildSensor(repo, e, data.ParentNetworkId, data.LocalChildIndex)) continue;
+                            found = e;
+                            break;
                         }
                         if (!found.HasValue) continue;
                         observer = found.Value;

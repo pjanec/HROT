@@ -16,8 +16,9 @@ namespace Hrot.Network.NED.SimHost
     /// Muscle-side ingress translator: receives <see cref="EqsSensorConfigTopic"/> samples
     /// and applies the <c>EqsSensor</c> component to the corresponding ghost entity so the
     /// solver picks it up on the next tick.
-    /// On <c>NOT_ALIVE_DISPOSED</c>, removes <c>EqsSensor</c> from the ghost entity,
-    /// signalling the solver to drop the query.
+    /// On <c>NOT_ALIVE_DISPOSED</c>, removes a LEGACY sensor (part 0) from the ghost entity; a child sensor's dispose
+    /// only forgets the key — its carrier dies with its parent (<c>CE-486</c>). An ended child sensor arrives as a
+    /// <c>Suspended</c> config, which the solver skips.
     /// </summary>
     public sealed class EqsSensorConfigIngressTranslator : IDescriptorTranslator
     {
@@ -110,12 +111,15 @@ namespace Hrot.Network.NED.SimHost
                     }
                     else if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed)
                     {
+                        // ⭐⭐ CE-486 — a child-sensor dispose is NOT "destroy the carrier". The Brain never disposes a
+                        //    child instance while its parent lives (it writes Suspended instead), so a dispose now only
+                        //    comes with the parent's death — and SubEntityCleanupSystem already destroys that parent's
+                        //    carriers. 🔴 Destroying here was the design's §2 ② race: a dispose and a write for the same
+                        //    key in one batch queued the destroy, then applied the new config to the doomed carrier.
+                        //    📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
                         _pending.Remove(cacheKey);
                         _awaitingPlayback.Remove(cacheKey);
                         _childGhostCache.Remove(cacheKey);
-                        if (_entityMap.TryGetEntity(parentNetId, out var deadParent)
-                            && TryFindCarrier(view, deadParent, localChildIndex, out var dead))
-                            cmd.DestroyEntity(dead);
                     }
                 }
             }
@@ -176,6 +180,11 @@ namespace Hrot.Network.NED.SimHost
             }
 
             if (_awaitingPlayback.Contains(key)) return false;
+
+            // ⭐ CE-486 — an ended sensor with no carrier needs none: there is nothing to solve. (A late-joining Muscle
+            //   receives every instance TransientLocal holds, suspended ones included.) The next lifetime's config for
+            //   this part id creates the carrier then.
+            if (sensor.Suspended) return true;
 
             // ⭐ No carrier yet: create one. ⛔ The handle cmd.CreateEntity() returns is a PLACEHOLDER
             // that is valid only inside this command buffer's playback — it used to be cached and reused
@@ -269,6 +278,7 @@ namespace Hrot.Network.NED.SimHost
             ContextSlot0        = ResolveSlot(data.ContextSlot0NetworkId),
             ContextSlot1        = ResolveSlot(data.ContextSlot1NetworkId),
             ContextSlot2        = ResolveSlot(data.ContextSlot2NetworkId),
+            Suspended           = data.Suspended,
         };
     }
 }

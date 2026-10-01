@@ -140,12 +140,9 @@ public sealed class ThereIsOneNetworkIdResolverTests
         ["Hrot/Diagnostics/Hrot.Diagnostics.Breakpoints/DataBreakpointManager.cs"] =
             "BP-512: an is-this-entity test on the entity it was handed, not a lookup",
 
-        // ⛔ A DIFFERENT shape: it scans PartMetadata and compares the PARENT's id, i.e. "find the child
-        //    whose parent is N" — not "find the entity with id N". Routing it would need a second seam.
-        ["Hrot/Subsystems/Hrot.SimHost/Systems/EqsResultUpdateSystem.cs"] =
-            "parent-of lookup over PartMetadata, not an entity-by-id lookup",
-        ["Hrot/Network/Hrot.Network.NED/CGF/EqsResultIngressTranslator.cs"] =
-            "parent-of lookup over PartMetadata, not an entity-by-id lookup",
+        // ⭐ CE-487 (2026-10-01): the two "find the child sensor whose parent is N" copies that sat here —
+        //   EqsResultUpdateSystem and EqsResultIngressTranslator — now route through ONE seam, EqsSensorKey
+        //   (Fdp.Toolkits), which compares through its own Resolve and so carries no inline shape. Entries removed.
 
         // ⚠ These two are the SAME FILE NAME in two assemblies — a ruling-9 duplicate in its own right,
         //   and both are outside the UI lane. Routing one and not the other would make them diverge.
