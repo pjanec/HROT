@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: DESIGN — ⛔ NOT READY: §7's proof REFUTES Q79-B as written and corrects Q79-A's fallback. The open question is now §7.4 (how claims become exclusive). Nothing is built.
-current-answer: §7 (the logical proof, its axioms, what it refuted) FIRST — §7.5/§7.6 option 1 · §7.7/§7.8 sharding · then §4 read through §7 · §3 trade-offs · §5 measurements
-stale-below: §4 row Q79-B (refuted by §7.3) and Q79-A's fallback wording (corrected in §7.1)
+build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). Awaiting approval of §8, the consolidated answer. Nothing is built.
+current-answer: §8 (the consolidated decision table) FIRST; §7 is the proof it rests on.
+stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
   no sender reads the claim. Q79-B removes that tolerance: once senders derive from the claim, an over-claim is a second
@@ -360,4 +360,24 @@ descriptor can leave nodes disagreeing (A believes B owns it, B believes A does)
   membership.**
 - ⚠ **Adopting §7.6 with the default provider would REGRESS a multi-muscle cluster** (today the creator's single decision
   prevents the race). ⇒ the guard above is a precondition of §7.6, not an extra.
+
+## 8. ⭐⭐⭐ THE CURRENT ANSWER — consolidated *(`2026-10-01`, after §7)*
+
+> 🔒 **User, `2026-10-01`, verbatim, scope ruling (`R-157`):** *"one node per role with the guard for now"*
+
+| # | decision | basis | status |
+|---|---|---|---|
+| **D1** | **One truth:** the component claim (`AuthorityMask`). Every sender derives: `owns(n,d,e) ⇔ (D(d)=∅ ∧ n=master(e)) ∨ (D(d)≠∅ ∧ D(d)∩K ≠ ∅ ∧ D(d)∩K ⊆ A)`; EntityMaster ⇒ `PrimaryOwnerId` | §7.1, Theorems 1-2 | ⭐ lean — awaiting approval |
+| **D2** | **The promoter claims `its role table − the creator's ownable set`** (replaces the refuted Q79-B) | §7.3 refutation · §7.5 check | ⭐ lean |
+| **D3** | **The promoter requests the descriptors its role produces but the creator owns** (WorldPos, NavigationStatus) by an `OwnershipUpdate` through the built transfer (`CE-276`) — closes the late joiner (`CE-256`) | §7.6 · Theorem 3 | ⭐ lean |
+| **D4** | ⭐⭐ **Duplicate-role guard:** a node declaring a role another live node already holds is **refused loudly** (from `NodeRoster.NodesWithRole`). One node per role is the supported topology | §7.8 — S holds only with it | ✅ **RULED** (`R-157`) |
+| **D5** | **One global map:** the descriptor→component map is a property of the descriptor, identical on every node, including the explicit WorldPos / NavigationStatus blocks; a rail fails when a sender neither declares components nor is marked entity-level | axiom M (§7.2) | ⭐ lean |
+| **D6** | **Per instance:** the gate derives on the instance's own entity; a part's claim is set at creation from its root's; a per-instance transfer writes the part | §7.2 "per instance" | ⭐ lean *(user: "unused is not unneeded")* |
+| **D7** | An ownership change for components not yet present is **staged** (`PendingAuthorityGrants`), never dropped | L3 | ⭐ lean |
+| **D8** | `DescriptorOwnership.Map` becomes **remote bookkeeping** (never read by the gate); `OwnsDescriptor` / `GetDescriptorOwner` are **routed** into the one gate | L4 · Q79-F | ⭐ lean |
+| **D9** | **N nodes per role is OUT OF SCOPE** — it needs a single decider (an orchestrator-published, per-entity-fixed shard assignment) and is its own design: [`CE-506`](Blueprint_Issues_Tracker.md) | §7.8 | ✅ **RULED out of scope** (`R-157`) |
+
+⚠ **What the proofs still assume, stated so nobody over-reads them:** Theorem 2 (the producer sends) was discharged for the
+**descriptor-bound** components only (§7.5); most simulation writers are un-gated (§7.5's audit), so axiom E is a property of
+the descriptor-bound set, not of every component. The transfer window is excluded, exactly as the wire spec excludes it.
 
