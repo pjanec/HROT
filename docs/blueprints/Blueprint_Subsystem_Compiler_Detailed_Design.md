@@ -897,6 +897,15 @@ A `NormalizedAsset` with the same shape as `BlueprintAsset` but with transforms 
 
 ### 6.3 Implementation sketch
 
+> ⭐ **`2026-10-01` — AS BUILT (`CE-415`):** a `System.Numerics` vector / quaternion pin default is materialised as a
+> constructor call (`new global::System.Numerics.Vector3(xF, yF, zF)`), read by ONE parser — `VectorLiteral`
+> (`Compiler/Lowering`) — which both `FormatDefaultLiteral` (pin defaults) and `DefaultLiteral.TryToCSharp`
+> (declaration defaults) call, and which the editor's pin drawer now uses too. It reads the invariant `[x, y, z]` the
+> editor writes and the legacy locale `<x  y  z>` (decimal comma, NBSP separators). 🔴 Before, there was no vector arm:
+> the default fell through to the "unsupported type" skip and a channel command's initialiser OMITTED the field
+> (`Loco1` `Destination`, `EnumDemo` `TargetPos` → `Vector3.Zero`, no diagnostic). ⛔ A vector default that does not
+> read is now **`BP1674`** against the node.
+
 ```csharp
 internal static class Stage3_Normalize
 {

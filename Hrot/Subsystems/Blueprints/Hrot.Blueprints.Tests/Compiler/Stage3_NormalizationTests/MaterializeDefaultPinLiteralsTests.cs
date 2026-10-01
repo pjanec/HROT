@@ -296,4 +296,41 @@ public sealed class MaterializeDefaultPinLiteralsTests
         Assert.Contains("true", result.GeneratedSource!);
         Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP4001);
     }
+
+    // -----------------------------------------------------------------------
+    // ⭐ CE-415 — a vector PIN default reaches the generated code, or the build says why
+    // -----------------------------------------------------------------------
+
+    /// <summary>
+    /// 🔴 RED before: <c>FormatDefaultLiteral</c> had no vector arm, so the default was dropped — and a channel
+    /// command's initialiser OMITTED the field (<c>Loco1</c> drove to <c>Vector3.Zero</c>). Both spellings on disk.
+    /// </summary>
+    [Theory]
+    [InlineData("[0, 4.23, 0]",              "new global::System.Numerics.Vector3(0F, 4.23F, 0F)")]
+    [InlineData("<-0,5\u00A0 0\u00A0 0>",   "new global::System.Numerics.Vector3(-0.5F, 0F, 0F)")]
+    [InlineData("<1.5, 2, 3>",               "new global::System.Numerics.Vector3(1.5F, 2F, 3F)")]
+    public void CE415_AVectorPinDefault_IsMaterialisedAsAConstructorCall(string raw, string expected)
+    {
+        var asset = BuildAssetWithUnconnectedPins(
+            ("target", "System.Numerics.Vector3", System.Text.RegularExpressions.Regex.Unescape(raw), null));
+
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.DoesNotContain(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1674);
+        Assert.Contains(expected, result.GeneratedSource!);
+    }
+
+    /// <summary>⭐ A vector default that does not read is <c>BP1674</c> against the node — ⛔ never a silent zero.</summary>
+    [Theory]
+    [CoversDiagnosticCode("BP1674")]
+    [InlineData("[1, 2]")]
+    [InlineData("[1, two, 3]")]
+    public void CE415_AnUnreadableVectorPinDefault_IsBP1674(string raw)
+    {
+        var asset = BuildAssetWithUnconnectedPins(("target", "System.Numerics.Vector3", raw, null));
+
+        var result = new BlueprintCompiler().Compile(asset, DefaultOptions());
+
+        Assert.Contains(result.Diagnostics, d => d.Code == DiagnosticCodes.BP1674 && d.Message.Contains("target"));
+    }
 }

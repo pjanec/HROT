@@ -96,8 +96,15 @@ internal static class DefaultLiteral
                 reason = "expected a decimal number";
                 return false;
 
+            // ⭐ CE-415 — the vectors DO have a literal form: a constructor call. One reader for both converters.
+            case "System.Numerics.Vector2":
+            case "System.Numerics.Vector3":
+            case "System.Numerics.Vector4":
+            case "System.Numerics.Quaternion":
+                return VectorLiteral.TryToCSharp(type.FullName, text, out csharp, out reason);
+
             default:
-                // ⛔ Entity, the vectors, the fixed strings, the synthesized `__List_…` wrappers, the
+                // ⛔ Entity, the fixed strings, the synthesized `__List_…` wrappers, the
                 //    curated project structs, anything the AN2 fallback accepted: none of them has a
                 //    literal form the compiler can write, and passing the text through is precisely how
                 //    CS0664 got emitted. ⭐ An ABSENT default is fine — handled above.

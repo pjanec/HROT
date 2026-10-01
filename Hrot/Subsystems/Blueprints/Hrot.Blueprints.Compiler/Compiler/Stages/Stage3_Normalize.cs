@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler.Diagnostics;
+using Hrot.Blueprints.Core.Compiler.Lowering;
 
 namespace Hrot.Blueprints.Core.Compiler.Stages;
 
@@ -52,7 +53,7 @@ internal static class Stage3_Normalize
     {
         var newGraphs = new List<Graph>(asset.Graphs.Count);
         foreach (var graph in asset.Graphs)
-            newGraphs.Add(MaterializeDefaultPinLiteralsInGraph(graph, asset));
+            newGraphs.Add(MaterializeDefaultPinLiteralsInGraph(graph, asset, ctx));
         asset.Graphs = newGraphs;
         return asset;
     }
@@ -64,7 +65,7 @@ internal static class Stage3_Normalize
     /// and wire it to that pin.  Pins with NO default are left unchanged so that
     /// Stage 5 still emits BP4001 for them.
     /// </summary>
-    private static Graph MaterializeDefaultPinLiteralsInGraph(Graph graph, BlueprintAsset asset)
+    private static Graph MaterializeDefaultPinLiteralsInGraph(Graph graph, BlueprintAsset asset, ValidationContext ctx)
     {
         // Build a set of pin IDs that already have an incoming data link
         // (so we never synthesize a duplicate link for a connected pin).
@@ -96,6 +97,18 @@ internal static class Stage3_Normalize
 
                 // Format the raw default as a C# literal based on the pin's TypeId.
                 var typeId = pin.TypeRef?.TypeId ?? "";
+                // ⭐⭐ CE-415 — a vector default the author TYPED but nothing can read is refused here, against the
+                //   node, in the compiler's language (BP1674). 🔴 It used to return null and fall through to the
+                //   "unsupported type" skip — and a channel command's struct initialiser then OMITTED the field, so
+                //   Loco1 drove to Vector3.Zero with no diagnostic.
+                if (VectorLiteral.ArityOf(typeId) > 0
+                    && !VectorLiteral.TryToCSharp(typeId, rawDefault, out _, out var vectorReason))
+                {
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1674,
+                        $"Pin '{pin.Name}' default '{rawDefault}' is not a {typeId}: {vectorReason}.",
+                        asset.AssetId, graph.Id, node.Id));
+                    continue;
+                }
                 var csharpLiteral = FormatDefaultLiteral(typeId, rawDefault);
                 if (csharpLiteral is null) continue;  // unsupported type, skip silently
 
@@ -240,6 +253,13 @@ internal static class Stage3_Normalize
                 var esc = rawValue.Replace("\\", "\\\\").Replace("\"", "\\\"");
                 return $"new global::Fdp.Core.FixedString128(\"{esc}\")";
             }
+
+            // --- CE-415: vectors / quaternion — one reader (VectorLiteral), shared with DefaultLiteral ---
+            case "System.Numerics.Vector2":
+            case "System.Numerics.Vector3":
+            case "System.Numerics.Vector4":
+            case "System.Numerics.Quaternion":
+                return VectorLiteral.TryToCSharp(typeId, rawValue, out var vec, out _) ? vec : null;
 
             // --- Fallback: unknown / unresolved types ---
             // When CLR reflection fails in the netstandard2.0 MSBuild sandbox (Full Rebuild),

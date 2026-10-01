@@ -46,9 +46,10 @@ public static class Loco1_A9036715_Bp
         global::Fdp.Core.EntityRepository world,
         float time)
     {
-        var __t0 = -1.17f;
-        var __t1 = -0.12344f;
-        var __t2 = -119;
+        var __t0 = new global::System.Numerics.Vector3(-0.5F, 0F, 0F);
+        var __t1 = -1.17f;
+        var __t2 = -0.12344f;
+        var __t3 = -119;
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
@@ -59,9 +60,10 @@ public static class Loco1_A9036715_Bp
             {
                 var __chNext_0 = new global::Fdp.Toolkit.Navigation.MoveToParams
                 {
-                    ArrivalRadius = __t0,
-                    Speed = __t1,
-                    RouteHandle = __t2
+                    Destination = __t0,
+                    ArrivalRadius = __t1,
+                    Speed = __t2,
+                    RouteHandle = __t3
                 };
                 fixed (byte* __paramSlot_0 = __ch_0.Params)
                 {
