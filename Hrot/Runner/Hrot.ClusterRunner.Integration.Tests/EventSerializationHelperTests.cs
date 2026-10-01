@@ -94,4 +94,31 @@ public sealed class EventSerializationHelperTests
         Assert.True(doc.RootElement.TryGetProperty("NetworkId", out var nid));
         Assert.Equal(99L, nid.GetInt64());
     }
+
+    // ── CE-476: an [InlineArray] whose element the marshaller cannot size ───────────────────
+    private enum Lane : byte { None, Left, Right }
+
+    [System.Runtime.CompilerServices.InlineArray(3)]
+    private struct LaneBuffer { private Lane _e0; }
+
+    private struct WithLanes { public int Count; public LaneBuffer Items; }
+
+    /// <summary>
+    /// 🔴 Measured on <c>--mode all</c>: the blueprint commander's root block carries an <c>[InlineArray]</c> of an ENUM
+    /// (<c>HillAttackSlot</c>); the mapper sized elements with <c>Marshal.SizeOf</c>, which throws for any enum type, so every
+    /// <c>GET /entities</c> on that node answered 500. ⭐ Each element must come back, exactly, as its name.
+    /// </summary>
+    [Fact]
+    public void MapObject_InlineArrayOfAnEnum_ReadsEveryElementExactly()
+    {
+        var value = new WithLanes { Count = 3 };
+        value.Items[0] = Lane.Left;
+        value.Items[1] = Lane.None;
+        value.Items[2] = Lane.Right;
+
+        var mapped = Assert.IsType<Dictionary<string, object?>>(
+            DtoDiagnosticMapper.MapObject(value, typeof(WithLanes), new HashSet<object>()));
+
+        Assert.Equal(new object?[] { "Left", "None", "Right" }, Assert.IsType<List<object?>>(mapped["Items"]));
+    }
 }

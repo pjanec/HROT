@@ -31,6 +31,23 @@ public sealed record AiDebugSessions(
 /// 🔒 *"A production caller that HAS a dependency must PASS it."* ⇒ a host that reaches this method
 /// without a time controller fails LOUDLY at startup instead of shipping dead buttons.</para>
 /// </summary>
+/// <summary>
+/// ⭐ <b>A node's AI debug surface</b> — the sessions and the blueprint registry the debug API's trace and variables
+/// routes read, bound to ONE world. 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §2 D1–D2 (<c>CE-476</c>).
+/// </summary>
+/// <remarks>
+/// ⭐ A host builds it from what it already composed and hands it over; the cluster's debug API resolves it against the
+/// ACTIVE perspective's world (<see cref="World"/>), so it can never answer with another node's sessions.
+/// ⛔ Building sessions here would be a second composition for one world — <see cref="AiDebugSessionComposer"/> is the one.
+/// </remarks>
+public sealed record AiDebugSurface(
+    Fdp.Core.EntityRepository World,
+    Hrot.BTree.Editor.Debug.BTreeDebugSession? BTree,
+    Hrot.Hsm.Editor.Debug.HsmDebugSession? Hsm,
+    Hrot.Blueprints.Core.Debug.BlueprintDebugSession? Blueprint,
+    Fdp.Toolkit.Blueprints.BlueprintRegistry? Blueprints,
+    Fdp.Toolkit.Behavior.BehaviorRegistry? Behaviors);
+
 public static class AiDebugSessionComposer
 {
     /// <summary>

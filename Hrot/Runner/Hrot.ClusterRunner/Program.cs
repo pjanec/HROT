@@ -460,13 +460,24 @@ class Program
                                     .Select(s => s.CreationRequestEnqueuer)
                                     .FirstOrDefault(e => e != null);
 
+                // ⭐⭐⭐ CE-476 — the node's AI debug surface (BTree / HSM / Blueprint sessions + registries), resolved
+                //   against the ACTIVE perspective's world: only the subsystem that OWNS that world answers, so a
+                //   SimHost or IG perspective gets null and the routes say "not available" rather than borrowing CGF's.
+                //   A Func for the same boot-order reason as behaviorRegistry: CGF composes it during Initialize.
+                //   📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1.
+                Func<Fdp.Core.EntityRepository, Hrot.Editor.AiComposition.AiDebugSurface?> aiDebugSurfaceGetter =
+                    world => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
+                                       .Select(s => s.AiDebugSurface)
+                                       .FirstOrDefault(a => a is not null && ReferenceEquals(a.World, world));
+
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
                         windowCtrl?.WindowManager?.MessageLogRegistry),
                     behaviorRegistry: behaviorRegistryGetter,
                     geoTransform: HrotEnvironment.CreateGeoTransform(),
-                    creationRequestEnqueuer: creationEnqueuerGetter);
+                    creationRequestEnqueuer: creationEnqueuerGetter,
+                    aiDebugSurface: aiDebugSurfaceGetter);
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 

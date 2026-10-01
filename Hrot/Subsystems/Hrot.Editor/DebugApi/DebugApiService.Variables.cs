@@ -114,8 +114,24 @@ namespace Hrot.Editor.DebugApi
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
+            // ⭐ CE-476 D5 — a Behavior-dispatch blueprint (BrainTier 3) has no BlueprintDefinition, so the session
+            //   cannot see it; its root block is read through the shared reader instead.
+            if (TryReadBehaviorBlueprint(entity, asset, out var behaviour))
+            {
+                var behaviourVariables = new JsonArray();
+                foreach (var (name, value) in behaviour.Variables)
+                    behaviourVariables.Add(DescribeBehaviorVariable(name, value));
+                return (new JsonObject
+                {
+                    ["networkId"] = networkId,
+                    ["asset"]     = behaviour.BehaviorName,
+                    ["dispatch"]  = "Behavior",
+                    ["variables"] = behaviourVariables,
+                }, null, null);
+            }
+
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
             if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
                 return (null, assetError, DebugApiHints.Variable);
@@ -155,8 +171,22 @@ namespace Hrot.Editor.DebugApi
             if (!_entityMap.TryGetEntity(networkId, out var entity))
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
+            // ⭐ CE-476 D5 — the Behavior-dispatch arm (see GetEntityVariables).
+            if (TryReadBehaviorBlueprint(entity, asset, out var behaviour))
+            {
+                if (!behaviour.Variables.TryGetValue(path!, out var behaviourValue))
+                    return (null,
+                        $"Blueprint behaviour '{behaviour.BehaviorName}' has no live variable '{path}'. "
+                        + $"List them with GET /entities/{networkId}/variables.",
+                        DebugApiHints.Variable);
+                var one = DescribeBehaviorVariable(path!, behaviourValue);
+                one["networkId"] = networkId;
+                one["asset"]     = behaviour.BehaviorName;
+                return (one, null, null);
+            }
+
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
             if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
                 return (null, assetError, DebugApiHints.Variable);
@@ -255,7 +285,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
             if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
                 return (null, assetError, DebugApiHints.Variable);
@@ -367,6 +397,29 @@ namespace Hrot.Editor.DebugApi
         }
 
         /// <summary>Boxed value → JSON, through the same options the rest of the API serializes with.</summary>
+        /// <summary>
+        /// ⭐ CE-476 — the entity's running Behavior-dispatch blueprint, when <paramref name="asset"/> is empty or names it.
+        /// </summary>
+        private bool TryReadBehaviorBlueprint(
+            Entity entity, string? asset, out Hrot.Blueprints.Core.Debug.BehaviorBlueprintState behaviour)
+        {
+            if (!Hrot.Blueprints.Core.Debug.BlueprintBehaviorStateReader.TryRead(_world, entity, _aiBehaviorRegistry, out behaviour))
+                return false;
+            return string.IsNullOrWhiteSpace(asset)
+                || string.Equals(asset, behaviour.BehaviorName, StringComparison.OrdinalIgnoreCase);
+        }
+
+        // A behaviour's root block is read, not staged: the staged-write resolver maps only AiPrimitive and Instance
+        // layouts (DescribeVariable's "readable but not addressable" case), so it reports writable: false.
+        private static JsonObject DescribeBehaviorVariable(string path, object? value) => new()
+        {
+            ["path"]     = path,
+            ["type"]     = value?.GetType().Name ?? "unknown",
+            ["value"]    = ToJson(value),
+            ["writable"] = false,
+            ["pending"]  = false,
+        };
+
         private static JsonNode? ToJson(object? value)
         {
             if (value is null) return null;

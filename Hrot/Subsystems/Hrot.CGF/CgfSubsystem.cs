@@ -523,6 +523,13 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
     /// <summary>TestHook: exposes the CGF ECS world for integration tests.</summary>
     internal Fdp.Core.EntityRepository? World => _context?.World;
 
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — this node's AI debug surface (BTree / HSM / Blueprint sessions + the registries), composed in
+    /// <see cref="Initialize"/> so a headless node has it too. The cluster's debug API resolves it against the active
+    /// perspective's world. 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c>.
+    /// </summary>
+    public Hrot.Editor.AiComposition.AiDebugSurface? AiDebugSurface { get; private set; }
+
     /// <summary>TestHook (CE-294): the reliable-init wait-set provider, so external-host conformance rails can
     /// gate a spawn on the creator actually having ingested a foreign peer's capabilities.</summary>
     internal Fdp.Toolkit.Replication.Abstractions.IExpectedPeersProvider? TestHook_ExpectedPeers
@@ -1570,6 +1577,27 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         bpBlueprintSession.Attach();
         _blueprintDebugSession = bpBlueprintSession;
 
+        // ⭐⭐⭐ CE-476 — THE BTREE/HSM SESSIONS ARE COMPOSED HERE, HEADLESS INCLUDED, AND THE NODE'S AI DEBUG
+        //    SURFACE IS PUBLISHED. 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1–D3.
+        // 🔴 They were composed in BuildAiShell, which RegisterWindows reaches only when NOT headless — so a
+        //    headless cluster had no BTree/HSM session at all, and the cluster's debug API was handed none of
+        //    the four (trace: "Trace coordinator not available", tier "unknown"; variables: "No blueprint
+        //    debug session"). ⇒ the same lesson as the EQS drawers (EQS design §17.8): a window hook must not
+        //    own a capability. BuildAiShell now reuses these fields.
+        var aiDebug        = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_debugTimeController!);
+        _btreeDebugSession = aiDebug.BTree;
+        _hsmDebugSession   = aiDebug.Hsm;
+        AiDebugSurface     = new Hrot.Editor.AiComposition.AiDebugSurface(
+            _context.World, _btreeDebugSession, _hsmDebugSession, _blueprintDebugSession,
+            _blueprintRegistry, _behaviorRegistry);
+
+        // ⭐⭐ CE-476 — THE ASSET CATALOGUE IS COMPOSED HERE TOO, because it is what SYMBOLICATES the BTree session:
+        //    its BTreeAssetContributor calls SetDebugMetadata on `_btreeDebugSession` (CE-345). 🔴 Composed only in
+        //    BuildAiShell, a headless cluster traced a C# BTree with every nodeVisualId Guid.Empty and activeNode null
+        //    (measured live, --mode all). ⭐ Mirrors the editor, which composes its catalogue in Initialize right
+        //    after its sessions. Nothing in BuildAssetCatalog touches a window.
+        _aiCatalogBuilder = BuildAssetCatalog();
+
         _context.Kernel.RegisterGlobalSystem(_bpSnapshotProvider);
         _context.Kernel.RegisterGlobalSystem(_bpSystem);
 
@@ -1978,12 +2006,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    `AiTracerCoordinator` reached time through a different interface.
         // ⚠ The coordinator is NOT kept in a field: nothing on this host reads it, and both
         //   sessions already hold it. ⛔ Absent and explained beats present and unused.
-        var aiDebug        = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_debugTimeController!);
-        _btreeDebugSession = aiDebug.BTree;
-        _hsmDebugSession   = aiDebug.Hsm;
+        // ⭐ CE-476: the sessions are composed in Initialize now (headless too) — reused here, never re-composed.
 
-        _aiCatalogBuilder = BuildAssetCatalog();
-        var catalog       = _aiCatalogBuilder.Catalog;
+        // ⭐ CE-476: the catalogue is composed in Initialize (headless too) — reused here, never re-composed.
+        var catalog       = _aiCatalogBuilder!.Catalog;
 
         // ⭐ THREE contributors now, matching the editor: slice 1 had only Blueprint's because
         //   Hrot.CGF did not reference the BTree/HSM editor assemblies. It does *(CE-012)*.

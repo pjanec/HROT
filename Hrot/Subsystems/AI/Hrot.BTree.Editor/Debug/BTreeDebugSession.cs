@@ -29,6 +29,14 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     private NodeDebugMetadata[]? _debugMetadata;
     private Guid _assetId = Guid.Empty;
 
+    // ⭐ CE-476: EVERY known tree's table, keyed by its behaviour id (BehaviorHash.FromName(treeName) — the value an
+    //   entity carries in BehaviorState.ActiveBehaviorHash). 🔴 The single slot above is LAST-WINS: the catalogue
+    //   registers every compiled tree through it, so a host where no asset is "opened" (a headless cluster) symbolicated
+    //   every entity against whichever tree was registered last ⇒ activeNode null, nodeVisualId Guid.Empty (measured
+    //   live). Update() now names an entity's nodes from ITS OWN tree; the slot stays the fallback and, for the asset the
+    //   editor opened, the freshest table (a hot reload calls SetDebugMetadata again).
+    private readonly Dictionary<int, (Guid AssetId, NodeDebugMetadata[] Metadata)> _metadataByBehavior = new();
+
     private enum StepMode { None, Over, Into, Out }
     private StepMode _stepMode = StepMode.None;
     private int  _stepFromStackDepth;
@@ -83,12 +91,36 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
         _assetId       = assetId;
     }
 
-    /// <summary>Returns the VisualId for the given node index, or null when unavailable.</summary>
-    private Guid? GetVisualId(int nodeIndex)
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — records <paramref name="treeName"/>'s symbolication table so an entity running that tree is
+    /// named from it, whatever asset is currently "open". 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §4.
+    /// </summary>
+    public void RegisterTreeMetadata(string treeName, Guid assetId, NodeDebugMetadata[]? metadata)
     {
-        if (_debugMetadata == null || nodeIndex < 0 || nodeIndex >= _debugMetadata.Length)
+        if (string.IsNullOrEmpty(treeName) || metadata is null) return;
+        _metadataByBehavior[Fdp.Toolkit.Behavior.BehaviorHash.FromName(treeName)] = (assetId, metadata);
+    }
+
+    // The table (and its asset) that names THIS entity's nodes: its own tree when known, else the single slot.
+    private (Guid AssetId, NodeDebugMetadata[]? Metadata) ResolveMetadata(EntityRepository repo, Entity entity)
+    {
+        if (repo.HasComponent<BehaviorState>(entity)
+            && _metadataByBehavior.TryGetValue(repo.GetComponentRO<BehaviorState>(entity).ActiveBehaviorHash, out var own))
+        {
+            // The opened asset's table is the fresher one (hot reload) — prefer it when it IS this tree.
+            return own.AssetId == _assetId && _debugMetadata is not null ? (_assetId, _debugMetadata) : (own.AssetId, own.Metadata);
+        }
+        return (_assetId, _debugMetadata);
+    }
+
+    /// <summary>Returns the VisualId for the given node index, or null when unavailable.</summary>
+    private Guid? GetVisualId(int nodeIndex) => GetVisualId(_debugMetadata, nodeIndex);
+
+    private static Guid? GetVisualId(NodeDebugMetadata[]? metadata, int nodeIndex)
+    {
+        if (metadata == null || nodeIndex < 0 || nodeIndex >= metadata.Length)
             return null;
-        string raw = _debugMetadata[nodeIndex].VisualId;
+        string raw = metadata[nodeIndex].VisualId;
         if (string.IsNullOrEmpty(raw)) return null;
         return Guid.TryParse(raw, out var g) ? g : (Guid?)null;
     }
@@ -108,6 +140,8 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
     /// </summary>
     public unsafe void Update(EntityRepository repo, Entity entity)
     {
+        var (assetId, metadata) = ResolveMetadata(repo, entity);
+
         // === Snapshot ===
         // ⭐⭐⭐ O7c-② / CE-319 — the cursor comes from the entity's ROOT STATE SLOT.
         //   📄 DESIGN_Occurrence_Scoped_Storage.md §31.
@@ -136,12 +170,12 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
             for (int i = 0; i < 3; i++)        handles[i] = statePtr->AsyncHandles[i];
 
             // BPF-026: symbolicate running node index and stack entries to VisualIds.
-            Guid? runningElementId = GetVisualId(runningNodeIndex);
+            Guid? runningElementId = GetVisualId(metadata, runningNodeIndex);
             for (int i = 0; i < stackLen; i++)
-                stackIds[i] = GetVisualId(stack[i]);
+                stackIds[i] = GetVisualId(metadata, stack[i]);
 
             _currentSnapshot = new BehaviorTreeStateSnapshot(
-                entity, _assetId, runningNodeIndex, runningElementId,
+                entity, assetId, runningNodeIndex, runningElementId,
                 sp, stack, stackIds, regs, handles, treeVersion);
         }
 
@@ -166,18 +200,18 @@ public sealed class BTreeDebugSession : AiDebugSessionBase, IBTreeDebugSession
                     _nodeProcessedSinceStep = true;
                     // BPF-045: use node index to look up the VisualId.
                     RecordNodeExecuted(new BTreeNodeExecuted(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->Status, 0f, rec->Timestamp));
                     break;
                 case BTreeTraceOpCode.WaitStarted:
                     // BPF-045: use node index to look up the VisualId.
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Issued, 0f));
                     break;
                 case BTreeTraceOpCode.WaitCompleted:
                     RecordAsyncEvent(new BTreeAsyncEvent(
-                        entity, _assetId, GetVisualId(rec->NodeIndex) ?? Guid.Empty,
+                        entity, assetId, GetVisualId(metadata, rec->NodeIndex) ?? Guid.Empty,
                         rec->NodeIndex, 0u, BTreeAsyncPhase.Resolved, 0f));
                     break;
             }

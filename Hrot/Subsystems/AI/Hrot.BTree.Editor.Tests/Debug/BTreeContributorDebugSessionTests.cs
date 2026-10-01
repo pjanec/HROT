@@ -133,4 +133,38 @@ public sealed class BTreeContributorDebugSessionTests
         // Session should reflect the latest SetDebugMetadata call.
         session.TrySymbolicateIndex(0).Should().Be(id2);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — an entity is named from ITS OWN tree, not from the last tree the catalogue registered.
+    /// 🔴 Measured live on a headless cluster: the catalogue registers every compiled tree through the single slot, so the
+    /// C# hill-attack commander traced with <c>activeNode</c> null and every <c>nodeVisualId</c> <c>Guid.Empty</c>.
+    /// 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §4.
+    /// </summary>
+    [Fact]
+    public void AnEntityIsNamedFromItsOwnTree_NotTheLastOneRegistered()
+    {
+        var idA = new Guid("11111111-0000-0000-0000-000000000001");
+        var idB = new Guid("22222222-0000-0000-0000-000000000002");
+        var session = new BTreeDebugSession();
+        var contributor = new BTreeAssetContributor(session);
+        contributor.RegisterBlob(MakeBlob("TreeA", new[] { new NodeDebugMetadata { VisualId = idA.ToString("D") } }), "TreeA");
+        contributor.RegisterBlob(MakeBlob("TreeB", new[] { new NodeDebugMetadata { VisualId = idB.ToString("D") } }), "TreeB");
+
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState
+        {
+            ActiveBehaviorHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName("TreeA"),
+            BrainTier          = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+        });
+        Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(world, entity);
+        Fdp.Toolkit.Behavior.RootStateAccess.SetState(world, entity, new Fbt.BehaviorTreeState { RunningNodeIndex = 0 });
+
+        session.Update(world, entity);
+
+        var snap = session.GetCurrentStateSnapshot();
+        snap.Should().NotBeNull();
+        snap!.RunningElementId.Should().Be(idA, because: "the entity runs TreeA; TreeB was merely registered last");
+        snap.AssetId.Should().Be(Hrot.Editor.AiShared.Identity.AssetIdHasher.FromName("TreeA"));
+    }
 }

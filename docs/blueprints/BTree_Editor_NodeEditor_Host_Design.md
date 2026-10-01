@@ -12,6 +12,8 @@ related-designs:
     the HSM twin (`E5`).
   - AI_Editor_Shared_Infrastructure.md — owns the SHARED picker mechanism and the heal rule (§7.1a).
   - HSM_Editor_NodeEditor_Host_Design.md — the twin; §11.1a owns the HSM state's hosted-subtree field.
+  - DESIGN_Cluster_Ai_Debug_Surface.md — owns the debug session on a headless host (CE-476); §4 records that the
+    session now symbolicates each entity from ITS OWN tree's NodeDebugMetadata (it held one last-wins table).
 -->
 
 # BTree Editor — NodeEditor Host Detailed Design

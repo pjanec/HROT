@@ -73,24 +73,18 @@ namespace Fdp.Toolkit.Diagnostics
                 var elementField = type.GetFields(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance).GetFirstOrDefault();
                 if (elementField != null)
                 {
+                    // ⭐ CE-476 — read each element EXACTLY, from the boxed array, at the element's own stride.
+                    // 🔴 This marshalled the array (Marshal.SizeOf / StructureToPtr), which throws for an element
+                    //    the marshaller cannot size — measured: a blueprint behaviour's root block carries an
+                    //    [InlineArray] of an ENUM (HillAttackSlot), Marshal.SizeOf throws for every enum type, and
+                    //    every GET /entities on that node answered 500. Rail:
+                    //    EventSerializationHelperTests.MapObject_InlineArrayOfAnEnum_ReadsEveryElementExactly.
                     Type elemType = elementField.FieldType;
-                    int structSize = Marshal.SizeOf(type);
-                    IntPtr ptr = Marshal.AllocHGlobal(structSize);
-                    try
+                    var element = InlineArrayElementOpen.MakeGenericMethod(type, elemType);
+                    for (int i = 0; i < length; i++)
                     {
-                        Marshal.StructureToPtr(obj, ptr, false);
-                        int elemSize = GetSizeOf(elemType);
-                        for (int i = 0; i < length; i++)
-                        {
-                            IntPtr elemPtr = IntPtr.Add(ptr, i * elemSize);
-                            object? elemVal = ReadPointer(elemPtr, elemType);
-                            list.Add(MapObject(elemVal, elemType, visited));
-                        }
-                    }
-                    finally
-                    {
-                        Marshal.DestroyStructure(ptr, type);
-                        Marshal.FreeHGlobal(ptr);
+                        object? elemVal = element.Invoke(null, new[] { obj, (object)i });
+                        list.Add(MapObject(elemVal, elemType, visited));
                     }
                 }
                 return list;
@@ -148,6 +142,16 @@ namespace Fdp.Toolkit.Diagnostics
             }
 
             return dict;
+        }
+
+        private static readonly MethodInfo InlineArrayElementOpen =
+            typeof(DtoDiagnosticMapper).GetMethod(nameof(InlineArrayElement), BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        // Element `index` of a boxed [InlineArray] — the runtime's own layout, no marshalling.
+        private static object? InlineArrayElement<TArray, TElement>(object box, int index) where TArray : struct
+        {
+            TArray array = (TArray)box;
+            return Unsafe.Add(ref Unsafe.As<TArray, TElement>(ref array), index);
         }
 
         /// <summary>Reads a primitive or struct value from an unmanaged memory pointer.</summary>
