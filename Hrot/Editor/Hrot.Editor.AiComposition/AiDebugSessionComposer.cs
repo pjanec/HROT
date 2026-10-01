@@ -31,6 +31,22 @@ public sealed record AiDebugSessions(
 /// 🔒 *"A production caller that HAS a dependency must PASS it."* ⇒ a host that reaches this method
 /// without a time controller fails LOUDLY at startup instead of shipping dead buttons.</para>
 /// </summary>
+/// <summary>
+/// ⭐ <b>A node's AI debug surface</b> — the sessions and the blueprint registry the debug API's trace and variables
+/// routes read, bound to ONE world. 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §2 D1–D2 (<c>CE-476</c>).
+/// </summary>
+/// <remarks>
+/// ⭐ A host builds it from what it already composed and hands it over; the cluster's debug API resolves it against the
+/// ACTIVE perspective's world (<see cref="World"/>), so it can never answer with another node's sessions.
+/// ⛔ Building sessions here would be a second composition for one world — <see cref="AiDebugSessionComposer"/> is the one.
+/// </remarks>
+public sealed record AiDebugSurface(
+    Fdp.Core.EntityRepository World,
+    Hrot.BTree.Editor.Debug.BTreeDebugSession? BTree,
+    Hrot.Hsm.Editor.Debug.HsmDebugSession? Hsm,
+    Hrot.Blueprints.Core.Debug.BlueprintDebugSession? Blueprint,
+    Fdp.Toolkit.Blueprints.BlueprintRegistry? Blueprints);
+
 public static class AiDebugSessionComposer
 {
     /// <summary>
@@ -39,14 +55,40 @@ public static class AiDebugSessionComposer
     /// <exception cref="ArgumentNullException">
     /// ⛔ <paramref name="timeController"/> is null — see the class remarks.
     /// </exception>
-    public static AiDebugSessions Compose(IEngineDebugTimeController timeController)
+    public static AiDebugSessions Compose(
+        IEngineDebugTimeController timeController, Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors)
     {
         if (timeController is null) throw new ArgumentNullException(nameof(timeController));
 
         var coordinator = new AiTracerCoordinator(timeController);
         return new AiDebugSessions(
             coordinator,
-            new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator),
+            // ⭐ CE-476: the registry whose interpreters run the trees — the BTree session names an entity's nodes
+            //   from the blob it actually executes. Required, not defaulted: both hosts hold it (silent-default rule).
+            new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator, behaviors),
             new Hrot.Hsm.Editor.Debug.HsmDebugSession(coordinator));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — <b>the ONE Blueprint debug-session composition</b>, for the editor and CGF alike. Both hosts
+    /// wrote this sequence out by hand (construct · breakpoint manager · live repository · attach) and each new
+    /// dependency had to be added twice — the behaviour registry was. ⛔ Not defaulted: every argument is one both hosts
+    /// hold (silent-default rule).
+    /// </summary>
+    /// <remarks><see cref="Hrot.Blueprints.Core.Debug.BlueprintDebugSession.Attach"/> makes the session the process
+    /// <c>DebugProbe.Sink</c>.</remarks>
+    public static Hrot.Blueprints.Core.Debug.BlueprintDebugSession ComposeBlueprint(
+        Fdp.Toolkit.Blueprints.BlueprintRegistry registry,
+        Fdp.Core.EntityRepository world,
+        IEngineDebugTimeController timeController,
+        IDataBreakpointManager? breakpoints,
+        Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors)
+    {
+        var session = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(registry, world, timeController);
+        session.SetDataBreakpointManager(breakpoints);
+        session.SetLiveRepository(world);   // NGS-2.0: sub-tick recording
+        session.SetBehaviorRegistry(behaviors);
+        session.Attach();
+        return session;
     }
 }

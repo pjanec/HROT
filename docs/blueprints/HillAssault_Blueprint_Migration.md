@@ -1,3 +1,20 @@
+<!--STATUS
+state: HISTORICAL
+updated: 2026-10-01
+current-answer: none here. The live question is Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md.
+stale-below: the whole log. Its GAP list is partly out of date (loops, EQS nodes, target-entity component reads now
+  exist; re-measured in Q78 §2). The integrated PlatoonHillAttack2 it led to was deleted by CE-436.
+  ⛔ RETIRED 2026-10-01 (user: "retire the old superseded non elegant blueprint version and corresponding csharp helpers"):
+  the 15 HillAssault2_* twin assets, their proof suites and 13 twin-only helper classes are DELETED (CE-477).
+  HillAssault2_ReverseToBaseline survives RENAMED as ChannelMoveAndWaitDemo — the last production WaitForChannel asset.
+  The blueprint hill attack is now PlatoonHillAttackBp (CE-464); the C# PlatoonHillAttack stays (user ruling).
+known-rot: "What blueprintize means" (keep the BTree, blueprint the leaves) is not the lean any more; Q78 decision A says why.
+related-designs:
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — the current rebuild question (CE-464).
+  - TreeIntegration_Build_Plan.md — the integrated version, since deleted (CE-436).
+  - DESIGN_Hill_Attack_Blueprint_Behaviour.md — the blueprint-node-way rebuild that superseded this log (CE-464).
+-->
+
 # Hill-Attack → Blueprints — Migration Log
 
 > **Goal:** rebuild the Platoon Hill-attack behavior, step by step, as visually-authored

@@ -109,44 +109,45 @@ namespace Hrot.AI.Behaviors.Brains
         // Fields ordered to satisfy natural alignment and avoid implicit padding.
 
         /// <summary>
-        /// <c>RequestId</c> returned by <c>AreaQueryBatchHelper.RequestAreaQuery</c>.
-        /// Stored between <c>Action_RequestAreaQuery</c> and <c>Condition_IsAreaQueryResolved</c>.
+        /// The area query in flight: the packed EQS child sensor (<c>Fdp.Toolkit.Spatial.Eqs.EqsChildSensor</c>) whose answer
+        /// is awaited, or <c>-1</c> when no query is in flight. Set by <c>Action_RequestAreaQuery</c>, read by
+        /// <c>Condition_IsAreaQueryResolved</c> and <c>Action_DispatchWaveWithTargets</c>.
+        /// ⭐ Was the <c>AreaQueryBatchHelper</c> request id; the name is kept because <c>Hrot.IG.Tests</c> pins it
+        /// (<c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §4 D5).
         /// </summary>
         public long CachedEqsRequestId;              // 8, offset 0
 
         /// <summary>Total number of firing-line slots computed from segment length / TankSpacing.</summary>
         public int TotalSlots;                        // 4, offset 8
 
-        /// <summary>
-        /// <c>TargetGroupHandle</c> from the EQS result.
-        /// Stored between <c>Condition_IsAreaQueryResolved</c> and <c>Action_DispatchWaveWithTargets</c>.
-        /// Initialized to -1.
-        /// </summary>
-        public int CachedTargetGroupHandle;           // 4, offset 12
-
         /// <summary>Number of tanks currently executing the attack run in the current wave.</summary>
-        public int ActiveAttackerCount;               // 4, offset 16
+        /// <remarks>⛔ <c>CachedTargetGroupHandle</c> (the old pool handle) retired with the EQS migration: the targets are read
+        /// straight from the sensor's <c>EqsCognitiveBuffer</c>.</remarks>
+        public int ActiveAttackerCount;               // 4, offset 12
 
         /// <summary>Firing-line slot indices permanently blocked by wrecks.</summary>
-        public ushort BurnedSlotsMask;                // 2, offset 20
+        public ushort BurnedSlotsMask;                // 2, offset 16
 
         /// <summary>Firing-line slot indices occupied by the current wave.</summary>
-        public ushort WaveUsedSlotsMask;              // 2, offset 22
+        public ushort WaveUsedSlotsMask;              // 2, offset 18
 
         /// <summary>Baseline slot indices currently reserved by live tanks.</summary>
-        public ushort BaselineReservedMask;           // 2, offset 24
+        public ushort BaselineReservedMask;           // 2, offset 20
 
         /// <summary>Wave index (0 or 1); toggles between waves.</summary>
-        public byte CurrentWave;                      // 1, offset 26
+        public byte CurrentWave;                      // 1, offset 22
 
         // Consume trailing padding for EQS timeout tracking.
-        private byte _pad0;                           // 1, offset 27
+        private byte _pad0;                           // 1, offset 23
 
         /// <summary>
         /// Simulation time at which the current EQS request was submitted.
         /// Used by commander timeout recovery in Condition_IsAreaQueryResolved.
         /// </summary>
-        public float EqsRequestTime;                  // 4, offset 28
+        public float EqsRequestTime;                  // 4, offset 24
+
+        // 4 explicit pad bytes where CachedTargetGroupHandle was — keeps the struct at 120 with no implicit padding.
+        private int _pad1;                            // 4, offset 28
 
         // offset 32 — 8-byte aligned, required for fixed long array.
 

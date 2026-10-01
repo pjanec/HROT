@@ -425,7 +425,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //    physics worked and the node looked healthy; every capability that contributes through
         //    the other two hooks contributed nothing:
         //      PerceptionSolver.Register    -> EqsModule                          NEVER REGISTERED
-        //      PerceptionSpatial.Register   -> AreaQueryResultMaterializationSystem
+        //      PerceptionSpatial.Register   -> AreaQueryResultMaterializationSystem (retired 2026-10-01)
         //                                      + CognitiveSpatialModule           NEVER REGISTERED
         //      UnitHierarchy.PopulateSystems / EqsResultUpdate.PopulateSystems    NEVER CALLED
         //
@@ -538,7 +538,7 @@ public sealed class StrideNodeBootstrapper : SharedApplicationBootstrapper, IDis
         //
         // 📐 The perception TIER is not the problem and measuring it is what found this. The node's
         //    own /diagnostics/architecture reports CognitiveSpatialModule -- which owns
-        //    LocalGridBuilderSystem, AreaQuerySolverSystem, VisionBroadphaseSystem,
+        //    LocalGridBuilderSystem, AreaQuerySolverSystem (retired 2026-10-01), VisionBroadphaseSystem,
         //    LosRequestBatchingSystem and SensorTrackDebounceSystem -- as
         //    "lifecycleState: Ready, executionCount: 741, failureCount: 0". It runs, it sees, and it
         //    publishes SensorTrackStateEvent onto this node's OWN bus. What was missing is the hop

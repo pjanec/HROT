@@ -650,6 +650,82 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     }
 
     /// <summary>
+    /// ⭐ <c>CE-476</c> — the behaviour registry, so a <b>Behavior-dispatch</b> blueprint (<c>BrainTier 3</c>,
+    /// <c>CE-446</c>) can be read: its registrar registers a <see cref="Fdp.Toolkit.Behavior.BehaviorDefinition"/> only,
+    /// never a <see cref="BlueprintDefinition"/>, so <see cref="CaptureLiveState"/>'s registry lookup cannot see it.
+    /// Must be called from the same site as <see cref="SetDataBreakpointManager"/> — both hosts hold the registry.
+    /// </summary>
+    public void SetBehaviorRegistry(Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors) => _behaviors = behaviors;
+
+    private Fdp.Toolkit.Behavior.BehaviorRegistry? _behaviors;
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-476</c> — <b>the live state of the Behavior-dispatch blueprint <paramref name="self"/> runs</b>, as the
+    /// same <see cref="BlueprintStateSnapshot"/> an Instance blueprint yields: decoded working fields + latent cursor.
+    /// 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §2 D5.
+    /// </summary>
+    /// <remarks>
+    /// <para>⭐ <b>One decoder, not a second one.</b> The root block IS the emitted <c>State</c> struct
+    /// (<c>[Cursor][Params][working fields]</c>, Q77 §5), registered as <c>BlackboardLayoutType</c>. It is read with this
+    /// session's exact managed-layout struct arm (<see cref="TryReadStruct"/> — ⛔ not <c>Marshal.PtrToStructure</c>,
+    /// whose marshalled model mis-reads <c>bool</c> and counts an <c>[InlineArray]</c> as one element), and each field
+    /// then gets the same fixed-list formatting the Instance decode applies.</para>
+    /// <para>⚠ No <c>BlueprintDefinition.StateFields</c> exists for this dispatch (the compiler emits none), so the
+    /// fields come from the type itself — the layout the compiler emitted, so it cannot drift from it.</para>
+    /// </remarks>
+    /// <returns><c>null</c> when no registry is wired, the entity is not running a blueprint behaviour, the behaviour
+    /// is unregistered, or its root block is absent.</returns>
+    public unsafe BlueprintStateSnapshot? CaptureLiveBehaviorState(Entity self)
+    {
+        if (_behaviors is null || !_view.IsAlive(self) || !_view.HasComponent<BehaviorState>(self)) return null;
+
+        var brain = _view.GetComponentRO<BehaviorState>(self);
+        if (brain.BrainTier != Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint || brain.ActiveBehaviorHash == 0)
+            return null;
+        if (!_behaviors.TryGetDefinition(brain.ActiveBehaviorHash, out var def)) return null;
+        if (def.BlackboardLayoutType is not { IsValueType: true } layout) return null;
+
+        if (!Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytesInView(_view, self, out byte* root) || root == null)
+            return null;
+
+        // ⭐ The managed size — ComponentBytes, the ONE owner of "a value's managed image" (⛔ not Marshal.SizeOf).
+        //   ⚠ It requires an unmanaged type; a layout carrying references is not a block we can read — a debug read
+        //   reports "absent", it never throws into the API.
+        int size;
+        try { size = ComponentBytes.SizeOf(layout); }
+        catch (ArgumentException) { return null; }
+        var bytes = new ReadOnlySpan<byte>(root, size).ToArray();
+        if (!TryReadStruct(bytes, layout, out var block) || block is null) return null;
+
+        var fields = new Dictionary<string, object>(StringComparer.Ordinal);
+        BlueprintLatentCursor? cursor = null;
+        foreach (var field in layout.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+        {
+            object? value = field.GetValue(block);
+            if (value is BlueprintLatentCursor c) { cursor = c; continue; }
+            if (value is null) continue;
+            fields[field.Name] = FormatFieldValue(value, field.FieldType);
+        }
+
+        return new BlueprintStateSnapshot(
+            Self:        self,
+            AssetId:     Guid.Empty,
+            AssetName:   def.Name ?? string.Empty,
+            Dispatch:    BlueprintDispatchKind.Behavior,
+            FieldValues: fields,
+            Cursor:      cursor);
+    }
+
+    // The Instance decode's per-field rule applied to an already-read value: a fixed-list wrapper renders through the
+    // ONE list formatter (MarshalFromBytes' own arm); everything else is the exact value the struct read produced.
+    private static object FormatFieldValue(object value, Type type)
+    {
+        if (!type.IsValueType || type.IsPrimitive || type.IsEnum) return value;
+        var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(type));
+        return TryFormatFixedList(bytes, type, out var formatted) ? formatted : value;
+    }
+
+    /// <summary>
     /// Wires the concrete live <see cref="EntityRepository"/> for sub-tick snapshot recording (NGS-2.0).
     /// Must be called from the same site as <see cref="SetDataBreakpointManager"/>.
     /// When not called, recording is silently disabled (safe default; logs once if a breakpoint
@@ -2100,7 +2176,7 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     ///
     /// <para>
     /// 🔴 <c>Type.GetType(fqn)</c> alone searches only the CALLING assembly and corelib, so it never
-    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.MemberSlotList</c>
+    /// found a game struct — <c>Fdp.Core.FixedString32</c>, <c>Hrot.AI.Behaviors.Brains.HillAttackRunner</c>
     /// — and the field was silently <b>skipped</b>, not shown as undecodable. ⭐ The nine-case switch
     /// below is kept: it short-circuits the common primitives before any assembly walk, and it is what
     /// makes the FALLBACK's cost irrelevant.

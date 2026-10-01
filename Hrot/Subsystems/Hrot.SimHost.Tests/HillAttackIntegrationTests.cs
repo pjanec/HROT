@@ -38,17 +38,17 @@ namespace Hrot.SimHost.Tests
 {
     /// <summary>
     /// Integration tests for the PlatoonHillAttack / HullDownAttack pipeline
-    /// (SC-HA015-1 through SC-HA015-6).
+    /// (SC-HA015-1 through SC-HA015-5; SC-HA015-6 tested the retired AreaQuerySolverSystem and went with it).
     ///
     /// <para>
     /// All SC-HA015-1…4 tests exercise the commander behavior exclusively via
     /// <see cref="BrainTickSystem"/> — no BTree node methods are called directly.
-    /// The EQS solver (<see cref="AreaQuerySolverSystem"/>) is invoked in the same
+    /// The EQS solver (<see cref="EqsSolverSystem"/>, template <c>EntitiesOfForceInArea</c> — the area query since the EQS
+    /// migration, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c>) is invoked in the same
     /// simulated tick as the BTree (collapsing the production 10-Hz EqsModule latency
     /// to zero for deterministic in-process testing).
-    /// <see cref="AreaQueryInitializationSystem"/> is intentionally excluded from the
-    /// per-tick helper so that EQS results written by the solver in tick N remain
-    /// readable when the BTree resumes in tick N+1.  In production the results become
+    /// EQS results written by the solver in tick N remain readable when the BTree
+    /// resumes in tick N+1.  In production the results become
     /// visible within one EqsModule cycle (~100 ms); the test collapses that window
     /// to a single-frame solver call.
     /// </para>
@@ -86,6 +86,8 @@ namespace Hrot.SimHost.Tests
             _grid = SpatialHashGrid.Create(100, 100, 5f, 1000, Allocator.Persistent);
             _grid.Clear();
             _repo.SetSingleton(new SpatialGridData { Grid = _grid });
+            // ⭐ EQS 1.3: the commander's area query is the EntitiesOfForceInArea sensor (DESIGN_Hill_Attack_Eqs_Migration.md).
+            EqsTemplateRegistry.InstallDefault(_repo);
         }
 
         public void Dispose()
@@ -98,16 +100,6 @@ namespace Hrot.SimHost.Tests
 
         private static void DisposeEqsSingletons(EntityRepository repo)
         {
-            if (repo.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var b = ref repo.GetSingleton<AreaQueryBatchData>();
-                if (b.Results.IsCreated)  b.Results.Dispose();
-            }
-            if (repo.HasSingleton<EqsTargetPool>())
-            {
-                var p = repo.GetSingleton<EqsTargetPool>();
-                if (p.Targets.IsCreated) p.Targets.Dispose();
-            }
             if (repo.HasSingleton<EqsResultPool>())
             {
                 var r = repo.GetSingleton<EqsResultPool>();
@@ -167,7 +159,7 @@ namespace Hrot.SimHost.Tests
         {
             var roster = new UnitRoster { Count = subs.Length };
             for (int i = 0; i < subs.Length; i++)
-                roster.SubordinateEntities[i] = (long)subs[i].PackedValue;
+                roster.SubordinateEntities[i] = subs[i];
             repo.AddComponent(commander, roster);
         }
 
@@ -182,7 +174,7 @@ namespace Hrot.SimHost.Tests
         private static (BehaviorIngressSystem ingress,
                         TacticalIntentResolutionSystem resolution,
                         BrainTickSystem brainTick,
-                        AreaQuerySolverSystem eqs)
+                        EqsSolverSystem eqs)
             BuildPipeline(NetworkEntityMap entityMap)
         {
             var registry       = BuildRegistry(entityMap);
@@ -192,7 +184,7 @@ namespace Hrot.SimHost.Tests
                 new BehaviorIngressSystem(registry),
                 new TacticalIntentResolutionSystem(mapperRegistry, registry),
                 new BrainTickSystem(registry),
-                new AreaQuerySolverSystem()
+                new EqsSolverSystem()
             );
         }
 
@@ -208,25 +200,27 @@ namespace Hrot.SimHost.Tests
             BehaviorIngressSystem behaviorIngress,
             TacticalIntentResolutionSystem tacticalResolution,
             BrainTickSystem brainTick,
-            AreaQuerySolverSystem eqsSolver,
+            EqsSolverSystem eqsSolver,
             float dt = 0.1f)
         {
             // Begin frame: swap previous write->read so ingress systems can see last frame's events.
             repo.Bus.SwapBuffers();
             behaviorIngress.Execute(repo, dt);
             tacticalResolution.Execute(repo, dt);
-            // BTree runs: may publish AreaQueryRequestEvent to WRITE buffer.
+            // BTree runs: may create / refresh the commander's EQS area sensor.
             brainTick.Execute(repo, dt);
 
-            // Collapse EQS latency: swap so solver can read the request events just published.
+            // Collapse EQS latency: the brain's structural changes (a new sensor) land first — as in production, where
+            // the brain's command buffer plays back before EqsModule evaluates — then the solver answers.
             repo.Bus.SwapBuffers();
             var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)repo).GetCommandBuffer();
+            ecb.Playback(repo);
             eqsSolver.Execute(repo, dt);
             ecb.Playback(repo);
 
-            // Swap again so the result events published by the solver are readable by materialization.
+            // Swap again so the solver's result events are readable, then apply them to the sensor's buffer (Path B).
             repo.Bus.SwapBuffers();
-            new AreaQueryResultMaterializationSystem().Execute(repo, dt);
+            new EqsResultUpdateSystem().Execute(repo, dt);
         }
 
         /// <summary>
@@ -267,59 +261,6 @@ namespace Hrot.SimHost.Tests
             return (sx, sy);
         }
 
-        // ── SC-HA015-6 ────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// SC-HA015-6: AreaQuerySolverSystem finds hostile entities inside a polygon
-        /// and excludes those outside it, as well as friendly entities inside it.
-        /// </summary>
-        [Fact]
-        public void SC_HA015_6_AreaQuerySolver_FindsEnemiesInsidePolygon_ExcludesOutside()
-        {
-            // Arrange — polygon (35,35)-(65,35)-(65,65)-(35,65), two hostiles inside,
-            // one hostile outside, one friendly inside (must not be counted).
-            var polygon = new List<Vector2>
-            {
-                new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-            };
-            var areaEntity = CreateAreaEntity(polygon);
-            var requester  = _repo.CreateEntity();
-
-            CreateHostileAt(50f, 50f);  // inside
-            CreateHostileAt(60f, 40f);  // inside
-            CreateHostileAt(80f, 80f);  // outside — must not be returned
-
-            var friendly = _repo.CreateEntity();
-            _repo.AddComponent(friendly, new SimTransform
-            {
-                Position = new Vector3(45f, 45f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _repo.AddComponent(friendly, new EntityInfo { ForceId = ForceId.Friend });
-            _grid.Add(friendly, new Vector2(45f, 45f));
-            _repo.SetSingleton(new SpatialGridData { Grid = _grid });
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _repo, requester, areaEntity, ForceId.Hostile);
-
-            var solver = new AreaQuerySolverSystem();
-
-            // Act: swap so solver sees the request events, run solver, playback cmd,
-            // swap so materialization sees the result events, then materialize.
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_repo).GetCommandBuffer();
-            var materialization = new AreaQueryResultMaterializationSystem();
-            _repo.Bus.SwapBuffers();
-            solver.Execute(_repo, 0.1f);
-            ecb.Playback(_repo);
-            _repo.Bus.SwapBuffers();
-            materialization.Execute(_repo, 0.1f);
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_repo, requestId);
-            Assert.True(result.IsReady);
-            Assert.Equal(2, result.TargetCount);
-        }
-
         // ── SC-HA015-5 ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -345,7 +286,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             string json = "{\"firingLineStart\":{\"x\":0,\"y\":0},"
                         + "\"firingLineEnd\":{\"x\":60,\"y\":0},"
@@ -405,7 +347,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 3 subs already at baseline — AreAllAtBaseline returns Success immediately.
             var subs = new Entity[3];
@@ -470,6 +413,124 @@ namespace Hrot.SimHost.Tests
             Assert.NotEqual(t1, t2);        // tank 1 ≠ tank 2
         }
 
+        // ── CE-485 — the behaviour run's EQS sensor dies with the run ──────────────
+
+        private List<Entity> SensorsOf(Entity parent)
+        {
+            var list = new List<Entity>();
+            foreach (var e in _repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
+                if (_repo.GetComponentRO<PartMetadata>(e).ParentEntity.Equals(parent)) list.Add(e);
+            return list;
+        }
+
+        /// <summary>
+        /// ⭐ <b>CE-485</b> — 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D4/D5, acceptance ③. Through the REAL
+        /// <see cref="BehaviorIngressSystem"/>: re-assigning the SAME behaviour destroys the ending run's sensor and the new run
+        /// gets a fresh one on the REUSED part id with its own run in the epoch; a <see cref="ClearBehaviorEvent"/> leaves
+        /// zero sensors. ✅ Red-proof: drop the <c>BehaviorOwnedParts.Release</c> call at a bump site ⇒ the old sensor survives.
+        /// </summary>
+        [Fact]
+        public void CE485_TheRunsSensor_DiesWithTheRun_ReassignAndClear()
+        {
+            const long areaNetId = 9485L;
+            var areaEntity = CreateAreaEntity(new List<Vector2> { new(10f, 10f), new(80f, 10f), new(80f, 80f), new(10f, 80f) });
+            var entityMap = new NetworkEntityMap();
+            entityMap.Register(areaNetId, areaEntity);
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            var hostile = CreateHostileAt(40f, 40f);
+            _repo.AddComponent(hostile, new NetworkIdentity { Value = 101L });
+
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
+            var subs = new Entity[2];
+            for (int i = 0; i < 2; i++)
+            {
+                subs[i] = _repo.CreateEntity();
+                _repo.AddComponent(subs[i], new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+                _repo.AddComponent<BehaviorState>(subs[i], default);
+                _repo.AddComponent(subs[i], new NavigationStatus { Result = NavigationResult.Arrived });
+            }
+            AddRoster(_repo, commander, subs);
+            string json = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
+                        + "\"baselineEnd\":[50,90],\"tankSpacing\":30," + $"\"targetAreaNetworkId\":{areaNetId}}}";
+            void Assign() => _repo.Bus.PublishManaged(new AssignBehaviorEvent
+                { Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack, JsonParams = json });
+
+            Assign();
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
+            var first = Assert.Single(SensorsOf(commander));
+            uint run1 = _repo.GetComponentRO<BehaviorState>(commander).InstanceId;
+            Assert.Equal(1, _repo.GetComponentRO<PartMetadata>(first).InstanceId);
+            Assert.Equal(run1, _repo.GetComponentRO<EqsSensor>(first).Epoch >> 16);
+
+            // Re-assign the SAME behaviour: a new run.
+            Assign();
+            TickOnce(_repo, ingress, resolution, brainTick, eqs);
+            Assert.False(_repo.IsAlive(first));                                       // the ending run's sensor is gone
+            var second = Assert.Single(SensorsOf(commander));
+            uint run2 = _repo.GetComponentRO<BehaviorState>(commander).InstanceId;
+            Assert.NotEqual(run1, run2);
+            Assert.Equal(1, _repo.GetComponentRO<PartMetadata>(second).InstanceId);   // the part id is REUSED
+            Assert.Equal(run2, _repo.GetComponentRO<EqsSensor>(second).Epoch >> 16);  // ...and the run tells them apart
+
+            // Clear: no behaviour ⇒ no sensor.
+            _repo.Bus.Publish(new ClearBehaviorEvent { Entity = commander });
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
+            Assert.False(_repo.IsAlive(second));
+            Assert.Empty(SensorsOf(commander));
+        }
+
+        /// <summary>
+        /// ⭐ <b>CE-482</b> — 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D1/D2, acceptance ①. FAIL LOUD, through the REAL
+        /// systems: the commander's target area is missing ⇒ it raises <see cref="BehaviorFaultCode.MissingInput"/>; the run ends
+        /// in the SAME tick with <see cref="BehaviorOutcome.Faulted"/> (once), a <see cref="BehaviorFaultNotification"/> names the
+        /// reason, and the behaviour is cleared (<c>BrainTier 0</c>) — ⛔ before CE-482 this was a log line and a silent Failure.
+        /// </summary>
+        [Fact]
+        public void CE482_MissingArea_FaultsTheRun_LoudlyAndOnce()
+        {
+            var entityMap = new NetworkEntityMap();             // ⛔ the area network id is NOT registered ⇒ no area
+            _repo.SetSingletonManaged<NetworkEntityMap>(entityMap);
+            var (ingress, resolution, brainTick, eqs) = BuildPipeline(entityMap);
+            var commander = _repo.CreateEntity();
+            _repo.AddComponent<BehaviorState>(commander, default);
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });
+            var sub = _repo.CreateEntity();
+            _repo.AddComponent(sub, new TkbIdentity { TkbType = TkbEntityTypes.Tank_M1Abrams });
+            _repo.AddComponent<BehaviorState>(sub, default);
+            _repo.AddComponent(sub, new NavigationStatus { Result = NavigationResult.Arrived });
+            AddRoster(_repo, commander, new[] { sub });
+            _repo.Bus.PublishManaged(new AssignBehaviorEvent
+            {
+                Entity = commander, BehaviorName = BehaviorNames.PlatoonHillAttack,
+                JsonParams = "{\"firingLineStart\":[0,0],\"firingLineEnd\":[0,90],\"baselineStart\":[50,0],"
+                           + "\"baselineEnd\":[50,90],\"tankSpacing\":30,\"targetAreaNetworkId\":94820}",
+            });
+
+            TickBTreeOnly(_repo, ingress, resolution, brainTick);
+            _repo.Bus.SwapBuffers();
+
+            var finished = _repo.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(e => e.Entity == commander).ToList();
+            var only = Assert.Single(finished);
+            Assert.Equal(BehaviorOutcome.Faulted, only.Outcome);
+            Assert.Equal(BehaviorFaultCode.MissingInput, only.FaultCode);
+            var note = Assert.Single(_repo.Bus.ReadManaged<BehaviorFaultNotification>().Where(n => n.Entity == commander));
+            Assert.Equal(BehaviorFaultCode.MissingInput, note.Code);
+            Assert.Contains("area", note.Message);
+            Assert.Equal(0, _repo.GetComponentRO<BehaviorState>(commander).BrainTier);   // the finish ran the clear
+            // ⭐ CE-484: the operator's "Behaviour Faults" tab got ONE Error row for this run, keyed by the network id.
+            long netId = 8000 + commander.Index;
+            var rows = Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared.GetMessages()
+                .Where(m => m.Message.StartsWith($"entity {netId}:")).ToList();
+            var row = Assert.Single(rows);
+            Assert.Equal(Fdp.Core.Logging.LogSeverity.Error, row.Severity);
+            Assert.Contains("MissingInput", row.Message);
+        }
+
         // ── SC-HA015-2 ────────────────────────────────────────────────────────────
 
         /// <summary>
@@ -501,7 +562,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             var subs = new Entity[3];
             for (int i = 0; i < 3; i++)
@@ -592,7 +654,8 @@ namespace Hrot.SimHost.Tests
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subs at baseline.
             var subs = new Entity[2];
@@ -695,11 +758,12 @@ namespace Hrot.SimHost.Tests
             var behaviorIngress    = new BehaviorIngressSystem(registry);
             var tacticalResolution = new TacticalIntentResolutionSystem(mapperRegistry, registry);
             var brainTick          = new BrainTickSystem(registry);
-            var eqsSolver          = new AreaQuerySolverSystem();
+            var eqsSolver          = new EqsSolverSystem();
 
             var commander = _repo.CreateEntity();
             _repo.AddComponent<BehaviorState>(commander, default);
-            RootStateAccess.EnsureRootState(_repo, commander);   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
+            RootStateAccess.EnsureRootState(_repo, commander);
+            _repo.AddComponent(commander, new NetworkIdentity { Value = 8000 + commander.Index });   // an EQS child sensor's parent needs one (EQS §16.2 H5)   // ⛔ O7c-②: BrainBTreeState retired — the root cursor is an occurrence slot (§31).
 
             // 2 subordinates already at the baseline.
             var subs = new Entity[2];
@@ -758,6 +822,15 @@ namespace Hrot.SimHost.Tests
             }
             Assert.True(finishedEventPublished,
                 "BehaviorFinishedEvent was not published for the commander.");
+
+            // ⭐ CE-459: in the SAME tick the wave loop exits, the commander sends every subordinate back to its
+            //   baseline slot BEFORE it finishes — the platoon ends on the baseline, abreast. ⛔ Before, nothing
+            //   did: the platoon only got there because a finished tree re-ran from its root, which CE-449 ended.
+            //   (Red-proof: remove ReturnToBaseline from PlatoonHillAttack.btree.json ⇒ no intents this tick.)
+            var restaged = new HashSet<Entity>();
+            foreach (var evt in _repo.Bus.ReadManaged<AssignTacticalIntentEvent>())
+                if (evt != null && evt.IntentId == "MoveToLocation") restaged.Add(evt.Entity);
+            Assert.Equal(new HashSet<Entity>(subs), restaged);
         }
     }
 }

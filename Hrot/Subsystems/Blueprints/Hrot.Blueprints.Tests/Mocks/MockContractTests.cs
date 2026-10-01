@@ -163,15 +163,18 @@ public sealed class MockContractTests
             Assert.Equal(0, b);
     }
 
-    // 8. CreateEntity -- real handle returned immediately (before any Playback).
+    // 8. CreateEntity -- DEFERRED like the real ECB: a placeholder until Playback, then a real entity.
     [Fact]
-    public void CreateEntity_ReturnsRealHandleImmediately()
+    public void CreateEntity_ReturnsPlaceholder_RealAfterPlayback()
     {
         using var repo = new EntityRepository();
         var ecb = new MockEntityCommandBuffer(repo);
 
         var e = ecb.CreateEntity();
 
-        Assert.True(repo.IsAlive(e));
+        Assert.True(e.Index < 0);
+        Assert.False(repo.IsAlive(e));
+        ecb.Playback(repo);
+        Assert.True(repo.IsAlive(ecb.LastPlayback.Resolve(e)));
     }
 }

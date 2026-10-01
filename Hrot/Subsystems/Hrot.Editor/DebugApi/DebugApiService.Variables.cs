@@ -115,30 +115,24 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
-            if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
-                return (null, assetError, DebugApiHints.Variable);
-
-            var snapshot = _blueprintSession.CaptureLiveState(entity, slot.AssetId);
-            if (snapshot is null)
-                return (null,
-                    $"No live state for blueprint '{slot.Name}' on entity {networkId} — "
-                    + "the blueprint may not be compiled into this run.",
-                    DebugApiHints.Variable);
+            if (!TryCaptureBlueprint(entity, asset, out var slot, out var snapshot, out var captureError))
+                return (null, captureError.Replace("{networkId}", networkId.ToString()), DebugApiHints.Variable);
 
             var variables = new JsonArray();
             foreach (var field in snapshot.FieldValues)
                 variables.Add(DescribeVariable(entity, slot, field.Key, field.Value));
 
-            return (new JsonObject
+            var result = new JsonObject
             {
                 ["networkId"] = networkId,
                 ["asset"]     = slot.Name,
-                ["assetId"]   = slot.AssetId.ToString("D"),
                 ["dispatch"]  = snapshot.Dispatch.ToString(),
                 ["variables"] = variables,
-            }, null, null);
+            };
+            if (slot.AssetId != Guid.Empty) result["assetId"] = slot.AssetId.ToString("D");
+            return (result, null, null);
         }
 
         /// <summary>
@@ -156,16 +150,10 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
-            if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
-                return (null, assetError, DebugApiHints.Variable);
-
-            var snapshot = _blueprintSession.CaptureLiveState(entity, slot.AssetId);
-            if (snapshot is null)
-                return (null,
-                    $"No live state for blueprint '{slot.Name}' on entity {networkId}.",
-                    DebugApiHints.Variable);
+            if (!TryCaptureBlueprint(entity, asset, out var slot, out var snapshot, out var captureError))
+                return (null, captureError.Replace("{networkId}", networkId.ToString()), DebugApiHints.Variable);
 
             if (!snapshot.FieldValues.TryGetValue(path!, out var value))
                 return (null,
@@ -176,7 +164,7 @@ namespace Hrot.Editor.DebugApi
             var dto = DescribeVariable(entity, slot, path!, value);
             dto["networkId"] = networkId;
             dto["asset"]     = slot.Name;
-            dto["assetId"]   = slot.AssetId.ToString("D");
+            if (slot.AssetId != Guid.Empty) dto["assetId"] = slot.AssetId.ToString("D");
             return (dto, null, null);
         }
 
@@ -255,7 +243,7 @@ namespace Hrot.Editor.DebugApi
                 return (null, $"Entity {networkId} not found.", DebugApiHints.Entity);
 
             if (_blueprintSession is null)
-                return (null, "No blueprint debug session is available in this editor.", DebugApiHints.Variable);
+                return (null, "No blueprint debug session is available on this node.", DebugApiHints.Variable);
 
             if (!TryResolveAsset(entity, asset, out var slot, out var assetError))
                 return (null, assetError, DebugApiHints.Variable);
@@ -364,6 +352,43 @@ namespace Hrot.Editor.DebugApi
                 // would decode wrongly; saying nothing beats reporting a wrong number.
                 return null;
             }
+        }
+
+        /// <summary>
+        /// ⭐ <c>CE-476</c> — <b>the ONE read both routes use</b>: the session's live snapshot of the blueprint
+        /// <paramref name="asset"/> names. A Behavior-dispatch blueprint (<c>BrainTier 3</c>) the entity RUNS is tried
+        /// first — it is not an attached slot, so <see cref="TryResolveAsset"/> cannot list it — and is then
+        /// described exactly like an Instance one (its fields are not addressable for staging, so
+        /// <see cref="DescribeVariable"/> reports <c>writable: false</c>).
+        /// </summary>
+        private bool TryCaptureBlueprint(
+            Entity entity, string? asset,
+            out SlotSummary slot, out Hrot.Blueprints.Core.Debug.BlueprintStateSnapshot snapshot, out string error)
+        {
+            error    = "";
+            snapshot = null!;
+
+            var behaviour = _blueprintSession!.CaptureLiveBehaviorState(entity);
+            if (behaviour is not null
+                && (string.IsNullOrWhiteSpace(asset)
+                    || string.Equals(asset, behaviour.AssetName, StringComparison.OrdinalIgnoreCase)))
+            {
+                slot     = new SlotSummary(Guid.Empty, 0, behaviour.AssetName, 0, 0, 0);
+                snapshot = behaviour;
+                return true;
+            }
+
+            if (!TryResolveAsset(entity, asset, out slot, out error)) return false;
+
+            var live = _blueprintSession.CaptureLiveState(entity, slot.AssetId);
+            if (live is null)
+            {
+                error = $"No live state for blueprint '{slot.Name}' on entity {{networkId}} — "
+                      + "the blueprint may not be compiled into this run.";
+                return false;
+            }
+            snapshot = live;
+            return true;
         }
 
         /// <summary>Boxed value → JSON, through the same options the rest of the API serializes with.</summary>

@@ -428,8 +428,7 @@ namespace Hrot.SimHost.Tests
             try
             {
                 Assert.Null(Record.Exception(() => world.GetSingleton<PathfindingBatchData>()));
-                Assert.Null(Record.Exception(() => world.GetSingleton<AreaQueryBatchData>()));
-                Assert.Null(Record.Exception(() => world.GetSingleton<EqsTargetPool>()));
+                Assert.Null(Record.Exception(() => world.GetSingleton<EqsResultPool>()));
             }
             finally
             {
@@ -438,7 +437,7 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// <b><c>B3</c> — the registry allocates its four persistent pools AT MOST ONCE per world.</b>
+        /// <b><c>B3</c> — the registry allocates its persistent pools AT MOST ONCE per world</b> *(two since the AreaQuery pipeline was retired, 2026-10-01)*.
         ///
         /// <para>Two production hosts call this registry twice on one world — <c>EditorSubsystem</c> and
         /// <c>EditorStrideSubsystem</c> each run <c>SimHostComponentRegistry.RegisterAll</c> and
@@ -450,23 +449,19 @@ namespace Hrot.SimHost.Tests
         /// hold the SAME native memory, which is what proves nothing was leaked behind it.</para>
         /// </summary>
         [Fact]
-        public void NavigationSolverComponentRegistry_RegisterAll_IsIdempotentOnTheFourPersistentPools()
+        public void NavigationSolverComponentRegistry_RegisterAll_IsIdempotentOnThePersistentPools()
         {
             using var world = new EntityRepository();
             NavigationSolverComponentRegistry.RegisterAll(world);
             try
             {
                 var firstPathfinding = BaseAddress(world.GetSingleton<PathfindingBatchData>().Results);
-                var firstAreaQuery   = BaseAddress(world.GetSingleton<AreaQueryBatchData>().Results);
-                var firstTargets     = BaseAddress(world.GetSingleton<EqsTargetPool>().Targets);
                 var firstResults     = BaseAddress(world.GetSingleton<EqsResultPool>().Results);
 
                 // The second host's registration pass.
                 NavigationSolverComponentRegistry.RegisterAll(world);
 
                 Assert.Equal(firstPathfinding, BaseAddress(world.GetSingleton<PathfindingBatchData>().Results));
-                Assert.Equal(firstAreaQuery,   BaseAddress(world.GetSingleton<AreaQueryBatchData>().Results));
-                Assert.Equal(firstTargets,     BaseAddress(world.GetSingleton<EqsTargetPool>().Targets));
                 Assert.Equal(firstResults,     BaseAddress(world.GetSingleton<EqsResultPool>().Results));
             }
             finally
@@ -476,8 +471,8 @@ namespace Hrot.SimHost.Tests
         }
 
         /// <summary>
-        /// <c>DisposeAll</c> is the symmetric counterpart <c>RegisterAll</c> never had: three of the four
-        /// pools had no production disposer at all. It must clear the stored handles so a second call —
+        /// <c>DisposeAll</c> is the symmetric counterpart <c>RegisterAll</c> never had: the pools had no
+        /// production disposer at all. It must clear the stored handles so a second call —
         /// or a later <c>EqsModule.Dispose</c> on the same world — is a no-op rather than a double free.
         /// </summary>
         [Fact]
@@ -489,8 +484,6 @@ namespace Hrot.SimHost.Tests
             NavigationSolverComponentRegistry.DisposeAll(world);
 
             Assert.False(world.GetSingleton<PathfindingBatchData>().Results.IsCreated);
-            Assert.False(world.GetSingleton<AreaQueryBatchData>().Results.IsCreated);
-            Assert.False(world.GetSingleton<EqsTargetPool>().Targets.IsCreated);
             Assert.False(world.GetSingleton<EqsResultPool>().Results.IsCreated);
 
             // A double free would corrupt the allocator, so this second call is the real assertion.

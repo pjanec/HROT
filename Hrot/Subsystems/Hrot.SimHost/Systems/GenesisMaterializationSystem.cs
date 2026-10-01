@@ -199,7 +199,7 @@ namespace Hrot.SimHost.Systems
                 //   scenario-loaded hierarchies never go through UnitHierarchySystem's assign event.
                 Fdp.Toolkit.Squad.SquadStateProvisioning.EnsureForCommander(repo, commander);
 
-                roster.SubordinateEntities[roster.Count]  = (long)entity.PackedValue;
+                roster.SubordinateEntities[roster.Count]  = entity;
                 roster.TacticalDesignations[roster.Count] = (ushort)intent.Designation;
                 roster.Count++;
                 repo.SetComponent(commander, roster);

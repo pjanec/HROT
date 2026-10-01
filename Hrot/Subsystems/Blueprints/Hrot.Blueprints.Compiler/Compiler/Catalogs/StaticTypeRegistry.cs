@@ -66,16 +66,12 @@ public sealed class StaticTypeRegistry : ITypeRegistry
             // Curated blittable structs used as Blueprint WorkingState vars (reflection-free compiler ->
             // FQN + size declared here, exactly like Entity/EqsSensorHandle/FixedString above; the
             // `global::` acceptance path below deliberately does NOT cover these because it can only guess
-            // a 4-byte enum-int32 size). MemberSlotList (Hill-attack wave core, architect Q#8) is the SoA
-            // runner tracker: int Count (4) + 4 pad + long[8] (64) + byte[8]x3 (24) = 96 (Marshal.SizeOf).
+            // a 4-byte enum-int32 size). (MemberSlotList / WaveState, the hill-attack wave-core structs of
+            // architect Q#8, were registered here; retired with the HillAssault2_* twins, 2026-10-01.)
             // NOTE: for an AiPrimitive WorkingState var the slot is sized at RUNTIME (Marshal.SizeOf<WorkingState>()),
             // so SizeBytes here is cosmetic for that path; it is declared correctly anyway for the offset/
             // debug-map bookkeeping that does read it. (A general curated-struct registration mechanism --
             // vs. hardcoding each here -- is future work if the curated-struct set grows.)
-            ["Hrot.AI.Behaviors.Brains.MemberSlotList"] = Unmanaged("Hrot.AI.Behaviors.Brains.MemberSlotList", 96),
-            // WaveState bundles MemberSlotList (96) + 2x ushort (4) -> 8-aligned (contains long) = 104.
-            // Same cosmetic-size caveat as MemberSlotList (AiPrimitive WorkingState sized at runtime).
-            ["Hrot.AI.Behaviors.Brains.WaveState"] = Unmanaged("Hrot.AI.Behaviors.Brains.WaveState", 104),
 
             // Common aliases used in test assets -- and, since BP-87, the exact strings the editor's
             // type picker writes into an asset. Every alias here maps to the CANONICAL FullName, so
@@ -122,7 +118,7 @@ public sealed class StaticTypeRegistry : ITypeRegistry
     ///
     /// <para>
     /// ⚠ Deliberately <b>not</b> just <c>TypeTable.Keys</c>: that table also carries curated project
-    /// structs (<c>MemberSlotList</c>, <c>WaveState</c>, …), the managed <c>System.String</c>/
+    /// structs (<c>Fdp.Core.FixedString64</c>, …), the managed <c>System.String</c>/
     /// <c>System.Object</c>, and every FQN spelling of the aliases — none of which belong in a picker.
     /// </para>
     /// </summary>

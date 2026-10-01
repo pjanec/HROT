@@ -78,7 +78,7 @@ namespace Fdp.Toolkit.Utility
             var tmpBuffer = new UtilityResultBuffer();
             for (int memberIdx = 0; memberIdx < maxMembers; memberIdx++)
             {
-                var member = new Entity((ulong)roster.SubordinateEntities[memberIdx]);
+                var member = roster.SubordinateEntities[memberIdx];
                 for (int tIdx = 0; tIdx < maxTargets; tIdx++)
                 {
                     var target = new Entity((ulong)leaderMem.EntityIds[tIdx]);

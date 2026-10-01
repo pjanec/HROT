@@ -715,7 +715,8 @@ public sealed record IrOp_ReadEqsResult(
 public sealed record IrOp_SpawnEqsSensor(
     /// <summary>Template's BlueprintId as a hex uint literal (e.g. "0xA3F7C218u").</summary>
     string TemplateBlueprintIdLiteral,
-    /// <summary>Baked InstanceId derived from node.Id.GetHashCode() at compile time.</summary>
+    /// <summary>The sensor's SITE id, baked from the node id at compile time. ⭐ CE-485: no longer the DDS key — the part id
+    /// is allocated at runtime (<c>EqsChildSensor.Ensure</c>).</summary>
     int BakedInstanceId,
     /// <summary>IrValue for SearchRadius input (or null -> literal 0f).</summary>
     IrValue? SearchRadiusValue,
@@ -726,7 +727,16 @@ public sealed record IrOp_SpawnEqsSensor(
     /// <summary>IrValue for PublishPolicy input (or null -> literal (byte)0).</summary>
     IrValue? PublishPolicyValue,
     /// <summary>IrValue for Priority input (or null -> literal (byte)0).</summary>
-    IrValue? PriorityValue
+    IrValue? PriorityValue,
+    /// <summary>IrValue for the ContextSlot0 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot0Value = null,
+    /// <summary>IrValue for the ContextSlot1 entity input (or null -> default Entity) — the area for
+    /// the area query's EQS form.</summary>
+    IrValue? ContextSlot1Value = null,
+    /// <summary>IrValue for the ContextSlot2 entity input (or null -> default Entity).</summary>
+    IrValue? ContextSlot2Value = null,
+    /// <summary>⭐ CE-485 — IrValue for the Key entity input (or null -> key 0): one sensor per key from this node.</summary>
+    IrValue? KeyValue = null
 ) : IrOperation;
 
 /// <summary>
@@ -759,6 +769,21 @@ public sealed record IrOp_ReadRankedResult(
 /// struct-typed value flowed to downstream consumers (mirrors <see cref="IrOp_PublishBusEvent"/>'s
 /// object-initializer construction, but the value flows out instead of being published).
 /// </summary>
+/// <summary>
+/// ⭐ CE-472 — <c>var __t{r} = JsonSerializer.Serialize(__t{Value}, FdpJsonOptionsRegistry.DefaultRelaxed);</c> — the
+/// one serializer setting every behaviour parse already reads with (DESIGN_Typed_Intent_And_Json_Nodes §4 C).
+/// </summary>
+public sealed record IrOp_ToJson(IrValue Value) : IrOperation;
+
+/// <summary>
+/// ⭐ CE-472 — deserialises <see cref="Json"/> into a <see cref="TypeFqn"/> instance, never null and never throwing:
+/// bad or empty input yields <c>new T()</c> and records failure in <c>__fjok{r}</c>, read by <see cref="IrOp_FromJsonOk"/>.
+/// </summary>
+public sealed record IrOp_FromJson(IrValue Json, string TypeFqn) : IrOperation;
+
+/// <summary>⭐ CE-472 — <c>var __t{r} = __fjok{Dto};</c> — whether the <see cref="IrOp_FromJson"/> that produced <see cref="Dto"/> parsed.</summary>
+public sealed record IrOp_FromJsonOk(IrValue Dto) : IrOperation;
+
 public sealed record IrOp_MakeStruct(
     string StructFqn,
     IReadOnlyList<(string FieldName, IrValue Value)> Fields

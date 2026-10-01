@@ -272,7 +272,7 @@ namespace Fdp.Toolkit.Tests.Utility
             });
 
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
-            UnitRoster.Add(ref roster, (long)member.PackedValue);
+            UnitRoster.Add(ref roster, member);
 
             if (asLauncher)
                 SpawnWeaponMount(member, mountIndex: 1, weaponGuid: Weapons.LauncherGuid,
@@ -290,7 +290,7 @@ namespace Fdp.Toolkit.Tests.Utility
         {
             ref var state = ref Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             return idx >= 0 ? state.GetAssignedTarget(idx) : -1L;
         }
 

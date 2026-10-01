@@ -196,8 +196,39 @@ internal static class StatementEmitter
                 }
                 e.Outdent();
                 e.WriteLine("}");
+                // ⭐ CE-464: an unwired Ok pin still allocates __tN; in a real generator build (warnings as errors) a
+                //   local assigned but never read is CS0219. Discard it explicitly — a no-op when Ok IS wired.
+                if (idx >= 0) e.WriteLine($"_ = {ok};");
                 break;
             }
+
+            // ⭐ CE-472 — the ONE JSON emitter (DESIGN_Typed_Intent_And_Json_Nodes §4 C): the same options every
+            // behaviour parse reads with, so what a blueprint writes is what BehaviorParams.FromJson reads.
+            case IrOp_ToJson op:
+                if (idx >= 0)
+                    e.WriteLine($"var __t{idx} = global::System.Text.Json.JsonSerializer.Serialize(__t{op.Value.Index}, "
+                              + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed);");
+                break;
+
+            case IrOp_FromJson op:
+            {
+                if (idx < 0) break;
+                // Never null, never throws in a tick (decision E): a bad/empty payload ⇒ new T() and __fjok = false.
+                e.WriteLine($"global::{op.TypeFqn} __t{idx} = null!;");
+                e.WriteLine($"if (!string.IsNullOrEmpty(__t{op.Json.Index}))");
+                e.WriteLine("{");
+                e.WriteLine($"    try {{ __t{idx} = global::System.Text.Json.JsonSerializer.Deserialize<global::{op.TypeFqn}>(__t{op.Json.Index}, "
+                          + "global::Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed); }");
+                e.WriteLine("    catch (global::System.Text.Json.JsonException) { }");
+                e.WriteLine("}");
+                e.WriteLine($"bool __fjok{idx} = __t{idx} != null;");
+                e.WriteLine($"__t{idx} ??= new global::{op.TypeFqn}();");
+                break;
+            }
+
+            case IrOp_FromJsonOk op:
+                if (idx >= 0) e.WriteLine($"var __t{idx} = __fjok{op.Dto.Index};");
+                break;
 
             case IrOp_MakeStruct op:
             {
@@ -466,7 +497,19 @@ internal static class StatementEmitter
 
             case IrOp_GetComponentRO op:
                 if (idx >= 0)
-                    e.WriteLine($"ref readonly var __t{idx} = ref {wv}.GetComponentRO<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                {
+                    // ⭐ CE-474 (2026-10-01): GUARDED. EntityRepository.GetComponentRO<T> THROWS (InvalidOperationException) for
+                    // an entity that lacks T, is dead, or is Entity.Null — measured — and this read is emitted BEFORE the
+                    // node's "Found" (IrOp_HasComponent) check, so a GetComponent / collection read on a Target without
+                    // the component threw instead of reporting Found = false. HasComponent<T> is safe on all three.
+                    // The fallback is a zero-initialised local, so the present case keeps its zero-copy ref and an
+                    // absent component reads as default(T) — the same contract as the managed read below.
+                    string entity = $"__t{op.Entity.Index}";
+                    string type   = $"global::{op.ComponentTypeFqn}";
+                    e.WriteLine($"var __t{idx}_absent = default({type});");
+                    e.WriteLine($"ref readonly var __t{idx} = ref ({wv}.HasComponent<{type}>({entity}) "
+                        + $"? ref {wv}.GetComponentRO<{type}>({entity}) : ref __t{idx}_absent);");
+                }
                 break;
 
             case IrOp_GetManagedComponentRO op:
@@ -481,7 +524,7 @@ internal static class StatementEmitter
                     // fail-safe/never-throw exactly like the unmanaged read, even for an arbitrary
                     // Target entity that turns out not to carry the component. HasManagedComponent<T>
                     // itself is PUBLIC and DIRECT on the concrete EntityRepository (wv) -- no interface
-                    // cast needed for the guard, only for the throwing Get.
+                    // cast needed for the guard, only for the throwing Get. (CE-474: the unmanaged read is now guarded too.)
                     string entity = $"__t{op.Entity.Index}";
                     string simView = ctx.SimulationViewVar;
                     e.WriteLine(
@@ -953,7 +996,11 @@ internal static class StatementEmitter
                 if (idx >= 0)
                 {
                     string infix = ArithmeticOperatorInfix(op.Op);
-                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} __t{op.Right.Index};");
+                    // CE-471: a C# shift count must be int -- cast, so a long/byte-typed B pin still compiles.
+                    string right = op.Op is ArithmeticOperator.ShiftLeft or ArithmeticOperator.ShiftRight
+                        ? $"(int)__t{op.Right.Index}"
+                        : $"__t{op.Right.Index}";
+                    e.WriteLine($"var __t{idx} = __t{op.Left.Index} {infix} {right};");
                 }
                 break;
 
@@ -988,7 +1035,8 @@ internal static class StatementEmitter
                 var probe = $"global::Fdp.Core.Logging.BlueprintLog.Is{op.Level}Enabled";
                 var call  = $"global::Fdp.Core.Logging.BlueprintLog.{op.Level}";
                 e.WriteLine($"if ({probe})");
-                e.WriteLine($"    {call}($\"{op.InterpolatedBody}\");");
+                // ⭐ CE-468: culture-neutral — a cs-CZ machine must still log "1.5", not "1,5".
+                e.WriteLine($"    {call}(global::System.String.Create(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\"));");
                 break;
             }
 
@@ -999,7 +1047,8 @@ internal static class StatementEmitter
                 // ever materialising a managed string.
                 if (idx < 0) break;
                 e.WriteLine($"global::System.Span<char> __fb{idx} = stackalloc char[{op.BufferChars}];");
-                e.WriteLine($"__fb{idx}.TryWrite($\"{op.InterpolatedBody}\", out int __fn{idx});");
+                // ⭐ CE-468: culture-neutral — the provider overload, so a cs-CZ machine formats "1.5", not "1,5".
+                e.WriteLine($"__fb{idx}.TryWrite(global::System.Globalization.CultureInfo.InvariantCulture, $\"{op.InterpolatedBody}\", out int __fn{idx});");
                 e.WriteLine(
                     $"var __t{idx} = new global::{op.ResultTypeFqn}(__fb{idx}.Slice(0, __fn{idx}));");
                 break;
@@ -1216,15 +1265,19 @@ internal static class StatementEmitter
 
             case IrOp_SpawnEqsSensor op:
             {
-                // Emit ECB-based spawn pattern per DESIGN §7.8
-                // Result value (idx) holds the spawned EqsSensorHandle.
-                string localHandle = idx >= 0 ? $"__t{idx}" : "_spawnHandle";
-
+                // ⭐ FIND-OR-CREATE (DESIGN_Hill_Attack_Eqs_Migration.md §4 D3) through the one shared lifecycle,
+                //    EqsChildSensor. ⭐ CE-485 (DESIGN_Behaviour_Fault_And_Teardown.md §1 D5): the baked id is the SITE
+                //    and the optional Key pin picks one sensor per key; the part id (DDS key) is allocated at runtime, the
+                //    sensor is created at once on the live world (a real Handle on the creating tick) and dies with the run.
                 string searchRadius    = op.SearchRadiusValue    is not null ? $"__t{op.SearchRadiusValue.Value.Index}"    : "0f";
                 string factionFilter   = op.FactionFilterValue   is not null ? $"__t{op.FactionFilterValue.Value.Index}"   : "0u";
                 string threatThreshold = op.ThreatThresholdValue is not null ? $"__t{op.ThreatThresholdValue.Value.Index}" : "0f";
                 string publishPolicy   = op.PublishPolicyValue   is not null ? $"(byte)__t{op.PublishPolicyValue.Value.Index}" : "(byte)0";
                 string priority        = op.PriorityValue        is not null ? $"(byte)__t{op.PriorityValue.Value.Index}"  : "(byte)0";
+                string contextSlot0    = op.ContextSlot0Value    is not null ? $"__t{op.ContextSlot0Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot1    = op.ContextSlot1Value    is not null ? $"__t{op.ContextSlot1Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string contextSlot2    = op.ContextSlot2Value    is not null ? $"__t{op.ContextSlot2Value.Value.Index}"    : "default(global::Fdp.Core.Entity)";
+                string keyArg          = op.KeyValue             is not null ? $", (long)__t{op.KeyValue.Value.Index}.PackedValue" : "";
 
                 // Declare the result handle BEFORE the scope block so it is visible downstream.
                 if (idx >= 0)
@@ -1232,16 +1285,7 @@ internal static class StatementEmitter
                 e.WriteLine("// BEGIN SpawnEqsSensorNode");
                 e.WriteLine("{");
                 e.Indent();
-                e.WriteLine($"var _spawnChild = ecb.CreateEntity();");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Replication.Components.PartMetadata");
-                e.WriteLine("{");
-                e.Indent();
-                e.WriteLine($"ParentEntity      = self,");
-                e.WriteLine($"InstanceId        = {op.BakedInstanceId},");
-                e.WriteLine($"DescriptorOrdinal = 0,");
-                e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
+                e.WriteLine($"var _sensorConfig = new global::Fdp.Toolkit.Spatial.Eqs.EqsSensor");
                 e.WriteLine("{");
                 e.Indent();
                 e.WriteLine($"BlueprintId     = {op.TemplateBlueprintIdLiteral},");
@@ -1251,11 +1295,16 @@ internal static class StatementEmitter
                 e.WriteLine($"ThreatThreshold = {threatThreshold},");
                 e.WriteLine($"PublishPolicy   = {publishPolicy},");
                 e.WriteLine($"Priority        = {priority},");
+                e.WriteLine($"ContextSlot0    = {contextSlot0},");
+                e.WriteLine($"ContextSlot1    = {contextSlot1},");
+                e.WriteLine($"ContextSlot2    = {contextSlot2},");
                 e.Outdent();
-                e.WriteLine("});");
-                e.WriteLine($"ecb.AddComponent(_spawnChild, new global::Fdp.Toolkit.Spatial.Eqs.EqsCognitiveBuffer());");
+                e.WriteLine("};");
+                string ensure = $"global::Fdp.Toolkit.Spatial.Eqs.EqsChildSensor.Ensure({wv}, self, {op.BakedInstanceId}, _sensorConfig{keyArg})";
                 if (idx >= 0)
-                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle(_spawnChild);");
+                    e.WriteLine($"__t{idx} = new global::FDP.Eqs.EqsSensorHandle({ensure});");
+                else
+                    e.WriteLine($"_ = {ensure};");
                 e.Outdent();
                 e.WriteLine("}");
                 e.WriteLine("// END SpawnEqsSensorNode");
@@ -1509,6 +1558,11 @@ internal static class StatementEmitter
         ArithmeticOperator.Multiply => "*",
         ArithmeticOperator.Divide   => "/",
         ArithmeticOperator.Modulo   => "%",
+        ArithmeticOperator.BitAnd     => "&",
+        ArithmeticOperator.BitOr      => "|",
+        ArithmeticOperator.BitXor     => "^",
+        ArithmeticOperator.ShiftLeft  => "<<",
+        ArithmeticOperator.ShiftRight => ">>",
         _ => "+",
     };
 
@@ -1656,6 +1710,9 @@ internal static class StatementEmitter
             "System.Void"     => "void",
             "Fdp.Core.Entity" => "global::Fdp.Core.Entity",
             _ when t.FullName.StartsWith("_") => t.FullName, // local generated type (synthesized struct)
+            // ⭐ CE-464: a FullName still carrying the AN2 "global::" sentinel (an enum list ELEMENT keeps the
+            //   declaration's TypeId) is already qualified — never "global::global::".
+            _ when t.FullName.StartsWith("global::", System.StringComparison.Ordinal) => t.FullName,
             _                                  => $"global::{t.FullName}",
         };
     }

@@ -1,3 +1,20 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30
+current-answer: whole document; §4.1/§4.2 carry the CE-459 end-of-attack return to baseline.
+stale-below: nothing.
+known-rot: ⚠ CE-466 (2026-09-30) replaced every combat-death IsAlive with CombatLife.IsAlive — see the note in the
+  destruction paragraph; any older text saying "IsAlive detects destruction" is superseded. ⚠ §2.3 / §4.4 baseline-slot selection ("closest unreserved") cannot give distinct slots when the baseline has
+  fewer slots than the platoon has tanks, and the staging reservation fills the mask — every attacker then retreats to the
+  same slot mid-run (CE-460 — WON'T FIX by user ruling 2026-09-30: keep the old behaviour).
+known-conflict: none.
+related-designs:
+  - docs/designs/brain-death/BD1-DESIGN.md — §1.0b: a finished behaviour is terminal and is cleared (CE-449); why the
+    return to baseline must be an explicit step here.
+  - docs/blueprints/Architect_Question_8_Wave_Core.md — the wave core rulings this doctrine's blueprint twin follows.
+  - docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — owns the blueprint rebuild of this
+    doctrine (CE-464); this document stays its spec, CE-460 quirk included.
+-->
 # Hill Attack Group Behavior — Design
 
 ## Overview
@@ -290,7 +307,7 @@ action is preempted or returns `Failure`.
 local `Entity`, writes it to `WeaponChannel`, then returns `NodeStatus.Running` while
 the weapon channel reports the engagement in progress. It returns `NodeStatus.Success`
 when either the weapon channel confirms the engagement concluded OR
-`!repo.IsAlive(targetEntity)` — because standard executors do not natively detect target
+the target is knocked out (`!CombatLife.IsAlive`, `CE-466`) — because standard executors do not natively detect target
 destruction and would leave the node stuck in `Running` indefinitely.
 
 `Action_ReverseToBaseline` writes the reverse locomotion intent to `LocomotionChannel`.
@@ -327,13 +344,30 @@ tank spacing, target area) and drives the platoon through:
    d. Monitor the wave until all dispatched tanks have finished their run or died.
    e. Toggle the wave index.
 
-If a tank is destroyed mid-wave, its firing slot is permanently burned
+If a tank is knocked out mid-wave, its firing slot is permanently burned
 (`BurnedSlotsMask`) and its baseline slot is freed (`BaselineReservedMask`).
-The SoA tracker detects destruction via `EntityRepository.IsAlive` with O(1)
+The SoA tracker detects it via `CombatLife.IsAlive` (`Fdp.Toolkit.Combat`) with O(1)
 swap-remove.
 
-When no targets remain, the Repeater propagates `NodeStatus.Failure` to the root
-and `BrainTickSystem`'s BTree arm publishes `BehaviorFinishedEvent(Success)`.
+> ⭐ **`CE-466` (`2026-09-30`) — "alive" means `Health.Current > 0`, not ECS existence.** Since the `CE-267`
+> revert (`2026-09-13`) a knocked-out unit keeps its body in the world, so `EntityRepository.IsAlive` stays true
+> for it. `CombatLife.IsAlive(view, e)` is both halves: the entity exists **and**, if it has `Health`, HP is
+> above zero. Used at every doctrine site that means combat death — dispatch to baseline, the arrived check
+> (a knocked-out tank counts as arrived), wave candidates, the target and the attacker tracker — and by the tank's
+> `Action_AimAndFireSpecific` (a knocked-out target ends the engagement). The target AREA stays a plain existence
+> check: an area is not a unit. ⛔ HISTORY: every one of these used `IsAlive`, which after the revert could no
+> longer see a knocked-out tank — the "burn the slot" branch was unreachable. Rails: `CE466_*` in
+> `HillAttackNodeTests`.
+
+When no targets remain, the Repeater propagates `NodeStatus.Failure`; a `ForceSuccess` around it turns that normal exit
+into Success, the commander sends every subordinate back to its baseline staging slot (`Action_DispatchAllToBaseline`
+again) and waits for arrival (`Condition_AreAllAtBaseline`), then the tree ends with Success and `BrainTickSystem`
+publishes `BehaviorFinishedEvent`.
+
+> ⭐ **`CE-459` (`2026-09-30`) — why the return is explicit.** Measured live (`hill-attack-close`, `--mode all`): before
+> `CE-449` the platoon ended "on the baseline" only because a finished tree RE-RAN from its root, and the re-run's
+> `DispatchAllToBaseline` re-staged every tank. `CE-449` made finishing terminal (user ruling), so nothing re-staged the
+> platoon and it stopped wherever the last retreat left it. The return is now a step of the doctrine, not a side effect.
 
 ### 4.2 BTree Topology
 
@@ -342,12 +376,15 @@ Sequence
   Action_CalculateSegments          // computes TotalSlots, inits masks
   Action_DispatchAllToBaseline      // sends MoveToLocation intent to all subordinates
   Condition_AreAllAtBaseline        // blocks until all tanks report NavigationStatus.Result == Arrived
-  Repeater(-1)
-    Sequence
-      Action_RequestAreaQuery       // submits EQS request; caches RequestId in mutable state
-      Condition_IsAreaQueryResolved // polls batch; Running->Success (targets found) / Failure (0 targets)
-      Action_DispatchWaveWithTargets // distributes targets + slots, dispatches HullDownAttack intents
-      Condition_IsWaveCompleted     // blocks until all active attackers done/dead
+  ForceSuccess                      // CE-459: area clear (the loop's Failure) is the normal exit
+    Repeater(-1)
+      Sequence
+        Action_RequestAreaQuery       // submits EQS request; caches RequestId in mutable state
+        Condition_IsAreaQueryResolved // polls batch; Running->Success (targets found) / Failure (0 targets)
+        Action_DispatchWaveWithTargets // distributes targets + slots, dispatches HullDownAttack intents
+        Condition_IsWaveCompleted     // blocks until all active attackers done/dead
+  Action_DispatchAllToBaseline      // CE-459: return every subordinate to its baseline staging slot
+  Condition_AreAllAtBaseline        // CE-459: wait until all are back, then the behaviour finishes
 ```
 
 ### 4.3 Node Attribute Requirements
@@ -392,7 +429,7 @@ After dispatch, toggle `CurrentWave`.
 ### 4.5 Wave Completion Check
 
 `Condition_IsWaveCompleted` iterates the SoA tracker backwards:
-- If `!repo.IsAlive(attacker)`: permanently set `BurnedSlotsMask` bit; clear
+- If `!CombatLife.IsAlive(attacker)` (knocked out or gone — `CE-466`): permanently set `BurnedSlotsMask` bit; clear
   `BaselineReservedMask` bit; swap-remove the entry from the SoA arrays.
 - If alive and `HasStartedRun[i] == 0`: check if
   `BehaviorState.ActiveBehaviorHash == HullDownAttackRun` hash. If so, set

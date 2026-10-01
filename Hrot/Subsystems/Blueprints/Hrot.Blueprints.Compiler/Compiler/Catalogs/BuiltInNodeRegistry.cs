@@ -87,6 +87,12 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         // Not is the one-operand case (A in, Result out only).
         BooleanOpNode    => ComparePins(),
         NotNode          => NotPins(),
+        // CE-470: one float out-pin, no inputs, no exec.
+        GetTimeNode      => new[] { new PinSchema("Value", "Out", false, "System.Single") },
+        // CE-472: exec skeleton; Stage0_Rehydrate adds Target + one pin per baked DTO member.
+        SendIntentNode   => new[] { ExecIn(), ExecOut() },
+        ToJsonNode       => Array.Empty<PinSchema>(),   // pure; Stage0 enriches from Fields
+        FromJsonNode     => Array.Empty<PinSchema>(),
 
         // FunctionCall: static exec skeleton; Stage0_Rehydrate fills data pins.
         FunctionCallNode fc when !fc.IsPure => new[] { ExecIn(), ExecOut() },
@@ -186,8 +192,36 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         ArrayMakeNode am          => ArrayMakePins(am),
         ArrayGetNode              => ArrayGetPins(),
 
-        ReadEqsResultNode         => Array.Empty<PinSchema>(),
-        SpawnEqsSensorNode        => new[] { ExecIn(), ExecOut() },
+        // ⭐ EQS nodes: FULL static schemas, mirroring the palette (WhenNodePaletteEntries) in order.
+        //    Blueprints are saved pin-less and rebuilt from here, so an exec-only / empty schema made
+        //    every data pin — and every link to it — vanish on save + reload (design EQS §17.4).
+        //    ⚠ New pins go at the END of their direction: legacy links bind positionally.
+        ReadEqsResultNode         => new[]
+        {
+            Data("Handle",      "In",  "FDP.Eqs.EqsSensorHandle"),
+            Data("ResultIndex", "In",  "System.Int32"),
+            Data("IsReady",     "Out", "System.Boolean"),
+            Data("ResultCount", "Out", "System.Int32"),
+            Data("Entity",      "Out", "Fdp.Core.Entity"),
+            Data("Position",    "Out", "System.Numerics.Vector2"),
+            Data("Score",       "Out", "System.Single"),
+        },
+        SpawnEqsSensorNode        => new[]
+        {
+            ExecIn(),
+            ExecOut(),
+            Data("SearchRadius",    "In",  "System.Single"),
+            Data("FactionFilter",   "In",  "System.UInt32"),
+            Data("ThreatThreshold", "In",  "System.Single"),
+            Data("PublishPolicy",   "In",  "System.Byte"),
+            Data("Priority",        "In",  "System.Byte"),
+            Data("Handle",          "Out", "FDP.Eqs.EqsSensorHandle"),
+            Data("ContextSlot0",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot1",    "In",  "Fdp.Core.Entity"),
+            Data("ContextSlot2",    "In",  "Fdp.Core.Entity"),
+            // ⭐ CE-485: one sensor per KEY from a single spawn node (e.g. one per area in a loop). Unconnected ⇒ key 0.
+            Data("Key",             "In",  "Fdp.Core.Entity"),
+        },
         ScoreDecisionNode         => ScoreDecisionPins(),
         ReadRankedResultNode      => ReadRankedResultPins(),
         PartitionElementsNode     => new[] { ExecIn(), ExecOut() },
@@ -247,12 +281,13 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Result", "Out", false, ""),
         };
 
-    /// <summary>Cast: exec In/Out + data-In "In"/System.Object + data-Out "Out"/TargetTypeId.</summary>
+    /// <summary>Cast: data-In "In"/System.Object + data-Out "Out"/TargetTypeId — a PURE node.</summary>
+    /// <remarks>⭐ <c>CE-475</c>: it had exec In/Out pins, but every lowering of it is pure — Stage 3's synthesized
+    /// coercion casts carry no exec pins, Stage 5 lowers it only in the pure arm, the emitter writes a native C# cast.
+    /// Wired into an exec chain it was dropped with a <c>BP4004</c> and the chain walked on without it.</remarks>
     private static IReadOnlyList<PinSchema> CastPins(CastNode ca)
         => new[]
         {
-            new PinSchema("In",  "In",  true,  ""),
-            new PinSchema("Out", "Out", true,  ""),
             new PinSchema("In",  "In",  false, "System.Object"),
             new PinSchema("Out", "Out", false,
                 string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),

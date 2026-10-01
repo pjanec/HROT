@@ -51,6 +51,10 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BinaryOpNode),           "BinaryOp")]
 [JsonDerivedType(typeof(BooleanOpNode),          "BooleanOp")]
 [JsonDerivedType(typeof(NotNode),                "Not")]
+[JsonDerivedType(typeof(GetTimeNode),            "GetTime")]
+[JsonDerivedType(typeof(SendIntentNode),         "SendIntent")]
+[JsonDerivedType(typeof(ToJsonNode),             "ToJson")]
+[JsonDerivedType(typeof(FromJsonNode),           "FromJson")]
 [JsonDerivedType(typeof(PrintStringNode),        "PrintString")]
 [JsonDerivedType(typeof(FormatStringNode),       "FormatString")]
 [JsonDerivedType(typeof(MakeStructNode),         "MakeStruct")]
@@ -469,6 +473,14 @@ public enum ArithmeticOperator
     Multiply,
     Divide,
     Modulo,
+    // ⭐ CE-471 — bitwise/shift, integer operands only (BP1678). Appended: the enum is persisted by value.
+    // BitAnd/BitOr/BitXor also accept a [Flags] enum (C# defines & | ^ on enums); shifts need an integer.
+    // ⚠ No unary BitNot: BinaryOp is A/B-shaped; `A ^ AllOnes` covers it (see BinaryOp_And_Boolean_Nodes_Design.md).
+    BitAnd,
+    BitOr,
+    BitXor,
+    ShiftLeft,
+    ShiftRight,
 }
 
 /// <summary>Boolean logic operator for the native <see cref="BooleanOpNode"/>.</summary>
@@ -843,7 +855,7 @@ public sealed class CompareNode : Node
 /// </summary>
 public sealed class BinaryOpNode : Node
 {
-    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo).</summary>
+    /// <summary>Which arithmetic operation to perform (Add/Subtract/Multiply/Divide/Modulo, and the CE-471 bit/shift operators).</summary>
     public ArithmeticOperator Operator { get; set; }
 }
 
@@ -886,6 +898,63 @@ public sealed class BooleanOpNode : Node
 /// </summary>
 public sealed class NotNode : Node
 {
+}
+
+/// <summary>⭐ <c>CE-470</c> — which clock a <see cref="GetTimeNode"/> reads.</summary>
+public enum TimeKind
+{
+    /// <summary>Simulation time in seconds (the emitted method's <c>time</c>).</summary>
+    SimTime,
+    /// <summary>This frame's step in seconds (the emitted method's <c>deltaTime</c>).</summary>
+    DeltaTime,
+}
+
+/// <summary>
+/// ⭐ <c>CE-470</c> — <i>Get Sim Time</i> / <i>Get Delta Time</i>: a pure data node with one <c>System.Single</c>
+/// "Value" out-pin, lowered to the existing <c>IrOp_Time</c> / <c>IrOp_DeltaTime</c> (the ops the <c>Wait</c>
+/// lowering already emits). Refused with <c>BP1679</c> where the value is not in scope — see
+/// <c>docs/blueprints/Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md</c> §8.
+/// </summary>
+public sealed class GetTimeNode : Node
+{
+    public TimeKind Kind { get; set; }
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// ⭐ CE-472 — typed Send Intent + To JSON / From JSON.
+// 📄 docs/blueprints/DESIGN_Typed_Intent_And_Json_Nodes.md (§3 diagrams, §4 decisions A–F).
+// All three carry the DTO's FQN + its baked members (the editor reflects the [BehaviorContract] class; the
+// compiler only reads these strings). The DTO value never appears on a wire — decision B.
+// ──────────────────────────────────────────────────────────────────────────
+
+/// <summary>
+/// Exec node: builds the intent's parameter DTO from one data-in pin per member, serialises it with the shared
+/// JSON settings and publishes <c>AssignTacticalIntentEvent { Entity = Target (default self), IntentId, JsonParams }</c>.
+/// Keyed by the INTENT id (decision A) — the receiver's mapper picks the behaviour.
+/// </summary>
+public sealed class SendIntentNode : Node
+{
+    /// <summary>The intent id published as <c>AssignTacticalIntentEvent.IntentId</c> (== the DTO's <c>[BehaviorContract]</c> id).</summary>
+    public string IntentId { get; set; } = "";
+    /// <summary>FQN of the <c>[BehaviorContract]</c> parameter DTO.</summary>
+    public string DtoTypeFqn { get; set; } = "";
+    /// <summary>The DTO members exposed as pins (name + pin TypeId).</summary>
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: one data-in per DTO member → a <c>System.String</c> "Json" out (the shared JSON settings).</summary>
+public sealed class ToJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
+}
+
+/// <summary>Pure: a <c>System.String</c> "Json" in → one data-out per DTO member + "Ok" (false on bad input,
+/// members then default — decision E; it never throws in a tick).</summary>
+public sealed class FromJsonNode : Node
+{
+    public string DtoTypeFqn { get; set; } = "";
+    public List<StructFieldDecl> Fields { get; set; } = new();
 }
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -1101,9 +1170,9 @@ public sealed class FlowForEachNode : Node
 {
     /// <summary>FQN of the ECS component read off self that holds the collection (e.g. "Fdp.Core.CommandHierarchy.UnitRoster").</summary>
     public string SourceComponentFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Count").</summary>
+    /// <summary>FQN of a static <c>int Count(in T)</c> helper giving the element count (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count").</summary>
     public string CountAccessorFqn { get; set; } = "";
-    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Hrot.AI.Behaviors.Brains.UnitRosterOps.Subordinate").</summary>
+    /// <summary>FQN of a static <c>Entity Item(in T, int i)</c> helper giving the i-th element (e.g. "Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Item").</summary>
     public string ItemAccessorFqn { get; set; } = "";
 }
 

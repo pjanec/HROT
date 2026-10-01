@@ -183,7 +183,7 @@ noted. All are named constants in code (cite shown).
 | Mission plan phases | **8** | excess tasks dropped + Warn | `FDP/Toolkits/Fdp.Toolkits/Behavior/Components/MissionComponents.cs:143` |
 | Tracked targets (`TargetMemory`/`SensorContactList`) | **16** | lowest-score evicted / dropped | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:11` |
 | Perception broadphase candidates / observer / tick | **256** | dropped from LOS this tick | `FDP/Toolkits/Fdp.Toolkits/Perception/Systems/VisionBroadphaseSystem.cs:46` |
-| Perception grid footprint | **1000 m × 1000 m, ≤50 000 entities** | not perceived | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:44,57` |
+| Perception grid footprint | **1000 m × 1000 m, ≤50 000 entities** — anchored at the world origin, so only x, y ∈ [0, 1000) m; negative coordinates are outside it. The old `AreaQuery` inherits it; EQS `EntitiesOfForceInArea` does not (`EqsDistributedTests` T-DIS10) | not perceived | `FDP/Toolkits/Fdp.Toolkits/Perception/PerceptionConstants.cs:44,57` |
 | Sensor track-lost debounce | **20 perception ticks (~2 s @10 Hz)** | not configurable | `FDP/Toolkits/Fdp.Toolkits/Perception/Systems/SensorTrackDebounceSystem.cs:40` |
 | EQS Top-K per result | **16** | — | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsResultPool.cs:17` |
 | EQS in-flight result pool | **1024** | ring overwrite before egress | `FDP/Toolkits/Fdp.Toolkits/Spatial/Eqs/EqsResultPool.cs:18` |

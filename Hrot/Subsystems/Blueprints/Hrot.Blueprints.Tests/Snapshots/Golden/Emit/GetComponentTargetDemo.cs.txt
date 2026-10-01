@@ -65,7 +65,8 @@ public static class GetComponentTargetDemo_C263C82C_Bp
         uint instanceVersion)
     {
         var __t0 = s.TargetEntity;
-        ref readonly var __t1 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpComponentDemo>(__t0);
+        var __t1_absent = default(global::Hrot.AI.Behaviors.BpComponentDemo);
+        ref readonly var __t1 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpComponentDemo>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Hrot.AI.Behaviors.BpComponentDemo>(__t0) : ref __t1_absent);
         var __t2 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Hrot.AI.Behaviors.BpComponentDemo>(__t0);
         var __t3 = __t1.Health;
         var __t4 = __t1.Ammo;

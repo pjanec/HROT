@@ -123,7 +123,7 @@ namespace Fdp.Toolkits.Tests.Squad.Maneuvers
                 repo.AddComponent(members[i], new NavigationStatus());
                 repo.AddComponent(members[i], new UnitSubordinate { Commander = commander });
                 ref var roster = ref repo.GetComponentRW<UnitRoster>(commander);
-                UnitRoster.Add(ref roster, (long)members[i].PackedValue);
+                UnitRoster.Add(ref roster, members[i]);
             }
             return (repo, commander, members);
         }

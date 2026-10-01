@@ -70,7 +70,8 @@ public sealed class EqsChildSensorActionTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 return candidate;
         }
         return Entity.Null;
@@ -83,15 +84,16 @@ public sealed class EqsChildSensorActionTests : IDisposable
         foreach (var candidate in query)
         {
             var meta = _repo.GetComponent<PartMetadata>(candidate);
-            if (meta.ParentEntity.Equals(parent) && meta.InstanceId == instanceId)
+            if (meta.ParentEntity.Equals(parent) && _repo.HasComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate)
+                && _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(candidate).SiteId == instanceId)
                 count++;
         }
         return count;
     }
 
-    // Computes the same deterministic localChildIndex used by Action_SpawnEqsSensorChild.
-    private static int LocalChildIndex(Entity parent, byte slot)
-        => (int)(((uint)parent.Index << 8) | slot);
+    // ⭐ CE-485: the node's sensor is identified by its SITE (= ChildSlotIndex, the BehaviorOwnedPart stamp); the part id
+    //   (PartMetadata.InstanceId, the DDS key) is allocated. The old (Index << 8) | slot part id is retired.
+    private static int LocalChildIndex(Entity parent, byte slot) => slot;
 
     // Default spawn params for a given slot.
     private EqsSpawnParams MakeParams(byte slot = 0) => new EqsSpawnParams
@@ -129,7 +131,8 @@ public sealed class EqsChildSensorActionTests : IDisposable
 
         var meta = _repo.GetComponent<PartMetadata>(child);
         Assert.Equal(_parent, meta.ParentEntity);
-        Assert.Equal(expectedInstanceId, meta.InstanceId);
+        Assert.Equal(expectedInstanceId, _repo.GetComponent<Fdp.Toolkit.Behavior.Components.BehaviorOwnedPart>(child).SiteId);
+        Assert.True(meta.InstanceId >= 1, "CE-485: an allocated part id (>= 1).");
 
         var sensor = _repo.GetComponent<EqsSensor>(child);
         Assert.Equal(p.SensorConfig.BlueprintId, sensor.BlueprintId);

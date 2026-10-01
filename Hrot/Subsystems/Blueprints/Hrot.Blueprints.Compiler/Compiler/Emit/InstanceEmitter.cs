@@ -316,12 +316,15 @@ internal static class InstanceEmitter
         e.WriteLine("foreach (var __prop in __doc.RootElement.EnumerateObject())");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("switch (__prop.Name)");
+        // ⭐ CE-464: keys match CASE-INSENSITIVELY, like __ParamJsonOptions (PropertyNameCaseInsensitive) and the curated
+        //   DTO parsers — a scenario authored "firingLineStart" must fill FiringLineStart. ⛔ It matched exactly, so a
+        //   camelCase key was silently dropped as "unknown" and the parameter kept its default.
+        e.WriteLine("switch (__prop.Name.ToLowerInvariant())");
         e.WriteLine("{");
         e.Indent();
         foreach (var f in asset.Parameters)
         {
-            e.WriteLine($"case \"{f.Name}\":");
+            e.WriteLine($"case \"{f.Name.ToLowerInvariant()}\":");
             e.Indent();
             e.WriteLine($"p.{f.Name} = global::System.Text.Json.JsonSerializer.Deserialize<{CSharpType(f.Type)}>(");
             e.WriteLine("    __prop.Value.GetRawText(), __ParamJsonOptions)!;");
@@ -673,6 +676,35 @@ internal static class InstanceEmitter
     private static string CSharpType(IrTypeRef t) => StatementEmitter.TypeRefToCSharp(t);
 
     /// <summary>
+    /// ⭐ Every statement of every graph — INCLUDING those nested in a loop body (<see cref="IrOp_ForEach.Body"/>) or a branch
+    /// (<see cref="IrOp_If.Then"/> / <see cref="IrOp_If.Else"/>). 🔴 The helper collectors used to walk only the top-level
+    /// block statements, so a <c>Read EQS Result</c> inside a <c>For Each</c> body got a call site and NO helper — CS0103 in
+    /// the real generator build (found by <c>PlatoonHillAttackBp</c>'s EQS migration, <c>DESIGN_Hill_Attack_Eqs_Migration.md</c> §6).
+    /// </summary>
+    private static IEnumerable<IrStatement> AllStatements(IrAsset asset)
+    {
+        foreach (var graph in asset.Graphs)
+        foreach (var block in graph.Blocks)
+        foreach (var stmt in Descend(block.Statements))
+            yield return stmt;
+
+        static IEnumerable<IrStatement> Descend(IReadOnlyList<IrStatement> statements)
+        {
+            foreach (var stmt in statements)
+            {
+                yield return stmt;
+                var nested = stmt.Operation switch
+                {
+                    IrOp_ForEach fe => Descend(fe.Body),
+                    IrOp_If br      => Descend(br.Then).Concat(Descend(br.Else)),
+                    _               => Enumerable.Empty<IrStatement>(),
+                };
+                foreach (var inner in nested) yield return inner;
+            }
+        }
+    }
+
+    /// <summary>
     /// Collects all unique IrOp_WhenConditionMetCheck operations across all graphs.
     /// Returns list of (id8, predicateJson) pairs, deduplicated by SynthFieldName.
     /// </summary>
@@ -681,9 +713,7 @@ internal static class InstanceEmitter
         var result = new List<(string, string)>();
         var seen   = new HashSet<string>();
 
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_WhenConditionMetCheck op) continue;
             if (!seen.Add(op.SynthFieldName)) continue;
@@ -760,9 +790,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_WhenEqsResultCheck>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_WhenEqsResultCheck op) continue;
             if (!seen.Add(op.SynthFieldName)) continue;
@@ -834,9 +862,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ReadEqsResult>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ReadEqsResult op) continue;
             if (!seen.Add(op.NodeId8)) continue;
@@ -919,9 +945,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ScoreDecision>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ScoreDecision op) continue;
             if (!seen.Add(op.NodeId8)) continue;
@@ -934,9 +958,7 @@ internal static class InstanceEmitter
     {
         var result = new List<IrOp_ReadRankedResult>();
         var seen   = new HashSet<string>();
-        foreach (var graph in asset.Graphs)
-        foreach (var block in graph.Blocks)
-        foreach (var stmt  in block.Statements)
+        foreach (var stmt in AllStatements(asset))
         {
             if (stmt.Operation is not IrOp_ReadRankedResult op) continue;
             if (!seen.Add(op.NodeId8)) continue;

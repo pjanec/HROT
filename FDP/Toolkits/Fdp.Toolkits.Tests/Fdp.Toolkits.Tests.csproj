@@ -18,6 +18,8 @@
     <ProjectReference Include="..\..\..\Hrot\Subsystems\Hrot.AI.Behaviors\Hrot.AI.Behaviors.csproj" />
     <!-- Non-analyzer reference: exposes GizmoRegistrarGenerator class for unit testing. -->
     <ProjectReference Include="..\Fdp.Toolkits.Analyzers\Fdp.Toolkits.Analyzers.csproj" />
+    <!-- CE-467: CollectionOpsGenerator now lives here (CollectionOpsGeneratorTests drives it directly). -->
+    <ProjectReference Include="..\..\Engine\Fdp.Core.Generators\Fdp.Core.Generators.csproj" />
     <!-- Non-analyzer reference: exposes TkbDescriptorGenerator class for unit testing. -->
     <ProjectReference Include="..\Fdp.Toolkit.Tkb.SourceGen\Tkb.SourceGen.csproj" />
     <!-- GZH-006: StructInspectorProjector tests need real IComponentEditService impl. -->

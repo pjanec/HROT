@@ -91,10 +91,12 @@ Registered test component/event types are defined in `MockTestTypes.cs`:
 
 #### `MockEntityCommandBuffer`
 
-Implements `IEntityCommandBuffer` by immediately applying structural ECS mutations
-(create entity, add/remove components, set component data) to the backing
-`EntityRepository`. Deferred semantics are not simulated; all writes take effect on
-the next component read within the same test.
+Implements `IEntityCommandBuffer` with the SAME deferred semantics as `Fdp.Core.EntityCommandBuffer`
+(`CE-494`, `2026-10-01`): every op is recorded and applied at `Playback(repo)` — in `BlueprintTestFixture`,
+the Sync phase of `TickFrame`. `CreateEntity()` returns a negative-index **placeholder** that becomes a real
+entity only at playback; `LastPlayback.Resolve(handle)` maps it for assertions. ⚠ It used to create eagerly
+(and the text here said writes applied immediately — wrong even then), which let a blueprint use a fresh
+spawn handle in the same frame and hid `CE-479`.
 
 #### `MockDispatcherSystem`
 

@@ -160,5 +160,32 @@ namespace Fdp.Toolkit.Behavior.Components
 
         /// <summary>Elapsed simulation time (seconds) for the current phase's <see cref="MissionTrigger.TimerElapsed"/> trigger.</summary>
         public float PhaseElapsedSeconds;
+
+        /// <summary>⭐ <c>CE-483</c>: how each phase ended (index = phase). Read with a <c>Span&lt;MissionPhaseOutcome&gt;</c>
+        /// cast — the same InlineArray rule as <see cref="Phases"/>. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
+        public MissionPhaseOutcomeBuffer Outcomes;
+
+        /// <summary>⭐ <c>CE-483</c>: non-zero when the current phase's behaviour FAULTED — the plan waits for an operator command
+        /// (a jump or a new plan) instead of advancing. 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D3.</summary>
+        public byte Halted;
+    }
+
+    /// <summary>⭐ <c>CE-483</c>: how a mission phase ended (maps onto the wire's <c>eTaskState</c>).</summary>
+    public enum MissionPhaseOutcome : byte
+    {
+        /// <summary>Not ended yet (planned or active).</summary>
+        None   = 0,
+        /// <summary>Ended normally (<c>TASK_DONE</c>).</summary>
+        Done   = 1,
+        /// <summary>Its behaviour failed or faulted (<c>TASK_FAILED</c>).</summary>
+        Failed = 2,
+    }
+
+    /// <summary>⭐ <c>CE-483</c>: one <see cref="MissionPhaseOutcome"/> per phase. ⚠ Same defensive-copy rule as
+    /// <see cref="MissionPhaseBuffer"/> — mutate through a <c>Span</c> cast or Get ➔ Mutate ➔ SetComponent.</summary>
+    [InlineArray(MissionPlanQueue.MaxPhases)]
+    public struct MissionPhaseOutcomeBuffer
+    {
+        private MissionPhaseOutcome _element;
     }
 }

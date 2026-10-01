@@ -283,11 +283,16 @@ public sealed class EditorHarness : IDisposable
         var scenarioMod      = new ScenarioEditorModule(fileService);
         var simHostMod       = new Fdp.ModuleHost.Scheduling.SingleSystemModule("NetworkSpawning", spawnSys);
 
-        Kernel.RegisterModule(new CognitiveSpatialModule(Repo));
+        Kernel.RegisterModule(new CognitiveSpatialModule());
         Kernel.RegisterModule(scenarioMod);
         Kernel.RegisterModule(elm);
         Kernel.RegisterModule(simHostMod);
         Kernel.RegisterModule(new Hrot.SimHost.Modules.EqsModule());
+        // ⭐ CE-493: CE-221 (2026-09-07) moved EqsResultUpdateSystem and UnitHierarchySystem out of the role packs into
+        //   node capabilities. This harness wires the packs by hand, so it must install them as every production host does
+        //   (EditorCapabilities) — without it the solver answers and NOTHING writes EqsCognitiveBuffer.
+        Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("EqsResultUpdate", new Hrot.SimHost.Systems.EqsResultUpdateSystem()));
+        Kernel.RegisterModule(new Fdp.ModuleHost.Scheduling.SingleSystemModule("UnitHierarchy", new Hrot.Common.Systems.UnitHierarchySystem()));
         Kernel.RegisterGlobalSystem(new Hrot.SimHost.Systems.GenesisMaterializationSystem(EntityMap));
 
         // ⭐⭐⭐ CE-193 — the DATA BREAKPOINT tier, mirroring EditorSubsystem.cs:1535-1561.

@@ -131,7 +131,7 @@ public sealed class VariableValueFormatterTests
     /// <summary>
     /// 🔴 <b>The formatter does NOT inherit the Watch buffer's 64-byte limit.</b>
     /// <c>Watch._valueBuffer</c> is <c>new byte[64]</c> and <c>WriteValue</c> THROWS above it, so
-    /// <c>MemberSlotList</c> (96), <c>WaveState</c> (104) and <c>HillAttackSharedState</c> (136) cannot
+    /// any struct over 64 bytes (e.g. <c>Fdp.Core.FixedString128</c>, 128) cannot
     /// go through that carrier. ⇒ this asserts the limit is a property of that carrier, not of
     /// rendering — 136 bytes in, no throw.
     /// </summary>

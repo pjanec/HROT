@@ -65,8 +65,10 @@ public sealed class ResolverWorldReachTests
     /// <summary>
     /// ⭐⭐⭐ <b><c>A2</c> + <c>A3</c> — a CLR call inside a resolver receives <c>self</c> AND the view.</b>
     /// <para>
-    /// ⭐ <c>HasTarget(uint, Entity self, ISimulationView view)</c> takes BOTH, so one node covers both rows, and it
-    /// is a real shipped helper. Its result lands in a block Variable — a resolver declares no outputs (BP1677).
+    /// ⭐ <c>BlueprintWorldLibrary.RandomInt(int, int, int, Entity self, ISimulationView view)</c> takes BOTH, so one
+    /// node covers both rows, and it is a real shipped built-in. Its result lands in a block Variable — a resolver
+    /// declares no outputs (BP1677). (Was the hill-attack <c>HillAssault2TankOps.HasTarget</c>, retired with the
+    /// <c>HillAssault2_*</c> twins, <c>2026-10-01</c>.)
     /// </para>
     /// </summary>
     [Fact]
@@ -76,12 +78,13 @@ public sealed class ResolverWorldReachTests
             .WithGraph("Resolve", GraphKind.Construction, g => g
                 .Entry()
                 .PureCallReturning(
-                    "Hrot.AI.Behaviors.Brains.HillAssault2TankOps", "HasTarget", "System.Boolean",
-                    FunctionCallContextKind.SelfAndView, ("targetNetworkId", "System.UInt32"))
-                .SetVariable("Found", "")
+                    "Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary", "RandomInt", "System.Int32",
+                    FunctionCallContextKind.SelfAndView,
+                    ("minInclusive", "System.Int32"), ("maxExclusive", "System.Int32"), ("salt", "System.Int32"))
+                .SetVariable("Roll", "")
                 .Return())));
 
-        Assert.Contains("HillAssault2TankOps.HasTarget(", src);
+        Assert.Contains("BlueprintWorldLibrary.RandomInt(", src);
         // ⭐ `self` then the view, in that order — AppendContextArgs' documented contract.
         Assert.Contains(", self, world)", src);
     }
@@ -110,7 +113,7 @@ public sealed class ResolverWorldReachTests
     /// <summary>A behaviour resolver asset: a Library with a <c>ResolverSubject</c> and one block Variable.</summary>
     private static BlueprintAsset Subject(Func<BlueprintAssetBuilder, BlueprintAssetBuilder> graphs)
     {
-        var asset = graphs(BlueprintAssetBuilder.Library("WorldReachResolver").WithVariable("Found", typeof(bool)))
+        var asset = graphs(BlueprintAssetBuilder.Library("WorldReachResolver").WithVariable("Found", typeof(bool)).WithVariable("Roll", typeof(int)))
             .Build();
         asset.ResolverSubject = new ResolverSubjectDecl { BehaviorName = "SomeBehaviour", BlockTypeId = BlockTypeId };
         return asset;

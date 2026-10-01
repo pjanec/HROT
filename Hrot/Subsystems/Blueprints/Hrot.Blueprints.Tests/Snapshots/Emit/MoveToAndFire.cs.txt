@@ -85,7 +85,8 @@ public static class MoveToAndFire_649F8F53_Bp
         
         __block_phase1_channel_check:
         var __t4 = self;
-        ref readonly var __t5 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4);
+        var __t5_absent = default(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel);
+        ref readonly var __t5 = ref (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4) ? ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t4) : ref __t5_absent);
         var __t6 = __t5.Status;
         var __t7 = global::Fbt.NodeStatus.Running;
         var __t8 = ((int)__t6 == (int)__t7);
@@ -99,7 +100,8 @@ public static class MoveToAndFire_649F8F53_Bp
         
         __block_phase1_not_running:
         var __t9 = self;
-        ref readonly var __t10 = ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9);
+        var __t10_absent = default(global::Fdp.Toolkit.Behavior.Components.LocomotionChannel);
+        ref readonly var __t10 = ref (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9) ? ref world.GetComponentRO<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(__t9) : ref __t10_absent);
         var __t11 = __t10.Status;
         var __t12 = global::Fbt.NodeStatus.Failure;
         var __t13 = ((int)__t11 == (int)__t12);

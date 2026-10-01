@@ -133,4 +133,52 @@ public sealed class BTreeContributorDebugSessionTests
         // Session should reflect the latest SetDebugMetadata call.
         session.TrySymbolicateIndex(0).Should().Be(id2);
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — an entity's nodes are named from the tree its interpreter RUNS (the behaviour registry — the same
+    /// lookup the inspector's tree view uses), not from whichever tree the catalogue registered last.
+    /// 🔴 Measured live on a headless cluster: the catalogue registers every compiled tree through the single slot, so the
+    /// C# hill-attack commander traced with <c>activeNode</c> null and every <c>nodeVisualId</c> <c>Guid.Empty</c>.
+    /// 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §4.
+    /// </summary>
+    [Fact]
+    public void AnEntityIsNamedFromTheTreeItRuns_NotTheLastOneRegistered()
+    {
+        var running = new Guid("11111111-0000-0000-0000-000000000001");
+        var other   = new Guid("22222222-0000-0000-0000-000000000002");
+
+        var runningBlob = MakeBlob("TreeA", new[] { new NodeDebugMetadata { VisualId = running.ToString("D") } });
+        runningBlob.Nodes       = new[] { new NodeDefinition { Type = NodeType.Action, RawPayloadIndex = 0, SubtreeOffset = 1 } };
+        runningBlob.MethodNames = new[] { "Run" };
+        var actions = new Fbt.Runtime.ActionRegistry<byte, Fdp.Toolkit.Behavior.BTreeContext>();
+        actions.Register("Run", (ref byte _, ref BehaviorTreeState _, ref Fdp.Toolkit.Behavior.BTreeContext _, int _) => NodeStatus.Running);
+        var behaviors = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+        behaviors.Register("TreeA", new Fdp.Toolkit.Behavior.BehaviorDefinition
+        {
+            Name             = "TreeA",
+            BrainTier        = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, Fdp.Toolkit.Behavior.BTreeContext>(runningBlob, actions),
+        });
+
+        var session = new BTreeDebugSession(coordinator: null, behaviors);
+        // The catalogue's last registration is ANOTHER tree — the single slot now names TreeB's nodes.
+        new BTreeAssetContributor(session).RegisterBlob(
+            MakeBlob("TreeB", new[] { new NodeDebugMetadata { VisualId = other.ToString("D") } }), "TreeB");
+
+        var world  = CreateWorld();
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new Fdp.Toolkit.Behavior.Components.BehaviorState
+        {
+            ActiveBehaviorHash = Fdp.Toolkit.Behavior.BehaviorHash.FromName("TreeA"),
+            BrainTier          = Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBTree,
+        });
+        Fdp.Toolkit.Behavior.RootStateAccess.EnsureRootState(world, entity);
+        Fdp.Toolkit.Behavior.RootStateAccess.SetState(world, entity, new Fbt.BehaviorTreeState { RunningNodeIndex = 0 });
+
+        session.Update(world, entity);
+
+        var snap = session.GetCurrentStateSnapshot();
+        snap.Should().NotBeNull();
+        snap!.RunningElementId.Should().Be(running, because: "the entity runs TreeA; TreeB was merely registered last");
+    }
 }

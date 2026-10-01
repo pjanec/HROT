@@ -1,3 +1,12 @@
+<!--STATUS
+state: LIVE
+updated: 2026-09-30 (STATUS block added; content unchanged)
+current-answer: the whole document; read the "Second review" deltas before quoting the top sections.
+related-designs:
+  - Architect_Question_78_Hill_Attack_The_Blueprint_Node_Way.md — decision C4 asks whether the curated-accessor
+    (CuratedStatic) collection mode can be joined by direct fixed-buffer field access.
+-->
+
 # Blueprint Fixed Collections — umbrella design
 
 One capability, three homes. A **fixed-capacity, blittable, ordered collection**

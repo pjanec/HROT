@@ -188,6 +188,18 @@ public static class DiagnosticCodes
     public const string BP1676 = "BP1676";  // a Construction graph on a non-Library asset (no consumer)
     public const string BP1677 = "BP1677";  // a resolver graph is not (one DTO in -> the same DTO out)
 
+    // ⭐ CE-471 — BinaryOp bit/shift operators need integer operands (a [Flags] enum is fine for & | ^).
+    // Without it a float `&` surfaces as a CS0019 in a generated file the designer never saw.
+    public const string BP1678 = "BP1678";  // bitwise/shift BinaryOp on a non-integer operand
+
+    // ⭐ CE-470 — Get Sim Time / Get Delta Time where the emitted method has no `time` / `deltaTime`
+    // (Library functions and resolvers have neither; AiPrimitive and Instance Event_* have no deltaTime).
+    public const string BP1679 = "BP1679";  // Get Time node where that clock is not in scope
+
+    // ⭐ CE-472 — a Send Intent / To JSON / From JSON node with no DTO type or (Send Intent) no intent id: there is
+    // no type to construct or id to publish, and saying so beats a CS0246 in a generated file.
+    public const string BP1680 = "BP1680";  // JSON / intent node missing its DTO type or intent id
+
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch
     public const string BP2002 = "BP2002";  // WhenNode missing required payload
@@ -261,6 +273,9 @@ public static class DiagnosticCodes
     public const string BP4001 = "BP4001";
     public const string BP4002 = "BP4002";
     public const string BP4003 = "BP4003";
+    // ⭐ CE-475 (2026-10-01): an ERROR, no longer a warning. A node Stage 5 cannot lower emits no IR, so the exec
+    // chain walked on without it — the graph compiled and silently did less than it says. The macro and Cast cases
+    // that hid behind the warning are documented at BP1668 above and on BuiltInNodeRegistry.CastPins.
     public const string BP4004 = "BP4004";
 
     /// <summary>

@@ -22,7 +22,7 @@ public sealed class PerceptionGridSharingTests
         using var world    = new EntityRepository();
         var provider = new PerceptionGridProvider();
 
-        var cognitive  = new CognitiveSpatialModule(world, provider);
+        var cognitive  = new CognitiveSpatialModule(provider);
         var autonomous = new AutonomousPerceptionModule(gridProvider: provider);
 
         // Disposing both capabilities must be safe and must not free the borrowed grid: it belongs to the
@@ -45,7 +45,7 @@ public sealed class PerceptionGridSharingTests
     {
         using var world = new EntityRepository();
 
-        var module = new CognitiveSpatialModule(world);
+        var module = new CognitiveSpatialModule();
         module.Dispose();
         module.Dispose();   // idempotent
     }

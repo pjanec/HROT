@@ -86,6 +86,9 @@ namespace Hrot.Map.Common.Translators
             yield return new MapVisualOverlayEgressTranslator(participant, entityMap, geoTransform, localNodeId);
             yield return new MapVisualOverlayIngressTranslator(participant, entityMap, geoTransform, ghostCreationSystem, localNodeId);
             yield return new UpdateEntityAttributeCommandEgressTranslator(participant);
+            // ⭐ CE-484 — every node may host an operator window: a behaviour fault raised on any node becomes a row of
+            //   the Message Log's "Behaviour faults" tab here. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+            yield return new Hrot.Network.Translators.BehaviorFaultIngressTranslator(participant, localNodeId);
         }
     }
 }

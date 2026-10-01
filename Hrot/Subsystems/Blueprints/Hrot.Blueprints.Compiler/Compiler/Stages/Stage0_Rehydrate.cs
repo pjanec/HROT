@@ -187,6 +187,24 @@ internal static class Stage0_Rehydrate
                 EnrichMakeStructPins(pins, msn);
                 break;
 
+            // ⭐ CE-472 — pins from the baked DTO members (parity: editor NodePinSchema).
+            case SendIntentNode sin:
+                EnrichSendIntentPins(pins, sin);
+                break;
+
+            case ToJsonNode tjn:
+                pins.Clear();
+                foreach (var f in tjn.Fields) pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
+                pins.Add(MakePin("Json", "Out", isExec: false, typeId: "System.String"));
+                break;
+
+            case FromJsonNode fjn:
+                pins.Clear();
+                pins.Add(MakePin("Json", "In", isExec: false, typeId: "System.String"));
+                foreach (var f in fjn.Fields) pins.Add(MakePin(f.Name, "Out", isExec: false, typeId: f.TypeId));
+                pins.Add(MakePin("Ok", "Out", isExec: false, typeId: "System.Boolean"));
+                break;
+
             case BreakStructNode bsn:
                 EnrichBreakStructPins(pins, bsn);
                 break;
@@ -722,6 +740,17 @@ internal static class Stage0_Rehydrate
         foreach (var f in msn.Fields)
             pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
         pins.Add(MakePin("Value", "Out", isExec: false, typeId: SharedTypePinTypeId(msn.StructTypeId)));
+    }
+
+    /// <summary>
+    /// ⭐ CE-472 — SendIntent: the static exec pair + an optional "Target" entity (unwired ⇒ self) + one data-in
+    /// per baked DTO member. Parity with the editor's NodePinSchema.SendIntentPins.
+    /// </summary>
+    private static void EnrichSendIntentPins(List<Pin> pins, SendIntentNode sin)
+    {
+        pins.Add(MakePin("Target", "In", isExec: false, typeId: "Fdp.Core.Entity"));
+        foreach (var f in sin.Fields)
+            pins.Add(MakePin(f.Name, "In", isExec: false, typeId: f.TypeId));
     }
 
     /// <summary>
@@ -1392,6 +1421,9 @@ internal static class Stage0_Rehydrate
         BinaryOpNode          => false,
         BooleanOpNode         => false,
         NotNode               => false,
+        GetTimeNode           => false,
+        ToJsonNode            => false,   // CE-472: pure
+        FromJsonNode          => false,
         LiteralNode           => false,
         ReadRankedResultNode  => false,
         ReadEqsResultNode     => false,

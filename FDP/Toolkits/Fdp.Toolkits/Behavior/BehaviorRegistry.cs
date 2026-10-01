@@ -756,6 +756,18 @@ namespace Fdp.Toolkit.Behavior
             => _definitions.TryGetValue(behaviorId, out definition);
 
         /// <summary>
+        /// ⭐ <c>CE-476</c> — <b>the tree a BTree behaviour actually RUNS</b>: the blob its interpreter executes, whose
+        /// node indices are the ones <c>BehaviorTreeState</c> holds. The ONE lookup for "name this entity's nodes",
+        /// shared by the inspector's tree view (<c>BTreeVisualizerRenderer</c>) and the BTree debug session.
+        /// </summary>
+        /// <returns><c>false</c> when the behaviour is unregistered or is not a BTree.</returns>
+        public bool TryGetTreeBlob(int behaviorId, [MaybeNullWhen(false)] out Fbt.BehaviorTreeBlob blob)
+        {
+            blob = _definitions.TryGetValue(behaviorId, out var def) ? def.BTreeInterpreter?.Blob : null;
+            return blob is not null;
+        }
+
+        /// <summary>
         /// Returns a snapshot of all behavior names currently registered.
         /// The returned list is a copy of the internal key set and cannot mutate the registry.
         /// </summary>

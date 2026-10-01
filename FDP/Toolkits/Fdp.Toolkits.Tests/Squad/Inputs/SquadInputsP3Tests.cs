@@ -56,7 +56,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             if (health.HasValue)    _repo.AddComponent(m, health.Value);
             if (weapon.HasValue)    _repo.AddComponent(m, weapon.Value);
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
             return m;
         }
 

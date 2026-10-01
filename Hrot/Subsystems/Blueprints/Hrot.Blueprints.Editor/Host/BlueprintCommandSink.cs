@@ -233,6 +233,14 @@ public sealed class BlueprintCommandSink : IGraphCommandSink
                 return ApplyCollapse(
                     collapseMacro.Nodes, collapseMacro.MacroName, CollapseTarget.Macro);
 
+            // The Blueprint canvas pills are DERIVED from node properties (BlueprintGraphModel.
+            // GetAttachmentsForNode) — there is nothing to remove or restore, and a pill vanishes
+            // with its host node. Accepted as no-ops so a Delete over a selection that includes a
+            // pill still deletes the nodes in the same batch (ApplyBatch stops on first failure).
+            case GraphCommand.RemoveAttachments:
+            case GraphCommand.AddAttachment:
+                return new GraphCommandResult(true, null);
+
             default:
                 // Unknown commands are silently accepted (forward-compat).
                 return new GraphCommandResult(true, null);

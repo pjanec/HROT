@@ -8,11 +8,14 @@ using Xunit;
 
 namespace Hrot.SimHost.Tests
 {
-    // ── Minimal test component (ComponentId 210) ─────────────────────────────
-    // Distinct from CkptPos (206) used by CheckpointClusterOpHandlerTests so both
-    // test classes can register their own component without ID collisions.
+    // ── Minimal test component (ComponentId 507) ─────────────────────────────
+    // ⚠ Was 210 — PRODUCTION's IEqsTemplateRegistry id. The component-type registry is process-global,
+    // so once any test in this process installed an EQS registry (EqsModuleTests, 2026-09-30) the first
+    // of the two to register threw "Component ID collision" and failed unrelated classes — the exact
+    // EpisodeTestPos/215 precedent (EpisodeInjectionTests). A TEST component lives at the top of the
+    // id space (MAX_COMPONENT_TYPES = 512), away from anything production grows into.
 
-    [ComponentId(210)]
+    [ComponentId(507)]
     internal struct PreviewTestPos
     {
         public float X, Y, Z;

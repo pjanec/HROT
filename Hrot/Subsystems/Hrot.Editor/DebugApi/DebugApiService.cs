@@ -363,15 +363,49 @@ namespace Hrot.Editor.DebugApi
         private readonly Func<IReadOnlyList<IMessageLogSource>> _logSinks;
 
         // Group K — AI Behavior Traces
-        private readonly EditorAiTracerCoordinator?                    _editorTracer;
-        private readonly Hrot.BTree.Editor.Debug.BTreeDebugSession?    _btreeSession;
-        private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession?        _hsmSession;
-        private readonly Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSession;
+        // ⭐⭐⭐ CE-476 — each resolves like `_world`: the EDITOR's own value, else the ACTIVE PERSPECTIVE's AI debug
+        //    surface (cluster ctor). 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1–D4.
+        //    🔴 The cluster ctor took none of them, so on --mode all /trace/observe answered "Trace coordinator not
+        //    available", /entities/{id}/trace "tier: unknown" and /variables "No blueprint debug session" — while CGF
+        //    held all of them. ⛔ The silent-default shape: a caller that HAS the dependency must pass it.
+        private readonly EditorAiTracerCoordinator?                    _editorTracerValue;
+        private readonly Hrot.BTree.Editor.Debug.BTreeDebugSession?    _btreeSessionValue;
+        private readonly Hrot.Hsm.Editor.Debug.HsmDebugSession?        _hsmSessionValue;
+        private readonly Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSessionValue;
 
         // MX1 (Group O) — id→(assetId, name) for the blueprints attached to an entity's blackboard.
         // BlueprintTierSummary.Read needs it to turn a slot's int blueprintId into the asset Guid the
         // debug session addresses variables by.
-        private readonly Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry;
+        private readonly Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistryValue;
+
+        /// <summary>⭐ CE-476 — the cluster's per-world AI debug surface (null in the editor shape).</summary>
+        private readonly Func<EntityRepository, Hrot.Editor.AiComposition.AiDebugSurface?>? _aiDebugSurfaceGetter;
+
+        /// <summary>⭐ CE-476 D4 — the trace-ARMING tracer, one per world, created on first use (cluster only).</summary>
+        private readonly System.Runtime.CompilerServices.ConditionalWeakTable<EntityRepository, EditorAiTracerCoordinator>
+            _clusterTracers = new();
+
+        /// <summary>The active perspective's AI debug surface, or null when this host or perspective has none.</summary>
+        private Hrot.Editor.AiComposition.AiDebugSurface? ActiveAiDebugSurface
+            => _aiDebugSurfaceGetter is { } get && _dispatcher?.World is { } w ? get(w) : null;
+
+        private EditorAiTracerCoordinator? _editorTracer
+            => _editorTracerValue
+               ?? (ActiveAiDebugSurface is { } surface
+                   ? _clusterTracers.GetValue(surface.World, w => new EditorAiTracerCoordinator(w))
+                   : null);
+
+        private Hrot.BTree.Editor.Debug.BTreeDebugSession? _btreeSession
+            => _btreeSessionValue ?? ActiveAiDebugSurface?.BTree;
+
+        private Hrot.Hsm.Editor.Debug.HsmDebugSession? _hsmSession
+            => _hsmSessionValue ?? ActiveAiDebugSurface?.Hsm;
+
+        private Hrot.Blueprints.Core.Debug.BlueprintDebugSession? _blueprintSession
+            => _blueprintSessionValue ?? ActiveAiDebugSurface?.Blueprint;
+
+        private Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry
+            => _blueprintRegistryValue ?? ActiveAiDebugSurface?.Blueprints;
 
         // Group L — Attribute patch + StructEdit component edit
         private readonly JsonAttributeCompiler? _injectedAttributeCompiler;
@@ -572,14 +606,14 @@ namespace Hrot.Editor.DebugApi
             _bpManager         = bpManager;
             _behaviorRegistryValue  = behaviorRegistry;
             _missionService    = missionService;
-            _blueprintRegistry = blueprintRegistry;
+            _blueprintRegistryValue = blueprintRegistry;
             _diffService       = diffService ?? new ComponentDiffService();
             _rrController      = rrController;
             _logSinks          = logSinks ?? (() => Array.Empty<IMessageLogSource>());
-            _editorTracer     = editorTracer;
-            _btreeSession     = btreeSession;
-            _hsmSession       = hsmSession;
-            _blueprintSession = blueprintSession;
+            _editorTracerValue     = editorTracer;
+            _btreeSessionValue     = btreeSession;
+            _hsmSessionValue       = hsmSession;
+            _blueprintSessionValue = blueprintSession;
             _injectedAttributeCompiler = attributeCompiler;   // CE-236: else built lazily from GeoTransform
             _componentEditSvc  = componentEditSvc  ?? new ComponentEditServiceBuilder().Build();
             _primitiveBuffer   = primitiveBuffer;
@@ -618,9 +652,13 @@ namespace Hrot.Editor.DebugApi
             //   source exists only after its subsystem builds the EntityCreationPack. When present, the
             //   node can create entities THROUGH the request path (routing + auto-takeover grant), which
             //   the raw /entities/spawn route deliberately bypasses.
-            Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? creationRequestEnqueuer = null)
+            Func<Action<Hrot.Core.Network.EntityCreationRequest>?>? creationRequestEnqueuer = null,
+            // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world. A Func for
+            //   the same boot-order reason as behaviorRegistry (CGF composes it during Initialize, after this ctor).
+            Func<EntityRepository, Hrot.Editor.AiComposition.AiDebugSurface?>? aiDebugSurface = null)
         {
             _dispatcher         = dispatcher ?? throw new ArgumentNullException(nameof(dispatcher));
+            _aiDebugSurfaceGetter = aiDebugSurface;
             _clusterStateGetter = clusterState;
             _creationRequestEnqueuerGetter = creationRequestEnqueuer;
 
@@ -2807,17 +2845,75 @@ namespace Hrot.Editor.DebugApi
                 };
             }
 
-            if (_blueprintSession != null)
+            // ⭐⭐⭐ CE-476 D5/D6 — a Behavior-dispatch blueprint (BrainTier 3): the Blueprint debug session's own snapshot
+            //    (CaptureLiveBehaviorState — the same decode and the same snapshot type as an Instance blueprint).
+            //    📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md. 🔴 This was a stub that named no asset and no
+            //    state, on every host. ⚠ There is no "active graph" to report: a Behavior blueprint ticks its one root
+            //    graph, and its latent cursor records only a resume index — reported as resumeAt.
+            if (tier == Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint)
             {
+                var behaviour = _blueprintSession?.CaptureLiveBehaviorState(entity);
+                if (behaviour is null)
+                {
+                    return new JsonObject
+                    {
+                        ["networkId"] = networkId,
+                        ["tier"]      = "Blueprint",
+                        ["dispatch"]  = "Behavior",
+                        ["note"]      = _blueprintSession is null
+                            ? "No blueprint debug session on this node, so the blueprint behaviour cannot be decoded."
+                            : "The blueprint behaviour is not in this node's registry, or its root block is absent.",
+                    };
+                }
+
+                var variables = new JsonObject();
+                foreach (var (name, value) in behaviour.FieldValues)
+                    variables[name] = ToJson(value);
+
                 return new JsonObject
                 {
-                    ["networkId"] = networkId,
-                    ["tier"]      = "Blueprint",
-                    ["note"]      = "Blueprint trace: assetId resolution not available via Debug API.",
+                    ["networkId"]     = networkId,
+                    ["tier"]          = "Blueprint",
+                    ["dispatch"]      = "Behavior",
+                    ["behavior"]      = behaviour.AssetName,
+                    ["resumeAt"]      = behaviour.Cursor?.ResumeAt,
+                    ["waitUntilTime"] = behaviour.Cursor?.WaitUntilTime,
+                    ["variables"]     = variables,
+                    ["nodeHistory"]   = BlueprintNodeHistory(entity),
+                };
+            }
+
+            // ⭐ CE-476 — an Instance blueprint attached to the entity: name what it carries (the stub named nothing).
+            var attached = AttachedBlueprints(entity);
+            if (attached.Count > 0)
+            {
+                var assets = new JsonArray();
+                foreach (var slot in attached)
+                    assets.Add(new JsonObject { ["asset"] = slot.Name, ["assetId"] = slot.AssetId.ToString("D") });
+                return new JsonObject
+                {
+                    ["networkId"]   = networkId,
+                    ["tier"]        = "Blueprint",
+                    ["dispatch"]    = "Instance",
+                    ["assets"]      = assets,
+                    ["nodeHistory"] = BlueprintNodeHistory(entity),
                 };
             }
 
             return new JsonObject { ["networkId"] = networkId, ["tier"] = "unknown" };
+        }
+
+        /// <summary>
+        /// The Blueprint session's recent node entries for <paramref name="entity"/>. ⚠ Probes fire only in an
+        /// INSTRUMENTED build, so an empty array is the normal answer for a release-compiled blueprint.
+        /// </summary>
+        private JsonArray BlueprintNodeHistory(Entity entity)
+        {
+            var history = new JsonArray();
+            if (_blueprintSession is null) return history;
+            foreach (var h in _blueprintSession.GetNodeHistory(entity, 50))
+                history.Add(new JsonObject { ["nodeId"] = h.NodeId, ["tick"] = h.Tick, ["timestamp"] = h.SimTime });
+            return history;
         }
 
         // ── Group L — Live Mutation / Fault Injection ─────────────────────────────

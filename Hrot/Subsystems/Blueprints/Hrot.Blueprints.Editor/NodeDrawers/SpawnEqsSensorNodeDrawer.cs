@@ -61,6 +61,7 @@ internal sealed class SpawnEqsSensorNodeSession : INodeEditSession
         ImGui.TextDisabled("  • ThreatThreshold  (float)");
         ImGui.TextDisabled("  • PublishPolicy    (byte)");
         ImGui.TextDisabled("  • Priority         (byte)");
+        ImGui.TextDisabled("  • ContextSlot0..2  (Entity) — e.g. the area for EntitiesOfForceInArea (slot 1)");
         ImGui.TextDisabled("Output: Handle (EqsSensorHandle)");
     }
 

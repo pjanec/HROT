@@ -76,20 +76,23 @@ namespace Hrot.Network.NED.CGF
                 {
                     // Child-entity sensor: look up via dictionary cache.
                     var cacheKey = (data.ParentNetworkId, data.LocalChildIndex);
-                    if (!_childEntityCache.TryGetValue(cacheKey, out observer))
+                    // ⭐⭐ CE-487 — a hit is RE-CHECKED every time. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5, §2 ③.
+                    //    Part ids are allocated and REUSED (D5 ①): when a behaviour run ends, its sensor is destroyed
+                    //    and the next run's sensor takes the same (parent, part id) — a NEW local entity. The instance is
+                    //    never disposed (CE-486), so no dispose sample evicts the entry; and on a KeepLast-1 topic one
+                    //    could collapse anyway. ⇒ without this check every answer for the new sensor went to the dead one.
+                    if (!_childEntityCache.TryGetValue(cacheKey, out observer)
+                        || !EqsSensorKey.IsChildSensor(repo, observer, data.ParentNetworkId, data.LocalChildIndex))
                     {
-                        // Cache miss: one-shot scan for the child entity.
+                        _childEntityCache.Remove(cacheKey);
+
+                        // Cache miss (or a stale hit): one-shot scan for the child sensor.
                         Entity? found = null;
-                        foreach (var e in repo.Query().With<PartMetadata>().Build())
+                        foreach (var e in repo.Query().With<PartMetadata>().With<EqsSensor>().Build())
                         {
-                            var meta = repo.GetComponentRO<PartMetadata>(e);
-                            if (meta.InstanceId == data.LocalChildIndex &&
-                                repo.HasComponent<NetworkIdentity>(meta.ParentEntity) &&
-                                repo.GetComponentRO<NetworkIdentity>(meta.ParentEntity).Value == data.ParentNetworkId)
-                            {
-                                found = e;
-                                break;
-                            }
+                            if (!EqsSensorKey.IsChildSensor(repo, e, data.ParentNetworkId, data.LocalChildIndex)) continue;
+                            found = e;
+                            break;
                         }
                         if (!found.HasValue) continue;
                         observer = found.Value;
@@ -104,7 +107,7 @@ namespace Hrot.Network.NED.CGF
                     Observer    = observer,
                     Epoch       = data.Epoch,
                     RefreshTick = data.RefreshTick,
-                    Results     = data.Results,
+                    Results     = MapToLocal(data.Results, _entityMap),
                 });
             }
         }
@@ -119,6 +122,32 @@ namespace Hrot.Network.NED.CGF
         public void Dispose(long networkEntityId) { }
 
         // ── Internal helpers (exposed for unit testing via InternalsVisibleTo) ─
+
+        /// <summary>
+        /// Rewrites every entity-shaped entry's <c>EntityId</c> from the wire's NETWORK id to this node's
+        /// packed local entity, and drops entries whose entity is not (yet) known here. Positional
+        /// entries (<c>EntityId == 0</c>) pass through.
+        /// </summary>
+        /// <remarks>
+        /// ⭐ Without this the Brain's <c>EqsCognitiveBuffer</c> held network ids across nodes but packed
+        /// entities on one node — one field, two meanings — so <c>new Entity((ulong)EntityId)</c> (every
+        /// reader, including the blueprint <c>ReadEqsResult</c> node) was wrong exactly in the split. Design
+        /// §4.1 says the id "resolves to local entity on Brain"; the area-query ingress always did.
+        /// </remarks>
+        internal static List<EqsResultEntry> MapToLocal(List<EqsResultEntry>? results, NetworkEntityMap entityMap)
+        {
+            var mapped = new List<EqsResultEntry>(results?.Count ?? 0);
+            if (results is null) return mapped;
+            foreach (var entry in results)
+            {
+                if (entry.EntityId == 0L) { mapped.Add(entry); continue; }
+                if (!entityMap.TryGetEntity(entry.EntityId, out var local)) continue;
+                var copy = entry;
+                copy.EntityId = (long)local.PackedValue;
+                mapped.Add(copy);
+            }
+            return mapped;
+        }
 
         /// <summary>
         /// Removes a cache entry for the given composite key.

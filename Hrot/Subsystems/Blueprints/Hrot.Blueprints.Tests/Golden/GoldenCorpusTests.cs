@@ -88,7 +88,11 @@ public sealed class GoldenCorpusTests
         // ⛔ 42 → 40 (CE-448, 2026-09-30): `ParamResolverDemo` and `ResolverWorldReachDemo` DELETED — reusable
         //    Library resolvers are retired (R-155: a resolver is the ONE stage a behaviour names).
         // ⭐ 40 → 41 (CE-446, 2026-09-30): `BlueprintBehaviourDemo` — the FIRST blueprint BEHAVIOUR (Dispatch = Behavior).
-        Assert.Equal(41, GoldenCorpus.EnumerateFiles().Count);
+        // ⭐ 41 → 42 (CE-464, 2026-09-30): `PlatoonHillAttackBp` — the hill-attack commander as ONE blueprint behaviour.
+        // ⛔ 42 → 28 (2026-10-01): the 15 `HillAssault2_*` twins retired (user: "retire the old superseded non elegant
+        //    blueprint version"); 14 deleted, `_ReverseToBaseline` RENAMED `ChannelMoveAndWaitDemo` — the only production
+        //    WaitForChannel asset left (R-137).
+        Assert.Equal(28, GoldenCorpus.EnumerateFiles().Count);
     }
 
     // ────────────────────────────────────────────────────────────────────────

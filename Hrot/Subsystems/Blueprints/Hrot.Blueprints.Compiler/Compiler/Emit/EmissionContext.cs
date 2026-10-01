@@ -57,8 +57,21 @@ internal sealed class EmissionContext
     }
 
     /// <summary>Block label by IrBlockId, for goto emission.</summary>
+    /// <remarks>
+    /// ⭐ <c>CE-464</c> — block ids are numbered PER GRAPH (Stage5 restarts at 0 for every graph), so a label is looked up
+    /// in <see cref="CurrentGraph"/> first. ⛔ It used to read one asset-wide map built graph after graph, so in an asset
+    /// with branches in two or more graphs the LAST graph's labels won: a <c>goto</c> named a label that lives in
+    /// another method (<c>CS0159</c>). Found by the first large blueprint behaviour (<c>PlatoonHillAttackBp</c>).
+    /// </remarks>
     public string LabelForBlock(IrBlockId id)
-        => _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
+    {
+        if (CurrentGraph is { } g)
+        {
+            foreach (var b in g.Blocks)
+                if (b.Id.Value == id.Value) return b.Label;
+        }
+        return _blockLabels.TryGetValue(id.Value, out var lbl) ? lbl : $"block_{id.Value}";
+    }
 
     /// <summary>
     /// U-3 / <c>BP-226</c> — the C# field name for a resolved variable reference.

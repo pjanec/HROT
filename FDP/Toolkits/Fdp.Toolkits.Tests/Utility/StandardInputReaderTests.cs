@@ -342,7 +342,7 @@ namespace Fdp.Toolkit.Tests.Utility
             // Write assignment into leader's blackboard
             ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
 
             float result = StandardInputs.IsAssignedTarget(MakeCtx(member, target));
@@ -360,7 +360,7 @@ namespace Fdp.Toolkit.Tests.Utility
             // Assign target1, query for target2
             ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target1.PackedValue;
 
             float result = StandardInputs.IsAssignedTarget(MakeCtx(member, target2));
@@ -399,7 +399,7 @@ namespace Fdp.Toolkit.Tests.Utility
 
             ref var state = ref _world.Repo.GetComponentRW<SquadCognitiveState>(leader).Assignment;
             ref var roster = ref _world.Repo.GetComponentRW<UnitRoster>(leader);
-            int idx = UnitRoster.IndexOf(ref roster, (long)member.PackedValue);
+            int idx = UnitRoster.IndexOf(ref roster, member);
             state.GetSlot(idx).AssignedTargetHandle = (long)target.PackedValue;
 
             long result = _world.AssignmentFor(leader, member);

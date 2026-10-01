@@ -22,7 +22,7 @@ namespace Hrot.AI.Behaviors.Mappers
     public sealed class HullDownAttackMapper : ITacticalOrderMapper
     {
         /// <inheritdoc/>
-        public string TargetIntentId => "HullDownAttack";
+        public string TargetIntentId => Hrot.Map.Definitions.Behavior.BehaviorNames.HullDownAttack;
 
         /// <inheritdoc/>
         public bool TryMap(
@@ -49,7 +49,7 @@ namespace Hrot.AI.Behaviors.Mappers
             assignment = new AssignBehaviorEvent
             {
                 Entity       = self,
-                BehaviorName = "HullDownAttackRun",
+                BehaviorName = Hrot.Map.Definitions.Behavior.BehaviorNames.HullDownAttackRun,
                 JsonParams   = jsonParams
             };
             return true;

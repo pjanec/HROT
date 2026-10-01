@@ -10,9 +10,9 @@ namespace Hrot.SimHost;
 /// Shared registration for navigation-solver and EQS runtime schema.
 /// </summary>
 /// <remarks>
-/// <para><b>This class is the de-facto owner of four persistent native arrays</b> —
-/// <c>PathfindingBatchData.Results</c>, <c>AreaQueryBatchData.Results</c>,
-/// <c>EqsTargetPool.Targets</c> and <c>EqsResultPool.Results</c>. That makes it a <i>resource
+/// <para><b>This class is the de-facto owner of two persistent native arrays</b> —
+/// <c>PathfindingBatchData.Results</c> and <c>EqsResultPool.Results</c> *(four until the AreaQuery
+/// pipeline was retired, 2026-10-01)*. That makes it a <i>resource
 /// owner</i> in the sense of the composition design (<c>B3</c>), even though it is a static
 /// function rather than a module, which is why it needs both halves of an ownership contract:
 /// allocate at most once (<see cref="RegisterAll"/>) and free (<see cref="DisposeAll"/>).</para>
@@ -51,24 +51,9 @@ public static class NavigationSolverComponentRegistry
         world.RegisterEvent<PathfindingRequestEvent>();
         world.RegisterEvent<PathfindingResultEvent>();
 
-        if (!world.HasSingleton<AreaQueryBatchData>())
-        {
-            world.SetSingleton(new AreaQueryBatchData
-            {
-                Results = new NativeArray<AreaQueryResult>(AreaQueryBatchData.DefaultCapacity, Allocator.Persistent),
-            });
-        }
-
-        if (!world.HasSingleton<EqsTargetPool>())
-        {
-            world.SetSingleton(new EqsTargetPool
-            {
-                Targets = new NativeArray<long>(EqsTargetPool.PoolCapacity, Allocator.Persistent),
-            });
-        }
-
-        world.RegisterEvent<AreaQueryRequestEvent>();
-        world.RegisterEvent<AreaQueryResultEvent>();
+        // ⛔ AreaQueryBatchData + EqsTargetPool + the two AreaQuery events were registered here until the
+        //   AreaQuery pipeline was retired (2026-10-01, EQS design §18). Their component ids stay reserved
+        //   in GlobalComponentIds (Fdp.Core) and must not be reused.
 
         // EQS v1.3 result pool: pre-allocated ring buffer for ranked candidate data.
         // ⚠ EqsSolverSystem.Execute carries the same guarded lazy-init for this slot, so a world
@@ -87,7 +72,7 @@ public static class NavigationSolverComponentRegistry
     }
 
     /// <summary>
-    /// Frees the four persistent native arrays <see cref="RegisterAll"/> owns. Safe to call on a
+    /// Frees the two persistent native arrays <see cref="RegisterAll"/> owns. Safe to call on a
     /// world that never reached <see cref="RegisterAll"/>, and safe to call more than once.
     /// </summary>
     /// <remarks>
@@ -103,18 +88,6 @@ public static class NavigationSolverComponentRegistry
         {
             ref var pathfinding = ref world.GetSingletonUnmanaged<PathfindingBatchData>();
             if (pathfinding.Results.IsCreated) pathfinding.Results.Dispose();
-        }
-
-        if (world.HasSingleton<AreaQueryBatchData>())
-        {
-            ref var areaQuery = ref world.GetSingletonUnmanaged<AreaQueryBatchData>();
-            if (areaQuery.Results.IsCreated) areaQuery.Results.Dispose();
-        }
-
-        if (world.HasSingleton<EqsTargetPool>())
-        {
-            ref var targets = ref world.GetSingletonUnmanaged<EqsTargetPool>();
-            if (targets.Targets.IsCreated) targets.Targets.Dispose();
         }
 
         if (world.HasSingleton<EqsResultPool>())

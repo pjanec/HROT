@@ -53,7 +53,7 @@ namespace Fdp.Toolkit.Squad.Tests.Inputs
             var m = _repo.CreateEntity();
             _repo.AddComponent(m, new UnitSubordinate { Commander = commander });
             ref var roster = ref _repo.GetComponentRW<UnitRoster>(commander);
-            UnitRoster.Add(ref roster, (long)m.PackedValue);
+            UnitRoster.Add(ref roster, m);
             return m;
         }
 

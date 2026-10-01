@@ -87,11 +87,14 @@ public sealed class DebugApiCompositionTests
     [Fact]
     public void TheClusterBehaviorRegistryHandOffIsLazy()
     {
-        var text = File.ReadAllText(RepoFile("Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+        // ⭐ CE-476: the getter is composed ONCE, in ClusterDebugApiComposition (Program.Main and the cluster rails share
+        //   it) — so the rail checks both halves: Program.cs takes the shared getter, and the getter is a deferred lambda.
+        var text        = File.ReadAllText(RepoFile("Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+        var composition = File.ReadAllText(RepoFile("Hrot/Runner/Hrot.ClusterRunner/ClusterDebugApiComposition.cs"));
 
         Assert.True(
-            text.Contains("var behaviorRegistryGetter", StringComparison.Ordinal)
-         && text.Contains("() => subsystems.OfType<Hrot.CGF.CgfSubsystem>()", StringComparison.Ordinal),
+            text.Contains("var behaviorRegistryGetter = ClusterDebugApiComposition.BehaviorRegistry(subsystems)", StringComparison.Ordinal)
+         && composition.Contains("=> () => subsystems.OfType<Hrot.CGF.CgfSubsystem>()", StringComparison.Ordinal),
             "Program.cs no longer resolves the behaviour registry LAZILY from the subsystem list. "
           + "The DebugApiService is constructed before orchestrator.Run(), so CGF's registry does not "
           + "exist yet: a captured value would be null for the life of the process and every "

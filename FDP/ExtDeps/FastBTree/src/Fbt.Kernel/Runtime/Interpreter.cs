@@ -578,7 +578,21 @@ namespace Fbt.Runtime
                     
                     // Child succeeded, increment counter
                     currentIteration++;
-                    
+
+                    // CE-450: a FOREVER repeater YIELDS after each completed iteration — one iteration per tick.
+                    //   Looping in the same tick never returned when the child succeeds immediately (a hang, not a
+                    //   slow frame). RunningNodeIndex = this node makes the next tick resume here (ancestors skip
+                    //   finished siblings by index), and the child starts fresh because it no longer matches
+                    //   RunningNodeIndex. At the root (index 0) that is simply "not running" ⇒ the next tick re-enters
+                    //   the root, which is the same thing for a forever loop (its count is never read).
+                    //   ⚠ A BOUNDED repeater keeps its in-tick semantics (Repeater_ExecutesCorrectly: Repeat(3) runs
+                    //   three times in one tick) — it always terminates.
+                    if (repeatCount < 0)
+                    {
+                        state.RunningNodeIndex = (ushort)nodeIndex;
+                        return NodeStatus.Running;
+                    }
+
                     // If more iterations remain, continue
                     if (repeatCount < 0 || currentIteration < repeatCount)
                     {

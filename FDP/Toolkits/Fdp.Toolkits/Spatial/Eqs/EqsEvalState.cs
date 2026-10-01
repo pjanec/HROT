@@ -38,6 +38,12 @@ namespace Fdp.Toolkit.Spatial.Eqs
         // 16-float inline array storing scores from the last published result set.
         // Used by ScoreDelta publish policy to avoid re-emitting near-identical results.
         public TopKScoreCache LastPublishedTopK;
+
+        // ⭐ True once an answer for CurrentEpoch has been published. An epoch change resets it, so ScoreDelta never
+        //   suppresses the FIRST answer of an epoch — EQS 1.3 §17.6: "for a guaranteed-new answer bump Epoch". A brain that
+        //   refreshed (or a new sensor lifetime on a reused part id, CE-485/CE-486) waits for exactly that answer.
+        [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool
+        public bool PublishedThisEpoch;
     }
 
     /// <summary>

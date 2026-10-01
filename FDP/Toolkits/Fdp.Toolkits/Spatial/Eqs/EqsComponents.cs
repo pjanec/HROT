@@ -167,5 +167,13 @@ namespace Fdp.Toolkit.Spatial.Eqs
         /// <summary>Context slot 2 (by convention: Leader / Squad-mate). Optional secondary
         /// LOS context.</summary>
         public Entity ContextSlot2;
+        /// <summary>
+        /// ⭐ <c>CE-486</c> — the sensor has ENDED: the solver publishes nothing for it. A child sensor's descriptor
+        /// instance is never disposed while its parent lives (BDC/NED descriptor rules), so this is how an end reaches
+        /// the Muscle. ⚠ <c>false</c> = running, so every existing creator stays correct (the approved "Active" flag with
+        /// its polarity flipped — decision B-1). 📄 <c>DESIGN_Behaviour_Fault_And_Teardown.md</c> §1 D5 ③.
+        /// </summary>
+        [MarshalAs(UnmanagedType.I1)]   // the ECS layout contract for a bool (recorder / StructEdit buffers)
+        public bool Suspended;
     }
 }

@@ -1,3 +1,5 @@
+using System;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fdp.Core;
 
@@ -19,14 +21,22 @@ namespace Fdp.Core.CommandHierarchy
     /// </para>
     ///
     /// <para>
-    /// Size: 168 bytes -- <c>int Count</c> (4 B) + 4 B alignment pad + <c>long[16]</c> (128 B)
-    /// + <c>ushort[16]</c> (32 B).
+    /// Size: 164 bytes -- <c>int Count</c> (4 B) + <c>Entity[16]</c> (16 × 8 B, 4-aligned) + <c>ushort[16]</c> (32 B).
+    /// </para>
+    ///
+    /// <para>
+    /// ⭐ <c>CE-467</c> — both buffers are <c>[InlineArray]</c> fields marked <see cref="BlueprintCollectionFieldAttribute"/>, so
+    /// <c>CollectionOpsGenerator</c> WRITES their read accessors (<c>UnitRosterSubordinateEntitiesOps</c>,
+    /// <c>UnitRosterTacticalDesignationsOps</c>) and a blueprint loops the roster with the standard collection nodes —
+    /// no hand-written helper. Read-only from blueprints: only <c>UnitHierarchySystem</c> maintains the roster.
+    /// ⛔ HISTORY: they were raw <c>fixed long</c>/<c>fixed ushort</c> buffers (168 B), which the generator refuses
+    /// (<c>FCOL002</c>), so a hand-written <c>UnitRosterOps</c> existed. 📄 <c>Architect_Question_78</c> §6.5.
     /// </para>
     /// </summary>
     [DataPolicy(DataPolicy.NoScenario)]
     [StructLayout(LayoutKind.Sequential)]
     [ComponentId(GlobalComponentIds.UnitRoster)]
-    public unsafe struct UnitRoster
+    public struct UnitRoster
     {
         /// <summary>Maximum number of subordinates this roster can hold.</summary>
         public const int Capacity = 16;
@@ -34,17 +44,32 @@ namespace Fdp.Core.CommandHierarchy
         /// <summary>Number of currently registered subordinates (0–<see cref="Capacity"/>).</summary>
         public int Count;
 
-        /// <summary>
-        /// Packed entity handles (<c>Entity.PackedValue</c>) for each subordinate.
-        /// Parallel with <see cref="TacticalDesignations"/>.
-        /// </summary>
-        public fixed long SubordinateEntities[Capacity];
+        /// <summary>Inline storage for <see cref="SubordinateEntities"/>.</summary>
+        [InlineArray(Capacity)]
+        public struct EntityBuffer
+        {
+            private Entity _e0;
+        }
+
+        /// <summary>Inline storage for <see cref="TacticalDesignations"/>.</summary>
+        [InlineArray(Capacity)]
+        public struct DesignationBuffer
+        {
+            private ushort _e0;
+        }
 
         /// <summary>
-        /// Tactical designation for each subordinate.
-        /// Parallel with <see cref="SubordinateEntities"/>.
+        /// The subordinate entities, in insertion order. Parallel with <see cref="TacticalDesignations"/>.
+        /// Slots at or beyond <see cref="Count"/> are <see cref="Entity.Null"/>.
         /// </summary>
-        public fixed ushort TacticalDesignations[Capacity];
+        [BlueprintCollectionField(nameof(Count), Access = CollectionAccess.ReadOnly)]
+        public EntityBuffer SubordinateEntities;
+
+        /// <summary>
+        /// Tactical designation for each subordinate. Parallel with <see cref="SubordinateEntities"/>.
+        /// </summary>
+        [BlueprintCollectionField(nameof(Count), Access = CollectionAccess.ReadOnly)]
+        public DesignationBuffer TacticalDesignations;
 
         // ── Mutation helpers ──────────────────────────────────────────────────────
 
@@ -52,15 +77,15 @@ namespace Fdp.Core.CommandHierarchy
         /// Appends a subordinate to the roster. Returns the 0-based slot index, or -1 if the roster is full.
         /// Does not throw on overflow.
         /// </summary>
-        /// <param name="roster">The roster to append to (must be passed by ref to survive the fixed-array access).</param>
-        /// <param name="packedEntity">Packed entity handle (cast <c>Entity.PackedValue</c> to <c>long</c> before passing).</param>
+        /// <param name="roster">The roster to append to.</param>
+        /// <param name="entity">The subordinate.</param>
         /// <param name="designation">Optional tactical designation; defaults to 0.</param>
         /// <returns>The slot index written, or -1 when full.</returns>
-        public static unsafe int Add(ref UnitRoster roster, long packedEntity, ushort designation = 0)
+        public static int Add(ref UnitRoster roster, Entity entity, ushort designation = 0)
         {
             if (roster.Count >= Capacity) return -1;
             int slot = roster.Count++;
-            roster.SubordinateEntities[slot]  = packedEntity;
+            roster.SubordinateEntities[slot]  = entity;
             roster.TacticalDesignations[slot] = designation;
             return slot;
         }
@@ -68,13 +93,13 @@ namespace Fdp.Core.CommandHierarchy
         /// <summary>
         /// Returns the slot index of a subordinate, or -1 if not present.
         /// </summary>
-        /// <param name="roster">The roster to search (must be passed by ref for fixed-array access).</param>
-        /// <param name="packedEntity">Packed entity handle to look up.</param>
+        /// <param name="roster">The roster to search.</param>
+        /// <param name="entity">The subordinate to look up.</param>
         /// <returns>The 0-based slot index, or -1 when not found.</returns>
-        public static unsafe int IndexOf(ref UnitRoster roster, long packedEntity)
+        public static int IndexOf(ref UnitRoster roster, Entity entity)
         {
             for (int i = 0; i < roster.Count; i++)
-                if (roster.SubordinateEntities[i] == packedEntity) return i;
+                if (roster.SubordinateEntities[i] == entity) return i;
             return -1;
         }
     }
