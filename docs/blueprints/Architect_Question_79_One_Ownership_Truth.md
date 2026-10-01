@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — ⛔ NOT READY: §7's proof REFUTES Q79-B as written and corrects Q79-A's fallback. The open question is now §7.4 (how claims become exclusive). Nothing is built.
-current-answer: §7 (the logical proof, its axioms, and what it refuted) FIRST · then §4 read through §7 · §3 trade-offs · §5 measurements
+current-answer: §7 (the logical proof, its axioms, what it refuted) FIRST — §7.5/§7.6 for option 1 · then §4 read through §7 · §3 trade-offs · §5 measurements
 stale-below: §4 row Q79-B (refuted by §7.3) and Q79-A's fallback wording (corrected in §7.1)
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -283,4 +283,44 @@ against Theorem 2:
 | creator DECLINES every component another role in the cluster serves | ✅ | the creator must know which roles are present — the start-order race §0a removed |
 
 ⛔ **Do not approve §4 until §7.4 is decided.**
+
+### 7.5 ⭐⭐ OPTION 1 CHECKED AGAINST THEOREM 2 *(`2026-10-01` — definitions + the live composition, not use cases)*
+
+**Option 1:** the promoter claims `its role table − the creator's ownable set`. ⇒ Path B: CGF claims **brainOnly**;
+Path A: SimHost claims **∅ by role**, and gets kinematics only through the `DeferredTakeOwnership` grant (WorldPos block,
+NavigationStatus — `BrainMuscleOwnershipStrategy`).
+
+📐 **Method.** Theorem 2 constrains only components bound to a descriptor (unbound ones are never published). The live
+composition of a SimHost + CGF pair was dumped (`ArchitectureDiagnosticsService`, 41 SimHost / 58 CGF systems) and the
+writers of every bound component were read.
+
+| descriptor (bound components) | producer | Path A — CGF creates | Path B — SimHost creates |
+|---|---|---|---|
+| `EntityMaster` (NetworkIdentity, TkbIdentity) | creator | ✅ | ✅ |
+| `EntityInfo` | creator *(per-spawn name/faction)* | ✅ CGF | ✅ SimHost |
+| `NavigationIntent` | CGF BTree | ✅ creator claims | ✅ brainOnly — **CE-500 closed** |
+| `WorldPos` (SimTransform, SimVelocity, VehicleState, VehicleParams, NavState) | SimHost after birth; CGF's birth baseline | ✅ **only via the creation-time grant** · ⛔ **no muscle known at creation ⇒ no grant ⇒ the producer never owns** | ✅ creator |
+| `NavigationStatus` | SimHost | same as WorldPos | ✅ |
+| `MapVisualOverlay` / `MapRoute` | creator | ✅ — Map2D is a pure consumer (Role_Affinity §6i-b) | ✅ |
+
+Two suspected two-node writers were checked and cleared: `LocomotionChannel` (SimHost's bridge write is guarded by
+`IsComponentTypeRegistered`, `NavigationIntentBridgeSystem.cs:187`, and SimHost does not register channels) · `WeaponState`
+(written only on CGF, `AimAndFireExecutor.cs:53`).
+
+⇒ ⭐⭐ **Option 1 satisfies Theorem 2 everywhere EXCEPT Path A kinematics with a late-joining Muscle** — which is exactly
+`CE-256` (Role_Affinity §0a). ⚠ It is **no worse than today** (today the gate also publishes WorldPos only through the grant),
+but it does **not** deliver what role affinity promised there — *"the creator declines, the role-holder claims on promotion"*
+was never true for publication, because no sender read the claim.
+
+### 7.6 ⭐ The residual, and the lean to close it
+
+The late joiner must take the kinematic block **itself, on promotion**, without the creator knowing the cluster at creation
+time. ⭐ **Lean: a promoter-initiated `OwnershipUpdate`** for the descriptors its role produces but the creator owns
+(WorldPos, NavigationStatus). It is the **wire spec's own transfer** (*"an arbitrary node sends OwnershipUpdate"*; the
+current owner stops, the new owner writes to confirm), **already built** (`CE-276`), and it keeps X and C: the block moves as
+a whole, the creator clears before the promoter claims.
+⚠ **Why this is not the "re-grant on node-join" §0a rejected:** that was a creator-side re-evaluation — a second policy. Here
+the role-holder asks for what its role produces, through the one transfer mechanism. ⛔ **Not yet proved:** the case of two
+promoters of the same role (sharding, §3.8) racing for one block — the shard provider's single answer per entity is the
+candidate guarantee and needs its own check.
 
