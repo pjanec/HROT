@@ -325,6 +325,11 @@ immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted
 | registration | ✅ `CognitiveComponentRegistry`: `BehaviorFaultLatch` + `RegisterManagedEvent<BehaviorFaultNotification>` (production runs strict event registration); `Raise` also registers the latch lazily for worlds without the registry | — |
 | ⛔ not in this batch | the wire half — `EntityMissionEgressTranslator.cs:124` still derives the task state from `CurrentPhase` (CE-483's egress half) and the notification's egress/UI (`CE-484`) — backend/UI lanes | fenced in the handoff |
 
+**Live, `2026-10-01`** (acceptance ⑤) — `ClusterRunner --mode all`, a fresh cluster per run, `SimHost` perspective sampled every
+25 s: C# `hill-attack-close` and blueprint `hill-attack-close-bp` both bring hostiles 1006/1007 to `Health 0` by t≈50 s; the
+area sensor (the 9th entity) is present while the attack runs and gone by t≈75 s (8 entities) — the outcome is unchanged and the
+sensor leaves with the run.
+
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
 
 **D5, first form (approved `2026-10-01`, SUPERSEDED the same day):** *"each lifetime gets a new part id:
