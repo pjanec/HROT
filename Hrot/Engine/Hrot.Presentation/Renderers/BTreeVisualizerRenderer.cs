@@ -77,13 +77,8 @@ public sealed class BTreeVisualizerRenderer
         var dsObj = session.GetComponent(entity, typeof(BehaviorState));
         if (dsObj is not BehaviorState ds) return false;
 
-        if (!registry.TryGetDefinition(ds.ActiveBehaviorHash, out var def)) return false;
-
-        var interpreter = def.BTreeInterpreter;
-        if (interpreter == null) return false;
-
-        var blob = interpreter.Blob;
-        if (blob == null || blob.Nodes.Length == 0) return false;
+        // ⭐ CE-476: the ONE "which tree does this entity run" lookup, shared with the BTree debug session.
+        if (!registry.TryGetTreeBlob(ds.ActiveBehaviorHash, out var blob) || blob.Nodes.Length == 0) return false;
 
         // Resolve global simulation time for elapsed-time labels on Wait/Cooldown nodes.
         float globalTime = session is RepositoryAdapter ra

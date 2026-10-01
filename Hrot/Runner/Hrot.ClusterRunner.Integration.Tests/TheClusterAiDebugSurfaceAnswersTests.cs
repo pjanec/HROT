@@ -153,7 +153,6 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         Assert.NotNull(surface.Hsm);
         Assert.NotNull(surface.Blueprint);
         Assert.NotNull(surface.Blueprints);
-        Assert.NotNull(surface.Behaviors);
     }
 
     [Fact(Timeout = 120_000)]

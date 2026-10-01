@@ -83,7 +83,7 @@ public sealed class TheTracerCoordinatorActuallyControlsTimeTests
     [Fact]
     public void TheComposer_RefusesToBuildSessionsWithoutTimeControl()
         => Assert.Throws<System.ArgumentNullException>(
-            () => AiDebugSessionComposer.Compose(null!));
+            () => AiDebugSessionComposer.Compose(null!, behaviors: null));
 
     /// <summary>
     /// ⭐⭐⭐ <b>BOTH sessions share ONE coordinator, and it is the one that controls time.</b>
@@ -94,7 +94,7 @@ public sealed class TheTracerCoordinatorActuallyControlsTimeTests
     public void TheComposedSessions_ShareTheOneTimeControllingCoordinator()
     {
         var spy      = new SpyTimeController();
-        var composed = AiDebugSessionComposer.Compose(spy);
+        var composed = AiDebugSessionComposer.Compose(spy, behaviors: null);
 
         Assert.True(composed.Coordinator.HasTimeControl);
         Assert.NotNull(composed.BTree);

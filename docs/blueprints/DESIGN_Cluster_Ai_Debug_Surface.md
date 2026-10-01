@@ -49,7 +49,8 @@ related-designs:
 | **D2** | `AiDebugSurface` (in `Hrot.Editor.AiComposition`, beside `AiDebugSessionComposer`) = BTree + HSM + Blueprint sessions + the blueprint registry | one record both hosts can build; `Hrot.Presentation`'s provider cannot name these types | widening `ISubsystemDebugProvider` — engine layer would reference the AI editors |
 | **D3** | ⭐ CGF composes its sessions in **`Initialize`**, headless included; `BuildAiShell` reuses the fields | a headless cluster is exactly where an agent reads the trace; ⇒ the EQS-drawer lesson (§17.8): a window hook must not own a capability | composing on demand in the API — a third place sessions are created |
 | **D4** | the arming tracer is `EditorAiTracerCoordinator(world)`, **one per world**, created by the API on first use | stateless but for its armed set; nothing else arms on CGF, so one per world is one per world | B-D3's premise (a CGF tracer) — measured absent (§1 ③) |
-| **D5** | ⭐ ONE reader for a Behavior blueprint's root block, typed by `BehaviorDefinition.BlackboardLayoutType` — `BlueprintBehaviorStateReader` (`Hrot.Blueprints.Editor`) — used by the **trace** and the **variables** arms | the layout type IS the emitted `State`; reflection on it needs no debug map and cannot drift from the compiler. Both arms, both hosts, one decode | a `BlueprintDefinition` for Behavior blueprints — a compiler change (Q77 §5.2 chose not to) · a debug-map decode — the map is loaded only for assets the editor opened |
+| **D5** | ⭐ a Behavior blueprint is read by the **Blueprint debug session itself** — `BlueprintDebugSession.CaptureLiveBehaviorState(entity)` → the same `BlueprintStateSnapshot` (fields + latent cursor) an Instance blueprint yields; the session gets the behaviour registry through `SetBehaviorRegistry` (both hosts, beside `SetDataBreakpointManager`). The **trace** and **variables** routes consume that snapshot — the variables route through ONE `TryCaptureBlueprint` shared by both dispatches | the session already owns *"THE decode loop — one body, four former copies"* (`DecodeStateFields`) and the exact managed-layout struct read (`MarshalFromBytes` → `TryReadStruct`); the root block IS the emitted `State` (`BlackboardLayoutType`), so it is read with that struct arm and each field gets the session's fixed-list formatting | ⛔ a separate reader beside the session (built first, then deleted — §⛔ HISTORY) — a fifth decode copy · `RootParamsProjection`'s `Marshal.PtrToStructure` decode — the marshalled model mis-reads `bool` and an `[InlineArray]` · a `BlueprintDefinition` for Behavior blueprints — a compiler change (Q77 §5.2 chose not to) |
+| **D7** | ⭐ the BTree session names an entity's nodes from **the blob its interpreter runs** — `BehaviorRegistry.TryGetTreeBlob(ActiveBehaviorHash)`, the ONE lookup now shared with the inspector's tree view (`BTreeVisualizerRenderer`); the composer passes the registry (both hosts hold it) | it is the tree actually executing, so its node indices are exactly the ones `BehaviorTreeState` holds; the visualizer already did this, the session did not | ⛔ a per-tree table fed by the catalogue (built first, then deleted — §⛔ HISTORY) — a second source for the same fact · the single `SetDebugMetadata` slot alone — last-wins over every catalogued tree (stays the fallback: a JSON-compiled blob carries no `DebugMetadata`) |
 | **D6** | the blueprint trace arm reports **what exists**: behaviour + asset name, the latent `resumeAt`, the working fields (incl. `Phase`), and the session's node history **when the build is instrumented** | ⛔ B.3 ③'s "active graph" has no runtime record (§1 ⑤); a Behavior blueprint ticks one root graph — reporting a graph name would be invented | a stub note (what was there) |
 
 ## 3. UML
@@ -70,24 +71,29 @@ classDiagram
         +HsmDebugSession Hsm
         +BlueprintDebugSession Blueprint
         +BlueprintRegistry Blueprints
-        +BehaviorRegistry Behaviors
     }
     class BTreeDebugSession {
-        +RegisterTreeMetadata(treeName, assetId, metadata)
-        +Update(world, entity) names nodes from the entity's own tree
+        -BehaviorRegistry _behaviors
+        +Update(world, entity) names nodes from the running tree
     }
-    class BTreeAssetContributor {
-        catalogue, composed in CGF Initialize
+    class BehaviorRegistry {
+        +TryGetTreeBlob(behaviorId) BehaviorTreeBlob
+    }
+    class BTreeVisualizerRenderer {
+        existing inspector tree view
+    }
+    class BlueprintDebugSession {
+        +SetBehaviorRegistry(registry)
+        +CaptureLiveState(entity, assetId) BlueprintStateSnapshot
+        +CaptureLiveBehaviorState(entity) BlueprintStateSnapshot
+        -TryReadStruct / MarshalFromBytes  the one decode
     }
     class CgfSubsystem {
         +AiDebugSurface AiDebugSurface
         Initialize() composes it
     }
     class AiDebugSessionComposer {
-        +Compose(timeController) AiDebugSessions
-    }
-    class BlueprintBehaviorStateReader {
-        +TryRead(view, entity, BehaviorRegistry) BehaviorBlueprintState
+        +Compose(timeController, behaviors) AiDebugSessions
     }
     class EditorAiTracerCoordinator {
         +ArmEntity(e)
@@ -95,15 +101,18 @@ classDiagram
     }
     DebugApiService ..> AiDebugSurface : per active world
     DebugApiService ..> EditorAiTracerCoordinator : one per world
-    DebugApiService ..> BlueprintBehaviorStateReader : trace + variables arms
+    DebugApiService ..> BlueprintDebugSession : trace + variables, both dispatches
     CgfSubsystem --> AiDebugSurface : owns
     CgfSubsystem ..> AiDebugSessionComposer : Initialize
-    CgfSubsystem ..> BTreeAssetContributor : Initialize
-    BTreeAssetContributor ..> BTreeDebugSession : one table per tree
     AiDebugSurface --> BTreeDebugSession
+    AiDebugSurface --> BlueprintDebugSession
+    BTreeDebugSession ..> BehaviorRegistry : which tree runs
+    BTreeVisualizerRenderer ..> BehaviorRegistry : which tree runs
+    BlueprintDebugSession ..> BehaviorRegistry : Behavior arm
 ```
-*What the picture shows that prose hid:* the API never builds a session — it borrows CGF's through a world-keyed `Func`; the only
-thing it creates is the stateless arming tracer, and the Behavior reader is a third, shared piece both arms call.
+*What the picture shows that prose hid:* the API builds no session and **no decoder** — it borrows CGF's sessions through a
+world-keyed `Func` and reads every blueprint through the session's one decode; the only thing it creates is the stateless arming
+tracer. And the two BTree readers (the inspector view and the debug session) now ask the registry the SAME question.
 
 ```mermaid
 sequenceDiagram
@@ -112,7 +121,7 @@ sequenceDiagram
     participant P as PerspectiveScopedDispatcher
     participant R as ClusterRunner Func
     participant C as CgfSubsystem
-    participant S as BlueprintBehaviorStateReader
+    participant S as BlueprintDebugSession
     A->>D: GET /entities/1000/trace
     D->>P: World (active perspective)
     D->>R: surface(world)
@@ -121,8 +130,8 @@ sequenceDiagram
     alt BrainTier BTree / Hsm
         D->>D: session.Update(world, entity) → snapshot
     else BrainTier Blueprint (Behavior dispatch)
-        D->>S: TryRead(world, entity, behaviourRegistry)
-        S-->>D: name, resumeAt, fields (Phase, Sensor…)
+        D->>S: CaptureLiveBehaviorState(entity)
+        S-->>D: BlueprintStateSnapshot (name, cursor.resumeAt, fields Phase, Sensor…)
     end
     D-->>A: { tier, activeNode | behaviour + fields }
 ```
@@ -142,26 +151,25 @@ and the routes say so, rather than borrowing CGF's sessions for a different worl
 
 ## 4. As-built *(`2026-10-01`)*
 
-⭐ §2's six decisions and §3's three diagrams are TRUE as built.
+⭐ §2's seven decisions and §3's three diagrams are TRUE as built (after the same-day unification — §⛔ HISTORY).
 
 | piece | where |
 |---|---|
-| `AiDebugSurface` record (World, BTree, Hsm, Blueprint, Blueprints, **Behaviors**) | `Hrot.Editor.AiComposition/AiDebugSessionComposer.cs` |
+| `AiDebugSurface` record (World, BTree, Hsm, Blueprint, Blueprints); `Compose(timeController, behaviors)` | `Hrot.Editor.AiComposition/AiDebugSessionComposer.cs` |
 | CGF composes BTree/HSM in `Initialize` and publishes `AiDebugSurface`; `BuildAiShell` no longer composes | `CgfSubsystem.cs` (after the Blueprint session) |
 | ⭐ CGF composes its **asset catalogue** in `Initialize` too (`BuildAssetCatalog`), as the editor does — its `BTreeAssetContributor` is what calls `SetDebugMetadata` on the BTree session (`CE-345`) | `CgfSubsystem.cs`, right after the surface |
-| ⭐ `BTreeDebugSession` keeps a symbolication table **per tree** (`RegisterTreeMetadata`, keyed by `BehaviorHash.FromName(treeName)` = the entity's `ActiveBehaviorHash`) and `Update` names an entity's nodes from **its own** tree; the single `SetDebugMetadata` slot stays the fallback and, for the asset the editor opened, the fresher table | `Hrot.BTree.Editor/Debug/BTreeDebugSession.cs`, `Catalog/BTreeAssetContributor.cs` |
+| ⭐ `BehaviorRegistry.TryGetTreeBlob` — the one *"which tree does this entity run"* lookup; `BTreeVisualizerRenderer` routed to it; `BTreeDebugSession` (given the registry by the composer) names nodes from it, the `SetDebugMetadata` slot as fallback | `Fdp.Toolkits/Behavior/BehaviorRegistry.cs` · `Hrot.Presentation/Renderers/BTreeVisualizerRenderer.cs` · `Hrot.BTree.Editor/Debug/BTreeDebugSession.cs` |
 | ⭐ `DtoDiagnosticMapper` reads an `[InlineArray]` element generically (`Unsafe.Add` over the array) instead of `Marshal.SizeOf`/`StructureToPtr` | `Fdp.Toolkits/Diagnostics/DtoDiagnosticMapper.cs` |
 | the cluster ctor's `aiDebugSurface: Func<EntityRepository, AiDebugSurface?>`; the five dependencies are properties — editor value, else the active world's surface; the tracer is a `ConditionalWeakTable` per world | `DebugApiService.cs` (Group K fields) |
 | ClusterRunner passes the world-keyed Func | `Hrot.ClusterRunner/Program.cs` |
-| `BlueprintBehaviorStateReader` — the root block read through `BehaviorDefinition.BlackboardLayoutType` | `Hrot.Blueprints.Editor/BlueprintBehaviorStateReader.cs` |
+| `BlueprintDebugSession.SetBehaviorRegistry` + `CaptureLiveBehaviorState` — the root block read as `BlackboardLayoutType` with the session's own `TryReadStruct`, fields formatted by its fixed-list arm; both hosts call the setter | `Hrot.Blueprints.Editor/BlueprintDebugSession.cs` · `CgfSubsystem.cs` · `EditorSubsystem.cs` |
 | trace: a Behavior arm (behaviour, `resumeAt`, `waitUntilTime`, variables, node history) and an Instance arm (attached assets, node history) replace the stub | `DebugApiService.GetEntityTrace` |
-| variables / variable: a Behavior arm first; entries are `writable: false` (staging maps only AiPrimitive and Instance layouts) | `DebugApiService.Variables.cs` |
+| variables / variable: ONE `TryCaptureBlueprint` for both dispatches (the running behaviour first, else the attached Instance slot), then the same `DescribeVariable`; a behaviour's fields come out `writable: false` (staging maps only AiPrimitive and Instance layouts) | `DebugApiService.Variables.cs` |
 
 | deviation from §2 | why |
 |---|---|
-| the surface also carries the **behaviour registry** | the Behavior reader needs the registry of the SAME node; the existing cluster `behaviorRegistry` getter picks the first CGF it finds, not the active world's |
 | ⚠ Behavior-blueprint variables are **read-only** over the API | writing the root block would need the staged-write resolver to learn the `BlueprintBehavior` layout — out of `CE-476`'s scope, recorded here |
-| ⭐ D3 widened: the **catalogue** moves to `Initialize` with the sessions — and the session symbolicates **per tree** | 🔴 measured live (`--mode all`, `hill-attack-close`): the C# commander traced as `BTree` and armed, but `activeNode` was `null` and every `nodeVisualId` `Guid.Empty`. Two causes, one under the other: ① only `BuildAiShell` (windowed) composed the catalogue that feeds the session its tables; ② with the catalogue composed (re-measured: still null), the session held **one** table, last-wins over all 65 catalogued assets — it modelled *"the debugger window bound to the open asset"*, and a cluster opens none. ⭐ The design intent was always per-node symbolication of the running tree (`BTree_Editor_NodeEditor_Host_Design.md` *"RunningNodeIndex is symbolicated through the metadata array"*; `AI_Editor_Shared_Infrastructure.md` §15.5 *"BTree needs an equivalent [symbolicator] over NodeDebugMetadata"*) — nothing chose one-table-per-session. Railed: `BTreeContributorDebugSessionTests.AnEntityIsNamedFromItsOwnTree_NotTheLastOneRegistered` |
+| ⭐ D3 widened: the **catalogue** moves to `Initialize` with the sessions — and the session symbolicates **per tree** | 🔴 measured live (`--mode all`, `hill-attack-close`): the C# commander traced as `BTree` and armed, but `activeNode` was `null` and every `nodeVisualId` `Guid.Empty`. Two causes, one under the other: ① only `BuildAiShell` (windowed) composed the catalogue that feeds the session its tables; ② with the catalogue composed (re-measured: still null), the session held **one** table, last-wins over all 65 catalogued assets — it modelled *"the debugger window bound to the open asset"*, and a cluster opens none. ⭐ The design intent was always per-node symbolication of the running tree (`BTree_Editor_NodeEditor_Host_Design.md` *"RunningNodeIndex is symbolicated through the metadata array"*; `AI_Editor_Shared_Infrastructure.md` §15.5 *"BTree needs an equivalent [symbolicator] over NodeDebugMetadata"*) — nothing chose one-table-per-session. Railed: `BTreeContributorDebugSessionTests.AnEntityIsNamedFromTheTreeItRuns_NotTheLastOneRegistered` |
 | ⭐ a **mapper** defect fixed on the way | 🔴 measured live: `/entities` on the Scenario perspective returned **500** once the blueprint commander ran — `Marshal.SizeOf` throws for an enum element type, and `HillAttackSlot` is one. Railed by `EventSerializationHelperTests.MapObject_InlineArrayOfAnEnum_ReadsEveryElementExactly` (red on the old code) |
 
 **Rails** — `TheClusterAiDebugSurfaceAnswersTests` (ClusterRunner, a real headless CGF + SimHost; the API built as `Program.cs`
@@ -172,3 +180,15 @@ perspective borrows nothing. ⭐ Red-proofed: with `aiDebugSurface: null` the BT
 doctrine concludes in a few frames (measured) — a long-running commander is the live `--mode all` run's job.
 
 **Live** *(`2026-10-01`)* — `ClusterRunner --mode all`, a fresh cluster per run, `Scenario` perspective: C# `hill-attack-close` — `tier:BTree`, `observe` ⇒ `armed:true`, `activeNode` `…00a3` → `…00b4` (symbolicated, changing), node history fills; blueprint `hill-attack-close-bp` — `tier:Blueprint`/`Behavior`/`PlatoonHillAttackBp`, `armed:true`, `/variables` mid-fight `Phase=AwaitWave`, `Sensor` valid; both runs: hostiles 1006/1007 `Health 0`, the commander finishes (t≈51 s / t≈50 s), the platoon back on the baseline line. ⚠ The blueprint run predates the per-tree symbolication change, which does not touch the Behavior arm.
+
+## ⛔ HISTORY — superseded the same day *(user, `2026-10-01`: "share and unify, do not duplicate")*
+
+⛔ Two pieces of the first build were **duplicates of existing owners**, found by a `search_graph` sweep run only after the user
+asked (`.*(Symbolicat|DebugMetadata|NodeVisualId).*`, `.*(BlackboardLayout|RootParams|ReadRoot|BehaviorBlueprint).*`,
+`.*(MarshalFromBytes|FromBytes|ReadTyped|ProjectAndFormat).*`) — ⛔ do not quote them as current:
+
+| deleted | what it duplicated |
+|---|---|
+| `BlueprintBehaviorStateReader` (`Hrot.Blueprints.Editor`) — a reflection reader of the root block | `BlueprintDebugSession`'s decode (`DecodeStateFields` / `MarshalFromBytes` / `TryReadStruct`) and its snapshot type — the session is the owner of *"what does this blueprint hold"*. Also the decode rule `RootParamsProjection` and `LiveBlackboardValueProvider` already share |
+| `BTreeDebugSession.RegisterTreeMetadata` + a per-tree table fed by `BTreeAssetContributor` | `BTreeVisualizerRenderer`'s lookup — `registry → def.BTreeInterpreter.Blob.DebugMetadata` |
+| `AiDebugSurface.Behaviors` | only the deleted reader needed it; the session holds the registry now |

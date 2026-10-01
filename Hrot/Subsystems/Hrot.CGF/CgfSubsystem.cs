@@ -1574,6 +1574,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             _blueprintRegistry!, _context.World, bpTimeAdapter);
         bpBlueprintSession.SetDataBreakpointManager(_bpManager);
         bpBlueprintSession.SetLiveRepository(_context.World);
+        // ⭐ CE-476 — this host holds the behaviour registry, so the session can read a Behavior-dispatch blueprint.
+        bpBlueprintSession.SetBehaviorRegistry(_behaviorRegistry);
         bpBlueprintSession.Attach();
         _blueprintDebugSession = bpBlueprintSession;
 
@@ -1584,12 +1586,12 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //    the four (trace: "Trace coordinator not available", tier "unknown"; variables: "No blueprint
         //    debug session"). ⇒ the same lesson as the EQS drawers (EQS design §17.8): a window hook must not
         //    own a capability. BuildAiShell now reuses these fields.
-        var aiDebug        = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_debugTimeController!);
+        var aiDebug        = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_debugTimeController!, _behaviorRegistry);
         _btreeDebugSession = aiDebug.BTree;
         _hsmDebugSession   = aiDebug.Hsm;
         AiDebugSurface     = new Hrot.Editor.AiComposition.AiDebugSurface(
             _context.World, _btreeDebugSession, _hsmDebugSession, _blueprintDebugSession,
-            _blueprintRegistry, _behaviorRegistry);
+            _blueprintRegistry);
 
         // ⭐⭐ CE-476 — THE ASSET CATALOGUE IS COMPOSED HERE TOO, because it is what SYMBOLICATES the BTree session:
         //    its BTreeAssetContributor calls SetDebugMetadata on `_btreeDebugSession` (CE-345). 🔴 Composed only in

@@ -45,8 +45,7 @@ public sealed record AiDebugSurface(
     Hrot.BTree.Editor.Debug.BTreeDebugSession? BTree,
     Hrot.Hsm.Editor.Debug.HsmDebugSession? Hsm,
     Hrot.Blueprints.Core.Debug.BlueprintDebugSession? Blueprint,
-    Fdp.Toolkit.Blueprints.BlueprintRegistry? Blueprints,
-    Fdp.Toolkit.Behavior.BehaviorRegistry? Behaviors);
+    Fdp.Toolkit.Blueprints.BlueprintRegistry? Blueprints);
 
 public static class AiDebugSessionComposer
 {
@@ -56,14 +55,17 @@ public static class AiDebugSessionComposer
     /// <exception cref="ArgumentNullException">
     /// ⛔ <paramref name="timeController"/> is null — see the class remarks.
     /// </exception>
-    public static AiDebugSessions Compose(IEngineDebugTimeController timeController)
+    public static AiDebugSessions Compose(
+        IEngineDebugTimeController timeController, Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors)
     {
         if (timeController is null) throw new ArgumentNullException(nameof(timeController));
 
         var coordinator = new AiTracerCoordinator(timeController);
         return new AiDebugSessions(
             coordinator,
-            new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator),
+            // ⭐ CE-476: the registry whose interpreters run the trees — the BTree session names an entity's nodes
+            //   from the blob it actually executes. Required, not defaulted: both hosts hold it (silent-default rule).
+            new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator, behaviors),
             new Hrot.Hsm.Editor.Debug.HsmDebugSession(coordinator));
     }
 }

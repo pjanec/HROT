@@ -407,10 +407,6 @@ namespace Hrot.Editor.DebugApi
         private Fdp.Toolkit.Blueprints.BlueprintRegistry? _blueprintRegistry
             => _blueprintRegistryValue ?? ActiveAiDebugSurface?.Blueprints;
 
-        /// <summary>The behaviour registry of the active perspective's node when it has a surface, else the host's.</summary>
-        private Fdp.Toolkit.Behavior.BehaviorRegistry? _aiBehaviorRegistry
-            => ActiveAiDebugSurface?.Behaviors ?? _behaviorRegistry;
-
         // Group L — Attribute patch + StructEdit component edit
         private readonly JsonAttributeCompiler? _injectedAttributeCompiler;
         private JsonAttributeCompiler? _builtAttributeCompiler;
@@ -2849,28 +2845,29 @@ namespace Hrot.Editor.DebugApi
                 };
             }
 
-            // ⭐⭐⭐ CE-476 D5/D6 — a Behavior-dispatch blueprint (BrainTier 3): read its root block through the ONE
-            //    shared reader. 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md. 🔴 This was a stub that named no
-            //    asset and no state, on every host. ⚠ There is no "active graph" to report: a Behavior blueprint ticks
-            //    its one root graph, and its latent cursor records only a resume index — reported as resumeAt.
+            // ⭐⭐⭐ CE-476 D5/D6 — a Behavior-dispatch blueprint (BrainTier 3): the Blueprint debug session's own snapshot
+            //    (CaptureLiveBehaviorState — the same decode and the same snapshot type as an Instance blueprint).
+            //    📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md. 🔴 This was a stub that named no asset and no
+            //    state, on every host. ⚠ There is no "active graph" to report: a Behavior blueprint ticks its one root
+            //    graph, and its latent cursor records only a resume index — reported as resumeAt.
             if (tier == Fdp.Toolkit.Behavior.BehaviorConstants.BrainTierBlueprint)
             {
-                if (!Hrot.Blueprints.Core.Debug.BlueprintBehaviorStateReader.TryRead(
-                        _world, entity, _aiBehaviorRegistry, out var behaviour))
+                var behaviour = _blueprintSession?.CaptureLiveBehaviorState(entity);
+                if (behaviour is null)
                 {
                     return new JsonObject
                     {
                         ["networkId"] = networkId,
                         ["tier"]      = "Blueprint",
                         ["dispatch"]  = "Behavior",
-                        ["note"]      = _aiBehaviorRegistry is null
-                            ? "No behaviour registry on this node, so the blueprint behaviour cannot be decoded."
+                        ["note"]      = _blueprintSession is null
+                            ? "No blueprint debug session on this node, so the blueprint behaviour cannot be decoded."
                             : "The blueprint behaviour is not in this node's registry, or its root block is absent.",
                     };
                 }
 
                 var variables = new JsonObject();
-                foreach (var (name, value) in behaviour.Variables)
+                foreach (var (name, value) in behaviour.FieldValues)
                     variables[name] = ToJson(value);
 
                 return new JsonObject
@@ -2878,9 +2875,9 @@ namespace Hrot.Editor.DebugApi
                     ["networkId"]     = networkId,
                     ["tier"]          = "Blueprint",
                     ["dispatch"]      = "Behavior",
-                    ["behavior"]      = behaviour.BehaviorName,
-                    ["resumeAt"]      = behaviour.ResumeAt,
-                    ["waitUntilTime"] = behaviour.WaitUntilTime,
+                    ["behavior"]      = behaviour.AssetName,
+                    ["resumeAt"]      = behaviour.Cursor?.ResumeAt,
+                    ["waitUntilTime"] = behaviour.Cursor?.WaitUntilTime,
                     ["variables"]     = variables,
                     ["nodeHistory"]   = BlueprintNodeHistory(entity),
                 };

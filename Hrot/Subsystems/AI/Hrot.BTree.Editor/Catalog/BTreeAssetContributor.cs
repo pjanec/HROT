@@ -96,7 +96,5 @@ public sealed class BTreeAssetContributor : IAssetCatalogContributor
         // BPF-026: wire debug metadata into the session so node-index symbolication
         // (RunningElementId, StackElementIds) works when Update() is called at runtime.
         _debugSession?.SetDebugMetadata(blob.DebugMetadata, assetId);
-        // ⭐ CE-476: and per tree, so an entity is named from ITS tree, not the last one registered here.
-        _debugSession?.RegisterTreeMetadata(treeName, assetId, blob.DebugMetadata);
     }
 }

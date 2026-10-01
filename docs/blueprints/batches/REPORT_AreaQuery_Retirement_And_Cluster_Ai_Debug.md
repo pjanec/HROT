@@ -49,7 +49,7 @@ runtime record of which graph runs** (it ticks one root graph). The trace names 
 | decision | outcome |
 |---|---|
 | B-D1 (per-perspective `Func`) | ✅ as leaned, keyed on the active perspective's **world** rather than its name (design D1) |
-| B-D2 (one blueprint arm) | ✅ Instance and Behavior arms, no stub |
+| B-D2 (one blueprint arm) | ✅ as leaned, literally: both dispatches read through the **Blueprint debug session** — a new `CaptureLiveBehaviorState` beside `CaptureLiveState`, same snapshot type, same decode; the variables route has ONE capture path for both |
 | B-D3 (CGF's CE-351 tracer) | ⛔ **premise false** — CGF has no arming tracer; `CE-351` is the runtime panes. The API creates `EditorAiTracerCoordinator(world)` once per world; it needs only a world (design §1 ③) |
 
 ## 3. Things to act on
@@ -57,11 +57,23 @@ runtime record of which graph runs** (it ticks one root graph). The trace names 
 | | |
 |---|---|
 | 🔴 **pre-existing compile break on `behaviors`** | `Fdp.Toolkits.Tests/Behavior/ChannelArbitrationTests.cs:270` still names `HillAssault2ReverseToBaseline_FF75553A_Bp`, retired by `CE-477` (`c6d2b1821`) ⇒ 9 × CS0234, the project does not build. Not in a file this batch touched; yours |
-| ⭐ **three defects found live, all fixed** | ① a headless CGF composed its BTree/HSM sessions **and its asset catalogue** only in `BuildAiShell` (windowed) — so no session, and once there was one, no node names (`CE-476`, design §4) · ② the BTree session held **one** symbolication table, last-wins over all 65 catalogued trees — so even with the catalogue every entity was named against the wrong tree; it now names each entity from its own (`CE-476`, railed and red-proofed) · ③ `DtoDiagnosticMapper` threw on an `[InlineArray]` of an **enum** (`HillAttackSlot`) ⇒ `/entities` 500 once the blueprint commander ran (`CE-489`, railed red→green) |
+| ⭐ **three defects found live, all fixed** | ① a headless CGF composed its BTree/HSM sessions **and its asset catalogue** only in `BuildAiShell` (windowed) — so no session, and once there was one, no node names (`CE-476`, design §4) · ② the BTree session held **one** symbolication table, last-wins over all 65 catalogued trees — so even with the catalogue every entity was named against the wrong tree; it now names each entity from the blob its interpreter runs, through the lookup the inspector's tree view already used (`CE-476`, railed) · ③ `DtoDiagnosticMapper` threw on an `[InlineArray]` of an **enum** (`HillAttackSlot`) ⇒ `/entities` 500 once the blueprint commander ran (`CE-489`, railed red→green) |
 | ⚠ flake | `Hrot.Editor.Tests` `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` failed once in the full run, passes alone twice (GC-order) |
-| ⚠ observation, not chased | `/entities/1000/variables` on the **C#** commander answers *"carries 2 blueprints (0x48E4DCC0, 0x0EFC6267); name one"* — two attached blueprint instances whose ids resolve to no registered name. Not in acceptance; the route is right to refuse a guess, but an unnamed attachment is worth a look on your side |
-| ⚠ outside my fence, additive | `Hrot.BTree.Editor` — `BTreeDebugSession.RegisterTreeMetadata` + per-entity table lookup, and one call from `BTreeAssetContributor`. Needed for B.3 ②; the existing slot behaviour is unchanged (its rails pass) |
+| ⚠ outside my fence, additive | ① `Fdp.Toolkits` — `BehaviorRegistry.TryGetTreeBlob` (the inspector's existing *"which tree does this entity run"* lookup, lifted so the BTree debug session shares it; `BTreeVisualizerRenderer` routed to it) · ② `Hrot.BTree.Editor` — `BTreeDebugSession` takes the registry (composer forwards it) · ③ `Hrot.Blueprints.Editor` — `BlueprintDebugSession.SetBehaviorRegistry` + `CaptureLiveBehaviorState`, built from the session's own decode. All additive; existing rails unchanged |
 | ⚠ stale cref | `HillAttackIntegrationTests.cs:50` `<see cref="AreaQueryInitializationSystem"/>` names a type that no longer exists (it did not exist before this batch either) — yours to drop |
+
+## 3a. Unified, not duplicated *(user, `2026-10-01`: "share and unify, do not duplicate · use codebase memory, not just grep")*
+
+⛔ The first build carried two duplicates; a `search_graph` sweep (design §⛔ HISTORY lists the queries) found their existing owners, and both were folded in:
+
+| deleted | now routed to |
+|---|---|
+| `BlueprintBehaviorStateReader` (a fifth decode of a blueprint's state) | `BlueprintDebugSession` — its exact struct read + fixed-list formatting; `CaptureLiveBehaviorState` returns the same `BlueprintStateSnapshot` as an Instance blueprint |
+| a per-tree BTree symbolication table fed by the catalogue | `BehaviorRegistry.TryGetTreeBlob` — the lookup `BTreeVisualizerRenderer` already did, now one function both call |
+
+⚠ Not duplicated but worth your eye: `RootParamsProjection` (inspector) and `LiveBlackboardValueProvider` (editor watch) decode a root block with `Marshal.PtrToStructure`, which the Blueprint session's own comments rule out (*"the two differ on bool"*), and it counts an `[InlineArray]` as one element. A Behavior blueprint's `State` hits that fallback in the inspector. Not changed here (behaviours-lane UI); routing them to the session's struct arm would make it one decoder everywhere.
+
+⚠ `/entities/{id}/variables` on the **C#** commander lists *"2 blueprints (0x48E4DCC0, 0x0EFC6267)"* because `BlueprintTierSummary.AppendSlots` lists **every** occurrence slot (BTree root state, root params) and names unregistered ones by hex — a discovery over-report, not an attachment. Not changed here.
 
 ## 4. Gates *(base `a61b51973`)*
 

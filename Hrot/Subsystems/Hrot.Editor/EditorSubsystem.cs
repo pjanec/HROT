@@ -1222,7 +1222,7 @@ namespace Hrot.Editor
             // ⚠ _timeCommands stays: the transport facade and the toolbar still publish intents
             //   through it (:5051, :5064). ⛔ It is no longer the AI debuggers' route to time.
             _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
-            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter);
+            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter, _behaviorRegistry);
             _aiTracerCoordinator = aiDebug.Coordinator;
             _btreeDebugSession   = aiDebug.BTree;
             _hsmDebugSession     = aiDebug.Hsm;
@@ -1777,6 +1777,8 @@ namespace Hrot.Editor
                 _blueprintRegistry, _world!, bpTimeAdapter);
             bpBlueprintSession.SetDataBreakpointManager(_bpManager);
             bpBlueprintSession.SetLiveRepository(_world);  // NGS-2.0: wire live repo for sub-tick recording
+            // ⭐ CE-476 — so the session can read a Behavior-dispatch blueprint (it has no BlueprintDefinition).
+            bpBlueprintSession.SetBehaviorRegistry(_behaviorRegistry);
             Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
             bpBlueprintSession.Attach();
             _blueprintDebugSession = bpBlueprintSession;
