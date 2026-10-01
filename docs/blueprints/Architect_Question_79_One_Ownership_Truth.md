@@ -576,3 +576,20 @@ which the complement ruling (§3.9c) deliberately does not do, and which the han
 `PerceptionTranslators.cs:62` and `EqsSensorConfigEgressTranslator.cs:88,180,236` call `view.HasAuthority(entity, DescriptorOrdinal)`
 with the RAW ordinal; the record is keyed by `PackKey(d,i) = d<<32 | i` (`OwnershipExtensions.cs:16-18`), so the descriptor lookup can
 never hit and the gate is always the entity-master owner.
+
+### 10.5 INVENTORY — graph vs grep *(codebase-memory, re-indexed `2026-10-01 21:35Z`; `check_index_coverage` on every cited path: no recorded issue — best-effort, not proof)*
+
+| query | graph | grep | verdict |
+|---|---|---|---|
+| `search_graph name_pattern=".*(Ownership\|Authority\|Takeover\|Promotion\|Yield).*" label=Class` | **48** classes (production subset: `AuthorityExtensions`, `OwnershipExtensions`, `DescriptorOwnership`, `DescriptorOwnershipMap`, `NetworkAuthority`, `PendingAuthorityGrants`, `GhostPromotionSystem`, `DeferredTakeoverSystem`, `LocalAuthorityYieldSystem` *(nested)*, `OwnershipIngress/Egress/TransferInitiation`, `OwnershipUpdateTranslator`, `DeferredTakeOwnership(Egress\|Ingress)Translator`, `BrainMuscleOwnershipStrategy`, `SplitAuthorityStrideSyncScript`, 3× `OwnershipUpdate`, 2× `DescriptorAuthorityChanged`) | — | ✅ graph only: grep cannot enumerate |
+| `search_graph … label=Interface` | **4** — `IOwnershipDistributionStrategy`, `IRoleAffinityPolicy`, `IRoleShardProvider`, `IWorldIdAuthority` | — | ✅ |
+| claim WRITERS — `trace_path EntityRepository.SetAuthority inbound` | **4 production**: `OwnershipIngressSystem`, `DeferredTakeoverSystem`, `OwnershipTransferInitiationSystem`, `LocalAuthorityYieldSystem` | the same 4 + the two bitmask writers (`NetworkSpawningSystem:236/263`, `GhostPromotionSystem:324`) the graph cannot see | ✅ agree |
+| record gate READERS — `trace_path AuthorityExtensions.HasAuthority inbound` | ⛔ **2** | **~30** call sites (NED/BDC/Cyclone senders, ingress loopback guards, request systems) | ⛔ graph under-reports extension-method dispatch — **grep is the set** |
+| claim READERS — `EntityRepository.HasAuthority<T>` / `WithOwned` / `WithOwnedWhen` | ⛔ 1 / 0 / 0 | 19 sites incl. 6 Stride | ⛔ same — **grep is the set** |
+| `OwnsDescriptor` | 1 caller, a test | 0 production | ✅ agree: unused in production |
+
+⭐ **New from the graph:** a THIRD `OwnershipUpdate` — `Hrot.NED.Messages.OwnershipUpdate` (`GenericMessages.cs:33-57`, DDS topic `"OwnershipUpdate"`,
+`NodeId NewOwner {Domain, Node}`) — **the wire spec's exact struct, referenced by nothing in production.** Production transfers ride
+`SST_OwnershipUpdate` (`Fdp.Network.Cyclone.Topics`, `int NewOwner`). ⚠ The graph lists 2 callers for it; both are a name collision
+with the bus `OwnershipUpdate`. ⇒ an EXTERNAL spec-compliant peer that sends `OwnershipUpdate` would not be heard — the compliance
+gap `DESIGN_Distributed_Scenario_Persistence.md` §6c records. Not this question's scope; noted, not decided (unreferenced ≠ unintended).
