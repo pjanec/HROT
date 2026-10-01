@@ -1213,11 +1213,26 @@ public static class BTreeBridgeEmitCore
     private static string? EmitSiteBindings(
         BehaviorTreeAssetDto dto, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
     {
-        var parts = new List<string>();
+        var sites = new List<(Guid SiteId, string? ParamsVariable)>();
         foreach (var node in dto.Nodes ?? new List<BTreeNodeDto>())
+            if (node is BTreeSubtreeNodeDto st && st.Subtree is not null)
+                sites.Add((st.VisualId, st.Subtree.ParamsVariable));
+        return EmitSiteBindings(sites, packedFields, dto.Name);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the ONE site-binding builder for BOTH hosts: a BTree's subtree nodes (keyed by VisualId) and an
+    /// HSM's hosting states (keyed by StableId). Each bound site becomes <c>[siteId] = new(offset, size)</c> of its host
+    /// variable; <c>null</c> when nothing is bound (⇒ the emitted call and every golden stay unchanged). ⛔ A variable naming no
+    /// packed variable emits a registration-time THROW — never a silently unbound site.
+    /// </summary>
+    internal static string? EmitSiteBindings(
+        IEnumerable<(Guid SiteId, string? ParamsVariable)> sites,
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields, string hostName)
+    {
+        var parts = new List<string>();
+        foreach (var (siteId, v) in sites)
         {
-            if (node is not BTreeSubtreeNodeDto st || st.Subtree is null) continue;
-            string? v = st.Subtree.ParamsVariable;
             if (string.IsNullOrWhiteSpace(v)) continue;
 
             BTreeBlackboardPackHelper.PackedField? f = null;
@@ -1226,11 +1241,11 @@ public static class BTreeBridgeEmitCore
                     if (pf.Name == v) { f = pf; break; }
 
             if (f is null)
-                return "((global::System.Collections.Generic.IReadOnlyDictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding>?)null ?? throw new global::System.InvalidOperationException(\"CE-431: subtree site " + st.VisualId.ToString("D")
+                return "((global::System.Collections.Generic.IReadOnlyDictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding>?)null ?? throw new global::System.InvalidOperationException(\"CE-431: subtree site " + siteId.ToString("D")
                      + " binds params variable '" + v!.Replace("\"", "") + "', which is not a Role=Input variable of '"
-                     + dto.Name.Replace("\"", "") + "'.\"))";
+                     + hostName.Replace("\"", "") + "'.\"))";
 
-            parts.Add("[new global::System.Guid(\"" + st.VisualId.ToString("D") + "\")] = new(" + f.ByteOffset + ", " + f.ByteSize + ")");
+            parts.Add("[new global::System.Guid(\"" + siteId.ToString("D") + "\")] = new(" + f.ByteOffset + ", " + f.ByteSize + ")");
         }
         if (parts.Count == 0) return null;
         return "new global::System.Collections.Generic.Dictionary<global::System.Guid, global::Fdp.Toolkit.Behavior.HostedSubtree.SiteBinding> { "

@@ -488,49 +488,7 @@ public static class BehaviorTreeAssetMapper
         return result;
     }
 
+    // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
-    {
-        // Try the short-name map first (for primitives)
-        var primitive = Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.GetPrimitiveType(typeId);
-        if (primitive != null) return primitive;
-
-        // Try full name via Type.GetType (works for System types)
-        var t = Type.GetType(typeId);
-        if (t != null) return t;
-
-        // DTO struct types (e.g. action param DTOs like DemoCounterNodes+DemoCounterParams)
-        // live in behavior assemblies (Hrot.AI.Behaviors, etc.), NOT the editor assembly, so
-        // Type.GetType — which only probes this assembly + corelib — misses them. Search all
-        // loaded assemblies by full name. TypeId uses the `+` nested separator (from Type.FullName),
-        // which Assembly.GetType understands directly.
-        var resolved = ResolveFromLoadedAssemblies(typeId);
-        if (resolved != null) return resolved;
-
-        // Alias shorthand (e.g. "int" or "float") already handled by GetPrimitiveType;
-        // try the display name path as well
-        foreach (var name in Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.DefaultKnownTypeNames)
-        {
-            var pt = Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.GetPrimitiveType(name);
-            if (pt != null && (pt.FullName == typeId || pt.Name == typeId)) return pt;
-        }
-
-        return typeof(object);
-    }
-
-    /// <summary>
-    /// Searches all loaded assemblies for a value type whose full name equals <paramref name="typeId"/>.
-    /// Used to resolve action/condition DTO struct types referenced by managed-blackboard variables,
-    /// which live in behavior assemblies rather than the editor assembly. Returns null if not found.
-    /// </summary>
-    private static Type? ResolveFromLoadedAssemblies(string typeId)
-    {
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type? byName;
-            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
-            catch { byName = null; } // dynamic/reflection-only assemblies may throw
-            if (byName != null) return byName;
-        }
-        return null;
-    }
+        => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
 }

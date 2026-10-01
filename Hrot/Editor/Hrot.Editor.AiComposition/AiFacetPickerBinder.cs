@@ -82,11 +82,11 @@ public static class AiFacetPickerBinder
             // ⭐ BB1D — ONE context, written by the dispatcher and read by the drawer.
             var ctx     = new BTreeFacetFqnContext();
             var drawers = BTreePickerDrawerFactory.BuildDrawers(
-                btreeAsset, services.BehaviorRegistry, services.ActionSchema, ctx);
+                btreeAsset, services.BehaviorRegistry, services.ActionSchema, ctx, services.Catalog);
 
             services.BTreeRegistrar?.NodeProperties.SetFacetEditService(editService, drawers);
             services.BTreeRegistrar?.NodeProperties.SetFacetDispatcher(
-                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, ctx));
+                BTreeSelectionBridgeHelper.BuildFacetDispatcher(btreeAsset, ctx, services.Catalog));   // CE-439
         }
         else if (active?.Kind == AssetKind.Hsm
             && active.Asset is Hrot.Hsm.Editor.Model.HsmAsset hsmAsset)

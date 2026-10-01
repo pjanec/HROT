@@ -256,15 +256,25 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
         //   with a live Guid would be a reference the designer cannot see or edit.
         if (string.IsNullOrWhiteSpace(pickedName))
         {
-            s.SubtreeName       = null;
-            s.SubtreeAssetId    = Guid.Empty;
-            s.IsSubtreeResolved = false;
+            s.SubtreeName           = null;
+            s.SubtreeAssetId        = Guid.Empty;
+            s.IsSubtreeResolved     = false;
+            s.SubtreeParamsVariable = null;   // CE-439: no child, no binding (the variable stays — no rush removals)
             return;
         }
 
+        bool changed = !string.Equals(s.SubtreeName, pickedName, StringComparison.Ordinal);
         s.SubtreeName = pickedName;
         (s.SubtreeAssetId, s.IsSubtreeResolved) =
             ResolvePickedAssetId(pickedName, Hrot.Editor.AiShared.AssetKind.BTree, s.SubtreeAssetId);
+
+        // ⭐⭐ CE-439 (Q76 §12.28) — a NEWLY picked child brings its params variable (the shared compose step). ⚠ Only on a
+        //   change: this runs on every facet apply, and re-composing an unchanged pick would resurrect a variable the
+        //   author deleted.
+        if (changed)
+            s.SubtreeParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+                _asset, pickedName!,
+                (_catalog?.FindByAssetId(s.SubtreeAssetId) as Hrot.Editor.AiShared.IBehaviorInputsContract)?.InputsTypeId);
     }
 
     /// <summary>
@@ -282,12 +292,7 @@ public sealed class HsmFacetDispatcher : IFacetDispatcher
     /// </summary>
     private (Guid Id, bool Resolved) ResolvePickedAssetId(
         string pickedName, Hrot.Editor.AiShared.AssetKind kind, Guid currentId)
-    {
-        var picked = _catalog?.FindByName(pickedName);
-        return picked != null && picked.Kind == kind
-            ? (picked.AssetId, true)
-            : (currentId, false);
-    }
+        => Hrot.Editor.AiShared.References.SubtreeReferenceResolver.ResolvePick(_catalog, pickedName, kind, currentId);   // CE-439: shared
 
     private void ApplyTransitionFacet(Guid visualId, TransitionFacet f)
     {

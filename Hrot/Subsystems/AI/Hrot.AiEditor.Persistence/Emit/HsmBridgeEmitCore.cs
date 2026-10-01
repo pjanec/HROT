@@ -189,7 +189,7 @@ public static class HsmBridgeEmitCore
         EmitStateParamBindings(sb, dto, packedFields, pad2);
 
         // ⭐⭐⭐ E5 — which STATES host a child behaviour. 📄 DESIGN §32.8 item 4.
-        EmitHostedSubtrees(sb, dto, pad2);
+        EmitHostedSubtrees(sb, dto, pad2, owned);
 
         // ⛔⛔ W3 (Batch 59) — THE COUNTER-ALLOCATED STUB REGISTRATIONS ARE GONE.
         //
@@ -642,7 +642,8 @@ public static class HsmBridgeEmitCore
     /// generated source stays byte-identical. ⭐ The same gating rule the <c>AssetId</c> constant and
     /// the <c>E3b-0</c> table learned: an emitter addition is gated on the feature that needs it.</para>
     /// </summary>
-    private static void EmitHostedSubtrees(StringBuilder sb, HsmAssetDto dto, string pad2)
+    private static void EmitHostedSubtrees(
+        StringBuilder sb, HsmAssetDto dto, string pad2, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned)
     {
         var hosted = CollectHostedSubtrees(dto);
         if (hosted.Count == 0) return;
@@ -660,7 +661,14 @@ public static class HsmBridgeEmitCore
             string escaped = childName.Replace("\\", "\\\\").Replace("\"", "\\\"");
             sb.AppendLine($"{pad2}{Indent}(new global::System.Guid(\"{stableId}\"), \"{escaped}\", {slotKey}),");
         }
-        sb.AppendLine($"{pad2}}});");
+        // ⭐⭐ CE-439 — each hosting state's SEED binding, built by the ONE site-binding builder the BTree host uses
+        //   (BTreeBridgeEmitCore.EmitSiteBindings), keyed by the state's StableId. ⛔ null ⇒ the call is unchanged.
+        var sites = new List<(Guid SiteId, string? ParamsVariable)>();
+        foreach (var st in dto.States ?? new List<StateNodeDto>())
+            if (st != null) foreach (var (stableId, _, _) in hosted)
+                if (st.StableId == stableId) { sites.Add((stableId, st.SubtreeParamsVariable)); break; }
+        string? bindings = BTreeBridgeEmitCore.EmitSiteBindings(sites, owned, dto.Name);
+        sb.AppendLine(bindings is null ? $"{pad2}}});" : $"{pad2}}}, {bindings});");
         sb.AppendLine();
 
         // ⭐⭐ And BIND each child's interpreter to its slot, resolved HERE because `beh` is in hand.

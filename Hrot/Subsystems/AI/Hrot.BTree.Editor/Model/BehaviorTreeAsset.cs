@@ -236,8 +236,14 @@ public sealed class BTreeEditorNode
 /// Implements <see cref="IEditableAsset"/> so it participates in the shared
 /// AI editor selection store and asset browser.
 /// </summary>
-public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset
+public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset, IBTreeSyncableAsset, IStitchableAsset, IStatefulScopeAsset, ISubtreeHostingAsset, Hrot.Editor.AiShared.IBehaviorInputsContract
 {
+    /// <summary>⭐ CE-439 — this behaviour's generated Inputs struct, as a host binding it as a subtree sees it
+    /// (<see cref="Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.InputsStructTypeId"/> — the one naming rule).</summary>
+    public string? InputsTypeId
+        => Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.InputsStructTypeId(
+               Hrot.BTree.Editor.Persistence.BehaviorTreeAssetMapper.ToDto(this));
+
     /// <summary>
     /// ⭐ <c>CE-428</c> — the bound blueprint RESOLVER asset (<c>Q76</c> §12.20), or <c>null</c>. ⚠ Must round-trip
     /// through <c>BehaviorTreeAssetMapper</c>: an editor save that dropped it would silently unbind the resolver.

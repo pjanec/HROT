@@ -211,4 +211,92 @@ public sealed class BTreeFacetMapperTests
         public Task<RefactorResult> ApplyRenameAsync(RefactorPreview p, CancellationToken ct = default) =>
             Task.FromResult(ApplyRename(p));
     }
+
+    // ── ⭐⭐ CE-439 — the subtree pick LANDS and binds the child's params (Q76 §12.28) ──────────────
+
+    public struct PatrolInputs { public float Speed; public int Laps; }
+
+    private sealed class ChildTree : Hrot.Editor.AiShared.IEditableAsset, Hrot.Editor.AiShared.IBehaviorInputsContract
+    {
+        public Guid AssetId { get; } = Guid.NewGuid();
+        public string Name => "PatrolTree";
+        public Hrot.Editor.AiShared.AssetKind Kind => Hrot.Editor.AiShared.AssetKind.BTree;
+        public string SourceFilePath => "/patrol.btree.json";
+        public bool IsDirty => false;
+        public bool IsEditorOwned => false;
+        public string? InputsTypeId { get; init; }
+#pragma warning disable 67
+        public event Action? Changed;
+#pragma warning restore 67
+    }
+
+    private sealed class OneAssetCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        private readonly Hrot.Editor.AiShared.IEditableAsset _a;
+        public OneAssetCatalog(Hrot.Editor.AiShared.IEditableAsset a) => _a = a;
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> All => new[] { _a };
+        public Hrot.Editor.AiShared.IEditableAsset? FindByAssetId(Guid id) => _a.AssetId == id ? _a : null;
+        public Hrot.Editor.AiShared.IEditableAsset? FindByName(string n) => _a.Name == n ? _a : null;
+        public System.Collections.Generic.IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> WhereDependsOn(Guid id)
+            => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();
+#pragma warning disable 67
+        public event Action<Hrot.Editor.AiShared.AssetKind>? Changed;
+#pragma warning restore 67
+    }
+
+    private static BehaviorTreeBlob RootHostingOneSubtree() =>
+        new BehaviorTreeBlob
+        {
+            TreeName = "Host",
+            Nodes = new[]
+            {
+                new NodeDefinition { Type = NodeType.Root,    ChildCount = 1, SubtreeOffset = 2 },
+                new NodeDefinition { Type = NodeType.Subtree, ChildCount = 0, SubtreeOffset = 1, RawPayloadIndex = 0 },
+            },
+            MethodNames     = Array.Empty<string>(),
+            FloatParams     = Array.Empty<float>(),
+            IntParams       = Array.Empty<int>(),
+            SubtreeAssetIds = new[] { "" },
+        };
+
+    /// <summary>
+    /// 🔴 RED before: <c>ApplyFacet</c>'s <c>BTreeSubtreeFacet</c> arm wrote only <c>Comment</c>/<c>IsBreakpoint</c> ⇒ the
+    /// picked name was DISCARDED. ⭐ Now the pick lands (name + Guid captured at pick time) and a child with Inputs brings a
+    /// <c>Role=Input</c> host variable typed as its Inputs struct, bound as the site's <c>ParamsVariable</c>.
+    /// </summary>
+    [Fact]
+    public void CE439_PickingASubtree_LandsAndBindsTheChildsParams()
+    {
+        var child  = new ChildTree { InputsTypeId = typeof(PatrolInputs).FullName };
+        var asset  = MakeAsset(RootHostingOneSubtree());
+        var mapper = new BTreeFacetMapper(asset, null, new OneAssetCatalog(child));
+        var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
+        var sel    = new BTreeNodeSelection(node.VisualId);
+
+        var facet = (BTreeSubtreeFacet)mapper.GetFacet(sel)!;
+        facet.SubtreeName = "PatrolTree";
+        mapper.ApplyFacet(sel, facet);
+
+        node.Subtree!.SubtreeName.Should().Be("PatrolTree");
+        node.Subtree.SubtreeAssetId.Should().Be(child.AssetId);
+        node.Subtree.ParamsVariable.Should().Be("PatrolTreeParams");
+        asset.BlackboardVariables.Single(v => v.Name == "PatrolTreeParams").FieldType.Should().Be(typeof(PatrolInputs));
+    }
+
+    /// <summary>⭐ A child with no Inputs: the pick lands, nothing is bound.</summary>
+    [Fact]
+    public void CE439_PickingASubtreeWithNoInputs_LandsAndBindsNothing()
+    {
+        var asset  = MakeAsset(RootHostingOneSubtree());
+        var mapper = new BTreeFacetMapper(asset, null, new OneAssetCatalog(new ChildTree()));
+        var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
+        var sel    = new BTreeNodeSelection(node.VisualId);
+
+        var facet = (BTreeSubtreeFacet)mapper.GetFacet(sel)!;
+        facet.SubtreeName = "PatrolTree";
+        mapper.ApplyFacet(sel, facet);
+
+        node.Subtree!.SubtreeName.Should().Be("PatrolTree");
+        node.Subtree.ParamsVariable.Should().BeNull();
+    }
 }

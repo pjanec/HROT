@@ -27,8 +27,9 @@ namespace Hrot.Hsm.Editor.Tests.Validation;
 /// </summary>
 public sealed class HsmSubtreeAuthoringTests
 {
-    private sealed class Tree : IEditableAsset
+    private sealed class Tree : IEditableAsset, IBehaviorInputsContract
     {
+        public string? InputsTypeId { get; init; }   // ⭐ CE-439: the child's Inputs struct, as the compose step reads it
         public Guid AssetId { get; init; } = Guid.NewGuid();
         public string Name { get; init; } = "PatrolTree";
         public AssetKind Kind { get; init; } = AssetKind.BTree;
@@ -219,5 +220,73 @@ public sealed class HsmSubtreeAuthoringTests
 
         new HsmValidator().Validate(hsm)
             .Should().NotContain(x => x.Code == HsmDiagnosticCode.SubtreeReferenceDangling);
+    }
+
+    // ── ⭐⭐ CE-439 — the pick binds the child's params (Q76 §12.28) ─────────────────────────────
+
+    /// <summary>A stand-in for a child's generated Inputs struct (any loaded struct resolves the same way).</summary>
+    public struct PatrolInputs { public float Speed; public int Laps; }
+
+    private static string PatrolInputsId => typeof(PatrolInputs).FullName!;
+
+    private static (HsmAsset Hsm, StateNode State, HsmFacetDispatcher D) Pick(Tree tree, string name = "PatrolTree")
+    {
+        var hsm = MakeMachine(out var state);
+        var d   = new HsmFacetDispatcher(hsm, null, new FakeCatalog(tree));
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        facet.SubtreeName = name;
+        d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
+        return (hsm, state, d);
+    }
+
+    /// <summary>
+    /// 🔴 RED before: the pick wrote the name and Guid only — nothing created or bound a host variable, so the child always
+    /// started from its defaults. ⭐ Now the host gains a <c>Role=Input</c> variable typed as the child's Inputs struct, bound
+    /// as the state's <c>SubtreeParamsVariable</c>.
+    /// </summary>
+    [Fact]
+    public void CE439_PickingATreeWithInputs_ComposesAndBindsItsParamsVariable()
+    {
+        var (hsm, state, _) = Pick(new Tree { InputsTypeId = PatrolInputsId });
+
+        state.SubtreeParamsVariable.Should().Be("PatrolTreeParams");
+        var v = hsm.BlackboardVariables.Single(x => x.Name == "PatrolTreeParams");
+        v.FieldType.Should().Be(typeof(PatrolInputs));
+        v.Role.Should().Be(Hrot.AiEditor.Persistence.BlackboardVariableRole.Input);
+        hsm.IsBlackboardEditorManaged.Should().BeTrue("both emitters gate the params path on the managed flag");
+    }
+
+    /// <summary>⭐ Re-applying the same pick (every facet edit does) neither duplicates the variable nor loses the binding.</summary>
+    [Fact]
+    public void CE439_ReapplyingTheSamePick_KeepsOneVariable()
+    {
+        var (hsm, state, d) = Pick(new Tree { InputsTypeId = PatrolInputsId });
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
+
+        hsm.BlackboardVariables.Count(x => x.FieldType == typeof(PatrolInputs)).Should().Be(1);
+        state.SubtreeParamsVariable.Should().Be("PatrolTreeParams");
+    }
+
+    /// <summary>⭐ A child that publishes no Inputs binds nothing — it starts from its own defaults (§11.4).</summary>
+    [Fact]
+    public void CE439_ATreeWithNoInputs_BindsNothing()
+    {
+        var (hsm, state, _) = Pick(new Tree { InputsTypeId = null });
+
+        state.SubtreeParamsVariable.Should().BeNull();
+        hsm.BlackboardVariables.Should().NotContain(x => x.Name == "PatrolTreeParams");
+    }
+
+    /// <summary>⭐ Clearing the pick unbinds the site (the variable stays — it may be referenced elsewhere).</summary>
+    [Fact]
+    public void CE439_ClearingThePick_Unbinds()
+    {
+        var (_, state, d) = Pick(new Tree { InputsTypeId = PatrolInputsId });
+        var facet = (StateFacet)d.GetFacet(new HsmStateSelection(state.StableId))!;
+        facet.SubtreeName = "";
+        d.ApplyFacet(new HsmStateSelection(state.StableId), facet);
+
+        state.SubtreeParamsVariable.Should().BeNull();
     }
 }

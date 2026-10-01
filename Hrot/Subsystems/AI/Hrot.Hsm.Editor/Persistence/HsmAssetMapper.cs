@@ -60,6 +60,7 @@ public static class HsmAssetMapper
                 RegionIndex    = s.RegionIndex,
                 SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
+                SubtreeParamsVariable = s.SubtreeParamsVariable,   // CE-439
                 // ⭐⭐ CE-385 — the blueprint-hosted activity. Both DTO fields are
                 //    JsonIgnore(WhenWritingDefault/Null), so an asset that names none of this
                 //    serialises byte-identically (the golden-corpus constraint, design §8a ⑥).
@@ -256,6 +257,7 @@ public static class HsmAssetMapper
                 RegionIndex   = sDto.RegionIndex,
                 SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
+                SubtreeParamsVariable = sDto.SubtreeParamsVariable,   // CE-439
                 ActivityBlueprintAssetId = sDto.ActivityBlueprintAssetId,   // CE-385
                 ActivityBlueprintName    = sDto.ActivityBlueprintName,      // CE-385
                 ExpressionTargetField    = sDto.ExpressionTargetField,      // CE-387
@@ -553,30 +555,7 @@ public static class HsmAssetMapper
         return result;
     }
 
+    // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
-    {
-        var primitive = BlackboardTypeHelper.GetPrimitiveType(typeId);
-        if (primitive != null) return primitive;
-
-        var t = Type.GetType(typeId);
-        if (t != null) return t;
-
-        // DTO struct types live in behavior assemblies, not the editor assembly — Type.GetType
-        // misses them. Search loaded assemblies by full name (`+` nested separator from Type.FullName).
-        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
-        {
-            Type? byName;
-            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
-            catch { byName = null; }
-            if (byName != null) return byName;
-        }
-
-        foreach (var name in BlackboardTypeHelper.DefaultKnownTypeNames)
-        {
-            var pt = BlackboardTypeHelper.GetPrimitiveType(name);
-            if (pt != null && (pt.FullName == typeId || pt.Name == typeId)) return pt;
-        }
-
-        return typeof(object);
-    }
+        => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
 }

@@ -111,6 +111,15 @@ public sealed class StateNodeDto
     public string? SubtreeName { get; set; }
 
     /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the HOST variable whose bytes seed the hosted child's Inputs on each start (a <c>Role=Input</c>
+    /// variable typed as the child's Inputs struct, created by the editor's compose step). Mirrors
+    /// <c>BTreeSubtreePayloadDto.ParamsVariable</c>; null = unbound (the child starts from its defaults).
+    /// </summary>
+    /// <remarks>⭐ Omitted from JSON when null, so every existing asset stays byte-identical.</remarks>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public string? SubtreeParamsVariable { get; set; }
+
+    /// <summary>
     /// ⭐⭐⭐ <b><c>CE-384</c> — this state's ACTIVITY is a BLUEPRINT, addressed by asset id.</b>
     /// 📄 <c>DESIGN_Hsm_Blueprint_Behaviour_Authoring.md</c> §3.2, §7.
     ///

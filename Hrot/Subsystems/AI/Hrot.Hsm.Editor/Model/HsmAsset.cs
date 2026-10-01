@@ -926,6 +926,10 @@ public sealed class StateNode : IContainerNodeModel
     // 📄 DESIGN_Occurrence_Scoped_Storage.md §32.8 item 1.
     public string? SubtreeName;
 
+    // ⭐⭐ CE-439 — the HOST variable (Role=Input, typed as the child's Inputs struct) that seeds the hosted child on each
+    //   start; set by the subtree pick's compose step. Null = unbound. Mirrors BTreeSubtreePayload.ParamsVariable.
+    public string? SubtreeParamsVariable;
+
     // ⭐⭐ DERIVED, NOT PERSISTED — recomputed by HsmSubtreeResolver against the asset catalogue on
     //    load and after a hot reload. 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     // ⛔ Deliberately absent from StateNodeDto, mirroring BTree: a persisted `true` would outlive

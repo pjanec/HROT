@@ -171,6 +171,42 @@ public static class AutoManagedVariables
 
         return new ComposedBlueprintVariables(paramsVar, wsVar, wsType);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-439</c> — THE SUBTREE COMPOSE: a picked child brings its params variable</b> (<c>Q76</c> §12.28; the
+    /// <c>CE-414</c> template). Creates — or REUSES on a re-pick of the same child — a <c>Role=Input</c> host variable typed as
+    /// the child's generated Inputs struct, whose bytes seed the child on every start.
+    ///
+    /// <para>⭐ Returns <c>null</c> (and creates nothing) when the child publishes no Inputs, or its Inputs type is not
+    /// loaded yet (a child authored but not built) — the child then starts from its own defaults (§11.4), and a re-pick after
+    /// the build binds it. ⛔ Never a variable of an unresolved type: the host's generator could not size it.</para>
+    /// </summary>
+    public static string? ComposeForSubtree(IBlackboardManagedAsset host, string childName, string? childInputsTypeId)
+    {
+        if (host is null) throw new ArgumentNullException(nameof(host));
+        if (string.IsNullOrWhiteSpace(childName) || string.IsNullOrWhiteSpace(childInputsTypeId)) return null;
+
+        Type inputs = BlackboardTypeHelper.ResolveClrType(childInputsTypeId!);
+        if (inputs == typeof(object)) return null;
+
+        // ⭐ A re-pick of the same child reuses its variable, so the author's values survive.
+        string baseName = SanitizeIdentifier(childName) + "Params";
+        var existing = host.BlackboardVariables.FirstOrDefault(v => v.Name == baseName && v.FieldType == inputs);
+        if (existing != null) return existing.Name;
+
+        // ⚠ Same flip as ComposeForAiPrimitive: both emitters gate the whole params path on the managed flag.
+        host.SetBlackboardEditorManaged(true);
+        return Create(host, baseName, inputs, BlackboardVariableRole.Input, WorkingStateScope.Node,
+                      comment: $"CE-439: seeds hosted subtree '{childName}' on each start.");
+    }
+
+    private static string SanitizeIdentifier(string name)
+    {
+        var sb = new System.Text.StringBuilder(name.Length);
+        foreach (char c in name) sb.Append(char.IsLetterOrDigit(c) || c == '_' ? c : '_');
+        if (sb.Length == 0 || char.IsDigit(sb[0])) sb.Insert(0, '_');
+        return sb.ToString();
+    }
 }
 
 /// <summary>What <see cref="AutoManagedVariables.ComposeForAiPrimitive"/> created.</summary>

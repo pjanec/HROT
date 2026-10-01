@@ -80,4 +80,18 @@ public static class SubtreeReferenceResolver
         // ③ Neither resolves ⇒ DANGLING. ⛔ Keep BOTH fields exactly as they were.
         return new SubtreeReference(current, assetId, IsResolved: false, Healed: false);
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-385</c> / <c>CE-439</c> — the ONE rule for "a picked catalogue NAME becomes a stable Guid, at pick time": the
+    /// catalogue's id when the name is an asset of <paramref name="kind"/>, else <paramref name="currentId"/> unchanged
+    /// (⛔ the never-erase branch — a missing catalogue must never destroy a reference it simply cannot see). ⚠ Was private to
+    /// <c>HsmFacetDispatcher</c>; the BTree subtree pick needs the same rule, so it lives here.
+    /// </summary>
+    public static (System.Guid Id, bool Resolved) ResolvePick(
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog, string pickedName, AssetKind kind, System.Guid currentId)
+    {
+        var picked = catalog?.FindByName(pickedName);
+        return picked != null && picked.Kind == kind ? (picked.AssetId, true) : (currentId, false);
+    }
 }
+

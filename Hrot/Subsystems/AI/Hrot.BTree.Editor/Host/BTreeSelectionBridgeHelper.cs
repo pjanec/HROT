@@ -139,6 +139,7 @@ public static class BTreeSelectionBridgeHelper
     /// </summary>
     public static BTreeFacetMapper? BuildFacetDispatcher(
         BehaviorTreeAsset?    asset,
-        BTreeFacetFqnContext? fqnContext)
-        => asset is null ? null : new BTreeFacetMapper(asset, fqnContext);
+        BTreeFacetFqnContext? fqnContext,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)   // ⭐ CE-439: the subtree pick resolves against it
+        => asset is null ? null : new BTreeFacetMapper(asset, fqnContext, catalog);
 }

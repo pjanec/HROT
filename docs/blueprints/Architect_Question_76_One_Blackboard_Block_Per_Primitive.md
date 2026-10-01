@@ -2782,3 +2782,136 @@ choice mirrored the BTree of its day, and the BTree has since moved (`CE-437`).
   runs the shared emission for an HSM) · `HsmGoldenCorpusTests.TheSeededCorpusPutsTheStateBlockInTheBaseline`.
 - ⏭ Not in this slice: the HSM resolver-asset binding (`CE-428`'s shape ③ for HSM — a DTO field + the editor picker).
 
+
+### 12.28 ⭐⭐⭐ `CE-439` BUILD DESIGN — **author and emit the hosted-subtree params binding, on both hosts** *(`2026-10-01`)*
+
+> Filed by `CE-431` (§11.7 as-built: *"the HSM host's registrar emits no bindings yet"*); §11.3 ③ ⑦ are the pieces. User `2026-10-01`:
+> ordering approved (`CE-416` → `CE-439` → `CE-417`).
+
+#### 12.28a INVENTORY *(grep + graph; every writer of a subtree reference)*
+
+| piece | BTree host | HSM host |
+|---|---|---|
+| runtime binding `(HostOffset, Length)` per site | ✅ `BTreeHostedSites.PlanFor(…, bindings)` | ✅ `HsmHostedSubtrees.Register(…, bindings)` |
+| persisted binding | ✅ `BTreeSubtreePayloadDto.ParamsVariable` | ⛔ no field on the state |
+| emitted binding | ✅ `BTreeBridgeEmitCore.EmitSiteBindings` | ⛔ `EmitHostedSubtrees` passes none |
+| the pick lands on the node | 🔴 **NO — the facet shows `[AiAssetPicker]` on `SubtreeName` and `BTreeFacetMapper.Apply` writes only `Comment`/`IsBreakpoint`.** The only writer is `BTreeSubtreeResolver` (heal on load) — measured: `grep '\.SubtreeName\s*='` over both editors | ✅ `HsmFacetDispatcher.ApplySubtreePick` |
+| a host variable created and bound on pick | ⛔ | ⛔ |
+| the host's generator can SIZE that variable | ⛔ — its type is the child's generated `{Child}_…_Blackboard`, invisible to Roslyn in the same run; only blueprint `Params` have a catalogue (`GeneratedBlueprintSchemaCatalog`, `CE-414` "F") ⇒ `Pack` throws ⇒ the HOST emits no params at all, silently | same |
+
+#### 12.28b THE CLASSES — *what the picture shows: one site-binding builder, one compose, one sizing catalogue, shared by both hosts*
+
+```mermaid
+classDiagram
+    class BTreeEmitCore {
+        <<exists>>
+        +InputsStructTypeId(dto) string NEW
+    }
+    class BTreeBridgeEmitCore {
+        <<exists>>
+        +EmitSiteBindings(sites, packed, hostName) string WIDENED
+    }
+    class HsmBridgeEmitCore {
+        <<exists>>
+        EmitHostedSubtrees passes bindings
+    }
+    class GeneratedBehaviorSchemaCatalog {
+        <<NEW - Generators>>
+        +Parse(btreeJsonFiles, baseResolver)
+        +TryResolveInputsSize(typeId) int
+    }
+    class AutoManagedVariables {
+        <<exists - AiShared>>
+        +ComposeForSubtree(asset, childInputsTypeId) string NEW
+    }
+    class IBehaviorInputsContract {
+        <<NEW - AiShared>>
+        +InputsTypeId string
+    }
+    class BehaviorTreeAsset {
+        <<exists>>
+    }
+    class BTreeFacetMapper {
+        <<exists - gains the pick>>
+    }
+    class HsmFacetDispatcher {
+        <<exists>>
+        ApplySubtreePick composes
+    }
+    BehaviorTreeAsset ..|> IBehaviorInputsContract
+    BehaviorTreeAsset ..> BTreeEmitCore : InputsStructTypeId
+    BTreeFacetMapper ..> AutoManagedVariables
+    HsmFacetDispatcher ..> AutoManagedVariables
+    BTreeFacetMapper ..> IBehaviorInputsContract : catalog.FindByAssetId
+    HsmFacetDispatcher ..> IBehaviorInputsContract : catalog.FindByAssetId
+    HsmBridgeEmitCore ..> BTreeBridgeEmitCore : EmitSiteBindings
+```
+
+#### 12.28c THE SEQUENCE — *pick → bind → emit → seed*
+
+```mermaid
+sequenceDiagram
+    actor Author
+    participant Pick as FacetMapper / FacetDispatcher
+    participant Cat as IAssetCatalog
+    participant AMV as AutoManagedVariables
+    participant Gen as BTree/Hsm JsonGenerator
+    participant Run as HostedSubtree.StartChild
+    Author->>Pick: pick child "Patrol"
+    Pick->>Cat: FindByName -> asset id (heal rule) and IBehaviorInputsContract
+    Pick->>AMV: ComposeForSubtree(host, child InputsTypeId)
+    AMV-->>Pick: host variable "PatrolParams" (Role=Input, typed child Inputs)
+    Pick->>Pick: site.ParamsVariable = "PatrolParams"
+    Gen->>Gen: Pack host (size via GeneratedBehaviorSchemaCatalog)
+    Gen->>Gen: EmitSiteBindings: site -> (offset, size)
+    Run->>Run: copy host bytes [offset, size) into the child's In
+```
+
+#### 12.28d MODULES — *unchanged at runtime; caption: the binding already rides the two site tables `CE-431` built, so no new per-frame edge*
+
+```mermaid
+graph TD
+    GenB[BTreeJsonGenerator] --> RegB[host Registrar: PlanFor with bindings]
+    GenH[HsmJsonGenerator] --> RegH[host Registrar: HsmHostedSubtrees.Register with bindings]
+    RegB --> BTS[BrainTickSystem - every frame]
+    RegH --> BTS
+    BTS --> HS[HostedSubtree.StartChild - seed on each start]
+```
+
+#### 12.28e DECISIONS *(decide-and-log)*
+
+**Decision:** the pick composes a host `Role=Input` variable typed as the child's Inputs struct and binds the site to it — on BOTH
+hosts, through ONE `AutoManagedVariables.ComposeForSubtree` (the `CE-414` template). The BTree pick is first made to LAND (the
+mapper gets the catalogue and the shared heal rule). The HSM state gains `SubtreeParamsVariable` (file format, additive). The site
+bindings are built by ONE `EmitSiteBindings` over `(siteId, paramsVariable)` pairs. Both generators size a sibling behaviour's
+Inputs struct through a new `GeneratedBehaviorSchemaCatalog` over the `*.btree.json` inputs. A child with no Inputs composes
+nothing (it starts from its defaults — §11.4).
+
+| rejected | the one fact that killed it |
+|---|---|
+| bind by variable NAME at run time | §11.7c already ruled it: the host layout is fixed at emit time; a lookup per start buys nothing |
+| have the HSM editor reference the BTree editor to read the child's DTO | a project cycle risk and a second path to one fact; a 1-member interface in AiShared is the seam both already reach |
+| let `Pack` skip an unsizeable host variable | it would shift every later offset — the silent-wrong-bytes case `CE-418` exists to prevent |
+| re-create the variable on every pick | a re-pick of the SAME child must reuse it, or the author's values are lost; a different child gets a new one (the old one stays — it may be bound elsewhere; no rush removals) |
+
+**Design docs checked:** §11.3 ③ ⑦ / §11.7 — *applies*: this is that work; `CE-414` (`AutoManagedVariables.ComposeForAiPrimitive`) — *applies*: the
+template, reused not copied · `HSM_Editor_NodeEditor_Host_Design.md` §11.1a — *applies*: the HSM pick this extends · `E5`/`E6` (§32) —
+*applies*: the hosting runtime this binds, unchanged.
+
+#### 12.28f ✅ AS BUILT *(`2026-10-01`)*
+
+- ⭐ Matches the diagrams. The shared pieces: `BTreeEmitCore.InputsStructTypeId` (public — Persistence has no
+  `InternalsVisibleTo`), `BTreeBridgeEmitCore.EmitSiteBindings(sites, packed, hostName)`, `GeneratedBehaviorSchemaCatalog`
+  (a sealed class, not a record — the generator targets netstandard2.0), `AutoManagedVariables.ComposeForSubtree`,
+  `IBehaviorInputsContract`.
+- ⭐ **Two more duplications collapsed on the way, both found while wiring:** `ResolveClrType` (identical private copies in
+  `BehaviorTreeAssetMapper` and `HsmAssetMapper`; the compose step needed a third) → `BlackboardTypeHelper.ResolveClrType`; the
+  pick-time name→Guid rule (private to `HsmFacetDispatcher`) → `SubtreeReferenceResolver.ResolvePick`, now used by both editors.
+- 🔴 **The BTree subtree picker was inert in two places, not one:** `BTreeFacetMapper.ApplyFacet` dropped the pick, AND the
+  BTree drawer factory registered no `AiAssetPicker` drawer (only the HSM factory did), so the field rendered as plain text.
+  Both fixed; `AiFacetPickerBinder` now passes `services.Catalog` to the BTree mapper and drawers as it already did for HSM.
+- ⚠ Compose runs only when the picked child CHANGES (the facet apply runs on every edit; re-composing would resurrect a variable
+  the author deleted). A child whose Inputs type is not loaded yet (authored, not built) binds nothing until re-picked.
+- ⚠ Golden movement: **none** — no shipped asset hosts a subtree with a binding.
+- 🧪 `HsmSubtreeAuthoringTests.CE439_*` (4) · `BTreeFacetMapperTests.CE439_*` (2) ·
+  `HsmJsonGeneratorTests.CE439_AHostingStatesBinding_IsSizedFromTheSiblingChild_AndEmitted` (red-proofed: catalogue off ⇒ red).

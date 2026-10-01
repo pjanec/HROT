@@ -75,6 +75,20 @@ public static class BTreeEmitCore
     /// The <c>global::</c>-qualified name of the managed blackboard struct, for emission into
     /// generated code.
     /// </summary>
+    /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the type id (no <c>global::</c>) of <paramref name="dto"/>'s published Inputs struct, or <c>null</c> when
+    /// it publishes none (an unmanaged blackboard, or no <c>Role=Input</c> variable). ⭐ The ONE naming rule a host's binding
+    /// variable, the editor's compose step and the generators' sibling-size catalogue all read.
+    /// </summary>
+    public static string? InputsStructTypeId(BehaviorTreeAssetDto dto)
+    {
+        if (dto?.Blackboard == null || !dto.Blackboard.Managed) return null;
+        bool hasInput = false;
+        foreach (var v in dto.Blackboard.Variables)
+            if (v.Role == BlackboardVariableRole.Input && !string.IsNullOrEmpty(v.Type?.TypeId)) { hasInput = true; break; }
+        return hasInput ? BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto) : null;
+    }
+
     internal static string BlackboardStructFqn(BehaviorTreeAssetDto dto)
         => "global::" + BlackboardStructNamespace(dto) + "." + BlackboardStructName(dto);
 
