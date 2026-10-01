@@ -32,6 +32,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-161 | *"yes, map2d empty list"* |
 | R-163 | *"it is not stable. it can change with load"* — ownership moves at runtime by transfer, decided by one authority |
 | R-164 | *"promoter cannot decide based on role, multiplr nodes have same role"* — the owner shards and pushes (§0.7) |
+| R-165 | *"map brain components onto the brain descriptor. never sent and never updated from the descriptor, but linked to descriptor, just because of the grant. This grant concept must be ensured by any network imple,entation"* |
 | R-162 | *"one node per role is wrong. Map2d is a role on multiple nodes already."* — ⛔ **SUPERSEDES R-157** and its duplicate-role guard (Q79 §8 D4, never built). The design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
 | (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 
@@ -114,10 +115,15 @@ requirement exists — only the owner decides (R-162: any number of nodes per ro
 
 **What must be built (measured gaps):**
 - **G1 brain-ward grants** — the strategy grants only toward a Muscle today (Q65 §5.3 ②); add the Brain role (policy, same message).
-- **G2 brain components that have NO descriptor** (`BehaviorState`, the channels, `BrainInterrupts`, the blackboard tiers — in none of the 6 mapped
-  descriptors, §10 probe): lean — map them onto the brain descriptor the grant carries, exactly as `dtWorldPos` already maps
-  `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (`NedReplicationModule.cs:620-628`, `RegisterMapping`). ⚠ tension with Role-Affinity
-  §2.3 (*"ownership must be network-agnostic"*): push is descriptor-keyed by nature, as the WorldPos grant already is — needs a ruling.
+- **G2 brain components that have NO descriptor** — ✅ **RULED (R-165):** they are LINKED to the brain descriptor *"just because of the grant"* —
+  *"never sent and never updated from the descriptor"*. A grant of that descriptor carries their ownership; nothing else does. Same pattern as
+  `dtWorldPos` carrying `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (`NedReplicationModule.cs:620-628`).
+- **G6 the grant is a contract EVERY network implementation must honour (R-165)** — *"making the ownership independent on the network"*.
+  ⇒ the OWNERSHIP GROUPS (which components move together under one grant) are defined ONCE, network-agnostically, as component masks (the
+  §2.3 shape); each network implementation maps its own wire unit to those groups and carries grants/transfers for them. 📐 Today: the map is
+  built only by NED, from its translators plus two hand-written blocks (`NedReplicationModule.cs:605-640`); 📐 **BDC has no grant support at all**
+  (no `DeferredTakeOwnership`, `OwnershipUpdate`, `PendingAuthorityGrants` or `DescriptorOwnershipMap` in `Hrot.Network.BDC`); offline = one
+  node, owns all, needs none.
 - **G3 mission plans** — `EntityMissionEgressTranslator` declares no component ⇒ declare `MissionPlanQueue` so the brain grant covers it.
 - **G4 late grants** — `DeferredTakeoverSystem` acts only on `Constructing` entities (`:153-155`); after creation a move is a transfer. ⚠ who
   TRIGGERS a move when a Brain/Muscle appears late (`CE-256`) or load shifts is new policy (`CE-506`: the one authority).
@@ -126,7 +132,7 @@ requirement exists — only the owner decides (R-162: any number of nodes per ro
 **Supersedes:** Role-Affinity §3 promote leg (P3 step 3) and §3.8's per-node shard evaluation; §0a's *"re-grant is a second mechanism"*
 (under push-only it is the only mechanism); §0.4's role-list derivation below; the earlier §0.7 (claims by role lists).
 
-**Build order:** S1 measure (classification of descriptor ↔ component for G2/G3) → S2 ① composition → S3 G1-G3, G5 (grants cover the brain)
+**Build order:** S1 measure (classification of descriptor ↔ component for G2/G3; define the network-agnostic ownership groups, G6) → S2 ① composition → S3 G1-G3, G5 (grants cover the brain)
 → S4 retire the promote-leg claim ③ (only now — CGF's brain on SimHost-created entities depends on it today, `gateOnAuthority`) →
 S5 ④ record recompute → S6 G4 with `CE-506`. Proof: `CE-500` rail; §10's probe as a rail "no component claimed by two nodes, every creation path";
 `SplitAuthoritySpawnTests` (hand-off unchanged).
