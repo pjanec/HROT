@@ -491,14 +491,12 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("    public static unsafe class HsmActionRegistrar");
             sb.AppendLine("    {");
 
-            // --- Private thunks for SharedAi entries ---
-            foreach (var entry in sharedAiEntries)
-            {
-                if (entry.IsCondition)
-                    EmitSharedAiGuardThunk(sb, entry);
-                else
-                    EmitSharedAiActionThunk(sb, entry);
-            }
+            // ⛔⛔ CE-417 B-2 (a′) — NO per-METHOD [SharedAi*] thunks any more. They were keyed by the attribute DTO's field
+            //   offset and added the stamped state's seed base, so an asset's binding (Fqn@hostOffset) found one only when
+            //   the two offsets happened to agree (F7), a transition action read through its source state's base (F4),
+            //   and every call built a string and searched the occurrence store (F9). ⭐ The ASSET's registrar now emits one
+            //   call per binding with the host offset baked (SharedAiBindings, HsmBridgeEmitCore) — as BTree always did.
+            //   The attribute still declares the method (and its [WritesChannel] exit cleanup below).
 
             // --- ExitCleanup thunks for regular [HsmAction] with [WritesChannel] ---
             foreach (var m in exitCleanupMethods)
@@ -524,17 +522,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + guard.FullName + ");");
             }
 
-            foreach (var entry in sharedAiEntries)
-            {
-                ushort id = HsmActionKey.ForCompoundKey(entry.CompoundKey);
-                string thunkName = entry.IsCondition
-                    ? "Guard_" + entry.MethodName + "_At" + entry.Offset
-                    : "Action_" + entry.MethodName + "_At" + entry.Offset;
-                if (entry.IsCondition)
-                    sb.AppendLine("            HsmActionDispatcher.RegisterGuard(" + id + ", (IntPtr)(delegate* <void*, void*, ushort, HsmCommandWriter*, bool>)&" + thunkName + ");");
-                else
-                    sb.AppendLine("            HsmActionDispatcher.RegisterAction(" + id + ", (IntPtr)(delegate* <void*, void*, HsmCommandWriter*, void>)&" + thunkName + ");");
-            }
 
             // Register ExitCleanup actions
             foreach (var m in exitCleanupMethods)
@@ -573,65 +560,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         }
 
         // ---- Thunk emitters ----------------------------------------------------
-
-        private static void EmitSharedAiGuardThunk(StringBuilder sb, SharedAiEntry entry)
-        {
-            sb.AppendLine("        /// <summary>SharedAi guard thunk for " + entry.MethodName + " operating on DTO field at byte offset " + entry.Offset + ".</summary>");
-            sb.AppendLine("        private static unsafe bool Guard_" + entry.MethodName + "_At" + entry.Offset + "(void* instancePtr, void* contextPtr, ushort eventId)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            // CONSTRAINT: Do NOT add or remove ECS components from this thunk.");
-            sb.AppendLine("            // Shared action thunks write directly to EntityRepository, bypassing FastHSM's");
-            sb.AppendLine("            // deferred HsmCommandWriter. Structural ECS mutations during chunk iteration");
-            sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
-            sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
-            sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            sb.AppendLine("            ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-            sb.AppendLine("                " + BlackboardParamsExpression.At("repo", "bridge->Self", entry.Offset) + ");");
-            sb.AppendLine("            return global::" + entry.FullName + "(ref field, bridge->Self, repo);");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-        }
-
-        private static void EmitSharedAiActionThunk(StringBuilder sb, SharedAiEntry entry)
-        {
-            sb.AppendLine("        /// <summary>SharedAi action thunk for " + entry.MethodName + " operating on DTO field at byte offset " + entry.Offset + ".</summary>");
-            sb.AppendLine("        [global::Fhsm.Kernel.Attributes.HsmAction(Name = \"" + entry.MethodName + "\", Lane = " + entry.Lane + ")]");
-            sb.AppendLine("        private static unsafe void Action_" + entry.MethodName + "_At" + entry.Offset + "(void* instancePtr, void* contextPtr, HsmCommandWriter* writer)");
-            sb.AppendLine("        {");
-            sb.AppendLine("            // CONSTRAINT: Do NOT add or remove ECS components from this thunk.");
-            sb.AppendLine("            // Shared action thunks write directly to EntityRepository, bypassing FastHSM's");
-            sb.AppendLine("            // deferred HsmCommandWriter. Structural ECS mutations during chunk iteration");
-            sb.AppendLine("            // corrupt the chunk arrays. Only read/write fields of existing components.");
-            sb.AppendLine("            var bridge = (global::Fdp.Toolkit.Behavior.Systems.HsmKernelBridge*)contextPtr;");
-            sb.AppendLine("            var repo   = (global::Fdp.Core.EntityRepository)global::System.Runtime.InteropServices.GCHandle.FromIntPtr(bridge->WorldHandle).Target!;");
-            // ⭐⭐⭐ P2 / BP-297 — THIS THUNK USED TO READ ITS DTO AT A BAKED OFFSET INTO THE ENTITY'S
-            //   ONE BrainBlackboard, so two concurrently-active regions running the same action
-            //   addressed the SAME BYTES, silently. It now resolves its OWN occurrence, keyed by the
-            //   (region, state) the kernel stamped (O6) and by this action's compound key.
-            //
-            sb.AppendLine("            int __occKey = global::Fdp.Toolkit.Behavior.HsmOccurrence.KeyForCurated(");
-            sb.AppendLine("                instancePtr, \"" + entry.CompoundKey + "\", writer);");
-            sb.AppendLine("            ulong __structureHash = " + HsmActionKey.Fnv64(entry.CompoundKey + "|" + entry.FieldTypeFqn)
-                          + "UL ^ (ulong)sizeof(" + entry.FieldTypeFqn + ");");
-            // ⭐⭐⭐ CE-444 (R-155, DESIGN_Parameter_Model §P.3/§P.9, option B): the action reads its host's field
-            //   LIVE every call. The occurrence caches only the host offset (looked up once at attach); ⛔ it used to
-            //   COPY the field at activation, so a host write mid-activity was never seen.
-            sb.AppendLine("            ref var __ws = ref global::Fdp.Toolkit.Behavior.HsmOccurrence.ResolveOrAttach<"
-                          + "int, global::Fdp.Toolkit.Behavior.HsmOccurrence.EmptyWorkingState>(");
-            sb.AppendLine("                repo, bridge->Self, __occKey, __structureHash, out bool __freshlyAttached, out int* __hostOffset);");
-            sb.AppendLine("            if (__freshlyAttached)");
-            sb.AppendLine("                *__hostOffset = global::Fdp.Toolkit.Behavior.HsmOccurrence.SeedParamsOffset(instancePtr, writer) + " + entry.Offset + ";");
-            sb.AppendLine("            _ = __ws;");
-            sb.AppendLine("            byte* __root = global::Fdp.Toolkit.Behavior.RootParamsAccess.RequireRootBytes(repo, bridge->Self, out int __rootLen);");
-            sb.AppendLine("            int __at = *__hostOffset;");
-            sb.AppendLine("            if (__at < 0 || __at + sizeof(" + entry.FieldTypeFqn + ") > __rootLen)");
-            sb.AppendLine("                throw new global::System.InvalidOperationException($\"CE-444: " + entry.MethodName + " at host offset {__at} does not fit the {__rootLen}-byte root block.\");");
-            sb.AppendLine("            ref var field = ref *(" + entry.FieldTypeFqn + "*)(__root + __at);");
-            sb.AppendLine("            // Discard the NodeStatus return; the HSM action slot is void.");
-            sb.AppendLine("            global::" + entry.FullName + "(ref field, bridge->Self, repo);");
-            sb.AppendLine("        }");
-            sb.AppendLine();
-        }
 
         private static void EmitExitCleanupThunk(StringBuilder sb, string methodName, List<int> channels)
         {

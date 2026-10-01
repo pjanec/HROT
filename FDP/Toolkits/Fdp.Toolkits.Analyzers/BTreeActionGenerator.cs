@@ -20,9 +20,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         private static readonly DiagnosticDescriptor BHU017_DeactivatorUnknownTarget = SharedBhuDiagnostics.BHU017_DeactivatorUnknownTarget;
 
         // ---- Channel kind -> component type (BHU-014) --------------------------
-        private const string LocomotionChannelType  = "global::Fdp.Toolkit.Behavior.Components.LocomotionChannel";
-        private const string WeaponChannelType      = "global::Fdp.Toolkit.Behavior.Components.WeaponChannel";
-        private const string InteractionChannelType = "global::Fdp.Toolkit.Behavior.Components.InteractionChannel";
 
         // ---- Initialize --------------------------------------------------------
 
@@ -193,11 +190,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                 mergedGroups.Add(new GroupEntry(tb, tc, kvp.Value.ToList(), bridgeList ?? new List<BTreeMethodInfo>()));
             }
 
-            if (sharedAiMethods.Count > 0 && mergedGroups.Count > 0)
-            {
-                var expanded = ExpandSharedAiEntries(context, compilation, sharedAiMethods);
-                AssignSharedAiToGroups(compilation, expanded, mergedGroups);
-            }
+            // ⭐ CE-417: the [SharedAi*] methods are still VALIDATED here (BHU001/002/003) — the asset bridge relies on the
+            //   attribute being well-formed — but no longer emitted (see GenerateRegistrar).
+            if (sharedAiMethods.Count > 0)
+                ExpandSharedAiEntries(context, compilation, sharedAiMethods);
 
             if (mergedGroups.Count == 0) return;
 
@@ -432,37 +428,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
 
         private static int AlignUp(int v, int a) => a <= 1 ? v : (v + a - 1) & ~(a - 1);
 
-        // ---- Assign SharedAi entries to groups ---------------------------------
-
-        private static void AssignSharedAiToGroups(
-            Compilation compilation,
-            List<SharedAiEntry> entries,
-            List<GroupEntry> groups)
-        {
-            foreach (var entry in entries)
-            {
-                bool assigned = false;
-                foreach (var group in groups)
-                {
-                    // Use the context type symbol to check for a 'Self' member.
-                    string tcName = group.TContextType.Replace("global::", "");
-                    var tcSymbol  = compilation.GetTypeByMetadataName(tcName);
-                    bool hasSelf  = tcSymbol?.GetMembers("Self").Any() == true;
-                    if (hasSelf)
-                    {
-                        group.SharedAiEntries.Add(entry);
-                        assigned = true;
-                    }
-                }
-                if (!assigned)
-                {
-                    // No suitable group found (none has Self context member).
-                    // SharedAi entries require a context with a Self member; the HSM generator
-                    // handles these entries on the HSM side when no BTree context claims them.
-                }
-            }
-        }
-
         // ---- Code generation ---------------------------------------------------
 
         private static string GenerateRegistrar(List<GroupEntry> groups, string namespaceName)
@@ -477,13 +442,7 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("namespace " + namespaceName);
             sb.AppendLine("{");
             sb.AppendLine("    [global::Fbt.FbtRegistrar]");
-            // BP-306: a SharedAi adapter projects a DTO out of BrainBlackboard's `fixed byte[]`,
-            // which needs an unsafe context. HsmActionRegistrar is unconditionally `unsafe` for the
-            // same reason; here it is conditional so an assembly with no SharedAi entry keeps
-            // byte-identical output. (BTreeBridgeEmitCore reaches the same place with a per-lambda
-            // `unsafe { }` block — it has no class of its own to mark.)
-            bool needsUnsafe = groups.Any(g => g.SharedAiEntries.Count > 0);
-            sb.AppendLine("    public static " + (needsUnsafe ? "unsafe " : "") + "class FbtActionRegistrar");
+            sb.AppendLine("    public static class FbtActionRegistrar");
             sb.AppendLine("    {");
             sb.AppendLine("        // 4-param NodeLogicDelegate methods are registered directly.");
             sb.AppendLine("        // 3-param ReusableDelegate methods are registered as bridge closures");
@@ -534,8 +493,10 @@ namespace Fdp.Toolkit.Behavior.Analyzers
                     sb.AppendLine("                });");
                 }
 
-                foreach (var entry in group.SharedAiEntries)
-                    EmitSharedAiAdapter(sb, entry, tb, tc);
+                // ⛔⛔ CE-417 B-2 (a′) — no per-METHOD [SharedAi*] adapters any more: they were keyed by the attribute DTO's
+                //   field offset, so an asset's binding (Fqn@hostOffset) reached one only when the offsets agreed (F7/F8),
+                //   and the asset's own call registered the same key with the wrong signature. ⭐ The BTree ASSET's bridge now
+                //   emits the [SharedAi*] call per binding (BTreeBridgeEmitCore), with the channel release (ChannelClearEmit).
 
                 foreach (var m in group.Deactivators)
                     sb.AppendLine("            registry.RegisterDeactivator(\"" + m.TargetAction + "\", global::" + m.FullQualifiedMethodName + ");");
@@ -554,63 +515,11 @@ namespace Fdp.Toolkit.Behavior.Analyzers
             sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
             sb.AppendLine("                {");
             sb.AppendLine("                    var status = global::" + m.FullQualifiedMethodName + "(ref bb, ref st, ref ctx, pi);");
-            EmitChannelClear(sb, m.WritesChannels, "                    ");
+            Fdp.Toolkit.Behavior.Shared.ChannelClearEmit.Emit(sb, m.WritesChannels, "                    ");
             sb.AppendLine("                    return status;");
             sb.AppendLine("                });");
         }
 
-        private static void EmitSharedAiAdapter(StringBuilder sb, SharedAiEntry entry, string tb, string tc)
-        {
-            if (entry.WritesChannels.Count == 0)
-            {
-                string regMethod = entry.IsCondition ? "RegisterCondition" : "Register";
-                sb.AppendLine("            registry." + regMethod + "(\"" + entry.CompoundKey + "\",");
-                sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState _, ref " + tc + " ctx, int _) =>");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", entry.Offset) + ");");
-                if (entry.IsCondition)
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World) ? global::Fbt.NodeStatus.Success : global::Fbt.NodeStatus.Failure;");
-                else
-                    sb.AppendLine("                    return global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
-                sb.AppendLine("                });");
-            }
-            else
-            {
-                sb.AppendLine("            registry.Register(\"" + entry.CompoundKey + "\",");
-                sb.AppendLine("                static (ref " + tb + " bb, ref global::Fbt.BehaviorTreeState st, ref " + tc + " ctx, int pi) =>");
-                sb.AppendLine("                {");
-                sb.AppendLine("                    ref var field = ref Unsafe.As<byte, " + entry.FieldTypeFqn + ">(");
-                sb.AppendLine("                        " + BlackboardParamsExpression.AtBlock("bb", tb, "ctx.World", "ctx.Self", entry.Offset) + ");");
-                sb.AppendLine("                    var status = global::" + entry.FullQualifiedMethodName + "(ref field, ctx.Self, ctx.World);");
-                EmitChannelClear(sb, entry.WritesChannels, "                    ");
-                sb.AppendLine("                    return status;");
-                sb.AppendLine("                });");
-            }
-        }
-
-        private static void EmitChannelClear(StringBuilder sb, List<int> channels, string indent)
-        {
-            sb.AppendLine(indent + "if (status == global::Fbt.NodeStatus.Failure)");
-            sb.AppendLine(indent + "{");
-            foreach (int kind in channels)
-            {
-                string? ct = ChannelKindToType(kind);
-                if (ct == null) continue;
-                sb.AppendLine(indent + "    ref var ch" + kind + " = ref ctx.World.GetComponentRW<" + ct + ">(ctx.Self);");
-                sb.AppendLine(indent + "    ch" + kind + ".ActiveAction     = 0;");
-                sb.AppendLine(indent + "    ch" + kind + ".ActionInstanceId = unchecked(ch" + kind + ".ActionInstanceId + 1u);");
-            }
-            sb.AppendLine(indent + "}");
-        }
-
-        private static string? ChannelKindToType(int kind) => kind switch
-        {
-            0 => LocomotionChannelType,
-            1 => WeaponChannelType,
-            2 => InteractionChannelType,
-            _ => null,
-        };
 
         // ---- FNV-1a hash (identical to HsmActionGenerator) ---------------------
         private static ushort ComputeHash(string name)
@@ -658,7 +567,6 @@ namespace Fdp.Toolkit.Behavior.Analyzers
         public string TContextType { get; }
         public List<BTreeMethodInfo> Direct { get; }
         public List<BTreeMethodInfo> Bridges { get; }
-        public List<SharedAiEntry> SharedAiEntries { get; } = new List<SharedAiEntry>();
         public List<BTreeMethodInfo> Deactivators { get; } = new List<BTreeMethodInfo>();
 
         public GroupEntry(string tb, string tc, List<BTreeMethodInfo> direct, List<BTreeMethodInfo> bridges)

@@ -28,7 +28,7 @@ public sealed class ActionBindingMigrationTests
     [InlineData("HsmChannelE2E")]
     [InlineData("HsmPolledGuardDemo")]
     [InlineData("HsmShowcase")]
-    [InlineData("HsmVariableShowcase")]
+    // ⚠ HsmVariableShowcase is NOT here: CE-417 slice 3 re-authored it after the migration (its mis-typed binding, F7).
     public void AV1HsmFile_LoadsIntoTheSameDtoAsItsV2CorpusFile(string name)
     {
         string v1 = File.ReadAllText(Path.Combine(V1Dir, name + ".hsm.v1.json"));

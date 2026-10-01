@@ -38,6 +38,10 @@ namespace Hrot.AI.Behaviors.Brains
         {
             /// <summary>Seeded from the bound blackboard variable; the rail compares this.</summary>
             public int Value;
+
+            /// <summary>⭐ CE-417 — incremented by <see cref="Action_ReadRegionParams"/> on every call, IN PLACE, so a rail can
+            /// see exactly which host variable each binding touched (and that nothing else moved).</summary>
+            public int Seen;
         }
 
         /// <summary>
@@ -65,8 +69,9 @@ namespace Hrot.AI.Behaviors.Brains
         public static NodeStatus Action_ReadRegionParams(
             ref CuratedRegionParams dto, Entity self, EntityRepository world)
         {
-            // ⛔ Deliberately side-effect free: two parallel regions running THIS action must be
-            //    distinguishable by their params alone, so the body must not write anywhere shared.
+            // ⭐ CE-417: writes ONLY through its own ref — the host variable it is bound to (§P.3, live). Two parallel
+            //    regions bound to two variables must each move their own counter and nothing else.
+            dto.Seen++;
             return dto.Value != 0 ? NodeStatus.Success : NodeStatus.Failure;
         }
 

@@ -107,6 +107,15 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
         IReadOnlyList<DeactivatorEntry>? deactivators)
+        => EmitBridge(dto, sizeResolver, deactivators, sharedAi: null);
+
+    /// <summary>
+    /// ⭐ <c>CE-417</c> B-2 (a′) — as above, with the compilation's answer to "is this FQN a <c>[SharedAi*]</c> method?".
+    /// A <c>ThreeParamReusable</c> binding of such a method is emitted as ONE call per binding with the method's own
+    /// signature <c>(ref T, Entity, EntityRepository)</c> (F8). Null ⇒ every binding uses the BTree 3-param shape.
+    /// </summary>
+    public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
+        IReadOnlyList<DeactivatorEntry>? deactivators, Func<string, SharedAiMethodInfo?>? sharedAi)
     {
         var sb = new StringBuilder();
 
@@ -166,7 +175,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine();
         }
 
-        EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver, deactivators);
+        EmitBTreeRegisterMethod(sb, dto, coreClass, sizeResolver, deactivators, sharedAi);
 
         sb.AppendLine("}");
 
@@ -288,7 +297,8 @@ public static class BTreeBridgeEmitCore
     private static void EmitBTreeRegisterMethod(
         StringBuilder sb, BehaviorTreeAssetDto dto, string coreClass,
         SizeResolverDelegate? sizeResolver = null,
-        IReadOnlyList<DeactivatorEntry>? deactivators = null)
+        IReadOnlyList<DeactivatorEntry>? deactivators = null,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         string pad = Indent;
         string pad2 = Indent + Indent;
@@ -363,8 +373,8 @@ public static class BTreeBridgeEmitCore
         if (isManaged)
         {
             sb.AppendLine($"{pad2}// 2. Register baked-offset action/condition thunks before Interpreter construction.");
-            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
-            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
+            EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
             EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitBlueprintConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
@@ -467,7 +477,8 @@ public static class BTreeBridgeEmitCore
     private static void EmitManagedActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
@@ -511,7 +522,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
+            EmitThreeParamCall(sb, $"{pad2}{Indent}{Indent}{Indent}", methodFqn, methodRef, sharedAi);
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
         }
@@ -524,7 +535,8 @@ public static class BTreeBridgeEmitCore
     private static void EmitManagedConditionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
@@ -566,10 +578,35 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}{Indent}{Indent}{{");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}ref var dto = ref Unsafe.As<byte, {dtoTypeFqn}>(");
             sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}{Indent}{BlackboardParamsExpression.AtBlock("bb", bbShort, "ctx.World", "ctx.Self", offset)});");
-            sb.AppendLine($"{pad2}{Indent}{Indent}{Indent}return {methodRef}(ref dto, ref st, ref ctx);");
+            EmitThreeParamCall(sb, $"{pad2}{Indent}{Indent}{Indent}", methodFqn, methodRef, sharedAi);
             sb.AppendLine($"{pad2}{Indent}{Indent}}}");
             sb.AppendLine($"{pad2}{Indent}}});");
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-417</c> B-2 (a′), F8 — the call inside a <c>ThreeParamReusable</c> thunk, with <c>dto</c> already projected
+    /// at the binding's host offset. A <c>[SharedAi*]</c> method is called with ITS signature
+    /// <c>(ref T, Entity, EntityRepository)</c> (a <c>bool</c> becomes Success/Failure) and releases its
+    /// <c>[WritesChannel]</c> channels on <c>Failure</c> (<see cref="ChannelClearEmit"/>, the block the analyzer's 4-param
+    /// wrapper emits). This replaced <c>BTreeActionGenerator</c>'s per-METHOD adapter, which was keyed by the attribute
+    /// DTO's offset and so reached an asset binding only when the two offsets agreed.
+    /// </summary>
+    private static void EmitThreeParamCall(StringBuilder sb, string ind, string methodFqn, string methodRef,
+        Func<string, SharedAiMethodInfo?>? sharedAi)
+    {
+        var info = sharedAi?.Invoke(methodFqn);
+        if (info == null)
+        {
+            sb.AppendLine($"{ind}return {methodRef}(ref dto, ref st, ref ctx);");
+            return;
+        }
+        sb.AppendLine(info.ReturnsBool
+            ? $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
+            : $"{ind}var status = {methodRef}(ref dto, ctx.Self, ctx.World);");
+        if (info.WritesChannels.Count > 0)
+            ChannelClearEmit.Emit(sb, info.WritesChannels, ind);
+        sb.AppendLine($"{ind}return status;");
     }
 
     /// <summary>

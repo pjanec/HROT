@@ -243,11 +243,15 @@ public sealed class HsmActionIdAgreementTests
 
             var register = type.GetMethod("Register", BindingFlags.Public | BindingFlags.Static);
             var args     = register?.GetParameters();
-            if (register is null || args!.Length != 1 ||
-                args[0].ParameterType != typeof(Fdp.Toolkit.Blueprints.BlueprintRegistryStaging))
-                continue;   // the HSM asset registrars take (BehaviorRegistry, staging) — not this shape
-
-            register.Invoke(null, new object?[] { new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging() });
+            if (register is null) continue;
+            if (args!.Length == 1 && args[0].ParameterType == typeof(Fdp.Toolkit.Blueprints.BlueprintRegistryStaging))
+                register.Invoke(null, new object?[] { new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging() });
+            // ⭐⭐⭐ CE-417 B-2 (a′) — the HSM ASSET registrars are a THIRD producer: each registers one call per bound
+            //   C# [SharedAi*] binding (Fqn@hostOffset). ⛔ The per-METHOD thunks this rail used to find in
+            //   HsmActionRegistrar were retired, so without this the rail fails as a false positive on correct output.
+            else if (args.Length == 2 && args[0].ParameterType == typeof(Fdp.Toolkit.Behavior.BehaviorRegistry)
+                     && args[1].ParameterType == typeof(Fdp.Toolkit.Blueprints.BlueprintRegistryStaging))
+                register.Invoke(null, new object?[] { new Fdp.Toolkit.Behavior.BehaviorRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging() });
         }
 
         var ids = new HashSet<ushort>();

@@ -540,5 +540,76 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             world.Dispose();
         }
+
+        // ══ CE-417 B-2 (a′), F8 — a [SharedAiAction] bound in a BTree ASSET, called per binding ═══════════════════
+        //   📄 docs/blueprints/DESIGN_Behavior_Action_Binding.md §4 B-2, slice 3b. The BTree twin of
+        //   BrainTickSystemHsmArmTests.CE417_R1/R3. BTreeCuratedBindingDemo binds ONE curated method
+        //   (HsmTwoRegionCuratedNodes.Action_ReadRegionParams, which does dto.Seen++) to varA (offset 8) and varB (16);
+        //   varC (offset 0) is bound by nothing. ⛔ Before CE-417 the asset was SKIPPED (BTREE0002: its 3-param call did
+        //   not fit the method), and the analyzer's per-METHOD adapter read the attribute DTO's offset — 0, i.e. varC.
+
+        private const int BtVarC = 0, BtVarA = 8, BtVarB = 16;
+
+        private static (EntityRepository world, BrainTickSystem sys, Entity e) ArrangeBTreeCuratedBindingDemo()
+        {
+            var behaviours = new BehaviorRegistry();
+            Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(
+                typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block).Assembly,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry().BeginStaging(),
+                behaviours);
+            Assert.True(behaviours.TryGetId("BTreeCuratedBindingDemo", out int hash), "the generated registrar must register it");
+
+            var world = TestWorldFactory.Create();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "BTreeCuratedBindingDemo", JsonParams = string.Empty });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+            Assert.Equal(hash, world.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash);
+            return (world, new BrainTickSystem(behaviours), e);
+        }
+
+        private static unsafe global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams BtVar(
+            EntityRepository w, Entity e, int offset)
+        {
+            byte* root = RootParamsAccess.RequireRootBytes(w, e, out int len);
+            Assert.True(offset + 8 <= len);
+            return *(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams*)(root + offset);
+        }
+
+        /// <summary>⭐⭐⭐ <c>CE-417</c> F8 — one C# <c>[SharedAiAction]</c> bound to two variables in a BTree asset: each binding
+        /// moves ONLY its own variable, every tick; the unbound one at the attribute DTO's offset (0) never moves.</summary>
+        [Fact]
+        public void CE417_R4_ASharedAiActionBoundTwiceInABTree_EachBindingMovesOnlyItsOwnVariable()
+        {
+            var (world, sys, e) = ArrangeBTreeCuratedBindingDemo();
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+
+            var a = BtVar(world, e, BtVarA); var b = BtVar(world, e, BtVarB); var c = BtVar(world, e, BtVarC);
+            Assert.Equal(12, a.Seen);   // a forever repeater: one pass per tick
+            Assert.Equal(12, b.Seen);
+            Assert.Equal(0, c.Seen);    // ⛔ the retired adapter's offset
+            Assert.Equal(1, a.Value);   // the call wrote through its ref, nothing else
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-417</c> + <c>CE-505</c> — the per-binding BTree calls allocate nothing.</summary>
+        [Fact]
+        public void CE417_R5_PerBindingBTreeCSharpCalls_AllocateNothing()
+        {
+            var (world, sys, e) = ArrangeBTreeCuratedBindingDemo();
+            for (int i = 0; i < 24; i++) sys.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            int seenBefore = BtVar(world, e, BtVarA).Seen;
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) sys.Execute(world, 0.016f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal(seenBefore + 50, BtVar(world, e, BtVarA).Seen);   // NON-VACUITY: the call really ran every tick
+            Assert.True(allocated == 0, $"50 ticks of two per-binding BTree C# actions allocated {allocated} bytes");
+            world.Dispose();
+        }
     }
 }

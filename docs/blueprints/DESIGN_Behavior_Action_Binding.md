@@ -128,6 +128,29 @@ graph TD
 
 > **Caption.** Who changes. The kernel edge is dashed: only B-2's rejected option would reach it.
 
+```mermaid
+sequenceDiagram
+    participant J as "*.hsm.json / *.btree.json"
+    participant G as "Hsm/BTreeJsonGenerator"
+    participant R as "SharedAiMethodResolver (Roslyn)"
+    participant E as "HsmBridgeEmitCore / BTreeBridgeEmitCore"
+    participant K as "kernel tick (HSM dispatcher / BTree ActionRegistry)"
+    participant M as "[SharedAi*] method"
+    J->>G: binding {MethodFqn, ExpressionTargetField}
+    G->>R: is MethodFqn [SharedAi*]? ref type? [WritesChannel]?
+    R-->>G: SharedAiMethodInfo (or null)
+    G->>G: bound variable type == ref type? (else HSM0003 error / BTREE0002 skip)
+    G->>E: emit registrar
+    E->>E: one call per binding, key Fqn@hostOffset, offset baked from the asset packer
+    K->>M: call(ref *(T*)(block + hostOffset), self, world)
+    Note over E,M: BTree only: bool becomes Success/Failure, and a [WritesChannel] method releases its channels on Failure
+    Note over K,M: no occurrence lookup, no state base, no allocation (F4, F9)
+```
+
+> **Caption.** B-2 (a′) as built, both hosts (slices 3a, 3b). What the picture shows that prose hid: the ONLY place a
+> binding becomes an address is the asset's emitter. The per-METHOD paths it replaced (`HsmActionGenerator`,
+> `BTreeActionGenerator` `[SharedAi*]` expansion) took the address from the ATTRIBUTE DTO instead, which is F7/F8.
+
 ## 4. Decisions — each with a lean
 
 | | decision | ⚖️ lean | rejected (one line each) |
@@ -144,8 +167,9 @@ graph TD
 |---|---|---|
 | 1 | ✅ name value 2 (B-5, `c20dace71`). ⏳ the F4 rail moves to slice 3 — its expected value is defined by B-2 (a′) | nothing on disk |
 | 2 | ✅ **AS-BUILT** *(see the box below)*: DTO record at all 8 sites + `ActionBindingMigrator` inside both `Deserialize` + schemaVersion 2 + **all 31 corpus files rewritten to v2** + the four payload DTO classes and the flat HSM DTO fields deleted; both emit cores, both mappers, the generator validator read the record | ⭐ **emitted source byte-identical** (every emitted-source golden unchanged); only the two persistence-shape snapshots moved |
-| 3 | both emit cores: B-2 (a′) per-binding C# thunks on both hosts, per-method `[SharedAiAction]` path retired, no state-wide base; F4 rail red→green | goldens, whole HSM corpus + BTree corpus |
-| 4 | editor model record (`Hrot.Editor.AiShared`), both mappers lose the flat↔record translation, facets, one shared drawer, validators | editor rails |
+| 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
+| 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
+| 4 | ⏳ editor side — designed in §5.4, built as 4a (model, no visible change) then 4b (one facet, one drawer, one applier) | editor rails |
 | 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid | BTree goldens unchanged by construction |
 
 > ⭐⭐ **Slice 2 AS-BUILT (`2026-10-01`) — where it deviated from the plan above, and why.**
@@ -155,6 +179,178 @@ graph TD
 > | ⛔ **B-2's migration rule was CORRECTED** | the plan said *"state field → Activity + outgoing blueprint guards without their own"*. 📐 `HsmStateParamSeedAuthoringTests` (CE-401) caught the loss: a field bound **before any action is chosen** has no Activity and no guard to land on. ⭐ **As built:** v1's ONE state field was shared by all four slots, so it goes to **every slot binding that is set**; a state with **no** slot keeps it on an **Activity binding that names nothing** (`BehaviorActionBindingDto.IsEmpty`). ⇒ the state-wide seed entry the emitter derives (`HsmBridgeEmitCore.StateWideField`) is exactly v1's, and the guard-inheritance rule became unnecessary — **deleted** |
 > | **editor model still flat** | the HSM/BTree editor models keep their flat fields until slice 4; `HsmAssetMapper` / `BehaviorTreeAssetMapper` translate flat ↔ record. ⚠ Until slice 4 a transition whose guard and action are bound to DIFFERENT fields round-trips through the editor as one field (the model can hold only one) — no corpus asset has that shape |
 > | **rails** | `ActionBindingMigrationTests` (13): 8 REAL pre-migration files (`Snapshots/MigrationV1/*.v1.json`) load into the same DTO as their v2 corpus file, plus one rail per migration rule. Suites: Persistence 148/0 · Generators 306/0 · BTree.Editor 639/0 · Hsm.Editor 623/0 |
+
+> ⭐⭐ **Slice 3a AS-BUILT (`2026-10-01`) — the HSM half of B-2 (a′).**
+> | | |
+> |---|---|
+> | **built** | `SharedAiBindings` + `BindingNamer` (persistence): every bound C# `[SharedAi*]` binding (all 8 slot kinds) is addressed `Fqn@hostOffset` and gets ONE generated call in the asset's registrar — offset baked, projected as the method's `ref` type, no occurrence, no state base. `SharedAiMethodResolver` (generators) answers "is it `[SharedAi*]`, what does it take" from Roslyn; a variable of the wrong type is **`HSM0003`**, an error. `HsmActionGenerator` no longer emits per-METHOD `[SharedAi*]` thunks (exit cleanups kept) |
+> | **F4 fixed + red-proved** | `BrainTickSystemHsmArmTests.CE417_R2` on the new corpus asset **`HsmCuratedBindingDemo`** (two regions + a bound transition action; variables ordered so the old key would have resolved): putting the old `+ SeedParamsOffset` back makes all three CE-417 rails fail |
+> | **F7 in the corpus, corrected** | 📐 `HsmVariableShowcase` bound `AlertNearbyUnits` (`ref DemoSharedActionParams`, 12 B) to `Threshold` (`float`, 4 B), and `AlertNearbyUnits` had **no registered thunk at all** (it lives in `Fdp.Toolkits`, which runs no `HsmActionGenerator`). ⭐ Unbound there, with a comment; the correctly typed bound action lives in `HsmCuratedBindingDemo` |
+> | **rails moved** | rail ㊳ (`O7_R38`) → `CE417_R1`; `HsmOccurrenceCollisionTests.TheGeneratedThunk_…_Yet` retired with its subject; `HsmActionIdAgreementTests` now also runs the HSM asset registrars (a third id producer); `HsmExpressionTargetTests.TheAssetsIdIsTheRegistrarsId_ForABoundAction` compares the asset's own topology and registrar |
+> | **zero allocation** | `CE417_R3`: two per-binding C# activities, 50 ticks, 0 bytes |
+> | ⚠ **not covered** | global transitions' guards/actions are **not emitted by `HsmEmitCore` at all** (pre-existing; recorded here, not widened into this slice). `HsmOccurrence.KeyForCurated` has no production caller now — kept for the stateful C# HSM action (working memory) the carrier enables |
+> | **gates** | Generators 321/0 · Toolkits 2398/0 · Hsm.Editor 623/0 · Blueprints 4019/0 (9 known skips) · ClusterRunner HSM 2/0 · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`) |
+
+> ⭐⭐ **Slice 3b AS-BUILT (`2026-10-01`) — the BTree half of B-2 (a′) (F8).**
+> | | |
+> |---|---|
+> | **built** | `BTreeBridgeEmitCore.EmitThreeParamCall`: a `ThreeParamReusable` binding whose method `SharedAiMethodResolver` says is `[SharedAi*]` is called with ITS signature `(ref T, Entity, EntityRepository)` at the host offset already projected (`bool` → Success/Failure). A `[WritesChannel]` method releases its channels on `Failure` through **`ChannelClearEmit`** — ONE emitter, a linked file in both `Fdp.Toolkits.Analyzers` (the analyzer's 4-param wrapper) and `Hrot.AiEditor.Persistence` (the `HsmActionKey` pattern). `SharedAiMethodInfo` gained `WritesChannels` |
+> | **retired** | `BTreeActionGenerator`'s per-METHOD `[SharedAi*]` adapters (`EmitSharedAiAdapter`, `AssignSharedAiToGroups`, `GroupEntry.SharedAiEntries`, the conditional `unsafe` registrar). ⚠ The attribute is still **validated** there (`BHU001/002/003`) — now for every assembly with a `[SharedAi*]` method, not only one that also has a 4-param `[BTreeAction]` group |
+> | ⭐ **deviation: no `BTREE0004`** | the plan named a new type-mismatch id. ⭐ BTree's existing convention for an unbindable leaf is a **`BTREE0002` skip** (`BTreeMethodCompatibilityValidator`), and the 3-param check already compared the bound variable's type with param 0 — so the `[SharedAi*]` branch joins that check. HSM keeps its **`HSM0003` error** (slice 3a). ⚠ The two hosts therefore differ in severity for the same mistake — a deliberate match to each host's prior convention, not an oversight |
+> | **F8 fixed + red-proved** | new corpus asset **`BTreeCuratedBindingDemo`** binds the curated `Action_ReadRegionParams` to `varA` (8) and `varB` (16) under a forever repeater; `varC` (0) — the attribute DTO's offset — is bound by nothing. `BrainTickSystemBTreeArmTests.CE417_R4`: each binding counts only its own variable (12/12/0); projecting the call at offset 0 instead makes it fail. `CE417_R5`: 50 ticks, 0 bytes |
+> | **rails moved** | `SharedAiAdapterCompilesTests` (`BP-306`, subject retired) → **`SharedAiBindingCompilesTests`**: a synthetic asset binding an action, a `bool` condition and a `[WritesChannel]` action compiles through BOTH generators, keyed at the host offset, with no analyzer adapter; a wrong-typed variable is a `BTREE0002` skip; the analyzer/bridge one-spelling projection rail is kept |
+> | ⚠ **finding, not fixed** | `BrainTickSystemHsmArmTests.CE417_R3` (zero-alloc) reported **64 B once** in a filtered parallel group run; 5/5 green since (alone ×3, group ×2). Not reproduced, so no fix guessed — recorded here so a recurrence is recognised |
+
+## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: READY-TO-BUILD)*
+
+**INVENTORY** *(codebase-memory CLI `search_graph` + grep, measured `2026-10-01`)*
+
+| query | total | result |
+|---|---|---|
+| `search_graph name_pattern=.*Drawer.* label=Class` | 68 (non-test AI rows below) | BTree: `BTreePickerDrawerFactory` · `BehaviorHashPickerDrawer` · `BlackboardFieldPickerDrawer` · `CompositeStringDrawer`. HSM: `HsmPickerDrawerFactory` · `HsmActionPickerDrawer` · `HsmGuardPickerDrawer` · `HsmBlackboardFieldPickerDrawer` · `HsmCompositeStringDrawer` (+ event/state/sync-group pickers, out of scope). Shared: `AiAssetPickerDrawer` only |
+| `search_graph name_pattern=.*Facet.* label=Class` | 38 | `BTreeFacetMapper`, `BTreeFacetFqnContext`, `HsmFacetMapper`, `HsmFacetDispatcher` (+ facet structs in `BTreeFacets.cs` / `HsmFacets.cs`) |
+| grep the flat HSM binding fields (`OnEntryAction` … `GuardBlueprintName`) in `Hrot.Hsm.Editor` | 13 prod files · 10 test files | model, mapper, projector, facets ×3, pickers, validator, aggregator, reference contributor, label renderer, lane-mask inferrer |
+| grep `BTreeActionPayload\|BTreeConditionPayload` | 4 prod · 24 test files | model, projector, mapper, command sink |
+| grep `RegisterFieldEditor` | 3 production hosts | precedent: `ReplayBrowserSubsystem.cs:913-915` registers `PredicateValueFieldEditor` for `SearchPredicateDto` — a whole DTO edited by one type-keyed drawer |
+| grep `new ComponentEditServiceBuilder().Build()` for the FACET service | 2 | `EditorSubsystem.cs:3211`, `CgfSubsystem.cs:1499` — the same line, twice |
+
+**Claim table** *(the facts the shape rests on)*
+
+| claim | code — how it IS | design basis |
+|---|---|---|
+| a container field renders READ-ONLY in a facet | ✅ `ComponentEditDrawer.DrawContainerNode` draws `ToString()` disabled | ⛔ searched: none — it is why a nested struct alone is not enough |
+| a type can be made ONE leaf with ONE drawer | ✅ `ICustomFieldEditor` → `EditNodeKind.Custom` → `DrawLeafNode` → `_customDrawers[ClrType]` (`ComponentEditDrawer.cs:376`) | ✅ precedent `ReplayBrowserSubsystem.cs:913-915` |
+| a field drawer cannot see its siblings | ✅ `EditNode` has `Children`, no parent | — ⇒ today's `BTreeFacetFqnContext`/`HsmFacetFqnContext` side channels exist only to pass the sibling `MethodFqn` |
+| the dispatcher applies the WHOLE facet | ✅ `HsmFacetDispatcher.ApplyFacet` | — ⇒ a nested binding needs no path plumbing |
+| pick→Guid and the CE-414 compose are written once per slot | ✅ `HsmFacetDispatcher.cs` activity + guard arms | ✅ `DESIGN_Hsm_Blueprint_Behaviour_Authoring.md` §3.2, §11.1a; `DESIGN_Occurrence_Scoped_Storage.md` §28.6c |
+
+```mermaid
+classDiagram
+    class BehaviorActionBinding {
+        <<Hrot.Editor.AiShared, NEW>>
+        +string? MethodFqn
+        +Guid BlueprintAssetId
+        +string? BlueprintName
+        +string? ExpressionTargetField
+        +string? WorkingStateTypeId
+        +string? WorkingStateTargetField
+        +bool IsEmpty
+        +Clone()
+    }
+    class BehaviorActionBindingFacet {
+        <<struct, Hrot.Editor.AiShared, NEW 4b>>
+        +string? MethodFqn
+        +string? BlueprintName
+        +string? ExpressionTargetField
+    }
+    class ActionBindingAttribute {
+        <<NEW 4b>>
+        +BindingSlotKind Slot
+        +bool AllowsBlueprint
+    }
+    class BehaviorActionBindingFieldEditor {
+        <<ICustomFieldEditor, NEW 4b>>
+    }
+    class ActionBindingDrawer {
+        <<IImGuiFieldDrawer, NEW 4b>>
+        +GetMethods(slot)
+        +GetBlueprints()
+        +GetVariables(binding)
+    }
+    class IActionBindingSources {
+        <<interface, NEW 4b, one per host>>
+    }
+    class BehaviorActionBindingEditor {
+        <<static, NEW 4b>>
+        +Apply(model, facet, ctx) : the pick→Guid + CE-414 compose rule, ONCE
+    }
+    class AiFacetEditService {
+        <<static, Hrot.Editor.AiComposition, NEW 4b>>
+        +Build() IComponentEditService
+    }
+    class BTreeActionNode { +BTreeActionDelegateShape DelegateShape }
+    class StateNode
+    class TransitionNode
+    class GlobalTransitionNode
+    class AiAssetPickerDrawer { <<EXISTING, reused for the blueprint list>> }
+    class SubtreeReferenceResolver { <<EXISTING, ResolvePick>> }
+    class AutoManagedVariables { <<EXISTING, ComposeForAiPrimitive>> }
+    BTreeActionNode --> "0..1" BehaviorActionBinding : Action / Condition
+    StateNode --> "0..4" BehaviorActionBinding : OnEntry, OnExit, Activity, Timer
+    TransitionNode --> "0..2" BehaviorActionBinding : Guard, Action
+    GlobalTransitionNode --> "0..2" BehaviorActionBinding : Guard, Action
+    BehaviorActionBindingFacet ..> ActionBindingAttribute : field tagged with
+    BehaviorActionBindingFieldEditor ..> BehaviorActionBindingFacet : makes it ONE Custom leaf
+    ActionBindingDrawer ..> BehaviorActionBindingFacet : draws the whole binding
+    ActionBindingDrawer --> IActionBindingSources : lists
+    BehaviorActionBindingEditor --> SubtreeReferenceResolver
+    BehaviorActionBindingEditor --> AutoManagedVariables
+    AiFacetEditService ..> BehaviorActionBindingFieldEditor : registers
+```
+
+> **Caption.** What the picture shows that prose hid: the side channels (`*FacetFqnContext`) exist only because a
+> per-FIELD drawer cannot see the sibling `MethodFqn`. A drawer for the WHOLE binding receives the method, the
+> blueprint and the variable together, so the variable list filters by the binding's own method and both
+> side channels go. Every EXISTING box is reused, not rebuilt: the blueprint list, the pick→Guid rule, the compose.
+
+```mermaid
+sequenceDiagram
+    participant U as author
+    participant V as NodePropertiesDetailsView
+    participant D as ComponentEditDrawer
+    participant B as ActionBindingDrawer
+    participant H as host dispatcher / facet mapper
+    participant E as BehaviorActionBindingEditor
+    participant M as model (BehaviorActionBinding)
+    V->>H: GetFacet(selection)
+    H-->>V: facet { Activity: BehaviorActionBindingFacet, ... }
+    V->>D: DrawEditNode(root)
+    D->>B: DrawInput(ref binding, node with [ActionBinding(slot)])
+    B->>B: method combo (sources.GetMethods(slot)), blueprint combo, variable combo filtered by the binding's method
+    U->>B: picks
+    B-->>D: changed binding
+    V->>H: ApplyFacet(selection, facet)
+    H->>E: Apply(model.Activity, facet.Activity, ctx)
+    E->>M: write, capture BlueprintAssetId at pick time, compose params variable on a CHANGED blueprint pick
+```
+
+> **Caption.** One drawer and one applier serve all eight sites on both hosts. The sequence is identical for a BTree
+> action, an HSM activity and a global-transition guard — only the slot kind on the attribute differs.
+
+```mermaid
+graph TD
+    ES["EditorSubsystem (editor host)"] -->|"4b: one call"| FES["AiFacetEditService.Build()"]
+    CG["CgfSubsystem (CGF host)"] -->|"4b: one call"| FES
+    FES -->|RegisterFieldEditor| FE["BehaviorActionBindingFieldEditor"]
+    BIND["AiFacetPickerBinder.Rebuild (EXISTING, per active document)"] -->|"adds the type-keyed drawer"| DR["ActionBindingDrawer"]
+    BIND --> BT["BTreePickerDrawerFactory"]
+    BIND --> HS["HsmPickerDrawerFactory"]
+    BT -->|"supplies"| SRC1["BTree IActionBindingSources"]
+    HS -->|"supplies"| SRC2["HSM IActionBindingSources"]
+    DR --> SRC1
+    DR --> SRC2
+    V["NodePropertiesDetailsView (draws every frame)"] --> DR
+    classDef dead stroke:#c00,stroke-dasharray:4 3,color:#c00
+    OLD1["BTreeFacetFqnContext / HsmFacetFqnContext"]:::dead
+    OLD2["per-field action / guard / variable pickers for bindings"]:::dead
+```
+
+> **Caption.** Who calls what each frame, and what dies. Both hosts reach the field editor through ONE builder
+> (today they duplicate the line). Red dashed boxes are retired in 4b. The event, state and sync-group pickers are
+> untouched.
+
+**The split, and why.** 4a and 4b are two commits so each is green and bisectable:
+
+| | 4a — model, no visible change | 4b — inspector |
+|---|---|---|
+| builds | `BehaviorActionBinding` in `Hrot.Editor.AiShared`; `BTreeActionPayload`/`BTreeConditionPayload` deleted (the node carries `DelegateShape` + a binding); `StateNode` / `TransitionNode` / `GlobalTransitionNode` carry bindings; both persistence mappers become straight copies; every model reader moves | the facet, the field editor, the drawer, the applier, the one builder; per-binding pickers and both `*FacetFqnContext` retired; validators read the binding |
+| facets | keep their CURRENT shape; the flat↔record translation moves from the persistence mapper to the facet boundary (the slice-2 rule: one state field goes to every set slot) | one `BehaviorActionBindingFacet` per site ⇒ each slot edits its OWN target field (B-2) |
+| proof | every existing editor rail green, no golden moves | new drawer/applier rails; HSM authoring rails re-homed |
+
+**Rejected**
+- *A nested struct with per-field attribute drawers*: a container renders read-only (`DrawContainerNode`), and a field drawer cannot see its sibling method.
+- *Reuse the DTO record in the editor*: the design keeps one record per layer (§3 caption), and the persistence assembly is netstandard2.0.
+- *One commit for 4*: a model refactor and a UI change landing together leaves nothing to bisect.
 
 ## 6. Rails owed
 

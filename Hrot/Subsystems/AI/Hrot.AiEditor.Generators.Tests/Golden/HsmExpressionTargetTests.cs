@@ -135,18 +135,23 @@ public sealed class HsmExpressionTargetTests
     [Fact]
     public void TheAssetsIdIsTheRegistrarsId_ForABoundAction()
     {
+        // ⭐⭐⭐ CE-417 B-2 (a′) — the registrar is now the ASSET's own (HsmBridgeEmitCore), not HsmActionGenerator's per-method
+        //   table. Both halves come out of emitting the asset with the compilation's answer (here a stand-in for
+        //   "AlertNearbyUnits is a [SharedAiAction] taking ref float"), and they must agree on the id.
         var dto = MakeBoundAsset("Threshold");
         int offset = PackedOffsetOf(dto, "Threshold");
+        System.Func<string, Hrot.AiEditor.Persistence.Emit.SharedAiMethodInfo?> sharedAi = fqn =>
+            fqn == BoundActionFqn ? new Hrot.AiEditor.Persistence.Emit.SharedAiMethodInfo("float", "System.Single", false, false) : null;
 
-        ushort fromAsset = Fnv1a16(ActionArgumentIn(HsmEmitCore.EmitTopologyCore(dto)));
+        string topology = HsmEmitCore.EmitTopologyCore(dto, null, null, null, null, sharedAi);
+        string argument = ActionArgumentIn(topology);
+        Assert.Equal(BoundActionFqn + "@" + offset, argument);
 
-        string registrar = RunGeneratorOverASharedAiMethod(offset);
+        ushort fromAsset = Fnv1a16(argument);
+        string registrar = HsmBridgeEmitCore.EmitBridge(dto, null, sharedAi);
         Assert.Contains($"RegisterAction({fromAsset},", registrar);
-
-        // ⭐ …and the simple-name key it used to emit is gone, so the two cannot both be present.
-        ushort simpleKey = Fnv1a16("AlertNearbyUnits@" + offset);
-        Assert.NotEqual(fromAsset, simpleKey);
-        Assert.DoesNotContain($"RegisterAction({simpleKey},", registrar);
+        Assert.Contains($"(__root + {offset})", registrar);
+        Assert.DoesNotContain("SeedParamsOffset", registrar);   // F4: no state base
     }
 
     // ══ helpers ══════════════════════════════════════════════════════════════
@@ -188,73 +193,4 @@ public sealed class HsmExpressionTargetTests
     private static string CoreActionLines(string core)
         => string.Join("\n", core.Split('\n').Where(l => l.Contains(".Action(\"")));
 
-    /// <summary>
-    /// ⭐ Runs the REAL <c>HsmActionGenerator</c> over a <c>[SharedAiAction]</c> method whose bound
-    /// field sits at the same offset the asset bakes, and returns the generated registrar text.
-    /// ⚠ Synthesized only in its SURROUNDINGS (the attribute + kernel shapes); the generator itself is
-    /// production's, which is what makes the id on this side an independent derivation.
-    /// </summary>
-    private static string RunGeneratorOverASharedAiMethod(int boundFieldOffset)
-    {
-        string stubs = @"
-namespace Fhsm.Kernel.Data { public struct HsmCommandWriter { } public enum CommandLane { None = 0 } }
-namespace Fhsm.Kernel
-{
-    public static unsafe class HsmActionDispatcher
-    {
-        public static void RegisterAction(ushort id, System.IntPtr a) { }
-        public static void RegisterGuard(ushort id, System.IntPtr g) { }
-    }
-}
-namespace Fbt.Kernel
-{
-    [System.AttributeUsage(System.AttributeTargets.Method)]
-    public sealed class SharedAiActionAttribute : System.Attribute
-    {
-        public SharedAiActionAttribute(System.Type dtoType, string fieldName) { }
-    }
-}
-namespace Fdp.Core { public struct Entity { } public class EntityRepository { } }
-namespace Fdp.Toolkit.Behavior.Demo
-{
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
-    public struct DemoSharedActionParams { public float AlertRadius; }
-
-    // ⭐ The bound field is placed at the offset the ASSET baked, so the two sides are tied to one
-    //   number rather than to a coincidence of two hand-written layouts.
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
-    public struct DemoBlackboardSlot
-    {
-        [System.Runtime.InteropServices.FieldOffset(__OFFSET__)] public DemoSharedActionParams Params;
-    }
-
-    public static class DemoSharedActions
-    {
-        [Fbt.Kernel.SharedAiAction(typeof(DemoBlackboardSlot), nameof(DemoBlackboardSlot.Params))]
-        public static int AlertNearbyUnits(
-            ref DemoSharedActionParams p, Fdp.Core.Entity self, Fdp.Core.EntityRepository world) => 0;
-    }
-}";
-        stubs = stubs.Replace("__OFFSET__", boundFieldOffset.ToString());
-
-        var compilation = CSharpCompilation.Create(
-            assemblyName: "Probe.SharedAi",
-            syntaxTrees: new[] { CSharpSyntaxTree.ParseText(stubs) },
-            references: new[]
-            {
-                MetadataReference.CreateFromFile(typeof(object).Assembly.Location),
-                MetadataReference.CreateFromFile(System.IO.Path.Combine(
-                    System.IO.Path.GetDirectoryName(typeof(object).Assembly.Location)!, "System.Runtime.dll")),
-            },
-            options: new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true));
-
-        var driver = CSharpGeneratorDriver
-            .Create(new HsmActionGenerator())
-            .RunGenerators(compilation);
-
-        return driver.GetRunResult().Results
-            .SelectMany(r => r.GeneratedSources)
-            .Single(g => g.HintName.Contains("Registrar", StringComparison.Ordinal))
-            .SourceText.ToString();
-    }
 }

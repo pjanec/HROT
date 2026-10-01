@@ -335,7 +335,9 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
 
             var registeredKeys = BTreeBridgeEmitCore.CollectRegisteredActionKeys(dto, packed);
             var deactivators   = BTreeDeactivatorScanner.Scan(compilation, registeredKeys);
-            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators);
+            // ⭐ CE-417 B-2 (a′), F8 — a bound [SharedAi*] method is called per binding with its own signature.
+            bridge = BTreeBridgeEmitCore.EmitBridge(dto, structSizeResolver, deactivators,
+                SharedAiMethodResolver.Make(compilation));
         }
         catch (Exception ex)
         {
