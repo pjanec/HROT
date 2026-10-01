@@ -95,7 +95,7 @@ public sealed class HsmJsonServicesTests
         using var doc = JsonDocument.Parse(json);
         doc.RootElement.GetProperty("$meta")
             .GetProperty("schemaVersion").GetInt32()
-            .Should().Be(1);
+            .Should().Be(2, "CE-417: version 2 — every action/condition/activity/guard is one BehaviorActionBindingDto (the method name predates it)");
     }
 
     // ── Round-trip structural equality ────────────────────────────────────────

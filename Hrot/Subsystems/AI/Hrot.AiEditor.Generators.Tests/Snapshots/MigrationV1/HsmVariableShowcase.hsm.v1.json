@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Hsm",
-    "schemaVersion": 2
+    "schemaVersion": 1
   },
   "AssetId": "e0710001-0000-0000-0000-000000000001",
   "Name": "HsmVariableShowcase",
@@ -21,6 +21,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 0,
@@ -41,6 +45,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
+      "OnEntryAction": null,
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -61,9 +69,10 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntry": {
-        "MethodFqn": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle"
-      },
+      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
+      "OnExitAction": null,
+      "ActivityAction": null,
+      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 400,
@@ -92,10 +101,9 @@
       "SourceStableId": "e0710001-1000-0000-0000-000000000002",
       "TargetStableId": "e0710001-1000-0000-0000-000000000003",
       "EventName": "Begin",
-      "Action": {
-        "MethodFqn": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits",
-        "ExpressionTargetField": "Threshold"
-      },
+      "GuardFunction": null,
+      "ActionFunction": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits",
+      "ExpressionTargetField": "Threshold",
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
@@ -107,6 +115,8 @@
       "SourceStableId": "e0710001-1000-0000-0000-000000000003",
       "TargetStableId": "e0710001-1000-0000-0000-000000000002",
       "EventName": "Finish",
+      "GuardFunction": null,
+      "ActionFunction": null,
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
@@ -153,7 +163,8 @@
           "FixedLength": null
         },
         "DefaultValueJson": "1.5",
-        "Comment": "E0 seed: Role=Input — a supplied parameter. Carries a default so the ParseParams overlay is in the baseline too."
+        "Comment": "E0 seed: Role=Input — a supplied parameter. Carries a default so the ParseParams overlay is in the baseline too.",
+        "IsAutoManaged": false
       },
       {
         "Name": "Cursor",
@@ -163,6 +174,7 @@
           "FixedLength": null
         },
         "Comment": "E0 seed: Role=State at Behavior scope — E1's stateful slot, so the manifest is in the baseline.",
+        "IsAutoManaged": false,
         "Role": "State",
         "Scope": "Behavior"
       },
@@ -174,6 +186,7 @@
           "FixedLength": null
         },
         "Comment": "CE-435 (2026-09-29): re-homed Entity -> Behavior; Entity scope is no longer authorable. E0 seed: Role=State, Behavior scope.",
+        "IsAutoManaged": false,
         "Role": "State",
         "Scope": "Behavior"
       }

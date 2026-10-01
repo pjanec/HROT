@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.BTree",
-    "schemaVersion": 2
+    "schemaVersion": 1
   },
   "AssetId": "bb000035-0000-0000-0000-000000000000",
   "Name": "T35_SharedWorkingState",
@@ -16,13 +16,7 @@
         "bb350000-0000-0000-0000-000000000002"
       ],
       "DisplayLabel": "Root",
-      "EditorMetadata": {
-        "X": 300,
-        "Y": 0,
-        "Comment": null,
-        "Collapsed": false,
-        "Color": null
-      }
+      "EditorMetadata": { "X": 300, "Y": 0, "Comment": null, "Collapsed": false, "Color": null }
     },
     {
       "kind": "Parallel",
@@ -46,10 +40,10 @@
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
         "ExpressionTargetField": "bpParamsSharedA",
+        "DelegateShape": "AiPrimitiveTickCore",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
         "WorkingStateTargetField": "bpSharedWorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_SharedA",
@@ -66,10 +60,10 @@
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
         "ExpressionTargetField": "bpParamsSharedB",
+        "DelegateShape": "AiPrimitiveTickCore",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState",
         "WorkingStateTargetField": "bpSharedWorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_SharedB",
@@ -86,9 +80,9 @@
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.TickCore",
         "ExpressionTargetField": "bpParamsControl",
+        "DelegateShape": "AiPrimitiveTickCore",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes+WorkingState"
       },
-      "DelegateShape": "AiPrimitiveTickCore",
       "VisualId": "bb350000-0000-0000-0000-000000000005",
       "ChildVisualIds": [],
       "DisplayLabel": "ComposedAiPrimitive_Control",
@@ -102,16 +96,9 @@
     }
   ],
   "Pills": [],
-  "Canvas": {
-    "PanX": 0,
-    "PanY": 0,
-    "Zoom": 1
-  },
+  "Canvas": { "PanX": 0, "PanY": 0, "Zoom": 1 },
   "SubtreeSyncBindings": {},
-  "Suppressions": {
-    "Conflict": [],
-    "Unused": []
-  },
+  "Suppressions": { "Conflict": [], "Unused": [] },
   "Blackboard": {
     "Managed": true,
     "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
@@ -155,6 +142,7 @@
           "FixedLength": null
         },
         "Comment": "Slice 1: Role=State/Scope=Behavior WorkingState host variable. SharedA and SharedB both bind WorkingStateTargetField to this variable's Name, so ResolveStatefulSlotKey computes the SAME FNV-1a(assetId, 'bpSharedWorkingState') slot key for both -- one shared partition slot, accumulated by both nodes each tick.",
+        "IsAutoManaged": false,
         "Role": "State",
         "Scope": "Behavior"
       }

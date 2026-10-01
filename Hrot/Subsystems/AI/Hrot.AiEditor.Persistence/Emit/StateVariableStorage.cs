@@ -43,9 +43,9 @@ public static class StateVariableStorage
         {
             string? scopeVar = node switch
             {
-                BTreeActionNodeDto a when a.Action != null && IsStateful(a.Action.DelegateShape)
+                BTreeActionNodeDto a when a.Action != null && IsStateful(a.DelegateShape)
                     => BTreeBridgeEmitCore.StatefulScopeVariable(a.Action),
-                BTreeConditionNodeDto c when c.Condition != null && IsStateful(c.Condition.DelegateShape)
+                BTreeConditionNodeDto c when c.Condition != null && IsStateful(c.DelegateShape)
                     => BTreeBridgeEmitCore.StatefulScopeVariable(c.Condition),
                 _ => null,
             };

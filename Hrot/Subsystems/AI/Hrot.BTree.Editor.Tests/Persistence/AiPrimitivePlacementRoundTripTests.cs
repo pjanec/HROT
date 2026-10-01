@@ -89,7 +89,7 @@ public sealed class AiPrimitivePlacementRoundTripTests
         var actionNodeDto = dto.Nodes.OfType<BTreeActionNodeDto>().Should().ContainSingle().Which;
         actionNodeDto.Action.Should().NotBeNull();
         actionNodeDto.Action!.MethodFqn.Should().Be(fqn);
-        actionNodeDto.Action.DelegateShape.Should().Be(BTreeDelegateShapeDto.AiPrimitiveTickCore,
+        actionNodeDto.DelegateShape.Should().Be(BTreeDelegateShapeDto.AiPrimitiveTickCore,
             "matches T31's persisted Action.DelegateShape");
         actionNodeDto.Action.WorkingStateTypeId.Should().Be(
             typeof(FakeBpGenerated.WorkingState).FullName,

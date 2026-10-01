@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Emit;
 using Xunit;
@@ -53,13 +54,13 @@ public sealed class BlueprintActionThunkEmissionTests
                 new BTreeActionNodeDto
                 {
                     VisualId = Guid.Parse("dddddddd-0000-0000-0000-0000000000aa"),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn             = TickCoreFqn,
                         ExpressionTargetField = "bpParams",
-                        DelegateShape         = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                         WorkingStateTypeId    = WsTypeId,
                     },
+                    DelegateShape = BTreeDelegateShapeDto.AiPrimitiveTickCore,
                 },
             },
         };

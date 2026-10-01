@@ -165,63 +165,14 @@ public enum BTreeDelegateShapeDto
     /// the params layout (Params projected at the baked offset) and a partition slot for the
     /// blueprint's WorkingState; the node dispatches to the blueprint's generated
     /// <c>TickCore(ref Params, ref WorkingState, Entity self, EntityRepository world, float time)</c>.
-    /// <see cref="BTreeActionPayloadDto.MethodFqn"/> is the generated <c>TickCore</c> FQN and
-    /// <see cref="BTreeActionPayloadDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
+    /// <see cref="BehaviorActionBindingDto.MethodFqn"/> is the generated <c>TickCore</c> FQN and
+    /// <see cref="BehaviorActionBindingDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
     /// </summary>
     AiPrimitiveTickCore = 3,
 }
 
-public sealed class BTreeActionPayloadDto
-{
-    public string MethodFqn { get; set; } = string.Empty;
-    public string? ExpressionTargetField { get; set; }
-    public BTreeDelegateShapeDto DelegateShape { get; set; }
-    /// <summary>
-    /// S2-1: for <see cref="BTreeDelegateShapeDto.ThreeParamReusableStateful"/> bindings,
-    /// the CLR FQN of the WorkingState struct (second ref param after TParams).
-    /// E.g. "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState".
-    /// Null/omitted for stateless shapes.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTypeId { get; set; }
-
-    /// <summary>
-    /// S3-G: for stateful bindings whose <b>working-state</b> variable is distinct from the
-    /// param variable (<see cref="ExpressionTargetField"/>), the Name of the authored
-    /// working-state blackboard variable. Its declared <c>Role</c>/<c>Scope</c> drive the
-    /// slot key + provisioning scope (a shared Behavior/Entity variable lives here, not in
-    /// the param variable). When null/omitted, scope resolution falls back to
-    /// <see cref="ExpressionTargetField"/> (back-compat: Slice-2 assets and tests where the
-    /// bound variable IS the stateful one stay byte-identical).
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTargetField { get; set; }
-}
-
-public sealed class BTreeConditionPayloadDto
-{
-    public string MethodFqn { get; set; } = string.Empty;
-    public string? ExpressionTargetField { get; set; }
-    public BTreeDelegateShapeDto DelegateShape { get; set; }
-    /// <summary>
-    /// E2: for <see cref="BTreeDelegateShapeDto.AiPrimitiveTickCore"/> bindings, the CLR FQN
-    /// of the WorkingState struct (second ref param after TParams). Null/omitted for other shapes.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTypeId { get; set; }
-
-    /// <summary>
-    /// Slice 1 (shared working-state): for stateful bindings whose <b>working-state</b> variable is
-    /// distinct from the param variable (<see cref="ExpressionTargetField"/>), the Name of the
-    /// authored working-state blackboard variable. Its declared <c>Role</c>/<c>Scope</c> drive the
-    /// slot key + provisioning scope (a shared Behavior/Entity variable lives here, not in the param
-    /// variable). When null/omitted, scope resolution falls back to <see cref="ExpressionTargetField"/>
-    /// (back-compat: pre-Slice-1 condition assets stay byte-identical). Mirrors
-    /// <see cref="BTreeActionPayloadDto.WorkingStateTargetField"/>.
-    /// </summary>
-    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
-    public string? WorkingStateTargetField { get; set; }
-}
+// ⭐ CE-417: BTreeActionPayloadDto / BTreeConditionPayloadDto are retired — both nodes carry the ONE
+//   BehaviorActionBindingDto, and DelegateShape (a BTree interpreter arity, Q75 §5.1b) sits on the node.
 
 public sealed class BTreeWaitPayloadDto
 {
@@ -318,12 +269,14 @@ public sealed class BTreeCooldownNodeDto : BTreeNodeDto
 
 public sealed class BTreeActionNodeDto : BTreeNodeDto
 {
-    public BTreeActionPayloadDto? Action { get; set; }
+    public BehaviorActionBindingDto? Action { get; set; }
+    public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 
 public sealed class BTreeConditionNodeDto : BTreeNodeDto
 {
-    public BTreeConditionPayloadDto? Condition { get; set; }
+    public BehaviorActionBindingDto? Condition { get; set; }
+    public BTreeDelegateShapeDto DelegateShape { get; set; }
 }
 
 public sealed class BTreeWaitNodeDto : BTreeNodeDto

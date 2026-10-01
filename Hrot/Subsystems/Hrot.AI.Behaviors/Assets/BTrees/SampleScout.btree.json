@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.BTree",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "AssetId": "54ef3847-0000-0000-0000-000000000000",
   "Name": "SampleScout",

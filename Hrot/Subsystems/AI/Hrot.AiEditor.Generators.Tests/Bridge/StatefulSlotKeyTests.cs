@@ -128,13 +128,13 @@ public sealed class StatefulSlotKeyTests
                     VisualId       = nodeId,
                     DisplayLabel   = "AdvanceCursor",
                     EditorMetadata = new NodeEditorMetadataDto(),
-                    Action         = new BTreeActionPayloadDto
+                    Action         = new BehaviorActionBindingDto
                     {
                         MethodFqn         = AdvanceCursorFqn,
                         ExpressionTargetField = "cursor",
-                        DelegateShape     = BTreeDelegateShapeDto.ThreeParamReusableStateful,
                         WorkingStateTypeId = CursorStateTypeId,
-                    }
+                    },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful
                 }
             }
         };
@@ -310,13 +310,13 @@ public sealed class StatefulSlotKeyTests
                 new BTreeActionNodeDto
                 {
                     VisualId = nodeId, DisplayLabel = "AdvanceShared", EditorMetadata = new NodeEditorMetadataDto(),
-                    Action = new BTreeActionPayloadDto
+                    Action = new BehaviorActionBindingDto
                     {
                         MethodFqn = MethodFqn, ExpressionTargetField = "cfg",
                         WorkingStateTargetField = "shared",
-                        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
                         WorkingStateTypeId = StateTypeId,
-                    }
+                    },
+                    DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful
                 }
             }
         };

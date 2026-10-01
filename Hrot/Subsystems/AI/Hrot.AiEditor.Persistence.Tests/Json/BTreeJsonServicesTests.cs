@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Text.Json;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Xunit;
 
@@ -42,11 +43,11 @@ public sealed class BTreeJsonServicesTests
             VisualId     = new Guid("30000000-0000-0000-0000-000000000001"),
             DisplayLabel = "DoSomething",
             EditorMetadata = new NodeEditorMetadataDto { X = 200, Y = 100, Comment = "fire action" },
-            Action = new BTreeActionPayloadDto
+            Action = new BehaviorActionBindingDto
             {
                 MethodFqn     = "Hrot.AI.Brains.TestAction",
-                DelegateShape = BTreeDelegateShapeDto.FourParamFull,
             },
+            DelegateShape = BTreeDelegateShapeDto.FourParamFull,
         });
         dto.Pills.Add(new BTreePillDto
         {
@@ -102,8 +103,8 @@ public sealed class BTreeJsonServicesTests
         // Parse and check $meta.schemaVersion == 1
         using var doc = JsonDocument.Parse(json);
         var meta = doc.RootElement.GetProperty("$meta");
-        meta.GetProperty("schemaVersion").GetInt32().Should().Be(1,
-            because: "schemaVersion must be 1 per design §5.1");
+        meta.GetProperty("schemaVersion").GetInt32().Should().Be(2,
+            because: "CE-417: version 2 — every action/condition is one BehaviorActionBindingDto (the method name predates it)");
     }
 
     // ── Round-trip structural equality ────────────────────────────────────────

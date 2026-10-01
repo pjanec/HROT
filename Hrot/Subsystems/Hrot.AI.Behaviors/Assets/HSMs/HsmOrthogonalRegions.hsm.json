@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.Hsm",
-    "schemaVersion": 1
+    "schemaVersion": 2
   },
   "AssetId": "e0710002-0000-0000-0000-000000000001",
   "Name": "HsmOrthogonalRegions",
@@ -20,10 +20,6 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": null,
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 0,
@@ -47,10 +43,6 @@
       "IsDeepHistory": false,
       "IsParallel": true,
       "IsFinal": false,
-      "OnEntryAction": null,
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 100,
@@ -71,10 +63,9 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
+      "OnEntry": {
+        "MethodFqn": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle"
+      },
       "RegionIndex": 0,
       "DeferredEventNames": [],
       "X": 200,
@@ -95,10 +86,9 @@
       "IsDeepHistory": false,
       "IsParallel": false,
       "IsFinal": false,
-      "OnEntryAction": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle",
-      "OnExitAction": null,
-      "ActivityAction": null,
-      "TimerAction": null,
+      "OnEntry": {
+        "MethodFqn": "Hrot.AI.Behaviors.CgfHsmNodes.StubIdle"
+      },
       "RegionIndex": 1,
       "DeferredEventNames": [],
       "X": 200,
@@ -164,7 +154,6 @@
           "FixedLength": null
         },
         "Comment": "E0 seed for E3: one Behavior-scoped slot that BOTH regions reach — the occurrence-key subject.",
-        "IsAutoManaged": false,
         "Role": "State",
         "Scope": "Behavior"
       }

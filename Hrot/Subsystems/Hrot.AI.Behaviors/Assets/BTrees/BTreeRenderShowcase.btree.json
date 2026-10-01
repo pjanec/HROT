@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000001-0000-0000-0000-000000000000",
 	"Name": "BTreeRenderShowcase",
@@ -90,6 +90,10 @@
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"
+			},
+			"DelegateShape": "FourParamFull",
 			"VisualId": "bb060000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wander",
@@ -99,15 +103,13 @@
 				"Comment": "Wander action — Inverter + Repeater(3) pill stack",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
-				"ExpressionTargetField": null,
-				"DelegateShape": "FourParamFull"
 			}
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
 			"VisualId": "bb070000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(1s)",
@@ -117,13 +119,14 @@
 				"Comment": "Wait 1 second — Cooldown(5s) pill",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 1.0
 			}
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"
+			},
+			"DelegateShape": "FourParamFull",
 			"VisualId": "bb080000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wander",
@@ -133,15 +136,13 @@
 				"Comment": "Wander inside Parallel — ForceSuccess pill",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
-				"ExpressionTargetField": null,
-				"DelegateShape": "FourParamFull"
 			}
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 2
+			},
 			"VisualId": "bb090000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(2s)",
@@ -151,13 +152,15 @@
 				"Comment": "Wait 2 seconds inside Parallel — ForceFailure pill",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 2.0
 			}
 		},
 		{
 			"kind": "Subtree",
+			"Subtree": {
+				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
+				"SubtreeName": "SampleScout",
+				"IsResolved": true
+			},
 			"VisualId": "bb0a0000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "SampleScout",
@@ -167,11 +170,6 @@
 				"Comment": "SampleScout subtree — UntilSuccess + UntilFailure pill stack",
 				"Collapsed": false,
 				"Color": null
-			},
-			"Subtree": {
-				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
-				"SubtreeName": "SampleScout",
-				"IsResolved": true
 			}
 		}
 	],
@@ -198,8 +196,8 @@
 			"VisualId": "bb130000-0000-0000-0000-000000000001",
 			"HostNodeVisualId": "bb070000-0000-0000-0000-000000000001",
 			"DecoratorType": "Cooldown",
-			"FloatParam": 5.0,
 			"IntParam": null,
+			"FloatParam": 5,
 			"Comment": "5 second cooldown on wait",
 			"StackIndex": 0
 		},

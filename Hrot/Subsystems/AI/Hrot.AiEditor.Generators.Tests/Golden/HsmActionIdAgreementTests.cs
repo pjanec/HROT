@@ -75,7 +75,7 @@ public sealed class HsmActionIdAgreementTests
 
         // ⭐ The asset really does store the FQN: the premise, not an assumption.
         var dto = HsmJsonServices.Deserialize(AiAssetCorpus.ReadAsset(AiAssetKind.Hsm, "HsmShowcase"))!;
-        Assert.Contains(dto.States, s => s.OnEntryAction == ActionFqn);
+        Assert.Contains(dto.States, s => s.OnEntry?.MethodFqn == ActionFqn);
     }
 
     /// <summary>

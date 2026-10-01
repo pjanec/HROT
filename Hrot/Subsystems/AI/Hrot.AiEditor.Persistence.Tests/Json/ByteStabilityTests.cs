@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.BTree;
 using Hrot.AiEditor.Persistence.Hsm;
 using Hrot.BTree.Editor.Catalog;
@@ -60,11 +61,11 @@ public sealed class ByteStabilityTests
         {
             VisualId = new Guid("30000000-0000-0000-0000-000000000001"),
             EditorMetadata = new NodeEditorMetadataDto { X = 200, Y = 100 },
-            Action = new BTreeActionPayloadDto
+            Action = new BehaviorActionBindingDto
             {
                 MethodFqn     = "Test.TestAction",
-                DelegateShape = BTreeDelegateShapeDto.FourParamFull,
             },
+            DelegateShape = BTreeDelegateShapeDto.FourParamFull,
         });
         richDto.Blackboard.Variables.Add(new BlackboardVariableDto
         {

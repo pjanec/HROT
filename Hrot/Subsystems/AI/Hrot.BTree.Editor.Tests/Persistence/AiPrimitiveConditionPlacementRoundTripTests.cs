@@ -92,7 +92,7 @@ public sealed class AiPrimitiveConditionPlacementRoundTripTests
         var conditionNodeDto = dto.Nodes.OfType<BTreeConditionNodeDto>().Should().ContainSingle().Which;
         conditionNodeDto.Condition.Should().NotBeNull();
         conditionNodeDto.Condition!.MethodFqn.Should().Be(fqn);
-        conditionNodeDto.Condition.DelegateShape.Should().Be(BTreeDelegateShapeDto.AiPrimitiveTickCore,
+        conditionNodeDto.DelegateShape.Should().Be(BTreeDelegateShapeDto.AiPrimitiveTickCore,
             "matches the composed-action shape's persisted Condition.DelegateShape");
         conditionNodeDto.Condition.WorkingStateTypeId.Should().Be(
             typeof(FakeBpGeneratedCondition.WorkingState).FullName,

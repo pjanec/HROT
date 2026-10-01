@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000004-0000-0000-0000-000000000000",
 	"Name": "T03_Parallel",
@@ -42,6 +42,9 @@
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
 			"VisualId": "b4030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(1s)",
@@ -51,13 +54,13 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 1.0
 			}
 		},
 		{
 			"kind": "Wait",
+			"Wait": {
+				"Duration": 1
+			},
 			"VisualId": "b4040000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wait(1s)",
@@ -67,9 +70,6 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Wait": {
-				"Duration": 1.0
 			}
 		}
 	],

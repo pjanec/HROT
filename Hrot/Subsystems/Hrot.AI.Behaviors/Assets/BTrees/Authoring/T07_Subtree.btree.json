@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000008-0000-0000-0000-000000000000",
 	"Name": "T07_Subtree",
@@ -41,6 +41,11 @@
 		},
 		{
 			"kind": "Subtree",
+			"Subtree": {
+				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
+				"SubtreeName": "SampleScout",
+				"IsResolved": true
+			},
 			"VisualId": "b8030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "SampleScout",
@@ -50,11 +55,6 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Subtree": {
-				"SubtreeAssetId": "54ef3847-0000-0000-0000-000000000000",
-				"SubtreeName": "SampleScout",
-				"IsResolved": true
 			}
 		}
 	],

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using FluentAssertions;
+using Hrot.AiEditor.Persistence;
 using Hrot.AiEditor.Persistence.Emit;
 using Hrot.AiEditor.Persistence.Hsm;
 using Xunit;
@@ -55,14 +56,16 @@ public sealed class HsmBlueprintActionIdTests
                 new() { StableId = root, Name = "__Root",
                         ChildStableIds = new List<Guid> { a, b } },
                 new() { StableId = a, Name = "A", IsInitial = true, ParentStableId = root,
-                        ActivityBlueprintAssetId = activityBlueprint ?? Guid.Empty },
+                        Activity = activityBlueprint is Guid ab && ab != Guid.Empty
+                            ? new BehaviorActionBindingDto { BlueprintAssetId = ab } : null },
                 new() { StableId = b, Name = "B", ParentStableId = root },
             },
             Transitions = new List<TransitionNodeDto>
             {
                 new() { VisualId = Guid.Parse("cc000000-0000-0000-0000-000000000003"),
                         SourceStableId = a, TargetStableId = b,
-                        GuardBlueprintAssetId = guardBlueprint ?? Guid.Empty,
+                        Guard = guardBlueprint is Guid gb && gb != Guid.Empty
+                            ? new BehaviorActionBindingDto { BlueprintAssetId = gb } : null,
                         IsPolled = polled },
             },
         };
@@ -155,20 +158,19 @@ public sealed class HsmBlueprintActionIdTests
     {
         var dto = TwoStateAsset(activityBlueprint: BpAsset, guardBlueprint: BpAsset, polled: true);
         // ⚠ By NAME, not by index: States[0] is __Root (see the fixture note above).
-        StateA(dto).ActivityBlueprintName = "SomeBlueprint";
-        dto.Transitions[0].GuardBlueprintName = "SomeGuard";
+        StateA(dto).Activity!.BlueprintName = "SomeBlueprint";
+        dto.Transitions[0].Guard!.BlueprintName = "SomeGuard";
 
         var back = HsmJsonServices.Deserialize(HsmJsonServices.Serialize(dto))!;
 
-        StateA(back).ActivityBlueprintAssetId.Should().Be(BpAsset);
-        StateA(back).ActivityBlueprintName.Should().Be("SomeBlueprint");
-        back.Transitions[0].GuardBlueprintAssetId.Should().Be(BpAsset);
-        back.Transitions[0].GuardBlueprintName.Should().Be("SomeGuard");
+        StateA(back).Activity!.BlueprintAssetId.Should().Be(BpAsset);
+        StateA(back).Activity!.BlueprintName.Should().Be("SomeBlueprint");
+        back.Transitions[0].Guard!.BlueprintAssetId.Should().Be(BpAsset);
+        back.Transitions[0].Guard!.BlueprintName.Should().Be("SomeGuard");
         back.Transitions[0].IsPolled.Should().BeTrue();
 
         string bare = HsmJsonServices.Serialize(TwoStateAsset());
-        bare.Should().NotContain("ActivityBlueprintAssetId");
-        bare.Should().NotContain("GuardBlueprintAssetId");
+        bare.Should().NotContain("BlueprintAssetId");   // CE-417: no blueprint binding is written for an unset slot
         bare.Should().NotContain("IsPolled");
     }
 }

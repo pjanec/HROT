@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Numerics;
 using Fhsm.Kernel.Data;
+using Hrot.AiEditor.Persistence;
+using Hrot.AiEditor.Persistence.Emit;
 using Hrot.AiEditor.Persistence.Hsm;
 using Hrot.Editor.AiShared.Blackboard;
 using Hrot.Hsm.Editor.Model;
@@ -53,23 +55,16 @@ public static class HsmAssetMapper
                 IsDeepHistory  = s.IsDeepHistory,
                 IsParallel     = s.IsParallel,
                 IsFinal        = s.IsFinal,
-                OnEntryAction  = s.OnEntryAction,
-                OnExitAction   = s.OnExitAction,
-                ActivityAction = s.ActivityAction,
-                TimerAction    = s.TimerAction,
+                // ⭐ CE-417: the four slots are bindings on disk; the editor model is still flat until slice 4.
+                OnEntry        = Bind(s.OnEntryAction, etf: s.ExpressionTargetField),
+                OnExit         = Bind(s.OnExitAction, etf: s.ExpressionTargetField),
+                Activity       = Bind(s.ActivityAction, s.ActivityBlueprintAssetId, s.ActivityBlueprintName, s.ExpressionTargetField,
+                                      keepFieldOnly: !HasAnySlot(s)),   // a field bound before any action is chosen
+                Timer          = Bind(s.TimerAction, etf: s.ExpressionTargetField),
                 RegionIndex    = s.RegionIndex,
                 SubtreeAssetId = s.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = s.SubtreeName,      // E5 / Q36-B = A
                 SubtreeParamsVariable = s.SubtreeParamsVariable,   // CE-439
-                // ⭐⭐ CE-385 — the blueprint-hosted activity. Both DTO fields are
-                //    JsonIgnore(WhenWritingDefault/Null), so an asset that names none of this
-                //    serialises byte-identically (the golden-corpus constraint, design §8a ⑥).
-                ActivityBlueprintAssetId = s.ActivityBlueprintAssetId,
-                ActivityBlueprintName    = s.ActivityBlueprintName,
-                // ⭐⭐ CE-387 — the per-state params seed binding. 🔴 The DTO field and
-                //    HsmBridgeEmitCore.EmitStateParamBindings have existed since E3b-0; this arm is
-                //    what was missing, so the value was ALWAYS null and every state seeded from 0.
-                ExpressionTargetField = s.ExpressionTargetField,
                 X              = s.Position.X,
                 Y              = s.Position.Y,
                 Comment        = s.Comment,
@@ -126,17 +121,15 @@ public static class HsmAssetMapper
                 SourceStableId        = t.Source.StableId,
                 TargetStableId        = t.Target.StableId,
                 EventName             = t.EventName,
-                GuardFunction         = t.GuardFunction,
-                ActionFunction        = t.ActionFunction,
-                ExpressionTargetField = t.ExpressionTargetField,
+                // ⭐ CE-417: guard and action are bindings, each with its own field.
+                Guard                 = Bind(t.GuardFunction, t.GuardBlueprintAssetId, t.GuardBlueprintName,
+                                             t.ExpressionTargetField),
+                Action                = Bind(t.ActionFunction, etf: t.ExpressionTargetField),
                 Priority              = t.Priority,
                 Kind                  = (TransitionKindDto)t.Kind,
                 SyncGroupId           = t.SyncGroupId,
                 Comment               = t.Comment,
-                // ⭐⭐ CE-385 — the blueprint-hosted guard, and the polled marker (CE-381).
-                GuardBlueprintAssetId = t.GuardBlueprintAssetId,
-                GuardBlueprintName    = t.GuardBlueprintName,
-                IsPolled              = t.IsPolled,
+                IsPolled              = t.IsPolled,   // CE-381
             };
             foreach (var wp in t.Waypoints)
                 tDto.Waypoints.Add(new WaypointDto { X = wp.X, Y = wp.Y });
@@ -151,9 +144,8 @@ public static class HsmAssetMapper
                 VisualId              = g.VisualId,
                 TargetStableId        = g.Target.StableId,
                 EventName             = g.EventName,
-                GuardFunction         = g.GuardFunction,
-                ActionFunction        = g.ActionFunction,
-                ExpressionTargetField = g.ExpressionTargetField,
+                Guard                 = Bind(g.GuardFunction, etf: g.ExpressionTargetField),   // CE-417
+                Action                = Bind(g.ActionFunction, etf: g.ExpressionTargetField),
                 Priority              = g.Priority,
                 Comment               = g.Comment,
             });
@@ -250,17 +242,17 @@ public static class HsmAssetMapper
                 IsDeepHistory = sDto.IsDeepHistory,
                 IsParallel    = sDto.IsParallel,
                 IsFinal       = sDto.IsFinal,
-                OnEntryAction = sDto.OnEntryAction,
-                OnExitAction  = sDto.OnExitAction,
-                ActivityAction = sDto.ActivityAction,
-                TimerAction   = sDto.TimerAction,
+                OnEntryAction = sDto.OnEntry?.MethodFqn,    // CE-417
+                OnExitAction  = sDto.OnExit?.MethodFqn,
+                ActivityAction = sDto.Activity?.MethodFqn,
+                TimerAction   = sDto.Timer?.MethodFqn,
                 RegionIndex   = sDto.RegionIndex,
                 SubtreeAssetId = sDto.SubtreeAssetId,   // DEBT-AIB-028(a)
                 SubtreeName    = sDto.SubtreeName,      // E5 / Q36-B = A
                 SubtreeParamsVariable = sDto.SubtreeParamsVariable,   // CE-439
-                ActivityBlueprintAssetId = sDto.ActivityBlueprintAssetId,   // CE-385
-                ActivityBlueprintName    = sDto.ActivityBlueprintName,      // CE-385
-                ExpressionTargetField    = sDto.ExpressionTargetField,      // CE-387
+                ActivityBlueprintAssetId = sDto.Activity?.BlueprintAssetId ?? Guid.Empty,   // CE-385 / CE-417
+                ActivityBlueprintName    = sDto.Activity?.BlueprintName,
+                ExpressionTargetField    = HsmBridgeEmitCore.StateWideField(sDto),       // CE-387 / CE-417
                 Position      = new Vector2(sDto.X, sDto.Y),
                 Comment       = sDto.Comment,
                 IsCollapsed   = sDto.IsCollapsed,
@@ -352,15 +344,15 @@ public static class HsmAssetMapper
                 Source                = src,
                 Target                = tgt,
                 EventName             = tDto.EventName,
-                GuardFunction         = tDto.GuardFunction,
-                ActionFunction        = tDto.ActionFunction,
-                ExpressionTargetField = tDto.ExpressionTargetField,
+                GuardFunction         = tDto.Guard?.MethodFqn,   // CE-417
+                ActionFunction        = tDto.Action?.MethodFqn,
+                ExpressionTargetField = tDto.Action?.ExpressionTargetField ?? tDto.Guard?.ExpressionTargetField,
                 Priority              = tDto.Priority,
                 Kind                  = (TransitionKind)tDto.Kind,
                 SyncGroupId           = tDto.SyncGroupId,
                 Comment               = tDto.Comment,
-                GuardBlueprintAssetId = tDto.GuardBlueprintAssetId,   // CE-385
-                GuardBlueprintName    = tDto.GuardBlueprintName,      // CE-385
+                GuardBlueprintAssetId = tDto.Guard?.BlueprintAssetId ?? Guid.Empty,   // CE-385 / CE-417
+                GuardBlueprintName    = tDto.Guard?.BlueprintName,
                 IsPolled              = tDto.IsPolled,                // CE-381/CE-385
                 FlatIndex             = 0,   // runtime-only
                 EventId               = 0,   // runtime-only
@@ -381,9 +373,9 @@ public static class HsmAssetMapper
                 VisualId              = gDto.VisualId,
                 Target                = tgt,
                 EventName             = gDto.EventName,
-                GuardFunction         = gDto.GuardFunction,
-                ActionFunction        = gDto.ActionFunction,
-                ExpressionTargetField = gDto.ExpressionTargetField,
+                GuardFunction         = gDto.Guard?.MethodFqn,   // CE-417
+                ActionFunction        = gDto.Action?.MethodFqn,
+                ExpressionTargetField = gDto.Action?.ExpressionTargetField ?? gDto.Guard?.ExpressionTargetField,
                 Priority              = gDto.Priority,
                 Comment               = gDto.Comment,
                 FlatIndex             = 0,   // runtime-only
@@ -558,4 +550,23 @@ public static class HsmAssetMapper
     // ⭐ CE-439 — the shared rule (BlackboardTypeHelper.ResolveClrType); this mapper used to own a private copy.
     private static Type ResolveClrType(string typeId)
         => Hrot.Editor.AiShared.Blackboard.BlackboardTypeHelper.ResolveClrType(typeId);
+
+    /// <summary>⭐ CE-417 — one binding from the editor's (still flat) slot fields; null when the slot is empty.</summary>
+    private static BehaviorActionBindingDto? Bind(string? methodFqn, Guid blueprintAssetId = default,
+                                                  string? blueprintName = null, string? etf = null, bool keepFieldOnly = false)
+    {
+        if (string.IsNullOrEmpty(methodFqn) && blueprintAssetId == Guid.Empty
+            && !(keepFieldOnly && !string.IsNullOrEmpty(etf))) return null;
+        return new BehaviorActionBindingDto
+        {
+            MethodFqn             = string.IsNullOrEmpty(methodFqn) ? null : methodFqn,
+            BlueprintAssetId      = blueprintAssetId,
+            BlueprintName         = blueprintAssetId == Guid.Empty ? null : blueprintName,
+            ExpressionTargetField = string.IsNullOrEmpty(etf) ? null : etf,
+        };
+    }
+
+    private static bool HasAnySlot(StateNode s)
+        => !string.IsNullOrEmpty(s.OnEntryAction) || !string.IsNullOrEmpty(s.OnExitAction) || !string.IsNullOrEmpty(s.TimerAction)
+        || !string.IsNullOrEmpty(s.ActivityAction) || s.ActivityBlueprintAssetId != Guid.Empty;
 }

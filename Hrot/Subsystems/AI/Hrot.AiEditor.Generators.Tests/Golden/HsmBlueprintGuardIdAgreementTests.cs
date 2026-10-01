@@ -146,9 +146,9 @@ public sealed class HsmBlueprintGuardIdAgreementTests
         var dto = Hrot.AiEditor.Persistence.Hsm.HsmJsonServices.Deserialize(
             AiAssetCorpus.ReadAsset(AiAssetKind.Hsm, MachineName))!;
 
-        dto.Transitions.Should().OnlyContain(t => string.IsNullOrEmpty(t.GuardFunction),
+        dto.Transitions.Should().OnlyContain(t => t.Guard == null || string.IsNullOrEmpty(t.Guard.MethodFqn),
             "the guard is hosted by a blueprint, not by a named method");
-        dto.Transitions.Should().Contain(t => t.GuardBlueprintAssetId != Guid.Empty,
+        dto.Transitions.Should().Contain(t => t.Guard != null && t.Guard.BlueprintAssetId != Guid.Empty,
             "the asset addresses the blueprint by GUID — the only handle that survives a rename");
 
         GuardIdsInTheCompiledBlob().Should().NotBeEmpty();

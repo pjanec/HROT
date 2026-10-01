@@ -1,7 +1,7 @@
 {
 	"$meta": {
 		"docType": "Hrot.BTree",
-		"schemaVersion": 1
+		"schemaVersion": 2
 	},
 	"AssetId": "bb000005-0000-0000-0000-000000000000",
 	"Name": "T04_DecoratorRepeater",
@@ -41,6 +41,10 @@
 		},
 		{
 			"kind": "Action",
+			"Action": {
+				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander"
+			},
+			"DelegateShape": "FourParamFull",
 			"VisualId": "b5030000-0000-0000-0000-000000000001",
 			"ChildVisualIds": [],
 			"DisplayLabel": "Wander",
@@ -50,11 +54,6 @@
 				"Comment": null,
 				"Collapsed": false,
 				"Color": null
-			},
-			"Action": {
-				"MethodFqn": "Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
-				"ExpressionTargetField": null,
-				"DelegateShape": "FourParamFull"
 			}
 		}
 	],

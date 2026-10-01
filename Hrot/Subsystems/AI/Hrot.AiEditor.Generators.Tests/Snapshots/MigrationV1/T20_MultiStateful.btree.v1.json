@@ -1,7 +1,7 @@
 {
   "$meta": {
     "docType": "Hrot.BTree",
-    "schemaVersion": 2
+    "schemaVersion": 1
   },
   "AssetId": "bb000020-0000-0000-0000-000000000000",
   "Name": "T20_MultiStateful",
@@ -46,9 +46,9 @@
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor",
         "ExpressionTargetField": "cursorA",
+        "DelegateShape": "ThreeParamReusableStateful",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
       },
-      "DelegateShape": "ThreeParamReusableStateful",
       "VisualId": "bb200000-0000-0000-0000-000000000003",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_AdvanceCursor_A",
@@ -65,9 +65,9 @@
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor",
         "ExpressionTargetField": "cursorB",
+        "DelegateShape": "ThreeParamReusableStateful",
         "WorkingStateTypeId": "Hrot.AI.Behaviors.Brains.DemoCounterNodes+DemoCursorState"
       },
-      "DelegateShape": "ThreeParamReusableStateful",
       "VisualId": "bb200000-0000-0000-0000-000000000004",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_AdvanceCursor_B",
@@ -83,9 +83,9 @@
       "kind": "Action",
       "Action": {
         "MethodFqn": "Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter",
-        "ExpressionTargetField": "counter"
+        "ExpressionTargetField": "counter",
+        "DelegateShape": "ThreeParamReusable"
       },
-      "DelegateShape": "ThreeParamReusable",
       "VisualId": "bb200000-0000-0000-0000-000000000005",
       "ChildVisualIds": [],
       "DisplayLabel": "Action_IncrementCounter",
