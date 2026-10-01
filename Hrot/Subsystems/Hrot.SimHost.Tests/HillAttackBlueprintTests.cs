@@ -167,16 +167,6 @@ namespace Hrot.SimHost.Tests
 
             public void Dispose()
             {
-                if (Repo.HasSingleton<AreaQueryBatchData>())
-                {
-                    ref var b = ref Repo.GetSingleton<AreaQueryBatchData>();
-                    if (b.Results.IsCreated) b.Results.Dispose();
-                }
-                if (Repo.HasSingleton<EqsTargetPool>())
-                {
-                    var p = Repo.GetSingleton<EqsTargetPool>();
-                    if (p.Targets.IsCreated) p.Targets.Dispose();
-                }
                 if (Repo.HasSingleton<EqsResultPool>())
                 {
                     var r = Repo.GetSingleton<EqsResultPool>();

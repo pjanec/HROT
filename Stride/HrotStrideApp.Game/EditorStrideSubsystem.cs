@@ -632,7 +632,8 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
             //       — its own remark says "the supplying host owns both". So the editor does NOT supply
             //       the perception tier on this arm; it expects US to.
             //     • Resolving MuscleGround alone dropped Stride's PerceptionSpatial, so the host booted
-            //       with NO CognitiveSpatialModule and therefore NO AreaQuerySolverSystem.
+            //       with NO CognitiveSpatialModule and therefore NO AreaQuerySolverSystem (the area query
+            //       of the time — retired 2026-10-01; EqsModule answers it now).
             //     • The platoon commander's tree then hangs forever: it clears
             //       Condition_AreAllAtBaseline ("Arrived=4/4"), calls Action_RequestAreaQuery, and
             //       Condition_IsAreaQueryResolved logs "EQS area query timed out after 5.0s" — because
@@ -649,11 +650,10 @@ public sealed class EditorStrideSubsystem : IDisposable, IStrideEditorWindowHost
             //   role mode 2 resolves — which is exactly the "one composition, not two that happen to
             //   agree today" that S2b/CE-208 set out to achieve.
             //
-            // ⚠ The cap:perception key is shared by Stride's PerceptionSolver and the editor's
-            //   PerceptionAreaQueries, and Resolve is first-wins in declaration order, so the injected
-            //   solver displaces the editor's standalone materialisation capability. That is correct
-            //   here rather than lossy: Stride's PerceptionSpatial registers
-            //   AreaQueryResultMaterializationSystem itself, so exactly ONE of them is registered.
+            // ⭐ The editor's injected arm used to carry a cap:perception of its own
+            //   (PerceptionAreaQueries, the old area-query materialiser) that this solver displaced
+            //   first-wins. It went with the AreaQuery pipeline (2026-10-01, EQS design §18); the area
+            //   query is now Stride's own EqsModule answering an EQS sensor.
             return StrideCapabilities
                 .Build(ms)
                 .Resolve(StrideCapabilities.DefaultRole);

@@ -556,8 +556,8 @@ public sealed class SimHostNodeBootstrapper : SharedApplicationBootstrapper
         //   before, when this node had no request tier at all.
         // ⭐⭐⭐ B4b step 2 — the node's role-selected units register themselves, in the order the plan
         //    resolved them. That order was the hand-written sequence CoreLogicPack → EqsModule →
-        //    EngineBackedNavigationModule → AreaQueryResultMaterializationSystem → CognitiveSpatialModule,
-        //    and it is preserved EXACTLY: ModuleHostKernel appends to a plain list the frame loop walks in
+        //    EngineBackedNavigationModule → CognitiveSpatialModule (an AreaQueryResultMaterializationSystem
+        //    sat before the last until the AreaQuery pipeline was retired, 2026-10-01), and it is preserved EXACTLY: ModuleHostKernel appends to a plain list the frame loop walks in
         //    order, so registration order IS execution order and a reordering here would be a behaviour
         //    change dressed as tidying. (That measurement is also why perception is two capabilities —
         //    see SimHostCapabilities.)

@@ -381,38 +381,11 @@ class Program
                 FdpLog<Program>.Info("[Runner] Curated scenarios seeded to the working NAS: [{0}].",
                     string.Join(", ", seeded));
 
-                // ⭐⭐ The providers — one per subsystem that contributes a read+drive surface (Q54-2).
-                //    ⚠ Built AFTER orchestrator.Initialize(), because a provider carries the subsystem's
-                //      world and its cluster time adapter, and neither exists before Initialize.
-                var debugProviders = subsystems
-                    .OfType<Hrot.Presentation.DebugApi.IProvidesDebugSurface>()
-                    .Select(p => p.CreateDebugProvider())
-                    .Where(p => p != null)
-                    .Select(p => p!)
-                    .ToList();
-
-                // ⭐⭐⭐ THE ACK-GATE, NOW CONFIRMABLE CLUSTER-WIDE (HN-028 — was the conformance batch's one
-                //    cross-lane blocker). The gate's truth is MasterSyncController.IsAwaitingStepAcks, and the
-                //    only instance is private to OrchestratorSubsystem; it now exposes exactly that one fact as
-                //    `bool?` — null meaning "no master on this node".
-                //
-                // ⚠ Read through a LAMBDA, not a captured value: the master is built in Initialize() and
-                //   disposed in Shutdown(), so a latched copy would answer for a controller that no longer
-                //   exists. 📌 This is deviation ③ of the conformance batch (a value-captured provider LIES);
-                //   the same mistake was already paid for once with time.drive.
-                //
-                // ⭐ `--mode all` includes the orchestrator, so this resolves; a mode without it passes null and
-                //   GET /capabilities honestly reports hasMaster:false.
-                var orchestratorSubsystem = subsystems
-                    .OfType<Hrot.Orchestrator.OrchestratorSubsystem>()
-                    .FirstOrDefault();
-
-                var dispatcher = new Hrot.Presentation.DebugApi.PerspectiveScopedDispatcher(
-                    debugProviders,
-                    currentPerspective: () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty,
-                    acksPending: orchestratorSubsystem is null
-                        ? null
-                        : () => orchestratorSubsystem.IsAwaitingStepAcks);
+                // ⭐⭐ The providers (Q54-2) and the cluster-wide ack-gate (HN-028), composed ONCE — the rails that boot a
+                //    real cluster use the same composition. ⚠ After orchestrator.Initialize(): a provider carries its
+                //    subsystem's world and time adapter. 📄 ClusterDebugApiComposition.
+                var dispatcher = ClusterDebugApiComposition.Dispatcher(
+                    subsystems, () => windowCtrl?.WindowManager?.CurrentPerspective ?? string.Empty);
 
                 // ② construct + attach + start.
                 clusterApiQueue = new Hrot.Editor.DebugApi.MainThreadJobQueue();
@@ -439,10 +412,7 @@ class Program
                 //   point. A captured value would be null forever.
                 // ⭐ A node with no CGF genuinely has no registry; the Func returns null and the route
                 //   says so truthfully rather than fabricating an empty one (the CE-110 shape).
-                var behaviorRegistryGetter =
-                    () => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
-                                    .Select(s => s.BehaviorRegistry)
-                                    .FirstOrDefault(r => r is not null);
+                var behaviorRegistryGetter = ClusterDebugApiComposition.BehaviorRegistry(subsystems);
 
                 // ⭐⭐ CE-236 — geoTransform is PASSED, not defaulted. Before this the service fell back
                 //    to `new WGS84Transform()`, whose origin fields default to 0, so GET /world/info and
@@ -460,20 +430,25 @@ class Program
                                     .Select(s => s.CreationRequestEnqueuer)
                                     .FirstOrDefault(e => e != null);
 
+                // ⭐⭐⭐ CE-476 — the node's AI debug surface, resolved against the ACTIVE perspective's world (only the
+                //   subsystem that OWNS that world answers). 📄 docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md §2 D1.
+                var aiDebugSurfaceGetter = ClusterDebugApiComposition.AiDebugSurface(subsystems);
+
                 clusterApiService = new Hrot.Editor.DebugApi.DebugApiService(
                     dispatcher,
                     logSinks: () => Fdp.Core.Logging.MessageLogSinks.ForDiagnostics(
                         windowCtrl?.WindowManager?.MessageLogRegistry),
                     behaviorRegistry: behaviorRegistryGetter,
                     geoTransform: HrotEnvironment.CreateGeoTransform(),
-                    creationRequestEnqueuer: creationEnqueuerGetter);
+                    creationRequestEnqueuer: creationEnqueuerGetter,
+                    aiDebugSurface: aiDebugSurfaceGetter);
                 clusterApiHost.AttachService(clusterApiService);
                 clusterApiHost.Start();
 
                 FdpLog<Program>.Info(
                     "[Runner] Debug API listening on {0} — mode={1}, providers=[{2}], perspectives=[{3}].",
                     clusterPort, config.ModeString,
-                    string.Join(", ", debugProviders.Select(p => p.SubsystemName)),
+                    string.Join(", ", dispatcher.AllProviders.Select(p => p.SubsystemName)),
                     string.Join(", ", dispatcher.RoutablePerspectives));
             }
             else if (!string.IsNullOrWhiteSpace(clusterApiPort) && hasEditorSubsystem)

@@ -169,8 +169,8 @@ public static class StrideCapabilities
             //      RegisterEvent<T>(). Cannot playback command.
             //      at FdpEventBus.PublishRaw -> EntityCommandBuffer.Playback
             //      -> ModuleHostKernel.UpdateInternal -> StrideNodeShell.Tick
-            //    Event 2020 is AreaQueryRequestEvent (Fdp.Toolkits/Spatial/Eqs/AreaQueryEvents.cs:12);
-            //    2021 is its result. The node reported NavigationStatus Result=FailedBlocked at the
+            //    Event 2020 was AreaQueryRequestEvent and 2021 its result (both retired 2026-10-01 with
+            //    the AreaQuery pipeline, EQS design §18). The node reported NavigationStatus Result=FailedBlocked at the
             //    same instant and then terminated, so from outside it looked like a navigation bug.
             //
             // 📐 Why nothing caught it: NavigationSolverComponentRegistry.RegisterAll is what
@@ -205,7 +205,7 @@ public static class StrideCapabilities
     }
 
     /// <summary>
-    /// Perception's spatial half: area-query materialisation and the cognitive grid.
+    /// Perception's spatial half: the cognitive grid.
     /// </summary>
     /// <remarks>
     /// <para><b>⚠ This ships with SimHost's 2-D line of sight, deliberately and temporarily.</b>
@@ -230,10 +230,7 @@ public static class StrideCapabilities
 
         public void Register(HrotNodeContext context, NodeBootValues values)
         {
-            context.Kernel.RegisterGlobalSystem(new AreaQueryResultMaterializationSystem());
-
             var module = new CognitiveSpatialModule(
-                context.World,
                 colliderRadiusReader: static (view, e) => view.HasComponent<PhysicsCollider>(e)
                     ? view.GetComponentRO<PhysicsCollider>(e).Radius
                     : 0f);

@@ -38,7 +38,7 @@ namespace Hrot.SimHost.Tests
 {
     /// <summary>
     /// Integration tests for the PlatoonHillAttack / HullDownAttack pipeline
-    /// (SC-HA015-1 through SC-HA015-6).
+    /// (SC-HA015-1 through SC-HA015-5; SC-HA015-6 tested the retired AreaQuerySolverSystem and went with it).
     ///
     /// <para>
     /// All SC-HA015-1…4 tests exercise the commander behavior exclusively via
@@ -101,16 +101,6 @@ namespace Hrot.SimHost.Tests
 
         private static void DisposeEqsSingletons(EntityRepository repo)
         {
-            if (repo.HasSingleton<AreaQueryBatchData>())
-            {
-                ref var b = ref repo.GetSingleton<AreaQueryBatchData>();
-                if (b.Results.IsCreated)  b.Results.Dispose();
-            }
-            if (repo.HasSingleton<EqsTargetPool>())
-            {
-                var p = repo.GetSingleton<EqsTargetPool>();
-                if (p.Targets.IsCreated) p.Targets.Dispose();
-            }
             if (repo.HasSingleton<EqsResultPool>())
             {
                 var r = repo.GetSingleton<EqsResultPool>();
@@ -270,59 +260,6 @@ namespace Hrot.SimHost.Tests
             float sx = doc.RootElement.GetProperty("SlotX").GetSingle();
             float sy = doc.RootElement.GetProperty("SlotY").GetSingle();
             return (sx, sy);
-        }
-
-        // ── SC-HA015-6 ────────────────────────────────────────────────────────────
-
-        /// <summary>
-        /// SC-HA015-6: AreaQuerySolverSystem finds hostile entities inside a polygon
-        /// and excludes those outside it, as well as friendly entities inside it.
-        /// </summary>
-        [Fact]
-        public void SC_HA015_6_AreaQuerySolver_FindsEnemiesInsidePolygon_ExcludesOutside()
-        {
-            // Arrange — polygon (35,35)-(65,35)-(65,65)-(35,65), two hostiles inside,
-            // one hostile outside, one friendly inside (must not be counted).
-            var polygon = new List<Vector2>
-            {
-                new(35f, 35f), new(65f, 35f), new(65f, 65f), new(35f, 65f),
-            };
-            var areaEntity = CreateAreaEntity(polygon);
-            var requester  = _repo.CreateEntity();
-
-            CreateHostileAt(50f, 50f);  // inside
-            CreateHostileAt(60f, 40f);  // inside
-            CreateHostileAt(80f, 80f);  // outside — must not be returned
-
-            var friendly = _repo.CreateEntity();
-            _repo.AddComponent(friendly, new SimTransform
-            {
-                Position = new Vector3(45f, 45f, 0f),
-                Rotation = Quaternion.Identity,
-            });
-            _repo.AddComponent(friendly, new EntityInfo { ForceId = ForceId.Friend });
-            _grid.Add(friendly, new Vector2(45f, 45f));
-            _repo.SetSingleton(new SpatialGridData { Grid = _grid });
-
-            long requestId = AreaQueryBatchHelper.RequestAreaQuery(
-                _repo, requester, areaEntity, ForceId.Hostile);
-
-            var solver = new AreaQuerySolverSystem();
-
-            // Act: swap so solver sees the request events, run solver, playback cmd,
-            // swap so materialization sees the result events, then materialize.
-            var ecb = (Fdp.Core.EntityCommandBuffer)((ISimulationView)_repo).GetCommandBuffer();
-            var materialization = new AreaQueryResultMaterializationSystem();
-            _repo.Bus.SwapBuffers();
-            solver.Execute(_repo, 0.1f);
-            ecb.Playback(_repo);
-            _repo.Bus.SwapBuffers();
-            materialization.Execute(_repo, 0.1f);
-
-            // Assert
-            var result = AreaQueryBatchHelper.GetAreaQueryResult(_repo, requestId);
-            Assert.True(result.IsReady);
-            Assert.Equal(2, result.TargetCount);
         }
 
         // ── SC-HA015-5 ────────────────────────────────────────────────────────────

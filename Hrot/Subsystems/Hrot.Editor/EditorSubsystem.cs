@@ -1222,7 +1222,7 @@ namespace Hrot.Editor
             // ⚠ _timeCommands stays: the transport facade and the toolbar still publish intents
             //   through it (:5051, :5064). ⛔ It is no longer the AI debuggers' route to time.
             _timeCommands        = new Fdp.Toolkit.Time.IntentTimeCommands(_orchestrationBus!);
-            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter);
+            var aiDebug          = Hrot.Editor.AiComposition.AiDebugSessionComposer.Compose(_bpTimeAdapter, _behaviorRegistry);
             _aiTracerCoordinator = aiDebug.Coordinator;
             _btreeDebugSession   = aiDebug.BTree;
             _hsmDebugSession     = aiDebug.Hsm;
@@ -1503,7 +1503,6 @@ namespace Hrot.Editor
             {
                 simHostCorePack  = new SimHostCoreLogicPack(entityMap);
                 perceptionMod    = new CognitiveSpatialModule(
-                    _world,
                     colliderRadiusReader: (view, e) => view.HasComponent<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e)
                         ? view.GetComponentRO<Fdp.Toolkit.Physics.Components.PhysicsCollider>(e).Radius
                         : 0f);
@@ -1774,12 +1773,9 @@ namespace Hrot.Editor
                 _bpManager, () => _kernel.IsPublishingGlobalTime));
 
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
-            var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
-                _blueprintRegistry, _world!, bpTimeAdapter);
-            bpBlueprintSession.SetDataBreakpointManager(_bpManager);
-            bpBlueprintSession.SetLiveRepository(_world);  // NGS-2.0: wire live repo for sub-tick recording
-            Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
-            bpBlueprintSession.Attach();
+            // ⭐ CE-476 — the ONE composition, shared with CGF (Attach makes it the DebugProbe sink).
+            var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
+                _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
             _blueprintDebugSession = bpBlueprintSession;
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
