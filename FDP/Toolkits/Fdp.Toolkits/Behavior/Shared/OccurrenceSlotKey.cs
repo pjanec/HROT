@@ -49,8 +49,8 @@ namespace Fdp.Toolkit.Behavior.Shared
     /// are the same duplication shape and will read as candidates to anyone tidying this area.</para>
     ///
     /// <para>⛔ <b>netstandard2.0 subset only.</b> No <c>Span</c>, no <c>System.HashCode</c>, no
-    /// net8-only BCL. <c>Guid.ToByteArray()</c> and <c>Encoding.UTF8.GetBytes</c> are the whole
-    /// surface, deliberately.</para>
+    /// net8-only BCL. ⭐ <c>CE-505</c>: and NO ALLOCATION — the Guid and UTF-8 folds read the bytes in
+    /// place (<c>FoldGuid</c>/<c>FoldUtf8</c>); <c>ToByteArray</c> survives only as the big-endian fallback.</para>
     /// </summary>
     internal static class OccurrenceSlotKey
     {
@@ -82,13 +82,13 @@ namespace Fdp.Toolkit.Behavior.Shared
                 switch (scope)
                 {
                     case OccurrenceSlotScope.Node:
-                        hash = FoldBytes(hash, assetId.ToByteArray());
-                        hash = FoldBytes(hash, nodeVisualId.ToByteArray());
+                        hash = FoldGuid(hash, assetId);
+                        hash = FoldGuid(hash, nodeVisualId);
                         break;
 
                     case OccurrenceSlotScope.Behavior:
-                        hash = FoldBytes(hash, assetId.ToByteArray());
-                        hash = FoldBytes(hash, System.Text.Encoding.UTF8.GetBytes(variableId ?? string.Empty));
+                        hash = FoldGuid(hash, assetId);
+                        hash = FoldUtf8(hash, variableId ?? string.Empty);
                         break;
 
                     default:
@@ -295,12 +295,9 @@ namespace Fdp.Toolkit.Behavior.Shared
         /// </summary>
         private static System.Guid BehaviourHashAsGuid(int behaviourHash)
         {
-            var b = new byte[16];
-            b[0] = (byte)(behaviourHash        & 0xFF);
-            b[1] = (byte)((behaviourHash >>  8) & 0xFF);
-            b[2] = (byte)((behaviourHash >> 16) & 0xFF);
-            b[3] = (byte)((behaviourHash >> 24) & 0xFF);
-            return new System.Guid(b);
+            // ⭐ CE-505: the (int, short, short, byte×8) ctor, not new byte[16] — Guid(byte[]) reads its
+            //   first four bytes as the little-endian int `a`, so this is the same Guid, without the array.
+            return new System.Guid(behaviourHash, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
         }
 
         internal static string CuratedVariableId(string compoundKey)
@@ -308,13 +305,22 @@ namespace Fdp.Toolkit.Behavior.Shared
 
         internal static int ComputeHsmStateKeyForCurated(
             uint hostMachineId, int regionSlotIndex, ushort stateId, string compoundKey)
-            => ComputeNested(
-                   ComputeHsmHostIdentity(hostMachineId),
-                   ComputeHsmSiteId(regionSlotIndex, stateId),
-                   System.Guid.Empty,
-                   OccurrenceSlotScope.Behavior,
-                   System.Guid.Empty,
-                   CuratedVariableId(compoundKey));
+        {
+            // ⭐ CE-505: the variable id is CuratedVariableId(compoundKey), folded in its three pieces
+            //   rather than concatenated — FNV over a concatenation IS the fold of its parts in order, so
+            //   the key is unchanged and the per-call string allocation is gone.
+            unchecked
+            {
+                uint hash = FnvOffsetBasis;
+                hash = FoldGuid(hash, System.Guid.Empty);
+                hash = FoldUtf8(hash, ReservedPrefix);
+                hash = FoldUtf8(hash, "curated.");
+                hash = FoldUtf8(hash, compoundKey ?? string.Empty);
+                return NestOver(ComputeHsmHostIdentity(hostMachineId),
+                                ComputeHsmSiteId(regionSlotIndex, stateId),
+                                Mask(hash));
+            }
+        }
 
         internal static int ComputeHsmStateKey(
             uint hostMachineId, int regionSlotIndex, ushort stateId, System.Guid childAssetId)
@@ -410,18 +416,123 @@ namespace Fdp.Toolkit.Behavior.Shared
         {
             // ⭐ The root case is the identity, not a special case bolted on: it is what makes A1's
             //    "existing keys come out byte-identical" success condition provable.
-            if (hostKey == 0)
-                return Compute(assetId, scope, nodeVisualId, variableId);
+            // Fold the occurrence's OWN identity through the same scope rules, so a hosted child
+            // keyed Node/Behavior/Entity still means what it means at the root.
+            return NestOver(hostKey, siteId, Compute(assetId, scope, nodeVisualId, variableId));
+        }
 
+        /// <summary>
+        /// The nesting fold of <see cref="ComputeNested"/>, over an already-computed OWN key.
+        /// ⭐ <c>hostKey == 0</c> is ROOT and returns <paramref name="ownKey"/> verbatim.
+        /// </summary>
+        private static int NestOver(int hostKey, int siteId, int ownKey)
+        {
+            if (hostKey == 0) return ownKey;
             unchecked
             {
                 uint hash = FnvOffsetBasis;
                 hash = FoldInt32(hash, hostKey);
                 hash = FoldInt32(hash, siteId);
-                // Fold the occurrence's OWN identity through the same scope rules, so a hosted child
-                // keyed Node/Behavior/Entity still means what it means at the root.
-                hash = FoldInt32(hash, Compute(assetId, scope, nodeVisualId, variableId));
+                hash = FoldInt32(hash, ownKey);
                 return Mask(hash);
+            }
+        }
+
+        // ── CE-505: allocation-free folds ────────────────────────────────────────────────
+        //
+        // 🔒 User, 2026-10-01: "there should be no allocation on the hot path." These keys are computed
+        //   per entity per brain tick (root state / params / HSM instance) and per HSM action call, and
+        //   used to fold Guid.ToByteArray() and Encoding.UTF8.GetBytes(...) — two heap arrays per fold.
+        // ⛔⛔ The OUTPUT is a persisted identity (see Compute). Both folds below feed FNV EXACTLY the
+        //   bytes the old arrays held; OccurrenceSlotKeyParityTests pins the integers and
+        //   OccurrenceSlotKeyAllocationFreeTests compares against the array form over many inputs.
+
+        /// <summary>Overlays a <see cref="System.Guid"/> with its 16 bytes — no unsafe code, no array.</summary>
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Explicit)]
+        private struct GuidBytes
+        {
+            [System.Runtime.InteropServices.FieldOffset(0)]  public System.Guid Value;
+            [System.Runtime.InteropServices.FieldOffset(0)]  public byte B0;
+            [System.Runtime.InteropServices.FieldOffset(1)]  public byte B1;
+            [System.Runtime.InteropServices.FieldOffset(2)]  public byte B2;
+            [System.Runtime.InteropServices.FieldOffset(3)]  public byte B3;
+            [System.Runtime.InteropServices.FieldOffset(4)]  public byte B4;
+            [System.Runtime.InteropServices.FieldOffset(5)]  public byte B5;
+            [System.Runtime.InteropServices.FieldOffset(6)]  public byte B6;
+            [System.Runtime.InteropServices.FieldOffset(7)]  public byte B7;
+            [System.Runtime.InteropServices.FieldOffset(8)]  public byte B8;
+            [System.Runtime.InteropServices.FieldOffset(9)]  public byte B9;
+            [System.Runtime.InteropServices.FieldOffset(10)] public byte B10;
+            [System.Runtime.InteropServices.FieldOffset(11)] public byte B11;
+            [System.Runtime.InteropServices.FieldOffset(12)] public byte B12;
+            [System.Runtime.InteropServices.FieldOffset(13)] public byte B13;
+            [System.Runtime.InteropServices.FieldOffset(14)] public byte B14;
+            [System.Runtime.InteropServices.FieldOffset(15)] public byte B15;
+        }
+
+        /// <summary>
+        /// FNV-folds the same 16 bytes <c>g.ToByteArray()</c> returns, without allocating.
+        /// ⚠ <c>ToByteArray</c> is little-endian by contract and the in-memory Guid is
+        /// <c>(int, short, short, byte×8)</c>, so the two agree on a little-endian host — the only kind
+        /// this engine runs on. A big-endian host takes the array path rather than a wrong key.
+        /// </summary>
+        private static uint FoldGuid(uint hash, System.Guid g)
+        {
+            if (!System.BitConverter.IsLittleEndian) return FoldBytes(hash, g.ToByteArray());
+            var o = new GuidBytes { Value = g };
+            unchecked
+            {
+                hash = (hash ^ o.B0)  * FnvPrime; hash = (hash ^ o.B1)  * FnvPrime;
+                hash = (hash ^ o.B2)  * FnvPrime; hash = (hash ^ o.B3)  * FnvPrime;
+                hash = (hash ^ o.B4)  * FnvPrime; hash = (hash ^ o.B5)  * FnvPrime;
+                hash = (hash ^ o.B6)  * FnvPrime; hash = (hash ^ o.B7)  * FnvPrime;
+                hash = (hash ^ o.B8)  * FnvPrime; hash = (hash ^ o.B9)  * FnvPrime;
+                hash = (hash ^ o.B10) * FnvPrime; hash = (hash ^ o.B11) * FnvPrime;
+                hash = (hash ^ o.B12) * FnvPrime; hash = (hash ^ o.B13) * FnvPrime;
+                hash = (hash ^ o.B14) * FnvPrime; hash = (hash ^ o.B15) * FnvPrime;
+                return hash;
+            }
+        }
+
+        /// <summary>
+        /// FNV-folds the bytes <c>Encoding.UTF8.GetBytes(s)</c> returns, without allocating — including its
+        /// replacement of a lone surrogate by U+FFFD (<c>EF BF BD</c>).
+        /// </summary>
+        private static uint FoldUtf8(uint hash, string s)
+        {
+            unchecked
+            {
+                for (int i = 0; i < s.Length; i++)
+                {
+                    int c = s[i];
+                    if (c < 0x80)
+                    {
+                        hash = (hash ^ (uint)c) * FnvPrime;
+                    }
+                    else if (c < 0x800)
+                    {
+                        hash = (hash ^ (uint)(0xC0 | (c >> 6)))   * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | (c & 0x3F))) * FnvPrime;
+                    }
+                    else if (c >= 0xD800 && c <= 0xDBFF && i + 1 < s.Length
+                             && s[i + 1] >= 0xDC00 && s[i + 1] <= 0xDFFF)
+                    {
+                        int cp = 0x10000 + ((c - 0xD800) << 10) + (s[i + 1] - 0xDC00);
+                        i++;
+                        hash = (hash ^ (uint)(0xF0 | (cp >> 18)))          * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | ((cp >> 12) & 0x3F))) * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | ((cp >> 6) & 0x3F)))  * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | (cp & 0x3F)))         * FnvPrime;
+                    }
+                    else
+                    {
+                        if (c >= 0xD800 && c <= 0xDFFF) c = 0xFFFD;   // lone surrogate → replacement char
+                        hash = (hash ^ (uint)(0xE0 | (c >> 12)))          * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | ((c >> 6) & 0x3F))) * FnvPrime;
+                        hash = (hash ^ (uint)(0x80 | (c & 0x3F)))        * FnvPrime;
+                    }
+                }
+                return hash;
             }
         }
 
