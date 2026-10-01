@@ -49,6 +49,8 @@ known-conflict: ⛔⛔ DESIGN_Per_Variable_Param_Resolver.md (E8c, build-state D
   supersedes two claims Claude made in chat on 2026-09-28 ("the curated path has a resolve stage"
   and "IsBlackboardEditorManaged is BTree-specific") — both were wrong; the refutations are in §2.
 related-designs:
+  - DESIGN_Behavior_Action_Binding.md — the BUILD design of decision B (CE-417); refines §2.3 (eight sites, not six)
+    and §4-B's per-slot ETF premise. Read it before starting S5.
   - DESIGN_Parameter_Model.md — ⭐⭐ §P is the CANONICAL parameter contract by kind (R-155): the
     contract the unified pipeline and action binding must implement.
   - Architect_Question_76_One_Blackboard_Block_Per_Primitive.md — ⭐⭐⭐ SUPERSEDES the storage
