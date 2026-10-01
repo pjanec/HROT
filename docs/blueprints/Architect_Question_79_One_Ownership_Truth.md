@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
-current-answer: §10 (MEASURED state, 2026-10-01) FIRST — it REFUTES §9a′ and §9b; §9a and §9 survive; §8 is the deferred full unification; §7 is the proof both rest on.
+current-answer: §9c (recompute on promotion AND every ownership change, restricted to single-role components — the user's rule within what §10 measured; awaiting approval) FIRST; §10 is the measurement it rests on (it REFUTES §9a′ and the unrestricted §9b); §9 is the one-line alternative; §8 is the deferred full unification; §7 is the proof both rest on.
 stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -593,3 +593,53 @@ never hit and the gate is always the entity-master owner.
 `SST_OwnershipUpdate` (`Fdp.Network.Cyclone.Topics`, `int NewOwner`). ⚠ The graph lists 2 callers for it; both are a name collision
 with the bus `OwnershipUpdate`. ⇒ an EXTERNAL spec-compliant peer that sends `OwnershipUpdate` would not be heard — the compliance
 gap `DESIGN_Distributed_Scenario_Persistence.md` §6c records. Not this question's scope; noted, not decided (unreferenced ≠ unintended).
+
+## 9c. ⭐⭐⭐ THE USER'S RULE, WITHIN WHAT §10 MEASURED — recompute on promotion AND every ownership change, single-role components *(`2026-10-01`, CURRENT proposal, not built)*
+
+> 🔒 **User:** *"i needed to recompute on promotion AND any other ownership changes, what happened to this?"* · *"how that system can
+> be scheduled to run just once after ownership change?"*
+
+**Scope:** descriptors whose components are all in ONE role's exclusive set (today `brainOnly`, incl. `NavigationIntent`). §10 measured
+why the rest is out: shared claims (17/22) and the handover lag. **Rule** (overwrite, as ruled): claimed ⇒ `Map[d]=local`; else keep a
+remote owner the entry names, else `UNKNOWN (-1)`.
+
+**Scheduling — event-driven, no per-frame scan.** Every claim change already emits a one-shot bus event; `FdpEventBus` delivers each
+event once, on the NEXT frame (`FdpEventBus.cs` — *"visible in the next frame (after SwapBuffers)"*); `ReadEvents` is non-consuming, so a
+second reader costs nothing to the existing ones.
+
+| claim change | writer | event it already emits |
+|---|---|---|
+| create leg | `NetworkSpawningSystem.cs:263` | `ConstructionOrder` — `_elm.BeginConstruction` is its last call (`:273-274`) |
+| promote leg | `GhostPromotionSystem.cs:324` | `ConstructionOrder` — `BeginConstruction` right after the claim (`:331-336`) |
+| takeover (gain) | `DeferredTakeoverSystem.cs:118` | `OwnershipUpdate` (`:125`) |
+| hand-away (lose) | `OwnershipTransferInitiationSystem.cs:93` | `OwnershipUpdate` (`:100`) |
+| remote transfer applied | `OwnershipIngressSystem.cs:79` | consumes the `OwnershipUpdate` itself — the recompute reads the SAME event and runs AFTER it |
+| pre-genesis yield | `LocalAuthorityYieldSystem` (`NedReplicationModule.cs:752`) | none — ⚠ but it only touches granted WorldPos/NavStatus, outside the single-role scope |
+
+```mermaid
+sequenceDiagram
+    participant P as GhostPromotionSystem / NetworkSpawningSystem
+    participant BUS as FdpEventBus
+    participant OI as OwnershipIngressSystem (unchanged)
+    participant R as OwnershipRecordRecomputeSystem (new, NED)
+    participant D as DescriptorOwnership (record)
+    P->>P: claim written (frame N)
+    P->>BUS: ConstructionOrder (frame N)
+    BUS->>OI: OwnershipUpdate events of frame N (frame N+1)
+    OI->>OI: apply claim and record
+    BUS->>R: ConstructionOrder and OwnershipUpdate of frame N (frame N+1)
+    R->>D: recompute single-role descriptors of those entities only
+```
+
+*What the picture shows: one new reader of two existing events, ordered after the ingress handler; nothing upstream changes.*
+
+**The one-frame latency is harmless** — the recompute lands at N+1; the brain only ticks `Active` entities (`QueryBuilder.cs:125`, default
+lifecycle filter `Active`), and `Active` needs `ConstructionAck`s that are themselves published in response to the N+1 `ConstructionOrder`
+⇒ earliest N+2. 📐 §10 timeline: promoted f3, Active f5. ⇒ the record is set before any intent can be written, so the egress's
+`QueryDelta` watermark cannot skip the first intent.
+
+| rests on | code | design |
+|---|---|---|
+| each claim change emits an event | ✅ table above | ✅ ELM `BeginConstruction` contract; wire spec `OwnershipUpdate` |
+| next-frame, once, non-consuming delivery | ✅ `FdpEventBus.cs` doc; `ConstructionOrder` already has 3 readers | — |
+| intent cannot precede the record | ✅ `QueryBuilder.cs:125` + §10 timeline | ⛔ none found |
