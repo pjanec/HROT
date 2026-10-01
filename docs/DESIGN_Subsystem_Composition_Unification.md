@@ -6291,6 +6291,14 @@ instead of a diff.
 | ⚠ **four rails changed expectation** | all four updated with the count **and** an assertion encoding why *(`DoesNotContain`, and the publisher/consumer ordering)*; ⭐ the coverage removed from the pack tests was **re-homed**, not deleted — `TheInfrastructureCapabilitiesSupplyExactlyOneOfEachHoistedSystem` |
 | ⚠ **not mine, measured** | `Fdp.ModuleHost.Tests` 6 red *(zero `FDP/` files modified)* · `FullBranchPipelineTests` red **identically at base `94156812d`** · 31 `Hrot.Editor.Tests` source-scan reds caused by an **untracked local `Hrot/docs/ReactiveGuards.md`** — moving it aside gives **368/0/1**, and those rails stop their upward walk at `…/Hrot` |
 
+#### ⚠ `CE-492` — **a HAND-WIRED harness is a host the plan cannot reach** *(found `2026-10-01`)*
+
+📐 `Hrot.ClusterRunner.Integration.Tests`' offline `EditorHarness` registers `CgfLogicPack`/`SimHostCoreLogicPack` directly, not through a
+`NodeCompositionPlan` ⇒ the hoist above silently removed `EqsResultUpdateSystem` and `UnitHierarchySystem` from it, and **26** EQS
+integration tests timed out waiting for a buffer nothing wrote, for three weeks. ⛔ The §Gates table above never named that suite.
+⭐ Fixed by installing both systems in the harness. ⇒ **any change that moves a system between a pack and a capability must also grep
+for hand-wired pack registrations** (`new CgfLogicPack(` / `new SimHostCoreLogicPack(` in test harnesses) — they are hosts too.
+
 ### ⛔ STILL HOMELESS — **`CE-151`, and it is a DIFFERENT axis again**
 
 📐 `CE-151` *(world bootstrap has no shared seam — seven roots publish the geo transform by hand)* is about
