@@ -567,7 +567,7 @@ drifted."*
 | ⚠ **sequencing** | ⭐ do **①** as one change and leave the rename to follow — a rename touches three overrides plus the base and the tests, and mixing it with a behaviour change makes the diff unreadable |
 | ⚠ **what would change the lean** | if the `SpawnSystem` in-phase ordering turns out to differ between module and global registration, the base must pick **one** deliberately and say why — ⛔ that is the one row here that could change runtime behaviour rather than just tidy the composition |
 
-⛔ **Not built.** This is a design record; the build is a separate item.
+⛔ **Not built.** This is a design record; the build is a separate item. ⭐ `2026-10-01`: the adapters row is now tracked as [`CE-509`](blueprints/Blueprint_Issues_Tracker.md) — IG adopted it via `CE-271`; SimHost and Stride still pass none.
 
 ### 4.1e ⛔⛔ TWO CORRECTIONS TO §4.1d *(user, `2026-09-03`)* — **the TKB is not per-host, and selection is by ROLE**
 
