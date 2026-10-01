@@ -30,7 +30,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-159 | *"network recosrd must be recomputed on every ownership transfer, independently on if it already has an enttry"* · *"i needed to recompute on promotion AND any other ownership changes"* |
 | R-160 | *"the rule is that if i am creator, i own all but the stuff other roles own. If i am not creator, i own just what my role claims. No role claims should be allowed to overlap"* |
 | R-161 | *"yes, map2d empty list"* |
-| R-157 | *"one node per role with the guard for now"* — ⚠ a SCOPE limit: the design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
+| R-162 | *"one node per role is wrong. Map2d is a role on multiple nodes already."* — ⛔ **SUPERSEDES R-157** and its duplicate-role guard (Q79 §8 D4, never built). The design is sharding (*"I thought sharding picks the owning node if more nodes implements same role"*) |
 | (earlier) | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 
 ### 0.2 Measured facts *(code — how it IS)*
@@ -81,7 +81,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O2 | `dtWorldPos` bundles `SimTransform` (grant) with `SimVelocity`/`VehicleState`/`VehicleParams`/`NavState` (Muscle by role) — keep the whole descriptor on the grant, or split? ⚠ **The designs disagree on `SimVelocity`:** Role-Affinity §3.1 (table, line ~343) puts *"spatial / kinematic — `SimTransform`, `SimVelocity`"* under the creator birthright + grant; Node_Roles §4.1 (line ~266) lists `SimVelocity` as non-birth-critical, claimed by role on promote, *"no grant"*; `SimComponents.cs:40` marks it NOT `[BirthCritical]`. The code follows neither: `BrainMuscleOwnershipStrategy.cs:40-55` grants the whole `dtWorldPos` block + `dtNavigationStatus` (per-descriptor transfer) | from O1's result + Transfer design §1 (per-descriptor transfers); reconcile the two docs |
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
-| O5 | sharding beyond one node per role | `CE-506`; note the creator's grant already has the §3.8 shape |
+| O5 | sharding for roles with non-empty lists on several nodes (R-162) | §0.7: Muscle shard = the creator's grant; Brain via `CE-506` |
 
 ### 0.7 ⭐⭐⭐ PROPOSED SOLUTION *(`2026-10-01`, user: "propose a solution and explain how it would work" — awaiting approval; UML goes in a DESIGN doc before build)*
 
@@ -93,9 +93,10 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | ② | **the CLAIM is exclusive** | role claims are positive, disjoint component lists **classified by who WRITES them** (Brain list, Muscle list, Map2D ∅); birth-critical components are in no list. **Creator** = ALL − (lists of roles it does not serve) + birthright. **Non-creator** = lists of roles it serves (shard-gated, one node per role today). Every host gets this policy (IG, Stride included) | R-160, R-161 · F4-F6 · Role-Affinity §3.1, §3.8 |
 | ③ | **the RECORD is derived from the claim** | on `ConstructionOrder` and every `OwnershipUpdate` (F11), for each descriptor whose components are ALL non-birth-critical: record = me iff I claim them, else the named remote owner, else UNKNOWN. Descriptors carrying a birth-critical component (`dtWorldPos`) stay **protocol-owned** — the grant/`OwnershipUpdate` hand-off and its lag (F7) are untouched | R-158, R-159 · F7, F11 · wire spec |
 
-**Why it is correct (derivation, one node per role):** a birth-critical component has one owner — the creator, until the single grantee
-confirms. A component in role R's list is claimed only by the one node serving R (creator lists exclude other roles; non-creators claim only
-their roles). Any other component is claimed only by the creator. ⇒ exactly one claimant per component. With descriptors homogeneous
+**Why it is correct (derivation):** the requirement is NOT one node per role — it is **per entity, at most one node serves each role whose list
+is non-empty** (Role-Affinity §3.8's `ServesRole` contract). Map2D's list is empty, so any number of IGs is fine. A birth-critical component
+has one owner — the creator, until the single grantee confirms. A component in role R's list is claimed only by the node serving R for that
+entity (creator lists exclude other roles; non-creators claim only their roles). Any other component is claimed only by the creator. ⇒ exactly one claimant per component. With descriptors homogeneous
 (checked by the classification), exactly one node's record says "mine" ⇒ one publisher. Because lists are classified by WRITER, the
 publisher is the producer. The save gate (`PrimaryOwnerId`) is untouched.
 
@@ -112,6 +113,13 @@ becomes true).
 **Rejected:** re-gate every sender on the claim (§8) — 30 senders, and the record is still needed for hand-off timing · recompute birth-critical
 descriptors too (§9b) — deadlocks the hand-off (F7) · promoter sends `OwnershipUpdate` — protocol change (R-158) · patch only `NavigationIntent`
 (§9) — a workaround, leaves 17/22 overlaps · Muscle list empty, grant only — contradicts Role-Affinity §3.1 / Node_Roles §4.1.
+
+**⭐ Sharding (R-162):** today's `SingleNodePerRoleShardProvider` answers "do I declare R?" — correct only while a role with a non-empty list
+has one node. ⇒ proposed: **the Muscle shard IS the creator's grant.** `DeferredTakeOwnership` is published by ONE authority (the creator),
+on the wire before `EntityMaster`, fixed per entity — exactly §3.8's constraints ① ②. `ServesRole(Muscle, e)` = "the grant for `e` names me"
+(read from `PendingAuthorityGrants` at promotion), or for the creator "I am a Muscle and granted to no one else". No new message (R-158).
+Brain: no per-entity assignment exists ⇒ stays one Brain node until `CE-506` designs one — ⚠ ask whether several Brain nodes are real.
+Map2D, Perception, NavigationSolver: empty lists ⇒ unconstrained.
 
 **Known unknowns:** the lists themselves (O1); a descriptor that mixes classes (O2); claim readers affected by the change, esp. attribute
 changes (O4); a role with no live node leaves its list unowned (Role-Affinity §3.8 rules: log once, no fallback); N nodes per role (O5).
