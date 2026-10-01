@@ -73,51 +73,8 @@ public sealed class HsmOccurrenceCollisionTests
             || n.Contains("state", StringComparison.OrdinalIgnoreCase));
     }
 
-    /// <summary>
-    /// 🔴🔴 <b>The generated thunk resolves its state at a FIXED offset into the entity's single
-    /// <c>BrainBlackboard</c>.</b> That is the collision, stated as a measurement: the offset is baked
-    /// at build time and the component is one per entity, so two concurrently-active regions running
-    /// the same action address <b>the same bytes</b>.
-    ///
-    /// <para>
-    /// ⭐ Read out of the ANALYZER'S SOURCE — the thing that emits the thunk — rather than recomputed.
-    /// A rail that restated the rule would pass whatever the emitter did.
-    /// </para>
-    /// </summary>
-    [Fact]
-    public void TheGeneratedThunk_ResolvesStateAtAFixedPerEntityOffset_Yet()
-    {
-        var generator = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
-            "FDP", "Toolkits", "Fdp.Toolkits.Analyzers", "HsmActionGenerator.cs")));
-
-        // ⚠ BP-306 (Batch 78) moved this expression out of the four emitters that each spelled it
-        //   themselves and into ONE home, because one of the four spellings was wrong. The claim is
-        //   unchanged — a baked, build-time constant offset — so the rail follows the expression to
-        //   where it now lives rather than being deleted.
-        var expression = System.IO.File.ReadAllText(FindUp(System.IO.Path.Combine(
-            "FDP", "Toolkits", "Fdp.Toolkits.Analyzers", "Shared", "BlackboardParamsExpression.cs")));
-
-        // 🔴 P3-C (2026-09-21) moved the ANCHOR a second time — BrainBlackboard is retired and the
-        //   region now lives in the entity's ROOT PARAMS OCCURRENCE SLOT. ⭐ The CLAIM this rail pins
-        //   is untouched: a baked, build-time constant offset, so one entity still has exactly one
-        //   region for this thunk to address. ⇒ the rail follows the expression again rather than
-        //   being deleted, exactly as it did for BP-306.
-        // The emitted body: ref Unsafe.AddByteOffset(ref RootParamsAccess.RootRef(w, e), (nint)<offset>)
-        Assert.Contains("\"ref global::Fdp.Toolkit.Behavior.RootParamsAccess.RootRef(\"", expression);
-        Assert.Contains("(nint)\" + byteOffset", expression);
-        // ⚠ The retired spelling may survive in the file's PROSE — it explains what moved and why —
-        //   so the rail checks the EMITTED string, not the file text.
-        Assert.DoesNotContain("\"ref \" + blackboardExpr + \".BehaviorParameters[0]\"", expression);
-
-        // ⭐ And the generator still reaches it through that one home — if it stopped, the offset
-        //   could drift back to a second spelling without this rail noticing.
-        Assert.Contains("BlackboardParamsExpression.At(\"repo\", \"bridge->Self\", entry.Offset)", generator);
-
-        // ⛔ And nothing in the thunk consults the partition allocator, which is where per-occurrence
-        //    bytes would have to come from.
-        Assert.DoesNotContain("ComputeStatefulSlotKey", generator);
-        Assert.DoesNotContain("TryGetSlotOffset", generator);
-    }
+    // ⛔ CE-417: TheGeneratedThunk_ResolvesStateAtAFixedPerEntityOffset_Yet RETIRED with its subject — HsmActionGenerator emits no
+    //    [SharedAi*] thunk any more. The positive version: BrainTickSystemHsmArmTests.CE417_R1 (two regions, two bindings, own bytes).
 
     /// <summary>
     /// ⭐ <b>The corpus asset that will carry the positive rail already exists.</b>

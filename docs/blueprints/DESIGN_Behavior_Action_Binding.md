@@ -144,7 +144,8 @@ graph TD
 |---|---|---|
 | 1 | ✅ name value 2 (B-5, `c20dace71`). ⏳ the F4 rail moves to slice 3 — its expected value is defined by B-2 (a′) | nothing on disk |
 | 2 | ✅ **AS-BUILT** *(see the box below)*: DTO record at all 8 sites + `ActionBindingMigrator` inside both `Deserialize` + schemaVersion 2 + **all 31 corpus files rewritten to v2** + the four payload DTO classes and the flat HSM DTO fields deleted; both emit cores, both mappers, the generator validator read the record | ⭐ **emitted source byte-identical** (every emitted-source golden unchanged); only the two persistence-shape snapshots moved |
-| 3 | both emit cores: B-2 (a′) per-binding C# thunks on both hosts, per-method `[SharedAiAction]` path retired, no state-wide base; F4 rail red→green | goldens, whole HSM corpus + BTree corpus |
+| 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
+| 3b | BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); retire `BTreeActionGenerator`'s per-method `[SharedAi*]` expansion | BTree goldens |
 | 4 | editor model record (`Hrot.Editor.AiShared`), both mappers lose the flat↔record translation, facets, one shared drawer, validators | editor rails |
 | 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid | BTree goldens unchanged by construction |
 
@@ -155,6 +156,17 @@ graph TD
 > | ⛔ **B-2's migration rule was CORRECTED** | the plan said *"state field → Activity + outgoing blueprint guards without their own"*. 📐 `HsmStateParamSeedAuthoringTests` (CE-401) caught the loss: a field bound **before any action is chosen** has no Activity and no guard to land on. ⭐ **As built:** v1's ONE state field was shared by all four slots, so it goes to **every slot binding that is set**; a state with **no** slot keeps it on an **Activity binding that names nothing** (`BehaviorActionBindingDto.IsEmpty`). ⇒ the state-wide seed entry the emitter derives (`HsmBridgeEmitCore.StateWideField`) is exactly v1's, and the guard-inheritance rule became unnecessary — **deleted** |
 > | **editor model still flat** | the HSM/BTree editor models keep their flat fields until slice 4; `HsmAssetMapper` / `BehaviorTreeAssetMapper` translate flat ↔ record. ⚠ Until slice 4 a transition whose guard and action are bound to DIFFERENT fields round-trips through the editor as one field (the model can hold only one) — no corpus asset has that shape |
 > | **rails** | `ActionBindingMigrationTests` (13): 8 REAL pre-migration files (`Snapshots/MigrationV1/*.v1.json`) load into the same DTO as their v2 corpus file, plus one rail per migration rule. Suites: Persistence 148/0 · Generators 306/0 · BTree.Editor 639/0 · Hsm.Editor 623/0 |
+
+> ⭐⭐ **Slice 3a AS-BUILT (`2026-10-01`) — the HSM half of B-2 (a′).**
+> | | |
+> |---|---|
+> | **built** | `SharedAiBindings` + `BindingNamer` (persistence): every bound C# `[SharedAi*]` binding (all 8 slot kinds) is addressed `Fqn@hostOffset` and gets ONE generated call in the asset's registrar — offset baked, projected as the method's `ref` type, no occurrence, no state base. `SharedAiMethodResolver` (generators) answers "is it `[SharedAi*]`, what does it take" from Roslyn; a variable of the wrong type is **`HSM0003`**, an error. `HsmActionGenerator` no longer emits per-METHOD `[SharedAi*]` thunks (exit cleanups kept) |
+> | **F4 fixed + red-proved** | `BrainTickSystemHsmArmTests.CE417_R2` on the new corpus asset **`HsmCuratedBindingDemo`** (two regions + a bound transition action; variables ordered so the old key would have resolved): putting the old `+ SeedParamsOffset` back makes all three CE-417 rails fail |
+> | **F7 in the corpus, corrected** | 📐 `HsmVariableShowcase` bound `AlertNearbyUnits` (`ref DemoSharedActionParams`, 12 B) to `Threshold` (`float`, 4 B), and `AlertNearbyUnits` had **no registered thunk at all** (it lives in `Fdp.Toolkits`, which runs no `HsmActionGenerator`). ⭐ Unbound there, with a comment; the correctly typed bound action lives in `HsmCuratedBindingDemo` |
+> | **rails moved** | rail ㊳ (`O7_R38`) → `CE417_R1`; `HsmOccurrenceCollisionTests.TheGeneratedThunk_…_Yet` retired with its subject; `HsmActionIdAgreementTests` now also runs the HSM asset registrars (a third id producer); `HsmExpressionTargetTests.TheAssetsIdIsTheRegistrarsId_ForABoundAction` compares the asset's own topology and registrar |
+> | **zero allocation** | `CE417_R3`: two per-binding C# activities, 50 ticks, 0 bytes |
+> | ⚠ **not covered** | global transitions' guards/actions are **not emitted by `HsmEmitCore` at all** (pre-existing; recorded here, not widened into this slice). `HsmOccurrence.KeyForCurated` has no production caller now — kept for the stateful C# HSM action (working memory) the carrier enables |
+> | **gates** | Generators 321/0 · Toolkits 2398/0 · Hsm.Editor 623/0 · Blueprints 4019/0 (9 known skips) · ClusterRunner HSM 2/0 · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`) |
 
 ## 6. Rails owed
 

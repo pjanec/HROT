@@ -42,7 +42,8 @@ public static class HsmBridgeEmitCore
     /// (<see cref="BTreeBridgeEmitCore.EmitBridge(BTree.BehaviorTreeAssetDto, System.Func{string, int?})"/>),
     /// so a managed HSM blackboard can carry the same struct-typed variables a managed BTree one can.
     /// </summary>
-    public static string EmitBridge(HsmAssetDto dto, Func<string, int?>? sizeResolver)
+    public static string EmitBridge(HsmAssetDto dto, Func<string, int?>? sizeResolver,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         var sb = new StringBuilder();
 
@@ -125,7 +126,13 @@ public static class HsmBridgeEmitCore
             sb.AppendLine();
         }
 
-        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged);
+        // ⭐⭐⭐ CE-417 B-2 (a′) — one generated call per bound C# [SharedAi*] binding (SharedAiBindings).
+        var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi);
+
+        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries);
+
+        for (int i = 0; i < sharedAiEntries.Count; i++)
+            SharedAiBindings.EmitThunk(sb, sharedAiEntries[i], SharedAiThunkName(i), Indent);
 
         sb.AppendLine("}");
 
@@ -137,7 +144,8 @@ public static class HsmBridgeEmitCore
     private static void EmitHsmRegisterMethod(
         StringBuilder sb, HsmAssetDto dto, string coreClass,
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
-        BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned, bool isManaged)
+        BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned, bool isManaged,
+        IReadOnlyList<SharedAiBindings.Entry> sharedAiEntries)
     {
         string pad  = Indent;
         string pad2 = Indent + Indent;
@@ -190,6 +198,24 @@ public static class HsmBridgeEmitCore
 
         // ⭐⭐⭐ E5 — which STATES host a child behaviour. 📄 DESIGN §32.8 item 4.
         EmitHostedSubtrees(sb, dto, pad2, owned);
+
+        // ⭐⭐⭐ CE-417 B-2 (a′) — the per-binding C# calls, under the id the blob addresses (Fqn@hostOffset).
+        //   ⚠ Two assets binding the same method at the same offset register the same id with an identical body —
+        //   the dispatcher's last-writer-wins is then harmless.
+        if (sharedAiEntries.Count > 0)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"{pad2}// CE-417: one call per bound [SharedAi*] binding — host offset baked, no occurrence, no state base.");
+            for (int i = 0; i < sharedAiEntries.Count; i++)
+            {
+                var e = sharedAiEntries[i];
+                ushort id = Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForCompoundKey(e.Key);
+                if (e.Method.IsCondition)
+                    sb.AppendLine($"{pad2}unsafe {{ global::Fhsm.Kernel.HsmActionDispatcher.RegisterGuard({id}, (global::System.IntPtr)(delegate* <void*, void*, ushort, global::Fhsm.Kernel.Data.HsmCommandWriter*, bool>)&{SharedAiThunkName(i)}); }}   // {e.Key}");
+                else
+                    sb.AppendLine($"{pad2}unsafe {{ global::Fhsm.Kernel.HsmActionDispatcher.RegisterAction({id}, (global::System.IntPtr)(delegate* <void*, void*, global::Fhsm.Kernel.Data.HsmCommandWriter*, void>)&{SharedAiThunkName(i)}); }}   // {e.Key}");
+            }
+        }
 
         // ⛔⛔ W3 (Batch 59) — THE COUNTER-ALLOCATED STUB REGISTRATIONS ARE GONE.
         //
@@ -368,7 +394,7 @@ public static class HsmBridgeEmitCore
     /// <summary>⭐ <c>E7b</c>: the same packing, for <c>HsmEmitCore</c>'s expression-target binding.
     /// ⛔ One packer call, so the offset a transition bakes and the offset <c>ParseParams</c> writes
     /// are the same number by construction rather than by agreement.</summary>
-    internal static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParamsFor(
+    public static IReadOnlyList<BTreeBlackboardPackHelper.PackedField> PackParamsFor(
         HsmAssetDto dto, Func<string, int?>? sizeResolver)
         => PackParams(dto, sizeResolver);
 
@@ -731,4 +757,6 @@ public static class HsmBridgeEmitCore
 
     private static string? FirstField(BehaviorActionBindingDto? b)
         => string.IsNullOrEmpty(b?.ExpressionTargetField) ? null : b!.ExpressionTargetField;
+
+    private static string SharedAiThunkName(int i) => "__SharedAiBinding" + i;
 }

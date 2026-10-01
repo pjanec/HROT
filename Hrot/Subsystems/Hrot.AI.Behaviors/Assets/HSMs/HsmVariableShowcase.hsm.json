@@ -93,14 +93,13 @@
       "TargetStableId": "e0710001-1000-0000-0000-000000000003",
       "EventName": "Begin",
       "Action": {
-        "MethodFqn": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits",
-        "ExpressionTargetField": "Threshold"
+        "MethodFqn": "Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits"
       },
       "Priority": 0,
       "Kind": "External",
       "SyncGroupId": 0,
       "Waypoints": [],
-      "Comment": null
+      "Comment": "CE-417: unbound on purpose. AlertNearbyUnits takes 'ref DemoSharedActionParams'; this binding named the 4-byte 'Threshold' and only resolved because both offsets were 0 (F7). A correctly typed bound C# action lives in HsmCuratedBindingDemo."
     },
     {
       "VisualId": "e0710001-3000-0000-0000-000000000002",

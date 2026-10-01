@@ -117,10 +117,11 @@ public static class HsmEmitCore
         System.Func<string, int?>? sizeResolver,
         System.Func<System.Guid, ushort?>? blueprintIdResolver,
         System.Func<System.Guid, string?>? blueprintClassNameResolver,
-        System.Func<string, bool>? csharpWritesChannel)
+        System.Func<string, bool>? csharpWritesChannel,
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         return EmitInternal(dto, includeLayout: false, sizeResolver, blueprintIdResolver,
-                            blueprintClassNameResolver, csharpWritesChannel);
+                            blueprintClassNameResolver, csharpWritesChannel, sharedAi);
     }
 
     /// <summary>Core emitter: shared implementation for both <see cref="Emit"/> and <see cref="EmitTopologyCore"/>.</summary>
@@ -133,7 +134,8 @@ public static class HsmEmitCore
         System.Func<System.Guid, string?>? bpClassName = null,
         // ⭐ D-D1 — "does this C# activity declare [WritesChannel]?", answered from the
         //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
-        System.Func<string, bool>? csharpWritesChannel = null)
+        System.Func<string, bool>? csharpWritesChannel = null,
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         var sb = new StringBuilder();
         var usings = includeLayout ? CollectUsings(dto) : CollectUsingsTopologyOnly(dto);
@@ -162,7 +164,7 @@ public static class HsmEmitCore
         sb.AppendLine($"public static class {className}");
         sb.AppendLine("{");
 
-        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel);
+        EmitCreateBuilder(sb, dto, sizeResolver, bpId, bpClassName, csharpWritesChannel, sharedAi);
         sb.AppendLine();
         EmitCompile(sb, dto);
 
@@ -281,12 +283,15 @@ public static class HsmEmitCore
         System.Func<System.Guid, string?>? bpClassName = null,
         // ⭐ D-D1 — "does this C# activity declare [WritesChannel]?", answered from the
         //   Roslyn compilation by the caller. Optional: absent ⇒ no C# auto-bind.
-        System.Func<string, bool>? csharpWritesChannel = null)
+        System.Func<string, bool>? csharpWritesChannel = null,
+        // ⭐ CE-417 B-2 — "is this FQN a [SharedAi*] method, and what does it take?", from the Roslyn compilation.
+        System.Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         // ⭐⭐ E7b — the packed offsets of the managed blackboard's inline params, computed once for
         //    the whole asset. An unbound transition never touches this map, so an asset with no
         //    ExpressionTargetField emits byte-identically.
         var paramOffsets = HsmParamOffsets(dto, sizeResolver);
+        var namer = new BindingNamer(paramOffsets, sharedAi);   // ⭐ CE-417: ONE naming rule for every binding
 
         sb.AppendLine($"{Indent}public static HsmBuilder CreateBuilder()");
         sb.AppendLine($"{Indent}{{");
@@ -330,7 +335,7 @@ public static class HsmEmitCore
         }
 
         // RegisterAction calls (alphabetical)
-        var allActions = CollectActions(dto, paramOffsets);
+        var allActions = CollectActions(dto, namer);
         if (allActions.Count > 0)
         {
             sb.AppendLine();
@@ -339,7 +344,7 @@ public static class HsmEmitCore
         }
 
         // RegisterGuard calls (alphabetical)
-        var allGuards = CollectGuards(dto);
+        var allGuards = CollectGuards(dto, namer);
         if (allGuards.Count > 0)
         {
             sb.AppendLine();
@@ -420,13 +425,13 @@ public static class HsmEmitCore
             // Pass 1: declarations only (no transitions).
             var pendingTransitions = new System.Collections.Generic.List<(string VarName, TransitionNodeDto T)>();
             foreach (var topState in userTopLevel)
-                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel);
+                EmitTopLevelStateDecl(sb, dto, topState, stableIdToState, pad, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
 
             // Pass 2: emit transitions after all states are declared (avoids GoTo forward-ref error).
             // Each state's own transitions are appended consecutively in document order, so the
             // per-state TransitionNode order (and thus the compiled blob) is unchanged.
             foreach (var (varName, t) in pendingTransitions)
-                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets, bpId, bpClassName, csharpWritesChannel);
+                EmitTransitionCall(sb, stableIdToState, varName, t, pad, eventIdMap, paramOffsets, bpId, bpClassName, csharpWritesChannel, namer);
         }
 
         // Global transitions sorted by EventId (matching original emitter: OrderBy(g => g.EventId))
@@ -473,7 +478,7 @@ public static class HsmEmitCore
         Dictionary<Guid, string> stateVarNames,
         System.Func<System.Guid, ushort?>? bpId,
         System.Func<System.Guid, string?>? bpClassName,
-        System.Func<string, bool>? csharpWritesChannel)
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
     {
         var outgoing = dto.Transitions
             .Where(t => t.SourceStableId == state.StableId)
@@ -489,7 +494,7 @@ public static class HsmEmitCore
         bool needsVar = varName != null;
 
         string decl = $"builder.State({QuoteStr(state.Name)}, stableId: new Guid({QuoteStr(state.StableId.ToString("D"))}))";
-        var config   = BuildStateConfig(state, eventIdMap, bpId, bpClassName, csharpWritesChannel);
+        var config   = BuildStateConfig(state, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer);
 
         if (needsVar)
             sb.Append($"{pad}var {varName} = {decl}");
@@ -500,7 +505,7 @@ public static class HsmEmitCore
         sb.AppendLine(";");
 
         foreach (var child in children)
-            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel);
+            EmitChildCall(sb, dto, child, stableIdToState, varName!, pad, depth: 2, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
 
         // Collect transitions for Pass 2 (not emitted here to avoid forward-ref errors).
         foreach (var t in outgoing)
@@ -517,12 +522,12 @@ public static class HsmEmitCore
         Dictionary<Guid, string> stateVarNames,
         System.Func<System.Guid, ushort?>? bpId,
         System.Func<System.Guid, string?>? bpClassName,
-        System.Func<string, bool>? csharpWritesChannel)
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
     {
         string stableGuid  = QuoteStr(child.StableId.ToString("D"));
         string lambdaParam = $"sb{depth}";
         string innerPad    = pad + "    ";
-        var config = BuildStateConfig(child, eventIdMap, bpId, bpClassName, csharpWritesChannel);
+        var config = BuildStateConfig(child, eventIdMap, bpId, bpClassName, csharpWritesChannel, namer);
 
         var children = child.ChildStableIds
             .Where(id => stableIdToState.ContainsKey(id))
@@ -562,7 +567,7 @@ public static class HsmEmitCore
             }
 
             foreach (var grandchild in children)
-                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel);
+                EmitChildCall(sb, dto, grandchild, stableIdToState, lambdaParam, innerPad, depth + 1, eventIdMap, pendingTransitions, stateVarNames, bpId, bpClassName, csharpWritesChannel, namer);
 
             // Transitions are deferred to Pass 2 (referenced via captureVar) — no inline GoTo here.
 
@@ -582,7 +587,7 @@ public static class HsmEmitCore
         IReadOnlyDictionary<string, int> paramOffsets,
         System.Func<System.Guid, ushort?>? bpId,
         System.Func<System.Guid, string?>? bpClassName,
-        System.Func<string, bool>? csharpWritesChannel)
+        System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
     {
         string onCall = t.EventName != null
             ? $"{stateVar}.On({QuoteStr(t.EventName)})"
@@ -596,7 +601,7 @@ public static class HsmEmitCore
         string? guardFn = t.Guard?.MethodFqn, actionFn = t.Action?.MethodFqn;   // CE-417
         Guid guardBp = t.Guard?.BlueprintAssetId ?? Guid.Empty;
         if (!string.IsNullOrEmpty(guardFn))
-            chain += $".Guard({QuoteStr(guardFn!)})";
+            chain += $".Guard({QuoteStr(namer.Name(t.Guard)!)})";
         // ⭐⭐⭐ CE-384 — a BLUEPRINT guard, same reasoning as the activity above.
         if (guardBp != Guid.Empty && bpId != null)
         {
@@ -609,7 +614,7 @@ public static class HsmEmitCore
         if (t.IsPolled)
             chain += ".Polled()";
         if (!string.IsNullOrEmpty(actionFn))
-            chain += $".Action({QuoteStr(EffectiveActionName(actionFn!, t.Action!.ExpressionTargetField, paramOffsets))})";
+            chain += $".Action({QuoteStr(namer.Name(t.Action, legacyCompound: true)!)})";
         if (t.Priority != 0)
             chain += $".Priority({t.Priority})";
 
@@ -778,7 +783,7 @@ public static class HsmEmitCore
     }
 
     private static List<string> BuildStateConfig(StateNodeDto s, Dictionary<string, ushort> eventIdMap,
-        System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel)
+        System.Func<System.Guid, ushort?>? bpId, System.Func<System.Guid, string?>? bpClassName, System.Func<string, bool>? csharpWritesChannel, BindingNamer namer)
     {
         var parts = new List<string>();
         if (s.IsInitial)     parts.Add(".Initial()");
@@ -790,9 +795,10 @@ public static class HsmEmitCore
         string? onEntry = s.OnEntry?.MethodFqn, onExit = s.OnExit?.MethodFqn;
         string? activity = s.Activity?.MethodFqn, timer = s.Timer?.MethodFqn;
         Guid activityBp = s.Activity?.BlueprintAssetId ?? Guid.Empty;
-        if (onEntry  != null) parts.Add($".OnEntry({QuoteStr(onEntry)})");
-        if (onExit   != null) parts.Add($".OnExit({QuoteStr(onExit)})");
-        if (activity != null) parts.Add($".Activity({QuoteStr(activity)})");
+        // ⭐ CE-417 B-2: a bound [SharedAi*] slot is addressed by its own Fqn@hostOffset (BindingNamer).
+        if (onEntry  != null) parts.Add($".OnEntry({QuoteStr(namer.Name(s.OnEntry)!)})");
+        if (onExit   != null) parts.Add($".OnExit({QuoteStr(namer.Name(s.OnExit)!)})");
+        if (activity != null) parts.Add($".Activity({QuoteStr(namer.Name(s.Activity)!)})");
         // ⭐⭐⭐ CE-384 — a BLUEPRINT activity is addressed by ASSET ID and baked as an EXPLICIT id.
         //   ⛔ There is no name to emit: the thunk registers under BlueprintId = FNV-1a32(assetId),
         //   which no authorable string hashes to (§3.2), and the generated class name embeds that
@@ -856,7 +862,7 @@ public static class HsmEmitCore
             string shortName = dot >= 0 ? activity.Substring(dot + 1) : activity;
             parts.Add($".OnExitId({Fdp.Toolkit.Behavior.Shared.HsmActionKey.ForExitCleanup(shortName)})");
         }
-        if (timer    != null) parts.Add($".TimerAction({QuoteStr(timer)})");
+        if (timer    != null) parts.Add($".TimerAction({QuoteStr(namer.Name(s.Timer)!)})");
         // Deferred events in ascending ID order (matching HsmFluentEmitter: OrderBy(id => id))
         var deferredIds = s.DeferredEventNames
             .Where(name => eventIdMap.ContainsKey(name))
@@ -877,25 +883,24 @@ public static class HsmEmitCore
         }
     }
 
-    private static List<string> CollectActions(
-        HsmAssetDto dto, IReadOnlyDictionary<string, int> paramOffsets)
+    private static List<string> CollectActions(HsmAssetDto dto, BindingNamer namer)
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
+        void Add(string? n) { if (n != null) set.Add(n); }
         foreach (var s in dto.States)
         {
-            if (s.OnEntry?.MethodFqn  is string a) set.Add(a);
-            if (s.OnExit?.MethodFqn   is string b) set.Add(b);
-            if (s.Activity?.MethodFqn is string c) set.Add(c);
-            if (s.Timer?.MethodFqn    is string d) set.Add(d);
+            Add(namer.Name(s.OnEntry));
+            Add(namer.Name(s.OnExit));
+            Add(namer.Name(s.Activity));
+            Add(namer.Name(s.Timer));
         }
-        // ⭐⭐ E7b — the SAME resolution the transition itself emits. ⛔ If these two disagreed the
+        // ⭐⭐ E7b / CE-417 — the SAME naming the transition itself emits (BindingNamer). ⛔ If these two disagreed the
         //    builder would register one name and the transition would address another, which is
         //    exactly the silent TryGetValue miss E6 was.
         foreach (var t in dto.Transitions)
-            if (t.Action?.MethodFqn is string fn)
-                set.Add(EffectiveActionName(fn, t.Action.ExpressionTargetField, paramOffsets));
+            Add(namer.Name(t.Action, legacyCompound: true));
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.Action?.MethodFqn is string gfn) set.Add(gfn);
+            Add(namer.Name(gt.Action));
         return new List<string>(set);
     }
 
@@ -955,13 +960,13 @@ public static class HsmEmitCore
         return map;
     }
 
-    private static List<string> CollectGuards(HsmAssetDto dto)
+    private static List<string> CollectGuards(HsmAssetDto dto, BindingNamer namer)
     {
         var set = new SortedSet<string>(StringComparer.Ordinal);
         foreach (var t in dto.Transitions)
-            if (t.Guard?.MethodFqn is string g) set.Add(g);
+            if (namer.Name(t.Guard) is string g) set.Add(g);
         foreach (var gt in dto.GlobalTransitions)
-            if (gt.Guard?.MethodFqn is string gg) set.Add(gg);
+            if (namer.Name(gt.Guard) is string gg) set.Add(gg);
         return new List<string>(set);
     }
 }

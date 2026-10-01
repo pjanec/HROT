@@ -23,6 +23,8 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
 
     /// <summary>⭐ CE-423 — a <c>Role=State</c> variable that would get no storage (<c>StateVariableStorage</c>).</summary>
     public const string StateStorageErrorId = "HSM0002";
+    /// <summary>⭐ CE-417 — a C# [SharedAi*] binding whose variable is not the method's <c>ref</c> type.</summary>
+    public const string SharedAiTypeErrorId = "HSM0003";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -236,12 +238,26 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             return result;
         };
 
+        // ⭐⭐⭐ CE-417 B-2 (a′) — a bound C# [SharedAi*] method gets ONE generated call per binding, reading its host
+        //   variable in place. ⛔ The variable must BE the method's ref type: refused here, loudly, rather than left to a
+        //   CS1503 in generated code (or, before CE-417, a silent type-pun — F7, HsmVariableShowcase).
+        var sharedAi = SharedAiMethodResolver.Make(compilation);
+        bool sharedAiOk = true;
+        foreach (var e in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Collect(
+                     dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi))
+        {
+            if (string.Equals(e.VariableTypeId, e.Method.ParamTypeId, StringComparison.Ordinal)) continue;
+            spc.ReportDiagnostic(MakeSharedAiTypeDiagnostic(path, SharedAiMethodResolver.DescribeMismatch(e)));
+            sharedAiOk = false;
+        }
+        if (!sharedAiOk) return;
+
         // Emit topology core (CreateBuilder + [HsmDefinition] thunk, NO [HsmLayout]).
         string source;
         try
         {
             source = HsmEmitCore.EmitTopologyCore(dto, sizeResolver, blueprintIdResolver,
-                                                 blueprintClassNameResolver, csharpWritesChannel);
+                                                 blueprintClassNameResolver, csharpWritesChannel, sharedAi);
         }
         catch (Exception ex)
         {
@@ -260,7 +276,7 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         string bridge;
         try
         {
-            bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver);
+            bridge = HsmBridgeEmitCore.EmitBridge(dto, sizeResolver, sharedAi);
         }
         catch (Exception ex)
         {
@@ -344,5 +360,17 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             isEnabledByDefault: true);
         return Diagnostic.Create(descriptor, Location.None, path,
             Hrot.AiEditor.Persistence.Emit.StateVariableStorage.Describe(variableName));
+    }
+
+    internal static Diagnostic MakeSharedAiTypeDiagnostic(string path, string message)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            id:                 SharedAiTypeErrorId,
+            title:              "HSM C# action bound to a variable of the wrong type",
+            messageFormat:      "'{0}': {1}",
+            category:           "HsmJsonGenerator",
+            defaultSeverity:    DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+        return Diagnostic.Create(descriptor, Location.None, path, message);
     }
 }

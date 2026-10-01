@@ -20,14 +20,14 @@ public static class HsmVariableShowcase
         builder.Event("Begin", 1, 0, false, false);
         builder.Event("Finish", 2, 0, false, false);
 
-        builder.RegisterAction("Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits@0");
+        builder.RegisterAction("Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits");
         builder.RegisterAction("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
 
         var waiting = builder.State("Waiting", stableId: new Guid("e0710001-1000-0000-0000-000000000002"))
             .Initial();
         var working = builder.State("Working", stableId: new Guid("e0710001-1000-0000-0000-000000000003"))
             .OnEntry("Hrot.AI.Behaviors.CgfHsmNodes.StubIdle");
-        waiting.On("Begin").GoTo("Working", visualId: new Guid("e0710001-3000-0000-0000-000000000001")).Action("Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits@0");
+        waiting.On("Begin").GoTo("Working", visualId: new Guid("e0710001-3000-0000-0000-000000000001")).Action("Fdp.Toolkit.Behavior.Demo.DemoSharedActions.AlertNearbyUnits");
         working.On("Finish").GoTo("Waiting", visualId: new Guid("e0710001-3000-0000-0000-000000000002"));
 
         return builder;

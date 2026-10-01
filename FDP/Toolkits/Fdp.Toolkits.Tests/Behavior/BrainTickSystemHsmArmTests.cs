@@ -596,6 +596,102 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        // ══ CE-417 B-2 (a′) — ONE generated call PER BINDING for a C# [SharedAiAction] ═════════════════════════
+        //   📄 docs/blueprints/DESIGN_Behavior_Action_Binding.md §4 B-2, F4/F7. The REAL HsmCuratedBindingDemo through the
+        //   REAL registrar scan, ingress and BrainTickSystem: region zero's activity → varA, region one's → varB, and the
+        //   Go transition's action → varC, ONE C# method (Action_ReadRegionParams, which counts `Seen` in place).
+
+        // ⚠ Packed order is varC, varA, varB — varC FIRST so the pre-CE-417 key (attribute offset 0) would have resolved
+        //   for the transition action and added its source state's base (varA, 8): the F4 defect, reproducible.
+        private const int VarC = 0, VarA = 8, VarB = 16;
+
+        private static (EntityRepository world, BrainTickSystem sys, Entity e) ArrangeCuratedBindingDemo()
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            var behaviours = ScanTheRealBehavioursAssembly();
+            Assert.True(behaviours.TryGetId("HsmCuratedBindingDemo", out int hash), "the generated registrar must register it");
+
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = "HsmCuratedBindingDemo", JsonParams = string.Empty });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+            Assert.Equal(hash, world.GetComponentRO<BehaviorState>(e).ActiveBehaviorHash);
+            return (world, new BrainTickSystem(behaviours), e);
+        }
+
+        private static global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams Var(EntityRepository w, Entity e, int offset)
+        {
+            byte* root = RootParamsAccess.RequireRootBytes(w, e, out int len);
+            Assert.True(offset + 8 <= len);
+            return *(global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams*)(root + offset);
+        }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-417</c> — <b>two parallel regions running ONE C# action, bound to two variables, each move ONLY their own.</b>
+        /// <para>Re-homes rail ㊳ (<c>HsmOccurrenceKeyTests.O7_R38</c>), whose subject — the per-METHOD curated thunk and its
+        /// occurrence-cached offset — CE-417 retired. ⭐ Here nothing is cached: each binding's call has its offset baked.</para>
+        /// </summary>
+        [Fact]
+        public void CE417_R1_TwoRegionsBoundToTwoVariables_EachCountOnlyTheirOwn()
+        {
+            var (world, sys, e) = ArrangeCuratedBindingDemo();
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+
+            var a = Var(world, e, VarA); var b = Var(world, e, VarB); var c = Var(world, e, VarC);
+            Assert.True(a.Seen > 0, "region zero's activity never ran on varA");
+            Assert.True(b.Seen > 0, "region one's activity never ran on varB");
+            Assert.Equal(a.Seen, b.Seen);   // one call each, every tick
+            Assert.Equal(0, c.Seen);        // the transition has not fired
+            world.Dispose();
+        }
+
+        /// <summary>
+        /// 🔴🔴 <c>CE-417</c> <b>F4 — a C# TRANSITION action reads ITS OWN variable, not one offset from its source state's.</b>
+        /// <para>Before CE-417 the per-method thunk added <c>SeedParamsOffset(source state)</c> to its field offset, and the
+        /// kernel stamps a transition action with its SOURCE state ⇒ bound here (varC at 0, the source bound to varA at 8) it
+        /// would have read varA, not varC.
+        /// ⭐ Now the call's offset is baked absolute: firing <c>Go</c> moves varC by exactly one and varA not at all.</para>
+        /// <para>⚠ Inverse-edit red-proof: emit the thunk with <c>+ HsmOccurrence.SeedParamsOffset(...)</c> and varC stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void CE417_R2_ATransitionAction_TouchesOnlyItsOwnVariable_NotOneOffsetFromItsSourceState()
+        {
+            var (world, sys, e) = ArrangeCuratedBindingDemo();
+            for (int i = 0; i < 12; i++) sys.Execute(world, 0.016f);
+
+            Assert.True(RootHsmAccess.TryGetInstance(world, e, out byte* inst, out int size));
+            Assert.True(HsmEventQueue.TryEnqueue(inst, size, new HsmEvent { EventId = 1, Priority = EventPriority.Normal }));
+            var before = Var(world, e, VarA);
+            for (int i = 0; i < 6; i++) sys.Execute(world, 0.016f);
+
+            var a = Var(world, e, VarA); var b = Var(world, e, VarB); var c = Var(world, e, VarC);
+            Assert.Equal(1, c.Seen);                    // the transition action ran exactly once, on varC
+            Assert.True(a.Seen <= before.Seen + 1,      // region zero LEFT its worker state (at most the firing tick's activity)
+                $"varA kept counting after the transition ({before.Seen} → {a.Seen})");
+            Assert.True(b.Seen > before.Seen, "region one must keep running its own activity on varB");
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-417</c> + <c>CE-505</c> — the per-binding C# calls allocate nothing (F9: the old curated thunk
+        /// built a string and searched the occurrence store on every call).</summary>
+        [Fact]
+        public void CE417_R3_PerBindingCSharpCalls_AllocateNothing()
+        {
+            var (world, sys, e) = ArrangeCuratedBindingDemo();
+            for (int i = 0; i < 24; i++) sys.Execute(world, 0.016f);
+            int seenBefore = Var(world, e, VarA).Seen;
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) sys.Execute(world, 0.016f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.Equal(seenBefore + 50, Var(world, e, VarA).Seen);   // NON-VACUITY: the call really ran every tick
+            Assert.True(allocated == 0, $"50 ticks of two per-binding C# activities allocated {allocated} bytes");
+            world.Dispose();
+        }
+
         /// <summary>
         /// ⭐⭐⭐ <c>CE-505</c> — <b>a steady-state HSM brain tick allocates NOTHING.</b>
         /// 🔒 User <c>2026-10-01</c>: <i>"there should be no allocation on the hot path."</i>

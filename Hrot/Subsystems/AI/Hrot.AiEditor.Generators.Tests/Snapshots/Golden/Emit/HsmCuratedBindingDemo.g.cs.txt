@@ -1,0 +1,45 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: e0710417-0000-0000-0000-000000000001
+
+using System;
+
+using Fhsm.Compiler;
+using Fhsm.Kernel.Attributes;
+using Fhsm.Kernel.Data;
+using Hrot.AI.Behaviors.Brains;
+
+namespace Hrot.AI.Behaviors.Machines;
+
+public static class HsmCuratedBindingDemo
+{
+    public static HsmBuilder CreateBuilder()
+    {
+        var builder = new HsmBuilder("HsmCuratedBindingDemo");
+
+        builder.Event("Go", 1, 0, false, false);
+
+        builder.RegisterAction("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+
+        StateBuilder regionZeroWorker = null!;
+
+        var concurrent = builder.State("Concurrent", stableId: new Guid("e0710417-1000-0000-0000-000000000002"))
+            .Initial()
+            .Parallel();
+        concurrent.Child("RegionZeroWorker", sb2 =>
+        {
+            regionZeroWorker = sb2;
+            sb2.Initial().Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+        }, stableId: new Guid("e0710417-1000-0000-0000-000000000003"));
+        concurrent.Child("RegionOneWorker", sb2 =>
+        {
+            sb2.Activity("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+        }, stableId: new Guid("e0710417-1000-0000-0000-000000000004"));
+        concurrent.Child("RegionZeroDone", sb2 => { }, stableId: new Guid("e0710417-1000-0000-0000-000000000005"));
+        regionZeroWorker.On("Go").GoTo("RegionZeroDone", visualId: new Guid("e0710417-3000-0000-0000-000000000001")).Action("Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams");
+
+        return builder;
+    }
+
+    [HsmDefinition("HsmCuratedBindingDemo", AssetId = "e0710417-0000-0000-0000-000000000001")]
+    public static HsmDefinitionBlob Compile() => CreateBuilder().Build().Compile();
+}

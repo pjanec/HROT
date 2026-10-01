@@ -1,0 +1,225 @@
+{
+  "$meta": {
+    "docType": "Hrot.Hsm",
+    "schemaVersion": 2
+  },
+  "AssetId": "e0710417-0000-0000-0000-000000000001",
+  "Name": "HsmCuratedBindingDemo",
+  "TargetNamespace": "Hrot.AI.Behaviors.Machines",
+  "BlackboardTypeName": "HsmCuratedBindingDemo_Blackboard",
+  "States": [
+    {
+      "StableId": "e0710417-1000-0000-0000-000000000001",
+      "Name": "__Root",
+      "ChildStableIds": [
+        "e0710417-1000-0000-0000-000000000002"
+      ],
+      "ParentStableId": null,
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 0,
+      "Y": 0,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-1000-0000-0000-000000000002",
+      "Name": "Concurrent",
+      "ChildStableIds": [
+        "e0710417-1000-0000-0000-000000000003",
+        "e0710417-1000-0000-0000-000000000004",
+        "e0710417-1000-0000-0000-000000000005"
+      ],
+      "ParentStableId": "e0710417-1000-0000-0000-000000000001",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": true,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 100,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "CE-417: two regions, ONE C# [SharedAiAction], bound to two variables - two generated calls.",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-1000-0000-0000-000000000003",
+      "Name": "RegionZeroWorker",
+      "ChildStableIds": [],
+      "ParentStableId": "e0710417-1000-0000-0000-000000000002",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+        "ExpressionTargetField": "varA"
+      },
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 200,
+      "Y": 200,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-1000-0000-0000-000000000004",
+      "Name": "RegionOneWorker",
+      "ChildStableIds": [],
+      "ParentStableId": "e0710417-1000-0000-0000-000000000002",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "Activity": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+        "ExpressionTargetField": "varB"
+      },
+      "RegionIndex": 1,
+      "DeferredEventNames": [],
+      "X": 200,
+      "Y": 320,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-1000-0000-0000-000000000005",
+      "Name": "RegionZeroDone",
+      "ChildStableIds": [],
+      "ParentStableId": "e0710417-1000-0000-0000-000000000002",
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 420,
+      "Y": 200,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    }
+  ],
+  "Regions": [
+    {
+      "StableId": "e0710417-2000-0000-0000-000000000001",
+      "RegionIndex": 0,
+      "Name": "TopRegion",
+      "Priority": 0,
+      "InitialChildStableId": "e0710417-1000-0000-0000-000000000001",
+      "Comment": null,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-2000-0000-0000-000000000002",
+      "RegionIndex": 0,
+      "Name": "RegionZero",
+      "Priority": 0,
+      "InitialChildStableId": "e0710417-1000-0000-0000-000000000003",
+      "Comment": null,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "e0710417-2000-0000-0000-000000000003",
+      "RegionIndex": 1,
+      "Name": "RegionOne",
+      "Priority": 0,
+      "InitialChildStableId": "e0710417-1000-0000-0000-000000000004",
+      "Comment": null,
+      "ColorOverride": null
+    }
+  ],
+  "Transitions": [
+    {
+      "VisualId": "e0710417-3000-0000-0000-000000000001",
+      "SourceStableId": "e0710417-1000-0000-0000-000000000003",
+      "TargetStableId": "e0710417-1000-0000-0000-000000000005",
+      "EventName": "Go",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+        "ExpressionTargetField": "varC"
+      },
+      "Priority": 0,
+      "Kind": "External",
+      "SyncGroupId": 0,
+      "Waypoints": [],
+      "Comment": "CE-417 F4: a C# transition action bound to varC whose SOURCE state is bound to varA - it must touch varC only."
+    }
+  ],
+  "GlobalTransitions": [],
+  "Events": [
+    {
+      "Name": "Go",
+      "PayloadSize": 0,
+      "IsIndirect": false,
+      "IsDeferrable": false,
+      "EventId": 1
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "HsmCuratedBindingDemo_Blackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "varC",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "The Go transition's action reads and counts here. FIRST, at offset 0, on purpose: the pre-CE-417 per-method key (attribute offset 0) then resolved, and added the source state's base (varA, 8) - F4."
+      },
+      {
+        "Name": "varA",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Region zero's activity reads and counts here."
+      },
+      {
+        "Name": "varB",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "Comment": "Region one's activity reads and counts here."
+      }
+    ]
+  }
+}
