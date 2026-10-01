@@ -945,6 +945,24 @@ third bucket. ⇒ on the promote leg `GhostPromotionSystem.cs:261` is a bare `Bi
 imprecision the complement accepts in exchange for not un-owning the third bucket — ⛔ **tolerated, not
 correct**, and the first thing a positive enumeration would tighten.
 
+#### ⭐⭐⭐ `2026-10-01` — THE PROMOTE LEG SHOULD USE A DIFFERENT SET *(user, proposal — not built)*
+
+> 🔒 **User, verbatim:** *"'everything minus named list' is ok from the point of the creator only. if non-creator node takes
+> ownership because of its role, it should take just the ownership of component belonging to its role, shouldn't it?"*
+
+⭐ **Yes — and it is §3.1's own rule** (*"owns it if, and only if, it holds the role that component belongs to"*). The complement was
+argued for the CREATE leg only; the promote leg inherited it. **The asymmetry that makes a positive list SAFE on the promote leg:**
+
+| leg | set | if the set is incomplete… |
+|---|---|---|
+| CREATE | complement: `ALL − birthCritical − ∪ other roles' P` | over-owns ⇒ tolerated (unchanged) |
+| PROMOTE | **positive `P(role)`** — `P(Brain) = brainOnly`, `P(Muscle) = ∅`, `P(Map2D) = ∅` *(see below)* | under-claims ⇒ **the creator still owns it** — one owner, never zero ⇒ ⛔ **not `CE-256`** |
+
+⇒ claims become exclusive by construction (with one node per role, `R-157`): the creator declines exactly `∪ P`, the promoter claims
+exactly its `P`. ⚠ **Map2D:** its owned table (`EditablePolyline`, `RoutePlan`) is inside the Brain and Muscle create tables, so
+`P(Map2D)` must stay ∅ unless those tables also exclude it — which would leave an overlay unowned in a cluster with no IG. Nothing
+reads those bits today, so `∅` changes nothing observable. 📄 [`Architect_Question_79`](blueprints/Architect_Question_79_One_Ownership_Truth.md) §9a′.
+
 📄 **The same answer, aimed at a reader who arrived from the other side** *(*"the pack has no opt-out, so
 every node creates entities — who owns what?"*)*, is
 [`DESIGN_Entity_Creation_Unification.md`](DESIGN_Entity_Creation_Unification.md) **§4.1**. ⚠ It is a
