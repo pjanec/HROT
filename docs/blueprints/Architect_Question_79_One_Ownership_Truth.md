@@ -700,3 +700,21 @@ nothing else. Brain/Muscle creators *look* like the user's rule only because the
 sensors, SimVelocity)"* for non-brain components: they stay with the creator unless granted. ⚠ **Not measured:** which node applies an
 attribute change to an IG-created entity today — IG declines `EntityInfo` and the patch path gates on the claim, so such changes may
 already be dropped there.
+
+### 11.3 ⚠ CORRECTION — how a Muscle node is MEANT to get ownership *(design intent read `2026-10-01`, user: "you need to read the design intents first")*
+
+| design | says |
+|---|---|
+| Role-Affinity §3.1 | **two categories**: non-birth-critical ⇒ ROLE AFFINITY (*"the creator declines, the role-holder claims on promotion"*, no handshake); birth-critical (`SimTransform` only) ⇒ creator birthright, then the EXISTING `DeferredTakeOwnership` → `OwnershipUpdate` hand-off (*"the kinematic half keeps the handshake it already has, and needs it"*) |
+| Node_Roles §4.1 | non-role, non-birth-critical *(brain, nav, sensors, `SimVelocity`)* ⇒ declined at create, claimed by role holders on promote — **no grant**; birth-critical ⇒ auto-takeover grant |
+| Role-Affinity §0a / `CE-256` | the grant path is the FAILURE mode (no Muscle known at creation ⇒ no grant, ever); role derivation removes it *"by construction"*; a re-grant is REJECTED as a second mechanism |
+| Q65 §5.3 | `BrainMuscleOwnershipStrategy` is POLICY (creator-relative, one-directional); the transport is mechanism |
+| Role-Affinity §3.8 | several nodes per role ⇒ `ServesRole` reads only inputs IDENTICAL on every node; balancing = an assignment published by ONE authority |
+
+⇒ ⛔ §11/§11.2's *"Muscle claim = ∅, its share travels only by the grant"* **contradicts the intent.** The Muscle role HAS a claim — its
+non-birth-critical components (`SimVelocity`, `VehicleState`, `VehicleParams`, `NavState`, `NavigationStatus`, physics, sensors… —
+classification pending, like the Brain's); only `SimTransform` is meant to travel by grant. Today's grant moves more (`dtWorldPos` block +
+`dtNavigationStatus`) only because a transfer is per DESCRIPTOR and `dtWorldPos` bundles them (Transfer design §1).
+⚠ **The design overclaims on `CE-256`:** role derivation removes the late-joiner failure for non-birth-critical components only —
+`SimTransform` still waits on the creator's grant, so a Muscle that joins late still moves nothing. ⭐ Observation for `CE-506`: the
+creator's grant (one authority, on the wire, fixed per entity) already has the shape §3.8 asks of a shard assignment.

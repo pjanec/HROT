@@ -228,6 +228,8 @@ it is a property of having a grant path at all.**
 | **a re-grant / retry on node-join** | ⚠ The obvious fix: have CGF re-evaluate when a Muscle heartbeat arrives for entities with no muscle owner. ⛔ **Rejected** — it is a SECOND ownership mechanism, and this design deletes the first. 📌 Ruling 9. ⭐ Building it would mean building something this design removes |
 | ⭐ **what WAS built instead** | a **detector**, in the node: `StrideNodeShell.CheckOwnershipStarvation` warns once when the node holds entities with a `SimTransform` and owns **none** of them, naming the start-order cause. ⚠ **It is not a fix and does not claim to be** — ⭐ it converts a silent 340-second mystery into one sentence at the moment it happens. 📐 Proven both ways: fires on the starved ordering *(8 entities, 0 owned)*, **silent** on the healthy one *(8 takeovers, 0 warnings)* |
 
+⚠ **`2026-10-01` — narrower than stated:** derivation removes the late-joiner failure for NON-birth-critical components only. `SimTransform` still moves by the creator's grant (§3.1), so a Muscle that joins after creation still owns no position and moves nothing. 📄 `Architect_Question_79` §11.3.
+
 ⚠ **Read this as evidence FOR the design, not as a reason to patch around it.** ⭐ Until §3 is built the
 operational rule is simply: **start a muscle node only after CGF answers.**
 
