@@ -18,9 +18,12 @@ public enum BTreeActionDelegateShape
     /// <summary>Four-parameter delegate with full blackboard access.</summary>
     FourParamFull,
 
-    // NOTE: value 2 (ThreeParamReusableStateful in BTreeDelegateShapeDto, the persisted DTO enum)
-    // has no named member here yet; the numeric value still round-trips correctly through the
-    // (BTreeActionDelegateShape)/(BTreeDelegateShapeDto) casts in BehaviorTreeAssetMapper.
+    /// <summary>
+    /// Stateful three-parameter shape: the bound variable plus the node's own working memory.
+    /// Explicit value 2 to match <c>BTreeDelegateShapeDto.ThreeParamReusableStateful</c>.
+    /// ⭐ <c>CE-417</c> (Q75 §5.1b) named it — it used to exist only as a numeric cast.
+    /// </summary>
+    ThreeParamReusableStateful = 2,
 
     /// <summary>
     /// I2/I3/E2: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host
@@ -475,23 +478,14 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     /// checking only the named one would call a composed blueprint action stateless and let two of
     /// them run concurrently unreported, which is the defect this predicate exists to prevent.
     /// </para>
-    ///
-    /// <para>
-    /// 📌 <b><c>ThreeParamReusableStateful</c> has no NAMED member on the editor enum</b> — the DTO
-    /// enum pins it to <c>2</c> and the editor casts numerically (see the note at the top of this
-    /// file). Hence the explicit cast rather than a member reference: an invented member would be a
-    /// second spelling of a value that already round-trips.
-    /// </para>
     /// </summary>
     public bool HasAnyStatefulNode()
     {
-        const BTreeActionDelegateShape ThreeParamReusableStateful = (BTreeActionDelegateShape)2;
-
         foreach (var node in _nodes)
         {
             var shape = node.Action?.DelegateShape ?? node.Condition?.DelegateShape;
             if (shape is null) continue;
-            if (shape == ThreeParamReusableStateful
+            if (shape == BTreeActionDelegateShape.ThreeParamReusableStateful
              || shape == BTreeActionDelegateShape.AiPrimitiveTickCore) return true;
         }
         return false;
