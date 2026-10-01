@@ -491,5 +491,54 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         // ── End of BTreeTickSystemTests ──────────────────────────────────────────
+    
+        // ══ CE-505 — a steady-state BTree brain tick allocates NOTHING ════════════════════════════
+        //   🔒 User 2026-10-01: "there should be no allocation on the hot path." The HSM twin is
+        //   BrainTickSystemHsmArmTests.CE505_R3. ⭐ REAL generated behaviours through the REAL registrar
+        //   scan, ingress and BrainTickSystem — root state + root params lookups, composed blueprint
+        //   actions (T35: AiPrimitiveTickCore, one Behavior-shared and one Node-scoped occurrence) and
+        //   C# reusable + stateful actions (T20).
+
+        [Theory]
+        [InlineData("T35_SharedWorkingState", "")]
+        // ⚠ T20 FINISHES after 7 ticks on its authored limits (cursorB.Limit = 5) and is then cleared, so
+        //   cursorB's limit is raised: A succeeds from tick 3 and B stays Running — both stateful nodes
+        //   tick every frame.
+        [InlineData("T20_MultiStateful", "{\"cursorB\":{\"Limit\":1000000}}")]
+        public void CE505_R4_ASteadyStateBTreeBrainTick_AllocatesNothing(string behaviourName, string json)
+        {
+            var behaviours = new BehaviorRegistry();
+            Fdp.Toolkit.Blueprints.BlueprintRegistrarScanner.Scan(
+                typeof(global::Hrot.AI.Behaviors.Trees.T35_SharedWorkingState_Block).Assembly,
+                new Fdp.Toolkit.Blueprints.BlueprintRegistry().BeginStaging(),
+                behaviours);
+            Assert.True(behaviours.TryGetId(behaviourName, out int hash), $"{behaviourName} must self-register");
+
+            var world = TestWorldFactory.Create();
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(world);
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = behaviourName, JsonParams = json });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(behaviours).Execute(world, 0.016f);
+            Assert.Equal(BehaviorConstants.BrainTierBTree, world.GetComponentRO<BehaviorState>(e).BrainTier);
+
+            var sys = new BrainTickSystem(behaviours);
+            for (int i = 0; i < 24; i++) sys.Execute(world, 0.016f);   // JIT, first attach, dictionary growth
+            world.Bus.SwapBuffers();
+
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 50; i++) sys.Execute(world, 0.016f);
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            // ⛔ NON-VACUITY: still the same running brain — a finished tree is cleared (CE-449) and
+            //    would tick nothing at all.
+            ref readonly var st = ref world.GetComponentRO<BehaviorState>(e);
+            Assert.Equal(hash, st.ActiveBehaviorHash);
+            Assert.Equal(BehaviorConstants.BrainTierBTree, st.BrainTier);
+            Assert.True(allocated == 0, $"50 steady-state {behaviourName} brain ticks allocated {allocated} bytes");
+
+            world.Dispose();
+        }
     }
 }
