@@ -20,7 +20,10 @@ namespace Hrot.ClusterRunner.Integration.Tests;
 [Collection("HeavyE2ETests")]
 public sealed class DistributedScenarioSaveTests : IDisposable
 {
-    private const int DomainBase = 271;
+    // Domain range 81-89 (free). ⛔ It was 271: CycloneDDS's default port mapping is 7400 + 250 × domain, which must
+    // stay below 65536 ⇒ domains above ~232 cannot create a participant ("Failed to create participant") — so this test
+    // could never run at all.
+    private const int DomainBase = 81;
     private static int _domainSeq = DomainBase - 1;
     private static int NextDomainId() => Interlocked.Increment(ref _domainSeq);
 
