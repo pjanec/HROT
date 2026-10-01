@@ -50,4 +50,36 @@ public static class BlackboardTypeHelper
         "bool", "byte", "sbyte", "short", "ushort", "int", "uint", "long", "ulong",
         "float", "double", "Vector2", "Vector3", "Vector4", "Quaternion",
     };
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-439</c> — the ONE "type id → CLR type" rule for blackboard variables: a primitive alias, then
+    /// <c>Type.GetType</c>, then every loaded assembly by full name (DTO structs — and a behaviour's generated Inputs struct —
+    /// live in behaviour assemblies the editor did not reference). <c>typeof(object)</c> when nothing matches.
+    /// ⚠ Was copied privately into both <c>BehaviorTreeAssetMapper</c> and <c>HsmAssetMapper</c>; the subtree compose step
+    /// needed a third, so it moved here and both mappers call it.
+    /// </summary>
+    public static Type ResolveClrType(string typeId)
+    {
+        var primitive = GetPrimitiveType(typeId);
+        if (primitive != null) return primitive;
+
+        var t = Type.GetType(typeId);
+        if (t != null) return t;
+
+        foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+        {
+            Type? byName;
+            try { byName = asm.GetType(typeId, throwOnError: false, ignoreCase: false); }
+            catch { byName = null; }   // dynamic/reflection-only assemblies may throw
+            if (byName != null) return byName;
+        }
+
+        foreach (var name in DefaultKnownTypeNames)
+        {
+            var pt = GetPrimitiveType(name);
+            if (pt != null && (pt.FullName == typeId || pt.Name == typeId)) return pt;
+        }
+
+        return typeof(object);
+    }
 }

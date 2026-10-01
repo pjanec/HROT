@@ -62,22 +62,36 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
                 })
                 .Collect();
 
-        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles)> combined =
+        // ⭐ CE-439 — every *.btree.json, so a host can size a sibling behaviour's Inputs struct (GeneratedBehaviorSchemaCatalog).
+        IncrementalValueProvider<ImmutableArray<(string Path, string Text)>> btreeJsonCollected =
+            context.AdditionalTextsProvider
+                .Where(static at => at.Path.EndsWith(".btree.json",
+                    System.StringComparison.OrdinalIgnoreCase))
+                .Select(static (at, ct) =>
+                {
+                    string text = at.GetText(ct)?.ToString() ?? string.Empty;
+                    return (at.Path, text);
+                })
+                .Collect();
+
+        IncrementalValuesProvider<(string Path, string Text, Compilation Compilation, ImmutableArray<(string Path, string Text)> BpJsonFiles, ImmutableArray<(string Path, string Text)> BTreeJsonFiles)> combined =
             rawFiles.Combine(context.CompilationProvider)
                     .Combine(bpJsonCollected)
+                    .Combine(btreeJsonCollected)
                     .Select(static (pair, _) =>
-                        (pair.Left.Left.Path, pair.Left.Left.Text, pair.Left.Right, pair.Right));
+                        (pair.Left.Left.Left.Path, pair.Left.Left.Left.Text, pair.Left.Left.Right, pair.Left.Right, pair.Right));
 
         // Per-asset: deserialize → emit topology core → register source output
         context.RegisterSourceOutput(combined, static (spc, item) =>
         {
-            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles);
+            GenerateOneAsset(spc, item.Path, item.Text, item.Compilation, item.BpJsonFiles, item.BTreeJsonFiles);
         });
     }
 
     private static void GenerateOneAsset(
         SourceProductionContext spc, string path, string text, Compilation compilation,
-        ImmutableArray<(string Path, string Text)> bpJsonFiles)
+        ImmutableArray<(string Path, string Text)> bpJsonFiles,
+        ImmutableArray<(string Path, string Text)> btreeJsonFiles)
     {
         // Deserialize — failure becomes a diagnostic, never throws, never fails siblings.
         HsmAssetDto? dto;
@@ -132,9 +146,14 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
         {
             System.Func<string, int?> roslynResolver = StructSizeResolver.MakeDelegate(compilation);
-            sizeResolver = typeId =>
+            // ⭐ CE-439 — and a SIBLING behaviour's Inputs struct (a hosted subtree's bound params variable).
+            var behaviorSchemas = GeneratedBehaviorSchemaCatalog.Parse(btreeJsonFiles);
+            System.Func<string, int?>? self = null;
+            self = typeId =>
                 roslynResolver(typeId)
-                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation);
+                ?? GeneratedBlueprintSchemaCatalog.TryResolveParamsSize(typeId, blueprintSchemas, compilation)
+                ?? GeneratedBehaviorSchemaCatalog.TryResolveInputsSize(typeId, behaviorSchemas, self!);
+            sizeResolver = self;
         }
 
         System.Func<System.Guid, ushort?> blueprintIdResolver = assetId =>

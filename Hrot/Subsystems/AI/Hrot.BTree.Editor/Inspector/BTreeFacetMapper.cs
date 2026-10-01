@@ -16,6 +16,9 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
 {
     private readonly BehaviorTreeAsset    _asset;
     private readonly BTreeFacetFqnContext? _fqnContext;
+    // ⭐ CE-439 — the catalogue the subtree pick resolves against (asset id + the child's Inputs contract). ⚠ Optional so a
+    //   headless fixture need not supply one; ⛔ a production host HAS one and passes it (AiFacetPickerBinder).
+    private readonly Hrot.Editor.AiShared.Catalog.IAssetCatalog? _catalog;
 
     public BTreeFacetMapper(BehaviorTreeAsset asset)
         : this(asset, null)
@@ -27,10 +30,12 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     /// <paramref name="fqnContext"/> before returning each facet, so the
     /// <see cref="BlackboardFieldPickerDrawer"/> can filter variables by DtoType.
     /// </summary>
-    public BTreeFacetMapper(BehaviorTreeAsset asset, BTreeFacetFqnContext? fqnContext)
+    public BTreeFacetMapper(BehaviorTreeAsset asset, BTreeFacetFqnContext? fqnContext,
+                            Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         _asset      = asset      ?? throw new ArgumentNullException(nameof(asset));
         _fqnContext = fqnContext;
+        _catalog    = catalog;
     }
 
     // ── IFacetDispatcher ──────────────────────────────────────────────────────
@@ -142,10 +147,40 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
             case BTreeSubtreeFacet stf:
                 node.Comment      = stf.Comment;
                 node.IsBreakpoint = stf.IsBreakpoint;
+                ApplySubtreePick(node, stf.SubtreeName);   // ⭐ CE-439
                 break;
         }
 
         _asset.MarkDirty();
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-439</c> (<c>Q76</c> §12.28) — <b>the BTree subtree pick LANDS.</b> 🔴 The facet carried
+    /// <c>[AiAssetPicker(BTree)]</c> on <c>SubtreeName</c> and this method wrote back only <c>Comment</c>/<c>IsBreakpoint</c>,
+    /// so a pick was discarded; the only writer of the reference was the heal-on-load resolver. ⭐ Same shape as the HSM
+    /// state's pick: the Guid captured at pick time (the shared rule), and a NEWLY picked child brings its params variable
+    /// (the shared compose step) bound as this site's <c>ParamsVariable</c>.
+    /// </summary>
+    private void ApplySubtreePick(BTreeEditorNode node, string? pickedName)
+    {
+        node.Subtree ??= new BTreeSubtreePayload();
+        var st = node.Subtree;
+        if (string.IsNullOrWhiteSpace(pickedName))
+        {
+            st.SubtreeName    = string.Empty;
+            st.SubtreeAssetId = Guid.Empty;
+            st.IsResolved     = false;
+            st.ParamsVariable = null;   // no child, no binding (the variable stays — no rush removals)
+            return;
+        }
+        if (string.Equals(st.SubtreeName, pickedName, StringComparison.Ordinal)) return;   // unchanged ⇒ nothing to compose
+
+        st.SubtreeName = pickedName!;
+        (st.SubtreeAssetId, st.IsResolved) = Hrot.Editor.AiShared.References.SubtreeReferenceResolver.ResolvePick(
+            _catalog, pickedName!, Hrot.Editor.AiShared.AssetKind.BTree, st.SubtreeAssetId);
+        st.ParamsVariable = Hrot.Editor.AiShared.Blackboard.AutoManagedVariables.ComposeForSubtree(
+            _asset, pickedName!,
+            (_catalog?.FindByAssetId(st.SubtreeAssetId) as Hrot.Editor.AiShared.IBehaviorInputsContract)?.InputsTypeId);
     }
 
     // ── Private builders ──────────────────────────────────────────────────────

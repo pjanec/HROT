@@ -336,7 +336,8 @@ public static class BTreePickerDrawerFactory
         BehaviorTreeAsset      asset,
         BehaviorRegistry       registry,
         IActionSchemaExporter? exporter    = null,
-        BTreeFacetFqnContext?  fqnContext   = null)
+        BTreeFacetFqnContext?  fqnContext   = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
     {
         if (asset    is null) throw new ArgumentNullException(nameof(asset));
         if (registry is null) throw new ArgumentNullException(nameof(registry));
@@ -350,6 +351,13 @@ public static class BTreePickerDrawerFactory
         var composite = new CompositeStringDrawer()
             .Register<BehaviorHashPickerAttribute>(new BehaviorHashPickerDrawer(registry))
             .Register<BlackboardFieldPickerAttribute>(bbDrawer);
+
+        // ⭐⭐ CE-439 — the subtree facet's [AiAssetPicker(BTree)] had NO drawer on this host (only the HSM factory registered
+        //   one), so it rendered as plain text. ⚠ Registered only with a catalogue, for the HSM factory's reason: an empty list
+        //   reads as "there are no such assets". One kind is used on BTree facets (BTree), so one drawer serves.
+        if (catalog is not null)
+            composite.Register<Hrot.Editor.AiShared.Inspector.AiAssetPickerAttribute>(
+                new Hrot.Editor.AiShared.Inspector.AiAssetPickerDrawer(catalog, Hrot.Editor.AiShared.AssetKind.BTree));
 
         return new Dictionary<Type, IImGuiFieldDrawer>
         {

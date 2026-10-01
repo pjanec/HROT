@@ -265,4 +265,44 @@ public sealed class HsmJsonGeneratorTests
         }
         else hits.Should().BeEmpty();
     }
+
+    // ── ⭐⭐ CE-439 — a hosting state's seed binding, sized from a SIBLING behaviour's Inputs struct ─────────────
+
+    /// <summary>
+    /// 🔴 RED before (two holes): the HSM registrar passed no bindings to <c>HsmHostedSubtrees.Register</c>, AND the host
+    /// variable typed as the child's generated Inputs struct was unsizeable in this generator run (Roslyn cannot see a type
+    /// the same run emits), so <c>Pack</c> threw and the host emitted no params at all. ⭐ Now
+    /// <c>GeneratedBehaviorSchemaCatalog</c> sizes it from the child's <c>.btree.json</c> and the shared
+    /// <c>EmitSiteBindings</c> bakes <c>[stableId] = new(offset, size)</c>.
+    /// </summary>
+    [Fact]
+    public void CE439_AHostingStatesBinding_IsSizedFromTheSiblingChild_AndEmitted()
+    {
+        // The child: a managed BTree publishing two Role=Input fields (4 + 4 bytes).
+        var child = new Hrot.AiEditor.Persistence.BTree.BehaviorTreeAssetDto { AssetId = Guid.NewGuid(), Name = "PatrolTree" };
+        child.Blackboard.Managed = true;
+        foreach (var (n, t) in new[] { ("Speed", "System.Single"), ("Laps", "System.Int32") })
+            child.Blackboard.Variables.Add(new Hrot.AiEditor.Persistence.BTree.BlackboardVariableDto
+            { Name = n, Type = new Hrot.AiEditor.Persistence.BTree.BlackboardTypeRefDto { TypeId = t } });
+        string childInputs = BTreeEmitCore.InputsStructTypeId(child)!;
+
+        // The host: SampleGuard, one state hosting the child, bound to a host variable of the child's Inputs type.
+        var host  = HsmAssetMapper.ToDto(LoadSampleGuard());
+        var state = host.States.First(s => s.Name != null && !s.Name.StartsWith("__", StringComparison.Ordinal));
+        state.SubtreeAssetId        = child.AssetId;
+        state.SubtreeName           = "PatrolTree";
+        state.SubtreeParamsVariable = "PatrolTreeParams";
+        host.Blackboard.Managed = true;
+        host.Blackboard.Variables.Add(new HsmBlackboardVariableDto
+        { Name = "PatrolTreeParams", Type = new HsmBlackboardTypeRefDto { TypeId = childInputs } });
+
+        var result = RunGenerator(
+            MakeAdditionalText("/p/SampleGuard.hsm.json", HsmJsonServices.Serialize(host)),
+            MakeAdditionalText("/p/PatrolTree.btree.json", Hrot.AiEditor.Persistence.BTree.BTreeJsonServices.Serialize(child)));
+
+        string registrar = result.GeneratedTrees.First(t => t.FilePath.Contains("SampleGuard.Registrar")).ToString();
+        registrar.Should().Contain($"[new global::System.Guid(\"{state.StableId:D}\")] = new(0, 8)",
+            "the binding is the host variable's (offset, size), and its size came from the sibling's own packing");
+        registrar.Should().Contain("case \"PatrolTreeParams\":", "the host's params path is emitted — Pack did not throw");
+    }
 }

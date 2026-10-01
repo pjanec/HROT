@@ -174,5 +174,127 @@ namespace Fdp.Toolkits.Tests.Behavior
             // ⛔ 2 was Entity — retired by CE-441 slice 1, never to be reused.
             Assert.False(Enum.IsDefined(typeof(StatefulSlotScope), (byte)2));
         }
+
+        // ══ CE-505 — THE KEYS ARE COMPUTED WITHOUT ALLOCATING, AND STILL BYTE-IDENTICAL ══════════
+        //   🔒 User 2026-10-01: "there should be no allocation on the hot path." Every brain tick computes
+        //   root keys per entity, and every HSM activity/guard computes an occurrence key per call; the
+        //   folds used Guid.ToByteArray() + Encoding.UTF8.GetBytes. ⭐ The oracles below are the ARRAY
+        //   form, spelled out — the in-place folds must reproduce them for every surface and every input.
+
+        private static int LegacyNest(int hostKey, int siteId, int ownKey)
+        {
+            if (hostKey == 0) return ownKey;
+            unchecked
+            {
+                const uint prime = 16777619u;
+                uint hash = 2166136261u;
+                foreach (int v in new[] { hostKey, siteId, ownKey })
+                    foreach (byte b in BitConverter.GetBytes(v)) { hash ^= b; hash *= prime; }
+                return (int)(hash & 0x7FFFFFFFu);
+            }
+        }
+
+        private static Guid LegacyHashGuid(int behaviourHash)
+        {
+            var b = new byte[16];
+            b[0] = (byte)(behaviourHash & 0xFF);         b[1] = (byte)((behaviourHash >> 8) & 0xFF);
+            b[2] = (byte)((behaviourHash >> 16) & 0xFF); b[3] = (byte)((behaviourHash >> 24) & 0xFF);
+            return new Guid(b);
+        }
+
+        private static int LegacyHsmHost(uint machine)
+            => LegacyKey(new Guid(machine, 0, 0, 0x4F, 0x43, 0x43, 0x48, 0x4F, 0x53, 0x54, 0x00),
+                         StatefulSlotScope.Behavior, Guid.Empty, "$occ.identity");
+
+        private static int LegacyHsmSite(int region, ushort state)
+        {
+            var pair = new Guid((uint)region, state, 0, 0x4F, 0x43, 0x43, 0x48, 0x53, 0x4D, 0x00, 0x00);
+            return LegacyKey(pair, StatefulSlotScope.Node, pair, "$occ.hsmSite");
+        }
+
+        /// <summary>Strings that exercise every UTF-8 width, a surrogate pair and both lone-surrogate cases.</summary>
+        private static readonly string[] Utf8Cases =
+        {
+            "", "HillAttackState", "Größe", "日本語", "x😀y", "\uD800lone", "tail\uDC00", "\uDBFF", "߿ࠀ￿",
+        };
+
+        [Fact]
+        public void CE505_R1_EveryKeySurface_IsByteIdenticalToTheArrayForm_OverManyInputs()
+        {
+            var rng = new Random(505);
+            Guid G() { var b = new byte[16]; rng.NextBytes(b); return new Guid(b); }
+
+            int checkedCount = 0;
+            for (int i = 0; i < 400; i++)
+            {
+                Guid a = G(), n = G(), c = G();
+                int h = rng.Next(int.MinValue, int.MaxValue);
+                uint machine = (uint)rng.Next() ^ ((uint)rng.Next() << 1);
+                int region = rng.Next(0, 8);
+                ushort state = (ushort)rng.Next(0, 65536);
+                string v = Utf8Cases[i % Utf8Cases.Length] + (i % 3 == 0 ? "" : i.ToString());
+
+                Assert.Equal(LegacyKey(a, StatefulSlotScope.Node, n, v),
+                             StatefulBTreeActionBinder.ComputeStatefulSlotKey(a, StatefulSlotScope.Node, n, v));
+                Assert.Equal(LegacyKey(a, StatefulSlotScope.Behavior, n, v),
+                             StatefulBTreeActionBinder.ComputeStatefulSlotKey(a, StatefulSlotScope.Behavior, n, v));
+
+                if (h != 0)
+                {
+                    Assert.Equal(LegacyKey(LegacyHashGuid(h), StatefulSlotScope.Behavior, Guid.Empty, "$occ.rootParams"),
+                                 RootParamsAccess.KeyForBehaviour(h));
+                    Assert.Equal(LegacyKey(LegacyHashGuid(h), StatefulSlotScope.Behavior, Guid.Empty, "$occ.rootState"),
+                                 RootStateAccess.KeyForBehaviour(h));
+                    Assert.Equal(LegacyKey(LegacyHashGuid(h), StatefulSlotScope.Behavior, Guid.Empty, "$occ.rootHsm"),
+                                 RootHsmAccess.KeyForBehaviour(h));
+                }
+
+                Assert.Equal(LegacyNest(LegacyHsmHost(machine), LegacyHsmSite(region, state),
+                                        LegacyKey(c, StatefulSlotScope.Behavior, Guid.Empty, "$occ.hsmState")),
+                             HsmOccurrence.KeyFor(machine, c, region, state));
+                Assert.Equal(LegacyNest(LegacyHsmHost(machine), LegacyHsmSite(region, state),
+                                        LegacyKey(Guid.Empty, StatefulSlotScope.Behavior, Guid.Empty, "$occ.curated." + v)),
+                             HsmOccurrence.KeyForCurated(machine, v, region, state));
+                Assert.Equal(LegacyNest(LegacyKey(a, StatefulSlotScope.Behavior, Guid.Empty, "$occ.identity"),
+                                        LegacyKey(n, StatefulSlotScope.Node, n, "$occ.site"),
+                                        LegacyKey(c, StatefulSlotScope.Behavior, Guid.Empty, "$occ.treeState")),
+                             OccurrenceSlots.TreeStateKeyFor(a, n, c));
+                Assert.Equal(LegacyKey(a, StatefulSlotScope.Behavior, Guid.Empty, "$occ.standaloneState"),
+                             OccurrenceSlots.StandaloneStateKeyFor(a));
+                checkedCount++;
+            }
+            Assert.Equal(400, checkedCount);   // non-vacuity: the loop really ran
+        }
+
+        [Fact]
+        public void CE505_R2_ComputingAKey_AllocatesNothing()
+        {
+            Guid a = AssetA, n = NodeA;
+            const string v = "x😀Größe";
+            const string ck = "Hrot.AI.Behaviors.Brains.Nodes.Action_X@8";
+            int sink = 0;
+
+            void Run()
+            {
+                for (int i = 0; i < 200; i++)
+                {
+                    sink ^= StatefulBTreeActionBinder.ComputeStatefulSlotKey(a, StatefulSlotScope.Node, n, v);
+                    sink ^= StatefulBTreeActionBinder.ComputeStatefulSlotKey(a, StatefulSlotScope.Behavior, n, v);
+                    sink ^= RootParamsAccess.KeyForBehaviour(i + 1);
+                    sink ^= RootStateAccess.KeyForBehaviour(i + 1);
+                    sink ^= RootHsmAccess.KeyForBehaviour(i + 1);
+                    sink ^= HsmOccurrence.KeyFor(0xC0FFEEu, a, 1, (ushort)i);
+                    sink ^= HsmOccurrence.KeyForCurated(0xC0FFEEu, ck, 1, (ushort)i);
+                    sink ^= OccurrenceSlots.TreeStateKeyFor(a, n, AssetB);
+                }
+            }
+
+            Run();   // JIT + statics outside the measured window
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            Run();
+            long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+
+            Assert.True(allocated == 0, $"computing occurrence keys allocated {allocated} bytes over 1600 calls (sink {sink})");
+        }
     }
 }
