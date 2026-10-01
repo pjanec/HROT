@@ -41,6 +41,21 @@ related-designs:
 | ④ | the **blueprint registry** (variables route: *which blueprints does the entity carry*) | ✅ passed | ⛔ not passed ⇒ *"no blueprint registry wired"* even with a session | `DebugApiService.Variables.cs:42` |
 | ⑤ | a **Behavior-dispatch** blueprint's state (`PlatoonHillAttackBp`, BrainTier 3) | ⛔ **unreadable on BOTH hosts.** Its registrar registers only a `BehaviorDefinition` (`BlackboardLayoutType = typeof(State)`), **no `BlueprintDefinition`** ⇒ the session's `_registry.TryGetById` misses and its AiPrimitive reader walks only `OccurrenceKind.Hsm` slots (`BlueprintDebugSession.cs:1621`); the root block is kind `BlueprintBehavior`. ⚠ The root block **is** the emitted `State` — `[Cursor 16 B][Params][Phase, Sensor, …]` (golden `PlatoonHillAttackBp.cs.txt:66`, `:1727`) — and its latent cursor holds only `ResumeAt`, ⛔ **no graph id** | same | |
 
+### 1a. INVENTORY — codebase-memory graph, project `home-user-HROT` *(203 k nodes, indexed `2026-10-01`)*
+
+⚠ Run **after** the first build, at the user's prompt — the two duplicates in §⛔ HISTORY are what it found. 🔒 It belonged before §2.
+
+| query | total | what it settled |
+|---|---|---|
+| `search_graph(name_pattern=".*(Symbolicat\|DebugMetadata\|NodeVisualId\|VisualIdFor\|ResolveVisual).*")` | 89 | no BTree symbolicator besides `BTreeDebugSession.SetDebugMetadata` (HSM has `TraceSymbolicator`) |
+| `search_code("RunningNodeIndex\|DebugMetadata\[")` | 82 hits / 33+ files | ⭐ `BTreeVisualizerRenderer` already resolves the RUNNING tree (`registry → BTreeInterpreter.Blob.DebugMetadata`) ⇒ D7 |
+| `search_graph(name_pattern=".*(BlackboardLayout\|RootBlock\|RootBytes\|RootParams\|ReadRoot\|BehaviorBlueprint\|ManagedBlackboardVariable\|BlackboardVariables\|ReadBlackboard).*")` | 102 | the root-block readers: `RootParamsProjection` (inspector), `LiveBlackboardValueProvider` (editor watch), `RootParamsAccess` (the locator) |
+| `search_code("ManagedBlackboardVariables\|TryCopyRootParams\|TryGetRootBytesInView\|class LiveBlackboardValueProvider")` | 19 files | the same set, confirmed by text |
+| `search_graph(label="Method", name_pattern=".*(MarshalFromBytes\|FromBytes\|ReadBoxed\|ReadStructAt\|ReadTyped\|DecodeValue\|ProjectAndFormat\|BytesToObject).*")` | 8 | ⭐ `BlueprintDebugSession.MarshalFromBytes` — the exact decode |
+| `search_graph(name_pattern="(DecodeStateFields\|TryReadStruct\|TryFormatFixedList\|…)")` | 6 | ⭐ the session's *"one body, four former copies"* decode loop ⇒ D5 |
+
+⛔ `check_index_coverage` not run (the MCP server was reconnecting; the CLI lacks it) — the sets above are the graph's best effort, corroborated by `search_code`.
+
 ## 2. Decisions
 
 | | decision | why | rejected |
@@ -179,7 +194,7 @@ perspective borrows nothing. ⭐ Red-proofed: with `aiDebugSurface: null` the BT
 **through a mission** (`CMD_REPLACE_MISSION`), and the routes are read in the assignment frame: with a bare two-entity platoon the
 doctrine concludes in a few frames (measured) — a long-running commander is the live `--mode all` run's job.
 
-**Live** *(`2026-10-01`)* — `ClusterRunner --mode all`, a fresh cluster per run, `Scenario` perspective: C# `hill-attack-close` — `tier:BTree`, `observe` ⇒ `armed:true`, `activeNode` `…00a3` → `…00b4` (symbolicated, changing), node history fills; blueprint `hill-attack-close-bp` — `tier:Blueprint`/`Behavior`/`PlatoonHillAttackBp`, `armed:true`, `/variables` mid-fight `Phase=AwaitWave`, `Sensor` valid; both runs: hostiles 1006/1007 `Health 0`, the commander finishes (t≈51 s / t≈50 s), the platoon back on the baseline line. ⚠ The blueprint run predates the per-tree symbolication change, which does not touch the Behavior arm.
+**Live** *(`2026-10-01`)* — `ClusterRunner --mode all`, a fresh cluster per run, `Scenario` perspective, on the unified build: C# `hill-attack-close` — `tier:BTree`, `observe` ⇒ `armed:true`, `activeNode` `…00a3` → `…00b2` → `…00b4` (symbolicated, changing), node history fills; blueprint `hill-attack-close-bp` — `tier:Blueprint`/`Behavior`/`PlatoonHillAttackBp`, `armed:true`, `/variables` mid-fight `Phase=AwaitWave`, `Sensor` valid (through the session's `CaptureLiveBehaviorState`); both runs: hostiles 1006/1007 `Health 0`, the commander finishes (t≈61 s / t≈62 s). ⚠ At the blueprint commander's finish its platoon was spread x≈511–545 vs the C# run's x≈525–531 line — possibly still returning; not investigated (this change is read-only).
 
 ## ⛔ HISTORY — superseded the same day *(user, `2026-10-01`: "share and unify, do not duplicate")*
 
