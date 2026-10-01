@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). Awaiting approval of §8, the consolidated answer. Nothing is built.
-current-answer: §8 (the consolidated decision table) FIRST; §7 is the proof it rests on.
+build-state: DESIGN — SCOPE RULED 2026-10-01 (one node per role, with the duplicate-role guard). User constraint 2026-10-01: NO change to the existing network protocols, minimal change ⇒ §9 (the one-gate fix) is the proposed build; §8 is DEFERRED, not built.
+current-answer: §9 (the minimal fix for CE-500, awaiting approval) FIRST; §8 is the deferred full unification; §7 is the proof both rest on.
 stale-below: §4 as a whole — superseded by §8 (its Q79-B is refuted in §7.3, its Q79-A fallback corrected in §7.1). Keep §4 only as the record of the first framing.
 known-rot: nothing known
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c tolerates a promote-leg OVER-CLAIM ("tolerated, not correct") because
@@ -381,3 +381,44 @@ descriptor can leave nodes disagreeing (A believes B owns it, B believes A does)
 **descriptor-bound** components only (§7.5); most simulation writers are un-gated (§7.5's audit), so axiom E is a property of
 the descriptor-bound set, not of every component. The transfer window is excluded, exactly as the wire spec excludes it.
 
+
+## 9. ⭐⭐⭐ THE MINIMAL FIX — no protocol change *(`2026-10-01`, the CURRENT proposal)*
+
+> 🔒 **User, `2026-10-01`, verbatim:** *"basically i do not want to change the existing network protocols like deferred takover.
+> This took lots of effort to make them working. Every change is very risky. It means i need a minimalistic change"*
+
+⇒ **§8 is DEFERRED** (D3 adds a new `OwnershipUpdate` initiator; D1/D8 re-gate every sender). **Built instead: ONE gate.**
+
+**Decision:** `NavigationIntentEgressTranslator` gates on the component claim of its source component —
+`repo.HasAuthority<NavigationIntent>(entity)` — instead of the network record (`view.HasAuthority(entity, packedKey)`).
+Exactly the shape `TacticalIntentEgressTranslator.cs:72` already uses (`HasAuthority<BehaviorState>`). No message, no system,
+no `DeferredTakeOwnership` / `OwnershipUpdate` / `PendingAuthorityGrants` change; every other sender untouched.
+
+| the fix rests on | code — how it IS | design — how it was MEANT |
+|---|---|---|
+| the egress exists ONLY on a networked Brain node | ✅ built only by `CognitiveTranslatorPack.cs:57`, only `if (_roleHasBrain)` (`NedReplicationModule.cs:290`); the editor runs `OfflineNetworkFactory` → `NullReplicationModule`; IG is `Map2D` | ✅ `CognitiveTranslatorPack.cs:25` "Brain and AllInOne" |
+| one networked Brain node per cluster | ✅ `R-157` + D4 guard | ✅ §8 D4, ruled |
+| Path A (CGF creates): CGF's claim holds `NavigationIntent` | ✅ creator = role table ∪ birthright | ✅ Role-Affinity §3.1 |
+| Path B (SimHost creates): CGF's promote leg claims it | ✅ `GhostPromotionSystem.cs:313-324` claims role table ∩ live mask, AFTER template `Inject`; the executors only `GetComponent<NavigationIntent>` (never add it) ⇒ it is template-materialised before the claim | ✅ Role-Affinity §3.2 promote leg |
+| the Muscle never claims it | ✅ `NavigationIntent` is in `brainOnly` (muscle READ set), `HrotRoleComponentSets.cs:163-178` | ✅ Role-Affinity §3.1 |
+| the receiver does not filter by sender | ✅ `NavigationIntentIngressTranslator.cs:67-89` resolves the entity and writes — no owner check | ⛔ searched `docs/`, no ruling — wire spec says only the owner *publishes*, not that a receiver checks |
+| the §3.9c promote over-claim cannot create a second sender | ✅ it is a Brain-only component; the over-claim matters only for components both roles produce | ✅ `known-conflict` above — unaffected for this one component |
+
+**Proof obligation** (§7.2 Theorem 1 restricted to one descriptor): at most one node composes the sender (rows 1-2) and that node
+holds the claim on both paths (rows 3-4) ⇒ exactly one sender, and it is the producer (Theorem 2). Late joiner (`CE-256`) does not
+arise — no grant is involved.
+
+**Blast radius:** 1 production line · 7 unit tests in `NavigationIntentEgressTranslatorTests` set the claim
+(`SetAuthority<NavigationIntent>`) beside the `NetworkAuthority` they set today. **Acceptance:**
+`CgfSubsystemHeadlessTests.SimHost_MoveToLocationMission_EntityMovesWithoutGhostTick` green; the feature's own suite
+(`NavigationIntentEgressTranslatorTests`) green plus a rail *"no claim ⇒ no publish even with `PrimaryOwnerId == local`"*.
+
+**Rejected (one line each):**
+- **§8 full unification** — re-gates 13 senders. That is the protocol-wide risk the user ruled out.
+- **D3 (promoter sends `OwnershipUpdate`)** — adds a new initiator to the built transfer, and `OwnershipIngressSystem.cs:57-67` is last-write-wins, so two initiators race.
+- **Creator decides the target** — the creator is SimHost on Path B, which has no strategy (`BrainMuscleOwnershipStrategy` is composed on CGF/IG only). Giving it one changes the takeover flow.
+- **Spawn on CGF in the test** — hides a real Path B gap.
+
+**What stays open (named, not fixed):** other Brain-produced descriptors that a SimHost-created entity needs published get the same
+one-line treatment **only when a rail shows the gap**. The network record and the claim still disagree for every other sender; §8 is
+the record of how to unify them later.
