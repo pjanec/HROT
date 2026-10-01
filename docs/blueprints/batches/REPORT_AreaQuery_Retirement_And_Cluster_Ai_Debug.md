@@ -71,6 +71,16 @@ runtime record of which graph runs** (it ticks one root graph). The trace names 
 |---|---|
 | `BlueprintBehaviorStateReader` (a fifth decode of a blueprint's state) | `BlueprintDebugSession` — its exact struct read + fixed-list formatting; `CaptureLiveBehaviorState` returns the same `BlueprintStateSnapshot` as an Instance blueprint |
 | a per-tree BTree symbolication table fed by the catalogue | `BehaviorRegistry.TryGetTreeBlob` — the lookup `BTreeVisualizerRenderer` already did, now one function both call |
+| `BytesOf` / an `Unsafe.SizeOf` reflection in the session's Behavior arm | `ComponentBytes` — the declared ONE owner of a value's managed bytes |
+| the editor's and CGF's hand-written Blueprint-session setup | `AiDebugSessionComposer.ComposeBlueprint` — one composition, both hosts |
+| the rail's hand copy of the cluster debug-API composition | `ClusterDebugApiComposition` — `Program.Main` and the rail call the same code |
+
+Three source-text rails pinned the hand-written forms and were re-pointed at the shared ones, intent unchanged:
+`TheAiDebugGroupExistsOnBothHostsTests` (a host with the AI-debug group builds a Blueprint session — now via `ComposeBlueprint`),
+`DebugApiCompositionTests.TheClusterBehaviorRegistryHandOffIsLazy` (CE-169 laziness — now checked in the composition) and
+`TheDebugProvidersDoNotUnderReportTests.TheRunnerSelectsProvidersByTheSeamTheseRailsAssert` (anti-vacuity — both halves).
+⚠ `Hrot.SystemTests/Conformance/ClusterConformanceRails.cs:573` still says *"the `acksPending` lambda in ClusterRunner/Program.cs"*
+in a failure MESSAGE — it lives in `ClusterDebugApiComposition` now. A STOP path, so not edited; the rail itself is behavioural.
 
 ⚠ Not duplicated but worth your eye: `RootParamsProjection` (inspector) and `LiveBlackboardValueProvider` (editor watch) decode a root block with `Marshal.PtrToStructure`, which the Blueprint session's own comments rule out (*"the two differ on bool"*), and it counts an `[InlineArray]` as one element. A Behavior blueprint's `State` hits that fallback in the inspector. Not changed here (behaviours-lane UI); routing them to the session's struct arm would make it one decoder everywhere.
 
@@ -87,6 +97,8 @@ runtime record of which graph runs** (it ticks one root graph). The trace names 
 | `Hrot.Presentation.Tests` | 298 / 0 | — |
 | `Hrot.Blueprints.Tests` `~Debug` | 329 / 0 / 2 skip | — |
 | `Hrot.Editor.Tests` | 438 / 1 / 1 skip | ⚠ `AiHotReloadCoordinatorTests.TwoReloadCycles_OldAlcIsCollected` — GC-order flake: 439/0 in the previous full run, passes alone twice |
+| `Hrot.ClusterRunner.Tests` (after the composition extraction) | 266 / 7 | ⚠ pre-existing, untouched areas: `MigrateModeTests` ×4 expect `v1 -> v2` (the format is at v3 now) · `OrchestratorSubsystemTests` ×3 expect *"not paused initially"* (the cluster boots paused) |
+| re-run after the second unification (composition + `ComposeBlueprint` + `ComponentBytes`) | SimHost 1011 / 6 · Editor 437 / 2 | ⚠ the extra reds (`EcsRecordReplayControllerTests`, `ReplayLoadClusterOpHandlerTests` ×2, `EditorMapPickAdapterTests`) ran beside a live cluster and **pass in isolation** (13 / 0, 5 / 0) |
 | `Hrot.Network.NED.Tests` · `Hrot.Map.Common.Tests` · `Hrot.Network.BDC.Tests` | 119 / 0 · 51 / 0 · 8 / 0 | — |
 | `Hrot.NED.Tests` | ⛔ does not build | pre-existing orphan: not in the solution, references `Hrot/Network/Hrot.NED/Hrot.NED.csproj`, which no longer exists |
 | `Fdp.Toolkits.Tests` | ⛔ does not build | pre-existing: `ChannelArbitrationTests.cs:270` (§3) |

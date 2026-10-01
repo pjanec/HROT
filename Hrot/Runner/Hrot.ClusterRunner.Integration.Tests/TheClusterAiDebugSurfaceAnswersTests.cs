@@ -5,15 +5,14 @@ using System.Threading;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Events;
 using Hrot.Map.Common;
-using Hrot.Presentation.DebugApi;
 using Xunit;
 
 namespace Hrot.ClusterRunner.Integration.Tests;
 
 /// <summary>
 /// ⭐⭐⭐ <c>CE-476</c> — the AI debug surface answers on a CONSTRUCTED, HEADLESS cluster: a real CGF + SimHost, the debug API
-/// built exactly as <c>Hrot.ClusterRunner/Program.cs</c> builds it (providers → dispatcher → the cluster ctor, with the
-/// world-keyed <c>aiDebugSurface</c> Func). 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c>.
+/// built by the same <c>ClusterDebugApiComposition</c> <c>Hrot.ClusterRunner/Program.cs</c> calls (providers → dispatcher →
+/// the cluster ctor, with the world-keyed <c>aiDebugSurface</c> Func). 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c>.
 /// </summary>
 /// <remarks>🔴 Before: <c>/trace/observe</c> → "Trace coordinator not available", <c>/trace</c> → <c>tier: unknown</c> for
 /// both commanders, <c>/variables</c> → "No blueprint debug session". And a headless CGF composed no BTree/HSM session at all.</remarks>
@@ -40,16 +39,11 @@ public sealed class TheClusterAiDebugSurfaceAnswersTests
         var h = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _domain));
         var subsystems = new object[] { h.SimHost, h.Cgf! };
 
-        // ⭐ The composition root's own shape (Program.cs), not a hand-picked session.
-        var providers = subsystems.OfType<IProvidesDebugSurface>()
-                                  .Select(p => p.CreateDebugProvider()).Where(p => p != null).Select(p => p!).ToList();
-        var dispatcher = new PerspectiveScopedDispatcher(providers, currentPerspective: perspective, acksPending: null);
+        // ⭐ The composition root's OWN code (ClusterDebugApiComposition — what Program.Main calls), not a copy of it.
         var api = new Hrot.Editor.DebugApi.DebugApiService(
-            dispatcher,
-            behaviorRegistry: () => h.Cgf!.BehaviorRegistry,
-            aiDebugSurface: world => subsystems.OfType<Hrot.CGF.CgfSubsystem>()
-                                               .Select(s => s.AiDebugSurface)
-                                               .FirstOrDefault(a => a is not null && ReferenceEquals(a.World, world)));
+            Hrot.Runner.ClusterDebugApiComposition.Dispatcher(subsystems, perspective),
+            behaviorRegistry: Hrot.Runner.ClusterDebugApiComposition.BehaviorRegistry(subsystems),
+            aiDebugSurface: Hrot.Runner.ClusterDebugApiComposition.AiDebugSurface(subsystems));
         return new Rig(h, api, perspective);
     }
 

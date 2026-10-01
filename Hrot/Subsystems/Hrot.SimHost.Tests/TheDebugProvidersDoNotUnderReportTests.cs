@@ -225,11 +225,16 @@ namespace Hrot.SimHost.Tests
         [Fact]
         public void TheRunnerSelectsProvidersByTheSeamTheseRailsAssert()
         {
+            // ⭐ CE-476: the selection is composed ONCE, in ClusterDebugApiComposition (Program.Main and the cluster rails
+            //   share it) — so the anti-vacuity checks both halves: the runner calls it, and it selects by the seam.
             var program = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
                 "Hrot/Runner/Hrot.ClusterRunner/Program.cs"));
+            var composition = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
+                "Hrot/Runner/Hrot.ClusterRunner/ClusterDebugApiComposition.cs"));
 
-            Assert.Contains("OfType<Hrot.Presentation.DebugApi.IProvidesDebugSurface>()", program);
-            Assert.Contains("CreateDebugProvider()", program);
+            Assert.Contains("ClusterDebugApiComposition.Dispatcher(", program);
+            Assert.Contains("OfType<Hrot.Presentation.DebugApi.IProvidesDebugSurface>()", composition);
+            Assert.Contains("CreateDebugProvider()", composition);
 
             var dispatcher = CompositionRootSource.StripComments(CompositionRootSource.ReadRepoSource(
                 "Hrot/Engine/Hrot.Presentation/DebugApi/PerspectiveScopedDispatcher.cs"));

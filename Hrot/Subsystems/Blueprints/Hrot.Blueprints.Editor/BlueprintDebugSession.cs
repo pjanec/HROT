@@ -688,7 +688,12 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         if (!Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytesInView(_view, self, out byte* root) || root == null)
             return null;
 
-        int size  = (int)UnsafeSizeOfMethod.MakeGenericMethod(layout).Invoke(null, null)!;
+        // ⭐ The managed size — ComponentBytes, the ONE owner of "a value's managed image" (⛔ not Marshal.SizeOf).
+        //   ⚠ It requires an unmanaged type; a layout carrying references is not a block we can read — a debug read
+        //   reports "absent", it never throws into the API.
+        int size;
+        try { size = ComponentBytes.SizeOf(layout); }
+        catch (ArgumentException) { return null; }
         var bytes = new ReadOnlySpan<byte>(root, size).ToArray();
         if (!TryReadStruct(bytes, layout, out var block) || block is null) return null;
 
@@ -716,20 +721,9 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     private static object FormatFieldValue(object value, Type type)
     {
         if (!type.IsValueType || type.IsPrimitive || type.IsEnum) return value;
-        var bytes = (byte[])BytesOfMethod.MakeGenericMethod(type).Invoke(null, new[] { value })!;
+        var bytes = ComponentBytes.Of(value, ComponentBytes.SizeOf(type));
         return TryFormatFixedList(bytes, type, out var formatted) ? formatted : value;
     }
-
-    private static byte[] BytesOf<T>(T value) where T : struct
-    {
-        var bytes = new byte[System.Runtime.CompilerServices.Unsafe.SizeOf<T>()];
-        System.Runtime.CompilerServices.Unsafe.WriteUnaligned(ref bytes[0], value);
-        return bytes;
-    }
-
-    private static readonly System.Reflection.MethodInfo BytesOfMethod =
-        typeof(BlueprintDebugSession).GetMethod(nameof(BytesOf),
-            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
 
     /// <summary>
     /// Wires the concrete live <see cref="EntityRepository"/> for sub-tick snapshot recording (NGS-2.0).

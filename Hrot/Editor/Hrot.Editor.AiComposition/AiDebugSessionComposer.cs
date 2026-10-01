@@ -68,4 +68,27 @@ public static class AiDebugSessionComposer
             new Hrot.BTree.Editor.Debug.BTreeDebugSession(coordinator, behaviors),
             new Hrot.Hsm.Editor.Debug.HsmDebugSession(coordinator));
     }
+
+    /// <summary>
+    /// ⭐ <c>CE-476</c> — <b>the ONE Blueprint debug-session composition</b>, for the editor and CGF alike. Both hosts
+    /// wrote this sequence out by hand (construct · breakpoint manager · live repository · attach) and each new
+    /// dependency had to be added twice — the behaviour registry was. ⛔ Not defaulted: every argument is one both hosts
+    /// hold (silent-default rule).
+    /// </summary>
+    /// <remarks><see cref="Hrot.Blueprints.Core.Debug.BlueprintDebugSession.Attach"/> makes the session the process
+    /// <c>DebugProbe.Sink</c>.</remarks>
+    public static Hrot.Blueprints.Core.Debug.BlueprintDebugSession ComposeBlueprint(
+        Fdp.Toolkit.Blueprints.BlueprintRegistry registry,
+        Fdp.Core.EntityRepository world,
+        IEngineDebugTimeController timeController,
+        IDataBreakpointManager? breakpoints,
+        Fdp.Toolkit.Behavior.BehaviorRegistry? behaviors)
+    {
+        var session = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(registry, world, timeController);
+        session.SetDataBreakpointManager(breakpoints);
+        session.SetLiveRepository(world);   // NGS-2.0: sub-tick recording
+        session.SetBehaviorRegistry(behaviors);
+        session.Attach();
+        return session;
+    }
 }

@@ -79,7 +79,8 @@ public sealed class TheAiDebugGroupExistsOnBothHostsTests
         var text = HostSource.Read(project, file);
         if (!text.Contains("AiDebugCommands.Register(", StringComparison.Ordinal)) return;
 
-        Assert.Contains("new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(", text);
+        // ⭐ CE-476: both hosts build it through the ONE composition (AiDebugSessionComposer.ComposeBlueprint).
+        Assert.Contains("AiDebugSessionComposer.ComposeBlueprint(", text);
     }
 
     // ══ ② THE MIRROR ════════════════════════════════════════════════════════

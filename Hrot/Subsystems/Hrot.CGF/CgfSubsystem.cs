@@ -1570,13 +1570,9 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         //   `MultiplexingProbeSink` — which already exists for exactly that case.
         // ⛔ NOT wired: the debounced session SAVE the editor attaches (`ScheduleDebugSessionSave`). That
         //   is editor-side layout persistence, not a debug capability, and this host has no equivalent.
-        var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
-            _blueprintRegistry!, _context.World, bpTimeAdapter);
-        bpBlueprintSession.SetDataBreakpointManager(_bpManager);
-        bpBlueprintSession.SetLiveRepository(_context.World);
-        // ⭐ CE-476 — this host holds the behaviour registry, so the session can read a Behavior-dispatch blueprint.
-        bpBlueprintSession.SetBehaviorRegistry(_behaviorRegistry);
-        bpBlueprintSession.Attach();
+        // ⭐ CE-476 — the ONE composition, shared with the editor (it carries the behaviour registry too).
+        var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
+            _blueprintRegistry!, _context.World, bpTimeAdapter, _bpManager, _behaviorRegistry);
         _blueprintDebugSession = bpBlueprintSession;
 
         // ⭐⭐⭐ CE-476 — THE BTREE/HSM SESSIONS ARE COMPOSED HERE, HEADLESS INCLUDED, AND THE NODE'S AI DEBUG

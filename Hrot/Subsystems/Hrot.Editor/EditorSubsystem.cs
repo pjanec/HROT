@@ -1773,14 +1773,9 @@ namespace Hrot.Editor
                 _bpManager, () => _kernel.IsPublishingGlobalTime));
 
             // ── Blueprint debug session bridge (UBP-P10T6) ───────────────────────────────────
-            var bpBlueprintSession = new Hrot.Blueprints.Core.Debug.BlueprintDebugSession(
-                _blueprintRegistry, _world!, bpTimeAdapter);
-            bpBlueprintSession.SetDataBreakpointManager(_bpManager);
-            bpBlueprintSession.SetLiveRepository(_world);  // NGS-2.0: wire live repo for sub-tick recording
-            // ⭐ CE-476 — so the session can read a Behavior-dispatch blueprint (it has no BlueprintDefinition).
-            bpBlueprintSession.SetBehaviorRegistry(_behaviorRegistry);
-            Hrot.Blueprints.Core.Debug.DebugProbe.Sink = bpBlueprintSession;
-            bpBlueprintSession.Attach();
+            // ⭐ CE-476 — the ONE composition, shared with CGF (Attach makes it the DebugProbe sink).
+            var bpBlueprintSession = Hrot.Editor.AiComposition.AiDebugSessionComposer.ComposeBlueprint(
+                _blueprintRegistry, _world!, bpTimeAdapter, _bpManager, _behaviorRegistry);
             _blueprintDebugSession = bpBlueprintSession;
 
             // ── CF-8: Debounced save on breakpoint/session changes ────────────────────────
