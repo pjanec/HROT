@@ -171,8 +171,8 @@ public sealed class BlueprintTestFixture : IDisposable
         View.AdvanceTime(deltaTime);
 
         // 3. Simulation phase
-        // Inject the fixture's MockEntityCommandBuffer so blueprints get EAGER entity
-        // creation semantics (CreateEntity returns a real entity, not a deferred placeholder).
+        // Inject the fixture's MockEntityCommandBuffer. ⭐ It DEFERS creation like production (a placeholder until
+        // the Sync-phase Playback below) — it used to be eager, which hid CE-479.
         // Pass _repo (EntityRepository) so BlueprintTickSystem can cast for write access.
         // Also sync repo simulation time so view.Time is accurate for tick delegates.
         _repo.SetSimulationTime(View.Time);

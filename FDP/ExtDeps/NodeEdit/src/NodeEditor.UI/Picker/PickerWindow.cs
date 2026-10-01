@@ -79,6 +79,7 @@ public sealed class PickerWindow
         _state.Reset(request.ContextKey, request.InitialQuery, request.SelectionMode);
         _state.AllEntries = _requestEntries;
         _state.Refilter();
+        _state.ApplyInitialSelection(request.InitialSelectionId);
 
         _isOpen = true;
     }
@@ -466,18 +467,14 @@ public sealed class PickerWindow
             }
         }
 
-        if (_state.SelectedFilteredIndices.Count == 0 && _state.Filtered.Count > 0)
+        // Default confirm (nothing selected): the focused item. Disabled entries never confirm; if ONLY
+        // disabled ones were picked, stay open rather than return an empty choice.
+        var selected = _state.ConfirmableSelection(out bool onlyDisabled);
+        if (onlyDisabled)
         {
-            // Default confirm: first item.
-            _state.SelectedFilteredIndices.Add(_state.KeyboardFocusIndex >= 0
-                ? _state.KeyboardFocusIndex : 0);
+            _state.Confirmed = false;
+            return;
         }
-
-        var selected = _state.SelectedFilteredIndices
-            .Where(i => i >= 0 && i < _state.Filtered.Count)
-            .OrderBy(i => i)
-            .Select(i => _state.Filtered[i])
-            .ToList();
 
         // Update recent store.
         foreach (var re in selected)

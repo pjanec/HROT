@@ -125,7 +125,7 @@ public sealed class DefaultLiteralTests
     [InlineData("float",   "1.0.0")]
     [InlineData("bool",    "True")]        // JSON is lower-case; `True` is not a C# literal either
     [InlineData("byte",    "300")]         // parses as a number, does not fit the declared type
-    [InlineData("Vector3", "[0, 1, 0]")]   // no literal form at all
+    [InlineData("Vector3", "[0, 1]")]      // ⭐ CE-415: a vector HAS a literal form now — but not with two components
     public void AnUntypableDefault_IsRefusedByTheCompilerNotByRoslyn(string typeId, string json)
     {
         var result = CompileVariable(typeId, json);
@@ -134,6 +134,21 @@ public sealed class DefaultLiteralTests
         Assert.Contains(result.Diagnostics, d => d.Code == "BP1674");
         // ⭐ The message names the declaration, in the compiler's own language.
         Assert.Contains(result.Diagnostics, d => d.Code == "BP1674" && d.Message.Contains("Value"));
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-415</c> — a vector default is a constructor call, read by <c>VectorLiteral</c> from either spelling on
+    /// disk. 🔴 RED before: <c>BP1674</c> "type has no literal form".
+    /// </summary>
+    [Theory]
+    [InlineData("Vector3", "[0, 1.5, -2]",            "new global::System.Numerics.Vector3(0F, 1.5F, -2F)")]
+    [InlineData("Vector3", "<-0,5\u00A0 0\u00A0 0>", "new global::System.Numerics.Vector3(-0.5F, 0F, 0F)")]
+    public void AVectorDefault_IsAConstructorCall(string typeId, string json, string expected)
+    {
+        var result = CompileVariable(typeId, System.Text.RegularExpressions.Regex.Unescape(json));
+
+        Assert.True(result.Succeeded, Diags(result));
+        Assert.Contains($"s.Value = {expected};", result.GeneratedSource);
     }
 
     /// <summary>

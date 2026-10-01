@@ -2784,4 +2784,39 @@ namespace Stub
             d.Id == BTreeJsonGenerator.CodegenWarningId && d.Severity == DiagnosticSeverity.Warning,
             "must still report BTREE0002 — the schema fallback must not silently mask a broken reference");
     }
+
+    // ── ⭐ CE-423 — a State variable that would get NO storage is an error, never a silent skip ─────────────
+
+    /// <summary>
+    /// 🔴 RED before: a standalone <c>Role=State</c> variable at <c>Scope=Node</c> (the enum default, omitted on save) was
+    /// skipped by the bridge emitter — no slot, no diagnostic. ⭐ Now it is <c>BTREE0003</c>, naming the variable.
+    /// <c>Behavior</c> is the control: same variable, legal scope, no diagnostic.
+    /// </summary>
+    [Theory]
+    [InlineData(Hrot.AiEditor.Persistence.WorkingStateScope.Node,     true)]
+    [InlineData(Hrot.AiEditor.Persistence.WorkingStateScope.Behavior, false)]
+    public void CE423_AStandaloneStateVariable_AtNodeScope_IsAnError(
+        Hrot.AiEditor.Persistence.WorkingStateScope scope, bool expectError)
+    {
+        var dto = BehaviorTreeAssetMapper.ToDto(LoadSampleScout());
+        dto.Blackboard.Managed = true;
+        dto.Blackboard.Variables.Add(new BlackboardVariableDto
+        {
+            Name  = "Unbound",
+            Type  = new() { TypeId = "System.Int32" },
+            Role  = Hrot.AiEditor.Persistence.BlackboardVariableRole.State,
+            Scope = scope,
+        });
+
+        var result = RunGenerator(MakeAdditionalText("/p/SampleScout.btree.json", BTreeJsonServices.Serialize(dto)));
+
+        var hits = result.Diagnostics.Where(d => d.Id == BTreeJsonGenerator.StateStorageErrorId).ToList();
+        if (expectError)
+        {
+            hits.Should().ContainSingle();
+            hits[0].Severity.Should().Be(DiagnosticSeverity.Error);
+            hits[0].GetMessage().Should().Contain("Unbound").And.Contain("Behavior");
+        }
+        else hits.Should().BeEmpty();
+    }
 }

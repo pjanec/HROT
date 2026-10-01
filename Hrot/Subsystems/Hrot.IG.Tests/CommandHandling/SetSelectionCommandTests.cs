@@ -78,7 +78,7 @@ public class SetSelectionCommandTests : IDisposable
     }
 
     /// <summary>
-    /// OC1-G001 Scenario 3 — empty JSON: silently ignored.
+    /// OC1-G001 Scenario 3 — empty JSON: no exception. ⚠ Since Q73 §8 it means "no id" ⇒ a clear.
     /// </summary>
     [Fact]
     public void EmptyJson_SilentlyIgnored()
@@ -86,6 +86,32 @@ public class SetSelectionCommandTests : IDisposable
         var ex = Record.Exception(() =>
             _app.TestHook_ParseCommandAndSetSelection(""));
         Assert.Null(ex);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>Q73 §8 — a command with NO id CLEARS the selection.</b> 🔒 User, <c>2026-09-30</c>: <i>"set
+    /// selection without id means clear."</i> ⇒ ExCon can clear the IG map it remote-controls, which no
+    /// command could express before. Three spellings of "no id": absent, 0, no arguments.
+    /// 🔴 Red-proof: restore the early <c>return</c> on a missing id ⇒ the entity stays selected.
+    /// </summary>
+    [Theory]
+    [InlineData("{}")]
+    [InlineData("{\"entityId\":0}")]
+    [InlineData("")]
+    public void Q73_A_command_without_an_id_clears_the_selection(string argsJson)
+    {
+        RegisterEntity(42L);
+        _app.TestHook_ParseCommandAndSetSelection("{\"entityId\":42}");
+        PumpOneFrame();
+        Assert.True(_app.TestHook_EntityMap.TryGetEntity(42L, out var entity));
+        Assert.True(_app.World.GetComponent<SelectionState>(entity).IsSelected
+                    || _app.World.GetComponent<SelectionState>(entity).IsPrimarySelection);
+
+        _app.TestHook_ParseCommandAndSetSelection(argsJson);
+        PumpOneFrame();
+
+        var state = _app.World.GetComponent<SelectionState>(entity);
+        Assert.False(state.IsSelected || state.IsPrimarySelection);
     }
 
     /// <summary>

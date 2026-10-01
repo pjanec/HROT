@@ -118,6 +118,7 @@ public static class T32_ComposedGeneratedBlueprintRegistrar
             Name         = "T32_ComposedGeneratedBlueprint",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 4532758880387763782UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("bpParams", typeof(global::Hrot.AI.Behaviors.Generated.EnumDemo_235986DF_Bp.Params), 0),

@@ -37,6 +37,9 @@ internal static class TreeLayout
                     DrawImplicitTree(state, ctx);
                 }
 
+                // The initial-selection reveal is one-shot: this draw has opened its folders.
+                state.RevealCategory = null;
+
                 // Clamp tree focus after rebuild (row count may have changed).
                 if (state.VisualRows.Count > 0)
                     state.TreeFocusRow = Math.Clamp(state.TreeFocusRow, 0, state.VisualRows.Count - 1);
@@ -122,6 +125,12 @@ internal static class TreeLayout
         {
             ImGui.SetNextItemOpen(state.PendingToggleOpen, ImGuiCond.Always);
             state.PendingToggleFolderPath = null;
+        }
+        else if (state.RevealCategory is { } reveal
+                 && (reveal == fullPath || reveal.StartsWith(fullPath + "/", StringComparison.Ordinal)))
+        {
+            // Initial selection: open every folder on the pre-selected entry's path.
+            ImGui.SetNextItemOpen(true, ImGuiCond.Always);
         }
 
         bool open = ImGui.TreeNodeEx(folder.Name, treeFlags);
@@ -234,6 +243,14 @@ internal static class TreeLayout
         state.VisualRows.Add(new PickerState.TreeRow(
             IsFolder: false, FolderPath: "", FilteredIndex: filteredIdx, Depth: depth));
 
+        // Initial selection: the pre-selected leaf becomes the focused ROW, so Enter confirms it rather
+        // than expanding whatever folder happens to be row 0.
+        if (state.FocusLeafOnDraw == filteredIdx)
+        {
+            state.TreeFocusRow = visualRowIndex;
+            state.FocusLeafOnDraw = -1;
+        }
+
         ImGui.PushID(filteredIdx);
 
         var pos = ImGui.GetCursorScreenPos();
@@ -286,9 +303,11 @@ internal static class TreeLayout
         }
 
         // Render name with match highlights.
-        uint defaultTextColor = sel
-            ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
-            : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        uint defaultTextColor = !re.Entry.IsEnabled
+            ? ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.45f })
+            : sel
+                ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f))
+                : ImGui.GetColorU32(ctx.Theme.TextDefault);
         uint highlightColor = sel
             ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f))
             : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
@@ -310,7 +329,11 @@ internal static class TreeLayout
             state.TreeFocusRow = visualRowIndex;
         }
 
-        // Double-click confirms.
+        // A disabled entry says why on hover (its Description), since it cannot be picked.
+        if (!re.Entry.IsEnabled && ImGui.IsItemHovered() && re.Entry.Description is { Length: > 0 } why)
+            ImGui.SetTooltip(why);
+
+        // Double-click confirms (Confirm() refuses a disabled entry).
         if (ImGui.IsItemHovered() && ImGui.IsMouseDoubleClicked(ImGuiMouseButton.Left))
         {
             state.Confirmed = true;

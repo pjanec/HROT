@@ -166,6 +166,10 @@ public static class HsmBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}HsmMetadata   = blob.Metadata,");
         if (hasParseParams)
             sb.AppendLine($"{pad2}{Indent}ParseParams   = __parseParams,");
+        // ⭐ CE-455 — the root block's LAYOUT hash (Inputs only: an HSM's State lives in the partition tier), so a hot
+        //   reload that reorders/retypes the parameters at the SAME width restarts a running machine.
+        if (packedFields.Count > 0)
+            sb.AppendLine($"{pad2}{Indent}BlueprintStructureHash = {BTreeBlackboardPackHelper.LayoutHash(packedFields)}UL,   // CE-455: the root block's layout");
         // ⭐⭐ CE-226 — DESCRIBE the parameters this asset accepts, not just parse them.
         //
         // Measured 2026-09-08: the HSM generator emitted ParseParams (so the asset DID accept a key)

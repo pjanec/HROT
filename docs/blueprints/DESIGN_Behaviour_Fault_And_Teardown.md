@@ -1,7 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a);
+build-state: BUILDING — every decision below APPROVED by the user on 2026-10-01 (section 1). CE-485 BUILT (section 4a); the
+  CE-483 egress half + CE-484 BUILT (section 4c);
   CE-482/483 BUILT (section 4b); the WIRE half CE-486/487/490 BUILT by the backend lane (section 3a).
   D5 was REVISED the same day (descriptor rules) — section 5 holds the superseded form.
 current-answer: section 1 (the decisions, as approved) → section 3 (the diagrams — they ARE the design) → section 4 (the work
@@ -348,6 +349,182 @@ immediately restart a sensor-using behaviour in the SAME frame ⇒ the restarted
 25 s: C# `hill-attack-close` and blueprint `hill-attack-close-bp` both bring hostiles 1006/1007 to `Health 0` by t≈50 s; the
 area sensor (the 9th entity) is present while the attack runs and gone by t≈75 s (8 entities) — the outcome is unchanged and the
 sensor leaves with the run.
+
+## 4c. Design — the wire half: `CE-483` egress + `CE-484` *(user `2026-10-01`: "go ahead with CE-484 and the CE-483 egress half")*
+
+⚠ Both were filed backend + UI lane; the user assigned them to the behaviours lane. ⭐ Kept narrow: two NED translators edited,
+two added, one log source, two host registrations.
+
+### Claim table — what the design rests on
+
+| the design rests on | code — how it IS | design basis |
+|---|---|---|
+| the mission egress never re-publishes a phase change | ✅ reliable descriptors publish once, then only when dirtied (`SmartEgressUtil.cs:101-114`); the ONLY `MarkDirty` of ordinal 51 is `MissionControlExecutionSystem.cs:187,237` (operator commands) — `MissionDirectorSystem` advancing / recording / halting dirties nothing | ⛔ searched `docs/`+`.dev/`, none found — a latent gap, not a decision |
+| every task's state is derived from `CurrentPhase` | ✅ `EntityMissionEgressTranslator.cs:142` | D3 (§1): Done / Failed / Faulted ⇒ `TASK_DONE` / `TASK_FAILED` |
+| a replica (and a NEW authority) restarts the plan at phase 0 | ✅ `EntityMissionIngressTranslator.BuildQueue` sets `CurrentPhase = 0`, drops every task state | ⛔ none found |
+| the wire states suffice — no wire change for CE-483 | ✅ `eTaskState` = PLANNED · ACTIVE · DONE · FAILED · SKIPPED (`MissionDescriptors.cs:12-19`) | D3 |
+| the operator surface is the Message Log window | ✅ one tab per `IMessageLogSource`, red attention badge on Warning+ (`MessageLogPanel`); the editor and CGF register `AiBehaviorLogTarget.SharedInstance` (`EditorSubsystem.cs:5042`, `CgfSubsystem.cs:1951`); the ClusterRunner window collects both through `IWindowRegistrar` | ⛔ `NotificationOverlay` (named in the work item) is a per-blueprint-DOCUMENT designer toast (`NotificationOverlay.cs:8-30`) — not an operator surface ⇒ deviation |
+| the egress precedent | ✅ `WeaponFireNotificationEgressTranslator` — read the bus event, map `Entity`→net id, write | work item `CE-484` |
+| `RegisterSource` is idempotent | ✅ `MessageLogRegistry.RegisterSource` checks `Contains` | — |
+| descriptor ordinal 97 is free on every lane | ✅ `behaviors`, `backend`, `ui`, `coordinator` | — |
+
+### Class diagram
+
+```mermaid
+classDiagram
+    class MissionPlanQueue {
+        <<existing, Fdp.Toolkits>>
+        CurrentPhase
+        PhaseCount
+        Outcomes
+        Halted
+    }
+    class EntityMissionEgressTranslator {
+        <<existing, NED - CHANGED>>
+        -lastSent : Dictionary netId to progress
+        +ScanAndPublish()
+        +TaskState(queue, i) eTaskState
+    }
+    class EntityMissionIngressTranslator {
+        <<existing, NED - CHANGED>>
+        -BuildQueue(mission) MissionPlanQueue
+    }
+    class MissionProgressWire {
+        <<new, NED, static>>
+        +StateOf(queue, i) eTaskState
+        +Decode(states, ref queue)
+    }
+    class BehaviorFaultNotification {
+        <<existing, Fdp.Toolkits>>
+    }
+    class BehaviorFault {
+        <<existing - CHANGED>>
+        +Raise() also reports to BehaviorFaultLog.Shared
+    }
+    class BehaviorFaultLog {
+        <<new, Fdp.Toolkits, IMessageLogSource>>
+        +Shared$
+        +Report(key, text) bool
+    }
+    class BehaviorFaultSample {
+        <<new DDS topic BehaviorFault, ordinal 97>>
+        EntityId
+        OriginNodeId
+        BehaviorName
+        InstanceId
+        Code
+        Message
+        SimTime
+    }
+    class BehaviorFaultEgressTranslator {
+        <<new, NED, CognitiveTranslatorPack>>
+    }
+    class BehaviorFaultIngressTranslator {
+        <<new, NED, SharedTranslatorPack>>
+    }
+    EntityMissionEgressTranslator ..> MissionProgressWire
+    EntityMissionIngressTranslator ..> MissionProgressWire
+    MissionProgressWire ..> MissionPlanQueue
+    BehaviorFault ..> BehaviorFaultNotification : publishes
+    BehaviorFault ..> BehaviorFaultLog : local report
+    BehaviorFaultEgressTranslator ..> BehaviorFaultNotification : reads bus
+    BehaviorFaultEgressTranslator ..> BehaviorFaultSample : writes
+    BehaviorFaultIngressTranslator ..> BehaviorFaultSample : reads
+    BehaviorFaultIngressTranslator ..> BehaviorFaultLog : remote report
+```
+
+*What the picture shows that prose hid:* ONE mapping (`MissionProgressWire`) is used by BOTH mission translators, so the egress
+encoding and the ingress decoding cannot drift apart; and the fault log has exactly two producers, local and remote, behind one
+de-duplicating `Report`.
+
+### Sequence — a faulted phase reaches the wire and the operator
+
+```mermaid
+sequenceDiagram
+    participant B as BrainTickSystem
+    participant F as BehaviorFault
+    participant L as BehaviorFaultLog
+    participant D as MissionDirectorSystem
+    participant ME as EntityMissionEgress
+    participant FE as BehaviorFaultEgress
+    participant FI as BehaviorFaultIngress (every node)
+    participant MI as EntityMissionIngress (replica)
+    B->>F: Raise(MissionPhase entity, MissingInput, msg)
+    F->>L: Report(key, text) - local tab
+    F-->>FE: BehaviorFaultNotification (bus)
+    B-->>D: BehaviorFinishedEvent Outcome Faulted
+    D->>D: Outcomes[cur] = Failed, Halted = 1
+    FE->>FI: BehaviorFault sample (net id, name, instance, code)
+    FI->>L: Report(key, text) - de-duplicated
+    ME->>ME: progress changed vs last sent
+    ME->>MI: EntityMission, task cur = TASK_FAILED, none ACTIVE
+    MI->>MI: Decode - Outcomes, CurrentPhase = cur, Halted = 1
+```
+
+### Module diagram — who runs each piece, on which host
+
+```mermaid
+graph TD
+    subgraph Brain_or_AllInOne
+      CTP[CognitiveTranslatorPack] --> ME2[EntityMissionEgress]
+      CTP --> MI2[EntityMissionIngress]
+      CTP --> FE2[BehaviorFaultEgress NEW]
+    end
+    subgraph Every_DDS_node
+      STP[SharedTranslatorPack] --> FI2[BehaviorFaultIngress NEW]
+    end
+    subgraph Hosts_with_a_Message_Log_window
+      ED[EditorSubsystem] --> REG[MessageLogRegistry]
+      CGF[CgfSubsystem] --> REG
+      REG --> TAB[Behaviour faults tab]
+    end
+    FI2 --> LOG[BehaviorFaultLog.Shared]
+    RAISE[BehaviorFault.Raise any host] --> LOG
+    LOG --> TAB
+    IG[IG host - no Message Log window]:::dead
+    classDef dead fill:#fdd,stroke:#c00
+```
+
+*Caption:* the red box is the dead edge — **IG has no Message Log window** (`MessageLogRegistry` is registered only by the editor,
+CGF, Stride and the ClusterRunner window), so an IG-only operator does not see the tab. ⚠ Filed as a follow-up, not built here.
+
+### Decisions *(decide-and-log; overridable)*
+
+| | decision |
+|---|---|
+| **W1** | ⭐ the task state comes from the recorded outcome first: `Done`⇒`TASK_DONE`, `Failed`⇒`TASK_FAILED`; else `i == CurrentPhase && !Halted` ⇒ `TASK_ACTIVE`; else `TASK_PLANNED`. A halted plan therefore has **no** ACTIVE task and its current phase reads `TASK_FAILED` |
+| **W2** | ⭐ the egress re-publishes when the **progress** (`CurrentPhase`, `PhaseCount`, `Halted`, `Outcomes`) differs from what it last sent for that net id — ⛔ not by asking every writer to `MarkDirty` (three writers today, and the one that advances phases forgot) |
+| **W3** | ⭐ the ingress decodes the states back: outcomes from DONE/FAILED; `CurrentPhase` = the ACTIVE task; with no ACTIVE task, a FAILED task followed by a PLANNED one ⇒ halted on it; otherwise the plan is complete (`CurrentPhase = PhaseCount`). ⚠ A fault on the LAST phase decodes as "complete" — equivalent for the adapter (nothing to run either way) |
+| **W4** | ⭐ a new topic `BehaviorFault` (ordinal **97**) on the `WeaponFire` precedent — event-shaped, keyed by nothing; carries the origin node id, the net id, the behaviour NAME (resolved on the brain through `BehaviorRegistry`), the run, the code and the message |
+| **W5** | ⭐ the operator surface is a **Behaviour faults** tab in the Message Log (`BehaviorFaultLog`, Error rows ⇒ red badge), fed locally by `BehaviorFault.Raise` (covers the offline editor, where no egress runs) and remotely by the ingress; one `Report` de-duplicates on (net id or local index, run, behaviour) so `--mode all` shows each fault once |
+
+**Rejected — one line each:**
+- *`MarkDirty` from `MissionDirectorSystem`* — Fdp.Toolkits cannot know the Hrot descriptor ordinal, and every future writer would have to remember.
+- *A new task-state value for "halted"* — a wire-enum change for information the existing states already carry.
+- *`NotificationOverlay`* — a per-document designer toast, drained only by an open blueprint document.
+- *Log the fault through `AiBehaviorLogTarget`* — buried among routine behaviour lines; the tab's red badge is the point.
+- *Ingress republishes a managed event, a system feeds the tab* — needs `RegisterManagedEvent` on every role and a system on every host for the same result.
+- *Skip loopback by authority* — split authority means the brain may not own the primary descriptor; the origin node id is exact.
+
+### As built *(`2026-10-01`)* — matches the diagrams; two notes
+
+| | |
+|---|---|
+| W1–W3 | ✅ `Hrot.Network.NED/Replication/Map/MissionProgressWire.cs` (`StateOf`, `Decode`, `ProgressOf`); egress `EntityMissionEgressTranslator` (state + `_lastSentProgress`, forgotten on `Dispose`); ingress `EntityMissionIngressTranslator.BuildQueue` |
+| W4 | ✅ `Hrot.Network.NED/BehaviorFaultMessages.cs` (`BehaviorFaultReport`, IDL `hrot-behavior-fault`), `dtBehaviorFault = 97`; `Translators/BehaviorFaultTranslators.cs` — egress in `CognitiveTranslatorPack`, ingress in `SharedTranslatorPack` |
+| W5 | ✅ `Fdp.Toolkits/Behavior/Events/BehaviorFaultLog.cs` (tab *Behaviour Faults*, Error rows, de-dup memory 4096 keys); `BehaviorFault.Raise` reports locally; registered in `EditorSubsystem` + `CgfSubsystem` next to `AiBehaviorLogTarget` |
+| ⚠ note 1 | the LOCAL row names the behaviour by its hash (`#XXXXXXXX`) — `Raise` has no `BehaviorRegistry`; a remote row carries the registered name. On one node with both, the first report wins the de-dup |
+| ⚠ note 2 | IG has no Message Log window ⇒ an IG-only operator saw nothing — filed `CE-495`. ✅ **Closed `2026-10-01` (UI lane):** IG subscribes `BehaviorFaultLog.Shared.OnMessageAdded` and writes each row to its normal NLog log at Error (`IgApplication.WriteBehaviorFaultToLog`), per the user's "nothing more required for now" |
+
+**Rails:** `EntityMissionTranslatorTests.CE483_*` (state mapping, halted, round-trip ×3, ingress restore, egress re-publish — **red-proved**: with the progress check removed the egress test fails) · `BehaviorFaultTranslatorTests` (egress fields + no-net-id skip; ingress row, duplicate, own-origin, next run) · `HillAttackIntegrationTests.CE482_MissingArea_FaultsTheRun_LoudlyAndOnce` now also asserts the one Error row.
+
+### Acceptance
+
+① egress: a halted plan sends its current task `TASK_FAILED` and no `TASK_ACTIVE`; a Done/Failed history reads ✓/✗; a phase
+advance re-publishes without any `MarkDirty` · ② ingress round-trip: encode → decode restores `CurrentPhase`, `Outcomes`,
+`Halted` (and a plain advance restores the right phase instead of 0) · ③ the fault egress writes one sample per notification with
+the resolved net id and name; the ingress reports it once, and a duplicate (loopback / local) is dropped · ④ existing mission and
+NED suites unchanged.
 
 ## 5. ⛔ HISTORY — superseded D5 *(do not quote as current)*
 

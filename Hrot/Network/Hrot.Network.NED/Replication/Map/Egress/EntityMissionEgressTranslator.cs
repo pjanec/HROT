@@ -29,6 +29,11 @@ namespace Hrot.Map.Common.Replication.Egress
         private readonly NetworkEntityMap _entityMap;
         private readonly BehaviorRegistry? _behaviorRegistry;
 
+        // ⭐ CE-483 (egress half, W2): the progress last SENT per net id. A reliable descriptor is published once and then
+        // only when dirtied, and the only MarkDirty of this ordinal is the operator-command path — MissionDirectorSystem
+        // advancing, recording an outcome or halting dirtied nothing, so the wire never saw a phase change.
+        private readonly Dictionary<long, (ulong Outcomes, int Head)> _lastSentProgress = new();
+
         public string TopicName => "EntityMission";
         public long DescriptorOrdinal => (long)EDescriptorType.dtEntityMission;
         public long ReceivedSampleCount { get; private set; }
@@ -71,12 +76,15 @@ namespace Hrot.Map.Common.Replication.Egress
                 if (!view.HasAuthority(entity, packedKey))
                     continue;
 
-                // Smart egress: EntityMission is RELIABLE â€” publish only on dirty.
-                if (!SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
-                    continue;
-
                 ref readonly var netId = ref view.GetComponentRO<NetworkIdentity>(entity);
                 ref readonly var queue = ref view.GetComponentRO<MissionPlanQueue>(entity);
+
+                // Smart egress: EntityMission is RELIABLE — publish on dirty, ⭐ or when the plan's progress moved
+                // (CE-483 W2: every writer is covered without each one having to remember MarkDirty).
+                var progress = MissionProgressWire.ProgressOf(in queue);
+                bool progressMoved = !_lastSentProgress.TryGetValue(netId.Value, out var sent) || sent != progress;
+                if (!progressMoved && !SmartEgressUtil.ShouldPublish(view, entity, DescriptorOrdinal, isUnreliable: false))
+                    continue;
 
                 // Read BehaviorParams from the managed ActiveMissionPlan companion component.
                 ActiveMissionPlan? activePlan = view.HasManagedComponent<ActiveMissionPlan>(entity)
@@ -90,6 +98,7 @@ namespace Hrot.Map.Common.Replication.Egress
                 });
 
                 SentSampleCount++;
+                _lastSentProgress[netId.Value] = progress;
                 SmartEgressUtil.MarkPublished(view, entity, DescriptorOrdinal);
             }
         }
@@ -139,7 +148,9 @@ namespace Hrot.Map.Common.Replication.Egress
                             Params = phase.TriggerParam.ToString(System.Globalization.CultureInfo.InvariantCulture)
                         }
                     },
-                    State = i == queue.CurrentPhase ? eTaskState.TASK_ACTIVE : eTaskState.TASK_PLANNED
+                    // ⭐ CE-483 W1: the recorded outcome first (✓ / ✗), then ACTIVE for the running phase of a plan that is
+                    //   not halted. ⛔ Was `i == CurrentPhase ? ACTIVE : PLANNED` — a finished task was sent as PLANNED.
+                    State = MissionProgressWire.StateOf(in queue, i)
                 });
             }
 
@@ -160,6 +171,7 @@ namespace Hrot.Map.Common.Replication.Egress
         /// </summary>
         public void Dispose(long networkEntityId)
         {
+            _lastSentProgress.Remove(networkEntityId);
             _writer.DisposeInstance(new EntityMission { EntityId = networkEntityId });
         }
     }

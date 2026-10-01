@@ -6888,6 +6888,8 @@ than one pass, which is what the kernel really does.
 > named assign of the same behaviour in the same pass is dropped (CGF's phase advance produces both; the named one carries
 > the task's parameters). ⚠ A hash with NO definition on this node keeps the old bookkeeping only (release the old root
 > slots, record the hash, bump the instance — nothing starts). The per-handler detail below is HISTORY. 📄 `Architect_Question_77` §5.12.
+>
+> ⭐ **AS-BUILT `2026-10-01` — `CE-456`:** the hash assign no longer starts with `"{}"`. Its one producer is `MissionDirectorSystem` advancing a `MissionPlanQueue`, so `BehaviorIngressSystem.MissionPhaseParams` reads the entity's `ActiveMissionPlan` task at the queue's current phase and starts with that task's `BehaviorParams` — ⛔ before, only CGF got them (through `MissionAdapterSystem`'s named assign); every other host ran the phase on authored defaults. ⚠ `"{}"` when there is no plan, the phase is out of range, or the task names a DIFFERENT behaviour. Rejected: *retire the hash path for the adapter everywhere* — the adapter is `Hrot.CGF` and routes through `TacticalIntentResolutionSystem`, neither of which an FDP host has. Rails `CE456_*` (red-proved).
 
 📐 **Found by rail `A3`, which reassigns a behaviour through the hash path.** That handler calls
 **neither** `DetachStatefulSlots` **nor** `DetachHostedOccurrenceSlots`, so — unlike the

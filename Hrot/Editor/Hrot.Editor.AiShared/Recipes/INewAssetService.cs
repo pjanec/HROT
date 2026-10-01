@@ -50,4 +50,14 @@ public interface INewAssetService
     /// <param name="recipe">The recipe instance returned by <see cref="AvailableRecipes"/>.</param>
     bool IsBlankTemplate(IEditableAsset recipe)
         => string.Equals(recipe.Name, "Empty", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>
+    /// ⭐ <b><c>CE-460</c> (E4)</b> — which <see cref="AuthoringProduct"/> a recipe from
+    /// <see cref="AvailableRecipes"/> creates, or <see langword="null"/> when it is none of them
+    /// (a scenario, a function library, a plain instance blueprint). The product-first New entries list
+    /// only the recipes whose answer matches. ⛔ Defaults to <see langword="null"/>, so a kind that says
+    /// nothing is simply absent from those entries — New Asset still lists it.
+    /// </summary>
+    /// <param name="recipe">The recipe instance returned by <see cref="AvailableRecipes"/>.</param>
+    AuthoringProduct? ProductOf(IEditableAsset recipe) => null;
 }

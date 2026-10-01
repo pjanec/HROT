@@ -45,6 +45,8 @@ namespace Hrot.NED.Descriptors
         // EQS v1.3 sensor config and result topics
         dtEqsSensorConfig        = 95,
         dtEqsResult              = 96,
+        // ⭐ CE-484 — behaviour fault notification (any node → every operator UI). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+        dtBehaviorFault          = 97,
         // ── Animation control (Brain ↔ Muscle) — DD-2 §6.
         //    Block 100–119 reserved for animation; new entries append within block.
         //    Channels (intent + status pairs)

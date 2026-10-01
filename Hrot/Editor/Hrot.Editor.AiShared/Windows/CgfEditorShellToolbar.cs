@@ -49,6 +49,15 @@ public static class CgfEditorShellToolbar
     /// <summary>New Asset — the descriptor this helper registers when a handler is supplied.</summary>
     public const string NewAssetId = "shell.newAsset";
 
+    /// <summary>⭐ <c>CE-460</c> (E4) — File / New Behavior…: the New-Asset tree rooted at the product.</summary>
+    public const string NewBehaviorId = "shell.newBehavior";
+
+    /// <summary>⭐ <c>CE-460</c> (E4) — File / New Action….</summary>
+    public const string NewActionId = "shell.newAction";
+
+    /// <summary>⭐ <c>CE-460</c> (E4) — File / New Condition….</summary>
+    public const string NewConditionId = "shell.newCondition";
+
     /// <summary>Compile / hot-reload the active AI asset.</summary>
     public const string CompileReloadId = "blueprint.compileReload";
 
@@ -70,8 +79,13 @@ public static class CgfEditorShellToolbar
     /// children in insertion order. ⇒ driving the menu pass off <c>SortOrder</c> would silently SWAP the
     /// editor's first two File items, breaking the byte-identical menu this slice promises.
     /// </param>
+    /// <param name="MenuOnly">
+    /// ⭐ <c>CE-460</c> — a slot that is a MENU item and never a toolbar button. ⛔ The product-first New
+    /// entries are three more "new" commands; three more toolbar buttons beside New Asset would crowd the
+    /// toolbar for an action that is a menu choice, and would change the editor's measured toolbar layout.
+    /// </param>
     private sealed record Slot(string? CommandId, int SortOrder, string? SeparatorId = null, int Group = 0,
-                               string? MenuPath = null, int MenuOrder = 0);
+                               string? MenuPath = null, int MenuOrder = 0, bool MenuOnly = false);
 
     // ⭐ One table. Groups exist only so a separator can ask "did anything after me appear?".
     private static readonly Slot[] Layout =
@@ -81,7 +95,13 @@ public static class CgfEditorShellToolbar
         //    toolbar pass does; no CGF-private menu list."* ⛔ A slot with no MenuPath is toolbar-only.
         new(NewAssetId,      -11, Group: 1, MenuPath: "File/New Asset…",  MenuOrder: 1),
         new(OpenAssetId,     -10, Group: 1, MenuPath: "File/Open Asset…", MenuOrder: 0),
-        new(SaveId,           -9, Group: 1, MenuPath: "File/Save",        MenuOrder: 2),
+        new(SaveId,           -9, Group: 1, MenuPath: "File/Save",        MenuOrder: 5),
+        // ⭐⭐ CE-460 (E4) — product first, technology second: each opens the New-Asset tree ROOTED at its
+        //    product. 🔒 User, 2026-09-30: "'New Behaviour / New Action / New Condition' is additive" — so they
+        //    sit right after New Asset…, which is unchanged. MenuOnly: no toolbar buttons.
+        new(NewBehaviorId,     0, MenuPath: "File/New Behavior…",  MenuOrder: 2, MenuOnly: true),
+        new(NewActionId,       0, MenuPath: "File/New Action…",    MenuOrder: 3, MenuOnly: true),
+        new(NewConditionId,    0, MenuPath: "File/New Condition…", MenuOrder: 4, MenuOnly: true),
         // ⛔⛔ NO SaveAll SLOT, and that is a DELIBERATE DEVIATION from the design's §3 subset sentence
         //    ("Save · SaveAll · Open Asset · New Asset · QuickReload"). 📐 Measured: the editor's toolbar
         //    has NO Save-All button — only `shell.save` at -9. ⇒ adding one here would emit it on the
@@ -139,6 +159,11 @@ public static class CgfEditorShellToolbar
     /// </summary>
     /// <param name="OpenAsset">Opens the asset picker, or <see langword="null"/> to omit the command.</param>
     /// <param name="NewAsset">Opens the new-asset recipe picker, or <see langword="null"/> to omit.</param>
+    /// <param name="NewProduct">
+    /// ⭐ <c>CE-460</c> (E4) — opens the new-asset tree rooted at a product, or <see langword="null"/> to omit
+    /// all three File / New Behavior… · Action… · Condition… items. Both hosts pass
+    /// <c>NewAssetLauncher.Open(product)</c> — the SAME launcher New Asset uses.
+    /// </param>
     /// <param name="CompileReload">Compile/hot-reload the active asset, or <see langword="null"/> to omit.</param>
     /// <param name="FullRebuild">Rebuild all AI assets, or <see langword="null"/> to omit.</param>
     /// <param name="CompileReloadEnabled">
@@ -150,7 +175,8 @@ public static class CgfEditorShellToolbar
         Action? NewAsset = null,
         Action? CompileReload = null,
         Action? FullRebuild = null,
-        Func<bool>? CompileReloadEnabled = null);
+        Func<bool>? CompileReloadEnabled = null,
+        Action<Hrot.Editor.AiShared.Recipes.AuthoringProduct>? NewProduct = null);
 
     /// <summary>
     /// Registers the common-core descriptors this helper owns, then emits a toolbar entry for every
@@ -212,6 +238,29 @@ public static class CgfEditorShellToolbar
                     IsEnabled:   () => true),
                 _ => newAsset());
 
+        if (services.NewProduct is { } newProduct)
+        {
+            foreach (var (id, product) in new[]
+            {
+                (NewBehaviorId,  Hrot.Editor.AiShared.Recipes.AuthoringProduct.Behavior),
+                (NewActionId,    Hrot.Editor.AiShared.Recipes.AuthoringProduct.Action),
+                (NewConditionId, Hrot.Editor.AiShared.Recipes.AuthoringProduct.Condition),
+            })
+            {
+                var p = product;
+                shell.Register(
+                    new EditorCommandDescriptor(
+                        Id:          id,
+                        DisplayName: $"New {p}…",
+                        Category:    "File",
+                        Description: $"Create a new {p.ToString().ToLowerInvariant()} — choose the technology next",
+                        IconKey:     "asset/new",
+                        DefaultKey:  null,
+                        IsEnabled:   () => true),
+                    _ => newProduct(p));
+            }
+        }
+
         if (services.CompileReload is { } compileReload)
             shell.Register(
                 new EditorCommandDescriptor(
@@ -270,7 +319,7 @@ public static class CgfEditorShellToolbar
 
         foreach (var slot in Layout)
         {
-            if (slot.CommandId == null) continue;
+            if (slot.CommandId == null || slot.MenuOnly) continue;
             // ⭐⭐ THE DERIVATION. ⛔ Not "is this host CGF?" — "can this shell service this command?"
             if (shell.Get(slot.CommandId) == null) continue;
 

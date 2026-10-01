@@ -2,6 +2,8 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Compiler;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -415,6 +417,130 @@ namespace Fdp.Toolkit.Behavior.Tests
             Assert.Equal(before + 1, h.InstanceId);                   // started ONCE
             Assert.Equal(5, ReadBlock(h.World, h.E).Target);          // with the NAMED parameters
             h.World.Dispose();
+        }
+
+        // ══ CE-455 — a BTree root restarts on a SAME-WIDTH re-layout too ══════════════════════════════════════════════
+
+        private static NodeStatus CountRunning(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+        {
+            ref var b = ref Unsafe.As<byte, Block>(ref bb);
+            b.Count++;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>A BTree root over the same <see cref="Block"/> — one leaf that counts and keeps running.</summary>
+        private static BehaviorDefinition BTreeCountingDef(ulong layout)
+        {
+            var builder = new BTreeBuilder<byte, BTreeContext>().Action(CountRunning);
+            return new BehaviorDefinition
+            {
+                Name                   = Name,
+                BrainTier              = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter       = new Interpreter<byte, BTreeContext>(builder.Compile(Name), builder.GetRegistry()),
+                BlackboardLayoutType   = typeof(Block),
+                BlueprintStructureHash = layout,
+                ParseParams = static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
+                    ((Block*)mem)->Target = j == "{}" ? 10 : int.Parse(j),
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-455</c>: a BTree root whose parameters are re-laid-out at the SAME width (the generated registrar now
+        /// carries <c>BTreeBlackboardPackHelper.LayoutHash</c>) restarts with its assigned parameters — ⛔ before, only the
+        /// width was compared for a BTree, so it kept ticking over bytes laid out for the old code.
+        /// </summary>
+        [Fact]
+        public void CE455_ABTreeRoot_ReLaidOutAtTheSameWidth_Restarts_WithTheAssignedParameters()
+        {
+            var h = Running(BTreeCountingDef(layout: 0xA1), "5");
+            h.Frames(2);
+            uint instance = h.InstanceId;
+            Assert.Equal(2, ReadBlock(h.World, h.E).Count);
+
+            Reload(h.Registry, BTreeCountingDef(layout: 0xB2));          // same Block ⇒ same width
+            h.Frames(2);
+
+            Assert.NotEqual(instance, h.InstanceId);
+            Assert.Equal(1, ReadBlock(h.World, h.E).Count);
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target);
+            h.World.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-455</c>: the same layout hash is a soft reload — the BTree keeps counting.</summary>
+        [Fact]
+        public void CE455_ABTreeRoot_ReloadedWithTheSameLayout_KeepsRunning()
+        {
+            var h = Running(BTreeCountingDef(layout: 0xA1), "5");
+            h.Frames(2);
+            uint instance = h.InstanceId;
+
+            Reload(h.Registry, BTreeCountingDef(layout: 0xA1));
+            h.Frames(1);
+
+            Assert.Equal(instance, h.InstanceId);
+            Assert.Equal(3, ReadBlock(h.World, h.E).Count);
+            h.World.Dispose();
+        }
+
+        // ══ CE-456 — an assign BY HASH from a mission phase runs on the PHASE's parameters ═══════════════════════════
+
+        private static (EntityRepository World, Entity E) MissionPhaseWorld(string taskBehaviour, string taskParams)
+        {
+            var world = TestWorldFactory.Create();
+            BlueprintTierTable.RegisterAll(world);
+            if (!world.IsComponentTypeRegistered<MissionPlanQueue>()) world.RegisterComponent<MissionPlanQueue>();
+            if (!world.TryGetTable(typeof(ActiveMissionPlan), out _)) world.RegisterManagedComponent<ActiveMissionPlan>();
+            var e = world.CreateEntity();
+            world.AddComponent(e, new BehaviorState());
+            world.AddComponent(e, new MissionPlanQueue { PhaseCount = 2, CurrentPhase = 1 });     // the director just advanced
+            world.SetManagedComponent(e, new ActiveMissionPlan
+            {
+                Plan = new DomainMissionPlan
+                {
+                    Tasks =
+                    {
+                        new DomainMissionTask { BehaviorName = "Other", BehaviorParams = "99" },
+                        new DomainMissionTask { BehaviorName = taskBehaviour, BehaviorParams = taskParams },
+                    },
+                },
+            });
+            return (world, e);
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-456</c>: a mission phase started by HASH (the director's phase advance — no JSON on the event) starts with
+        /// the phase task's parameters from <see cref="ActiveMissionPlan"/>. ⛔ Before, on every host without CGF's
+        /// <c>MissionAdapterSystem</c>, it ran on its authored defaults (<c>Target == 10</c>).
+        /// </summary>
+        [Fact]
+        public void CE456_AnAssignByHash_FromAMissionPhase_RunsOnThePhaseTasksParameters()
+        {
+            var (world, e) = MissionPhaseWorld(Name, "7");
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, CountingDef<Block>(layout: 0xA1));
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = Id });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            new BrainTickSystem(registry).Execute(world, 0.016f);
+
+            Assert.Equal(7, ReadBlock(world, e).Target);
+            world.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-456</c>: a task that names a DIFFERENT behaviour lends its parameters to nobody — authored defaults.</summary>
+        [Fact]
+        public void CE456_ATaskNamingAnotherBehaviour_IsNotUsed()
+        {
+            var (world, e) = MissionPhaseWorld("SomethingElse", "7");
+            var registry = new BehaviorRegistry();
+            registry.Register(Id, Name, CountingDef<Block>(layout: 0xA1));
+            world.Bus.Publish(new AssignBehaviorHashEvent { Entity = e, BehaviorHash = Id });
+            world.Bus.SwapBuffers();
+            new BehaviorIngressSystem(registry).Execute(world, 0.016f);
+            new BrainTickSystem(registry).Execute(world, 0.016f);
+
+            Assert.Equal(10, ReadBlock(world, e).Target);
+            world.Dispose();
         }
 
         private sealed class RecordingReloadLog : Fdp.Toolkit.Blueprints.Systems.IReloadLogSink

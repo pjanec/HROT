@@ -24,8 +24,8 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// without a data migration, per docs/blueprints/Architect_Question_25_Macros.md —
     /// that is why this is a table and not a bool.
     ///
-    /// AiPrimitive is deliberately NOT offered here: an AiPrimitive asset needs a
-    /// Primitive declaration and hostings that this flow does not populate.
+    /// ⭐ CE-461 — AiPrimitive IS offered now, as the Action and Condition rows: the Primitive declaration
+    /// and its hostings are populated from the row's intent (see <see cref="MakeEmptyBlueprint"/>).
     ///
     /// <para>
     /// BP-103 — <c>SeedGraphName</c> is the one starter Function graph every blank-template
@@ -40,7 +40,8 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// </para>
     /// </summary>
     private readonly record struct BlankTemplateRow(
-        string Name, BlueprintDispatchKind Dispatch, string Description, string SeedGraphName);
+        string Name, BlueprintDispatchKind Dispatch, string Description, string SeedGraphName,
+        AiPrimitiveIntent? Intent = null);
 
     private static readonly BlankTemplateRow[] BlankTemplates =
     {
@@ -52,6 +53,28 @@ public sealed class BlueprintNewAssetService : INewAssetService
             BlueprintDispatchKind.Library,
             "A shared library of pure Functions, callable from any other blueprint. Compiles to static methods, so its graphs cannot contain latent nodes such as Delay.",
             SeedGraphName: "NewFunction"),
+        // ⭐ CE-460 (E4 ②) — a blueprint BEHAVIOUR (Q77 §5.9): the brain ticks its "Tick" graph each frame
+        //   and a Return finishes it. "Tick" for the same reason as the Instance row — the emitter selects
+        //   the tick graph by name. Listed under File / New Behavior… AND under New Asset / Blueprint.
+        new("Behavior",
+            BlueprintDispatchKind.Behavior,
+            "A behaviour an entity runs, implemented as a blueprint: its Tick graph runs every frame until a Return node finishes it. May contain latent nodes such as Delay.",
+            SeedGraphName: "Tick"),
+        // ⭐⭐ CE-461 (E4 ③) — an AiPrimitive per intent. 🔒 User, 2026-09-30: an action is usable by BTrees,
+        //   HSMs AND blueprint behaviours; a condition as a BTree condition AND an HSM guard ⇒ the Primitive
+        //   declares EVERY hosting valid for its intent, READ from the compiler's AiPrimitiveHostingRules (the
+        //   table BP1022/BP1023 enforce) — ⛔ never a second copy here. Narrowing is an asset property.
+        //   "Main" matches the shipped primitives; the emitter takes the first Function graph either way.
+        new("Action",
+            BlueprintDispatchKind.AiPrimitive,
+            "An action, implemented as a blueprint: usable from behaviour trees, HSMs and blueprint behaviours. Its Main graph runs when the action is invoked; a Return reports Success or Failure.",
+            SeedGraphName: "Main",
+            Intent: AiPrimitiveIntent.Action),
+        new("Condition",
+            BlueprintDispatchKind.AiPrimitive,
+            "A condition, implemented as a blueprint: usable as a behaviour-tree condition, an HSM guard and from blueprint behaviours. Its Main graph returns Success (true) or Failure (false) and must not contain latent nodes.",
+            SeedGraphName: "Main",
+            Intent: AiPrimitiveIntent.Condition),
     };
 
     private readonly NewFromRecipeService _newFromRecipeService = new();
@@ -63,7 +86,7 @@ public sealed class BlueprintNewAssetService : INewAssetService
         for (int i = 0; i < BlankTemplates.Length; i++)
         {
             var row   = BlankTemplates[i];
-            var asset = MakeEmptyBlueprint(row.Dispatch, row.Name, row.SeedGraphName);
+            var asset = MakeEmptyBlueprint(row.Dispatch, row.Name, row.SeedGraphName, row.Intent);
             // The recipe entry in AvailableRecipes carries recipe metadata.
             asset.EditorMetadata.Recipe = new Core.Assets.RecipeMetadata
             {
@@ -92,7 +115,7 @@ public sealed class BlueprintNewAssetService : INewAssetService
         }
         else if (TryGetBlankTemplateRow(recipe, out var row))
         {
-            newAsset = MakeEmptyBlueprint(row.Dispatch, name, row.SeedGraphName);
+            newAsset = MakeEmptyBlueprint(row.Dispatch, name, row.SeedGraphName, row.Intent);
             newAsset.AssetId = Guid.NewGuid();
         }
         else
@@ -121,6 +144,29 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// <inheritdoc />
     public bool IsBlankTemplate(IEditableAsset recipe)
         => TryGetBlankTemplateRow(recipe, out _);
+
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4) — a blueprint's product is read off the ASSET, so a blank template and a
+    /// content recipe from disk answer the same way: <c>Dispatch=Behavior</c> ⇒ Behavior; an AiPrimitive ⇒
+    /// its declared intent. ⛔ Instance and Library blueprints are none of the three and stay New-Asset-only.
+    /// </summary>
+    public AuthoringProduct? ProductOf(IEditableAsset recipe)
+    {
+        if (recipe is not BlueprintEditableAssetAdapter { Asset: { } asset })
+            return null;
+
+        return asset.Dispatch switch
+        {
+            BlueprintDispatchKind.Behavior => AuthoringProduct.Behavior,
+            BlueprintDispatchKind.AiPrimitive => asset.Primitive?.Intent switch
+            {
+                AiPrimitiveIntent.Action    => AuthoringProduct.Action,
+                AiPrimitiveIntent.Condition => AuthoringProduct.Condition,
+                _                           => null,
+            },
+            _ => null,
+        };
+    }
 
     /// <summary>
     /// Returns true (and the matching <see cref="BlankTemplateRow"/>) when <paramref name="recipe"/>
@@ -168,7 +214,7 @@ public sealed class BlueprintNewAssetService : INewAssetService
     /// </para>
     /// </summary>
     private static BlueprintAsset MakeEmptyBlueprint(
-        BlueprintDispatchKind dispatch, string name, string seedGraphName)
+        BlueprintDispatchKind dispatch, string name, string seedGraphName, AiPrimitiveIntent? intent = null)
     {
         var asset = new BlueprintAsset
         {
@@ -177,6 +223,11 @@ public sealed class BlueprintNewAssetService : INewAssetService
             Name           = name,
             Dispatch       = dispatch,
             EditorMetadata = new AssetMetadata(),
+            // ⭐ CE-461 — BP1020 requires the block, BP1021 at least one hosting; the hostings are the
+            //   compiler's own "every hosting valid for this intent".
+            Primitive      = intent is { } i
+                ? new AiPrimitiveDecl { Intent = i, Hostings = AiPrimitiveHostingRules.AllValidFor(i).ToList() }
+                : null,
         };
 
         // seedGraphName is always one of the two hard-coded, valid-identifier names in

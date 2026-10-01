@@ -56,6 +56,31 @@ public static class AiPrimitiveNaming
         }
     }
 
+    /// <summary>The technology label of a blueprint-authored action / condition (<c>CE-462</c>).</summary>
+    public const string BlueprintTechnology = "Blueprint";
+
+    /// <summary>The technology label of a hand-written action / condition (<c>CE-462</c>).</summary>
+    public const string CSharpTechnology = "C#";
+
+    /// <summary>
+    /// ⭐⭐ <b><c>CE-462</c> (E4 ④) — how a picker SHOWS an action / condition / guard it stores by FQN:
+    /// the name plus its technology.</b> 🔒 User, <c>2026-09-30</c>: <i>"when picking conditions i need to see
+    /// all available ones no matter what technology they are based on"</i> ⇒ the technology is a LABEL,
+    /// never a filter. ⭐ Read off <see cref="ActionSchemaEntry.IsAiPrimitive"/> — the exporter already
+    /// knows, so ⛔ no second lookup. A blueprint shows its authored name (its FQN is the generated
+    /// <c>{Name}_{id:X8}_Bp.TickCore</c>); a hand-written one keeps its FQN, which is its identity; a name
+    /// the exporter does not know (a dangling binding) is shown bare, unlabelled.
+    /// </summary>
+    public static string PickerLabel(string fqn, IActionSchemaExporter? exporter)
+    {
+        if (string.IsNullOrEmpty(fqn)) return fqn ?? string.Empty;
+        var entry = exporter?.Lookup(fqn);
+        if (entry is null) return fqn;
+        return entry.IsAiPrimitive
+            ? $"{DisplayNameFromTickCoreFqn(fqn)}  [{BlueprintTechnology}]"
+            : $"{fqn}  [{CSharpTechnology}]";
+    }
+
     /// <summary>
     /// ⭐⭐⭐ <b>The picked blueprint NAME → its schema entry, whose <c>DtoType</c> IS the generated
     /// <c>Params</c> struct.</b>

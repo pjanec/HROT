@@ -480,6 +480,38 @@ public sealed class ReturnNodeDrawerTests
         Assert.True(session.ShowsStatusForTest);
     }
 
+    // ⭐ CE-496: a behaviour's Tick returns its outcome (Status); its helper Function graphs return Outputs.
+    // The panel asks the compiler's own rule (BehaviorDispatch.IsTickGraph), so it cannot show an inert control.
+    [Fact]
+    public void Behavior_TickGraph_ShowsStatus_NotOutputs()
+    {
+        var tick  = MakeFunctionGraph("Tick");
+        var node  = MakeNode();
+        tick.Nodes.Add(node);
+        var asset = MakeAsset(MakeFunctionGraph("Helper"), tick);   // Tick is picked by NAME, not position
+        asset.Dispatch = BlueprintDispatchKind.Behavior;
+
+        var session = (ReturnNodeSession)new ReturnNodeDrawer(new SpyEditService()).CreateSession(node, asset);
+
+        Assert.False(session.ShowsOutputsForTest);
+        Assert.True(session.ShowsStatusForTest);
+    }
+
+    [Fact]
+    public void Behavior_HelperFunctionGraph_ShowsOutputs_NotStatus()
+    {
+        var helper = MakeFunctionGraph("Helper");
+        var node   = MakeNode();
+        helper.Nodes.Add(node);
+        var asset  = MakeAsset(MakeFunctionGraph("Tick"), helper);
+        asset.Dispatch = BlueprintDispatchKind.Behavior;
+
+        var session = (ReturnNodeSession)new ReturnNodeDrawer(new SpyEditService()).CreateSession(node, asset);
+
+        Assert.True(session.ShowsOutputsForTest);
+        Assert.False(session.ShowsStatusForTest);
+    }
+
     [Fact]
     public void Library_ZeroOutputs_ShowsBothOutputsAndStatus()
     {

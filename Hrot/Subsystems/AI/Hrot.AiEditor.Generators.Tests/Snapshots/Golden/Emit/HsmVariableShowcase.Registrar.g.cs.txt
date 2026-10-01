@@ -80,6 +80,7 @@ public static class HsmVariableShowcaseRegistrar
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
             ParseParams   = __parseParams,
+            BlueprintStructureHash = 1151389404110993395UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Threshold", typeof(float), 0),

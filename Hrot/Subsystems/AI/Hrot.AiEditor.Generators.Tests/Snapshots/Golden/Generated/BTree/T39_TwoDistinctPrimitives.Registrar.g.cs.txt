@@ -196,6 +196,7 @@ public static class T39_TwoDistinctPrimitivesRegistrar
             Name         = "T39_TwoDistinctPrimitives",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 14798114068855578804UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("bpParamsA", typeof(global::Hrot.AI.Behaviors.Brains.DemoAiPrimitiveNodes.Params), 0),

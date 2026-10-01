@@ -363,7 +363,7 @@ public sealed class NedNetworkFactory : INetworkFactory
         if (_participant == null) return list;
 
         if (headless)
-            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateIngress(_participant, interactionBus));
+            list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateIngress(_participant, interactionBus, localNodeId));
         else
             list.Add(Hrot.Network.NED.Gizmos.GizmoTranslatorPack.CreateEgress(_participant, (byte)localNodeId, interactionBus));
 

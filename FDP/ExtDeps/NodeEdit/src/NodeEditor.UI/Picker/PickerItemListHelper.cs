@@ -228,7 +228,10 @@ internal static class PickerItemListHelper
 
         // Render display name with match highlights
         float textY = pos.Y + (size.Y - ImGui.GetTextLineHeight()) * 0.5f;
-        uint defaultTextColor = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
+        // A disabled entry is dimmed (PickerEntry.IsEnabled); Confirm() never returns it.
+        uint defaultTextColor = !re.Entry.IsEnabled
+            ? ImGui.GetColorU32(ctx.Theme.TextDefault with { W = 0.45f })
+            : chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 1f, 1f)) : ImGui.GetColorU32(ctx.Theme.TextDefault);
         uint highlightColor   = chunkMatched ? ImGui.GetColorU32(new Vector4(1f, 1f, 0.4f, 1f)) : ImGui.GetColorU32(ctx.Theme.SelectionAccent);
 
         var runs = PickerTextHighlighter.SplitRuns(re.Entry.Name, re.MatchPositions);

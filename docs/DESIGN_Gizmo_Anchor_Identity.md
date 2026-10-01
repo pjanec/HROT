@@ -27,10 +27,8 @@ known-conflict: none. ⚠ FDP/Engine/Fdp.Presentation/Vis2D/Layers/DebugGizmoLay
   Hrot/Network/Hrot.Network.NED/Gizmos/GizmoInteractionIngressTranslator.cs:56 CONTRADICT the field
   contracts they consume; that is the subject of this design, not an unreconciled disagreement.
 related-designs:
-  - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — REOPENS §6.3's
-    PickStreamId ruling: a CANVAS pick (AnchorId 0) has nothing on this record to scope it to a
-    target node, so the ingress drops it. That question proposes the field's DECLARED purpose as
-    the scope. §6.3's reason (an ECS generation on the wire is defect D2) is NOT what it asks for.
+  - docs/blueprints/Architect_Question_73_Canvas_Interaction_Scope.md — RESOLVED 2026-09-30 (option A,
+    CE-463): a CANVAS pick carries its target node in PickStreamId; amended here as §6.3a.
   - docs/UX/UX_Feature_Selection.md — owns UXI-11; §2.7.14 records the local-only empty-space
     clear that the drop above causes.
 -->
@@ -376,6 +374,26 @@ sharing)*.
 ⭐ **Railed in the publisher's own suite** *(`R-142` ④)*: `SC-GZ-WIRE-1` asserts the identity goes and the
 payload stays; `SC-GZ-WIRE-2` asserts the wire record has **no slot** an ECS handle could leak through by
 another route, so adding one reddens and sends the author here. Red-proofed by inverse edit.
+### 6.3a ⭐⭐ AMENDED `2026-09-30` — **a CANVAS pick has a legitimate `PickStreamId`: the node it is addressed to** *(`Q73` → option A, `CE-463`)*
+
+🔒 **User, `2026-09-30`:** *"The external gizmo viewer is just external view on the node, so in that case the
+selection should spread, it should work same like local gizmo renderer."*
+
+⭐ §6.3's rule was against **misuse** — a process-local ECS generation on the wire — and it stands. ⚠ It also said
+*"`0` is the honest value"* because **nothing had a value to give.** A **canvas** pick (anchor `0`) does: it hits
+no entity, so nothing else on the record says whose map it was, and the topic is broadcast. ⇒ the field now
+carries its **declared** purpose for that one case.
+
+| | |
+|---|---|
+| **sender** | `GizmoMap.Viewer` writes `GizmoPickScope.StreamIdFor(anchor, targetNodeId)` — its target node for a canvas pick, `0` for an entity pick |
+| **receiver** | `GizmoInteractionIngressTranslator` accepts a canvas pick only when `GizmoPickScope.IsCanvasPickFor(anchor, stream, localNodeId)`; `localNodeId` is the SAME id the node publishes its primitives under (`NedNetworkFactory.CreateGizmoTranslators` → `GizmoTranslatorPack.CreateIngress`) |
+| ⭐ **backward-compatible** | an un-migrated sender writes `0` ⇒ dropped exactly as before; `SC_GZ_WIRE_2` unaffected (no new field) |
+| ⚠ **not migrated** | `DdsGizmoInteractionPublisher` (the reusable adapter) still writes `0` — it has no target-node concept and only its own test constructs it |
+
+📐 Rails: `GizmoInteractionTranslatorTests.Q73_*` (addressed → delivered as a right-click on the canvas; other node
+or `0` → dropped). 📄 `Architect_Question_73_Canvas_Interaction_Scope.md` §8.
+
 ### 6.4 ⭐⭐⭐ `C7` FINISHED — **the 32-bit key had a THIRD violator, and a `Line` has no identity slot**
 
 📐 **Measured `2026-09-10` while settling `CE-259z`'s open half** *(⚠ which asked a policy question —

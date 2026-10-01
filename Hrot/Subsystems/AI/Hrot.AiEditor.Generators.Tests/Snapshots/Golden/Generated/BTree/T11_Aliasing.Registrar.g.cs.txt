@@ -106,6 +106,7 @@ public static class T11_AliasingRegistrar
             Name         = "T11_Aliasing",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 11080203281201992308UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("counter", typeof(global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams), 0),

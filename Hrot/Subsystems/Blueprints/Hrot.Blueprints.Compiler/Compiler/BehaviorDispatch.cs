@@ -16,8 +16,13 @@ namespace Hrot.Blueprints.Core.Compiler;
 /// ⚠ The tick-graph selection MIRRORS <c>InstanceEmitter</c> (the Function graph named <c>Tick</c>, else the first
 /// Function graph) — both sides call this, so Stage 5 and the emitter cannot disagree about which graph returns a status.
 /// </para>
+/// <para>
+/// ⭐ Public (CE-496) so the editor's Return-node panel asks the SAME rule which control the compiler reads —
+/// on the <c>MacroExpander</c> precedent: this assembly's <c>InternalsVisibleTo</c> does not list <c>.Editor</c>, and a
+/// second copy of the rule is the drift <c>BP-69</c> recorded.
+/// </para>
 /// </summary>
-internal static class BehaviorDispatch
+public static class BehaviorDispatch
 {
     public const string TickGraphName = "Tick";
 
@@ -28,7 +33,7 @@ internal static class BehaviorDispatch
                   asset.Graphs.FirstOrDefault(g => g.Kind == GraphKind.Function && g.Name == TickGraphName)
                   ?? asset.Graphs.FirstOrDefault(g => g.Kind == GraphKind.Function));
 
-    public static bool IsTickGraph(IrAsset asset, IrGraph? graph)
+    internal static bool IsTickGraph(IrAsset asset, IrGraph? graph)
         => graph is not null
            && asset.Dispatch == BlueprintDispatchKind.Behavior
            && graph.Kind == IrGraphKind.Function

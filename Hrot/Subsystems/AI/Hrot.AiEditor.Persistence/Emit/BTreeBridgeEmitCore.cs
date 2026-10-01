@@ -471,6 +471,16 @@ public static class BTreeBridgeEmitCore
         sb.AppendLine($"{pad2}{Indent}Name         = \"{name}\",");
         sb.AppendLine($"{pad2}{Indent}BrainTier    = BehaviorConstants.BrainTierBTree,");
         sb.AppendLine($"{pad2}{Indent}BTreeInterpreter = interpreter,");
+        // ⭐ CE-455 — the root block's LAYOUT hash, so a hot reload that reorders/retypes the parameters at the SAME
+        //   width restarts a running instance (BrainTickSystem.RestartIfRelaidOut already compares it for every tier).
+        if ((packedFields != null && packedFields.Count > 0) || BTreeEmitCore.BlockStateVariables(dto).Count > 0)
+        {
+            var __state = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<string, string>>();
+            foreach (var v in BTreeEmitCore.BlockStateVariables(dto))
+                __state.Add(new System.Collections.Generic.KeyValuePair<string, string>(v.Name ?? "", v.Type?.TypeId ?? ""));
+            ulong __layout = BTreeBlackboardPackHelper.LayoutHash(packedFields, __state);
+            sb.AppendLine($"{pad2}{Indent}BlueprintStructureHash = {__layout}UL,   // CE-455: the root block's layout");
+        }
         if (isManaged && packedFields != null && packedFields.Count > 0)
         {
             EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);

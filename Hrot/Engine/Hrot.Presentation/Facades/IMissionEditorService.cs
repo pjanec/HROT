@@ -1,3 +1,4 @@
+using System.Linq;
 using Hrot.Core.Mission;
 using Hrot.UI.Common.Models;
 
@@ -16,6 +17,17 @@ public interface IMissionEditorService
     /// </summary>
     /// <param name="entityId">The network entity ID.</param>
     IReadOnlyList<string> GetAvailableBehaviors(long entityId);
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-462</c> (E4 ④, handoff D4) — the same list, each with the TECHNOLOGY that implements it, so
+    /// the assignment picker can label it. 🔒 User, <c>2026-09-30</c>: <i>"when picking … i need to see all
+    /// available ones no matter what technology they are based on"</i>.
+    /// ⚠ A DEFAULT member returning the names unlabelled, so an implementation that cannot tell the
+    /// technology (and every test double) stays correct as it is; ⭐ a production implementation that CAN
+    /// overrides it and derives <see cref="GetAvailableBehaviors"/> from it — one list, not two.
+    /// </summary>
+    IReadOnlyList<BehaviorChoice> GetAvailableBehaviorChoices(long entityId)
+        => GetAvailableBehaviors(entityId).Select(n => new BehaviorChoice(n, null)).ToList();
 
     /// <summary>
     /// Returns the current <see cref="MissionPlan"/> and its optimistic-lock version,
@@ -46,4 +58,14 @@ public interface IMissionEditorService
     /// use <see cref="Guid.Empty"/> for commands such as <c>CMD_ABORT_ALL</c>.
     /// </param>
     Task<MissionCommitResult> SendControlCommandAsync(long entityId, Hrot.Core.Mission.eMissionCommandType type, Guid taskId);
+}
+
+/// <summary>
+/// ⭐ <c>CE-462</c> — one assignable behaviour and the technology that implements it (<c>"BTree"</c>,
+/// <c>"HSM"</c>, <c>"Blueprint"</c>), or <see langword="null"/> when the service cannot tell.
+/// </summary>
+public sealed record BehaviorChoice(string Name, string? Technology)
+{
+    /// <summary>What a picker shows: the name, then the technology in brackets when known.</summary>
+    public string Label => Technology is null ? Name : $"{Name}  [{Technology}]";
 }

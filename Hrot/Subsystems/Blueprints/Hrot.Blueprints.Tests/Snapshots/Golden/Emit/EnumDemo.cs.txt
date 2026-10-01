@@ -46,8 +46,9 @@ public static class EnumDemo_235986DF_Bp
         global::Fdp.Core.EntityRepository world,
         float time)
     {
-        var __t0 = global::Fdp.Toolkit.Behavior.Demo.DemoStance.Standing;
-        var __t1 = -10;
+        var __t0 = new global::System.Numerics.Vector3(0F, 4.23F, 0F);
+        var __t1 = global::Fdp.Toolkit.Behavior.Demo.DemoStance.Standing;
+        var __t2 = -10;
         if (world.HasComponent<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self))
         {
             ref var __ch_0 = ref world.GetComponentRW<global::Fdp.Toolkit.Behavior.Components.LocomotionChannel>(self);
@@ -58,8 +59,9 @@ public static class EnumDemo_235986DF_Bp
             {
                 var __chNext_0 = new global::Fdp.Toolkit.Behavior.Demo.DemoEnumActionParams
                 {
-                    Stance = __t0,
-                    Repeat = __t1
+                    TargetPos = __t0,
+                    Stance = __t1,
+                    Repeat = __t2
                 };
                 fixed (byte* __paramSlot_0 = __ch_0.Params)
                 {

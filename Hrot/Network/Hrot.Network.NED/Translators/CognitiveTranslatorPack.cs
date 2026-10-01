@@ -59,6 +59,8 @@ namespace Hrot.Network.Translators
             if (behaviorRegistry != null)
                 yield return new EntityMissionIngressTranslator(participant, entityMap, behaviorRegistry, ghostCreationSystem);
             yield return new NavigationStatusIngressTranslator(participant, entityMap, localNodeId);
+            // ⭐ CE-484 — a behaviour fault leaves the node whose behaviour raised it. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+            yield return new BehaviorFaultEgressTranslator(participant, entityMap, behaviorRegistry, localNodeId);
         }
     }
 }

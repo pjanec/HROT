@@ -1949,6 +1949,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
         // Register the AI Behaviors log tab (dedicated tab for structured AI diagnostics).
         windowManager.MessageLogRegistry?.RegisterSource(AiBehaviorLogTarget.SharedInstance);
+        // ⭐ CE-484 — the operator's "Behaviour Faults" tab (red until looked at). 📄 DESIGN_Behaviour_Fault_And_Teardown.md §4c
+        windowManager.MessageLogRegistry?.RegisterSource(Fdp.Toolkit.Behavior.Events.BehaviorFaultLog.Shared);
 
         // ⭐⭐⭐ cgf==editor SLICE 1 — the AiShared shell. 📄 §3/§4 of the owning design.
         BuildAiShell(windowManager);
@@ -2873,6 +2875,10 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
                     : null,
                 NewAsset:             _newAssetLauncher != null
                     ? (Action)(() => _newAssetLauncher.Open())
+                    : null,
+                // ⭐ CE-460 (E4) — the product-first New entries, off the SAME launcher.
+                NewProduct:           _newAssetLauncher != null
+                    ? p => _newAssetLauncher.Open(p)
                     : null,
                 CompileReload:        () => ReloadActiveAiDocument(),
                 CompileReloadEnabled: () => _aiDocumentManager?.Active != null));

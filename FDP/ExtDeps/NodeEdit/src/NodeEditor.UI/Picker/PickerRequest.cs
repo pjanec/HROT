@@ -24,6 +24,13 @@ public sealed class PickerRequest
     /// <summary>Window title shown to the user.</summary>
     public required string Title { get; init; }
 
+    /// <summary>
+    /// <see cref="PickerEntry.Id"/> of the entry to pre-select when the picker opens — the host's default,
+    /// so Enter/OK takes it without a click. Its category folders are expanded and it is scrolled into view.
+    /// <see langword="null"/> (or an id not in the list, or a disabled entry) ⇒ no pre-selection.
+    /// </summary>
+    public string? InitialSelectionId { get; init; }
+
     /// <summary>Layout to use for rendering items.</summary>
     public PickerLayout Layout { get; init; } = PickerLayout.Standard;
 

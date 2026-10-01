@@ -12,6 +12,13 @@ namespace Hrot.Editor.AiShared.Browser;
 public sealed record RecipeChoice(AssetKind Kind, IEditableAsset Recipe);
 
 /// <summary>
+/// ⭐ <c>CE-460</c> (E4, handoff D5) — a technology the product-first tree SHOWS but cannot create, so the
+/// menu tells the truth about what exists. Picking it creates nothing; <paramref name="Reason"/> says why.
+/// 📌 Today: hand-written C# — authored in VS Code, and editor creation is its own slice (<c>CE-459</c>).
+/// </summary>
+public sealed record NotCreatableChoice(string Technology, string Reason);
+
+/// <summary>
 /// Projects per-kind recipes (from <see cref="INewAssetService.AvailableRecipes"/>,
 /// including the "Empty" entry) into Tree-layout <see cref="PickerEntry"/> values —
 /// the data seam for T7's new-from-recipe launcher.
@@ -35,6 +42,10 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
     private readonly Func<IEditableAsset, string?> _describe;
     private readonly Func<IEditableAsset, string?> _recipeCategory;
     private readonly IReadOnlyList<AssetKind> _kinds;
+    private readonly AuthoringProduct? _product;
+
+    /// <summary>The label of the not-creatable C# row under a product root (<c>CE-459</c> enables it).</summary>
+    public const string CSharpTechnology = "C#";
 
     /// <summary>
     /// Creates a <see cref="RecipePickerSource"/> that projects recipes from
@@ -54,11 +65,19 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
     /// <c>"Kind/SubCategory"</c>. When <see langword="null"/>, the category is
     /// just the kind label.
     /// </param>
+    /// <param name="product">
+    /// ⭐ <c>CE-460</c> (E4) — <see langword="null"/> is New Asset's technology-first tree, unchanged.
+    /// A product ROOTS the tree there: only recipes whose <see cref="INewAssetService.ProductOf"/> matches
+    /// are listed, the path starts at the technology (<c>"Kind[/Sub]"</c>), a technology holding ONE recipe
+    /// collapses to a leaf named after it, and a not-creatable C# row is appended.
+    /// </param>
     public RecipePickerSource(
         IReadOnlyDictionary<AssetKind, INewAssetService> services,
         Func<IEditableAsset, string?>? describe = null,
-        Func<IEditableAsset, string?>? recipeCategory = null)
+        Func<IEditableAsset, string?>? recipeCategory = null,
+        AuthoringProduct? product = null)
     {
+        _product = product;
         _services = services ?? throw new ArgumentNullException(nameof(services));
         _describe = describe ?? (_ => null);
         _recipeCategory = recipeCategory ?? (_ => null);
@@ -68,7 +87,7 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
     // ── IPickerSource<RecipeChoice> properties ──────────────────────────
 
     /// <inheritdoc/>
-    public string Title => "New Asset";
+    public string Title => _product is { } p ? $"New {p}" : "New Asset";
 
     /// <inheritdoc/>
     public string EmptyResultText => "No recipes found.";
@@ -110,6 +129,9 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
 
             foreach (var recipe in service.AvailableRecipes())
             {
+                if (_product is { } product && service.ProductOf(recipe) != product)
+                    continue;
+
                 if (string.IsNullOrEmpty(text)
                     || recipe.Name.Contains(text, StringComparison.OrdinalIgnoreCase))
                 {
@@ -173,7 +195,68 @@ public sealed class RecipePickerSource : IPickerSource<RecipeChoice>
     public IReadOnlyList<PickerEntry> BuildEntries(
         string text,
         IReadOnlyDictionary<string, object?>? context)
-        => Query(text, context).Select(ToEntry).ToList().AsReadOnly();
+    {
+        var entries = Query(text, context).Select(ToEntry).ToList();
+        if (_product is not { } product)
+            return entries.AsReadOnly();
+
+        // ⭐ D1 — a technology folder holding exactly ONE recipe collapses to a leaf named after the
+        //   technology: under New Condition the author picks "Blueprint", not "Blueprint ▸ Condition".
+        //   ⚠ Only a PLAIN technology folder collapses; a recipe with its own sub-category keeps its path.
+        var perKind = entries.GroupBy(e => ((RecipeChoice)e.Tag!).Kind).ToDictionary(g => g.Key, g => g.Count());
+        for (int i = 0; i < entries.Count; i++)
+        {
+            var rc = (RecipeChoice)entries[i].Tag!;
+            if (perKind[rc.Kind] != 1 || entries[i].Category != rc.Kind.ToString())
+                continue;
+
+            bool blank = _services.TryGetValue(rc.Kind, out var svc) && svc.IsBlankTemplate(rc.Recipe);
+            entries[i] = entries[i] with
+            {
+                Name     = blank ? rc.Kind.ToString() : $"{rc.Kind}: {rc.Recipe.Name}",
+                Category = null,
+            };
+        }
+
+        // ⭐ D5 — the C# row, shown and not creatable. ⛔ Not filtered by the search text: it is the
+        //   honest answer to "is there another way to make one of these?", whatever was typed.
+        entries.Add(new PickerEntry(
+            Id:            $"notcreatable:{CSharpTechnology}:{product}",
+            Name:          $"{CSharpTechnology} (hand-written)",
+            Description:   $"A hand-written C# {product.ToString().ToLowerInvariant()} is authored in VS Code with the AI "
+                           + "behaviour folder open. Creating one from the editor is a separate slice (CE-459).",
+            Category:      null,
+            Keywords:      null,
+            IconTextureId: null,
+            Tag:           new NotCreatableChoice(CSharpTechnology,
+                               "Hand-written C# is authored in VS Code; editor creation is CE-459."),
+            IconKey:       null,
+            // ⭐ Shown, never choosable: the generic picker dims it, explains on hover, never confirms it.
+            IsEnabled:     false));
+
+        return entries.AsReadOnly();
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-460</c> (E4, handoff D2) — the technology an author gets by pressing Enter: BTree for a
+    /// behaviour, Blueprint for an action or condition. ⛔ Not a filter — every technology stays listed.
+    /// </summary>
+    public static AssetKind DefaultTechnology(AuthoringProduct product)
+        => product == AuthoringProduct.Behavior ? AssetKind.BTree : AssetKind.Blueprint;
+
+    /// <summary>
+    /// The <see cref="PickerEntry.Id"/> to pre-select (<c>PickerRequest.InitialSelectionId</c>): the default
+    /// technology's first BLANK template. <see langword="null"/> without a product root, or when that
+    /// technology offers none — the picker then opens with nothing pre-selected.
+    /// </summary>
+    public string? DefaultEntryId()
+    {
+        if (_product is not { } product) return null;
+        var kind = DefaultTechnology(product);
+        if (!_services.TryGetValue(kind, out var svc)) return null;
+        var recipe = svc.AvailableRecipes().FirstOrDefault(r => svc.ProductOf(r) == product && svc.IsBlankTemplate(r));
+        return recipe is null ? null : GetItemKey(new RecipeChoice(kind, recipe));
+    }
 
     // ── Identity / search helpers ──────────────────────────────────────
 

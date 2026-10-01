@@ -137,6 +137,7 @@ public static class HullDownAttackRunRegistrar
             Name         = "HullDownAttackRun",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 642183108553885152UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Params", typeof(global::Hrot.AI.Behaviors.Brains.HullDownAttackParams), 0),

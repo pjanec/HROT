@@ -1,5 +1,6 @@
 using ImGuiNET;
 using Hrot.Blueprints.Core.Assets;
+using Hrot.Blueprints.Core.Compiler;
 using Hrot.Blueprints.Editor.Variables;
 using Hrot.Blueprints.Editor.Windows;
 
@@ -101,16 +102,24 @@ internal sealed class ReturnNodeSession : INodeEditSession
     //              body is spliced into the host's exec chain. Same shape as the BP-105 precedent.
     private bool IsMacroGraph => _graph?.Kind == GraphKind.Macro;
 
+    // ── CE-496: Behavior asks the compiler's own rule (BehaviorDispatch.IsTickGraph) ─────
+    //
+    // A behaviour's TICK returns its outcome (Status: Success/Failure finishes it); its other Function
+    // graphs are Instance-shaped helpers (Outputs). Stage5_Schedule.BuildReturnTerminator uses the same call.
+    private bool IsBehaviorTick => _graph != null && BehaviorDispatch.IsTickGraph(_parent, _graph);
+
     private bool ShowOutputs =>
         _graph != null &&
         (IsMacroGraph
          || _parent.Dispatch == BlueprintDispatchKind.Instance
-         || _parent.Dispatch == BlueprintDispatchKind.Library);
+         || _parent.Dispatch == BlueprintDispatchKind.Library
+         || (_parent.Dispatch == BlueprintDispatchKind.Behavior && !IsBehaviorTick));
 
     private bool ShowStatus =>
         _graph != null && !IsMacroGraph &&
         (_parent.Dispatch == BlueprintDispatchKind.AiPrimitive
-         || (_parent.Dispatch == BlueprintDispatchKind.Library && _graph.Outputs.Count == 0));
+         || (_parent.Dispatch == BlueprintDispatchKind.Library && _graph.Outputs.Count == 0)
+         || IsBehaviorTick);
 
     // ── Internal test hooks (InternalsVisibleTo Hrot.Blueprints.Tests) ──────────
 
@@ -216,6 +225,12 @@ internal sealed class ReturnNodeSession : INodeEditSession
                     + "every call site show one pin each.");
             }
         }
+        else if (IsBehaviorTick)
+        {
+            ImGui.TextDisabled(
+                "This is the behaviour's Tick: reaching a Return node finishes the behaviour with its "
+                + "Status, so it has no declared Outputs.");
+        }
         else
         {
             ImGui.TextDisabled(
@@ -236,7 +251,10 @@ internal sealed class ReturnNodeSession : INodeEditSession
             ImGui.TextUnformatted(_parent.Dispatch == BlueprintDispatchKind.Library
                 ? "Status — this Library function declares no outputs, so it returns a node "
                   + "status instead. Declaring an output above hides this control."
-                : "Status — the node status returned to this AiPrimitive's BTree/HSM host.");
+                : IsBehaviorTick
+                    ? "Status — the behaviour finishes with this outcome. Use one Return node per "
+                      + "outcome; every other exit from Tick keeps it running."
+                    : "Status — the node status returned to this AiPrimitive's BTree/HSM host.");
             DrawStatusCombo();
 
             // BP-131: for AiPrimitive the combo is now the FALLBACK, not the only writer. Say so
@@ -256,6 +274,12 @@ internal sealed class ReturnNodeSession : INodeEditSession
             ImGui.TextDisabled(
                 "This Instance function returns its declared Outputs above; Status is not read "
                 + "by the compiler for Instance dispatch.");
+        }
+        else if (_parent.Dispatch == BlueprintDispatchKind.Behavior)
+        {
+            ImGui.TextDisabled(
+                "This helper function returns its declared Outputs above; only the behaviour's Tick "
+                + "graph returns a Status.");
         }
         else if (_parent.Dispatch == BlueprintDispatchKind.Library)
         {

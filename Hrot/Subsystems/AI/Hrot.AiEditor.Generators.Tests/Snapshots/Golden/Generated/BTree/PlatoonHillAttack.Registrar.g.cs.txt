@@ -207,6 +207,7 @@ public static class PlatoonHillAttackRegistrar
             Name         = "PlatoonHillAttack",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 4394801773825521763UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Params", typeof(global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams), 0),
