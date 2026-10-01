@@ -22,6 +22,9 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
     /// <summary>Diagnostic code for BTree JSON parse/deserialize errors.</summary>
     public const string DiagnosticId = "BTREE0001";
 
+    /// <summary>⭐ CE-423 — a <c>Role=State</c> variable that would get no storage (<c>StateVariableStorage</c>).</summary>
+    public const string StateStorageErrorId = "BTREE0003";
+
     /// <summary>Diagnostic code for BTree codegen validation failures (skipped asset, non-build-breaking).</summary>
     public const string CodegenWarningId = "BTREE0002";
 
@@ -115,6 +118,10 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
                 "Deserialization returned null (empty or invalid JSON)."));
             return;
         }
+
+        // ⭐⭐ CE-423 — a State variable that would get NO storage is an ERROR, not a silent skip.
+        foreach (var unstored in Hrot.AiEditor.Persistence.Emit.StateVariableStorage.UnstoredStateVariables(dto))
+            spc.ReportDiagnostic(MakeStateStorageDiagnostic(path, unstored));
 
         // ⛔⛔⛔ CE-337 (2026-09-23) — THE SLICE DECLARATION IS GONE, AND WHAT REPLACES IT IS A WARNING.
         //
@@ -375,5 +382,19 @@ public sealed class BTreeJsonGenerator : IIncrementalGenerator
             defaultSeverity:    DiagnosticSeverity.Warning,
             isEnabledByDefault: true);
         return Diagnostic.Create(descriptor, Location.None, path, detail);
+    }
+
+    /// <summary>⭐ CE-423 — an ERROR: the variable would silently have no slot, and nothing at runtime could find it.</summary>
+    internal static Diagnostic MakeStateStorageDiagnostic(string path, string variableName)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            id:                 StateStorageErrorId,
+            title:              "BTree State variable has no storage",
+            messageFormat:      "'{0}': {1}",
+            category:           "BTreeJsonGenerator",
+            defaultSeverity:    DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+        return Diagnostic.Create(descriptor, Location.None, path,
+            Hrot.AiEditor.Persistence.Emit.StateVariableStorage.Describe(variableName));
     }
 }

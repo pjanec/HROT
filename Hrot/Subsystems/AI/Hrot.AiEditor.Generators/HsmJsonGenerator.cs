@@ -21,6 +21,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
     /// <summary>Diagnostic code for HSM JSON parse/emit errors.</summary>
     public const string DiagnosticId = "HSM0001";
 
+    /// <summary>⭐ CE-423 — a <c>Role=State</c> variable that would get no storage (<c>StateVariableStorage</c>).</summary>
+    public const string StateStorageErrorId = "HSM0002";
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Provider: raw file text from *.hsm.json AdditionalTexts
@@ -95,6 +98,10 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
                 "Deserialization returned null (empty or invalid JSON)."));
             return;
         }
+
+        // ⭐⭐ CE-423 — a State variable that would get NO storage is an ERROR, not a silent skip.
+        foreach (var unstored in Hrot.AiEditor.Persistence.Emit.StateVariableStorage.UnstoredStateVariables(dto))
+            spc.ReportDiagnostic(MakeStateStorageDiagnostic(path, unstored));
 
         // BP-281 / E7b: the Roslyn-backed struct-size resolver, built once and used by BOTH
         // emitters — the topology core bakes expression-target offsets into action keys and the
@@ -283,5 +290,19 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             defaultSeverity:    DiagnosticSeverity.Error,
             isEnabledByDefault: true);
         return Diagnostic.Create(descriptor, Location.None, path, detail);
+    }
+
+    /// <summary>⭐ CE-423 — an ERROR: the variable would silently have no slot, and nothing at runtime could find it.</summary>
+    internal static Diagnostic MakeStateStorageDiagnostic(string path, string variableName)
+    {
+        var descriptor = new DiagnosticDescriptor(
+            id:                 StateStorageErrorId,
+            title:              "HSM State variable has no storage",
+            messageFormat:      "'{0}': {1}",
+            category:           "HsmJsonGenerator",
+            defaultSeverity:    DiagnosticSeverity.Error,
+            isEnabledByDefault: true);
+        return Diagnostic.Create(descriptor, Location.None, path,
+            Hrot.AiEditor.Persistence.Emit.StateVariableStorage.Describe(variableName));
     }
 }

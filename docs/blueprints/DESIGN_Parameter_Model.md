@@ -454,6 +454,13 @@ address a standalone variable. ⇒ fix the **enum's names and summaries**, and m
 a **diagnostic** instead of silence; ⛔ do not add cross-assignment persistence or a synthetic node
 identity without a named consumer.
 
+⭐ **`2026-10-01` — AS BUILT (`CE-423`):** the silence is gone. `StateVariableStorage` (`Hrot.AiEditor.Persistence/Emit`)
+names every `Role=State`, `Scope=Node` variable no stateful node binds — mirroring `BTreeBridgeEmitCore`'s own
+node-driven rule (`StatefulScopeVariable`), and for an HSM every one, since `HsmBridgeEmitCore` keeps only
+`Behavior` — and both generators report it as an **error** (`BTREE0003` / `HSM0002`) naming the variable and
+`Behavior`. Node-bound working state is not reported. The editor path was already closed by `CE-435`; this is
+the hand-edited / older-file path it promised to close.
+
 #### ✅ AS BUILT `2026-09-08` — `CE-235`: **the two shapes now have TWO MEMBERS, and the public one is the AUTHORED DTO**
 
 > 🔒 **User ruling, `2026-09-08`:** *"nothing but the behavior implementation itself should use and touch
