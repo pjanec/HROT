@@ -247,10 +247,12 @@ public sealed class NodeCoverageTests
 
         var result = new BlueprintCompiler().Compile(asset, options);
 
-        Assert.True(result.Succeeded,
-            $"{nodeType.Name}: expected the compile to 'succeed' (Stage5_Schedule only warns via BP4004).");
+        // ⭐ CE-475 (2026-10-01): BP4004 is an ERROR. A node Stage 5 cannot lower used to compile "successfully"
+        //   and do nothing; now the compile fails and names it.
+        Assert.False(result.Succeeded,
+            $"{nodeType.Name}: expected the compile to FAIL with BP4004 (no Stage5_Schedule lowering).");
         Assert.Contains(result.Diagnostics, d =>
-            d.Code == DiagnosticCodes.BP4004 && d.Severity == DiagnosticSeverity.Warning);
+            d.Code == DiagnosticCodes.BP4004 && d.Severity == DiagnosticSeverity.Error);
     }
 
     /// <summary>
@@ -818,19 +820,36 @@ public sealed class NodeCoverageTests
         return (asset, options);
     }
 
-    /// <summary>EventEntry -&gt; Cast(TargetTypeId=System.Object) -&gt; Return, fed by a Literal.</summary>
+    /// <summary>
+    /// EventEntry -&gt; SetVariable(IntOut) -&gt; Return, fed by Literal(2.5f) -&gt; Cast(System.Int32).
+    /// ⭐ <c>CE-475</c>: Cast is a PURE node. This fixture used to wire Cast's (since removed) exec pins into the
+    /// chain — Stage 5 dropped it with a BP4004 warning and the fixture still "compiled", so it counted coverage
+    /// for a node that emitted nothing. Now the cast's output is consumed, so the native C# cast is really emitted.
+    /// </summary>
     private static BlueprintAsset BuildCastMinimalAsset()
     {
-        var literal   = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Object", ValueJson = "null" };
-        var literalOut = DataPin("Value", "Out", "System.Object");
+        var literal    = new LiteralNode { Id = Guid.NewGuid(), TypeId = "System.Single", ValueJson = "2.5" };
+        var literalOut = DataPin("Value", "Out", "System.Single");
         literal.Pins.Add(literalOut);
 
-        var cast     = new CastNode { Id = Guid.NewGuid(), TargetTypeId = "System.Object" };
-        var castExecIn  = ExecPin("In",  "In");
-        var castExecOut = ExecPin("Out", "Out");
-        var castDataIn  = DataPin("In",  "In",  "System.Object");
-        var castDataOut = DataPin("Out", "Out", "System.Object");
-        cast.Pins.AddRange(new[] { castExecIn, castExecOut, castDataIn, castDataOut });
+        var cast        = new CastNode { Id = Guid.NewGuid(), TargetTypeId = "System.Int32" };
+        var castDataIn  = DataPin("In",  "In",  "System.Single");
+        var castDataOut = DataPin("Out", "Out", "System.Int32");
+        cast.Pins.AddRange(new[] { castDataIn, castDataOut });
+
+        var intVarId = Guid.NewGuid();
+        var intVar = new VariableDecl
+        {
+            Id   = intVarId,
+            Name = "IntOut",
+            Type = new BlueprintTypeRef { TypeId = "System.Int32" },
+        };
+
+        var setExecIn   = ExecPin("ExecIn",  "In");
+        var setExecOut  = ExecPin("ExecOut", "Out");
+        var setValuePin = DataPin("Value",   "In", "System.Int32");
+        var setNode = new SetVariableNode { Id = Guid.NewGuid(), VariableId = intVarId.ToString() };
+        setNode.Pins.AddRange(new[] { setExecIn, setExecOut, setValuePin });
 
         var entry    = new EventEntryNode { Id = Guid.NewGuid() };
         var entryOut = ExecPin("ExecOut", "Out");
@@ -845,21 +864,23 @@ public sealed class NodeCoverageTests
             Id    = Guid.NewGuid(),
             Name  = "Main",
             Kind  = GraphKind.Function,
-            Nodes = { entry, literal, cast, ret },
+            Nodes = { entry, literal, cast, setNode, ret },
             Links =
             {
-                new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id,  ToNodeId = cast.Id, ToPinId = castExecIn.Id },
-                new Link { FromNodeId = cast.Id,  FromPinId = castExecOut.Id, ToNodeId = ret.Id, ToPinId = retIn.Id },
-                new Link { FromNodeId = literal.Id, FromPinId = literalOut.Id, ToNodeId = cast.Id, ToPinId = castDataIn.Id },
+                new Link { FromNodeId = entry.Id,   FromPinId = entryOut.Id,    ToNodeId = setNode.Id, ToPinId = setExecIn.Id },
+                new Link { FromNodeId = setNode.Id, FromPinId = setExecOut.Id,  ToNodeId = ret.Id,     ToPinId = retIn.Id },
+                new Link { FromNodeId = literal.Id, FromPinId = literalOut.Id,  ToNodeId = cast.Id,    ToPinId = castDataIn.Id },
+                new Link { FromNodeId = cast.Id,    FromPinId = castDataOut.Id, ToNodeId = setNode.Id, ToPinId = setValuePin.Id },
             },
         };
 
         return new BlueprintAsset
         {
-            AssetId  = Guid.NewGuid(),
-            Name     = "CastCoverage",
-            Dispatch = BlueprintDispatchKind.Instance,
-            Graphs   = { graph },
+            AssetId   = Guid.NewGuid(),
+            Name      = "CastCoverage",
+            Dispatch  = BlueprintDispatchKind.Instance,
+            Variables = { intVar },
+            Graphs    = { graph },
         };
     }
 

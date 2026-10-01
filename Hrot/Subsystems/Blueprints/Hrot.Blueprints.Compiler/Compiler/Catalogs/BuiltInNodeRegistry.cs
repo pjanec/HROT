@@ -281,12 +281,13 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("Result", "Out", false, ""),
         };
 
-    /// <summary>Cast: exec In/Out + data-In "In"/System.Object + data-Out "Out"/TargetTypeId.</summary>
+    /// <summary>Cast: data-In "In"/System.Object + data-Out "Out"/TargetTypeId — a PURE node.</summary>
+    /// <remarks>⭐ <c>CE-475</c>: it had exec In/Out pins, but every lowering of it is pure — Stage 3's synthesized
+    /// coercion casts carry no exec pins, Stage 5 lowers it only in the pure arm, the emitter writes a native C# cast.
+    /// Wired into an exec chain it was dropped with a <c>BP4004</c> and the chain walked on without it.</remarks>
     private static IReadOnlyList<PinSchema> CastPins(CastNode ca)
         => new[]
         {
-            new PinSchema("In",  "In",  true,  ""),
-            new PinSchema("Out", "Out", true,  ""),
             new PinSchema("In",  "In",  false, "System.Object"),
             new PinSchema("Out", "Out", false,
                 string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
