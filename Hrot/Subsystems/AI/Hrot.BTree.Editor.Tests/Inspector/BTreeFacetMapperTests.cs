@@ -87,7 +87,7 @@ public sealed class BTreeFacetMapperTests
         facet.Should().NotBeNull();
         facet.Should().BeOfType<BTreeActionFacet>();
         var af = (BTreeActionFacet)facet!;
-        af.MethodFqn.Should().Be("Ns.C.Action1");
+        af.Action.MethodFqn.Should().Be("Ns.C.Action1");
     }
 
     [Fact]
@@ -269,7 +269,7 @@ public sealed class BTreeFacetMapperTests
     {
         var child  = new ChildTree { InputsTypeId = typeof(PatrolInputs).FullName };
         var asset  = MakeAsset(RootHostingOneSubtree());
-        var mapper = new BTreeFacetMapper(asset, null, new OneAssetCatalog(child));
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(child));
         var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
         var sel    = new BTreeNodeSelection(node.VisualId);
 
@@ -288,7 +288,7 @@ public sealed class BTreeFacetMapperTests
     public void CE439_PickingASubtreeWithNoInputs_LandsAndBindsNothing()
     {
         var asset  = MakeAsset(RootHostingOneSubtree());
-        var mapper = new BTreeFacetMapper(asset, null, new OneAssetCatalog(new ChildTree()));
+        var mapper = new BTreeFacetMapper(asset, new OneAssetCatalog(new ChildTree()));
         var node   = asset.Nodes.Single(n => n.KernelType == NodeType.Subtree);
         var sel    = new BTreeNodeSelection(node.VisualId);
 

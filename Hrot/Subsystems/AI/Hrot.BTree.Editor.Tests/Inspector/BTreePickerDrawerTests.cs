@@ -7,6 +7,8 @@ using FluentAssertions;
 using Hrot.BTree.Editor.Inspector;
 using Hrot.BTree.Editor.Model;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using StructEdit.Core;
 using StructEdit.Core.Attributes;
 using Xunit;
@@ -37,6 +39,12 @@ public sealed class BTreePickerDrawerTests
             blob, null, null,
             Guid.NewGuid(), blob.TreeName, "/t.cs", false, "", "");
 
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the method list and the variable list now come from the ONE binding drawer the
+    /// production factory registers; the BTree host supplies only its method list (the behavior registry).</summary>
+    private static ActionBindingSources Sources(BehaviorRegistry registry, BehaviorTreeAsset? asset = null)
+        => ((ActionBindingDrawer)BTreePickerDrawerFactory.BuildDrawers(asset ?? MakeAsset(EmptyBlob()), registry)
+               [typeof(BehaviorActionBindingFacet)]).Sources;
+
     private static void RegisterName(BehaviorRegistry registry, string name, int id)
     {
         var def = new BehaviorDefinition
@@ -47,7 +55,7 @@ public sealed class BTreePickerDrawerTests
         registry.Register(id, name, def);
     }
 
-    // ── BehaviorHashPickerDrawer tests ────────────────────────────────────────
+    // ── the method list (was BehaviorHashPickerDrawer) ─────────────────────────
 
     [Fact]
     public void FieldPicker_BehaviorHash_ListsRegistryNames()
@@ -56,8 +64,7 @@ public sealed class BTreePickerDrawerTests
         RegisterName(registry, "Ns.Class.RunAway", 1);
         RegisterName(registry, "Ns.Class.Patrol",  2);
 
-        var drawer = new BehaviorHashPickerDrawer(registry);
-        var items  = drawer.GetItems();
+        var items    = Sources(registry).GetMethods(BindingSlotKind.Action);
 
         items.Should().Contain("Ns.Class.RunAway");
         items.Should().Contain("Ns.Class.Patrol");
@@ -68,9 +75,7 @@ public sealed class BTreePickerDrawerTests
     public void FieldPicker_BehaviorHash_EmptyRegistry_ReturnsEmpty()
     {
         var registry = new BehaviorRegistry();
-        var drawer   = new BehaviorHashPickerDrawer(registry);
-
-        drawer.GetItems().Should().BeEmpty();
+        Sources(registry).GetMethods(BindingSlotKind.Guard).Should().BeEmpty();
     }
 
     [Fact]
@@ -81,13 +86,12 @@ public sealed class BTreePickerDrawerTests
         RegisterName(registry, "A.Method", 1);
         RegisterName(registry, "M.Method", 2);
 
-        var drawer = new BehaviorHashPickerDrawer(registry);
-        var items  = drawer.GetItems();
+        var items    = Sources(registry).GetMethods(BindingSlotKind.Action);
 
         items.Should().BeInAscendingOrder("items must be sorted alphabetically");
     }
 
-    // ── BlackboardFieldPickerDrawer tests ─────────────────────────────────────
+    // ── the variable list (was BlackboardFieldPickerDrawer) ────────────────────
 
     [Fact]
     public void FieldPicker_BlackboardField_ListsActiveAssetFields()
@@ -98,8 +102,7 @@ public sealed class BTreePickerDrawerTests
             new BlackboardVariableEntry("Health",    typeof(float), null),
             new BlackboardVariableEntry("HasTarget", typeof(bool),  null),
         });
-        var drawer = new BlackboardFieldPickerDrawer(asset);
-        var items  = drawer.GetItems();
+        var items  = Sources(new BehaviorRegistry(), asset).GetVariables(default);
 
         items.Should().Contain("Health");
         items.Should().Contain("HasTarget");
@@ -109,58 +112,54 @@ public sealed class BTreePickerDrawerTests
     [Fact]
     public void FieldPicker_BlackboardField_EmptyAsset_ReturnsEmpty()
     {
-        var asset  = MakeAsset(EmptyBlob());
-        var drawer = new BlackboardFieldPickerDrawer(asset);
-
-        drawer.GetItems().Should().BeEmpty();
+        Sources(new BehaviorRegistry()).GetVariables(default).Should().BeEmpty();
     }
 
     // ── CompositeStringDrawer tests ───────────────────────────────────────────
 
     [Fact]
-    public void CompositeStringDrawer_DispatchesByAttribute_BehaviorHash()
+    public void CompositeStringDrawer_DispatchesByAttribute()
     {
-        var registry  = new BehaviorRegistry();
-        RegisterName(registry, "Ns.Method", 1);
-        var bhDrawer  = new BehaviorHashPickerDrawer(registry);
-        var composite = new CompositeStringDrawer()
-            .Register<BehaviorHashPickerAttribute>(bhDrawer);
+        var pickerDrawer = new AiAssetPickerDrawer(new EmptyCatalog(), Hrot.Editor.AiShared.AssetKind.BTree);
+        var composite    = new CompositeStringDrawer()
+            .Register<AiAssetPickerAttribute>(pickerDrawer);
 
-        // Create a node with BehaviorHashPicker metadata.
-        var node = MakeNodeWithAttr(new BehaviorHashPickerAttribute());
+        var node     = MakeNodeWithAttr(new AiAssetPickerAttribute(Hrot.Editor.AiShared.AssetKind.BTree));
         var resolved = composite.Resolve(node);
 
-        resolved.Should().BeSameAs(bhDrawer,
-            "composite drawer must dispatch to BehaviorHashPickerDrawer when attribute present");
+        resolved.Should().BeSameAs(pickerDrawer,
+            "composite drawer must dispatch to the drawer registered for the field's attribute");
     }
 
     [Fact]
     public void CompositeStringDrawer_NoAttribute_ReturnsNull()
     {
-        var registry  = new BehaviorRegistry();
-        var bhDrawer  = new BehaviorHashPickerDrawer(registry);
         var composite = new CompositeStringDrawer()
-            .Register<BehaviorHashPickerAttribute>(bhDrawer);
+            .Register<AiAssetPickerAttribute>(new AiAssetPickerDrawer(new EmptyCatalog(), Hrot.Editor.AiShared.AssetKind.BTree));
 
         // Node with no custom attributes.
-        var node     = MakeNodeWithAttr();
-        var resolved = composite.Resolve(node);
+        var resolved = composite.Resolve(MakeNodeWithAttr());
 
         resolved.Should().BeNull("no registered attribute means no dispatch");
     }
 
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the binding facet is drawn by the ONE binding drawer, keyed by its type.</summary>
     [Fact]
-    public void CompositeStringDrawer_DispatchesByAttribute_BlackboardField()
+    public void TheFactory_RegistersTheBindingDrawer_ForTheBindingFacet()
     {
-        var asset      = MakeAsset(EmptyBlob());
-        var bbDrawer   = new BlackboardFieldPickerDrawer(asset);
-        var composite  = new CompositeStringDrawer()
-            .Register<BlackboardFieldPickerAttribute>(bbDrawer);
+        var drawers = BTreePickerDrawerFactory.BuildDrawers(MakeAsset(EmptyBlob()), new BehaviorRegistry());
 
-        var node     = MakeNodeWithAttr(new BlackboardFieldPickerAttribute());
-        var resolved = composite.Resolve(node);
+        drawers.Should().ContainKey(typeof(BehaviorActionBindingFacet));
+        drawers[typeof(BehaviorActionBindingFacet)].Should().BeOfType<ActionBindingDrawer>();
+    }
 
-        resolved.Should().BeSameAs(bbDrawer);
+    private sealed class EmptyCatalog : Hrot.Editor.AiShared.Catalog.IAssetCatalog
+    {
+        public IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> All => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();
+        public Hrot.Editor.AiShared.IEditableAsset? FindByAssetId(Guid assetId) => null;
+        public Hrot.Editor.AiShared.IEditableAsset? FindByName(string name) => null;
+        public IReadOnlyList<Hrot.Editor.AiShared.IEditableAsset> WhereDependsOn(Guid assetId) => Array.Empty<Hrot.Editor.AiShared.IEditableAsset>();
+        public event Action<Hrot.Editor.AiShared.AssetKind>? Changed { add { } remove { } }
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────

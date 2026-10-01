@@ -3208,7 +3208,8 @@ namespace Hrot.Editor
             // store dynamically. Per SE1 scope, picker drawers are deferred — facet picker
             // fields fall through to plain text inputs (acceptable). The edit service alone is
             // the core win.
-            var facetEditService = new ComponentEditServiceBuilder().Build();
+            // ⭐ CE-417 slice 4b — the ONE facet edit service both hosts build (it makes every binding one drawn leaf).
+            var facetEditService = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
 
             // ⭐⭐⭐ Batch 97 (97c) — THE WRITE SIDE, and the reason a paused edit never landed.
             //    🔴🔴 Measured by Batch 96: TryWriteWorkingStateField (Batch 84) and the WriteLiveValue
@@ -5563,10 +5564,12 @@ namespace Hrot.Editor
 
         private static string? ResolveExpressionTargetField(object? facet) => facet switch
         {
-            BTreeActionFacet af          => af.ExpressionTargetField,
-            BTreeConditionFacet cf       => cf.ExpressionTargetField,
-            TransitionFacet tf           => tf.ExpressionTargetField,
-            GlobalTransitionFacet gtf    => gtf.ExpressionTargetField,
+            // ⭐ CE-417 slice 4b — a transition has two bindings, each with its own variable (B-2): the action's is the
+            //   one it writes, so it leads; else the guard's.
+            BTreeActionFacet af          => af.Action.ExpressionTargetField,
+            BTreeConditionFacet cf       => cf.Condition.ExpressionTargetField,
+            TransitionFacet tf           => tf.Action.ExpressionTargetField ?? tf.Guard.ExpressionTargetField,
+            GlobalTransitionFacet gtf    => gtf.Action.ExpressionTargetField ?? gtf.Guard.ExpressionTargetField,
             _                            => null,
         };
 

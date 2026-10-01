@@ -100,11 +100,11 @@ public sealed class HsmBlueprintBehaviourAuthoringTests
     {
         var bp  = new CatalogAsset { Name = "ChaseTarget" };
         var hsm = MakeMachine(out var state, out _);
-        var d   = new HsmFacetDispatcher(hsm, null, new FakeCatalog(bp));
+        var d   = new HsmFacetDispatcher(hsm, new FakeCatalog(bp));
 
         var sel   = new HsmStateSelection(state.StableId);
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "ChaseTarget";
+        facet.Activity.BlueprintName = "ChaseTarget";
         d.ApplyFacet(sel, facet);
 
         (state.Activity?.BlueprintName).Should().Be("ChaseTarget");
@@ -117,11 +117,11 @@ public sealed class HsmBlueprintBehaviourAuthoringTests
     {
         var bp  = new CatalogAsset { Name = "IsInRange" };
         var hsm = MakeMachine(out _, out var t);
-        var d   = new HsmFacetDispatcher(hsm, null, new FakeCatalog(bp));
+        var d   = new HsmFacetDispatcher(hsm, new FakeCatalog(bp));
 
         var sel   = new HsmTransitionSelection(t.VisualId);
         var facet = (TransitionFacet)d.GetFacet(sel)!;
-        facet.GuardBlueprintName = "IsInRange";
+        facet.Guard.BlueprintName = "IsInRange";
         d.ApplyFacet(sel, facet);
 
         (t.Guard?.BlueprintName).Should().Be("IsInRange");
@@ -140,10 +140,10 @@ public sealed class HsmBlueprintBehaviourAuthoringTests
         (state.Activity ??= new BehaviorActionBinding()).BlueprintName    = bp.Name;
         (state.Activity ??= new BehaviorActionBinding()).BlueprintAssetId = bp.AssetId;
 
-        var d     = new HsmFacetDispatcher(hsm, null, new FakeCatalog(bp));
+        var d     = new HsmFacetDispatcher(hsm, new FakeCatalog(bp));
         var sel   = new HsmStateSelection(state.StableId);
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "";
+        facet.Activity.BlueprintName = "";
         d.ApplyFacet(sel, facet);
 
         (state.Activity?.BlueprintName).Should().BeNull();
@@ -164,7 +164,7 @@ public sealed class HsmBlueprintBehaviourAuthoringTests
         (state.Activity ??= new BehaviorActionBinding()).BlueprintAssetId = bp.AssetId;
 
         // A catalogue that knows nothing — the partial-checkout case.
-        var d     = new HsmFacetDispatcher(hsm, null, new FakeCatalog());
+        var d     = new HsmFacetDispatcher(hsm, new FakeCatalog());
         var sel   = new HsmStateSelection(state.StableId);
         var facet = (StateFacet)d.GetFacet(sel)!;
         d.ApplyFacet(sel, facet);
@@ -183,11 +183,11 @@ public sealed class HsmBlueprintBehaviourAuthoringTests
     {
         var tree = new CatalogAsset { Name = "PatrolTree", Kind = AssetKind.BTree };
         var hsm  = MakeMachine(out var state, out _);
-        var d    = new HsmFacetDispatcher(hsm, null, new FakeCatalog(tree));
+        var d    = new HsmFacetDispatcher(hsm, new FakeCatalog(tree));
 
         var sel   = new HsmStateSelection(state.StableId);
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "PatrolTree";
+        facet.Activity.BlueprintName = "PatrolTree";
         d.ApplyFacet(sel, facet);
 
         (state.Activity?.BlueprintAssetId ?? Guid.Empty).Should().Be(Guid.Empty,

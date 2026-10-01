@@ -3,6 +3,7 @@ using Fhsm.Kernel.Data;
 using Hrot.Editor.AiShared;
 using Hrot.Editor.AiShared.Catalog;
 using Hrot.Editor.AiShared.Inspector;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Model;
 using StructEdit.Core.Attributes;
 
@@ -14,47 +15,33 @@ public struct StateFacet
     [EditDisplayName("Name")]
     public string Name;
 
-    [EditDisplayName("On Entry action")]
-    [HsmActionPicker]
-    public string? OnEntryAction;
+    // ⭐⭐⭐ CE-417 slice 4b — ONE binding facet per slot, each with its OWN target variable (B-2), drawn by the ONE
+    //   ActionBindingDrawer. 📄 DESIGN_Behavior_Action_Binding.md §5.4.
+    // ⛔ Replaces the four flat *Action fields, the activity blueprint name/id pair and the ONE state-wide
+    //   "Params seed" field. The state's seed (what a hosted occurrence reads) is still DERIVED from the slots by
+    //   StateNode.StateWideTargetField — the Activity's variable first — so the emitter and the editor cannot disagree.
+    // ⚠ Only the Activity may run a BLUEPRINT (CE-385, design §9 ③: method XOR blueprint).
+    [EditDisplayName("On Entry")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet OnEntry;
 
-    [EditDisplayName("On Exit action")]
-    [HsmActionPicker]
-    public string? OnExitAction;
+    [EditDisplayName("On Exit")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet OnExit;
 
-    [EditDisplayName("Activity (tick) action")]
-    [HsmActionPicker]
-    public string? ActivityAction;
+    [EditDisplayName("Activity (tick)")]
+    [ActionBinding(BindingSlotKind.Action, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Activity;
 
-    // ⭐⭐⭐ CE-385 — the activity hosted by a BLUEPRINT instead of a C# method.
-    // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §7.
-    // ⛔⛔ MUTUALLY EXCLUSIVE with ActivityAction above — the validator rejects an asset that sets
-    //    both (design §9 ③), because the two resolve through DIFFERENT id spaces and one would
-    //    silently win. ⚠ Deliberately shown side by side so the choice is visible.
-    [EditDisplayName("Activity blueprint (instead of an action)")]
-    [AiAssetPicker(AssetKind.Blueprint)]
-    public string? ActivityBlueprintName;
-
-    /// <summary>⭐ The persisted RENAME SURVIVOR and the id the emitter actually bakes. ⛔ Never
-    /// typed — written by the pick. Shown so a dangling reference is diagnosable.</summary>
+    /// <summary>⭐ The persisted RENAME SURVIVOR of the activity blueprint and the id the emitter bakes. ⛔ Never typed —
+    /// written by the pick. Shown so a dangling reference is diagnosable.</summary>
     [EditReadOnly]
     [EditDisplayName("Activity blueprint asset id")]
     public string ActivityBlueprintAssetId;
 
-    [EditDisplayName("Timer action")]
-    [HsmActionPicker]
-    public string? TimerAction;
-
-    /// <summary>
-    /// ⭐⭐⭐ <c>CE-387</c> — which blackboard variable THIS STATE's hosted occurrence seeds its
-    /// params from. 📄 design §3.4; <c>DESIGN_Occurrence_Scoped_Storage.md</c> §28.6.
-    /// ⛔⛔ <b>Same field name as <see cref="TransitionFacet.ExpressionTargetField"/>, opposite
-    /// direction:</b> a transition's RECEIVES its action's result; a state's is the SEED it reads.
-    /// ⚠ Unbound is the COMMON case and means "seed from offset 0", not an error.
-    /// </summary>
-    [EditDisplayName("Params seed (blackboard variable)")]
-    [HsmBlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    [EditDisplayName("Timer")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Timer;
 
     // ⭐⭐⭐ HSM SUBTREE AUTHORING — 📄 HSM_Editor_NodeEditor_Host_Design.md §11.1a.
     // 🔒 User, 2026-09-26: "the tree asset must be pickable."
@@ -119,15 +106,12 @@ public struct TransitionFacet
     [HsmEventPicker]
     public ushort EventId;
 
+    // ⭐⭐⭐ CE-417 slice 4b — the guard and the effect action are two bindings, each with its OWN variable (B-2): the
+    //   guard's is the INPUT it reads, the action's the OUTPUT it writes. ⛔ Before 4b one field served both.
+    // ⚠ Only the guard may run a BLUEPRINT (CE-385; method XOR blueprint, design §9 ③).
     [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
-    [HsmGuardPicker]
-    public string? GuardFunction;
-
-    // ⭐⭐⭐ CE-385 — the guard hosted by a BLUEPRINT. ⛔⛔ MUTUALLY EXCLUSIVE with GuardFunction
-    //    (design §9 ③). 📄 §3.2, §7.
-    [EditDisplayName("Guard blueprint (instead of a guard function)")]
-    [AiAssetPicker(AssetKind.Blueprint)]
-    public string? GuardBlueprintName;
+    [ActionBinding(BindingSlotKind.Guard, allowsBlueprint: true)]
+    public BehaviorActionBindingFacet Guard;
 
     /// <summary>⭐ The persisted RENAME SURVIVOR and the id the emitter bakes. ⛔ Never typed.</summary>
     [EditReadOnly]
@@ -143,12 +127,8 @@ public struct TransitionFacet
     public bool IsPolled;
 
     [EditDisplayName("Effect action")]
-    [HsmActionPicker]
-    public string? ActionFunction;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [HsmBlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]
@@ -243,17 +223,14 @@ public struct GlobalTransitionFacet
     [HsmStateSelector]
     public string TargetStateName;
 
+    // ⭐ CE-417 slice 4b — the same two bindings as a transition (B-3).
     [EditDisplayName(ReactiveGuardVocabulary.HsmTransitionGuardDisplayName)]
-    [HsmGuardPicker]
-    public string? GuardFunction;
+    [ActionBinding(BindingSlotKind.Guard)]
+    public BehaviorActionBindingFacet Guard;
 
     [EditDisplayName("Effect action")]
-    [HsmActionPicker]
-    public string? ActionFunction;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [HsmBlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Priority")]
     [EditRange(0, 255)]

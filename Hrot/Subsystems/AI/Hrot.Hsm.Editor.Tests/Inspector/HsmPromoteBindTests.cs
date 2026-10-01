@@ -6,6 +6,7 @@ using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
 using Hrot.Editor.AiShared.Blackboard;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Editor.AiShared.Selection;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
@@ -19,9 +20,9 @@ namespace Hrot.Hsm.Editor.Tests.Inspector;
 /// auto-variable AND binds ExpressionTargetField via the HSM ApplyFacet path.
 ///
 /// The ImGui button click is replaced by the equivalent headless sequence:
-///   1. dispatcher.GetFacet  (populates fqnContext.CurrentVisualId)
-///   2. drawer.Promote(visualId)  → returns newName
-///   3. Build edited facet with ExpressionTargetField = newName
+///   1. dispatcher.GetFacet  (each binding facet carries its site id — ⭐ CE-417 slice 4b, no side channel)
+///   2. sources.Promote(facet.Action)  → returns newName
+///   3. Build edited facet with Action.ExpressionTargetField = newName
 ///   4. dispatcher.ApplyFacet  → persists into asset
 /// </summary>
 public sealed class HsmPromoteBindTests
@@ -81,22 +82,20 @@ public sealed class HsmPromoteBindTests
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
         var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
-        var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
-        var dispatcher = new HsmFacetDispatcher(asset, ctx);
-        var drawer     = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var dispatcher = new HsmFacetDispatcher(asset);
+        var sources    = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
-        // Step 1: Get facet (populates CurrentVisualId via mapper).
+        // Step 1: Get facet (its action binding carries the transition id).
         var sel   = new HsmTransitionSelection(transitionVisualId);
         var facet = (TransitionFacet)dispatcher.GetFacet(sel)!;
 
         // Step 2: Simulate DrawInput clicking "Promote".
-        var visualId = ctx.CurrentVisualId;
-        visualId.Should().Be(transitionVisualId.ToString(), "mapper must populate CurrentVisualId");
-        var newName = drawer.Promote(visualId!);
+        facet.Action.SiteId.Should().Be(transitionVisualId.ToString(), "the mapper must carry the transition id");
+        var newName = sources.Promote(facet.Action);
         newName.Should().NotBeNull("Promote must succeed for a known FQN");
 
         // Step 3: Apply the facet with the new name bound.
-        facet.ExpressionTargetField = newName;
+        facet.Action.ExpressionTargetField = newName;
         dispatcher.ApplyFacet(sel, facet);
 
         // Assert: auto-variable created in asset.
@@ -107,7 +106,7 @@ public sealed class HsmPromoteBindTests
 
         // Assert: ExpressionTargetField persisted on the transition.
         var transition = asset.FindTransitionByVisualId(transitionVisualId)!;
-        (transition.Action?.ExpressionTargetField ?? transition.Guard?.ExpressionTargetField).Should().Be(newName,
+        (transition.Action?.ExpressionTargetField).Should().Be(newName,
             "ApplyFacet must persist ExpressionTargetField from the edited transition facet");
     }
 
@@ -118,15 +117,14 @@ public sealed class HsmPromoteBindTests
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
         var entry      = new ActionSchemaEntry(fqn, typeof(int), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
-        var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
-        var dispatcher = new HsmFacetDispatcher(asset, ctx);
-        var drawer     = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var dispatcher = new HsmFacetDispatcher(asset);
+        var sources    = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
         // Simulate promote + bind.
         var sel   = new HsmTransitionSelection(transitionVisualId);
         var facet = (TransitionFacet)dispatcher.GetFacet(sel)!;
-        var name  = drawer.Promote(ctx.CurrentVisualId!)!;
-        facet.ExpressionTargetField = name;
+        var name  = sources.Promote(facet.Action)!;
+        facet.Action.ExpressionTargetField = name;
         dispatcher.ApplyFacet(sel, facet);
 
         // Round-trip through DTO.
@@ -140,7 +138,7 @@ public sealed class HsmPromoteBindTests
         // ExpressionTargetField preserved on transition.
         var restoredTransition = restored.FindTransitionByVisualId(transitionVisualId)!;
         restoredTransition.Should().NotBeNull("transition must exist in restored asset");
-        (restoredTransition.Action?.ExpressionTargetField ?? restoredTransition.Guard?.ExpressionTargetField).Should().Be(name,
+        (restoredTransition.Action?.ExpressionTargetField).Should().Be(name,
             "ExpressionTargetField must survive HSM model→DTO→model round-trip");
     }
 
@@ -151,52 +149,37 @@ public sealed class HsmPromoteBindTests
         var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
         var entry      = new ActionSchemaEntry(fqn, typeof(float), ActionHosting.Hsm, BlackboardAccess.ReadWrite);
         var exporter   = new StubExporter(entry);
-        var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
-        var dispatcher = new HsmFacetDispatcher(asset, ctx);
-        var drawer     = new HsmBlackboardFieldPickerDrawer(asset, exporter, () => ctx.CurrentActionFqn, ctx);
+        var dispatcher = new HsmFacetDispatcher(asset);
+        var sources    = new ActionBindingSources(asset, _ => Array.Empty<string>(), exporter);
 
-        var sel = new HsmTransitionSelection(transitionVisualId);
-        dispatcher.GetFacet(sel);
-        var name1 = drawer.Promote(ctx.CurrentVisualId!)!;
-        var name2 = drawer.Promote(ctx.CurrentVisualId!)!;
+        var sel   = new HsmTransitionSelection(transitionVisualId);
+        var facet = (TransitionFacet)dispatcher.GetFacet(sel)!;
+        var name1 = sources.Promote(facet.Action)!;
+        var name2 = sources.Promote(facet.Action)!;
 
         name1.Should().Be(name2, "same visualId must always produce the same auto-name");
         asset.BlackboardVariables.Should().HaveCount(1, "second promote is idempotent — no duplicate");
     }
 
+    /// <summary>⭐ <c>CE-417</c> slice 4b — every binding facet carries its site; a node's secondary binding carries its slot,
+    /// so its promoted variable never collides with the primary one (B-2).</summary>
     [Fact]
-    public void FqnContext_CurrentVisualId_IsSetByMapper_Hsm()
+    public void EveryBindingFacet_CarriesItsSiteAndSlot_Hsm()
     {
-        const string fqn = "Ns.BoolAction";
-        var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
-        var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
-        var dispatcher = new HsmFacetDispatcher(asset, ctx);
+        var (asset, transitionVisualId) = MakeAssetWithTransition("Ns.BoolAction");
+        var dispatcher = new HsmFacetDispatcher(asset);
 
-        ctx.CurrentVisualId.Should().BeNull("not set yet before GetFacet");
+        var tf = (TransitionFacet)dispatcher.GetFacet(new HsmTransitionSelection(transitionVisualId))!;
+        tf.Action.SiteId.Should().Be(transitionVisualId.ToString());
+        tf.Action.SiteSlot.Should().BeNull("the action is the transition's primary binding");
+        tf.Guard.SiteId.Should().Be(transitionVisualId.ToString());
+        tf.Guard.SiteSlot.Should().Be("guard");
 
-        dispatcher.GetFacet(new HsmTransitionSelection(transitionVisualId));
-
-        ctx.CurrentVisualId.Should().Be(transitionVisualId.ToString(),
-            "mapper.GetFacet must write CurrentVisualId to the shared context");
-    }
-
-    [Fact]
-    public void FqnContext_CurrentVisualId_ClearedOnNonTransitionSelection_Hsm()
-    {
-        const string fqn = "Ns.FloatAction";
-        var (asset, transitionVisualId) = MakeAssetWithTransition(fqn);
-        var ctx        = new HsmFacetFqnContext { CurrentActionFqn = fqn };
-        var dispatcher = new HsmFacetDispatcher(asset, ctx);
-
-        // Prime the context with the transition.
-        dispatcher.GetFacet(new HsmTransitionSelection(transitionVisualId));
-        ctx.CurrentVisualId.Should().NotBeNull("set after transition GetFacet");
-
-        // Select a state instead.
-        var idleState = asset.AllStates.First(s => s.Name == "Idle");
-        dispatcher.GetFacet(new HsmStateSelection(idleState.StableId));
-
-        ctx.CurrentVisualId.Should().BeNull("CurrentVisualId must be cleared on non-transition selection");
-        ctx.CurrentActionFqn.Should().BeNull("CurrentActionFqn must also be cleared");
+        var idle = asset.AllStates.First(s => s.Name == "Idle");
+        var sf   = (StateFacet)dispatcher.GetFacet(new HsmStateSelection(idle.StableId))!;
+        sf.Activity.SiteId.Should().Be(idle.StableId.ToString());
+        sf.Activity.SiteSlot.Should().BeNull("the activity is the state's primary binding");
+        new[] { sf.OnEntry.SiteSlot, sf.OnExit.SiteSlot, sf.Timer.SiteSlot }
+            .Should().Equal("entry", "exit", "timer");
     }
 }

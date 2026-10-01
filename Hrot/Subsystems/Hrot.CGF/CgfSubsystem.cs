@@ -1496,7 +1496,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         // ⭐⭐ Slice 1 — HOISTED to a field, not because the breakpoint compiler needed it there, but
         //    because the AiShared shell REQUIRES an IComponentEditService and building a second one in
         //    RegisterWindows would be two implementations of one concept (ruling 9).
-        var bpEditSvc              = new ComponentEditServiceBuilder().Build();
+        // ⭐ CE-417 slice 4b — the ONE facet edit service both hosts build (it makes every binding one drawn leaf).
+        var bpEditSvc              = Hrot.Editor.AiShared.Inspector.ActionBinding.AiFacetEditService.Build();
         _facetEditService          = bpEditSvc;
         // See BP-29: without _blueprintRegistry, CompileBlueprintVariablePredicate returns a
         // constant-false delegate and blueprint conditional breakpoints silently never fire.

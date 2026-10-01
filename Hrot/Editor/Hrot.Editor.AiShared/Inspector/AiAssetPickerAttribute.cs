@@ -11,7 +11,7 @@ namespace Hrot.Editor.AiShared.Inspector;
 /// <para>🔒 User, <c>2026-09-26</c>: *"the tree asset must be pickable."*</para>
 ///
 /// <para>📐 <b>Measured before building: there was NO asset picker.</b> All ELEVEN picker attributes
-/// in the repo pick a <b>symbol</b> — a method (<c>BehaviorHashPicker</c>), event, guard, state,
+/// in the repo pick a <b>symbol</b> — a method (the binding drawer, <c>CE-417</c>), event, guard, state,
 /// blackboard field, anim marker, montage, property path, working slot. ⛔ <b>Not one picked an
 /// asset</b>, which is why <c>BTreeSubtreeFacet.SubtreeName</c> is labelled <i>"Referenced asset"</i>
 /// and is plain free text. ⇒ ⭐ <b>this is a BUILD, not an adoption</b> — the rarer answer in this

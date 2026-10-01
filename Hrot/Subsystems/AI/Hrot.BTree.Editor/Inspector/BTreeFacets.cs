@@ -1,3 +1,4 @@
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using StructEdit.Core.Attributes;
 
 namespace Hrot.BTree.Editor.Inspector;
@@ -7,13 +8,11 @@ namespace Hrot.BTree.Editor.Inspector;
 /// <summary>Inspector facet for Action leaf nodes.</summary>
 public struct BTreeActionFacet
 {
-    [EditDisplayName("Method")]
-    [BehaviorHashPicker]
-    public string MethodFqn;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [BlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method + target variable, drawn by ONE
+    /// <c>ActionBindingDrawer</c>. ⚠ No blueprint here until B-1 (slice 4c).</summary>
+    [EditDisplayName("Action")]
+    [ActionBinding(BindingSlotKind.Action)]
+    public BehaviorActionBindingFacet Action;
 
     [EditDisplayName("Comment")]
     public string? Comment;
@@ -34,13 +33,11 @@ public struct BTreeActionFacet
 /// <summary>Inspector facet for Condition leaf nodes.</summary>
 public struct BTreeConditionFacet
 {
-    [EditDisplayName("Method")]
-    [BehaviorHashPicker]
-    public string MethodFqn;
-
-    [EditDisplayName("Expression target (blackboard field)")]
-    [BlackboardFieldPicker]
-    public string? ExpressionTargetField;
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the node's binding: method + target variable, drawn by ONE
+    /// <c>ActionBindingDrawer</c>. ⚠ No blueprint here until B-1 (slice 4c).</summary>
+    [EditDisplayName("Condition")]
+    [ActionBinding(BindingSlotKind.Guard)]
+    public BehaviorActionBindingFacet Condition;
 
     [EditDisplayName("Comment")]
     public string? Comment;

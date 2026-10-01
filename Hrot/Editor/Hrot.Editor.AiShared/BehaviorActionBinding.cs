@@ -20,7 +20,7 @@ namespace Hrot.Editor.AiShared;
 public sealed class BehaviorActionBinding
 {
     /// <summary>The C# method, e.g. <c>Hrot.Game.Combat.CombatActions.AimAndFire</c>; for a BTree blueprint binding, the
-    /// blueprint's generated <c>TickCore</c> FQN (until B-1's heal, slice 4b of the design's plan).</summary>
+    /// blueprint's generated <c>TickCore</c> FQN (until B-1's heal, slice 4c of the design's plan).</summary>
     public string? MethodFqn;
 
     /// <summary>The blueprint asset this binding runs. <see cref="Guid.Empty"/> when it runs a C# method.</summary>

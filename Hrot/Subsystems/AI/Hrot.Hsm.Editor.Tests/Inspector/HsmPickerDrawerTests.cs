@@ -3,6 +3,7 @@ using System.Linq;
 using Fhsm.Compiler;
 using Fhsm.Kernel.Data;
 using FluentAssertions;
+using Hrot.Editor.AiShared.Inspector.ActionBinding;
 using Hrot.Hsm.Editor.Inspector;
 using Hrot.Hsm.Editor.Model;
 using Xunit;
@@ -38,6 +39,15 @@ public sealed class HsmPickerDrawerTests
         var (blob, meta) = Compile(b);
         return HsmAssetProjector.Project(blob, meta, null, Guid.NewGuid(), "Test", "", false, "");
     }
+
+    /// <summary>⭐ <c>CE-417</c> slice 4b — the action and guard lists now come from the ONE binding drawer the PRODUCTION
+    /// factory registers; the HSM host supplies only its method list (<see cref="HsmBindingMethods"/>).</summary>
+    private static ActionBindingSources Sources(
+        HsmAsset asset,
+        Hrot.Editor.AiShared.Blackboard.IActionSchemaExporter? exporter = null,
+        Hrot.Editor.AiShared.Catalog.IAssetCatalog? catalog = null)
+        => (HsmPickerDrawerFactory.BuildDrawers(asset, exporter, catalog)[typeof(BehaviorActionBindingFacet)]
+               as ActionBindingDrawer)!.Sources;
 
     // ── HsmEventPickerDrawer tests ────────────────────────────────────────────
 
@@ -85,30 +95,28 @@ public sealed class HsmPickerDrawerTests
         drawer.GetItems().Should().BeInAscendingOrder();
     }
 
-    // ── HsmActionPickerDrawer tests ───────────────────────────────────────────
+    // ── the action list (was HsmActionPickerDrawer) ───────────────────────────────────────────
 
     [Fact]
     public void FieldPicker_HsmAction_ListsStateActions()
     {
         var asset  = MakeAsset();
-        var drawer = new HsmActionPickerDrawer(asset);
-        var items  = drawer.GetItems();
+        var items  = Sources(asset).GetMethods(BindingSlotKind.Action);
 
         // OnEntry and OnExit actions on "Idle" state must appear.
         items.Should().Contain("Ns.Actions.StartIdle");
         items.Should().Contain("Ns.Actions.StopIdle");
     }
 
-    // ── HsmGuardPickerDrawer tests ────────────────────────────────────────────
+    // ── the guard list (was HsmGuardPickerDrawer) ────────────────────────────────────────────
 
     [Fact]
     public void FieldPicker_HsmGuard_EmptyAsset_ReturnsEmpty()
     {
         // Asset with no guard functions.
         var asset  = MakeAsset();
-        var drawer = new HsmGuardPickerDrawer(asset);
         // No guards were set in the builder so list should be empty.
-        drawer.GetItems().Should().BeEmpty("no guard functions were registered");
+        Sources(asset).GetMethods(BindingSlotKind.Guard).Should().BeEmpty("no guard functions were registered");
     }
 
     // ── CE-386: the action/guard pickers read the REGISTERED catalog ─────────
@@ -165,7 +173,7 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void ActionPicker_OffersRegisteredHsmActivities_TheAssetDoesNotYetMention()
     {
-        var items = new HsmActionPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Action);
 
         items.Should().Contain("Ns.Catalog.Chase");
         items.Should().NotContain("Ns.Catalog.InRange", "a GUARD is not an activity");
@@ -175,7 +183,7 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void GuardPicker_OffersRegisteredHsmGuards_TheAssetDoesNotYetMention()
     {
-        var items = new HsmGuardPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Guard);
 
         items.Should().Contain("Ns.Catalog.InRange");
         items.Should().NotContain("Ns.Catalog.Chase", "an ACTIVITY is not a guard");
@@ -200,12 +208,12 @@ public sealed class HsmPickerDrawerTests
                 Hrot.Editor.AiShared.Blackboard.ActionHosting.Hsm | Hrot.Editor.AiShared.Blackboard.ActionHosting.HsmGuard,
                 Hrot.Editor.AiShared.Blackboard.BlackboardAccess.ReadWrite, IsCondition: true, IsAiPrimitive: true);
 
-        var drawer = new HsmGuardPickerDrawer(MakeAsset(), exporter);
+        var drawer = Sources(MakeAsset(), exporter);
 
-        drawer.GetItems().Should().Contain(bpFqn, "the stored value is still the FQN");
-        drawer.Label(bpFqn).Should().Be("GateConditionDemo  [Blueprint]");
-        drawer.Label("Ns.Catalog.InRange").Should().Be("Ns.Catalog.InRange  [C#]");
-        drawer.Label("Ns.Unknown.Dangling").Should().Be("Ns.Unknown.Dangling");
+        drawer.GetMethods(BindingSlotKind.Guard).Should().Contain(bpFqn, "the stored value is still the FQN");
+        drawer.MethodLabel(bpFqn).Should().Be("GateConditionDemo  [Blueprint]");
+        drawer.MethodLabel("Ns.Catalog.InRange").Should().Be("Ns.Catalog.InRange  [C#]");
+        drawer.MethodLabel("Ns.Unknown.Dangling").Should().Be("Ns.Unknown.Dangling");
     }
 
     /// <summary>
@@ -216,7 +224,7 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void TheAssetsOwnNamesSurviveAlongsideTheCatalog()
     {
-        var items = new HsmActionPickerDrawer(MakeAsset(), ThreeKinds()).GetItems();
+        var items = Sources(MakeAsset(), ThreeKinds()).GetMethods(BindingSlotKind.Action);
 
         items.Should().Contain("Ns.Actions.StartIdle", "the asset binds it, catalog or not");
         items.Should().Contain("Ns.Catalog.Chase");
@@ -227,9 +235,9 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void WithNoExporter_ThePickersFallBackToTheAssetsOwnNames()
     {
-        new HsmActionPickerDrawer(MakeAsset()).GetItems()
+        Sources(MakeAsset()).GetMethods(BindingSlotKind.Action)
             .Should().Contain("Ns.Actions.StartIdle");
-        new HsmGuardPickerDrawer(MakeAsset()).GetItems()
+        Sources(MakeAsset()).GetMethods(BindingSlotKind.Guard)
             .Should().BeEmpty("the fixture binds no guards, and there is no catalog to add any");
     }
 
@@ -242,16 +250,26 @@ public sealed class HsmPickerDrawerTests
     [Fact]
     public void TheFactoryWiresTheExporterIntoBothPickers()
     {
-        var drawers   = HsmPickerDrawerFactory.BuildDrawers(MakeAsset(), ThreeKinds());
-        var composite = (HsmCompositeStringDrawer)drawers[typeof(string)];
+        var sources = Sources(MakeAsset(), ThreeKinds());
 
-        var action = composite.Resolve(NodeWithAttribute(new HsmActionPickerAttribute()));
-        var guard  = composite.Resolve(NodeWithAttribute(new HsmGuardPickerAttribute()));
+        sources.GetMethods(BindingSlotKind.Action).Should().Contain("Ns.Catalog.Chase");
+        sources.GetMethods(BindingSlotKind.Guard).Should().Contain("Ns.Catalog.InRange");
+        sources.Exporter.Should().NotBeNull("the factory must hand the binding drawer the exporter it was given");
+    }
 
-        ((Hrot.Editor.AiShared.Inspector.IPickerListSource)action!).GetItems()
-            .Should().Contain("Ns.Catalog.Chase");
-        ((Hrot.Editor.AiShared.Inspector.IPickerListSource)guard!).GetItems()
-            .Should().Contain("Ns.Catalog.InRange");
+    /// <summary>
+    /// ⭐⭐ <c>CE-396</c> / <c>CE-417</c> slice 4b — the binding drawer's blueprint list offers BLUEPRINTS only, from the
+    /// catalogue the factory was handed. ⛔ A blueprint combo listing BTree assets would bind a plausible, wrong id.
+    /// </summary>
+    [Fact]
+    public void TheBindingDrawersBlueprintList_IsTheCataloguesBlueprints()
+    {
+        var catalog = new FakeCatalog(
+            new CatalogAsset { Name = "PatrolTree",  Kind = Hrot.Editor.AiShared.AssetKind.BTree },
+            new CatalogAsset { Name = "ChaseTarget", Kind = Hrot.Editor.AiShared.AssetKind.Blueprint });
+
+        Sources(MakeAsset(), catalog: catalog).GetBlueprints().Should().Equal("ChaseTarget");
+        Sources(MakeAsset()).GetBlueprints().Should().BeEmpty("no catalogue, no blueprints — never a wrong list");
     }
 
     // ── CE-396: [AiAssetPicker] dispatches on the attribute's KIND ────────────

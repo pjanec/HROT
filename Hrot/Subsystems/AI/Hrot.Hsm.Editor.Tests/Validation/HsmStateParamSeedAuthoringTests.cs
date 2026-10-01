@@ -63,13 +63,16 @@ public sealed class HsmStateParamSeedAuthoringTests
         var d   = new HsmFacetDispatcher(hsm);
         var sel = new HsmStateSelection(state.StableId);
 
+        // ⭐ CE-417 slice 4b — the seed is authored on the ACTIVITY binding (each slot has its own variable, B-2); the
+        //   state's seed is derived from it (StateWideTargetField: the Activity's variable first). ⚠ Typed BEFORE any
+        //   activity is picked, so the binding names nothing yet and must still be kept.
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ExpressionTargetField.Should().BeNull("unbound is the common case, not an error");
-        facet.ExpressionTargetField = "Alpha";
+        facet.Activity.ExpressionTargetField.Should().BeNull("unbound is the common case, not an error");
+        facet.Activity.ExpressionTargetField = "Alpha";
         d.ApplyFacet(sel, facet);
 
         state.StateWideTargetField.Should().Be("Alpha");
-        ((StateFacet)d.GetFacet(sel)!).ExpressionTargetField.Should().Be("Alpha");
+        ((StateFacet)d.GetFacet(sel)!).Activity.ExpressionTargetField.Should().Be("Alpha");
     }
 
     // ── the mapper carries it BOTH ways ───────────────────────────────────────
@@ -300,11 +303,11 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R1_PickingAnActivityBlueprint_ComposesAStructTypedParamsVariable()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
         // ⭐⭐ THE RAIL. One variable, and its TYPE is the blueprint's generated Params struct.
@@ -324,15 +327,15 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R2_UnpickingTheBlueprint_RemovesTheComposedVariable()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
         var cleared = (StateFacet)d.GetFacet(sel)!;
-        cleared.ActivityBlueprintName = null;
+        cleared.Activity.BlueprintName = null;
         d.ApplyFacet(sel, cleared);
 
         hsm.BlackboardVariables.Should().BeEmpty();
@@ -350,11 +353,11 @@ public sealed class HsmStateParamSeedAuthoringTests
     public void CE414_R3_ReapplyingTheSameFacet_DoesNotChurnVariables()
     {
         var hsm = MakeMachine(out var state);
-        var d   = new HsmFacetDispatcher(hsm, null, catalog: null, actionSchema: new FakeSchema());
+        var d   = new HsmFacetDispatcher(hsm, catalog: null, actionSchema: new FakeSchema());
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
         string composedName = state.StateWideTargetField!;
 
@@ -384,7 +387,7 @@ public sealed class HsmStateParamSeedAuthoringTests
         var sel = new HsmStateSelection(state.StableId);
 
         var facet = (StateFacet)d.GetFacet(sel)!;
-        facet.ActivityBlueprintName = "Patrol";
+        facet.Activity.BlueprintName = "Patrol";
         d.ApplyFacet(sel, facet);
 
         (state.Activity?.BlueprintName).Should().Be("Patrol", "the pick itself still lands");

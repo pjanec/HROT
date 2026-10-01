@@ -169,8 +169,8 @@ sequenceDiagram
 | 2 | ✅ **AS-BUILT** *(see the box below)*: DTO record at all 8 sites + `ActionBindingMigrator` inside both `Deserialize` + schemaVersion 2 + **all 31 corpus files rewritten to v2** + the four payload DTO classes and the flat HSM DTO fields deleted; both emit cores, both mappers, the generator validator read the record | ⭐ **emitted source byte-identical** (every emitted-source golden unchanged); only the two persistence-shape snapshots moved |
 | 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
 | 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
-| 4 | ⏳ editor side — designed in §5.4. ✅ 4a (model, no visible change; as-built box in §5.4) · ⏳ 4b (one facet, one drawer, one applier) | editor rails |
-| 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid | BTree goldens unchanged by construction |
+| 4 | ✅ editor side — designed in §5.4. ✅ 4a (model, no visible change) · ✅ 4b (one facet, one drawer, one applier); as-built boxes in §5.4 | editor rails |
+| 4c | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid. ⚠ *Was numbered "4b" until `2026-10-01`; renamed when slice 4 split into 4a/4b (§5.4)* | BTree goldens unchanged by construction |
 
 > ⭐⭐ **Slice 2 AS-BUILT (`2026-10-01`) — where it deviated from the plan above, and why.**
 > | | |
@@ -201,7 +201,7 @@ sequenceDiagram
 > | **rails moved** | `SharedAiAdapterCompilesTests` (`BP-306`, subject retired) → **`SharedAiBindingCompilesTests`**: a synthetic asset binding an action, a `bool` condition and a `[WritesChannel]` action compiles through BOTH generators, keyed at the host offset, with no analyzer adapter; a wrong-typed variable is a `BTREE0002` skip; the analyzer/bridge one-spelling projection rail is kept |
 > | ⚠ **finding, not fixed** | `BrainTickSystemHsmArmTests.CE417_R3` (zero-alloc) reported **64 B once** in a filtered parallel group run; 5/5 green since (alone ×3, group ×2). Not reproduced, so no fix guessed — recorded here so a recurrence is recognised |
 
-## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: READY-TO-BUILD)*
+## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 
 **INVENTORY** *(codebase-memory CLI `search_graph` + grep, measured `2026-10-01`)*
 
@@ -238,34 +238,50 @@ classDiagram
         +Clone()
     }
     class BehaviorActionBindingFacet {
-        <<struct, Hrot.Editor.AiShared, NEW 4b>>
+        <<struct, Hrot.Editor.AiShared, 4b>>
         +string? MethodFqn
         +string? BlueprintName
         +string? ExpressionTargetField
+        +string? SiteId (read-only)
+        +string? SiteSlot (read-only)
+        +bool TargetsWholeBlackboard (read-only)
     }
     class ActionBindingAttribute {
-        <<NEW 4b>>
-        +BindingSlotKind Slot
+        <<4b>>
+        +BindingSlotKind Kind
         +bool AllowsBlueprint
     }
     class BehaviorActionBindingFieldEditor {
         <<ICustomFieldEditor, NEW 4b>>
     }
     class ActionBindingDrawer {
-        <<IImGuiFieldDrawer, NEW 4b>>
-        +GetMethods(slot)
+        <<IImGuiFieldDrawer, 4b>>
+        +PickMethod / PickBlueprint / PickVariable
+    }
+    class ActionBindingSources {
+        <<sealed, 4b, one class; the host passes ONE function>>
+        +GetMethods(kind)
         +GetBlueprints()
         +GetVariables(binding)
+        +HasNoCompatibleVariables(binding)
+        +Promote(binding)
     }
-    class IActionBindingSources {
-        <<interface, NEW 4b, one per host>>
+    class ActionBindingCompatibility {
+        <<static, 4b>>
+        +ParameterType(exporter, method, blueprint)
+        +CompatibleVariables(type, variables)
+    }
+    class HsmBindingMethods {
+        <<static, Hrot.Hsm.Editor, 4b>>
+        +For(asset, exporter, kind)
     }
     class BehaviorActionBindingEditor {
-        <<static, NEW 4b>>
-        +Apply(model, facet, ctx) : the pick→Guid + CE-414 compose rule, ONCE
+        <<static, 4b>>
+        +ToFacet(binding, siteId, siteSlot, wholeBb)
+        +Apply(binding, facet, ctx) : the pick→Guid + CE-414 compose rule, ONCE
     }
     class AiFacetEditService {
-        <<static, Hrot.Editor.AiComposition, NEW 4b>>
+        <<static, Hrot.Editor.AiShared, 4b>>
         +Build() IComponentEditService
     }
     class BTreeActionNode { +BTreeActionDelegateShape DelegateShape }
@@ -282,13 +298,16 @@ classDiagram
     BehaviorActionBindingFacet ..> ActionBindingAttribute : field tagged with
     BehaviorActionBindingFieldEditor ..> BehaviorActionBindingFacet : makes it ONE Custom leaf
     ActionBindingDrawer ..> BehaviorActionBindingFacet : draws the whole binding
-    ActionBindingDrawer --> IActionBindingSources : lists
+    ActionBindingDrawer --> ActionBindingSources : lists
+    ActionBindingSources --> ActionBindingCompatibility : which variables fit
+    ActionBindingSources ..> HsmBindingMethods : HSM method list
+    ActionBindingSources --> AutoManagedVariables : PromoteForSite(site, slot)
     BehaviorActionBindingEditor --> SubtreeReferenceResolver
     BehaviorActionBindingEditor --> AutoManagedVariables
     AiFacetEditService ..> BehaviorActionBindingFieldEditor : registers
 ```
 
-> **Caption.** What the picture shows that prose hid: the side channels (`*FacetFqnContext`) exist only because a
+> **Caption.** What the picture shows that prose hid: the side channels (`*FacetFqnContext`) existed only because a
 > per-FIELD drawer cannot see the sibling `MethodFqn`. A drawer for the WHOLE binding receives the method, the
 > blueprint and the variable together, so the variable list filters by the binding's own method and both
 > side channels go. Every EXISTING box is reused, not rebuilt: the blueprint list, the pick→Guid rule, the compose.
@@ -319,14 +338,14 @@ sequenceDiagram
 
 ```mermaid
 graph TD
-    ES["EditorSubsystem (editor host)"] -->|"4b: one call"| FES["AiFacetEditService.Build()"]
+    ES["EditorSubsystem (editor host)"] -->|"4b: one call"| FES["AiFacetEditService.Build() (AiShared)"]
     CG["CgfSubsystem (CGF host)"] -->|"4b: one call"| FES
     FES -->|RegisterFieldEditor| FE["BehaviorActionBindingFieldEditor"]
     BIND["AiFacetPickerBinder.Rebuild (EXISTING, per active document)"] -->|"adds the type-keyed drawer"| DR["ActionBindingDrawer"]
     BIND --> BT["BTreePickerDrawerFactory"]
     BIND --> HS["HsmPickerDrawerFactory"]
-    BT -->|"supplies"| SRC1["BTree IActionBindingSources"]
-    HS -->|"supplies"| SRC2["HSM IActionBindingSources"]
+    BT -->|"methods = registry names"| SRC1["ActionBindingSources (BTree asset)"]
+    HS -->|"methods = HsmBindingMethods"| SRC2["ActionBindingSources (HSM asset)"]
     DR --> SRC1
     DR --> SRC2
     V["NodePropertiesDetailsView (draws every frame)"] --> DR
@@ -357,6 +376,17 @@ graph TD
 > | **the boundary translation** | `HsmFacetBindings` — the slice-2 flat↔record rules, now at the facet boundary only. ⛔ Retired by 4b |
 > | **save output** | unchanged: BTree keeps writing a node's binding even when empty (`keepWhenEmpty`), HSM writes an unbound slot as absent — the two slice-2 mappers' rules |
 > | **gates** | Hsm.Editor 623/0 · BTree.Editor 639/0 · Persistence 148/0 · AiShared 2101/0 (1 skip) · Generators 322/0 (no golden moved) · Blueprints 4011/0 (17 known skips) · Toolkits 2399/1 = `SquadInputsP3Tests.AllReaders_ZeroAlloc_After1MillionCalls`, an allocation-count test that passes 3/3 alone (4a touches nothing under `FDP/`) · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`). Editor and CGF hosts build. ~40 test files migrated mechanically; every rewritten read is parenthesised (`(s.Activity?.BlueprintName).Should()`) so a missing binding fails the assertion instead of short-circuiting it |
+
+> ⭐⭐ **Slice 4b AS-BUILT (`2026-10-01`) — one binding facet, one drawer, one applier, both hosts.**
+> | | |
+> |---|---|
+> | **built** | `BehaviorActionBindingFacet` + `[ActionBinding(kind, allowsBlueprint)]` on every site's facet field (BTree `Action`/`Condition`; HSM state `OnEntry`/`OnExit`/`Activity`/`Timer`, transition `Guard`/`Action`, global transition `Guard`/`Action`). `BehaviorActionBindingFieldEditor` makes it one Custom leaf; `ActionBindingDrawer` draws method · blueprint (Activity and transition Guard only, design §9 ③: picking one clears the other) · the binding's OWN variable / "Promote" / the whole-blackboard note; `BehaviorActionBindingEditor.Apply` is the one applier (pick→Guid through `SubtreeReferenceResolver.ResolvePick`, never-erase, the `CE-414` compose on a CHANGED blueprint pick). `ActionBindingCompatibility` is the one variable rule (method `DtoType`, or a blueprint's generated `Params`) |
+> | **retired** | `BTreeFacetFqnContext`, `HsmFacetFqnContext`, `BehaviorHashPickerDrawer`, `BlackboardFieldPickerDrawer`, `HsmActionPickerDrawer`, `HsmGuardPickerDrawer`, `HsmBlackboardFieldPickerDrawer` and their five attributes; `HsmFacetBindings` (4a's boundary translation); the HSM dispatcher's per-slot compose/pick code; the flat facet fields (`*Action`, `*Function`, `*BlueprintName`, the one state/transition `ExpressionTargetField`) |
+> | ⭐ **deviation: no `IActionBindingSources` per host** | the hosts differ ONLY in which methods a slot offers, so `ActionBindingSources` is one concrete class and the host passes one function (BTree: the behavior registry; HSM: `HsmBindingMethods`, the `CE-386` union). An interface per host would have been two implementations of everything else |
+> | ⭐ **deviation: `AiFacetEditService` lives in `Hrot.Editor.AiShared`**, not `AiComposition` | AiShared already reaches `StructEdit.Reflection` through `Fdp.Presentation`, so no new project reference was needed, and the AiShared tests (SE1) can render facets with the production service |
+> | ⭐ **deviation: per-slot promote names** | B-2 gives a node several variables, so `AutoManagedVariables.PromoteForSite` gained a slot: a secondary binding promotes `_auto_{id}_{slot}` (`entry`/`exit`/`timer`/`guard`); the primary (BTree node, HSM Activity, transition Action) keeps `_auto_{id}`, so pre-4b variables still match. ⚠ Before 4b an HSM state could not promote at all (no site id reached the drawer) |
+> | **state seed** | each slot authors its own variable; the state's seed is still DERIVED (`StateWideTargetField`, Activity first). A variable typed before any method is picked is kept on a binding that names nothing (CE-401). `EditorSubsystem.ResolveExpressionTargetField` reads a transition's Action variable, else its Guard's |
+> | **rails** | `ActionBindingTests` (15: the compatibility rule, pick rules, field editor, pick→Guid, never-erase, compose only on a change, author-owned variables kept, keep/drop, working-state fields preserved); `SE1` (the binding is one Custom leaf with its slot; a plain builder leaves it a container; which HSM slots allow a blueprint); `HsmBindingVariableTests`/`BTreeBindingVariableTests` (the old picker claims through the production factories, plus a secondary-slot promote); both `BB1D` suites (a transition's guard and action filter separately; a second node's list does not depend on the first). 🔴 Red-proved by mutation: compose on every apply, never-erase removed, field editor unregistered, promote slot dropped — each reddens its rail |
 
 **Rejected**
 - *A nested struct with per-field attribute drawers*: a container renders read-only (`DrawContainerNode`), and a field drawer cannot see its sibling method.
