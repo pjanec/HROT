@@ -317,6 +317,20 @@ internal static class BTreeMethodCompatibilityValidator
         if (method.DeclaredAccessibility != Accessibility.Public)
             return $"method '{methodFqn}' is not public";
 
+        // ⭐⭐ CE-417 B-2 (a′), F8 — a [SharedAi*] method keeps ITS signature (ref T, Entity, EntityRepository); the bridge
+        //   calls it per binding (BTreeBridgeEmitCore.EmitThreeParamCall). ⛔ The bound variable must BE its ref type —
+        //   the thunk projects the host variable as that type, so a mismatch would be a silent type-pun.
+        var sharedAi = SharedAiMethodResolver.Make(compilation)(methodFqn);
+        if (sharedAi != null)
+        {
+            string want = sharedAi.ParamTypeId.Replace('+', '.');
+            string have = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
+            return string.Equals(want, have, StringComparison.Ordinal)
+                ? null
+                : $"[SharedAi] method '{methodFqn}' takes 'ref {sharedAi.ParamTypeId}' but is bound to variable " +
+                  $"'{expressionTargetField}' of type '{targetVar.Type?.TypeId}'; bind a variable of the method's ref type (CE-417)";
+        }
+
         // Return type must be NodeStatus.
         if (nodeStatusSymbol == null)
             return "Fbt.NodeStatus could not be resolved; ensure Fbt.Kernel is referenced";

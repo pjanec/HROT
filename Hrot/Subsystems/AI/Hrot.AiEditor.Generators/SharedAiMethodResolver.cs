@@ -15,6 +15,7 @@ internal static class SharedAiMethodResolver
 {
     private const string SharedAiActionAttr    = "Fbt.Kernel.SharedAiActionAttribute";
     private const string SharedAiConditionAttr = "Fbt.Kernel.SharedAiConditionAttribute";
+    private const string WritesChannelAttr     = "Fbt.Kernel.WritesChannelAttribute";
 
     public static Func<string, SharedAiMethodInfo?> Make(Compilation compilation)
     {
@@ -32,11 +33,14 @@ internal static class SharedAiMethodResolver
                     foreach (var m in type.GetMembers(fqn.Substring(dot + 1)).OfType<IMethodSymbol>())
                     {
                         bool isAction = false, isCondition = false;
+                        var writes = new List<int>();
                         foreach (var a in m.GetAttributes())
                         {
                             string? n = a.AttributeClass?.ToDisplayString();
                             if (n == SharedAiActionAttr) isAction = true;
                             else if (n == SharedAiConditionAttr) isCondition = true;
+                            else if (n == WritesChannelAttr && a.ConstructorArguments.Length > 0
+                                     && a.ConstructorArguments[0].Value is int kind) writes.Add(kind);
                         }
                         if (!isAction && !isCondition) continue;
                         if (m.Parameters.Length == 0 || m.Parameters[0].RefKind != RefKind.Ref) continue;
@@ -45,7 +49,8 @@ internal static class SharedAiMethodResolver
                             p.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
                             TypeIdOf(p),
                             isCondition && !isAction,
-                            m.ReturnType.SpecialType == SpecialType.System_Boolean);
+                            m.ReturnType.SpecialType == SpecialType.System_Boolean,
+                            writes);
                         break;
                     }
                 }

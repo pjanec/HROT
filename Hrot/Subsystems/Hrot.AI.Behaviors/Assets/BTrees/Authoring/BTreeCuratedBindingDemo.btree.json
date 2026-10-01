@@ -1,0 +1,138 @@
+{
+  "$meta": {
+    "docType": "Hrot.BTree",
+    "schemaVersion": 2
+  },
+  "AssetId": "bb000417-0000-0000-0000-000000000000",
+  "Name": "BTreeCuratedBindingDemo",
+  "TargetNamespace": "Hrot.AI.Behaviors.Trees",
+  "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+  "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+  "Nodes": [
+    {
+      "kind": "Root",
+      "VisualId": "bb000417-0000-0000-0000-000000000001",
+      "ChildVisualIds": [
+        "bb000417-0000-0000-0000-000000000002"
+      ],
+      "DisplayLabel": "Root",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 0,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Sequence",
+      "VisualId": "bb000417-0000-0000-0000-000000000002",
+      "ChildVisualIds": [
+        "bb000417-0000-0000-0000-000000000003",
+        "bb000417-0000-0000-0000-000000000004"
+      ],
+      "DisplayLabel": "Sequence",
+      "EditorMetadata": {
+        "X": 300,
+        "Y": 130,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+        "ExpressionTargetField": "varA"
+      },
+      "DelegateShape": "ThreeParamReusable",
+      "VisualId": "bb000417-0000-0000-0000-000000000003",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ReadRegionParams (varA)",
+      "EditorMetadata": {
+        "X": 150,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    },
+    {
+      "kind": "Action",
+      "Action": {
+        "MethodFqn": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.Action_ReadRegionParams",
+        "ExpressionTargetField": "varB"
+      },
+      "DelegateShape": "ThreeParamReusable",
+      "VisualId": "bb000417-0000-0000-0000-000000000004",
+      "ChildVisualIds": [],
+      "DisplayLabel": "ReadRegionParams (varB)",
+      "EditorMetadata": {
+        "X": 450,
+        "Y": 260,
+        "Comment": null,
+        "Collapsed": false,
+        "Color": null
+      }
+    }
+  ],
+  "Pills": [
+    {
+      "VisualId": "bb000417-0000-0000-0000-0000000000f1",
+      "HostNodeVisualId": "bb000417-0000-0000-0000-000000000002",
+      "DecoratorType": "Repeater",
+      "IntParam": -1,
+      "FloatParam": null,
+      "Comment": "Forever: one pass per tick (CE-450), so the tree keeps running and both bindings are called every tick.",
+      "StackIndex": 0
+    }
+  ],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "SubtreeSyncBindings": {},
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "varC",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Value\":1,\"Seen\":0}",
+        "Comment": "CE-417 sentinel at offset 0 — bound by nothing. The retired per-METHOD adapter read the attribute DTO's offset (0), so it would have counted HERE (F8)."
+      },
+      {
+        "Name": "varA",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Value\":1,\"Seen\":0}",
+        "Comment": "CE-417: the first binding's own variable (offset 8)."
+      },
+      {
+        "Name": "varB",
+        "Type": {
+          "TypeId": "Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes+CuratedRegionParams",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "{\"Value\":1,\"Seen\":0}",
+        "Comment": "CE-417: the second binding's own variable (offset 16)."
+      }
+    ]
+  }
+}

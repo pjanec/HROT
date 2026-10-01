@@ -1,0 +1,25 @@
+// HROT_EDITOR_GENERATED - manual edits to this file will be overwritten by the AI editor on next save.
+// AssetId: bb000417-0000-0000-0000-000000000000
+
+using System.Runtime.InteropServices;
+
+namespace Hrot.AI.Behaviors.Trees;
+
+[StructLayout(LayoutKind.Explicit, Size = 24)]
+public struct BTreeCuratedBindingDemo_FdpToolkitBehaviorComponentsBrainBlackboard
+{
+    [FieldOffset(0)]
+    public global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams varC;
+    [FieldOffset(8)]
+    public global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams varA;
+    [FieldOffset(16)]
+    public global::Hrot.AI.Behaviors.Brains.HsmTwoRegionCuratedNodes.CuratedRegionParams varB;
+}
+
+/// <summary>CE-425: the behaviour's one blackboard block — Inputs first, at offset 0.</summary>
+[StructLayout(LayoutKind.Explicit)]
+public struct BTreeCuratedBindingDemo_Block
+{
+    [FieldOffset(0)]
+    public BTreeCuratedBindingDemo_FdpToolkitBehaviorComponentsBrainBlackboard In;
+}

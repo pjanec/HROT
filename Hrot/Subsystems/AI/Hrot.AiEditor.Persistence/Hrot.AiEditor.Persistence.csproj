@@ -47,6 +47,9 @@
          asset holds the FQN), which is why this may never become a second copy. -->
     <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\HsmActionKey.cs"
              Link="Emit\Shared\HsmActionKey.cs" />
+    <!-- ⭐ CE-417: the [WritesChannel] release block, shared with BTreeActionGenerator's 4-param wrapper. -->
+    <Compile Include="..\..\..\..\FDP\Toolkits\Fdp.Toolkits.Analyzers\Shared\ChannelClearEmit.cs"
+             Link="Emit\Shared\ChannelClearEmit.cs" />
   </ItemGroup>
 
 </Project>

@@ -9,12 +9,16 @@ namespace Hrot.AiEditor.Persistence.Emit;
 /// <param name="ParamTypeId">The same type as a blackboard <c>TypeId</c> (metadata name, <c>+</c> for nesting).</param>
 /// <param name="IsCondition">True for <c>[SharedAiCondition]</c>.</param>
 /// <param name="ReturnsBool">True when the method returns <c>bool</c>; otherwise it returns <c>NodeStatus</c>.</param>
+/// <param name="WritesChannels">Its <c>[WritesChannel(kind)]</c> kinds — a BTree call releases them on <c>Failure</c>.</param>
 public sealed class SharedAiMethodInfo
 {
-    public SharedAiMethodInfo(string paramTypeFqn, string paramTypeId, bool isCondition, bool returnsBool)
+    public SharedAiMethodInfo(string paramTypeFqn, string paramTypeId, bool isCondition, bool returnsBool,
+        IReadOnlyList<int>? writesChannels = null)
     {
         ParamTypeFqn = paramTypeFqn; ParamTypeId = paramTypeId; IsCondition = isCondition; ReturnsBool = returnsBool;
+        WritesChannels = writesChannels ?? Array.Empty<int>();
     }
+    public IReadOnlyList<int> WritesChannels { get; }
     public string ParamTypeFqn { get; }
     public string ParamTypeId  { get; }
     public bool   IsCondition  { get; }

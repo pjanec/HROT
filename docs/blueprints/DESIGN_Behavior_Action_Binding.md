@@ -128,6 +128,29 @@ graph TD
 
 > **Caption.** Who changes. The kernel edge is dashed: only B-2's rejected option would reach it.
 
+```mermaid
+sequenceDiagram
+    participant J as "*.hsm.json / *.btree.json"
+    participant G as "Hsm/BTreeJsonGenerator"
+    participant R as "SharedAiMethodResolver (Roslyn)"
+    participant E as "HsmBridgeEmitCore / BTreeBridgeEmitCore"
+    participant K as "kernel tick (HSM dispatcher / BTree ActionRegistry)"
+    participant M as "[SharedAi*] method"
+    J->>G: binding {MethodFqn, ExpressionTargetField}
+    G->>R: is MethodFqn [SharedAi*]? ref type? [WritesChannel]?
+    R-->>G: SharedAiMethodInfo (or null)
+    G->>G: bound variable type == ref type? (else HSM0003 error / BTREE0002 skip)
+    G->>E: emit registrar
+    E->>E: one call per binding, key Fqn@hostOffset, offset baked from the asset packer
+    K->>M: call(ref *(T*)(block + hostOffset), self, world)
+    Note over E,M: BTree only: bool becomes Success/Failure, and a [WritesChannel] method releases its channels on Failure
+    Note over K,M: no occurrence lookup, no state base, no allocation (F4, F9)
+```
+
+> **Caption.** B-2 (a′) as built, both hosts (slices 3a, 3b). What the picture shows that prose hid: the ONLY place a
+> binding becomes an address is the asset's emitter. The per-METHOD paths it replaced (`HsmActionGenerator`,
+> `BTreeActionGenerator` `[SharedAi*]` expansion) took the address from the ATTRIBUTE DTO instead, which is F7/F8.
+
 ## 4. Decisions — each with a lean
 
 | | decision | ⚖️ lean | rejected (one line each) |
@@ -145,7 +168,7 @@ graph TD
 | 1 | ✅ name value 2 (B-5, `c20dace71`). ⏳ the F4 rail moves to slice 3 — its expected value is defined by B-2 (a′) | nothing on disk |
 | 2 | ✅ **AS-BUILT** *(see the box below)*: DTO record at all 8 sites + `ActionBindingMigrator` inside both `Deserialize` + schemaVersion 2 + **all 31 corpus files rewritten to v2** + the four payload DTO classes and the flat HSM DTO fields deleted; both emit cores, both mappers, the generator validator read the record | ⭐ **emitted source byte-identical** (every emitted-source golden unchanged); only the two persistence-shape snapshots moved |
 | 3a | ✅ HSM: B-2 (a′) per-binding C# calls, per-method `[SharedAi*]` thunks retired, F4 rail (see box) | HSM goldens (+`HsmCuratedBindingDemo`) |
-| 3b | BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); retire `BTreeActionGenerator`'s per-method `[SharedAi*]` expansion | BTree goldens |
+| 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
 | 4 | editor model record (`Hrot.Editor.AiShared`), both mappers lose the flat↔record translation, facets, one shared drawer, validators | editor rails |
 | 4b | BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid | BTree goldens unchanged by construction |
 
@@ -167,6 +190,16 @@ graph TD
 > | **zero allocation** | `CE417_R3`: two per-binding C# activities, 50 ticks, 0 bytes |
 > | ⚠ **not covered** | global transitions' guards/actions are **not emitted by `HsmEmitCore` at all** (pre-existing; recorded here, not widened into this slice). `HsmOccurrence.KeyForCurated` has no production caller now — kept for the stateful C# HSM action (working memory) the carrier enables |
 > | **gates** | Generators 321/0 · Toolkits 2398/0 · Hsm.Editor 623/0 · Blueprints 4019/0 (9 known skips) · ClusterRunner HSM 2/0 · Editor 442/1 = the known GC-timing flake (`TwoReloadCycles_OldAlcIsCollected`) |
+
+> ⭐⭐ **Slice 3b AS-BUILT (`2026-10-01`) — the BTree half of B-2 (a′) (F8).**
+> | | |
+> |---|---|
+> | **built** | `BTreeBridgeEmitCore.EmitThreeParamCall`: a `ThreeParamReusable` binding whose method `SharedAiMethodResolver` says is `[SharedAi*]` is called with ITS signature `(ref T, Entity, EntityRepository)` at the host offset already projected (`bool` → Success/Failure). A `[WritesChannel]` method releases its channels on `Failure` through **`ChannelClearEmit`** — ONE emitter, a linked file in both `Fdp.Toolkits.Analyzers` (the analyzer's 4-param wrapper) and `Hrot.AiEditor.Persistence` (the `HsmActionKey` pattern). `SharedAiMethodInfo` gained `WritesChannels` |
+> | **retired** | `BTreeActionGenerator`'s per-METHOD `[SharedAi*]` adapters (`EmitSharedAiAdapter`, `AssignSharedAiToGroups`, `GroupEntry.SharedAiEntries`, the conditional `unsafe` registrar). ⚠ The attribute is still **validated** there (`BHU001/002/003`) — now for every assembly with a `[SharedAi*]` method, not only one that also has a 4-param `[BTreeAction]` group |
+> | ⭐ **deviation: no `BTREE0004`** | the plan named a new type-mismatch id. ⭐ BTree's existing convention for an unbindable leaf is a **`BTREE0002` skip** (`BTreeMethodCompatibilityValidator`), and the 3-param check already compared the bound variable's type with param 0 — so the `[SharedAi*]` branch joins that check. HSM keeps its **`HSM0003` error** (slice 3a). ⚠ The two hosts therefore differ in severity for the same mistake — a deliberate match to each host's prior convention, not an oversight |
+> | **F8 fixed + red-proved** | new corpus asset **`BTreeCuratedBindingDemo`** binds the curated `Action_ReadRegionParams` to `varA` (8) and `varB` (16) under a forever repeater; `varC` (0) — the attribute DTO's offset — is bound by nothing. `BrainTickSystemBTreeArmTests.CE417_R4`: each binding counts only its own variable (12/12/0); projecting the call at offset 0 instead makes it fail. `CE417_R5`: 50 ticks, 0 bytes |
+> | **rails moved** | `SharedAiAdapterCompilesTests` (`BP-306`, subject retired) → **`SharedAiBindingCompilesTests`**: a synthetic asset binding an action, a `bool` condition and a `[WritesChannel]` action compiles through BOTH generators, keyed at the host offset, with no analyzer adapter; a wrong-typed variable is a `BTREE0002` skip; the analyzer/bridge one-spelling projection rail is kept |
+> | ⚠ **finding, not fixed** | `BrainTickSystemHsmArmTests.CE417_R3` (zero-alloc) reported **64 B once** in a filtered parallel group run; 5/5 green since (alone ×3, group ×2). Not reproduced, so no fix guessed — recorded here so a recurrence is recognised |
 
 ## 6. Rails owed
 
