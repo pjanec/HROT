@@ -89,7 +89,14 @@ namespace Hrot.SimHost.Systems
 
             // ⭐ CE-486 — an ended sensor publishes NOTHING. ⚠ It must return before the unknown-template fallback
             //   below, which answers "empty" every solve. 📄 DESIGN_Behaviour_Fault_And_Teardown.md §1 D5 ③.
-            if (sensor.Suspended) return;
+            //   ⭐ It also drops its evaluation state: the carrier now OUTLIVES a lifetime (a part id is reused, the instance
+            //   is never disposed), so the next lifetime must start exactly as a fresh carrier did — no ScoreDelta history
+            //   suppressing its first answer, no half-finished raycast phase.
+            if (sensor.Suspended)
+            {
+                if (repo.HasComponent<SensorEvalState>(entity)) _currentCmd.RemoveComponent<SensorEvalState>(entity);
+                return;
+            }
 
             // --- the wire key: the ONE rule (EqsSensorKey) ---
             // A child whose parent is gone or local-only is not solved; a purely local sensor (offline / editor) is keyed
@@ -108,8 +115,9 @@ namespace Hrot.SimHost.Systems
 
             // Reset on epoch change (sensor parameters changed -> discard in-flight raycasts).
             // Preserve CurrentStructureHash so a soft reset does not trigger a spurious hard reset,
-            // and preserve LastPublishedTopK so the ScoreDelta publish policy is not defeated on the
-            // first tick after a parameter tweak (a soft reset must keep publish-suppression state).
+            // and preserve LastPublishedTopK so the ScoreDelta publish policy is not defeated after the new
+            // epoch's first answer (a soft reset keeps publish-suppression state; PublishedThisEpoch resets, so
+            // that first answer always goes out).
             if (evalState.CurrentEpoch != sensor.Epoch)
             {
                 ulong savedHash = evalState.CurrentStructureHash;
@@ -324,21 +332,21 @@ namespace Hrot.SimHost.Systems
             in EqsSensor sensor,
             Span<EqsResult> finalCandidates)
         {
-            // ScoreDelta policy: suppress publish when all top-K score deltas are within threshold.
+            // ScoreDelta policy: suppress publish when all top-K score deltas are within threshold — but ⭐ never the
+            // first answer of an epoch (PublishedThisEpoch): the soft reset keeps LastPublishedTopK, and an epoch bump is
+            // the Brain asking for a NEW answer (EQS 1.3 §17.6). Without this a refresh — or a new lifetime on a reused
+            // part id — whose scores had not moved was never answered.
             if ((EqsPublishPolicy)sensor.PublishPolicy == EqsPublishPolicy.ScoreDelta)
             {
-                bool anyExceedsThreshold = false;
+                bool anyExceedsThreshold = !evalState.PublishedThisEpoch;
                 int  compareCount        = Math.Min(finalCandidates.Length, 16);
                 ReadOnlySpan<float> lastPublished = MemoryMarshal.CreateReadOnlySpan(
                     ref Unsafe.As<TopKScoreCache, float>(ref evalState.LastPublishedTopK), 16);
-                for (int i = 0; i < compareCount; i++)
+                for (int i = 0; i < compareCount && !anyExceedsThreshold; i++)
                 {
                     float delta = MathF.Abs(finalCandidates[i].Score - lastPublished[i]);
                     if (delta > sensor.ScoreDeltaThreshold)
-                    {
                         anyExceedsThreshold = true;
-                        break;
-                    }
                 }
                 if (!anyExceedsThreshold)
                 {
@@ -372,6 +380,7 @@ namespace Hrot.SimHost.Systems
                 ResultHandle    = handle,
                 EntryCount      = finalCandidates.Length,
             });
+            evalState.PublishedThisEpoch = true;
 
             if (_currentRepo.HasComponent<SensorEvalState>(entity))
                 _currentCmd.SetComponent(entity, evalState);

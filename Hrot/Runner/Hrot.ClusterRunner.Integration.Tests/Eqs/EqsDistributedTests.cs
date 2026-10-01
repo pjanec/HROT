@@ -918,6 +918,88 @@ public sealed class EqsDistributedTests
         }, timeoutFrames: 3000), $"The authority must suspend the orphan (wire={suspendedOnTheWire}, carrier={rig.Carrier(part)}).");
     }
 
+    // A Muscle template whose answer never moves (one positional candidate, score 1) — under ScoreDelta every solve after
+    // an epoch's first answer is suppressed, so the ONLY answers are the ones the epoch rule must force out.
+    private sealed class ConstantScoreGenerator : IEqsGenerator
+    {
+        public int Generate(Entity observer, ref EqsSensor sensor, ISimulationView view, Span<EqsResult> candidates)
+        {
+            candidates[0] = new EqsResult { EntityId = 0L, PositionX = 1f, PositionY = 0f, Score = 1f };
+            return 1;
+        }
+    }
+
+    private const uint ConstantScoreTemplate = 230u;
+
+    private static Entity ScoreDeltaSensor(LifecycleRig rig, int part, uint epoch)
+    {
+        var registry = new SimpleEqsTemplateRegistry();
+        registry.Register(new EqsQueryTemplate
+        {
+            BlueprintId = ConstantScoreTemplate, Generator = new ConstantScoreGenerator(), MaxCandidates = 4,
+        });
+        rig.Sim.SetSingletonManaged<IEqsTemplateRegistry>(registry);
+
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity parent);
+        var e = rig.Cgf.CreateEntity();
+        rig.Cgf.AddComponent(e, new PartMetadata { ParentEntity = parent, InstanceId = part });
+        rig.Cgf.AddComponent(e, new EqsSensor
+        {
+            BlueprintId = ConstantScoreTemplate, Epoch = epoch, SearchRadius = 25f,
+            PublishPolicy = (byte)EqsPublishPolicy.ScoreDelta, ScoreDeltaThreshold = 0.5f,
+        });
+        rig.Cgf.AddComponent(e, new EqsCognitiveBuffer());
+        return e;
+    }
+
+    /// <summary>
+    /// ⭐ An epoch bump is a request for a NEW answer — EQS 1.3 §17.6 (<i>"for a guaranteed-new answer bump Epoch"</i>),
+    /// and what <c>EqsChildSensor.Refresh</c> waits for. 🔴 Before: a <c>ScoreDelta</c> sensor's soft reset kept the
+    /// last-published scores, so a refresh whose scores had not moved was NEVER answered.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void ScoreDelta_AnEpochBump_IsAnswered_EvenWhenNoScoreMoved()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 6;
+        var sensor = ScoreDeltaSensor(rig, part, epoch: 1);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(sensor), timeoutFrames: 3000), "The first answer must arrive.");
+
+        // Refresh (EqsChildSensor.Refresh's shape): a new epoch and a cleared buffer.
+        var s = rig.Cgf.GetComponentRO<EqsSensor>(sensor);
+        s.Epoch = 2;
+        rig.Cgf.SetComponent(sensor, s);
+        rig.Cgf.SetComponent(sensor, new EqsCognitiveBuffer());
+
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(sensor), timeoutFrames: 3000),
+            "The refreshed epoch must be answered although no score moved.");
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-486</c> — a NEW lifetime on a reused part id starts exactly as a fresh carrier did. The carrier now OUTLIVES
+    /// a lifetime (never disposed, only suspended), so its evaluation state must not: a suspended carrier drops it.
+    /// 🔴 Without that, a <c>ScoreDelta</c> sensor's next lifetime — same parameters, same scores — was never answered
+    /// (before CE-486 the carrier was destroyed and re-created, which reset it by accident). The epoch is kept EQUAL on
+    /// purpose: it is the case a creator that does not stamp its run into the epoch produces.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void CE486_ANewLifetimeOnASuspendedCarrier_IsAnswered_LikeAFreshCarrier()
+    {
+        using var rig = new LifecycleRig();
+        const int part = 7;
+        var first = ScoreDeltaSensor(rig, part, epoch: 1);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(first), timeoutFrames: 3000), "The first lifetime must be answered.");
+
+        rig.Cgf.DestroyEntity(first);
+        Assert.True(rig.H.PumpUntil(() => !rig.Carrier(part).IsNull && rig.CarrierSensor(part).Suspended,
+            timeoutFrames: 3000), "The first lifetime must end Suspended on the Muscle.");
+        rig.H.PumpUntil(() => false, timeoutFrames: 30);   // several solves of the suspended carrier
+
+        var second = ScoreDeltaSensor(rig, part, epoch: 1);
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(second), timeoutFrames: 3000),
+            "The next lifetime on the same part id must be answered like a fresh carrier's.");
+    }
+
     private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)
     {
         int n = 0;

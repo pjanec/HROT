@@ -13,7 +13,10 @@ known-conflict: Architect_Question_6_Access_Shapes_And_Vocabulary.md Q6-D (keep 
 related-designs:
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — owns WHEN a behaviour's child sensor dies (at its behaviour
     instance's end), how LocalChildIndex is chosen (allocated + reused, never disposed — descriptor rules), the lifetime in the
-    epoch, and the new `Active` flag (CE-485, CE-486); the races it fixes are its §2.
+    epoch, and the `Suspended` flag (CE-485, CE-486 — approved as `Active`, polarity flipped); the races it fixes are its §2.
+    Its §3a is the as-built of this design's wire half: a child sensor ends by a Suspended config (the Muscle carrier
+    stays; the solver publishes nothing and drops its eval state), and a ScoreDelta sensor's first answer of an epoch
+    is never suppressed (this design's §17.6 "bump Epoch for a guaranteed-new answer" — the solver now honours it).
   - docs/designs/hill-attack/DESIGN.md — owns the doctrine and the AreaQuery pipeline (Phase 1), the one live consumer.
   - docs/blueprints/DESIGN_Hill_Attack_Eqs_Migration.md — the §17.6 recipe APPLIED to both hill-attack commanders (CE-478): the
     shared Brain-side child-sensor lifecycle (EqsChildSensor) and the SpawnEqsSensor placeholder-handle fix.
