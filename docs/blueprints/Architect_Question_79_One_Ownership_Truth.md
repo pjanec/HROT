@@ -671,3 +671,32 @@ explicit grant). Open: the full Brain list, and whether Muscle gets a positive s
   ⇒ lean: `P(Map2D) = ∅` (IG is passive, `R-140`); IG owns what it creates as CREATOR, like any node.
 - **The claim has a GENERIC reader the earlier counts missed:** attribute changes — `JsonAttributeCompiler.cs:40,58` and
   `BinaryInterpreterBuilder.cs:111` skip any field whose component the node does not claim (`EcsPatchContext.CanWrite<T>`).
+
+### 11.2 ✅ `P(Map2D) = ∅` RULED — and it is NOT automatic *(user, `2026-10-01`: "yes, map2d empty list")*
+
+📐 `RoleAffinityPolicy.OwnableMask` (`RoleAffinityPolicy.cs:148-193`) = **∪ (owned table of each role this node declares)**, shard-gated,
+**+ birthright if creator**. `isCreator` adds ONLY the birthright. ⇒ with an empty Map2D row an IG creator owns `SimTransform` and
+nothing else. Brain/Muscle creators *look* like the user's rule only because their tables happen to be complements.
+
+**To implement the user's rule (§11) two things change, both local, no protocol:**
+1. `HrotRoleComponentSets`: tables become POSITIVE role claims — Brain = `brainOnly` + `BrainInterrupts` (+ the classification pass),
+   Muscle = ∅ (its share stays the explicit grant), Map2D = ∅.
+2. `RoleAffinityPolicy.OwnableMask`: creator ⇒ `ALL − ∪(claims of roles this node does NOT serve) + birthright`; non-creator ⇒ ∪(claims
+   of roles it serves) — shard gate unchanged.
+
+| creator | today | under the rule |
+|---|---|---|
+| CGF (Brain) | ALL − birthCritical + birthright = ALL | ALL (nothing to exclude) — **unchanged** |
+| SimHost (Muscle) | ALL − brainOnly | ALL − brain claim — **+ declines `BrainInterrupts`** |
+| IG (Map2D) | `SimTransform` + overlay/route | **ALL − brain claim** — keeps `EntityInfo`, health, nav, sensors, `SimVelocity`… |
+
+| promoter | today | under the rule |
+|---|---|---|
+| CGF | ALL − birthCritical (17/22 overlap) | brain claim only |
+| SimHost | ALL − birthCritical − brainOnly | ∅ — WorldPos/NavStatus still arrive by the grant |
+| IG | overlay/route | ∅ |
+
+⚠ **Supersedes** `DESIGN_Node_Roles_And_Policies.md` §4.1's *"creator declines at CREATE, role-holders claim on PROMOTE (brain, nav,
+sensors, SimVelocity)"* for non-brain components: they stay with the creator unless granted. ⚠ **Not measured:** which node applies an
+attribute change to an IG-created entity today — IG declines `EntityInfo` and the patch path gates on the claim, so such changes may
+already be dropped there.
