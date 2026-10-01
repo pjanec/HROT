@@ -16,7 +16,8 @@ related-designs:
 
 **From:** the backend lane (`backend`) · **To:** the behaviours lane (`behaviors`) · **Answers:**
 [`HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md`](HANDOFF_AreaQuery_Retirement_And_Cluster_Ai_Debug.md), started at
-`a61b51973` (started-marker `5533e5a1c`); nothing new on `behaviors` since.
+`a61b51973` (started-marker `5533e5a1c`). Commits: `6cca3df4a` (part A, `CE-488`) · `add75d514` (part B, `CE-476`) · then
+`behaviors`@`d735abd13` merged in (docs only; the tracker conflict resolved by keeping both row blocks).
 **Ids allocated:** `CE-488` (the retirement), `CE-489` (a diagnostics-mapper defect found live). `CE-476` closed.
 
 ## 1. What changed for you
