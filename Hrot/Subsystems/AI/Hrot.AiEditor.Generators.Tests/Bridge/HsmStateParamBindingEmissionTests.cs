@@ -215,4 +215,51 @@ public sealed class HsmStateParamBindingEmissionTests
             $"new global::System.Guid(\"{Guid.Empty}\")",
             "no state bound its own field, so there is no state-wide entry to emit");
     }
+
+    // ── CE-417 §6 "transition split": one transition, two bindings, two variables ────────────────
+
+    private const string PushFqn = "Demo.Actions.Push";
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-417</c> rail "transition split" — a transition whose guard BLUEPRINT and C# ACTION are bound to
+    /// DIFFERENT variables addresses each through its OWN binding.</b> 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §6, B-2 (a′).
+    ///
+    /// <para>🔴 <b>What v1 could not express.</b> A transition carried ONE target field, so a guard and an action that
+    /// needed two variables shared one (slice-2 as-built box: <i>"round-trips through the editor as one field"</i>). ⭐ Now
+    /// each binding carries its own: the guard's goes to the sited seed table at <c>(source state, guard asset)</c>, the
+    /// action's into its own <c>Fqn@hostOffset</c> call — and neither may borrow the other's, nor the source state's.</para>
+    ///
+    /// <para>✅ <b>Red-proof</b>: give <c>SharedAiBindings.Collect</c> the guard's binding for the action (or name the action
+    /// by the guard's field) ⇒ the <c>@4</c> assertions redden.</para>
+    /// </summary>
+    [Fact]
+    public void TransitionSplit_GuardBlueprintAndCSharpAction_EachUseTheirOwnVariable()
+    {
+        // Guard blueprint → Beta (offset 4); C# action → Alpha (offset 0); the source state binds nothing.
+        var dto = WithGuardedTransition(MakeDto(null, null), GuardAssetId, null, "Beta");
+        dto.Transitions[0].Action = new BehaviorActionBindingDto { MethodFqn = PushFqn, ExpressionTargetField = "Alpha" };
+
+        static SharedAiMethodInfo? SharedAi(string fqn)
+            => fqn == PushFqn ? new SharedAiMethodInfo("global::System.Int32", "System.Int32", false, false) : null;
+
+        string bridge   = HsmBridgeEmitCore.EmitBridge(dto, null, SharedAi);
+        string topology = HsmEmitCore.EmitTopologyCore(dto, null, null, null, null, SharedAi);
+
+        // ⭐ the guard seeds from BETA, sited at (source state, its own asset) — and no state-wide entry exists.
+        bridge.Should().Contain(
+            $"(new global::System.Guid(\"{StateOne}\"), new global::System.Guid(\"{GuardAssetId}\"), 4)",
+            "the guard blueprint must seed from its own variable");
+        bridge.Should().NotContain($"new global::System.Guid(\"{Guid.Empty}\")",
+            "the source state binds nothing, so the action must not have become a state-wide seed");
+
+        // ⭐ the action is called at ALPHA's offset, under the name the blob addresses.
+        bridge.Should().Contain($"// {PushFqn}@0", "the action's call is registered under its own Fqn@hostOffset");
+        bridge.Should().Contain("(__root + 0)", "the action's call projects its own variable");
+        bridge.Should().NotContain($"{PushFqn}@4", "the action must never take the guard's variable");
+        bridge.Should().NotContain("(__root + 4)", "only the action is a C# call; Beta belongs to the blueprint guard");
+
+        // ⚠ The fixture has no root, so no transition chain is emitted; the registration uses the SAME namer (BindingNamer).
+        topology.Should().Contain($"builder.RegisterAction(\"{PushFqn}@0\")", "the blob names the action by its own binding");
+        topology.Should().NotContain($"{PushFqn}@4");
+    }
 }

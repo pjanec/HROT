@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-01
-build-state: READY-TO-BUILD — B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
+build-state: BUILT — slices 1…5 shipped 2026-10-01 (§5 slice table; as-built boxes per slice). B-1 … B-5 approved (user, 2026-10-01). B-2 = (a′), its tradeoffs accepted by the user after
   F7/F8/F9 were measured; it covers BOTH hosts (F8). The hot-path allocation half (F9) shipped separately as CE-505.
 current-answer: §4 (the five decisions, each with a lean). §2 is why Q75-B needs them: four of its premises moved
   since it was approved on 2026-09-28.
@@ -171,6 +171,7 @@ sequenceDiagram
 | 3b | ✅ BTree: the same for a `[SharedAi*]` method bound in a BTree asset (F8); `BTreeActionGenerator`'s per-method `[SharedAi*]` adapters retired (see box) | BTree goldens (+`BTreeCuratedBindingDemo`) |
 | 4 | ✅ editor side — designed in §5.4. ✅ 4a (model, no visible change) · ✅ 4b (one facet, one drawer, one applier); as-built boxes in §5.4 | editor rails |
 | 4c | ✅ §5.5 (as-built box) — BTree emitter resolves a blueprint binding by asset id through the catalog (B-1); FQN derived; corpus heal FQN→Guid. ⚠ *Was numbered "4b" until `2026-10-01`; renamed when slice 4 split into 4a/4b (§5.4)* | BTree goldens unchanged by construction |
+| 5 | ✅ cleanup (box below): the two §6 rails still owed (one carrier, transition split); `StateNode.StateWideTargetField` read-only; the HSM generated-source golden checks its baselined set | no golden moved |
 
 > ⭐⭐ **Slice 2 AS-BUILT (`2026-10-01`) — where it deviated from the plan above, and why.**
 > | | |
@@ -200,6 +201,15 @@ sequenceDiagram
 > | **F8 fixed + red-proved** | new corpus asset **`BTreeCuratedBindingDemo`** binds the curated `Action_ReadRegionParams` to `varA` (8) and `varB` (16) under a forever repeater; `varC` (0) — the attribute DTO's offset — is bound by nothing. `BrainTickSystemBTreeArmTests.CE417_R4`: each binding counts only its own variable (12/12/0); projecting the call at offset 0 instead makes it fail. `CE417_R5`: 50 ticks, 0 bytes |
 > | **rails moved** | `SharedAiAdapterCompilesTests` (`BP-306`, subject retired) → **`SharedAiBindingCompilesTests`**: a synthetic asset binding an action, a `bool` condition and a `[WritesChannel]` action compiles through BOTH generators, keyed at the host offset, with no analyzer adapter; a wrong-typed variable is a `BTREE0002` skip; the analyzer/bridge one-spelling projection rail is kept |
 > | ⚠ **finding, not fixed** | `BrainTickSystemHsmArmTests.CE417_R3` (zero-alloc) reported **64 B once** in a filtered parallel group run; 5/5 green since (alone ×3, group ×2). Not reproduced, so no fix guessed — recorded here so a recurrence is recognised |
+
+> ⭐⭐ **Slice 5 AS-BUILT (`2026-10-01`) — cleanup.**
+> | | |
+> |---|---|
+> | **§6 rails, all four now exist** | **one carrier** — `ActionBindingTests.OneCarrier_OnlyTheBindingRecordCarriesAMethodAndATargetField` (reflection over the five assemblies that author, persist or emit a binding, each named by an anchor type so a dropped reference fails the compile; allowed: `BehaviorActionBinding`, `BehaviorActionBindingDto`, `BehaviorActionBindingFacet`). **transition split** — `HsmStateParamBindingEmissionTests.TransitionSplit_GuardBlueprintAndCSharpAction_EachUseTheirOwnVariable` (guard blueprint → `Beta` sited at `(source, guard asset)`, C# `[SharedAi*]` action → `Alpha` as `Fqn@0` in both the registrar and the blob; neither borrows the other's, no state-wide entry appears). **F4** — `CE417_R2` (slice 3a). **migrator round-trips** — `ActionBindingMigrationTests` (slice 2) |
+> | **retired** | the `StateNode.StateWideTargetField` setter — the v1 "one field to every slot" write path; after 4b only tests wrote it. The getter (the seed, derived exactly as `HsmBridgeEmitCore.StateWideField`) stays. Tests now author the seed on a slot binding |
+> | **golden** | `GeneratedEmitGoldenTests.TheGeneratedRegistrarIsUnchanged` now requires produced hints == baselined hints, like the BTree tier since 4c. ⚠ Measured: with ONE baseline its `NotEmpty` already covered a vanished part, so it was not blind *today*; it would have been at the second baseline |
+> | ⚠ **found, filed, not fixed: `CE-506`** | a **global** transition's guard and action are authorable (`GlobalTransitionFacet`, 4b) but **dropped at emit**: `HsmEmitCore` emits `builder.GlobalTransition(event, target, visualId)` and `HsmBuilder.GlobalTransition` has no guard/action/priority parameter, although the kernel's `GlobalTransitionDef` carries `GuardId`/`ActionId`/`Priority`. Pre-existing (the 3a box's *"not covered"* row); it is a FastHSM builder + emitter change, not binding cleanup |
+> | **kept on purpose** | `HsmOccurrence.KeyForCurated` (no production caller since 3a) — the 3a box keeps it for the stateful C# HSM action; `CE-504` (BTree call shapes) decides its fate |
 
 ## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 
@@ -497,7 +507,7 @@ graph TD
 > | **rails** | `BTreeBlueprintBindingsTests` (5, persistence): the corpus class is the one always emitted; id beats a stale name; name fallback; methods untouched; unresolvable left alone. `BTreeBlueprintBindingByIdTests` (8, BTree editor): legacy FQN healed to id; hand-written AiPrimitive method kept; id-first with two same-named blueprints + rename heal; never-erase; derived method; validator by id; palette drop persists id; inspector pick composes params + working state and clearing restores the plain shape. 🔴 Red-proved by mutation: persisted name preferred over the catalogue id, name-first heal, shape not set, palette drop keeps the FQN — each reddens its rail; removing the generator call reddens `TheGeneratedBTreeSourcesAreUnchanged` — ⚠ **only after fixing that test** (next row) |
 > | 🔴 **finding: the generated-source golden could not see a MISSING asset** | it compared only the parts a run produced, so an asset that stopped generating (here: T32/T33/T39 skipped as BTREE0002 once the derivation was removed) left its baselines unread and the test GREEN. ⭐ Fixed in `BTreeGeneratedEmitGoldenTests`: the produced hint set must equal the baselined set; red-proved. ⚠ **Not fixed, recorded:** `GeneratedEmitGoldenTests` (the HSM generator's tier, `:117`) has the same loop |
 
-## 6. Rails owed
+## 6. Rails owed — ✅ all four exist since slice 5 (where each lives: slice 5 box)
 
 | rail | |
 |---|---|

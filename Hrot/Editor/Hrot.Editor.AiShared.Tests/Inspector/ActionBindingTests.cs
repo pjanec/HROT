@@ -327,4 +327,54 @@ public sealed class ActionBindingTests
         f.TargetsWholeBlackboard.Should().BeTrue();
         BehaviorActionBindingEditor.ToFacet(null, site).MethodFqn.Should().BeNull();
     }
+
+    // ── CE-417 §6 "one carrier" (Q75 §6) ─────────────────────────────────────────────────────
+
+    /// <summary>
+    /// ⭐⭐⭐ <b><c>CE-417</c> rail "one carrier" — no type but the binding record (DTO, model, facet) carries a
+    /// <c>MethodFqn</c> + <c>ExpressionTargetField</c> pair.</b> 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §6;
+    /// <c>Architect_Question_75_…</c> §6 (decision B).
+    ///
+    /// <para>🔴 <b>What it guards.</b> Before slice 2 the pair was spelled on four payload DTOs, the flat HSM DTO fields, both
+    /// editor models and every facet — each with its own copy of the migration and naming rules. ⛔ A new class that grows
+    /// both members is a second carrier again, however well-meant.</para>
+    ///
+    /// <para>⚠ <b>Scope is explicit</b>: every assembly that authors, persists or emits a binding is named by an anchor type,
+    /// so a missing reference fails the compile rather than silently shrinking the scan. <c>Hrot.Utility.Editor</c> carries
+    /// no binding (measured: no <c>MethodFqn</c> member) and this project does not reference it.</para>
+    ///
+    /// <para>✅ <b>Red-proof</b>: add <c>public string? MethodFqn;</c> to <c>StateNode</c> ⇒ this rail reddens.</para>
+    /// </summary>
+    [Fact]
+    public void OneCarrier_OnlyTheBindingRecordCarriesAMethodAndATargetField()
+    {
+        var anchors = new[]
+        {
+            typeof(BehaviorActionBinding),                                         // Hrot.Editor.AiShared
+            typeof(Hrot.AiEditor.Persistence.BehaviorActionBindingDto),            // Hrot.AiEditor.Persistence
+            typeof(StateNode),                                                     // Hrot.Hsm.Editor
+            typeof(Hrot.BTree.Editor.Model.BehaviorTreeAsset),                     // Hrot.BTree.Editor
+            typeof(Hrot.Blueprints.Editor.Catalog.BlueprintAssetContributor),      // Hrot.Blueprints.Editor
+        };
+        var allowed = new HashSet<Type>
+        {
+            typeof(BehaviorActionBinding),
+            typeof(Hrot.AiEditor.Persistence.BehaviorActionBindingDto),
+            typeof(BehaviorActionBindingFacet),
+        };
+
+        const System.Reflection.BindingFlags Members =
+            System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic |
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.DeclaredOnly;
+        static bool Has(Type t, string name, System.Reflection.BindingFlags f)
+            => t.GetField(name, f) != null || t.GetProperty(name, f) != null;
+
+        var carriers = anchors.Select(a => a.Assembly).Distinct()
+            .SelectMany(a => a.GetTypes())
+            .Where(t => Has(t, "MethodFqn", Members) && Has(t, "ExpressionTargetField", Members))
+            .ToList();
+
+        carriers.Should().BeEquivalentTo(allowed,
+            "Q75 §6: one binding carrier — a type that holds both a method and its target field is a second carrier");
+    }
 }
