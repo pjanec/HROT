@@ -98,6 +98,10 @@ public sealed record AiAssetKind(
                 ("g.cs",           HsmEmitCore.EmitTopologyCore(dto, null, AiAssetCorpus.BlueprintIdResolver, AiAssetCorpus.BlueprintClassNameResolver)),
                 ("Registrar.g.cs", HsmBridgeEmitCore.EmitBridge(dto)),
             };
+            // ⭐ CE-416 — the blackboard struct part, under the generator's exact condition and call.
+            if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0
+                && BTreeEmitCore.EmitBlackboardStructSource(HsmBridgeEmitCore.BlackboardOwner(dto), null, out _) is { } bb)
+                parts.Add(("Blackboard.g.cs", bb));
             // ⭐ Batch 92 (92b): mirrors the generator exactly — the orchestrator part exists only when
             //   the core has something to emit. ⛔ No corpus asset has an alias, so this adds nothing
             //   today; that is precisely why the golden cannot move.
@@ -105,7 +109,7 @@ public sealed record AiAssetKind(
             if (orchestrators != null) parts.Add(("Orchestrators.g.cs", orchestrators));
             return parts;
         },
-        AllHintNames:       new[] { "g.cs", "Registrar.g.cs", "Orchestrators.g.cs" });
+        AllHintNames:       new[] { "g.cs", "Registrar.g.cs", "Blackboard.g.cs", "Orchestrators.g.cs" });
 
     /// <summary>
     /// ⭐ <b>BTree — the SHAPE tier only, and that limit is deliberate.</b>

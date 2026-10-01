@@ -176,16 +176,20 @@ public sealed class HsmParseParamsEmissionTests
     /// other. ⇒ the rail asserts all three emissions move together, which no single-piece test can.
     /// </para>
     /// </summary>
+    /// <para>⭐⭐ <b><c>CE-416</c> (<c>2026-10-01</c>) — INVERTED, as the BTree's <c>CE-429</c> inverted it:</b> State now lives
+    /// in the BLOCK, so a State-only asset must STILL be allocated — a bake-only parse, the options field and the pragma move
+    /// together, and the rail now asserts they are all PRESENT. ⛔ SUPERSEDED: "emits none of the three".</para>
     [Fact]
-    public void AManagedAssetOfOnlyStateVariables_EmitsNoneOfTheThreePieces()
+    public void AManagedAssetOfOnlyStateVariables_EmitsAllThreePieces_ForItsBlock()
     {
         string bridge = HsmBridgeEmitCore.EmitBridge(MakeDto(true,
             new Var("Cursor", "System.Int32", null, BlackboardVariableRole.State, WorkingStateScope.Behavior)));
 
-        bridge.Should().NotContain("#nullable enable");
-        bridge.Should().NotContain("__paramJsonOpts");
-        bridge.Should().NotContain("__parseParams");
-        bridge.Should().Contain("StatefulWorkingSlots", "the manifest is E1's job and is unaffected");
+        bridge.Should().Contain("#nullable enable");
+        bridge.Should().Contain(
+            "private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =");
+        bridge.Should().Contain("ParseParams  = __parseParams,");
+        bridge.Should().NotContain("StatefulWorkingSlots", "Cursor lives in the block's St — one home (CE-437)");
     }
 
     /// <summary>
@@ -206,7 +210,7 @@ public sealed class HsmParseParamsEmissionTests
         //    "ask the artefact, not the thing that produced it."
         bridge.Should().Contain(
             "private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =");
-        bridge.Should().Contain("ParseParams   = __parseParams,");
+        bridge.Should().Contain("ParseParams  = __parseParams,");   // CE-416: the shared emission's spelling
     }
 
     /// <summary>⭐ A non-managed blackboard reflects a hand-written struct — the editor owns no
@@ -275,8 +279,9 @@ public sealed class HsmParseParamsEmissionTests
         string fieldSlice = Slice(bridge,
             "private static readonly global::System.Text.Json.JsonSerializerOptions __paramJsonOpts =",
             "/// <summary>");
+        // ⭐ CE-416: the shared emission declares __bakeDefaults first (CE-427), so the slice starts there.
         string localSlice = Slice(bridge,
-            "global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;",
+            "global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;",
             "// Register the JSON-owned HSM definition.");
 
         localSlice.Should().NotBeEmpty("the emitter must declare a ParseParams local for this asset");

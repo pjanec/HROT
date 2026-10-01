@@ -252,6 +252,27 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
 
         spc.AddSource(baseName + ".Registrar.g.cs", bridge);
 
+        // ⭐⭐⭐ CE-416 (Q75-S1, Q76 §12.27) — {Name}.Blackboard.g.cs: {Asset}_Blackboard (the Inputs, Pack's offsets) and
+        //   {Asset}_Block (In + St). The SAME emitter the BTree generator calls, on the HSM as a blackboard owner — the
+        //   registrar's JsonParamsDtoType / BlackboardLayoutType name these types.
+        if (dto.Blackboard != null && dto.Blackboard.Managed && dto.Blackboard.Variables.Count > 0)
+        {
+            string? structSource;
+            try
+            {
+                structSource = Hrot.AiEditor.Persistence.Emit.BTreeEmitCore.EmitBlackboardStructSource(
+                    HsmBridgeEmitCore.BlackboardOwner(dto), sizeResolver, out _);
+            }
+            catch (Exception ex)
+            {
+                spc.ReportDiagnostic(MakeParseErrorDiagnostic(path,
+                    "Exception during blackboard struct generation: " + ex.Message));
+                return;
+            }
+            if (structSource != null)
+                spc.AddSource(baseName + ".Blackboard.g.cs", structSource);
+        }
+
         // ⭐⭐⭐ Batch 92 (92b): orchestrators — {Name}.Orchestrators.g.cs
         //
         // ⛔ OMITTED ENTIRELY when the core returns null, which is every asset in today's corpus

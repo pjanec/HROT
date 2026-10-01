@@ -30,19 +30,25 @@ public static class HsmPolledGuardDemoRegistrar
         // Compile the blob from the topology-core thunk.
         var blob = HsmPolledGuardDemo.Compile();
 
-        // BP-281: managed parameter supply — bake defaults, then overlay from json.
-        // The SAME ParseParamsDelegate the BTree bridge emits (DESIGN_Parameter_Model.md §3).
+        // 4a. Managed parameter supply: bake defaults, then overlay from json (DEBT-AIB-021).
         // ParseParamsDelegate uses byte* — must be captured in an unsafe block.
+        global::Fdp.Toolkit.Behavior.BakeDefaultsDelegate? __bakeDefaults;
         global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;
         unsafe
         {
-            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
+            static void __BakeDefaults(byte* memory, int capacity)
             {
-                // Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.
                 {
                     var __v = global::System.Text.Json.JsonSerializer.Deserialize<bool>("false", __paramJsonOpts);
                     global::System.Runtime.CompilerServices.Unsafe.Write(memory + 0, __v);
                 }
+            }
+            __bakeDefaults = __BakeDefaults;
+            __parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>
+            {
+                // Step 1 — baked defaults (CE-427: its own function, so a curated supply keeps it).
+                __BakeDefaults(memory, capacity);
 
                 // Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each
                 // variable's deserializer (DEBT-AIB-021 names this shape).
@@ -79,12 +85,15 @@ public static class HsmPolledGuardDemoRegistrar
             BrainTier     = BehaviorConstants.BrainTierHsm,
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
-            ParseParams   = __parseParams,
             BlueprintStructureHash = 14337538571795867461UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("EngageTarget", typeof(bool), 0),
             },
+            JsonParamsDtoType    = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo_HsmPolledGuardDemo_Blackboard),
+            BlackboardLayoutType = typeof(global::Hrot.AI.Behaviors.Machines.HsmPolledGuardDemo_Block),
+            ParseParams  = __parseParams,
+            BakeDefaults = __bakeDefaults,
         });
         // E3b-0 / CE-414: which blackboard variable each HOSTING SITE seeds its
         //        params from. Guid.Empty is the state-wide default; a non-empty

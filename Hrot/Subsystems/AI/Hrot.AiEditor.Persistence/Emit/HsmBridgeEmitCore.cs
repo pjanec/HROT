@@ -59,7 +59,19 @@ public static class HsmBridgeEmitCore
         //   asset whose variables are all Role=State packs to nothing and emits none of the three —
         //   which is right, because State lives in the partition tier, not the inline param region.
         IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields = PackParams(dto, sizeResolver);
-        bool emitsParseParams = packedFields.Count > 0;
+
+        // ⭐⭐⭐ CE-416 (Q76 §12.27) — the HSM is a BLACKBOARD OWNER like any BTree: the root-params emission (bake →
+        //   supply → resolve, the block, the State-only bake) is BTreeBridgeEmitCore's, CALLED through this view.
+        //   ⛔ `owned` is null exactly when Pack failed — the same "layout not knowable ⇒ emit nothing" rule the BTree applies.
+        var owner = BlackboardOwner(dto);
+        bool isManaged = owner.Blackboard.Managed && owner.Blackboard.Variables.Count > 0;
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned = null;
+        if (isManaged)
+        {
+            try { owned = BTreeBlackboardPackHelper.Pack(owner.Blackboard.Variables, sizeResolver, out _); }
+            catch { owned = null; }
+        }
+        bool emitsParseParams = isManaged;   // the options field + pragma: the BTree's needsJsonOpts condition
 
         // Header
         sb.AppendLine(AiEmitCoreBase.BuildHeader(dto.AssetId));
@@ -113,7 +125,7 @@ public static class HsmBridgeEmitCore
             sb.AppendLine();
         }
 
-        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields);
+        EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged);
 
         sb.AppendLine("}");
 
@@ -124,7 +136,8 @@ public static class HsmBridgeEmitCore
 
     private static void EmitHsmRegisterMethod(
         StringBuilder sb, HsmAssetDto dto, string coreClass,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields,
+        BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned, bool isManaged)
     {
         string pad  = Indent;
         string pad2 = Indent + Indent;
@@ -146,7 +159,8 @@ public static class HsmBridgeEmitCore
         sb.AppendLine();
 
         // ⭐⭐⭐ BP-281 — the params supply, emitted BEFORE the definition that carries it.
-        bool hasParseParams = EmitParseParamsLocal(sb, dto, packedFields, pad2);
+        //   ⭐ CE-416: the SHARED emission (BTreeBridgeEmitCore.EmitRootParamsLocals), not an HSM copy.
+        bool hasParseParams = BTreeBridgeEmitCore.EmitRootParamsLocals(sb, owner, owned, isManaged, pad2);
 
         // Register definition
         sb.AppendLine($"{pad2}// Register the JSON-owned HSM definition.");
@@ -164,33 +178,11 @@ public static class HsmBridgeEmitCore
         //    ends with `blob.Metadata = HsmEmitter.BuildMachineMetadata(this)`. Nothing needed
         //    building — only carrying across.
         sb.AppendLine($"{pad2}{Indent}HsmMetadata   = blob.Metadata,");
-        if (hasParseParams)
-            sb.AppendLine($"{pad2}{Indent}ParseParams   = __parseParams,");
-        // ⭐ CE-455 — the root block's LAYOUT hash (Inputs only: an HSM's State lives in the partition tier), so a hot
-        //   reload that reorders/retypes the parameters at the SAME width restarts a running machine.
-        if (packedFields.Count > 0)
-            sb.AppendLine($"{pad2}{Indent}BlueprintStructureHash = {BTreeBlackboardPackHelper.LayoutHash(packedFields)}UL,   // CE-455: the root block's layout");
-        // ⭐⭐ CE-226 — DESCRIBE the parameters this asset accepts, not just parse them.
-        //
-        // Measured 2026-09-08: the HSM generator emitted ParseParams (so the asset DID accept a key)
-        // and no manifest (so nothing could say which). GET /behaviors therefore advertised an empty
-        // schema for HsmVariableShowcase while its ParseParams switch had a `case "Threshold"` — an
-        // agent could not discover a parameter the engine would have accepted.
-        //
-        // The array is emitted from the SAME packedFields that drive the ParseParams switch above, so
-        // the schema and the parser cannot disagree; that correspondence is the whole point, and it is
-        // what makes the manifest a truthful wire contract rather than a hint.
-        //
-        // ⚠ CE-235 — NO JsonParamsDtoType HERE, and that is measured, not an omission. Unlike the BTree
-        //   generator, the HSM generator emits NO blackboard struct: BTreeEmitCore.EmitBlackboardStructSource
-        //   has exactly one caller (BTreeJsonGenerator.cs:290), and no *.Blackboard.g.cs is produced for
-        //   any HSM asset. So there is no type to name, and the manifest below IS this asset's authored
-        //   contract — DtoJsonSchemaExtractor.ExtractParams falls back to it for exactly this case.
-        //   Legitimate because the names here are the same packed-field list the ParseParams switch above
-        //   is emitted from, so schema and parser cannot disagree.
-        if (packedFields.Count > 0)
-            BTreeBridgeEmitCore.EmitManagedBlackboardVariablesArray(sb, packedFields, pad2 + Indent);
-        EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent);
+        // ⭐⭐⭐ CE-416 — the root-params MEMBERS are the BTree's, called: layout hash (Inputs + State), manifest,
+        //   JsonParamsDtoType / BlackboardLayoutType = {Asset}_Block, ParseParams / BakeDefaults. ⛔ SUPERSEDED: CE-235's
+        //   "no JsonParamsDtoType here — the HSM emits no struct"; HsmJsonGenerator now emits {Asset}.Blackboard.g.cs.
+        BTreeBridgeEmitCore.EmitRootParamsMembers(sb, owner, owned, isManaged, hasParseParams, pad2);
+        EmitStatefulWorkingSlotsArray(sb, dto, pad2 + Indent, owner, owned);
         sb.AppendLine($"{pad2}}});");
 
         // ⭐⭐⭐ E3b-0 — which variable does each STATE's occurrence seed its params from.
@@ -359,95 +351,8 @@ public static class HsmBridgeEmitCore
         sb.AppendLine();
     }
 
-    /// <returns>true when a <c>__parseParams</c> local was emitted.</returns>
-    private static bool EmitParseParamsLocal(
-        StringBuilder sb, HsmAssetDto dto,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField> packedFields, string pad2)
-    {
-        // ⭐⭐ DEFECT (b) of DEBT-AIB-021: the BTree guard used to be "≥1 DEFAULT", so an asset whose
-        //    variables had no defaults emitted no ParseParams and could never be overridden at all.
-        //    ⛔ The overlay is useful for EVERY packed variable, default or not — so the condition is
-        //    "≥1 PACKED variable", and it is the SAME list the caller already computed.
-        if (packedFields.Count == 0) return false;
-
-        var variables = dto.Blackboard!.Variables;
-
-        // Baked defaults: variables carrying a non-null DefaultValueJson that are also packed.
-        var offsetMap = new Dictionary<string, BTreeBlackboardPackHelper.PackedField>(StringComparer.Ordinal);
-        foreach (var f in packedFields)
-            offsetMap[f.Name] = f;
-
-        var defaults = new List<(BTreeBlackboardPackHelper.PackedField Field, string DefaultJson)>();
-        foreach (var v in variables)
-        {
-            if (v.DefaultValueJson == null) continue;
-            if (!offsetMap.TryGetValue(v.Name, out var field)) continue;
-            defaults.Add((field, v.DefaultValueJson));
-        }
-
-        string pad3 = pad2 + Indent;       // inside the unsafe { }
-        string pad4 = pad3 + Indent;       // inside the lambda body
-        string pad5 = pad4 + Indent;       // inside each { } block per variable
-
-        sb.AppendLine($"{pad2}// BP-281: managed parameter supply — bake defaults, then overlay from json.");
-        sb.AppendLine($"{pad2}// The SAME ParseParamsDelegate the BTree bridge emits (DESIGN_Parameter_Model.md §3).");
-        sb.AppendLine($"{pad2}// ParseParamsDelegate uses byte* — must be captured in an unsafe block.");
-        sb.AppendLine($"{pad2}global::Fdp.Toolkit.Behavior.ParseParamsDelegate? __parseParams;");
-        sb.AppendLine($"{pad2}unsafe");
-        sb.AppendLine($"{pad2}{{");
-        sb.AppendLine($"{pad3}__parseParams = static (string json, byte* memory, int capacity, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self) =>");
-        sb.AppendLine($"{pad3}{{");
-
-        // ── step 1: bake the defaults ────────────────────────────────────────────
-        sb.AppendLine($"{pad4}// Step 1 — baked defaults. DESIGN_Parameter_Model.md §3.2: the ORDER is the ruling.");
-        foreach (var (field, defaultJson) in defaults)
-        {
-            string dtoTypeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(field.TypeId);
-            string escaped    = EscapeCSharpStringLiteral(defaultJson);
-            sb.AppendLine($"{pad4}{{");
-            sb.AppendLine($"{pad5}var __v = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(\"{escaped}\", __paramJsonOpts);");
-            sb.AppendLine($"{pad5}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {field.ByteOffset}, __v);");
-            sb.AppendLine($"{pad4}}}");
-        }
-
-        // ── step 2: overlay from the incoming json ───────────────────────────────
-        sb.AppendLine();
-        sb.AppendLine($"{pad4}// Step 2 — overlay. A wrapper object keyed by VARIABLE NAME, dispatched to each");
-        sb.AppendLine($"{pad4}// variable's deserializer (DEBT-AIB-021 names this shape).");
-        sb.AppendLine($"{pad4}// ⛔ Malformed json THROWS on purpose: the ingress parses into a stack shadow and");
-        sb.AppendLine($"{pad4}//    commits only on success, so a throw leaves the entity on its old behaviour.");
-        sb.AppendLine($"{pad4}if (!string.IsNullOrWhiteSpace(json))");
-        sb.AppendLine($"{pad4}{{");
-        sb.AppendLine($"{pad5}using var __doc = global::System.Text.Json.JsonDocument.Parse(json);");
-        sb.AppendLine($"{pad5}if (__doc.RootElement.ValueKind == global::System.Text.Json.JsonValueKind.Object)");
-        sb.AppendLine($"{pad5}{{");
-        sb.AppendLine($"{pad5}{Indent}foreach (var __prop in __doc.RootElement.EnumerateObject())");
-        sb.AppendLine($"{pad5}{Indent}{{");
-        sb.AppendLine($"{pad5}{Indent}{Indent}switch (__prop.Name)");
-        sb.AppendLine($"{pad5}{Indent}{Indent}{{");
-        foreach (var f in packedFields)
-        {
-            string dtoTypeFqn = BTreeBridgeEmitCore.DtoTypeToGlobal(f.TypeId);
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}case \"{EscapeCSharpStringLiteral(f.Name)}\":");
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{{");
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}var __o = global::System.Text.Json.JsonSerializer.Deserialize<{dtoTypeFqn}>(__prop.Value.GetRawText(), __paramJsonOpts);");
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}global::System.Runtime.CompilerServices.Unsafe.Write(memory + {f.ByteOffset}, __o);");
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}{Indent}break;");
-            sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}}}");
-        }
-        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}// ⭐ Unknown key: IGNORED, matching the curated path's own behaviour.");
-        sb.AppendLine($"{pad5}{Indent}{Indent}{Indent}default: break;");
-        sb.AppendLine($"{pad5}{Indent}{Indent}}}");
-        sb.AppendLine($"{pad5}{Indent}}}");
-        sb.AppendLine($"{pad5}}}");
-        sb.AppendLine($"{pad4}}}");
-
-        sb.AppendLine($"{pad3}}};");
-        sb.AppendLine($"{pad2}}}");
-        sb.AppendLine();
-
-        return true;
-    }
+    // ⛔ CE-416 (2026-10-01) — the HSM's own EmitParseParamsLocal is DELETED: it was the pre-CE-427 copy of the BTree's (bake
+    //   inlined, no BakeDefaults, no State half). Both tiers now call BTreeBridgeEmitCore.EmitRootParamsLocals.
 
     /// <summary>
     /// ⭐⭐ Packs an HSM asset's managed blackboard into inline param offsets. ⛔ Returns an EMPTY
@@ -481,6 +386,25 @@ public static class HsmBridgeEmitCore
             return Array.Empty<BTreeBlackboardPackHelper.PackedField>();
         }
     }
+
+    /// <summary>
+    /// ⭐⭐⭐ <c>CE-416</c> (<c>Q76</c> §12.27) — this HSM as a <b>blackboard owner</b>: a <see cref="BehaviorTreeAssetDto"/>
+    /// carrying ONLY what the shared root-params / struct emitters read — name, asset id, namespace, blackboard (no nodes, no
+    /// resolver: an HSM cannot bind a resolver asset yet). ⭐ The namespace is the HSM's own (<c>Hrot.AI.Behaviors.Machines</c>
+    /// by default), so <c>{Asset}_Blackboard</c> / <c>_Block</c> land beside the registrar that names them.
+    /// </summary>
+    public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => new()
+    {
+        Name            = dto.Name,
+        AssetId         = dto.AssetId,
+        TargetNamespace = string.IsNullOrEmpty(dto.TargetNamespace) ? "Hrot.AI.Behaviors.Machines" : dto.TargetNamespace,
+        Blackboard      = new BlackboardBlockDto
+        {
+            Managed   = dto.Blackboard?.Managed ?? false,
+            TypeName  = dto.Blackboard?.TypeName ?? string.Empty,
+            Variables = dto.Blackboard?.Variables is { } vs ? new List<BlackboardVariableDto>(ToPackable(vs)) : new List<BlackboardVariableDto>(),
+        },
+    };
 
     /// <summary>
     /// ⭐ Projects HSM blackboard variables onto the shape <see cref="BTreeBlackboardPackHelper.Pack"/>
@@ -615,7 +539,9 @@ public static class HsmBridgeEmitCore
         return result;
     }
 
-    private static void EmitStatefulWorkingSlotsArray(StringBuilder sb, HsmAssetDto dto, string pad)
+    private static void EmitStatefulWorkingSlotsArray(
+        StringBuilder sb, HsmAssetDto dto, string pad,
+        BehaviorTreeAssetDto owner, IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? owned)
     {
         // ⭐⭐⭐ E5 — one slot per HOSTED SUBTREE, so the child gets its OWN BehaviorTreeState.
         // ⛔⛔ THIS AND THE HOSTING CALL SHIP TOGETHER OR NEITHER — HostedSubtree.Tick THROWS on a
@@ -655,6 +581,8 @@ public static class HsmBridgeEmitCore
             int slotKey = BTreeBridgeEmitCore.ComputeStatefulSlotKey(
                 dto.AssetId, v.Scope, Guid.Empty, v.Name);
             if (!seenKeys.Add(slotKey)) continue;   // co-scoped duplicates share one slot
+            // ⭐ CE-416 (CE-437's HSM half) — a variable in the block's St has ONE home: no side slot.
+            if (BTreeBridgeEmitCore.TryGetBlockStateVariable(owner, owned, slotKey, out _)) continue;
 
             slots.Add((slotKey, typeId, v.Name, (int)v.Role, (int)v.Scope));
         }
