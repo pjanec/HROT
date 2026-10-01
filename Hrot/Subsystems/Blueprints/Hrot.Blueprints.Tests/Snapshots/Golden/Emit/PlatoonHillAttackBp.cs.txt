@@ -702,7 +702,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         }
         _ = __t0;
         var __t2 = self;
-        ref readonly var __t3 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t2);
+        var __t3_absent = default(global::Fdp.Core.CommandHierarchy.UnitRoster);
+        ref readonly var __t3 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t2) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t2) : ref __t3_absent);
         var __t5 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t3);
         for (int __fe4 = 0; __fe4 < __t5; __fe4++)
         {
@@ -765,7 +766,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         var __t0 = true;
         s.AllArrived = __t0;
         var __t1 = self;
-        ref readonly var __t2 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t1);
+        var __t2_absent = default(global::Fdp.Core.CommandHierarchy.UnitRoster);
+        ref readonly var __t2 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t1) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t1) : ref __t2_absent);
         var __t4 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t2);
         for (int __fe3 = 0; __fe3 < __t4; __fe3++)
         {
@@ -774,7 +776,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
             var __t6 = global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.IsAliveInCombat(__t3, view);
             if (__t6)
             {
-                ref readonly var __t7 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>(__t3);
+                var __t7_absent = default(global::Fdp.Toolkit.Navigation.NavigationStatus);
+                ref readonly var __t7 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Navigation.NavigationStatus>(__t3) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Navigation.NavigationStatus>(__t3) : ref __t7_absent);
                 var __t8 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Navigation.NavigationStatus>(__t3);
                 var __t9 = __t7.Result;
                 var __t10 = !__t8;
@@ -1017,7 +1020,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     {
         var __t0 = target;
         var __t1 = global::Hrot.AI.Behaviors.StandardLibrary.BlueprintWorldLibrary.IsAliveInCombat(__t0, view);
-        ref readonly var __t2 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t0);
+        var __t2_absent = default(global::Fdp.Toolkit.Replication.Components.NetworkIdentity);
+        ref readonly var __t2 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t0) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t0) : ref __t2_absent);
         var __t3 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t0);
         var __t4 = __t2.Value;
         var __t5 = __t1 && __t3;
@@ -1028,7 +1032,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         
         __block_branch_05b60413_true:
         var __t6 = target;
-        ref readonly var __t7 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t6);
+        var __t7_absent = default(global::Fdp.Toolkit.Replication.Components.NetworkIdentity);
+        ref readonly var __t7 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t6) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t6) : ref __t7_absent);
         var __t8 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Replication.Components.NetworkIdentity>(__t6);
         var __t9 = __t7.Value;
         return __t9;
@@ -1085,7 +1090,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         var __t11 = global::Fdp.Toolkit.Blueprints.BlueprintMath.MaxInt(__t9, __t10);
         s.TargetCount = __t11;
         var __t12 = self;
-        ref readonly var __t13 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t12);
+        var __t13_absent = default(global::Fdp.Core.CommandHierarchy.UnitRoster);
+        ref readonly var __t13 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t12) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Core.CommandHierarchy.UnitRoster>(__t12) : ref __t13_absent);
         var __t15 = global::Fdp.Core.CommandHierarchy.UnitRosterSubordinateEntitiesOps.Count(__t13);
         for (int __fe14 = 0; __fe14 < __t15; __fe14++)
         {
@@ -1269,7 +1275,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
             {
                 if (__t7)
                 {
-                    ref readonly var __t9 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4);
+                    var __t9_absent = default(global::Fdp.Toolkit.Behavior.Components.BehaviorState);
+                    ref readonly var __t9 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4) : ref __t9_absent);
                     var __t10 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4);
                     var __t11 = __t9.ActiveBehaviorHash;
                     var __t12 = "HullDownAttackRun";
@@ -1310,7 +1317,8 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
                 }
                 else
                 {
-                    ref readonly var __t21 = ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4);
+                    var __t21_absent = default(global::Fdp.Toolkit.Behavior.Components.BehaviorState);
+                    ref readonly var __t21 = ref (((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4) ? ref ((global::Fdp.Core.EntityRepository)view).GetComponentRO<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4) : ref __t21_absent);
                     var __t22 = ((global::Fdp.Core.EntityRepository)view).HasComponent<global::Fdp.Toolkit.Behavior.Components.BehaviorState>(__t4);
                     var __t23 = __t21.ActiveBehaviorHash;
                     var __t24 = "HullDownAttackRun";

@@ -497,7 +497,19 @@ internal static class StatementEmitter
 
             case IrOp_GetComponentRO op:
                 if (idx >= 0)
-                    e.WriteLine($"ref readonly var __t{idx} = ref {wv}.GetComponentRO<global::{op.ComponentTypeFqn}>(__t{op.Entity.Index});");
+                {
+                    // ⭐ CE-474 (2026-10-01): GUARDED. EntityRepository.GetComponentRO<T> THROWS (InvalidOperationException) for
+                    // an entity that lacks T, is dead, or is Entity.Null — measured — and this read is emitted BEFORE the
+                    // node's "Found" (IrOp_HasComponent) check, so a GetComponent / collection read on a Target without
+                    // the component threw instead of reporting Found = false. HasComponent<T> is safe on all three.
+                    // The fallback is a zero-initialised local, so the present case keeps its zero-copy ref and an
+                    // absent component reads as default(T) — the same contract as the managed read below.
+                    string entity = $"__t{op.Entity.Index}";
+                    string type   = $"global::{op.ComponentTypeFqn}";
+                    e.WriteLine($"var __t{idx}_absent = default({type});");
+                    e.WriteLine($"ref readonly var __t{idx} = ref ({wv}.HasComponent<{type}>({entity}) "
+                        + $"? ref {wv}.GetComponentRO<{type}>({entity}) : ref __t{idx}_absent);");
+                }
                 break;
 
             case IrOp_GetManagedComponentRO op:
@@ -512,7 +524,7 @@ internal static class StatementEmitter
                     // fail-safe/never-throw exactly like the unmanaged read, even for an arbitrary
                     // Target entity that turns out not to carry the component. HasManagedComponent<T>
                     // itself is PUBLIC and DIRECT on the concrete EntityRepository (wv) -- no interface
-                    // cast needed for the guard, only for the throwing Get.
+                    // cast needed for the guard, only for the throwing Get. (CE-474: the unmanaged read is now guarded too.)
                     string entity = $"__t{op.Entity.Index}";
                     string simView = ctx.SimulationViewVar;
                     e.WriteLine(
