@@ -94,6 +94,7 @@ public static class T40_BehaviorResolverAssetRegistrar
             Name         = "T40_BehaviorResolverAsset",
             BrainTier    = BehaviorConstants.BrainTierBTree,
             BTreeInterpreter = interpreter,
+            BlueprintStructureHash = 7965524788811656827UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("Speed", typeof(float), 0),

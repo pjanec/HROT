@@ -2,6 +2,8 @@ using System;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Fbt;
+using Fbt.Compiler;
+using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Behavior.Events;
@@ -414,6 +416,69 @@ namespace Fdp.Toolkit.Behavior.Tests
 
             Assert.Equal(before + 1, h.InstanceId);                   // started ONCE
             Assert.Equal(5, ReadBlock(h.World, h.E).Target);          // with the NAMED parameters
+            h.World.Dispose();
+        }
+
+        // ══ CE-455 — a BTree root restarts on a SAME-WIDTH re-layout too ══════════════════════════════════════════════
+
+        private static NodeStatus CountRunning(ref byte bb, ref BehaviorTreeState state, ref BTreeContext ctx, int paramIndex)
+        {
+            ref var b = ref Unsafe.As<byte, Block>(ref bb);
+            b.Count++;
+            return NodeStatus.Running;
+        }
+
+        /// <summary>A BTree root over the same <see cref="Block"/> — one leaf that counts and keeps running.</summary>
+        private static BehaviorDefinition BTreeCountingDef(ulong layout)
+        {
+            var builder = new BTreeBuilder<byte, BTreeContext>().Action(CountRunning);
+            return new BehaviorDefinition
+            {
+                Name                   = Name,
+                BrainTier              = BehaviorConstants.BrainTierBTree,
+                BTreeInterpreter       = new Interpreter<byte, BTreeContext>(builder.Compile(Name), builder.GetRegistry()),
+                BlackboardLayoutType   = typeof(Block),
+                BlueprintStructureHash = layout,
+                ParseParams = static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
+                    ((Block*)mem)->Target = j == "{}" ? 10 : int.Parse(j),
+            };
+        }
+
+        /// <summary>
+        /// ⭐⭐ <c>CE-455</c>: a BTree root whose parameters are re-laid-out at the SAME width (the generated registrar now
+        /// carries <c>BTreeBlackboardPackHelper.LayoutHash</c>) restarts with its assigned parameters — ⛔ before, only the
+        /// width was compared for a BTree, so it kept ticking over bytes laid out for the old code.
+        /// </summary>
+        [Fact]
+        public void CE455_ABTreeRoot_ReLaidOutAtTheSameWidth_Restarts_WithTheAssignedParameters()
+        {
+            var h = Running(BTreeCountingDef(layout: 0xA1), "5");
+            h.Frames(2);
+            uint instance = h.InstanceId;
+            Assert.Equal(2, ReadBlock(h.World, h.E).Count);
+
+            Reload(h.Registry, BTreeCountingDef(layout: 0xB2));          // same Block ⇒ same width
+            h.Frames(2);
+
+            Assert.NotEqual(instance, h.InstanceId);
+            Assert.Equal(1, ReadBlock(h.World, h.E).Count);
+            Assert.Equal(5, ReadBlock(h.World, h.E).Target);
+            h.World.Dispose();
+        }
+
+        /// <summary>⭐ <c>CE-455</c>: the same layout hash is a soft reload — the BTree keeps counting.</summary>
+        [Fact]
+        public void CE455_ABTreeRoot_ReloadedWithTheSameLayout_KeepsRunning()
+        {
+            var h = Running(BTreeCountingDef(layout: 0xA1), "5");
+            h.Frames(2);
+            uint instance = h.InstanceId;
+
+            Reload(h.Registry, BTreeCountingDef(layout: 0xA1));
+            h.Frames(1);
+
+            Assert.Equal(instance, h.InstanceId);
+            Assert.Equal(3, ReadBlock(h.World, h.E).Count);
             h.World.Dispose();
         }
 

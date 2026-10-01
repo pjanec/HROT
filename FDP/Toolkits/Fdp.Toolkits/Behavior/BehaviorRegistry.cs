@@ -178,7 +178,10 @@ namespace Fdp.Toolkit.Behavior
         /// ⭐ <c>CE-446</c> step 3 — the generated class's <c>StructureHash</c> (its block LAYOUT). <c>BrainTickSystem</c>
         /// compares it against the hash a running instance started with: a change means a hot reload re-laid-out the block
         /// under it, and the instance is HARD-RESET — the behaviour-tier twin of <c>R-24</c>'s Instance reset
-        /// (<c>BlueprintTickSystem</c>). 0 for every other tier.
+        /// (<c>BlueprintTickSystem</c>).
+        /// <para>⭐ <c>CE-455</c>: ALSO set for generated BTree and HSM roots — the hash of their root block's field list
+        /// (<c>BTreeBlackboardPackHelper.LayoutHash</c>), so a same-width re-layout restarts them too. ⚠ The name is
+        /// historical: it is "the root block's layout hash", every tier. 0 = no layout known (hand-written definitions).</para>
         /// </summary>
         public ulong BlueprintStructureHash { get; init; }
 

@@ -388,14 +388,15 @@ sequenceDiagram
 
 ⭐ **What is kept:** the parameter TEXT (`BehaviorStartRecord`, transient, `ComponentId` 154) — layout-independent and
 owned by no assembly (a DTO would be a type from the old, collectible ALC). ⭐ **Sub-behaviours need nothing:** a hosted
-child seeds from its parent's block (`HostedSubtree`), which the restart rebuilds. ⚠ **Not detected:** a BTree/HSM root
-whose layout changed at the SAME width (they carry no layout hash yet).
+child seeds from its parent's block (`HostedSubtree`), which the restart rebuilds. ~~⚠ **Not detected:** a BTree/HSM root
+whose layout changed at the SAME width (they carry no layout hash yet).~~ ⭐ **`CE-455` (`2026-10-01`): detected now.** The generated BTree and HSM registrars emit `BlueprintStructureHash` = `BTreeBlackboardPackHelper.LayoutHash` — FNV-1a over the root block's Input fields (name, type, offset, size) and, for a BTree, its State-half variables (name, type, in order). The runtime is unchanged: it already compared that field for every tier. ⚠ The field name is historical ("the root block's layout hash, every tier"); hand-written definitions keep 0 = unknown.
 
 Rails (`BrainTickSystemBlueprintArmTests`, each red-proofed): `CE452_AReloadThatKeepsTheLayout_KeepsTheRunningState` ·
 `…ChangesTheLayout_RestartsTheInstance_WithTheAssignedParameters` · `…GrowsTheBlock_BeforeItsFirstTick_RestartsItAtTheNewWidth` ·
 `CE452_ARestartWhoseStartFails_ClearsTheBehaviour_InsteadOfTickingIt` · `CE452_TheStartRecord_IsWrittenAtStart_AndDroppedAtClear`;
 `CE-451` (the hash path through the same `Start`): `CE451_AnAssignByHash_ProvisionsTheParamsBlock_AndTicks` ·
 `CE451_AnAssignByHash_ThatDuplicatesANamedAssignInTheSamePass_IsDropped`.
+`CE-455`: `CE455_ABTreeRoot_ReLaidOutAtTheSameWidth_Restarts_WithTheAssignedParameters` · `CE455_ABTreeRoot_ReloadedWithTheSameLayout_KeepsRunning`; emitter: `LayoutHashTests` (reorder / retype / rename at the same width, the State half).
 
 <details><summary>⛔ HISTORY — the first build of §5.12 (same day), SUPERSEDED by the above</summary>
 

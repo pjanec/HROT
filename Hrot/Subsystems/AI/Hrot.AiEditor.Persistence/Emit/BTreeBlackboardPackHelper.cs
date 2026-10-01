@@ -34,6 +34,28 @@ public static class BTreeBlackboardPackHelper
     private const int AlignmentCap = 8;
 
     /// <summary>
+    /// ⭐ <b><c>CE-455</c> — the root block's LAYOUT, as a stable 64-bit hash</b> (FNV-1a over the field list — ⛔ never
+    /// <c>string.GetHashCode</c>, which differs per process). Emitted into <c>BehaviorDefinition.BlueprintStructureHash</c>
+    /// for BTree and HSM roots, so <c>BrainTickSystem.RestartIfRelaidOut</c> — which already compares it for every tier —
+    /// restarts a running behaviour when a hot reload reorders or retypes its parameters at the SAME width (a width change
+    /// it already caught). 📄 <c>Architect_Question_77</c> §5.12.
+    /// <para>Covers every Input field (name, type, offset, size) and every State-half variable (name, type, in order —
+    /// their offsets follow from that). 0 is reserved for "no layout"; a computed 0 is mapped to 1.</para>
+    /// </summary>
+    public static ulong LayoutHash(
+        IEnumerable<PackedField>? inputs, IEnumerable<KeyValuePair<string, string>>? stateFields = null)
+    {
+        const ulong offset = 14695981039346656037UL, prime = 1099511628211UL;
+        ulong h = offset;
+        void Mix(string s) { foreach (char c in s) { h ^= c; h *= prime; } h ^= 0x1F; h *= prime; }
+        if (inputs != null)
+            foreach (var f in inputs) { Mix("I"); Mix(f.Name); Mix(f.TypeId); Mix(f.ByteOffset.ToString(System.Globalization.CultureInfo.InvariantCulture)); Mix(f.ByteSize.ToString(System.Globalization.CultureInfo.InvariantCulture)); }
+        if (stateFields != null)
+            foreach (var s in stateFields) { Mix("S"); Mix(s.Key); Mix(s.Value); }
+        return h == 0 ? 1UL : h;
+    }
+
+    /// <summary>
     /// A single variable after packing.
     /// Immutable value object (plain class for netstandard2.0 compatibility — no record).
     /// </summary>

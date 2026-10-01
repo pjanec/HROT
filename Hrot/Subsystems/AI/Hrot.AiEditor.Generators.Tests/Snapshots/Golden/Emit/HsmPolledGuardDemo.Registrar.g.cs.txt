@@ -80,6 +80,7 @@ public static class HsmPolledGuardDemoRegistrar
             HsmDefinition = blob,
             HsmMetadata   = blob.Metadata,
             ParseParams   = __parseParams,
+            BlueprintStructureHash = 14337538571795867461UL,   // CE-455: the root block's layout
             ManagedBlackboardVariables = new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
             {
                 new("EngageTarget", typeof(bool), 0),
