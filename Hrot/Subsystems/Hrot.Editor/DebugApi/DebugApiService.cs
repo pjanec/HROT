@@ -1534,8 +1534,14 @@ namespace Hrot.Editor.DebugApi
             UnmappedMemberHandling      = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Disallow,
         };
 
-        /// <c>POST /entities/spawn</c> — builds and publishes a <see cref="SpawnEntityCommand"/>. Returns
-        /// <c>awaited</c> per the wait rule. Must run on the main thread.
+        /// <c>POST /entities/spawn</c> — creates an entity THROUGH THE NODE'S CREATION PACK
+        /// (<see cref="Hrot.Common.EntityCreation.EntityCreation.RequestEntityCreation"/>), exactly as every other author
+        /// does. Returns <c>awaited</c> per the wait rule. Must run on the main thread.
+        /// <para>⭐ <c>CE-515</c> ③ (approved <c>2026-10-02</c>, R-174 one creation path): it published a raw
+        /// <see cref="SpawnEntityCommand"/>, which bypassed the request system and therefore the ownership GRANT — an
+        /// entity spawned this way was owned by nobody's roles. ⭐ <c>ownerNodeId = 0</c> now means <b>this node</b>
+        /// (the node you are talking to creates and owns it, then grants role groups as any creator does), keeping
+        /// "spawn here" — never the request path's "forward to the arbiter".</para>
         /// ⛔ The API contract (params, notes, the <c>CE-292</c> reliable-init knob) is documented ONCE, in the
         /// <c>DebugApiRouteDocs</c> entry for this route — do not restate it here (it would drift). This summary
         /// is for code readers only.
@@ -1545,11 +1551,10 @@ namespace Hrot.Editor.DebugApi
         /// optional parses below <b>used to be discarded silently</b>. See their comments.
         /// </remarks>
         /// <param name="ownerNodeId">
-        /// ⚠ <b>EXPERIMENT KNOB (<c>CE-269</c>) — default <c>0</c> preserves today's behaviour exactly.</b>
-        /// <c>NetworkSpawningSystem.ProcessSpawn</c> computes <c>isLocalAuthority = cmd.OwnerNodeId ==
-        /// _localNodeId</c>, so with the default the spawning node claims NO authority and the P3 create-leg
-        /// block never runs. Passing this node's own id is what makes the host the CREATOR, which is the
-        /// only way to observe what a given role actually owns at birth.
+        /// <c>0</c> (default) ⇒ this node creates and owns it. Another node's id ⇒ the request is routed to that node,
+        /// which creates it (as <c>POST /entities/create-request</c> does). ⛔ <b>SUPERSEDED (<c>CE-515</c> ③):</b>
+        /// <i>"default 0 ⇒ the spawning node claims NO authority"</i> (<c>CE-269</c>'s experiment knob) — an unowned
+        /// entity is not a state push-only ownership can produce.
         /// </param>
         public (JsonNode? Node, string? Error) SpawnEntity(
             long     tkbType,
@@ -1560,20 +1565,11 @@ namespace Hrot.Editor.DebugApi
             bool     reliable       = false,
             double   reliableTimeoutSeconds = 0)
         {
-            var cmd = new SpawnEntityCommand
-            {
-                TkbType             = tkbType,
-                NetworkId           = 0,          // 0 = allocate a new ID
-                OwnerNodeId         = ownerNodeId,
-                // ⭐ CE-292 — reliable=true engages the cross-node construction barrier (§3b). The creator holds
-                //   the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init)
-                //   report Active, or the timeout aborts via EntityMaster dispose.
-                InitType            = reliable ? ReliableInitType.AllPeers : ReliableInitType.None,
-                ReliableInitTimeout = (reliable && reliableTimeoutSeconds > 0)
-                                          ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
-                                          : (TimeSpan?)null,
-                InitialAttributesJson = attributesJson,
-            };
+            var (creation, noPack) = ResolveEntityCreation();
+            if (creation == null) return (null, noPack);
+
+            SimTransform? initialTransform = null;
+            List<object>? initialComponents = null;
 
             // Parse optional transform.
             //
@@ -1585,9 +1581,8 @@ namespace Hrot.Editor.DebugApi
             {
                 try
                 {
-                    var simTransform = JsonSerializer.Deserialize<SimTransform>(
+                    initialTransform = JsonSerializer.Deserialize<SimTransform>(
                         transform.ToJsonString(), SpawnTransformJsonOptions);
-                    cmd.InitialTransform = simTransform;
                 }
                 catch (Exception ex)
                 {
@@ -1612,7 +1607,7 @@ namespace Hrot.Editor.DebugApi
             //   caller goes on to assert against a thing that is quietly missing half its state.
             if (components is JsonArray compArr && compArr.Count > 0)
             {
-                cmd.InitialComponents = new List<object>();
+                initialComponents = new List<object>();
                 for (int i = 0; i < compArr.Count; i++)
                 {
                     JsonNode? item = compArr[i];
@@ -1652,21 +1647,52 @@ namespace Hrot.Editor.DebugApi
                     if (compObj == null)
                         return (null, $"'components[{i}].data' deserialized to null for {typeName}. Nothing was spawned.");
 
-                    cmd.InitialComponents.Add(compObj);
+                    initialComponents.Add(compObj);
                 }
             }
 
-            _world.Bus.PublishManaged(cmd);
+            // ⭐ CE-515 ③ — through the pack: the request system orders the spawn and the grant together.
+            int owner = ownerNodeId == 0 ? creation.NodeId : ownerNodeId;
+            Guid requestId = creation.RequestEntityCreation(
+                tkbType,
+                transform:             initialTransform,
+                initialComponents:     initialComponents,
+                owner:                 owner,
+                // ⭐ CE-292 — reliable=true engages the cross-node construction barrier (§3b). The creator holds
+                //   the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init)
+                //   report Active, or the timeout aborts via EntityMaster dispose. ⚠ The request's default is
+                //   AllPeers; this route keeps its own default (no wait) explicitly.
+                initType:              reliable ? ReliableInitType.AllPeers : ReliableInitType.None,
+                initialAttributesJson: attributesJson,
+                reliableInitTimeout:   (reliable && reliableTimeoutSeconds > 0)
+                                           ? TimeSpan.FromSeconds(reliableTimeoutSeconds)
+                                           : (TimeSpan?)null);
 
             bool timeAdvancing = _preview.IsInPreviewMode && !_time.IsPaused;
             return (new JsonObject
             {
-                ["spawned"]  = true,
-                ["tkbType"]  = tkbType,
-                ["reliable"] = reliable,
+                ["spawned"]     = true,
+                ["tkbType"]     = tkbType,
+                ["reliable"]    = reliable,
+                ["requestId"]   = requestId.ToString(),
+                ["ownerNodeId"] = owner,
                 ["awaited"]  = false,
                 ["reason"]   = timeAdvancing ? null : (JsonNode?)"sim not running — time only advances in preview while unpaused; call POST /preview/enter then POST /sim/play, or POST /sim/step to advance.",
             }, null);
+        }
+
+        /// <summary>The active perspective's creation pack — the one creation path both creation routes go through
+        /// (<c>CE-515</c>).</summary>
+        private (Hrot.Common.EntityCreation.EntityCreation? Creation, string? Error) ResolveEntityCreation()
+        {
+            var world    = _editorWorld ?? _dispatcher?.World;
+            var creation = world is null ? null : _entityCreationGetter?.Invoke(world);
+            return creation != null
+                ? (creation, null)
+                : (null,
+                   "The active perspective's node has no entity-creation pack wired into the debug API (a node "
+                 + "with no ECS world, or one not yet initialised). Select an ECS node's perspective: every node "
+                 + "that builds EntityCreationPack (SimHost, CGF, IG, Stride, the editor) exposes one. Nothing was created.");
         }
 
         /// <summary>
@@ -1675,11 +1701,10 @@ namespace Hrot.Editor.DebugApi
         /// node's LOCAL creation source, so it flows through the real request path
         /// (<c>ForwardingEntityCreationRequestSource</c> → <c>CreateEntityRequestSystem</c>).
         ///
-        /// <para>⛔ <b>Unlike <see cref="SpawnEntity"/>, this exercises routing and the auto-takeover grant.</b>
-        /// With <c>ownerNodeId</c> = this node, the node creates + owns the entity and hands off its non-role
-        /// components (kinematics → a Muscle) via <c>DeferredTakeOwnership</c>; with <c>ownerNodeId = 0</c> the
-        /// request is forwarded to the broadcast arbiter. <see cref="SpawnEntity"/> publishes a raw
-        /// <c>SpawnEntityCommand</c> and bypasses both.</para>
+        /// <para>With <c>ownerNodeId</c> = this node, the node creates + owns the entity and grants its role groups;
+        /// with <c>ownerNodeId = 0</c> the request is forwarded to the broadcast arbiter. ⭐ <c>CE-515</c> ③:
+        /// <see cref="SpawnEntity"/> goes through the same pack now — the only difference is that its
+        /// <c>ownerNodeId = 0</c> means THIS node.</para>
         /// </summary>
         public (JsonNode? Node, string? Error) CreateEntityViaRequestPath(
             long      tkbType,
@@ -1687,13 +1712,8 @@ namespace Hrot.Editor.DebugApi
             JsonNode? transform      = null,
             string?   attributesJson = null)
         {
-            var world    = _editorWorld ?? _dispatcher?.World;
-            var creation = world is null ? null : _entityCreationGetter?.Invoke(world);
-            if (creation == null)
-                return (null,
-                    "The active perspective's node has no entity-creation pack wired into the debug API (a node "
-                  + "with no ECS world, or one not yet initialised). Select an ECS node's perspective: every node "
-                  + "that builds EntityCreationPack (SimHost, CGF, IG, Stride, the editor) exposes one.");
+            var (creation, noPack) = ResolveEntityCreation();
+            if (creation == null) return (null, noPack);
             Action<Hrot.Core.Network.EntityCreationRequest> enqueue = creation.LocalRequests.Enqueue;
 
             List<object>? initialComponents = null;

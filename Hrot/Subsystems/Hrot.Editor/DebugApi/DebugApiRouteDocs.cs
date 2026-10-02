@@ -1004,7 +1004,7 @@ namespace Hrot.Editor.DebugApi
             Tool:    "spawn_entity",
             Group:   "F — Commands, discovery, spawn",
             Summary: "Spawn an entity from a TKB type.",
-            Returns: "ok:true envelope. Spawn is processed on the next tick (step to realize it).",
+            Returns: "{ spawned, tkbType, reliable, requestId, ownerNodeId, awaited, reason }. Created through the node's creation pack (request → spawn + ownership grants) on the next ticks — step to realize it.",
             Hint:    "Req: tkbType (number/long from list_entity_types). Optional: transform ({position,rotation}), components (array), attributesJson (string). Example: spawn_entity({tkbType:1001})",
             Params: new RouteParam[]
             {
@@ -1012,15 +1012,16 @@ namespace Hrot.Editor.DebugApi
                 new("transform", "object", false, "Transform: { position: {x,y,z}, rotation: {x,y,z,w} }"),
                 new("components", "array", false, "Additional component overrides"),
                 new("attributesJson", "string", false, "JSON string of attribute overrides (JsonAttributeCompiler patch)"),
-                new("ownerNodeId", "number", false, "This node's id ⇒ the host becomes the CREATOR (claims authority); 0 ⇒ no authority"),
-                new("reliable", "boolean", false, "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); pair with ownerNodeId=<this node>"),
+                new("ownerNodeId", "number", false, "0 (default) or this node's id ⇒ this node creates and owns it (and grants role groups); another node's id ⇒ routed to that node, which creates it"),
+                new("reliable", "boolean", false, "CE-292: true ⇒ engage the cross-node construction barrier (InitType=AllPeers); the creator is this node unless ownerNodeId names another"),
                 new("reliableTimeoutSeconds", "number", false, "CE-292: creator's reliable-init abort timeout in seconds (0 ⇒ gateway default)"),
             },
             Notes: new[]
             {
                 "Spawn is queued and processed on the next tick — call step to realize it.",
+                "CE-515 ③: goes through the node's EntityCreationPack (RequestEntityCreation), like every other author — the creator owns the entity and grants each role's group (Brain/MuscleGround/Perception) to a node serving that role. It no longer publishes a raw SpawnEntityCommand that nobody owned.",
                 "Use list_entity_types to discover valid tkbType values.",
-                "CE-292 — reliable:true (pair with ownerNodeId:<this node's id> so the host is the CREATOR) engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
+                "CE-292 — reliable:true engages the cross-node construction barrier: the creator holds the entity Constructing until the capability-filtered peers (advertising fdp.reliable-init) report Active, or reliableTimeoutSeconds aborts it via an EntityMaster dispose. On the wire this shows as an EntityMaster carrying the WaitForAcks flag + EntityLifecycleStatusDescriptor samples (sniff with ddsmonitor).",
             },
             ExampleArgsJson: "{\"tkbType\":1001,\"transform\":{\"position\":{\"x\":100,\"y\":0,\"z\":50},\"rotation\":{\"x\":0,\"y\":0,\"z\":0,\"w\":1}}}",
             ExampleGist: "spawn entity type 1001 at position (100,0,50)"),
@@ -1734,8 +1735,9 @@ namespace Hrot.Editor.DebugApi
             },
             Notes: new[]
             {
-                "CE-271 seam ⑤: unlike POST /entities/spawn (a raw SpawnEntityCommand), this uses the "
-              + "create-request pipeline, so routing and the auto-takeover grant both run.",
+                "CE-271 seam ⑤ / CE-515 ③: the create-request pipeline (routing + ownership grants). POST /entities/spawn "
+              + "now uses the same pipeline; the only difference is ownerNodeId:0 — here 'forward to the arbiter', "
+              + "there 'this node'.",
             }),
 
         [("GET", "/entities/{networkId}/ownership")] = new RouteDoc(

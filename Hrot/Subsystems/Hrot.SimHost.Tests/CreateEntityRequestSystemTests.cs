@@ -282,6 +282,46 @@ namespace Hrot.SimHost.Tests
                 code, @"IsTransient\s*=\s*pending\.Request\.IsTransient").Count);
         }
 
+        /// <summary>⭐ <c>CE-515</c> ③ — the request's reliable-init timeout (<c>CE-292</c>) REACHES the spawn order: the
+        /// debug API's <c>POST /entities/spawn</c> now goes through the pack and must keep its <c>reliableTimeoutSeconds</c>
+        /// knob. ⛔ Added and silently ignored would be the silent-default shape.</summary>
+        [Fact]
+        public void ReliableInitTimeout_WhenTheRequestCarriesOne_ThePublishedCommandCarriesIt()
+        {
+            var repo   = CreateWorld();
+            var source = new StubRequestSource();
+            source.Enqueue(new EntityCreationRequest
+            {
+                RequestId           = Guid.NewGuid(),
+                OwnerAppInstanceId  = LocalNodeId,
+                TkbType             = ValidTkbType,
+                DisType             = ValidDisType,
+                InitType            = Fdp.Toolkit.Replication.ReliableInitType.AllPeers,
+                ReliableInitTimeout = TimeSpan.FromSeconds(7),
+            });
+            var (system, _, _) = BuildSystem(CreateTkb(), source);
+
+            system.Execute(repo, 0f);
+            repo.Bus.SwapBuffers();
+            var commands = ((ISimulationView)repo).ReadManagedEvents<SpawnEntityCommand>();
+
+            Assert.Single(commands);
+            Assert.Equal(TimeSpan.FromSeconds(7), commands[0].ReliableInitTimeout);
+        }
+
+        /// <summary><c>CE-515</c> ③ — both publish sites (the root and each TKB child) carry the timeout, as they carry
+        /// <c>InitType</c>.</summary>
+        [Fact]
+        public void ReliableInitTimeout_IsForwardedAtBothPublishSites()
+        {
+            var code = CompositionRootSource.StripComments(
+                CompositionRootSource.ReadRepoSource(
+                    "Hrot/Engine/Hrot.Common/Systems/CreateEntityRequestSystem.cs"));
+
+            Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+                code, @"ReliableInitTimeout\s*=\s*pending\.Request\.ReliableInitTimeout").Count);
+        }
+
         [Fact]
         public void ProcessRequest_ValidTkbType_PublishesSpawnEntityCommand()
         {

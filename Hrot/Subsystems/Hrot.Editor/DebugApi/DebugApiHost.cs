@@ -515,9 +515,8 @@ namespace Hrot.Editor.DebugApi
                 var components     = ctx.Body?["components"];
                 var attributesJson = ctx.Body?["attributesJson"]?.GetValue<string>();
 
-                // ⚠ CE-269 — optional, defaults to 0 (today's behaviour: the spawning node claims no
-                //   authority). Pass this node's own id to make it the CREATOR and exercise the P3
-                //   create-leg role-affinity block.
+                // ownerNodeId — optional; 0 ⇒ THIS node creates and owns it (CE-515 ③, through the pack). ⛔ It
+                //   used to mean "the spawning node claims no authority" (CE-269's experiment knob).
                 int ownerNodeId = int.TryParse(ctx.Body?["ownerNodeId"]?.ToString(), out var onid) ? onid : 0;
 
                 // ⭐ CE-292 — RELIABLE-INIT knob: reliable=true opts the spawn into the cross-node construction
@@ -538,8 +537,8 @@ namespace Hrot.Editor.DebugApi
                 return error != null ? Fail(400, error, DebugApiHints.TkbType) : Ok(node);
             }));
 
-            // ⭐⭐⭐ CE-271 seam ⑤ — create THROUGH the request path (routing + auto-takeover grant),
-            //   unlike /entities/spawn which publishes a raw SpawnEntityCommand and bypasses both.
+            // ⭐⭐⭐ CE-271 seam ⑤ — create THROUGH the request path (routing + ownership grants). ⭐ CE-515 ③:
+            //   /entities/spawn uses the same path; only its ownerNodeId:0 differs (this node, not the arbiter).
             _routes.Add(new("POST", "/entities/create-request", async ctx =>
             {
                 if (!long.TryParse(ctx.Body?["tkbType"]?.ToString(), out var tkbType))

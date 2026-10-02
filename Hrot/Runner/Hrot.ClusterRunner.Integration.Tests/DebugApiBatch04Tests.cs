@@ -224,6 +224,34 @@ public sealed class DebugApiBatch04Tests
         Assert.True(grew, $"entityCount did not increase after spawn (was {countBefore}).");
     }
 
+    /// <summary>⭐ <c>CE-515</c> ③ — the spawn goes THROUGH THE NODE'S CREATION PACK: the answer names the pack's
+    /// request and its owner (<c>ownerNodeId:0</c> ⇒ this node), and the entity it materialises is owned and claimed
+    /// here. ⛔ It used to publish a raw SpawnEntityCommand that skipped the request system, so no grant ever ran.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.7 prerequisite 3.</summary>
+    [Fact]
+    public void SpawnEntity_GoesThroughTheCreationPack_AndThisNodeOwnsTheEntity()
+    {
+        using var h = new EditorHarness();
+        var svc     = h.BuildDebugApiService();
+        int node    = h.EntityCreation.NodeId;
+
+        var (result, error) = svc.SpawnEntity(TestTkbType);
+        Assert.Null(error);
+        Assert.True(System.Guid.TryParse(result!["requestId"]?.GetValue<string>(), out _), "the pack's request id is returned");
+        Assert.Equal(node, result["ownerNodeId"]!.GetValue<int>());
+
+        Fdp.Core.Entity spawned = Fdp.Core.Entity.Null;
+        Assert.True(h.PumpUntil(() =>
+        {
+            foreach (var e in h.Repo.Query().With<Fdp.Toolkit.Replication.Components.NetworkAuthority>().Build())
+            { spawned = e; return true; }
+            return false;
+        }, PumpTimeoutMs), "The spawned entity must materialise with an ownership record.");
+        var auth = h.Repo.GetComponent<Fdp.Toolkit.Replication.Components.NetworkAuthority>(spawned);
+        Assert.Equal(node, auth.PrimaryOwnerId);
+        Assert.True(auth.HasAuthority, "this node created it, so this node owns it");
+    }
+
     [Fact]
     public void SpawnEntity_Paused_ReturnsAwaitedFalse()
     {

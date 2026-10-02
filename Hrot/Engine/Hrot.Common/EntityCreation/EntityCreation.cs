@@ -178,6 +178,8 @@ namespace Hrot.Common.EntityCreation
         /// </param>
         /// <param name="requestId">Supply one to correlate the two-phase ACK yourself; omit it and one
         /// is minted. ⭐ Either way the value actually used is RETURNED.</param>
+        /// <param name="reliableInitTimeout">The creator's reliable-init abort timeout (<c>CE-292</c>); <c>null</c> ⇒ the
+        /// gateway default. Meaningful only with a waiting <paramref name="initType"/>. (<c>CE-515</c> ③)</param>
         public Guid RequestEntityCreation(
             long                   tkbType,
             Fdp.Core.SimTransform? transform             = null,
@@ -188,7 +190,8 @@ namespace Hrot.Common.EntityCreation
             string?                initialAttributesJson = null,
             bool                   isTransient           = false,
             ulong                  disType               = 0,
-            Guid                   requestId             = default)
+            Guid                   requestId             = default,
+            TimeSpan?              reliableInitTimeout   = null)
         {
             // ⭐ Mint only when the caller did not name its own request. An author that must be told the
             //   outcome supplies one; one that does not care ignores the return value.
@@ -210,6 +213,7 @@ namespace Hrot.Common.EntityCreation
                 InitialComponents     = components,
                 InitialAttributesJson = initialAttributesJson,
                 InitType              = initType,
+                ReliableInitTimeout   = reliableInitTimeout,   // CE-515 ③
                 IsTransient           = isTransient,
                 // ⛔ PreAllocatedNetworkId and ChildComponentOverrides are NOT exposed: one producer
                 //   each, and that producer is the scenario extractor — a TRANSLATOR (§3).

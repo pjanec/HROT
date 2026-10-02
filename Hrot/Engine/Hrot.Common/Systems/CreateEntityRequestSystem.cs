@@ -332,6 +332,7 @@ namespace Hrot.Common.Systems
                         //   IG map drawing can say "do not wait for peers" without a stall.
                         //   ⛔ Separate axis from OwnerAppInstanceId — see EntityCreationRequest.InitType.
                         InitType          = pending.Request.InitType,
+                        ReliableInitTimeout = pending.Request.ReliableInitTimeout,   // CE-515 ③
                         // ⭐⭐ D2 — the throwaway flag rides the ORDER so every receiver derives
                         //   ScenarioIgnoreTag locally at spawn. See EntityCreationRequest.IsTransient.
                         IsTransient       = pending.Request.IsTransient,
@@ -447,6 +448,7 @@ namespace Hrot.Common.Systems
                                 //   are exactly as local as the drawing. ⛔ If a child ever needs to differ,
                                 //   that is a per-child override on the request, not a second hardcode here.
                                 InitType          = pending.Request.InitType,
+                                ReliableInitTimeout = pending.Request.ReliableInitTimeout,   // CE-515 ③ — inherited like InitType
                                 // ⭐ D2 — children INHERIT the parent's transience: a sketch's
                                 //   auto-spawned TKB children are part of the same sketch.
                                 IsTransient       = pending.Request.IsTransient,
