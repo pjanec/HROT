@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-02
 build-state: DESIGN — §1 (classification) and §2 (the groups) are done; the UML (class, sequence, module) is the next step, then READY-TO-BUILD.
-current-answer: §2 the ownership groups (BRAIN, KINEMATIC, PERCEPTION, CREATOR, LOCAL) · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
+current-answer: §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: docs/DESIGN_Role_Affinity_Ownership.md §3.9/§3.9a role tables (brainOnly) — §1 measures that brainOnly misses most brain-written components (tiers, BrainInterrupts, WeaponState, TargetMemory, ActiveMissionPlan, EqsSensor, …). Push-only (Q79 §0.7) retires the role tables as the source of ownership; this doc's §2 replaces them.
@@ -18,7 +18,7 @@ related-designs:
 # Ownership groups and grants — the build design
 
 **Goal** (Q79 §0.7, push-only): one owner per component. The creator owns everything at birth and **grants whole groups** —
-the brain group to a chosen Brain node, the kinematic group to a chosen Muscle node, the perception group to a chosen Perception node (R-171). A group is a set of **whole descriptors**
+each role's group to a node serving that role — one group per `NodeRole` (R-172): Brain, MuscleGround, Perception (R-171), NavigationSolver and Map2D (both empty today). A group is a set of **whole descriptors**
 plus the components that are never on the wire but **linked** to one of those descriptors (R-165). Everything else stays with
 the creator. Approvals: R-170 (`dtWorldPos` moves whole; `CE-506` is phase 2; this doc).
 
@@ -66,7 +66,7 @@ with the creator. LOCAL components are in no group (each node writes its own cop
 | `Health` | `HealthApplicationSystem.cs:85` | `dtEntityDamage` (30) |
 | `ActorCapabilityState` | `HealthApplicationSystem.cs:106,115` | — |
 
-### 1.2 Muscle-written (SIM writers only on SimHost / Stride)
+### 1.2 MuscleGround-written (SIM writers only on SimHost / Stride)
 
 | component | SIM writers (SimHost; Stride equivalents) | wire |
 |---|---|---|
@@ -106,9 +106,11 @@ with the creator. LOCAL components are in no group (each node writes its own cop
 
 ## 2. ⭐ The ownership groups
 
+🔒 **R-172, user verbatim:** *"Note the component groups are role based, never node based."* ⇒ ⭐ **ONE group per `NodeRole`** (`NodeRole.cs`: `Brain`, `MuscleGround`, `Perception`, `NavigationSolver`, `Map2D`); which NODE holds a group is the owner's per-entity choice (R-164), never part of the definition. A new role ⇒ a new group, nothing else. CREATOR is not a group of any role: it is the remainder the creator keeps (R-160).
+
 ```mermaid
 graph TD
-  subgraph BRAIN["BRAIN group → a Brain node"]
+  subgraph BRAIN["Brain group"]
     B1["dtNavigationIntent: NavigationIntent"]
     B2["dtEntityMission: MissionPlanQueue, ActiveMissionPlan"]
     B3["dtSensorConfig: PerceptionReceptor"]
@@ -116,16 +118,22 @@ graph TD
     B5["dtEntityDamage: Health"]
     BL["linked, never sent: BehaviorState, 3 channels, PreviousCapabilities,<br/>BrainInterrupts, traces, blackboard tiers, TargetMemory,<br/>ActiveSensorTracks, WeaponState, ActorCapabilityState"]
   end
-  subgraph KIN["KINEMATIC group → a Muscle node"]
+  subgraph KIN["MuscleGround group"]
     K1["dtWorldPos: SimTransform, SimVelocity, VehicleState, VehicleParams, NavState"]
     K2["dtNavigationStatus: NavigationStatus"]
     KL["linked, never sent: FrustrationTicks"]
   end
-  subgraph PER["PERCEPTION group → a Perception node"]
+  subgraph PER["Perception group"]
     P1["dtEqsResult: EqsCognitiveBuffer (all instances)"]
     PL["linked, never sent: SensorContactList, SensorEvalState"]
   end
-  subgraph CRE["CREATOR — never granted (the complement)"]
+  subgraph NAV["NavigationSolver group"]
+    N0["empty today: requests/responses are events, routes live in a pool"]
+  end
+  subgraph MAP["Map2D group"]
+    M0["empty (R-161)"]
+  end
+  subgraph CRE["CREATOR — the remainder, never granted"]
     C1["dtEntityMaster: NetworkIdentity, TkbIdentity (+ NetworkAuthority)"]
     C2["dtEntityInfo, dtMapRoute, dtMapVisualOverlay"]
     C3["static: VisualData, PhysicsCollider, SimTier, FormationController, PassengerBuffer"]
@@ -141,8 +149,9 @@ graph TD
 | G-1 | A group is granted as ONE `DeferredTakeOwnership` (one entry per descriptor in the group, same target) — the message already batches per entity |
 | G-2 | Receiving a descriptor sets the claim of its components **and of the components linked to that group** — the descriptor→component map gains the linked members (today it holds only translator targets + two hand-written blocks) |
 | G-3 | Multi-instance descriptors (`dtEqsSensorConfig`, `dtEqsResult`) cover every instance (Q79 §0.10) |
-| G-4 | Brain group granted only when the template has a brain (`BrainTier != 0`, G5); kinematic group only when it has kinematics (`VehicleParametersDto`); perception group only when it has perception (`VisionRange > 0`, the `PerceptionTkbTranslator` condition) |
-| G-6 | Each group has its own target role: BRAIN → `Brain`, KINEMATIC → `MuscleGround`, PERCEPTION → `Perception`. ⭐ The strategy picks a node per group independently, so a future perception-only node needs no design change |
+| G-4 | Brain group granted only when the template has a brain (`BrainTier != 0`, G5); MuscleGround group only when it has kinematics (`VehicleParametersDto`); perception group only when it has perception (`VisionRange > 0`, the `PerceptionTkbTranslator` condition) |
+| G-6 | ⭐ Each group IS a role (R-172). The strategy picks, per entity and per non-empty group, one node serving that role — independently per group, so a perception-only or solver-only node needs no design change |
+| G-9 | An empty group grants nothing. `NavigationSolver` and `Map2D` are empty today; a component enters them only when that role's own logic becomes its steady-state writer |
 | G-7 | A part entity can hold components of different groups (an EQS part: `EqsSensor` = BRAIN, `EqsCognitiveBuffer`/`SensorEvalState` = PERCEPTION); claims are per component, so this needs nothing extra |
 | G-8 | Event outputs (`dtSensorTrackState`, `dtAudioTargetDetected`, `dtEntityHitDamage`) are events, not descriptors: no group, no owner |
 | G-5 | The creator keeps CREATOR and any group whose chosen target is itself |
@@ -157,6 +166,7 @@ graph TD
 | F-4 | `brainOnly` misses most brain-written components (tiers, `BrainInterrupts`, `WeaponState`, `TargetMemory`, `ActiveMissionPlan`, `EqsSensor`, …) | `HrotRoleComponentSets.cs:126-159` vs §1.1 | superseded by §2 (push-only retires the role tables as ownership) |
 | F-5 | Several INGRESS writers do not skip when this node owns the descriptor (`NavigationIntentIngressTranslator.cs:82`, `MapVisualOverlayIngressTranslator.cs:152`, `NavigationStatusIngressTranslator.cs:69`, `PerceptionTranslators.cs:376`, `EqsSensorConfigIngressTranslator`) | per-row gates in the sweep | ⚠ matters once a node can GAIN a descriptor it also ingests (transfer, external hand-in): skip when owned, like `GeoSpatialIngressTranslator.cs:90` |
 | F-6 | Weapon-mount parts never exist in production: `WeaponMountInfo` is never registered, so `CombatTkbTranslator.cs:97` never creates them | no production `RegisterComponent<WeaponMountInfo>` | record only (unreferenced ≠ unintended); Q79 §0.10's table corrected |
+| F-8 | ⚠ **The navigation solver writes the Muscle's component in-process.** `EngineBackedPathResponseSystem` (registered by the `NavigationSolver` capability, `SimHostCapabilities.cs:85-100`) sets `NavState.TrajectoryId/Mode` by a LOCAL entity index taken from the request id and a trajectory pool SHARED with the Muscle (`EngineBackedPathResponseSystem.cs:44-55`). Correct only while both roles share a process; ⇒ when `NavigationSolver` runs on its own node this write must become a response message to the Muscle (the Brain-side path already is one: `PathResponseBrainIngressTranslator` registers into its own pool and publishes an event) | `EngineBackedPathResponseSystem.cs:30-55` | record; not in this build's scope |
 | F-7 | Stale comment: `CognitiveComponentRegistry` says SimHost receives mission data; `EntityMissionIngressTranslator` is Brain-only | `CognitiveTranslatorPack.cs:60` | fix the comment in the build |
 
 ## 4. Decisions before the UML *(all resolved `2026-10-02`)*
@@ -164,7 +174,7 @@ graph TD
 | # | question | lean |
 |---|---|---|
 | ~~D-1~~ | ✅ R-171: damage application stays on the Brain with `Health` (BRAIN group) | — |
-| ~~D-2~~ | ✅ R-171: a separate PERCEPTION group (§1.2b), not mixed into KINEMATIC | — |
+| ~~D-2~~ | ✅ R-171: a separate PERCEPTION group (§1.2b), not mixed into MuscleGround | — |
 | ~~D-3~~ | ✅ R-171: sensor config and every perception INTENT (`PerceptionReceptor`, `EqsSensor`) stay in BRAIN | — |
 
 Nothing open; next step is the UML.
