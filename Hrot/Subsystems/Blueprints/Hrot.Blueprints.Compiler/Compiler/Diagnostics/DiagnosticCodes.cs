@@ -205,8 +205,9 @@ public static class DiagnosticCodes
 
     // ⭐ CE-2010 (DESIGN_Typed_Event_Nodes E1, I1) — a second event node used to be silently dropped. ⭐ CE-2013 (E2)
     // lifted it for TYPED event nodes in an Event graph (each becomes a handler); it still binds where one entry is the
-    // rule (T-7): an UNTYPED entry (a custom-event body) beside other event nodes.
-    public const string BP1682 = "BP1682";  // an untyped (custom-event) entry beside other event nodes
+    // rule (T-7): an UNTYPED entry (a custom-event body) beside other event nodes — and (CE-2015) a TYPED event node in a
+    // graph that is not an Event graph, where it would subscribe to nothing.
+    public const string BP1682 = "BP1682";  // an event node where the graph cannot run it
     // ⭐ CE-2013 (T-3) — a node run by one event reads another event node's pin: that payload does not exist then.
     public const string BP1683 = "BP1683";  // a handler reads data from another event node
 

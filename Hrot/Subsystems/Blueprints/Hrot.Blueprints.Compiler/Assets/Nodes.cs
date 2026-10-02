@@ -299,6 +299,10 @@ public sealed class EventEntryNode : Node
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public EventFiberPolicy Policy { get; set; }
 
+    /// <summary>⭐ CE-2015 — the largest <see cref="Capacity"/> (a fixed layout needs a bounded N, BP1681). The ONE home of
+    /// the number: the compiler's fiber lowering and the editor's Details clamp both read it.</summary>
+    public const int MaxCapacity = 16;
+
     /// <summary>⭐ S6b — how many handlers may run at once (Parallel) or wait in line (Queue). 0 = 1. Limit 16 (BP1660).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int Capacity { get; set; }

@@ -15,7 +15,7 @@ namespace Hrot.Blueprints.Core.Compiler.Lowering;
 internal static class Fibers
 {
     /// <summary>The most copies one Event graph may run at once (BP1660).</summary>
-    public const int MaxCapacity = 16;
+    public const int MaxCapacity = EventEntryNode.MaxCapacity;
 
     private static readonly IrTypeRef IntType = new() { FullName = "System.Int32", IsUnmanaged = true, SizeBytes = 4 };
 

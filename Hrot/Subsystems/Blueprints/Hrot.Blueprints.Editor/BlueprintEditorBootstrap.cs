@@ -79,6 +79,8 @@ public static class BlueprintEditorBootstrap
         registry.Register(typeof(ReadRankedResultNode), new ReadRankedResultNodeDrawer(editService));
         registry.Register(typeof(WaitForChannelNode),   new WaitForChannelNodeDrawer(channelCatalog, editService));
         registry.Register(typeof(CallCustomEventNode),  new CallCustomEventNodeDrawer(editService));
+        // ⭐ CE-2015 — an event node's own policy / capacity / Self-filter (DESIGN_Typed_Event_Nodes E4).
+        registry.Register(typeof(EventEntryNode),       new EventEntryNodeDrawer(editService));
         registry.Register(typeof(CallPeerBlueprintNode), new CallPeerBlueprintNodeDrawer(editService, peerProvider));
 
         // BP-108: Print String / Format String -- Format (text) + Level/ResultTypeId (combo).
@@ -152,6 +154,10 @@ public static class BlueprintEditorBootstrap
         // Q#14: register a "Publish: {Event}" entry per discovered custom event (C# [BlueprintEvent] +
         // editor-authored defs). Each drops a PublishEvent node baked with the event's FQN + fields.
         foreach (var descriptor in BlueprintEventPaletteEntries.PublishEntries())
+            registry.Register(descriptor);
+        // ⭐ CE-2015 (DESIGN_Typed_Event_Nodes E4) — and an "On: {Event}" entry per event: a typed event node baked with
+        //   the event's FQN + fields + recipient, the subscribe mirror of "Publish:".
+        foreach (var descriptor in BlueprintEventPaletteEntries.SubscribeEntries())
             registry.Register(descriptor);
 
         // Q#14 Option B: register a "Make {Struct}"/"Break {Struct}" pair per discovered

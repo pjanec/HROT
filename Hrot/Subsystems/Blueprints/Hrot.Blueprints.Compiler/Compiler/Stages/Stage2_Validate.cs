@@ -703,6 +703,14 @@ internal sealed class V_LatentRules : IValidator
         //   untyped entry (a custom-event body, T-7: exactly one) beside other event nodes would compile to nothing, so it
         //   is named on every extra node. ⚠ Function / Macro graphs are left as they were (a loose extra entry there is an
         //   orphan, BP3010) — T-7 keeps their one entry and this batch adds no rule for them.
+        // ⭐ CE-2015 (T-7) — a TYPED event node ("On: X") outside an Event graph subscribes to nothing: only Event graphs
+        //   are split into handlers. Named on the node.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind != GraphKind.Event))
+            foreach (var typed in graph.Nodes.OfType<EventEntryNode>().Where(EventPayload.IsTyped))
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1682,
+                    $"Event node 'On: {typed.EventTypeId}' is in {graph.Kind} graph '{graph.Name}'; event nodes run only in " +
+                    "Event graphs. Move it to an Event graph.", asset.AssetId, graph.Id, typed.Id));
+
         foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
         {
             var entries = graph.Nodes.OfType<EventEntryNode>().ToList();

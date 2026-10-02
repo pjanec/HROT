@@ -297,6 +297,14 @@ public sealed class GraphSignatureWindow : ManagedWindow, Hrot.Editor.AiShared.S
 
         bool isEventGraph = selectedGraph.Kind == GraphKind.Event;
 
+        // ⭐ CE-2015 (DESIGN_Typed_Event_Nodes T-1) — a graph of TYPED event nodes has no signature: each node carries its
+        //   event's payload. ⛔ Offering the list would be a silent discard (the compiler reads the nodes' Fields).
+        if (isEventGraph && selectedGraph.Nodes.OfType<EventEntryNode>().Any(EventPayload.IsTyped))
+        {
+            ImGuiNET.ImGui.TextDisabled("Parameters: n/a — each event node carries its event's fields as pins.");
+            return;
+        }
+
         // ── Inputs section ────────────────────────────────────────────────────
         // For a custom-event body the inputs ARE the event's parameters — say so, because the
         // designer declared them in the create modal and needs to know this is the same list.

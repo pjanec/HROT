@@ -23,8 +23,8 @@ Legend: ⬜ todo · 🟡 in progress · ✅ done (committed) · ⏸️ deferred.
 - ⬜ **3d** `Self`/`Any` recipient filter enforced at dispatch
 
 ## Phase 4 — Subscribe UX
-- ⬜ **4a** `EventEntryNode` keyed by type-id + reflected data-out pins (payload)
-- ⬜ **4b** `Self`/`Any` filter on the node + JSON (`TargetFilter`)
+- ✅ **4a** `EventEntryNode` keyed by type-id + reflected data-out pins (payload) — ⭐ **DONE `2026-10-02` (CE-2015)**: the "On: {Event}" palette entry bakes `EventTypeId` + `Fields` + recipient; pins come from `Fields` (+ a whole-event pin). Any number per Event graph. 📄 [`DESIGN_Typed_Event_Nodes`](DESIGN_Typed_Event_Nodes.md)
+- ✅ **4b** `Self`/`Any` filter on the node + JSON (`TargetFilter`) — ⭐ **DONE `2026-10-02` (CE-2015)**: the node's Details drawer edits `TargetFilterSelf` (with its Policy / Capacity); the runtime half was already built (3d)
 
 ## Decisions / notes (autonomous judgment calls logged here)
 - Keyed by event **type-id** (architect §7.1).
