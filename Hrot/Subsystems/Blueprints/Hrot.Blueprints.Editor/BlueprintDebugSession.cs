@@ -665,8 +665,8 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
     /// 📄 <c>docs/blueprints/DESIGN_Cluster_Ai_Debug_Surface.md</c> §2 D5.
     /// </summary>
     /// <remarks>
-    /// <para>⭐ <b>One decoder, not a second one.</b> The root block IS the emitted <c>State</c> struct
-    /// (<c>[Cursor][Params][working fields]</c>, Q77 §5), registered as <c>BlackboardLayoutType</c>. It is read with this
+    /// <para>⭐ <b>One decoder, not a second one.</b> The root block is the emitted <c>Block { In; St }</c> (S2,
+    /// <c>DESIGN_Unified_Behaviour_Run</c>), registered as <c>BlackboardLayoutType</c>; the cursor is in the root STATE slot. It is read with this
     /// session's exact managed-layout struct arm (<see cref="TryReadStruct"/> — ⛔ not <c>Marshal.PtrToStructure</c>,
     /// whose marshalled model mis-reads <c>bool</c> and counts an <c>[InlineArray]</c> as one element), and each field
     /// then gets the same fixed-list formatting the Instance decode applies.</para>
@@ -697,15 +697,27 @@ public sealed class BlueprintDebugSession : IBlueprintDebugSession, Hrot.Editor.
         var bytes = new ReadOnlySpan<byte>(root, size).ToArray();
         if (!TryReadStruct(bytes, layout, out var block) || block is null) return null;
 
+        // ⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — the block is { Params In; Vars St }: Variables are St's fields, flat as
+        //   before; the authored input keeps its name "Params". The cursor is NOT in the block: it is the first field of
+        //   the brain state (the generated Exec) in the root STATE slot.
         var fields = new Dictionary<string, object>(StringComparer.Ordinal);
-        BlueprintLatentCursor? cursor = null;
         foreach (var field in layout.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
         {
             object? value = field.GetValue(block);
-            if (value is BlueprintLatentCursor c) { cursor = c; continue; }
             if (value is null) continue;
-            fields[field.Name] = FormatFieldValue(value, field.FieldType);
+            if (field.Name == "St")
+            {
+                foreach (var v in field.FieldType.GetFields(System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Instance))
+                    if (v.GetValue(value) is { } vv) fields[v.Name] = FormatFieldValue(vv, v.FieldType);
+                continue;
+            }
+            fields[field.Name == "In" ? "Params" : field.Name] = FormatFieldValue(value, field.FieldType);
         }
+
+        BlueprintLatentCursor? cursor = null;
+        if (Fdp.Toolkit.Behavior.RootStateAccess.TryGetRootBytesInView(_view, self, out byte* exec, out int execLength)
+            && exec != null && execLength >= sizeof(BlueprintLatentCursor))
+            cursor = *(BlueprintLatentCursor*)exec;
 
         return new BlueprintStateSnapshot(
             Self:        self,

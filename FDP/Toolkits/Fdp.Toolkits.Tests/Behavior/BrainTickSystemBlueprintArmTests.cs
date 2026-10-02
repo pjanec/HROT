@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 BlackboardLayoutType = typeof(Block),
                 ParseParams = static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
                     ((Block*)mem)->Target = int.Parse(j),
-                BlueprintTick = (ref byte block, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
+                BlueprintTick = (ref byte block, ref byte exec, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
                 {
                     ticks++;
                     ref var b = ref Unsafe.As<byte, Block>(ref block);
@@ -198,7 +198,7 @@ namespace Fdp.Toolkit.Behavior.Tests
                 ? static (string j, byte* mem, int capacity, EntityRepository w, Entity self) => throw new InvalidOperationException("resolver failed")
                 : static (string j, byte* mem, int capacity, EntityRepository w, Entity self) =>
                     ((Block*)mem)->Target = j == "{}" ? 10 : int.Parse(j),
-            BlueprintTick = (ref byte block, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
+            BlueprintTick = (ref byte block, ref byte exec, EntityRepository w, Fdp.Interfaces.IEntityCommandBuffer ecb, Entity self, float time, float dt, uint instanceId) =>
             {
                 ref var b = ref Unsafe.As<byte, Block>(ref block);
                 b.Count++;

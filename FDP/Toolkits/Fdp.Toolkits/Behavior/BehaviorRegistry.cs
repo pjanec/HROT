@@ -186,6 +186,16 @@ namespace Fdp.Toolkit.Behavior
         public ulong BlueprintStructureHash { get; init; }
 
         /// <summary>
+        /// ⭐ S2 (<c>DESIGN_Unified_Behaviour_Run</c> U-1) — the width of a blueprint behaviour's BRAIN STATE (its generated
+        /// <c>Exec</c>: latent cursor, When memory, suspended-graph locals), held in the root STATE slot exactly as a BTree's
+        /// cursor is. <c>0</c> for every other tier (a BTree cursor's width is a constant; an HSM instance's comes from its blob).
+        /// </summary>
+        public int BrainStateBytes { get; init; }
+
+        /// <summary>⭐ S2 — the type laid over that brain state (the generated <c>Exec</c>), for debug surfaces.</summary>
+        public Type? BrainStateLayoutType { get; init; }
+
+        /// <summary>
         /// Optional FastHSM symbolication metadata. Populated by <c>AiBehaviorFactory</c>
         /// for HSM-backed behaviors so diagnostic renderers / JSON translators can
         /// resolve raw state, event, and action IDs to human-readable names. May be

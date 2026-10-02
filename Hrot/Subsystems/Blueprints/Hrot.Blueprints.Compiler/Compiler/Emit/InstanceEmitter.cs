@@ -4,6 +4,14 @@ namespace Hrot.Blueprints.Core.Compiler.Emit;
 
 internal static class InstanceEmitter
 {
+    // ⭐⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a blueprint BEHAVIOUR's state is TWO structs: its blackboard block
+    //   `Block { Params In; Vars St; }` (the root params slot — all a resolver or reader sees) and its brain state
+    //   `Exec { Cursor; When memory; suspended locals }` (the root state slot). An Instance keeps its one `State`.
+    private static bool IsBehavior(IrAsset a) => a.Dispatch == Hrot.Blueprints.Core.Assets.BlueprintDispatchKind.Behavior;
+    private static string StateParamDecl(IrAsset a) => IsBehavior(a) ? "ref Block __bb, ref Exec __ex," : "ref State s,";
+    private static string StateArgs(IrAsset a) => IsBehavior(a) ? "ref __bb, ref __ex" : "ref s";
+    private static string VarsContainer(IrAsset a) => IsBehavior(a) ? "__bb.St" : "s";
+
     public static void EmitClass(CSharpEmitter e, IrAsset asset)
     {
         var className = $"{asset.SanitizedName}_{asset.BlueprintId:X8}_Bp";
@@ -45,7 +53,7 @@ internal static class InstanceEmitter
         if (readEqsOps.Count > 0)
         {
             e.WriteLine();
-            EmitReadEqsResultHelpers(e, readEqsOps);
+            EmitReadEqsResultHelpers(e, asset, readEqsOps);
         }
 
         var scoreDecisionOps = CollectScoreDecisionOps(asset);
@@ -62,7 +70,14 @@ internal static class InstanceEmitter
             EmitReadRankedResultHelpers(e, readRankedResultOps);
         }
 
-        e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();");
+        if (IsBehavior(asset))
+        {
+            // ⭐ S2 — the block (root params slot) and the brain state (root state slot) are sized separately.
+            e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Block>();");
+            e.WriteLine("public static int ExecSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<Exec>();");
+        }
+        else
+            e.WriteLine("public static int StateSize => global::System.Runtime.CompilerServices.Unsafe.SizeOf<State>();");
         e.WriteLine();
 
         EmitParamsGeometry(e, asset);
@@ -102,9 +117,11 @@ internal static class InstanceEmitter
             EmitTickThunk(e);
         e.WriteLine();
 
+        // ⭐ S2 — a behaviour dispatches its events inline in BehaviorTick (two state refs cannot ride the shared
+        //   Span<byte> handler delegate); the handler-table thunks are an Instance concern.
         foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
         {
-            EmitEventThunk(e, evtGraph);
+            EmitEventThunk(e, evtGraph, behaviour: IsBehavior(asset));
             e.WriteLine();
         }
 
@@ -127,6 +144,12 @@ internal static class InstanceEmitter
             ? asset.StateDeclarations
             : asset.StateDeclarations.Concat(asset.Parameters).ToList());
         EmitParamsStruct(e, asset);
+
+        if (IsBehavior(asset))
+        {
+            EmitBehaviorStructs(e, asset);
+            return;
+        }
 
         // ⭐⭐ W4 (Batch 60) — when every size is exact, the struct is DECLARED at the computed offsets
         //    rather than left to agree with them. See CSharpEmitter.UseExplicitLayout for why this is
@@ -160,6 +183,70 @@ internal static class InstanceEmitter
         foreach (var f in asset.GraphLocalSlots)
         {
             if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({CSharpEmitter.FieldOffsetOf(asset, f)})]");
+            e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+        }
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐⭐ S2 (DESIGN_Unified_Behaviour_Run U-1) — a blueprint behaviour's TWO structs.
+    /// <c>Block { Params In; Vars St; }</c> is the blackboard (the root params slot: Input prefix at 0, exactly like a
+    /// BTree/HSM <c>{Asset}_Block</c>); <c>Exec { BlueprintLatentCursor Cursor; … }</c> is the brain state (the root state
+    /// slot: the cursor, When memory and suspended-graph locals). ⛔ Nothing in <c>Exec</c> is reachable from a resolver.
+    /// </summary>
+    private static void EmitBehaviorStructs(CSharpEmitter e, IrAsset asset)
+    {
+        bool explicitLayout = CSharpEmitter.UseExplicitLayout(asset);
+        string Layout(bool expl) => expl
+            ? "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Explicit)]"
+            : "[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]";
+        var vars = asset.StateDeclarations;
+        int varsBase = vars.Count > 0 ? vars[0].Offset : 0;
+
+        if (vars.Count > 0)
+        {
+            e.WriteLine(Layout(explicitLayout));
+            e.WriteLine("public struct Vars");
+            e.WriteLine("{");
+            e.Indent();
+            foreach (var f in vars)
+            {
+                if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({f.Offset - varsBase})]");
+                e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
+            }
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine();
+        }
+
+        e.WriteLine(Layout(explicitLayout));
+        e.WriteLine("public struct Block");
+        e.WriteLine("{");
+        e.Indent();
+        if (asset.Parameters.Count > 0)
+        {
+            if (explicitLayout) e.WriteLine("[global::System.Runtime.InteropServices.FieldOffset(0)]");
+            e.WriteLine("public Params In;   // the Input prefix — the authored parameters");
+        }
+        if (vars.Count > 0)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({varsBase})]");
+            e.WriteLine("public Vars St;     // the Variables");
+        }
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+
+        e.WriteLine(Layout(explicitLayout));
+        e.WriteLine("public struct Exec");
+        e.WriteLine("{");
+        e.Indent();
+        if (explicitLayout) e.WriteLine("[global::System.Runtime.InteropServices.FieldOffset(0)]");
+        e.WriteLine("public global::Fdp.Toolkit.Blueprints.BlueprintLatentCursor Cursor;");
+        foreach (var f in asset.GraphLocalSlots)
+        {
+            if (explicitLayout) e.WriteLine($"[global::System.Runtime.InteropServices.FieldOffset({f.Offset})]");
             e.WriteLine($"public {CSharpType(f.Type)} {f.Name};");
         }
         e.Outdent();
@@ -403,12 +490,14 @@ internal static class InstanceEmitter
 
     private static void EmitInitDefault(CSharpEmitter e, IrAsset asset)
     {
+        bool behaviour = IsBehavior(asset);
         e.WriteLine("public static void InitDefault(global::System.Span<byte> stateBytes)");
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
+        // ⭐ S2 — a behaviour bakes its BLOCK (the brain state is zeroed by its own slot's attach/reset).
+        e.WriteLine($"ref var {(behaviour ? "__bb" : "s")} = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, {(behaviour ? "Block" : "State")}>(");
         e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(stateBytes));");
-        e.WriteLine("s = default;");
+        e.WriteLine(behaviour ? "__bb = default;" : "s = default;");
         // ⭐⭐ Batch 56 — the SILENT half of the defect lives here. An unreferenced wrong-side declaration
         // produced no Roslyn error at all: it simply had no field and no initialiser, so an authored
         // initial value was carried through the JSON, through Stage 5, and then dropped.
@@ -418,14 +507,14 @@ internal static class InstanceEmitter
         foreach (var v in asset.StateDeclarations.Where(f =>
             !Lowering.DefaultLiteral.IsSkippable(f.DefaultValueCSharp)))
         {
-            e.WriteLine($"s.{v.Name} = {v.DefaultValueCSharp};");
+            e.WriteLine($"{VarsContainer(asset)}.{v.Name} = {v.DefaultValueCSharp};");
         }
         // FC-2/LV-1 (Q#19-B): declared initial length seeds Count over the already-zeroed slots
         // (preallocation is free for blittable elements -- default(T) is all-zero bytes). This is
         // the PARTIAL init the whole-field DefaultValueCSharp path cannot express (review F2).
         foreach (var v in asset.StateDeclarations.Where(f => f.Type.Capacity > 0 && f.Type.InitialLength > 0))
         {
-            e.WriteLine($"s.{v.Name}.Count = {v.Type.InitialLength};");
+            e.WriteLine($"{VarsContainer(asset)}.{v.Name}.Count = {v.Type.InitialLength};");
         }
         e.Outdent();
         e.WriteLine("}");
@@ -439,7 +528,7 @@ internal static class InstanceEmitter
 
         e.WriteLine($"public static void Event_{evtGraph.Name}(");
         e.Indent();
-        e.WriteLine("ref State s,");
+        e.WriteLine(StateParamDecl(asset));
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
@@ -459,7 +548,7 @@ internal static class InstanceEmitter
         // Q-18.1: includes uint instanceVersion as last parameter
         e.WriteLine(behaviour ? "public static global::Fbt.NodeStatus Tick(" : "public static void Tick(");
         e.Indent();
-        e.WriteLine("ref State s,");
+        e.WriteLine(StateParamDecl(asset));
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
@@ -487,48 +576,44 @@ internal static class InstanceEmitter
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6) — the two entry points a blueprint BEHAVIOUR registers with.
+    /// ⭐⭐ <c>CE-446</c> (<c>Q77</c> §5.6), reshaped by S2 (<c>DESIGN_Unified_Behaviour_Run</c> U-1) — the entry points a
+    /// blueprint BEHAVIOUR registers with.
     /// <list type="bullet">
-    /// <item><c>BehaviorParseParams</c> — the root block IS the Instance payload <c>[Cursor][Params][State]</c>: bake the
-    /// whole block (<c>InitDefault</c>: cursor zeroed, Variable defaults), then parse the JSON onto <c>Params</c> at
-    /// <c>ParamsOffset</c> (the Instance <c>ParseParams</c>, unchanged).</item>
-    /// <item><c>BehaviorTick</c> — dispatch this frame's events to the Event graphs (the Instance dispatch, over the
-    /// handler table), then run the Tick, whose status ends the behaviour.</item>
+    /// <item><c>BehaviorParseParams</c> — bakes the BLOCK (<c>InitDefault</c>: Variable defaults), parses the JSON onto
+    /// <c>In</c> (the Input prefix at 0), then runs the behaviour's own resolver over the block. ⭐ The resolver gets
+    /// <c>ref Block</c> only: the brain state is out of reach by construction.</item>
+    /// <item><c>BehaviorTick</c> — this frame's events, dispatched inline to the Event graphs (no handler table: two
+    /// state refs cannot ride the shared <c>Span&lt;byte&gt;</c> delegate, and a per-frame dictionary walk is an
+    /// enumerator allocation), then the Tick, whose status ends the behaviour.</item>
     /// </list>
     /// </summary>
     private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
     {
         var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
-        // ⭐ CE-446 (Q77 §3 B) — the behaviour's OWN resolver: its one Construction graph, over the injected block.
-        //   Emitted with the Instance context (StateVar `s`, params `s.Params`); a Construction graph's view is `world`.
         var resolver = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
         if (resolver is not null)
         {
-            e.WriteLine($"/// <summary>CE-446: the behaviour's own resolver — reads its Parameters, writes its Variables.</summary>");
-            e.WriteLine($"private static void Resolve_{Sanitizer.SanitizeName(resolver.Name)}(ref State s, "
+            e.WriteLine($"/// <summary>CE-446: the behaviour's own resolver — reads its Parameters, writes its Variables. "
+                      + "S2: it sees the block only.</summary>");
+            e.WriteLine($"private static void Resolve_{Sanitizer.SanitizeName(resolver.Name)}(ref Block __bb, "
                       + "global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
             e.WriteLine("{");
             e.Indent();
+            // ⚠ A resolver is latent- and When-free (BP1675), but a helper it calls is typed over (b, x): it gets a
+            //   SCRATCH brain state, never the behaviour's real one.
+            e.WriteLine("var __scratchExec = default(Exec); ref var __ex = ref __scratchExec;");
             LibraryEmitter.EmitGraphBody(e, asset, resolver);
             e.Outdent();
             e.WriteLine("}");
             e.WriteLine();
         }
 
-        if (events.Count > 0)
-        {
-            e.WriteLine("private static readonly global::System.Collections.Generic.Dictionary<string, global::Fdp.Toolkit.Blueprints.EventHandlerDelegate> BehaviorEventHandlers =");
-            e.WriteLine("    new(global::System.StringComparer.Ordinal)");
-            e.WriteLine("{");
-            e.Indent();
-            foreach (var g in events)
-                e.WriteLine($"[\"{g.EventTypeFqn ?? g.Name}\"] = Event_{g.Name}_Thunk,");
-            e.Outdent();
-            e.WriteLine("};");
-            e.WriteLine();
-        }
+        foreach (var g in events)
+            e.WriteLine($"private static readonly int __EvtId_{g.Name} = "
+                      + $"global::Fdp.Toolkit.Blueprints.BlueprintEventDispatch.ResolveTypeId(\"{g.EventTypeFqn ?? g.Name}\");");
+        if (events.Count > 0) e.WriteLine();
 
-        e.WriteLine("/// <summary>CE-446: bake the whole block, then parse Params at their offset.</summary>");
+        e.WriteLine("/// <summary>CE-446 / S2: bake the block, parse In, run the resolver over the block.</summary>");
         e.WriteLine("public static unsafe void BehaviorParseParams(string json, byte* memory, int capacity,");
         e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)");
         e.WriteLine("{");
@@ -539,26 +624,34 @@ internal static class InstanceEmitter
         e.WriteLine("InitDefault(new global::System.Span<byte>(memory, StateSize));");
         if (asset.Parameters.Count > 0)
             e.WriteLine("ParseParams(json, memory + ParamsOffset, capacity - ParamsOffset, world, self);");
-        // ⭐ The resolver runs LAST, inside the ingress shadow: Parameters are parsed, Variables baked — it derives state.
         if (resolver is not null)
             e.WriteLine($"Resolve_{Sanitizer.SanitizeName(resolver.Name)}("
-                      + "ref global::System.Runtime.CompilerServices.Unsafe.AsRef<State>(memory), world, self);");
+                      + "ref global::System.Runtime.CompilerServices.Unsafe.AsRef<Block>(memory), world, self);");
         e.Outdent();
         e.WriteLine("}");
         e.WriteLine();
 
-        e.WriteLine("/// <summary>CE-446: this frame's events, then the Tick — its status ends the behaviour.</summary>");
-        e.WriteLine("public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block,");
+        e.WriteLine("/// <summary>CE-446 / S2: this frame's events, then the Tick — its status ends the behaviour.</summary>");
+        e.WriteLine("public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block, ref byte exec,");
         e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("    global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId)");
         e.WriteLine("{");
         e.Indent();
-        if (events.Count > 0)
-            e.WriteLine("global::Fdp.Toolkit.Blueprints.BlueprintEventDispatch.Dispatch(BehaviorEventHandlers, "
-                      + "new global::System.Span<byte>(global::System.Runtime.CompilerServices.Unsafe.AsPointer(ref block), StateSize), "
-                      + "world.Bus, world, ecb, self, time, deltaTime);");
-        e.WriteLine("return Tick(ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(ref block), "
-                  + "world, ecb, self, time, deltaTime, instanceId);");
+        e.WriteLine("ref var __bb = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Block>(ref block);");
+        e.WriteLine("ref var __ex = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Exec>(ref exec);");
+        foreach (var g in events)
+        {
+            e.WriteLine($"if (world.Bus.HasEvent(__EvtId_{g.Name}))");
+            e.WriteLine("{");
+            e.Indent();
+            e.WriteLine($"var __raw = world.Bus.ReadRawByTypeId(__EvtId_{g.Name}, out int __size);");
+            e.WriteLine("if (__size > 0)");
+            e.WriteLine("    for (int __i = 0; __i + __size <= __raw.Length; __i += __size)");
+            e.WriteLine($"        Event_{g.Name}_Thunk(ref __bb, ref __ex, world, ecb, self, time, deltaTime, __raw.Slice(__i, __size));");
+            e.Outdent();
+            e.WriteLine("}");
+        }
+        e.WriteLine("return Tick(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId);");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -609,7 +702,7 @@ internal static class InstanceEmitter
 
         e.WriteLine($"private static {retType} Func_{sanitized}(");
         e.Indent();
-        e.WriteLine("ref State s,");
+        e.WriteLine(StateParamDecl(asset));
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
@@ -624,12 +717,13 @@ internal static class InstanceEmitter
         e.WriteLine("}");
     }
 
-    private static void EmitEventThunk(CSharpEmitter e, IrGraph evtGraph)
+    private static void EmitEventThunk(CSharpEmitter e, IrGraph evtGraph, bool behaviour = false)
     {
         // EventHandlerDelegate signature: (Span<byte>, ISimView, IECB, Entity, float, float, ReadOnlySpan<byte>)
+        // ⭐ S2 — a behaviour's thunk takes its two state refs instead (it is called inline by BehaviorTick).
         e.WriteLine($"public static void Event_{evtGraph.Name}_Thunk(");
         e.Indent();
-        e.WriteLine("global::System.Span<byte> bytes,");
+        e.WriteLine(behaviour ? "ref Block __bb, ref Exec __ex," : "global::System.Span<byte> bytes,");
         e.WriteLine("global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
         e.WriteLine("global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
         e.WriteLine("global::Fdp.Core.Entity self,");
@@ -639,8 +733,11 @@ internal static class InstanceEmitter
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
-        e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
-        e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(bytes));");
+        if (!behaviour)
+        {
+            e.WriteLine("ref var s = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, State>(");
+            e.WriteLine("    ref global::System.Runtime.InteropServices.MemoryMarshal.GetReference(bytes));");
+        }
         // Q#14: when the Event graph carries an event identity (EventTypeFqn) and has inputs, reinterpret the
         // dispatched payload span as that struct and pass each field to the handler. Otherwise fall back to
         // the legacy default stub (byte-identical for legacy Event graphs with no identity).
@@ -668,7 +765,7 @@ internal static class InstanceEmitter
                 ? ", " + string.Join(", ", evtGraph.Inputs.Select(f => $"default({CSharpType(f.Type)})"))
                 : "";
         }
-        e.WriteLine($"Event_{evtGraph.Name}(ref s, view, ecb, self, time{args});");
+        e.WriteLine($"Event_{evtGraph.Name}({(behaviour ? "ref __bb, ref __ex" : "ref s")}, view, ecb, self, time{args});");
         e.Outdent();
         e.WriteLine("}");
     }
@@ -871,7 +968,7 @@ internal static class InstanceEmitter
         return result;
     }
 
-    private static void EmitReadEqsResultHelpers(CSharpEmitter e, List<IrOp_ReadEqsResult> ops)
+    private static void EmitReadEqsResultHelpers(CSharpEmitter e, IrAsset asset, List<IrOp_ReadEqsResult> ops)
     {
         foreach (var op in ops)
         {
@@ -893,7 +990,7 @@ internal static class InstanceEmitter
             e.WriteLine($"[global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)]");
             e.WriteLine($"private static {op.ResultStructTypeName} ReadEqsResult_{op.NodeId8}(");
             e.Indent();
-            e.WriteLine($"ref State s,");
+            e.WriteLine(StateParamDecl(asset));
             e.WriteLine($"global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
             e.WriteLine($"int resultIndex)");
             e.Outdent();
@@ -902,7 +999,7 @@ internal static class InstanceEmitter
 
             e.WriteLine($"var result = default({op.ResultStructTypeName});");
             e.WriteLine();
-            e.WriteLine($"ref readonly var handle = ref s.{op.SensorVariableName};");
+            e.WriteLine($"ref readonly var handle = ref {VarsContainer(asset)}.{op.SensorVariableName};");
             e.WriteLine($"if (!view.IsAlive(handle.ChildId))");
             e.Indent();
             e.WriteLine("return result;");

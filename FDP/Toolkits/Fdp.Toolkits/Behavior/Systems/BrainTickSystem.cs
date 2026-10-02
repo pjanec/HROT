@@ -378,8 +378,9 @@ namespace Fdp.Toolkit.Behavior.Systems
         /// ⭐⭐ <b>A behaviour implemented by a blueprint.</b> 📄 <c>Architect_Question_77</c> §3 C/D.
         ///
         /// <para>
-        /// ⭐ The block is the root params slot (<c>[In][St]</c>), resolved exactly as the BTree arm resolves it; the
-        /// latent phase lives in <c>St</c>. ⭐ Ending is the returned status (<c>Q33</c> ruling 2: latent ≠ ended):
+        /// ⭐ The block is the root params slot (<c>{ In; St }</c>), resolved exactly as the BTree arm resolves it; the brain
+        /// state (latent cursor, When memory, suspended locals) is the root STATE slot, as a BTree cursor is (S2,
+        /// <c>DESIGN_Unified_Behaviour_Run</c> U-1). ⭐ Ending is the returned status (<c>Q33</c> ruling 2: latent ≠ ended):
         /// <c>Success</c>/<c>Failure</c> publishes <see cref="BehaviorFinishedEvent"/> once per <c>InstanceId</c>.
         /// </para>
         ///
@@ -418,7 +419,12 @@ namespace Fdp.Toolkit.Behavior.Systems
                 block = ref RootParamsAccess.RootRef(repo, entity);
             }
 
-            var status = def.BlueprintTick(ref block, repo, _ecb!, entity, repo.SimulationTime, deltaTime, behavior.InstanceId);
+            // ⭐ S2 — the brain state is its own slot; RequireRootBytesRef throws (names the cause) rather than ticking a stand-in.
+            ref byte exec = ref BehaviorBlock.None;
+            if (def.BrainStateBytes > 0)
+                exec = ref RootStateAccess.RequireRootBytesRef(repo, entity, def.BrainStateBytes);
+
+            var status = def.BlueprintTick(ref block, ref exec, repo, _ecb!, entity, repo.SimulationTime, deltaTime, behavior.InstanceId);
 
             if (status == NodeStatus.Success || status == NodeStatus.Failure)
                 Finish(repo, entity, behavior, status);
