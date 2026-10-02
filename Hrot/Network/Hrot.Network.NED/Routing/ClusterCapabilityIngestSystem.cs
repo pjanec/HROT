@@ -51,32 +51,33 @@ namespace Hrot.Network.Routing
             using (var capLoan = _capabilitiesReader.Take())
                 foreach (var sample in capLoan)
                 {
-                    if (!sample.IsValid)
+                    // ⭐ S7 — the durable capabilities instance is the RELIABLE half of the departure signal: every node
+                    //   writes it once at join (Reliable + TransientLocal), so every reader holds the instance and its
+                    //   writer's end always arrives. The BestEffort heartbeat alone was measured to miss it (1 run in 10).
+                    //   ⚠ The STATE is tested before IsValid: measured, a clean exit's NotAliveDisposed can ride on a
+                    //   VALID data sample (the last one, unread), not only on an invalid one.
+                    if (IsNotAlive(sample.Info.InstanceState))
                     {
-                        // ⭐ S7 — the durable capabilities instance is the RELIABLE half of the departure signal: every
-                        //   node writes it once at join (Reliable + TransientLocal), so every reader holds the instance
-                        //   and its writer's end always arrives. The BestEffort heartbeat alone was measured to miss it
-                        //   (1 run in 10) when a reader had not yet received a heartbeat sample.
-                        if (IsNotAlive(sample.Info.InstanceState))
-                            Departed(view, DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId,
-                                     sample.Info.InstanceState);
+                        Departed(view, DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId,
+                                 sample.Info.InstanceState);
                         continue;
                     }
+                    if (!sample.IsValid) continue;
                     _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
                 }
 
             using var loan = _heartbeatReader.Take();
             foreach (var sample in loan)
             {
-                if (!sample.IsValid)
+                // ⭐ S7 — the node LEFT: its heartbeat instance has one writer, so not-alive means that node crashed
+                //   (lease expiry: NotAliveDisposed after ~10 s, measured) or exited. State first, then IsValid (see
+                //   above). The key is read from the native buffer. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
+                if (IsNotAlive(sample.Info.InstanceState))
                 {
-                    // ⭐ S7 — the node LEFT: its heartbeat instance has one writer, so not-alive means that node crashed
-                    //   (lease expiry) or exited. The managed .Data throws on a not-alive sample, so the key is read
-                    //   from the native buffer. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
-                    if (IsNotAlive(sample.Info.InstanceState))
-                        Departed(view, DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId, sample.Info.InstanceState);
+                    Departed(view, DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId, sample.Info.InstanceState);
                     continue;
                 }
+                if (!sample.IsValid) continue;
                 _departed.Remove(sample.Data.NodeId);   // a node that comes back can leave again
                 var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : Array.Empty<string>();
                 _cache.UpdateNode(new NodeCapability

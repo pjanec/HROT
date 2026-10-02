@@ -441,31 +441,29 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         using (var capLoan = _capabilitiesReader.Take())
             foreach (var sample in capLoan)
             {
-                if (!sample.IsValid)
+                // ⭐ S7 — a departed node leaves the strategy's cache (the reliable half of the signal, see
+                //   ClusterCapabilityIngestSystem). State first: a clean exit's dispose can ride on a VALID sample.
+                if (IsNotAlive(sample.Info.InstanceState))
                 {
-                    // ⭐ S7 — a departed node leaves the strategy's cache (the reliable half of the signal, see
-                    //   ClusterCapabilityIngestSystem).
-                    if (sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
-                        sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters)
-                        _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId);
+                    _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId);
                     continue;
                 }
+                if (!sample.IsValid) continue;
                 _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
             }
 
         using var loan = _heartbeatReader.Take();
         foreach (var sample in loan)
         {
-            if (!sample.IsValid)
+            // ⭐ S7 — a departed node leaves the strategy's cache too, so no grant targets it. (The departure EVENT
+            //   comes from ClusterCapabilityIngestSystem, which every NED host registers; this cache feeds the
+            //   grant strategy only.) State first, as above.
+            if (IsNotAlive(sample.Info.InstanceState))
             {
-                // ⭐ S7 — a departed node leaves the strategy's cache too, so no grant targets it. (The departure EVENT
-                //   comes from ClusterCapabilityIngestSystem, which every NED host registers; this cache feeds the
-                //   grant strategy only.)
-                if (sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
-                    sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters)
-                    _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId);
+                _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId);
                 continue;
             }
+            if (!sample.IsValid) continue;
             var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : System.Array.Empty<string>();
             _clusterCache.UpdateNode(new NodeCapability
             {
@@ -481,6 +479,10 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
             });
         }
     }
+
+    private static bool IsNotAlive(CycloneDDS.Runtime.DdsInstanceState state)
+        => state == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
+           state == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters;
 
     private static string[] DeserializeTokens(string? json)
     {
