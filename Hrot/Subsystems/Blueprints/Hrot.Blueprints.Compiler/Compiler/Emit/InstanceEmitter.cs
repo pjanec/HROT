@@ -125,6 +125,52 @@ internal static class InstanceEmitter
             e.WriteLine();
         }
 
+        // ⭐ CE-2011 (DESIGN_Typed_Event_Nodes T-4, I4) — the Instance handler table holds ONE entry per event type, so two
+        //   handlers of one type get one thunk that calls them in authored order (they used to overwrite each other).
+        if (!IsBehavior(asset))
+            foreach (var (_, handlers) in EventHandlerGroups(asset).Where(t => t.Handlers.Count > 1))
+            {
+                EmitEventGroupThunk(e, handlers);
+                e.WriteLine();
+            }
+
+        e.Outdent();
+        e.WriteLine("}");
+    }
+
+    /// <summary>
+    /// ⭐ CE-2011 (<c>DESIGN_Typed_Event_Nodes</c> T-4) — an Instance's Event handlers grouped by the key its handler table
+    /// uses (the event FQN, or the graph name for a legacy graph with no identity), in authored order. ⇒ the table has one
+    /// entry per key, and a key with two handlers calls both.
+    /// </summary>
+    internal static List<(string Key, List<IrGraph> Handlers)> EventHandlerGroups(IrAsset asset)
+    {
+        var groups = new List<(string Key, List<IrGraph> Handlers)>();
+        foreach (var g in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
+        {
+            string key = g.EventTypeFqn ?? g.Name;
+            int at = groups.FindIndex(t => t.Key == key);
+            if (at < 0) groups.Add((key, new List<IrGraph> { g }));
+            else groups[at].Handlers.Add(g);
+        }
+        return groups;
+    }
+
+    /// <summary>⭐ CE-2011 — the method an Instance's handler table names for one event key (one handler: its own thunk).</summary>
+    internal static string EventTableThunk(IReadOnlyList<IrGraph> handlers)
+        => handlers.Count == 1 ? $"Event_{handlers[0].Name}_Thunk" : $"EventGroup_{handlers[0].Name}_Thunk";
+
+    private static void EmitEventGroupThunk(CSharpEmitter e, IReadOnlyList<IrGraph> handlers)
+    {
+        e.WriteLine($"/// <summary>CE-2011: every handler of one event type, in authored order.</summary>");
+        e.WriteLine($"public static void {EventTableThunk(handlers)}(");
+        e.WriteLine("    global::System.Span<byte> bytes, global::Fdp.ModuleHost.Abstractions.ISimulationView view,");
+        e.WriteLine("    global::Fdp.Interfaces.IEntityCommandBuffer ecb, global::Fdp.Core.Entity self, float time, float deltaTime,");
+        e.WriteLine("    global::System.ReadOnlySpan<byte> payload)");
+        e.WriteLine("{");
+        e.Indent();
+        foreach (var h in handlers)
+            e.WriteLine($"Event_{h.Name}_Thunk(bytes, view, ecb, self, time, deltaTime, payload);");
         e.Outdent();
         e.WriteLine("}");
     }

@@ -694,8 +694,10 @@ internal sealed class CSharpEmitter
             // Q#14: key by the event IDENTITY (EventTypeFqn) — the FQN the runtime dispatch resolves to a
             // type-id — not the graph name (which is only the C# method suffix). Fallback to name for legacy
             // Event graphs that carry no event identity.
-            foreach (var evtGraph in eventHandlers)
-                WriteLine($"[\"{evtGraph.EventTypeFqn ?? evtGraph.Name}\"] = {className}.Event_{evtGraph.Name}_Thunk,");
+            // ⭐ CE-2011 (T-4) — one entry per key: two handlers of one event type share a group thunk (an indexer
+            //   initialiser with a repeated key used to keep only the LAST, silently).
+            foreach (var (key, handlers) in InstanceEmitter.EventHandlerGroups(asset))
+                WriteLine($"[\"{key}\"] = {className}.{InstanceEmitter.EventTableThunk(handlers)},");
             Outdent();
             WriteLine("},");
         }
