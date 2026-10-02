@@ -7,6 +7,7 @@ stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
 related-designs:
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — the BUILD design (R-170): the classification, the ownership groups, the UML; this doc keeps the decisions.
   - docs/DESIGN_Role_Affinity_Ownership.md — owns WHO claims WHICH component (role tables, birthright, promote leg, shard seam §3.8); §0 changes its tables' meaning.
   - docs/DESIGN_Entity_Ownership_Transfer.md — owns transfer INITIATION (CE-276); unchanged by §0.
   - docs/DESIGN_Node_Roles_And_Policies.md — §4.1 the two distribution mechanisms; §0 supersedes its IG create-leg row.
@@ -229,7 +230,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | `PartMetadata` user (production) | on the wire? | descriptor type(s) | instance id |
 |---|---|---|---|
 | EQS sensor (`EqsChildSensor.cs:66`; Muscle carrier `EqsSensorConfigIngressTranslator.cs:220`) | ✅ | `dtEqsSensorConfig = 95` (Brain writes) **and** `dtEqsResult = 96` (Muscle writes), both keyed `(ParentNetworkId, LocalChildIndex)` (`EqsDdsTopics.cs:19-21, 90-92`) | allocated ≥ 1, lowest free per parent, reused |
-| weapon mount (`CombatTkbTranslator.cs:116`) | ⛔ local only — the `WeaponState` topics have no production user | — | mount index |
+| weapon mount (`CombatTkbTranslator.cs:116`) | ⛔ local only — and ⛔ never created in production: `WeaponMountInfo` is never registered, so the `:97` guard skips it (classification F-6) | — | mount index |
 | personal route (`PersonalRouteAuthoringSystem.cs:139`) | ⛔ local only (SimHost) | — | `0` |
 
 ⇒ ⭐ **the only network part today is the EQS sensor**, and ONE ECS part entity is instance `i` of TWO descriptor types. `PartMetadata.DescriptorOrdinal` (always `0`) therefore cannot name "the" descriptor. ⭐ **Lean:** resolve an incoming `(root, d, i)` to the part with `InstanceId == i` that carries a component mapped to `d` (existing descriptor→component map); set that component's claim. Per-component claims then give the natural split: config claimed on the Brain, result on the Muscle — the same part, two owners.
@@ -301,10 +302,10 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 
 | # | what | blocks | lean |
 |---|---|---|---|
-| M1 | ⛔ **the owning DESIGN doc with UML** — class, sequence and module diagrams, INVENTORY, `build-state: READY-TO-BUILD`. Q79's §2 diagrams are the superseded proposal (known-rot) | everything (CLAUDE.md: no implementation without UML) | a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md`; Role-Affinity keeps only its §0a-banner "kept" sections |
-| M2 | ⛔ **the classification pass** — every component on a CGF-/SimHost-created entity → which systems write it, on which host → its group (O1, O3, G6) | B2, B3, the UML | do it as step 1 of the build session (§0.6) |
+| M1 | ⚠ **STARTED** — the doc exists ([`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md)); the UML is next. **the owning DESIGN doc with UML** — class, sequence and module diagrams, INVENTORY, `build-state: READY-TO-BUILD`. Q79's §2 diagrams are the superseded proposal (known-rot) | everything (CLAUDE.md: no implementation without UML) | a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md`; Role-Affinity keeps only its §0a-banner "kept" sections |
+| M2 | ✅ **DONE `2026-10-02`** → [`DESIGN_Ownership_Groups_And_Grants.md`](../DESIGN_Ownership_Groups_And_Grants.md) §1-§2 (groups), §3 findings (`CE-510`), §4 three small leans. ~~the classification pass~~ — every component on a CGF-/SimHost-created entity → which systems write it, on which host → its group (O1, O3, G6) | B2, B3, the UML | do it as step 1 of the build session (§0.6) |
 | M3 | ⚠ **O2 — `dtWorldPos` whole or split**; Role-Affinity §3.1 vs Node_Roles §4.1 disagree on `SimVelocity` | B2 | WHOLE: a group must be whole descriptors (P4, E2), so `SimTransform`, `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState` move together as the kinematic group; reconcile both docs to that |
-| M4 | ⚠ **O4 — claim readers** that change behaviour when the promote leg goes (attribute changes on IG-created entities, F2) | B4 | list them in M2's table; each gets a rail or a note |
+| M4 | ⚠ **mostly answered by the classification:** the claim-gated systems (`CarKinematicsSystem`/`BulletReverseSyncSystem` on `SimTransform`; `ChannelArbitration`/`MissionDirector`/`BrainTick` on `BehaviorState`; `CognitiveInterrupt`/`CognitiveCleanup` on `BrainInterrupts`; the attribute compiler) all read components whose group §2 fixes — to be drawn in the sequence diagrams. **O4 — claim readers** that change behaviour when the promote leg goes (attribute changes on IG-created entities, F2) | B4 | list them in M2's table; each gets a rail or a note |
 | M5 | ⚠ **phasing of `CE-506`** (the one authority for moves after creation: late joiners P2/G4, load rebalancing P7) | B3's later half | **phase 2.** Phase 1 = the creator decides at creation only (already how grants work); rails stay green because nothing moves later today |
 
 **Measure during the build (not blocking):** C1 (which DDS state a hard crash produces) · P10 (writer auto-dispose: the C# wrapper exposes no QoS for it ⇒ Cyclone's default, auto-dispose ON; the runtime does expose a `PublicationHandle`, usable for the guard) · E5 (does a newly gained, unchanged descriptor publish at once).

@@ -153,6 +153,7 @@ design-basis: docs/blueprints/RULINGS.md R-138 (fully distributed, ownership per
   §0 (no capability removal by design), §5.3 (mechanism vs policy) - docs/designs/tkb-1/DESIGN.md
   §6.5b gate 2 (registration is the narrowing lever).
 related-designs:
+  - docs/DESIGN_Ownership_Groups_And_Grants.md — REPLACES this doc's role tables as the source of ownership (push-only groups, 2026-10-02); keeps §2.3's component-mask shape.
   - docs/blueprints/Architect_Question_79_One_Ownership_Truth.md — owns how a SENDER turns the component claim into "may I publish" (one derived gate; CE-500).
   - DESIGN_Entity_Genesis_End_To_End.md — ⭐ THE LANDING PAGE. Owns the END-TO-END STAGE SEQUENCE
     (request → spawn → grant → ghost → promotion → takeover → Active) and nothing else; every stage
