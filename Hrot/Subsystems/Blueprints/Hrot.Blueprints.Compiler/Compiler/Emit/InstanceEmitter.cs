@@ -250,6 +250,33 @@ internal static class InstanceEmitter
             e.Outdent();
             e.WriteLine("}");
             e.WriteLine();
+
+            // ⭐ S6b-2 — Queue(N): one queued arrival's inputs, and a ref accessor over the N fixed entries.
+            int q = Lowering.Fibers.QueueCapacity(g);
+            if (q > 0 && g.Inputs.Count > 0)
+            {
+                e.WriteLine("[global::System.Runtime.InteropServices.StructLayout(global::System.Runtime.InteropServices.LayoutKind.Sequential)]");
+                e.WriteLine($"public struct {Lowering.Fibers.QueueEntryType(g)}");
+                e.WriteLine("{");
+                e.Indent();
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"public {CSharpType(f.Type)} {Lowering.Fibers.InputField(f)};");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine();
+                e.WriteLine($"private static ref {Lowering.Fibers.QueueEntryType(g)} {Lowering.Fibers.QueueAt(g)}(ref Exec x, int i)");
+                e.WriteLine("{");
+                e.Indent();
+                e.WriteLine("switch (i)");
+                e.WriteLine("{");
+                for (int k = 0; k < q - 1; k++)
+                    e.WriteLine($"    case {k}: return ref x.{Lowering.Fibers.QueueEntry(g, k)};");
+                e.WriteLine($"    default: return ref x.{Lowering.Fibers.QueueEntry(g, q - 1)};");
+                e.WriteLine("}");
+                e.Outdent();
+                e.WriteLine("}");
+                e.WriteLine();
+            }
         }
 
         e.WriteLine(Layout(explicitLayout));
@@ -732,6 +759,28 @@ internal static class InstanceEmitter
                 e.WriteLine($"if (__ex.{copy}.Cursor.ResumeAt != 0)");
                 e.WriteLine($"    Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.{copy}, {k}{saved});");
             }
+        // ⭐ S6b-2 — Queue(N): when the one copy is free, the oldest waiting arrival starts it (oldest first, and again if
+        //   it finishes at once). Before this frame's arrivals, so arrival order is kept.
+        foreach (var g in events.Where(gr => Lowering.Fibers.QueueCapacity(gr) > 0))
+        {
+            var c0 = Lowering.Fibers.CopyField(g, 0);
+            var head = Lowering.Fibers.QueueHead(g); var count = Lowering.Fibers.QueueCount(g);
+            int q = Lowering.Fibers.QueueCapacity(g);
+            e.WriteLine($"while (__ex.{c0}.Cursor.ResumeAt == 0 && __ex.{count} > 0)");
+            e.WriteLine("{");
+            e.Indent();
+            if (g.Inputs.Count > 0)
+            {
+                e.WriteLine($"ref var __qe = ref {Lowering.Fibers.QueueAt(g)}(ref __ex, __ex.{head});");
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"__ex.{c0}.{Lowering.Fibers.InputField(f)} = __qe.{Lowering.Fibers.InputField(f)};");
+            }
+            e.WriteLine($"__ex.{head} = (__ex.{head} + 1) % {q}; __ex.{count}--;");
+            var saved = string.Concat(g.Inputs.Select(f => $", __ex.{c0}.{Lowering.Fibers.InputField(f)}"));
+            e.WriteLine($"Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.{c0}, 0{saved});");
+            e.Outdent();
+            e.WriteLine("}");
+        }
         foreach (var g in events)
         {
             e.WriteLine($"if (world.Bus.HasEvent(__EvtId_{g.Name}))");
@@ -912,7 +961,33 @@ internal static class InstanceEmitter
             return;
         }
 
-        // Parallel(N) — the first free copy takes it (Queue lands with S6b-2 and is refused by BP1660 until then).
+        if (g.FiberPolicy == Hrot.Blueprints.Core.Assets.EventFiberPolicy.Queue)
+        {
+            // Queue(N) — run now if the copy is free and nothing waits; else wait in line; a full line faults.
+            var c0 = Lowering.Fibers.CopyField(g, 0);
+            var head = Lowering.Fibers.QueueHead(g); var count = Lowering.Fibers.QueueCount(g);
+            int q = Lowering.Fibers.QueueCapacity(g);
+            e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt == 0 && __ex.{count} == 0)");
+            e.WriteLine("{ " + Start(0) + " }");
+            e.WriteLine($"else if (__ex.{count} < {q})");
+            e.WriteLine("{");
+            e.Indent();
+            if (g.Inputs.Count > 0)
+            {
+                e.WriteLine($"ref var __qe = ref {Lowering.Fibers.QueueAt(g)}(ref __ex, (__ex.{head} + __ex.{count}) % {q});");
+                foreach (var f in g.Inputs)
+                    e.WriteLine($"__qe.{Lowering.Fibers.InputField(f)} = "
+                              + (reinterpret ? $"__ev.{f.Name};" : $"default({CSharpType(f.Type)});"));
+            }
+            e.WriteLine($"__ex.{count}++;");
+            e.Outdent();
+            e.WriteLine("}");
+            e.WriteLine("else");
+            e.WriteLine("    " + Fault($"arrived while its queue of {q} was full."));
+            return;
+        }
+
+        // Parallel(N) — the first free copy takes it.
         int n = Lowering.Fibers.Copies(g);
         for (int k = 0; k < n; k++)
         {

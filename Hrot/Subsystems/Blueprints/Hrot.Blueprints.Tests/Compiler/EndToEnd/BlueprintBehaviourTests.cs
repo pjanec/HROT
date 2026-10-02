@@ -491,8 +491,9 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     private static Fbt.NodeStatus ChildCountsPerOccurrence(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
     {
         _ticksByOccurrence.TryGetValue(ctx.OccurrenceKey, out int n);
-        _ticksByOccurrence[ctx.OccurrenceKey] = ++n;
-        return n >= 3 ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Running;
+        if (++n >= 3) { _ticksByOccurrence.Remove(ctx.OccurrenceKey); return Fbt.NodeStatus.Success; }   // a fresh run counts again
+        _ticksByOccurrence[ctx.OccurrenceKey] = n;
+        return Fbt.NodeStatus.Running;
     }
 
     /// <summary>Registers a BTree child that runs three ticks, then ends with <see cref="_childEnds"/>.</summary>
@@ -743,7 +744,7 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     [CoversDiagnosticCode("BP1681")]
     [InlineData(EventFiberPolicy.Parallel, 17)]
     [InlineData(EventFiberPolicy.Restart, 2)]
-    [InlineData(EventFiberPolicy.Queue, 0)]
+    [InlineData(EventFiberPolicy.Queue, 17)]
     public void S6b_APolicyOutOfRange_IsBP1681(EventFiberPolicy policy, int capacity)
         => Assert.Contains(Diagnose(WaitingEventHandler("S6bBad", "AnyChild", policy, capacity)), d => d.Code == "BP1681");
 
@@ -795,6 +796,82 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         {
             try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
         }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6b-2 — Queue(2): arrivals wait in line and run one after another, in order — and the line survives a
+    /// record + replay.</b> Hits 7, 9, 11 on three consecutive frames: 7 runs (3 child ticks), 9 and 11 wait; each runs when
+    /// the one before finishes, so Got goes 7 → 9 → 11. A keyframe recorded while 9 and 11 wait, sought back to after the
+    /// run, replays the same 7 → 9 → 11.
+    /// <para>✅ Red-proofs: drain the queue newest-first and the order reads 7 → 11 → 9; a capacity of 1 faults on the third hit.</para>
+    /// </summary>
+    [Fact]
+    public unsafe void S6b_Queue2_RunsArrivalsInOrder_AndTheLineSurvivesReplay()
+    {
+        const string Host = "S6bQHost", Child = "S6bQChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Queue, 2), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var world = _fixture.World;
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // 7 starts and waits
+        Assert.Equal(0f, hit(9f));     // child tick 1 · 9 waits in line
+        Assert.Equal(0f, hit(11f));    // child tick 2 · 11 waits in line (the line is full)
+
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"S6bQ_{Guid.NewGuid():N}.fdp");
+        try
+        {
+            using (var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+                rec.CaptureKeyframe(world, DateTime.UtcNow.Ticks, blocking: true, eventBus: world.Bus);
+            var countsAtKeyframe = new System.Collections.Generic.Dictionary<int, int>(_ticksByOccurrence);
+
+            float[] Run()
+            {
+                var seen = new System.Collections.Generic.List<float>();
+                for (int f = 0; f < 8; f++) { float g = hit(null); if (seen.Count == 0 || seen[^1] != g) seen.Add(g); }
+                return seen.ToArray();
+            }
+
+            Assert.Equal(new[] { 7f, 9f, 11f }, Run());
+
+            using (var playback = new Fdp.Core.FlightRecorder.PlaybackController(path))
+                playback.SeekToFrame(world, 0);
+            _ticksByOccurrence.Clear();
+            foreach (var kv in countsAtKeyframe) _ticksByOccurrence[kv.Key] = kv.Value;   // test scaffolding, not state
+
+            Assert.Equal(new[] { 0f, 7f, 9f, 11f }, new[] { 0f }.Concat(Run().Where(v => v != 0f)).ToArray());
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
+    /// <summary>⭐⭐ S6b-2 — a full line is a FAULT, never a silent drop (U-6).</summary>
+    [Fact]
+    public void S6b_AFullQueue_FaultsTheRun()
+    {
+        const string Host = "S6bQFHost", Child = "S6bQFChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child, EventFiberPolicy.Queue, 1), GoldenCorpus.Options());
+        var world = _fixture.World;
+        var (e, _) = AssignAndFramer(Host);
+        var brain = new BrainTickSystem(_fixture.BehaviorRegistry);
+
+        foreach (var d in new[] { 1f, 2f, 3f })
+        {
+            world.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = d });
+            world.Bus.SwapBuffers(); brain.Execute(world, 0.016f);      // 1 runs, 2 waits, 3 finds the line full
+        }
+        world.Bus.SwapBuffers();
+        var finished = world.Bus.Read<BehaviorFinishedEvent>().ToArray().Where(f => f.Entity.Index == e.Index).ToList();
+        Assert.Single(finished);
+        Assert.Equal(BehaviorFaultCode.EventOverflow, finished[0].FaultCode);
     }
 
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)

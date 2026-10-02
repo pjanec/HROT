@@ -17,6 +17,8 @@ internal static class Fibers
     /// <summary>The most copies one Event graph may run at once (BP1660).</summary>
     public const int MaxCapacity = 16;
 
+    private static readonly IrTypeRef IntType = new() { FullName = "System.Int32", IsUnmanaged = true, SizeBytes = 4 };
+
     private static readonly IrTypeRef CursorType = new()
     {
         FullName = "Fdp.Toolkit.Blueprints.BlueprintLatentCursor", IsUnmanaged = true, SizeBytes = 16,
@@ -39,6 +41,23 @@ internal static class Fibers
 
     /// <summary>The <c>Exec</c> field holding copy <paramref name="k"/> of a fiber graph.</summary>
     public static string CopyField(IrGraph graph, int k) => graph.FiberBase + "_" + k;
+
+    /// <summary>⭐ S6b-2 — how many arrivals a Queue(N) graph holds while its one copy runs (0 for other policies).</summary>
+    public static int QueueCapacity(IrGraph graph)
+        => graph.FiberPolicy == EventFiberPolicy.Queue ? Math.Max(1, graph.FiberCapacity) : 0;
+
+    /// <summary>The generated record type of one queued arrival (the graph's inputs).</summary>
+    public static string QueueEntryType(IrGraph graph) => "_FiberIn" + graph.FiberBase;
+
+    /// <summary>The <c>Exec</c> field holding queue entry <paramref name="k"/>.</summary>
+    public static string QueueEntry(IrGraph graph, int k) => graph.FiberBase + "_q" + k;
+
+    /// <summary>The queue's head index and count fields (a fixed circular buffer).</summary>
+    public static string QueueHead(IrGraph graph) => graph.FiberBase + "_qHead";
+    public static string QueueCount(IrGraph graph) => graph.FiberBase + "_qCount";
+
+    /// <summary>The generated accessor returning a ref to queue entry <c>i</c>.</summary>
+    public static string QueueAt(IrGraph graph) => "QueueAt" + graph.FiberBase;
 
     /// <summary>How many copies of the graph exist: Parallel(N) has N; Restart and Queue run one.</summary>
     public static int Copies(IrGraph graph)
@@ -86,6 +105,28 @@ internal static class Fibers
             };
             for (int k = 0; k < Copies(fiber); k++)
                 copies.Add(new IrField { Name = CopyField(fiber, k), Type = recordType });
+
+            // ⭐ S6b-2 — Queue(N): a fixed circular buffer of the graph's INPUTS in Exec (recorded with it), plus head/count.
+            //   An input-less graph needs only the count.
+            int q = QueueCapacity(fiber);
+            if (q > 0)
+            {
+                var entryFields = graph.Inputs.Select(i => i with { Name = InputField(i) }).ToList();
+                if (entryFields.Count > 0)
+                {
+                    var entryType = new IrTypeRef
+                    {
+                        FullName     = QueueEntryType(fiber),
+                        IsUnmanaged  = true,
+                        SizeBytes    = FieldLayout.RecordSize(entryFields),
+                        SizeReliable = entryFields.All(f => f.Type.SizeReliable),
+                    };
+                    for (int k = 0; k < q; k++)
+                        copies.Add(new IrField { Name = QueueEntry(fiber, k), Type = entryType });
+                }
+                copies.Add(new IrField { Name = QueueHead(fiber),  Type = IntType });
+                copies.Add(new IrField { Name = QueueCount(fiber), Type = IntType });
+            }
             graphs.Add(fiber);
         }
         return copies.Count == 0

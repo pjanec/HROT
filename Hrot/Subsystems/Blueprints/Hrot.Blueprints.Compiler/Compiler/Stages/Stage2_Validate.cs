@@ -692,8 +692,6 @@ internal sealed class V_LatentRules : IValidator
                         ? $"its Capacity is {entry.Capacity}; it must be 1 to {Lowering.Fibers.MaxCapacity}"
                     : entry.Policy == EventFiberPolicy.Restart && entry.Capacity > 1
                         ? "Restart runs one handler (the newest event wins), so it takes no Capacity above 1"
-                    : entry.Policy == EventFiberPolicy.Queue
-                        ? "the Queue policy is not built yet (it lands with the event ring); use Parallel or Restart"
                     : null;
                 if (why is not null)
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1681,
