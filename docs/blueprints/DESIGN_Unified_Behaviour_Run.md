@@ -194,7 +194,22 @@ every queued event.
 ⛔ **Hard rules that keep this true:**
 - the queue and payload copies are fixed-size and blittable;
 - ⛔ **no managed side structure** (no `List`/`Dictionary` of pending events);
-- an event type a waiting handler copies must be unmanaged (bus events already are);
+- ⛔ ~~an event type a waiting handler copies must be unmanaged (bus events already are)~~ — **WRONG, corrected
+  2026-10-02** (user: *"the events might be managed objects"*). The bus has a managed channel (`PublishManaged`). Today a
+  blueprint Event graph receives **unmanaged events only** (`BlueprintEventDispatch.cs:47`, `ReadRawByTypeId`), so a
+  managed event handler is new capability that S6b must add. The rule is therefore:
+  - **unmanaged event** ⇒ its copy sits in the blittable `Exec` record (zero allocation), as above;
+  - **managed event** ⇒ the waiting fiber / queue slot holds the **reference** the bus already allocated, in a generated
+    **managed component** on the same entity (`{Asset}_PendingEvents`: one fixed-capacity typed array per managed event
+    type, together with its own ring indexes, so a restore can never split slots from indexes). ⭐ The recorder already
+    serializes managed components (`RecorderSystem.cs:223-234, 603-645`, `FdpAutoSerializer`) and checkpoints them ⇒
+    **no new serialization handler**. Hot path: storing a reference allocates nothing.
+  - ⛔ rejected: serializing each managed event into bytes at enqueue (an allocation + a serializer call per event, a
+    byte budget per slot, and a new object on dequeue anyway); a custom serializer hook on the blackboard slot (a second
+    mechanism where the managed-component one exists).
+  - ⚠ to check in S6b: `FdpAutoSerializer` handles a typed `TEvent[]` (it handles polymorphic elements only for a
+    registered interface/abstract base, `FdpAutoSerializer.cs:684-693`), and the managed component's `DataPolicy` keeps
+    it recorded (no `NoReplay`).
 - the queue layout is part of `StructureHash`.
 
 📋 **Rail (S6b):** fill a queue, checkpoint, restore into a fresh world, tick; the same events are handled in the same order.
