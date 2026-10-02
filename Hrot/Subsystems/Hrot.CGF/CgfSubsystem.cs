@@ -586,7 +586,7 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
 
     /// <summary>
     /// TestHook: spawns an entity and publishes a <c>DeferredTakeOwnership</c> routing table
-    /// that assigns the WorldPos descriptor to <paramref name="muscleNodeId"/>.
+    /// that assigns the MuscleGround and Perception ownership groups to <paramref name="muscleNodeId"/>.
     ///
     /// <para>Mirrors what a full <c>CreateEntityRequestSystem(isDefaultProcessor:true)</c> would do
     /// without requiring ExCon wiring in integration tests.</para>
@@ -600,13 +600,28 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
             ?? unchecked((long)System.Threading.Interlocked.Increment(ref _testIdCounter));
 
         // 1. Publish DeferredTakeOwnership FIRST (pre-genesis, before EntityMaster).
+        //    ⭐ S6: grant WHOLE GROUPS, as RoleGroupOwnershipStrategy does when muscleNodeId is the chosen node for
+        //    both roles: the MuscleGround group (dtWorldPos, dtNavigationStatus) and the Perception group (dtEqsResult).
+        //    It granted only the two kinematic descriptors before, so the Muscle never owned the EQS result it solves —
+        //    harmless while the result sender was ungated, wrong since S6 gates it (F-12). The lists come from this
+        //    node's bound descriptor map, the same source the strategy reads. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S6.
         var dtoCmd = new DeferredTakeOwnershipCommand { NetworkId = networkId };
-        long worldPosId  = _networkFactory?.WorldPosDescriptorId          ?? 0;
-        long navStatusId = _networkFactory?.NavigationStatusDescriptorId   ?? 0;
-        if (worldPosId != 0)
-            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
-        if (navStatusId != 0)
-            dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
+        var groups = _context.NedReplication?.DescriptorOwnershipMap;
+        if (groups != null)
+        {
+            foreach (var role in new[] { Fdp.Core.NodeRole.MuscleGround, Fdp.Core.NodeRole.Perception })
+                foreach (long descriptor in groups.DescriptorsOf(role))
+                    dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = descriptor, NodeId = muscleNodeId });
+        }
+        else
+        {
+            long worldPosId  = _networkFactory?.WorldPosDescriptorId        ?? 0;
+            long navStatusId = _networkFactory?.NavigationStatusDescriptorId ?? 0;
+            if (worldPosId != 0)
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = worldPosId,  NodeId = muscleNodeId });
+            if (navStatusId != 0)
+                dtoCmd.Grants.Add(new DescriptorGrant { DescriptorTypeId = navStatusId, NodeId = muscleNodeId });
+        }
         _context.World.Bus.PublishManaged(dtoCmd);
 
         // 2. Publish SpawnEntityCommand (CGF/Brain owns entity identity).
