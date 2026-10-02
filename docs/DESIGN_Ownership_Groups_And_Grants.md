@@ -15,6 +15,8 @@ related-designs:
   - docs/reference/BDC_NED_SST_Descriptor_Rules.md — the wire spec (per-descriptor owners, OwnershipUpdate, disposal).
   - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — §1 D5 the EQS part id (parts follow their descriptor type's group, Q79 §0.10).
   - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS solve, the child-sensor wire and its lifecycle; §5.8 here decides only WHICH node solves (R-179).
+  - docs/DESIGN_Subsystem_Composition_Unification.md — owns role-based composition; its B5 (not started) is what composes NavigationSolverModule and the Muscle executor set, which §5.9/§5.10 here wait on.
+  - docs/designs/navig-2/Navigation_Design_v2_0.md — owns the navigation topologies (collocated in-process answer, scale-out batch pair) that §5.9 keeps.
 -->
 
 # Ownership groups and grants — the build design
@@ -183,7 +185,7 @@ graph TD
 | F-5 | ✅ **FIXED in S8** (S3 did `EntityMissionIngressTranslator`). Every ingress that writes a group or creator descriptor's state skips its OWN sample: `NavigationIntent`, `NavigationStatus`, `SensorConfig` (`PerceptionTranslators.cs`), `EqsResult` (per instance `(96,n)`), `MapVisualOverlay` (incl. its deferred rebuild), `MapRoute` (incl. deferred samples), and `EntityDamage` re-keyed from the entity to `dtEntityDamage`. ⛔ Not swept, with reason: `EqsSensorConfigIngressTranslator` writes a local CARRIER, never the owned `EqsSensor`; `MapEntitySymbolIngressTranslator` writes an IG-local `IgSymbolOverride` and `dtMapEntitySymbol` is in no group; the 8 animation translators are dormant (§1.5) | ONE helper `AuthorityExtensions.IsRecordedOwner` — ⭐ which now treats a descriptor in `OutgoingGrantsPending` as NOT owned (§5.6 S8, measured race) | `GeoSpatialIngressTranslator.cs:90` keys on the claim, the older form; left as is |
 | F-6 | Weapon-mount parts never exist in production: `WeaponMountInfo` is never registered, so `CombatTkbTranslator.cs:97` never creates them | no production `RegisterComponent<WeaponMountInfo>` | record only (unreferenced ≠ unintended); Q79 §0.10's table corrected |
 | F-8 | ⚠ **The navigation solver writes the Muscle's component in-process.** `EngineBackedPathResponseSystem` (registered by the `NavigationSolver` capability, `SimHostCapabilities.cs:85-100`) sets `NavState.TrajectoryId/Mode` by a LOCAL entity index taken from the request id and a trajectory pool SHARED with the Muscle (`EngineBackedPathResponseSystem.cs:44-55`). Correct only while both roles share a process; ⇒ when `NavigationSolver` runs on its own node this write must become a response message to the Muscle (the Brain-side path already is one: `PathResponseBrainIngressTranslator` registers into its own pool and publishes an event) | `EngineBackedPathResponseSystem.cs:30-55` | filed `CE-524`; not in this build's scope |
-| F-9 | ⚠ **`AnimationChannel` / `LookAtChannel` mix a Brain-written intent and a Muscle-written status in ONE component** — one component cannot have two owners. Harmless while animation replication is dormant (both writers share a process); must be split (intent/status, like `StanceIntent`/`StanceStatus`) before animation replication is composed across nodes | `ReplicatedComponents.cs:40-90` | filed `CE-513 (backend)`; outside this build |
+| F-9 | ⚠ **`AnimationChannel` / `LookAtChannel` mix a Brain-written intent and a Muscle-written status in ONE component** — one component cannot have two owners. Harmless while animation replication is dormant (both writers share a process); must be split (intent/status, like `StanceIntent`/`StanceStatus`) before animation replication is composed across nodes | `ReplicatedComponents.cs:40-90` | filed `CE-513 (backend)`; outside this build. ⭐ §5.10: the cause is the generic `IActionExecutor` contract — design + lean |
 | F-10 | ✅ FIXED in S2b (every host registers the handlers). Was: 🔴 **Only SimHost can apply an edit request from another node.** The owner-side handlers (`UpdateEntityAttributeRequestSystem`, `UpdateEntityDescriptorRequestSystem`) are built by `CreateSimHostAttributeUpdateSystems` and registered ONLY at `SimHostNodeBootstrapper.cs:297`. A non-owner's edit (a gizmo drag) goes through `EntityWriteRouter` as a change REQUEST to the owner (design intent: *"owner receives → applies, ownership-gated"*, `DESIGN_Cgf_AxisB_Rotation_Slice.md` §311). ⇒ today map-symbol drags work only because the type-blind strategy grants every position to SimHost (Q79 F14); once G-4 leaves a non-vehicle position with its creator (CGF or IG), those requests would land on a node with no handler and be lost | `NedNetworkFactory.cs:155-165`; `SimHostNodeBootstrapper.cs:297` | **S2b** — the handlers on every host, BEFORE S3 |
 | F-7 | Stale comment: `CognitiveComponentRegistry` says SimHost receives mission data; `EntityMissionIngressTranslator` is Brain-only | `CognitiveTranslatorPack.cs:60` | fix the comment in the build |
 | F-11 | ✅ FIXED `2026-10-02`. Ingress translators treated an entity with NO `NetworkAuthority` as locally OWNED (the raw gate's "no record ⇒ AllInOne" fallback), but on an ingress that entity is a replica still being built from the wire. ⇒ `EntityDamageIngressTranslator` dropped the first health of every entity first seen through `dtEntityDamage`, and `EntityInfoIngressTranslator` dropped a ghost's commander assignment (its 2026-09-30 loopback fix covered the component, not the hierarchy). Found by making the 6 red IG translator tests pass, not by deleting them. Fix: ONE shared helper `AuthorityExtensions.IsRecordedOwner` (owner only when the record exists and says so); both translators use it | `AuthorityExtensions.cs`; `EntityDamageIngressTranslator.cs:100`; `EntityInfoIngressTranslator.cs:172` | ⭐ F-5's skip-when-owned sweep (S8) uses `IsRecordedOwner`, never the raw gate |
@@ -444,6 +446,100 @@ solves its EQS — which is why a brain without vision sensors (the platoon comm
 | ⭐ the Muscle-side EQS translators register on the **Perception** role | the solver is registered by the Perception capability (EQS §17.3); they were gated on MuscleGround only (F-12 row) |
 | ⛔ rejected: grant Perception to every brain | one solver for all of an entity's sensors, and a grant round trip |
 | ⛔ rejected: a per-sensor `OwnershipUpdate` | a second topic, so the solver could hear the config before it knows it owns it |
+
+### 5.9 `CE-524` — where the `NavState` write belongs, and why nothing writes it today *(build-state: DESIGN — not built, lean below)*
+
+📐 **Measured live `2026-10-02`** (`--mode all`, a CGF tank given `MoveToLocation`): SimHost's architecture lists
+`EngineBackedPathResponseSystem` but **no `PathfindingSolverSystem`**; the `PathRequestBatch`/`PathResponseBatch`
+translators sent/received **0**; the tank drove ~39 m with `NavState.Mode = Direct`, `TrajectoryId = 0`. ⇒ the in-process
+write F-8 describes **never fires**: `NavigationSolverModule` — the only producer of `PathfindingResultEvent` — has **zero
+production constructions** (`DESIGN_Subsystem_Composition_Unification.md` §4.1p *"the DORMANT class … which role selection
+is what switches on"*; its B5 *"has not started"*). Filed `CE-3006`.
+
+```mermaid
+graph TD
+  MG["MuscleGround capability (SimHostCoreLogicPack)"] -->|registers| NIB["NavigationIntentBridgeSystem"]
+  MG -->|registers| NES["NavigationExecutionSystem (replan)"]
+  NS["NavigationSolver capability"] -->|registers| EBM["EngineBackedNavigationModule"]
+  EBM -->|registers| RSP["EngineBackedPathResponseSystem"]
+  NSM["NavigationSolverModule"] -.->|would register| PSS["PathfindingSolverSystem"]
+  NIB -->|PathfindingRequestEvent| BUS(("SimHost bus"))
+  NES -->|PathfindingRequestEvent| BUS
+  BUS -.->|nobody reads| PSS
+  PSS -.->|PathfindingResultEvent| RSP
+  RSP -.->|NavState write| NAV["NavState (MuscleGround group)"]
+  classDef dead stroke:#c00,stroke-dasharray:4 3,color:#c00
+  class NSM,PSS dead
+```
+*What the picture shows that prose hid:* the request side is wired and the answer side is wired, but the box between
+them is constructed by nobody, so every dashed edge is dead on every host.
+
+```mermaid
+classDiagram
+  class PathfindingRequestEvent { RequestId = entityIndex<<32 | n; SourceNodeId }
+  class PathfindingSolverSystem { solves; writes TrajectoryPool }
+  class EngineBackedPathResponseSystem { registers route; writes NavState }
+  class PathRequestBatch { DDS }
+  class PathResponseBatch { DDS, TargetNodeId }
+  class MuscleGround
+  class NavigationSolver
+  NavigationSolver ..> PathfindingSolverSystem : should register (B5)
+  MuscleGround ..> EngineBackedPathResponseSystem : should register (lean)
+  PathfindingSolverSystem ..> PathfindingRequestEvent : reads
+  PathfindingSolverSystem ..> PathResponseBatch : remote requester only
+  EngineBackedPathResponseSystem ..> PathResponseBatch : remote solver only
+```
+
+```mermaid
+sequenceDiagram
+  participant M as MuscleGround node (requester)
+  participant S as NavigationSolver
+  M->>M: PathfindingRequestEvent (local entity index in RequestId)
+  alt collocated (default topology)
+    M->>S: same bus, same process
+    S->>M: PathfindingResultEvent on the same bus
+  else solver on its own node (scale-out)
+    M->>S: PathRequestBatch (SourceNodeId = M)
+    S->>M: PathResponseBatch (TargetNodeId = M)
+  end
+  M->>M: register route in M's pool, write NavState (M owns it)
+```
+
+| ⭐ | |
+|---|---|
+| **Decision (lean, for the user)** | ⛔ **do not build `CE-524` yet.** It is an ownership fix for a write that cannot happen until `NavigationSolverModule` is composed (`CE-3006` / Composition B5). When that lands: the `NavState` writer moves under **MuscleGround** (the requester — the request id's entity index is valid only on its world), and the scale-out hop reuses the **existing** `PathRequestBatch`/`PathResponseBatch` (no new message, R-158/R-169) |
+| Rejected: a new Solver→Muscle response message | the pair already exists, addressed by node (`PathfindingTranslators.cs:305-405`) |
+| Rejected: keep the writer under NavigationSolver | a solver node without MuscleGround would write a component it does not own, by an entity index from another world |
+| Design docs checked | `Navigation_Design_v2_0.md` §topologies — applies: collocated answer is in-process (`:72`), scale-out uses the batch pair · `DESIGN_Subsystem_Composition_Unification.md` §4.1p — applies: the solver is dormant · `DESIGN_Node_Roles_And_Policies.md` — applies only to the solver's road-graph needs · `eyes-and-muscle/DESIGN.md` — does not apply (pattern example only) |
+
+### 5.10 `CE-513 (backend)` — the animation channels' Muscle-written fields *(build-state: DESIGN — not built, lean below)*
+
+📐 Measured `2026-10-02`: the Muscle systems write `AnimationChannel`/`LookAtChannel` directly — `DispatchedInstanceId`
+and `Status` (`AnimationDispatcherSystem.cs:84-94`, `AnimationStateReporterSystem.cs:43-62`,
+`AnimationCapabilityChangeReactorSystem.cs:83,118`), and clear `ActiveAction` on teardown (`:60-63`). ⭐⭐ **But the cause
+is not animation-local:** the generic executor contract `IActionExecutor<TChannel>` tells every executor to *"write
+directly into `channel.Status`"* (`FDP/Toolkits/Fdp.Toolkits/Behavior/Executors/IActionExecutor.cs:11-13`). Locomotion
+escapes today only because its Muscle executors are not built (Composition B5) — the Brain writes `LocomotionChannel`
+(`CgfNodes.cs:274`) and the Muscle reports through `NavigationStatus`.
+
+```mermaid
+classDiagram
+  class AnimationChannel { Brain: ActiveAction, BehaviorInstanceId, ActionInstanceId, Params; Muscle: DispatchedInstanceId, Status, State }
+  class AnimationChannelStatus { NEW: DispatchedInstanceId, Status, State }
+  class IActionExecutor~TChannel~ { OnEnter(ref TChannel) ; Execute(ref TChannel) writes Status }
+  class LocomotionChannel { Brain only today }
+  class NavigationStatus { Muscle-owned report }
+  AnimationChannel ..> AnimationChannelStatus : split (proposed)
+  IActionExecutor~TChannel~ ..> AnimationChannel : writes Status into
+  LocomotionChannel ..> NavigationStatus : the existing split
+```
+
+| ⭐ | |
+|---|---|
+| **Decision (lean, for the user)** | ⛔ **do not build overnight.** The split is right (the wire already has the two descriptors, 100/101 and 102/103), but it changes `IActionExecutor<TChannel>` — behaviour infrastructure, the `behaviors` lane — and the same rule will bite `LocomotionChannel`/`WeaponChannel` the moment B5 builds their Muscle executors. ⇒ ⭐ settle it ONCE for all channels: an intent channel (Brain group) plus a status component per channel (MuscleGround group), the executor taking both. Needs an architect question with the behaviors lane |
+| Rejected: split only the two animation channels now | it forks the generic channel contract; the next channel repeats the defect |
+| Rejected: leave the channel in the Brain group and let the Muscle write it | one component, two owners — R-172 |
+| Design docs checked | §1.5 / F-9 here — applies (the finding) · `DESIGN_Subsystem_Composition_Unification.md` B5 — applies (Muscle executor set not built) · DD-1 §5.1 channel shape — searched `docs/`+`.dev/` for an intent/status split ruling for channels, none found |
 
 ### 5.7 End-to-end acceptance on `ClusterRunner --mode all` *(user `2026-10-02`)*
 

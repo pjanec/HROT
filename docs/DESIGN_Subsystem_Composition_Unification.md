@@ -98,7 +98,9 @@ build-state: phase 0 is BUILT (§5, as-built §5.6–§5.9).
         against each other. ⛔ The guard was NOT relaxed. Verified live on the 4-process cluster.
     (c) ✅ What step 3 did fix: nothing disposed TrajectoryPoolProvider, despite its own remarks claiming
         otherwise ⇒ every node leaked its TrajectoryPoolManager. Now freed via DisposeResources.
-  B5 (the missing implementations) has not started.
+  B5 (the missing implementations) has not started. ⚠ 2026-10-02, measured live: with NavigationSolverModule
+    uncomposed, every PathfindingRequestEvent goes unanswered and vehicles steer Direct (CE-3006); CE-524 and
+    CE-513 wait on B5 — see docs/DESIGN_Ownership_Groups_And_Grants.md §5.9/§5.10.
   🔴🔴 NEW 2026-09-04: §4.1q CORRECTS §4.1j's B4 classDiagram — do NOT build from it as drawn. TWO of its
   four new abstractions ALREADY EXIST: IResourceScope is NodeBootValues (and stronger — it refuses an
   undeclared read), and "assert every declared Need was allocated" is NodeBootPlan.Run's provided-check,
