@@ -86,5 +86,27 @@ namespace Hrot.AI.Behaviors.Brains
         {
             return dto.Value != 0 ? NodeStatus.Success : NodeStatus.Failure;
         }
+
+        /// <summary>⭐ <c>S8</c> — the working state <see cref="Action_CountSteps"/> keeps. It lives in the HSM's own block
+        /// <c>St</c> (a Behavior-scoped <c>Role=State</c> variable), never in an occurrence slot.</summary>
+        [StructLayout(LayoutKind.Sequential)]
+        public struct CuratedStepState { public int Steps; }
+
+        /// <summary>
+        /// ⭐⭐ <c>S8</c> — the shared STATEFUL form on an HSM: <c>(ref P, ref WS, Entity, EntityRepository)</c>, the same
+        /// signature a BTree node binds. 📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.3b. Counts every call into its working
+        /// state, so a rail can see the state persist in the block across ticks.
+        /// </summary>
+        [SharedAiAction]
+        public static NodeStatus Action_CountSteps(
+            ref CuratedRegionParams dto, ref CuratedStepState ws, Entity self, EntityRepository world)
+        {
+            ws.Steps++;
+            return ws.Steps >= dto.Value ? NodeStatus.Success : NodeStatus.Running;
+        }
+
+        /// <summary>⭐ <c>S8</c> — the shared PARAM-LESS form on an HSM: <c>(Entity, EntityRepository)</c>, bound by its bare FQN.</summary>
+        [SharedAiAction]
+        public static NodeStatus Action_EnterCounting(Entity self, EntityRepository world) => NodeStatus.Success;
     }
 }

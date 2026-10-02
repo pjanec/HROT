@@ -226,6 +226,86 @@ namespace Probe
                                     string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
         }
 
+        // ---- S8: the HSM binds the same shared forms -----------------------------------------------
+
+        private static string HsmFormsAsset(string wsVariable) => $$"""
+            { "$meta": { "docType": "Hrot.Hsm", "schemaVersion": 2 },
+              "AssetId": "00000508-0000-0000-0000-0000000000aa", "Name": "SharedFormsProbeMachine",
+              "TargetNamespace": "Probe.Machines", "BlackboardTypeName": "SharedFormsProbeMachine_Blackboard",
+              "States": [
+                { "StableId": "58000000-0000-0000-0000-000000000000", "Name": "__Root",
+                  "ChildStableIds": [ "58000000-0000-0000-0000-00000000000a" ], "ParentStableId": null, "IsInitial": false, "RegionIndex": 0 },
+                { "StableId": "58000000-0000-0000-0000-00000000000a", "Name": "Working",
+                  "ChildStableIds": [], "ParentStableId": "58000000-0000-0000-0000-000000000000", "IsInitial": true, "RegionIndex": 0,
+                  "OnEntry":  { "MethodFqn": "Probe.FormNodes.SharedWander" },
+                  "Activity": { "MethodFqn": "Probe.FormNodes.SharedStep", "ExpressionTargetField": "step",
+                                "WorkingStateTargetField": "{{wsVariable}}", "WorkingStateTypeId": "Probe.StepState" } } ],
+              "Regions": [], "Transitions": [], "GlobalTransitions": [], "Events": [],
+              "Blackboard": { "Managed": true, "TypeName": "SharedFormsProbeMachine_Blackboard", "Variables": [
+                { "Name": "step",      "Type": { "TypeId": "Probe.StepParams" } },
+                { "Name": "cursor",    "Type": { "TypeId": "Probe.StepState" }, "Role": "State", "Scope": "Behavior" },
+                { "Name": "wrongType", "Type": { "TypeId": "System.Int32" },     "Role": "State", "Scope": "Behavior" } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>S8</c> — an HSM binds the shared STATEFUL and PARAM-LESS forms, as the BTree does</b>
+        /// (📄 <c>DESIGN_Behavior_Action_Binding.md</c> §5.3b). The stateful method's working state is the HSM block's own
+        /// <c>St</c> member, so it needs no occurrence slot. The key is the BTree's spelling, <c>Fqn@offset@slotKey</c>; a
+        /// param-less method is keyed by its bare FQN. 🔴 Before <c>S8</c> both were <c>HSM0003</c> errors.
+        /// ✅ Red-proof: project <c>__ws</c> from <c>St</c> of a different member ⇒ the call no longer matches / compiles.
+        /// </summary>
+        [Fact]
+        public void S8_AnHsmBindsTheStatefulAndParamLessSharedForms_AndTheCallsCompile()
+        {
+            var (compilation, generated, diagnostics) = RunHsm(FormsSource, HsmFormsAsset("cursor"));
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id.StartsWith("HSM")).Select(d => d.GetMessage(null))
+                .Should().BeEmpty("both bindings are valid shared forms on an HSM now");
+            all.Should().Contain("global::Probe.FormNodes.SharedStep(ref *(global::Probe.StepParams*)(__root + 0), ref __ws, __bridge->Self, __repo)");
+            all.Should().Contain(".St.cursor;", "the working state is the block's own St member (S8-1)");
+            all.Should().Contain("global::Probe.FormNodes.SharedWander(__bridge->Self, __repo)");
+            int slotKey = Hrot.AiEditor.Persistence.Emit.SharedAiBindings.StatefulSlotKey(
+                new Guid("00000508-0000-0000-0000-0000000000aa"), "cursor");
+            all.Should().Contain($"Probe.FormNodes.SharedStep@0@{slotKey}", "the BTree's stateful key spelling (S8-2)");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
+        /// <summary>
+        /// ⛔ <c>S8</c> — a stateful binding whose working-state variable is not a block <c>St</c> member of the method's
+        /// <c>WS</c> type is <c>HSM0003</c>, naming the variable, and the asset is not emitted. It is never a silent skip.
+        /// </summary>
+        [Fact]
+        public void S8_AnHsmStatefulBindingWithTheWrongWorkingStateVariable_IsHsm0003()
+        {
+            var (_, generated, diagnostics) = RunHsm(FormsSource, HsmFormsAsset("wrongType"));
+
+            var hits = diagnostics.Where(d => d.Id == "HSM0003").ToList();
+            hits.Should().ContainSingle();
+            hits[0].GetMessage(null).Should().Contain("wrongType").And.Contain("Probe.StepState");
+            generated.Should().BeEmpty();
+        }
+
+        private static (Compilation Compilation, IReadOnlyList<SyntaxTree> Generated, IReadOnlyList<Diagnostic> Diagnostics)
+            RunHsm(string source, string hsmJson)
+        {
+            var input = CSharpSyntaxTree.ParseText(source);
+            var compilation = CSharpCompilation.Create(
+                "S8Probe_" + Guid.NewGuid().ToString("N"),
+                new[] { input },
+                ReferenceSet(),
+                new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, allowUnsafe: true,
+                    nullableContextOptions: NullableContextOptions.Enable));
+            var driver = CSharpGeneratorDriver.Create(
+                    new ISourceGenerator[] { new HsmJsonGenerator().AsSourceGenerator() },
+                    new AdditionalText[] { new StringAdditionalText("/probe/SharedFormsProbeMachine.hsm.json", hsmJson) });
+            driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var diagnostics);
+            return (output, output.SyntaxTrees.Where(t => t != input).ToList(), diagnostics);
+        }
+
         // ---- helpers -----------------------------------------------------------
 
         private static readonly Regex ProjectionRegex = new(
@@ -284,6 +364,9 @@ namespace Probe
                          typeof(Fbt.NodeStatus),
                          typeof(Fbt.Kernel.SharedAiActionAttribute),
                          typeof(Fbt.Compiler.BTreeBuilder<,>),   // the asset's topology core builds through it
+                         typeof(Fhsm.Compiler.HsmBuilder),        // S8: the HSM topology core builds through it
+                         typeof(Fhsm.Kernel.HsmActionDispatcher),
+                         typeof(System.Text.Json.JsonSerializer),   // the HSM registrar's params options
                      })
                 if (seen.Add(t.Assembly.Location))
                     refs.Add(MetadataReference.CreateFromFile(t.Assembly.Location));

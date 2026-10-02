@@ -127,7 +127,7 @@ public static class HsmBridgeEmitCore
         }
 
         // ⭐⭐⭐ CE-417 B-2 (a′) — one generated call per bound C# [SharedAi*] binding (SharedAiBindings).
-        var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi);
+        var sharedAiEntries = SharedAiBindings.Collect(dto, packedFields, sharedAi, sizeResolver);
 
         EmitHsmRegisterMethod(sb, dto, coreClass, packedFields, owner, owned, isManaged, sharedAiEntries);
 

@@ -247,12 +247,13 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   CS1503 in generated code (or, before CE-417, a silent type-pun — F7, HsmVariableShowcase).
         var sharedAi = SharedAiMethodResolver.Make(compilation);
         bool sharedAiOk = true;
-        // ⭐ CE-504 — the HSM binds the plain shared form only; a stateful or param-less one is an error, never a silent skip.
-        foreach (var (site, fqn) in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.NonPlainBindings(dto, sharedAi))
+        // ⭐ S8 — the HSM binds every shared form; only a stateful binding whose working state is not a block St member of the
+        //   method's WS type is unbindable, and that is an error, never a silent skip.
+        foreach (var (site, fqn, problem) in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.UnbindableBindings(dto, sharedAi, sizeResolver))
         {
             spc.ReportDiagnostic(MakeSharedAiTypeDiagnostic(path,
-                $"{site} binds '{fqn}', a stateful or param-less shared method; the HSM binds only (ref P, Entity, EntityRepository) " +
-                "today (CE-504, design S8)."));
+                $"{site} binds the stateful shared method '{fqn}', but it {problem} (design S8: an HSM stateful method's working " +
+                "state lives in the HSM's block St)."));
             sharedAiOk = false;
         }
         // ⭐ CE-506 — a global transition binds methods only (the facet offers no blueprint there): reported, never dropped.
@@ -271,8 +272,9 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
             }
         }
         foreach (var e in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Collect(
-                     dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi))
+                     dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi, sizeResolver))
         {
+            if (e.Form == Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Form.NoParams) continue;   // S8: binds no variable
             if (string.Equals(e.VariableTypeId, e.Method.ParamTypeId, StringComparison.Ordinal)) continue;
             spc.ReportDiagnostic(MakeSharedAiTypeDiagnostic(path, SharedAiMethodResolver.DescribeMismatch(e)));
             sharedAiOk = false;

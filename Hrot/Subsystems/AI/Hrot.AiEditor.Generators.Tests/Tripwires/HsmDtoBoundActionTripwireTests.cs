@@ -61,6 +61,8 @@ namespace Hrot.AiEditor.Generators.Tests.Tripwires
             // listed rather than rejected because the change they demanded ("this now needs E3") HAS
             // LANDED: EmitSharedAiActionThunk resolves its own occurrence via KeyForCurated instead
             // of reading a baked offset into the entity's one BrainBlackboard.
+            // ⛔ SUPERSEDED (CE-417 slice 3 → S8, 2026-10-02): the per-binding thunk projects from the root
+            // block (SharedAiBindings); KeyForCurated is deleted (DESIGN_Behavior_Action_Binding.md §5.3b).
             //
             // ⭐ Two entries, at DIFFERENT field offsets, so the @offset half of the compound-key
             //   identity is exercised — all four legacy entries sit at @0.

@@ -252,9 +252,6 @@ namespace Fdp.Toolkits.Tests.Behavior
                 Assert.Equal(LegacyNest(LegacyHsmHost(machine), LegacyHsmSite(region, state),
                                         LegacyKey(c, StatefulSlotScope.Behavior, Guid.Empty, "$occ.hsmState")),
                              HsmOccurrence.KeyFor(machine, c, region, state));
-                Assert.Equal(LegacyNest(LegacyHsmHost(machine), LegacyHsmSite(region, state),
-                                        LegacyKey(Guid.Empty, StatefulSlotScope.Behavior, Guid.Empty, "$occ.curated." + v)),
-                             HsmOccurrence.KeyForCurated(machine, v, region, state));
                 Assert.Equal(LegacyNest(LegacyKey(a, StatefulSlotScope.Behavior, Guid.Empty, "$occ.identity"),
                                         LegacyKey(n, StatefulSlotScope.Node, n, "$occ.site"),
                                         LegacyKey(c, StatefulSlotScope.Behavior, Guid.Empty, "$occ.treeState")),
@@ -271,7 +268,6 @@ namespace Fdp.Toolkits.Tests.Behavior
         {
             Guid a = AssetA, n = NodeA;
             const string v = "x😀Größe";
-            const string ck = "Hrot.AI.Behaviors.Brains.Nodes.Action_X@8";
             int sink = 0;
 
             void Run()
@@ -284,7 +280,6 @@ namespace Fdp.Toolkits.Tests.Behavior
                     sink ^= RootStateAccess.KeyForBehaviour(i + 1);
                     sink ^= RootHsmAccess.KeyForBehaviour(i + 1);
                     sink ^= HsmOccurrence.KeyFor(0xC0FFEEu, a, 1, (ushort)i);
-                    sink ^= HsmOccurrence.KeyForCurated(0xC0FFEEu, ck, 1, (ushort)i);
                     sink ^= OccurrenceSlots.TreeStateKeyFor(a, n, AssetB);
                 }
             }
@@ -294,7 +289,7 @@ namespace Fdp.Toolkits.Tests.Behavior
             Run();
             long allocated = GC.GetAllocatedBytesForCurrentThread() - before;
 
-            Assert.True(allocated == 0, $"computing occurrence keys allocated {allocated} bytes over 1600 calls (sink {sink})");
+            Assert.True(allocated == 0, $"computing occurrence keys allocated {allocated} bytes over 1400 calls (sink {sink})");
         }
     }
 }

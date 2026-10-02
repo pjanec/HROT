@@ -4015,6 +4015,8 @@ home *(`BP-306`)*.
 
 ⛔ `P2` needed a new identity *(`ComputeHsmStateKeyForCurated`)* because the HSM dispatcher registers
 **one thunk per `ushort` action id**, so there was nowhere to put a per-site discriminator.
+⛔ *(SUPERSEDED `2026-10-02`: `CE-417` slice 3 gave the HSM per-binding thunks too, and `S8` deleted
+`ComputeHsmStateKeyForCurated` / `KeyForCurated` — `DESIGN_Behavior_Action_Binding.md` §5.3b.)*
 ⭐⭐⭐ **The BTree bridge has the opposite shape and always did** — 🔒 `HsmParamBindings`' own header
 says so: *"the BTree bridge does not have this problem because it emits **one adapter per node** at a
 per-site key `{MethodFqn}@{offset}`."*

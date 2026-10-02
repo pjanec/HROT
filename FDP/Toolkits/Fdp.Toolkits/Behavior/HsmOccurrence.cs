@@ -77,43 +77,10 @@ public static unsafe class HsmOccurrence
     /// </summary>
     public struct EmptyWorkingState { }
 
-    /// <summary>
-    /// ⭐⭐⭐ <b><c>P2</c> — the same key for a CURATED <c>[SharedAiAction]</c>, which has no asset Guid.</b>
-    ///
-    /// <para>⭐ Identical in every other respect to <see cref="KeyFor(void*, System.Guid, HsmCommandWriter*)"/>:
-    /// the kernel's <c>(region, state)</c> stamp and the host machine id from the instance header.
-    /// ⛔ The only difference is WHAT identifies the occupant — a compound key string
-    /// (<c>fqn@fieldOffset</c>) instead of a blueprint's asset id.</para>
-    ///
-    /// <para>⛔⛔ Refuses an unstamped writer for exactly the reason <see cref="KeyFor(void*, System.Guid, HsmCommandWriter*)"/>
-    /// does: resolving "no stamp" to region 0 / state 0 would hand this action a real occurrence's
-    /// bytes — the silent cross-occurrence alias this model exists to remove.</para>
-    /// </summary>
-    public static int KeyForCurated(void* hsmInstance, string compoundKey, HsmCommandWriter* writer)
-    {
-        if (writer == null) throw new ArgumentNullException(nameof(writer));
-        if (hsmInstance == null) throw new ArgumentNullException(nameof(hsmInstance));
-
-        int region = writer->OccurrenceRegionSlotIndex;
-        ushort state = writer->OccurrenceStateId;
-
-        if (region == HsmCommandWriter.NoRegionSlot || state == HsmCommandWriter.NoStateId)
-            throw new InvalidOperationException(
-                "The HsmCommandWriter carries no occurrence stamp, so a curated [SharedAiAction] "
-                + $"('{compoundKey}') cannot key its params. The kernel stamps the (region, state) "
-                + "pair before every dispatch (O6); reaching here without one means this thunk was "
-                + "invoked outside a kernel dispatch.");
-
-        uint machineId = ((InstanceHeader*)hsmInstance)->MachineId;
-
-        return Shared.OccurrenceSlotKey.ComputeHsmStateKeyForCurated(
-            machineId, region, state, compoundKey);
-    }
-
-    /// <summary>The same key from an explicit machine id — for rails, mirroring the Guid overload.</summary>
-    public static int KeyForCurated(uint hostMachineId, string compoundKey, int regionSlotIndex, ushort stateId)
-        => Shared.OccurrenceSlotKey.ComputeHsmStateKeyForCurated(
-               hostMachineId, regionSlotIndex, stateId, compoundKey);
+    // ⛔ S8 (2026-10-02) — KeyForCurated (a CURATED [SharedAiAction]'s occurrence key) is DELETED. It had no production
+    //   caller since CE-417 slice 3a and was kept only "for the stateful C# HSM action". That action is now built WITHOUT
+    //   an occurrence slot: its working state is a member of the HSM's own block St (one home, CE-437).
+    //   📄 DESIGN_Behavior_Action_Binding.md §5.3b, S8-1/S8-3.
 
     /// <summary>
     /// ⭐⭐⭐ <c>E3b-0</c> — <b>the byte offset this occurrence's params SEED from</b>, for the stamped
