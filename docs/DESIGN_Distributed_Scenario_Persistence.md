@@ -54,7 +54,7 @@ known-conflict: DESIGN_Node_Roles_And_Policies.md §7.1 says IG-persistence is e
   gate, not by a missing handler. §7.1's ABSENCE becomes belt-and-suspenders, not the mechanism.
   ✅ (2026-10-02, user R-166) §6c's "an EXTERNAL OwnershipUpdate is delivered generically" holds:
   external nodes use our `SST_OwnershipUpdate`, which IS the spec's message (int node ids, no NodeId
-  mapping needed). The spec-shaped `GenericMessages.OwnershipUpdate` struct is an unused duplicate.
+  mapping needed). The unused spec-shaped `GenericMessages.OwnershipUpdate` struct was deleted 2026-10-02.
 superseded-by: —
 design-basis:
   - docs/DESIGN_Node_Roles_And_Policies.md §4 (ownership axes), §5 (persistence policy R-140),

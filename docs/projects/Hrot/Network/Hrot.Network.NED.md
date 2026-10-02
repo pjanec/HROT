@@ -346,7 +346,7 @@ The SST (Shared-State Topics) model governs how entities exist and are updated:
 | `AssemblyInfo.cs` | (global) | `[InternalsVisibleTo]` grants for test projects |
 | `Common.cs` | `Hrot.NED.Common` | Shared wire primitives: `NodeId`, `GeoPoint`, `EulerOri`, `AngularVector`, `EulerRate` |
 | `GenericPrimitives.cs` | `Hrot.NED.Messages` | Vector primitives: `Vec3f`, `Vec3d`, `Vec4f` |
-| `GenericMessages.cs` | `Hrot.NED.Messages` | `OwnershipUpdate`, `AttributeValueType`, `AttributeValueUnion`, `AttributeRecord`, `CreateEntityRequest` and related request/response types |
+| `GenericMessages.cs` | `Hrot.NED.Messages` | `AttributeValueType`, `AttributeValueUnion`, `AttributeRecord`, `CreateEntityRequest` and related request/response types |
 | `GenericDescriptors.cs` | `Hrot.NED.Descriptors` | `DisTypeStruct`, `EntityMaster`, `eForceIdentifier`, `eTacticalDesignation`, `EntityInfo`, `DescriptorOptimisticLock` |
 | `AllDescriptors.cs` | `Hrot.NED.Descriptors` | `EDescriptorType` enum (all known descriptor ordinals) and `EntityDescriptorUnion` (discriminated union used in `CreateEntityRequest`) |
 | `SimDescriptors.cs` | `Hrot.NED.Descriptors` | `WorldPos`, `EntityDamage`, `ENavigationMode`, `ENavigationResult`, `NavigationIntent`, `NavigationStatus`, `RelativeVector3`, `DdsRaycastRequest/Hit`, `RaycastRequestBatch/ResponseBatch`, `SensorConfig`, `DdsTrackedTarget`, `SensorTargets`, `SensorTrackState`, `DdsPathRequest/Result`, `PathRequestBatch/ResponseBatch`, `GroundClampingOverride` |
@@ -625,7 +625,7 @@ public class NedCommandGateway : INedCommandGateway, ICommandGateway
 | `PathRequestBatch` | `PathRequestBatch` | `Hrot.NED.Descriptors` | Reliable / Volatile |
 | `PathResponseBatch` | `PathResponseBatch` | `Hrot.NED.Descriptors` | Reliable / Volatile |
 | `DeferredTakeOwnership` | `DeferredTakeOwnership` | `Hrot.NED.Messages` | Reliable / Volatile / KeepAll(100) |
-| `OwnershipUpdate` | `OwnershipUpdate` | `Hrot.NED.Messages` | Reliable / Volatile / KeepLast(1) |
+| `SST_OwnershipUpdate` | `OwnershipUpdate` | `Fdp.Network.Cyclone.Topics` | Reliable / Volatile / KeepAll — the spec's `OwnershipUpdate`, also spoken by external nodes (R-166) |
 | `CreateEntityRequest` | `CreateEntityRequest` | `Hrot.NED.Messages` | Reliable / Volatile / KeepAll |
 | `MapClickEvent` | `MapClickEvent` | `Hrot.NED.Messages` | Reliable / Volatile / KeepAll |
 | `SelectionChangedEvent` | `SelectionChangedEvent` | `Hrot.NED.Messages` | (default) |

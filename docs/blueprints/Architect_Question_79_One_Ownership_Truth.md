@@ -37,6 +37,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | R-168 *(earlier)* | *"Per instance ownership should be honored even if not currently used. Unused is not equal to unneeded."* · correctness must be *"derived logically"*, not from today's test data |
 | R-166 *(`2026-10-02`)* | *"external nodes use our SST OwnershipUpdate, it should be the same thing as the one one from the spec"* |
 | R-167 *(`2026-10-02`)* | *"ok as calling the handler internally, not really sending a network message to itself"* — the crash reclaim (§0.11) |
+| R-169 *(`2026-10-02`)* | *"Changing a message is ok if necessary."* — amends R-158: a message change is allowed when the design needs it; still minimal. ⇒ P3 (an ordering field in `OwnershipUpdate`) and P5 (an instance id in a grant) are now options, used only if a measured case needs them |
 
 ### 0.2 Measured facts *(code — how it IS)*
 
@@ -219,8 +220,18 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 ⭐ **Lean (P5 resolved without a protocol change; R-168 — per-instance is honoured although unused today):**
 1. **By default a part belongs to the group of its descriptor TYPE on its root.** A grant of that group covers every instance. Gate lookup becomes `(d,i)` → `(d,0)` → `PrimaryOwnerId` — a change in the toolkit gate only, no message change.
 2. **A part carries its OWN claim** (its own entity's mask), set at part creation from its root's claim for that group — not left empty as today.
-3. **Per-instance override** (two instances of ONE descriptor type on two nodes) by `OwnershipUpdate`, which already carries `DescrInstanceId`: the ingress writes `Map[(d,i)]` (already) and sets the claim on the PART entity for `(root, i)`, not on the root. ⛔ Not built: today it drops the instance (`OwnershipIngressSystem.cs:65`). ⚠ Resolving `(root, i)` to a part: `PartMetadata.DescriptorOrdinal` is written `0` by EQS, and `ChildMap` has no production writer — the design session picks the index.
+3. **Per-instance override** (two instances of ONE descriptor type on two nodes) by `OwnershipUpdate`, which already carries `DescrInstanceId`: the ingress writes `Map[(d,i)]` (already) and sets the claim on the PART entity for `(root, i)`, not on the root. ⛔ Not built: today it drops the instance (`OwnershipIngressSystem.cs:65`).
    ⛔ ~~*"Defer — no production case needs it"*~~ — withdrawn `2026-10-02`: it contradicted R-168.
+
+⭐ **Resolving `(root, d, i)` to a part needs the descriptor type, not only `i`** *(measured `2026-10-02`)*. Instance ids are allocated PER PART KIND, so they repeat across kinds on one parent — correctly, since each kind is a different topic:
+
+| part kind (production creator) | `InstanceId` | `PartMetadata.DescriptorOrdinal` |
+|---|---|---|
+| EQS sensor (`EqsChildSensor.cs:66`; Muscle carrier `EqsSensorConfigIngressTranslator.cs:220`) | allocated ≥ 1, lowest free among that parent's EQS sensors, reused (`AllocatePartId`) — several sensors per parent | `0` |
+| weapon mount (`CombatTkbTranslator.cs:116`) | mount index 1..n | `0` |
+| personal route (`PersonalRouteAuthoringSystem.cs:139`) | `0` (default) | `0` |
+
+⇒ the `DescriptorOrdinal` field is never filled, and one field could not hold it anyway: an EQS part is an instance of TWO descriptor types (config from the Brain, result from the Muscle). ⭐ **Lean:** resolve by `(root, i, the part carries a component mapped to d)` through the existing descriptor→component map; no new index.
 
 ### 0.11 ⭐ CRASH = DISPOSE *(the spec's rule; closes P1)*
 
@@ -247,7 +258,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 - Their entity becomes a ghost with `PrimaryOwnerId = -1` ("unknown") (`EntityMasterIngressTranslator.cs:146-152`). Our own LCM still runs locally on that ghost; it needs nothing from them.
 - No grant ever arrives ⇒ under push-only (③, promote-leg claim retired) we claim nothing of it. ✅ correct by construction. Today the promote-leg claim (`GhostPromotionSystem.cs:313-324`) would make our nodes claim role components of an external entity; the send gate still blocks (record falls to `-1`), so it costs local compute, not a wire violation.
 - ✅ **The ownership message is shared (R-166).** External nodes use our `SST_OwnershipUpdate` (`Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`) — it IS the spec's `OwnershipUpdate`. Our ingress accepts any sender except our own id (`OwnershipUpdateTranslator.PollIngress` drops only `OriginNodeId == local`), and `NewOwner` is a plain int in the shared node-id space. ⇒ an external node can hand us a descriptor and take it back today.
-  ⚠ The second, spec-shaped struct `GenericMessages.OwnershipUpdate` (topic `"OwnershipUpdate"`, `NodeId{…}`, `GenericMessages.cs:33-57`) has no reader or writer — a dormant duplicate shape, not the interop path. Not proposed for deletion here.
+  ✅ The second, spec-shaped struct `Hrot.NED.Messages.OwnershipUpdate` (topic `"OwnershipUpdate"`, no reader or writer) was **DELETED `2026-10-02`** at the user's direction.
 
 ⭐ **Lean:**
 | # | rule |

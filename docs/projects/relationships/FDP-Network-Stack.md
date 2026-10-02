@@ -329,7 +329,7 @@ NED descriptors are split across six IDL files (each maps to one C# file):
 |-------------------------|-----------------------|------------------------------------------------|
 | `hrot-common`           | `Common.cs`           | `NodeId`, `GeoPoint`, `EulerOri`, `AngularVector`, `EulerRate` |
 | `hrot-generic-desc`     | `GenericDescriptors.cs` | `EntityMaster`, `EntityInfo`, `DisTypeStruct` |
-| `hrot-generic-msgs`     | `GenericMessages.cs`  | `OwnershipUpdate`, `AttributeValueUnion`, `Vec3f/d/4f` |
+| `hrot-generic-msgs`     | `GenericMessages.cs`  | `AttributeValueUnion`, `Vec3f/d/4f` |
 | `hrot-sim-desc`         | `SimDescriptors.cs`   | `WorldPos`, `EntityDamage`, `NavigationIntent`, `NavigationStatus` |
 | `hrot-missions-desc`    | `MissionDescriptors.cs` | `EntityMission`, `MissionPlan`, `MissionTask` |
 | `hrot-missions-msgs`    | `MissionMessages.cs`  | `MissionControlRequest`, `MissionControlAck`, `MissionCommandUnion` |
@@ -398,7 +398,7 @@ NED descriptors are split across six IDL files (each maps to one C# file):
 
 | Topic Name              | QoS                                     | Direction              | Descriptor ID |
 |-------------------------|-----------------------------------------|------------------------|---------------|
-| `OwnershipUpdate`       | Reliable / Volatile / KeepLast-1        | Releasing owner -> New owner | 55 |
+| `SST_OwnershipUpdate`   | Reliable / Volatile / KeepAll-1         | any node -> current + new owner (external nodes too, R-166) | 55 |
 | `DeferredTakeOwnership` | (inferred Reliable)                     | Brain -> Muscle (pre-genesis routing) | 54 |
 
 #### Map / Visual Topics
