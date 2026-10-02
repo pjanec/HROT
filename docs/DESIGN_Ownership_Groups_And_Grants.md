@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1 built and green; S2 next.
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1, S2 built and green; S3 next.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -355,7 +355,7 @@ are the hosts where no grant is ever executed: the offline editor (correct — o
 | step | items (Q79 §0.13) | proven by |
 |---|---|---|
 | S1 ✅ `006b85453` | `OwnershipGroup`/`Table`, `DescriptorOwnershipMap.BindGroups` + boot validation (every descriptor in exactly one group or CREATOR); F-2 mappings | ✅ `OwnershipGroupBindingTests`, `HrotOwnershipGroupsTests`, `TheDescriptorMapIsWiredTests` (every role binds the same groups, 0 violations), `SplitAuthoritySpawnTests` 3/0. As built: the binding is `NedOwnershipGroupBinding`; violations are LOGGED at boot (not thrown) and railed; `HrotRoleComponentSets` stays the claim source until S4 |
-| S2 | composition on every host (`CE-509`), yield ungated (`CE-508`) | `SplitAuthoritySpawnTests` |
+| S2 ✅ `26d64f4fd` | composition on every host (`CE-509`), yield ungated (`CE-508`) | ✅ `SplitAuthoritySpawnTests` + `AllSubsystemsSpawnMovingVehicleTests` 4/0; `StrideNodeBootstrapperTests` (adapters reach the constructed request system, poll runs); `NedReplicationModuleTests` (yield on every role). As built: the base bootstrapper exposes `ConfiguredNetworkFactory`; SimHost/Stride register `NetworkPollingSystem` (CGF/IG poll from their app loops). ⚠ SimHost, Stride and IG hold TWO cluster caches (the replication module's, built by the shared builder, and the adapters', from the factory), both fed from the same topics; CGF builds both from one factory, so one cache — S3's strategy reads the adapters' one; unify when the base composes the creation tier (§4.1d lean) |
 | S3 | `RoleGroupOwnershipStrategy` (B3) | strategy rails; `CE-500` rail (SimHost creates, CGF publishes `NavigationIntent`) |
 | S4 | retire the promote-leg claim (B4); creator claims all (D-7) | §10 probe as a rail: no component claimed by two nodes, every creation path |
 | S5 | `OwnershipApplier` extraction + `OwnershipRecomputeSystem` + `OutgoingGrantsPending` (B5) | `MasterOnly` transfer rail; F7 timeline rail |
