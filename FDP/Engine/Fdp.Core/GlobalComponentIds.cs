@@ -376,7 +376,13 @@
         /// See DESIGN_Cross_Node_Construction_Barrier.md §3b.4.</summary>
         public const int ConstructionResults = 153;
 
-        // IDs 154â€“159 are the next free block (152/153 taken above; 146â€“151 taken by Behavior/Utility).
+        // ⚠ IDs 154–156 are taken by BehaviorApplicationComponentIds (BehaviorStartRecord, BehaviorOwnedPart,
+        // BehaviorFaultLatch). 157–158 are free. Enumerate real [ComponentId] usage before taking one.
+
+        /// <summary><c>OutgoingGrantsPending</c> — creator-local: the descriptors this node granted away at creation
+        /// whose takeover it has not seen confirmed yet (the F7 window). The record recompute leaves them alone.
+        /// See docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S5.</summary>
+        public const int OutgoingGrantsPending = 159;
 
         // â”€â”€ Application-level Descriptors (160â€“199) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
         // These IDs are now declared in project specific ComponentIds.

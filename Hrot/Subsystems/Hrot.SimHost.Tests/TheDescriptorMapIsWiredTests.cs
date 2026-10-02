@@ -326,4 +326,31 @@ public class TheDescriptorMapIsWiredTests
 
         Assert.Empty(map.GroupBindingViolations);
     }
+
+    /// <summary>
+    /// ⭐ <b>No component sits in two descriptors that can have different owners</b> (a group's and the creator's, or two
+    /// groups'). The creator's yield clears the claim of every component of a granted descriptor; if one of them also
+    /// belonged to a descriptor the creator keeps, the record recompute (S5, R-159) would read that kept descriptor as
+    /// unclaimed and stop its publication. 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S5, Q79 P4.
+    /// </summary>
+    [Theory]
+    [InlineData(Fdp.Core.NodeRole.Brain)]
+    [InlineData(Fdp.Core.NodeRole.MuscleGround | Fdp.Core.NodeRole.Perception | Fdp.Core.NodeRole.NavigationSolver)]
+    [InlineData(Fdp.Core.NodeRole.Map2D)]
+    public void NoComponentIsSharedByDescriptorsWithDifferentOwners(Fdp.Core.NodeRole role)
+    {
+        var map = ModuleMapFor(role);
+        var boxOf = new System.Collections.Generic.Dictionary<long, Fdp.Core.NodeRole>();
+        foreach (long d in map.RegisteredDescriptors) boxOf[d] = Fdp.Core.NodeRole.None;
+        foreach (var (groupRole, _) in Hrot.Network.Replication.NedOwnershipGroupBinding.GroupDescriptors)
+            foreach (long d in map.DescriptorsOf(groupRole)) boxOf[d] = groupRole;
+
+        var shared = new System.Collections.Generic.List<string>();
+        foreach (long d in map.RegisteredDescriptors)
+            foreach (int c in map.GetComponentIdsForDescriptor(d))
+                foreach (long other in map.RegisteredDescriptors)
+                    if (other != d && boxOf[other] != boxOf[d] && map.GetComponentIdsForDescriptor(other).ToArray().Contains(c))
+                        shared.Add($"component {c}: descriptor {d} ({boxOf[d]}) and {other} ({boxOf[other]})");
+        Assert.Empty(shared);
+    }
 }

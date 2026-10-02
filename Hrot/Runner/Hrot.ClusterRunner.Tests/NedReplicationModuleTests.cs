@@ -184,4 +184,27 @@ public sealed class NedReplicationModuleTests
 
         Assert.Contains(registry.RegisteredTypes, t => t.Name == "LocalAuthorityYieldSystem");
     }
+
+    // ── S5 — the record recompute runs on EVERY NED host, after the ownership ingress ─────────────────────
+
+    /// <summary>
+    /// ⭐ Ownership build S5 (R-159): every node keeps its record equal to its claim after every ownership change, so
+    /// the recompute is registered whatever the role, and declared after the ingress it follows. 📄
+    /// <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S5.
+    /// </summary>
+    [Theory]
+    [InlineData(NodeRole.Brain)]
+    [InlineData(NodeRole.MuscleGround)]
+    [InlineData(NodeRole.Map2D)]
+    [InlineData(NodeRole.Brain | NodeRole.MuscleGround)]
+    public void EveryRoleRegistersTheRecordRecompute_AfterTheIngress(NodeRole role)
+    {
+        var registry = new CapturingRegistry();
+        BuildModule(role).RegisterSystems(registry);
+
+        Assert.Contains(typeof(Fdp.Toolkit.Replication.Systems.OwnershipRecomputeSystem), registry.RegisteredTypes);
+        var after = (Fdp.Core.UpdateAfterAttribute?)System.Attribute.GetCustomAttribute(
+            typeof(Fdp.Toolkit.Replication.Systems.OwnershipRecomputeSystem), typeof(Fdp.Core.UpdateAfterAttribute));
+        Assert.Equal(typeof(Fdp.Toolkit.Replication.Systems.OwnershipIngressSystem), after?.Target);
+    }
 }

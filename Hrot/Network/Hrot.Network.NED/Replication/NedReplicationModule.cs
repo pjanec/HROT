@@ -482,6 +482,12 @@ public sealed class NedReplicationModule : INedReplicationModule
         // == local, same SetAuthority/SetOwner the takeover already did).
         registry.RegisterSystem(new OwnershipIngressSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
 
+        // ── Record recompute — EVERY node (R-159, ownership build S5) ────────
+        // After every OwnershipUpdate this node sees, and on creation/promotion (ConstructionOrder), the record of
+        // each descriptor is made to agree with the claim — except a granted descriptor still in its F7 window
+        // (OutgoingGrantsPending). 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S5.
+        registry.RegisterSystem(new OwnershipRecomputeSystem(_entityMap, _localNodeId, _descriptorOwnershipMap));
+
         // ── Ownership transfer INITIATION — EVERY node (CE-276) ──────────────
         // The push/hand-away counterpart of DeferredTakeoverSystem. Any node may hand an entity
         // (or a subset of its descriptors) it owns to another node; the system is a no-op on a
@@ -720,6 +726,7 @@ public sealed class NedReplicationModule : INedReplicationModule
                 if (!_entityMap.TryGetEntity(cmd.NetworkId, out Entity entity)) continue;
                 if (!repo.IsAlive(entity)) continue;
 
+                Fdp.Toolkit.Replication.Components.OutgoingGrantsPending? pending = null;
                 foreach (var grant in cmd.Grants)
                 {
                     if (grant.NodeId == _localNodeId) continue;
@@ -730,7 +737,16 @@ public sealed class NedReplicationModule : INedReplicationModule
                         if (repo.HasComponentByTypeId(entity, cid))
                             repo.SetAuthority(entity, cid, false);
                     }
+
+                    // ⭐ S5 — the claim is gone but the record still says "mine" until the grantee confirms (F7):
+                    //   mark the descriptor so OwnershipRecomputeSystem leaves it alone in that window (Q79 P6).
+                    pending ??= repo.HasManagedComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
+                        ? repo.GetComponent<Fdp.Toolkit.Replication.Components.OutgoingGrantsPending>(entity)
+                        : new Fdp.Toolkit.Replication.Components.OutgoingGrantsPending();
+                    pending.Descriptors.Add(grant.DescriptorTypeId);
                 }
+                if (pending != null)
+                    repo.SetManagedComponent(entity, pending);
             }
         }
     }

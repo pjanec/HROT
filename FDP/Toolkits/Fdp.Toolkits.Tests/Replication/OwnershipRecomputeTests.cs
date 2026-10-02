@@ -1,0 +1,211 @@
+using Fdp.Core;
+using Fdp.ModuleHost.Abstractions;
+using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Replication.Components;
+using Fdp.Toolkit.Replication.Extensions;
+using Fdp.Toolkit.Replication.Messages;
+using Fdp.Toolkit.Replication.Services;
+using Fdp.Toolkit.Replication.Systems;
+using Xunit;
+
+namespace Fdp.Toolkit.Replication.Tests
+{
+    /// <summary>
+    /// ⭐ Ownership build S5 (R-159): the record follows the claim, except a granted descriptor still in its F7
+    /// window. And the shared <see cref="OwnershipApplier"/>'s master-move pin (Transfer design §3, <c>MasterOnly</c>).
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.6 S5.
+    /// </summary>
+    public class OwnershipRecomputeTests
+    {
+        private const int  Local     = 1;
+        private const int  Remote    = 2;
+        private const long Master    = 7;   // stand-in for dtEntityMaster: NetworkIdentity
+        private const long Info      = 8;   // a creator-kept descriptor: TkbIdentity
+        private const long Kinematic = 9;   // a granted descriptor: NetworkTransform + NetworkVelocity
+        private const long NetId     = 4242;
+
+        private static long Key(long d) => OwnershipExtensions.PackKey(d, 0);
+
+        private sealed class Node
+        {
+            public EntityRepository Repo = null!;
+            public Entity E;
+            public NetworkEntityMap Map = null!;
+            public DescriptorOwnershipMap Descriptors = null!;
+            public OwnershipIngressSystem Ingress = null!;
+            public OwnershipRecomputeSystem Recompute = null!;
+
+            public bool RecordMine(long d) => ((ISimulationView)Repo).HasAuthority(E, Key(d));
+            public bool Claims<T>() where T : unmanaged => Repo.HasAuthority<T>(E);
+            public int? Recorded(long d)
+                => Repo.HasManagedComponent<DescriptorOwnership>(E) &&
+                   Repo.GetComponent<DescriptorOwnership>(E).TryGetOwner(Key(d), out int o) ? o : null;
+
+            /// <summary>One frame of the Input phase: ingress, then the recompute (its declared order).</summary>
+            public void Frame()
+            {
+                Repo.Bus.SwapBuffers();
+                Ingress.Execute(Repo, 0f);
+                Recompute.Execute(Repo, 0f);
+            }
+
+            public void Update(long d, int newOwner, int origin)
+                => Repo.Bus.Publish(new OwnershipUpdate
+                {
+                    NetworkId = new NetworkIdentity(NetId), PackedKey = Key(d), NewOwnerNodeId = newOwner, OriginNodeId = origin,
+                });
+        }
+
+        /// <summary>A node <paramref name="local"/> holding the entity, primary owner <paramref name="primary"/>,
+        /// claiming every component iff it is the primary owner (a creator, or a replica).</summary>
+        private static Node Build(int local, int primary)
+        {
+            var n = new Node { Repo = new EntityRepository() };
+            n.Repo.RegisterComponent<NetworkIdentity>();
+            n.Repo.RegisterComponent<NetworkAuthority>();
+            n.Repo.RegisterComponent<TkbIdentity>();
+            n.Repo.RegisterComponent<NetworkTransform>();
+            n.Repo.RegisterComponent<NetworkVelocity>();
+            n.Repo.RegisterManagedComponent<DescriptorOwnership>();
+            n.Repo.RegisterManagedComponent<OutgoingGrantsPending>();
+            n.Repo.RegisterEvent<OwnershipUpdate>();
+            n.Repo.RegisterEvent<ConstructionOrder>();
+            n.Repo.RegisterEvent<Fdp.Toolkit.Replication.Messages.DescriptorAuthorityChanged>();
+
+            n.E = n.Repo.CreateEntity();
+            n.Repo.AddComponent(n.E, new NetworkIdentity(NetId));
+            n.Repo.AddComponent(n.E, new NetworkAuthority(primary, local));
+            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = 1 });
+            n.Repo.AddComponent(n.E, new NetworkTransform());
+            n.Repo.AddComponent(n.E, new NetworkVelocity());
+            bool creator = primary == local;
+            n.Repo.SetAuthority<NetworkIdentity>(n.E, creator);
+            n.Repo.SetAuthority<TkbIdentity>(n.E, creator);
+            n.Repo.SetAuthority<NetworkTransform>(n.E, creator);
+            n.Repo.SetAuthority<NetworkVelocity>(n.E, creator);
+
+            n.Map = new NetworkEntityMap();
+            n.Map.Register(NetId, n.E);
+
+            n.Descriptors = new DescriptorOwnershipMap { PrimaryOwnerDescriptorOrdinal = Master };
+            n.Descriptors.RegisterMapping(Master, ComponentType<NetworkIdentity>.ID);
+            n.Descriptors.RegisterMapping(Info, ComponentType<TkbIdentity>.ID);
+            n.Descriptors.RegisterMapping(Kinematic, ComponentType<NetworkTransform>.ID, ComponentType<NetworkVelocity>.ID);
+
+            n.Ingress   = new OwnershipIngressSystem(n.Map, local, n.Descriptors);
+            n.Recompute = new OwnershipRecomputeSystem(n.Map, local, n.Descriptors);
+            return n;
+        }
+
+        /// <summary>What the creator's yield does for a grant of <paramref name="d"/> (NedReplicationModule).</summary>
+        private static void YieldGrant(Node n, long d)
+        {
+            foreach (int cid in n.Descriptors.GetComponentIdsForDescriptor(d))
+                n.Repo.SetAuthority(n.E, cid, false);
+            var pending = new OutgoingGrantsPending();
+            pending.Descriptors.Add(d);
+            n.Repo.SetManagedComponent(n.E, pending);
+        }
+
+        // ── F7: the creator keeps publishing a granted descriptor until the grantee confirms ─────────────────
+
+        [Fact]
+        public void F7_TheCreatorsRecordStaysMine_UntilTheGranteeConfirms_ThenFollowsIt()
+        {
+            var creator = Build(Local, primary: Local);
+            YieldGrant(creator, Kinematic);
+
+            // Frame: something else about the entity changes (an unrelated update, a construction order).
+            creator.Repo.Bus.Publish(new ConstructionOrder { Entity = creator.E });
+            creator.Update(Info, Local, Local);
+            creator.Frame();
+
+            Assert.False(creator.Claims<NetworkTransform>());      // the claim left at the yield…
+            Assert.True(creator.RecordMine(Kinematic));            // …but the record still sends the first samples (F7)
+            Assert.Null(creator.Recorded(Kinematic));
+            Assert.True(creator.Repo.HasManagedComponent<OutgoingGrantsPending>(creator.E));
+
+            // The grantee takes over and confirms.
+            creator.Update(Kinematic, Remote, Remote);
+            creator.Frame();
+
+            Assert.False(creator.RecordMine(Kinematic));
+            Assert.Equal(Remote, creator.Recorded(Kinematic));
+            Assert.False(creator.Repo.HasManagedComponent<OutgoingGrantsPending>(creator.E));   // window closed
+            Assert.True(creator.RecordMine(Info));                 // the creator's remainder is untouched
+        }
+
+        // ── The recompute: the record is made to agree with the claim, both ways ────────────────────────────
+
+        [Fact]
+        public void AClaimedDescriptorWhoseRecordSaysOtherwise_IsRecordedAsMine()
+        {
+            var n = Build(Local, primary: Local);
+            n.Repo.GetComponent<DescriptorOwnership>(EnsureRecord(n)).SetOwner(Key(Info), Remote);   // stale record
+            n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
+            n.Frame();
+
+            Assert.Equal(Local, n.Recorded(Info));
+        }
+
+        [Fact]
+        public void AnUnclaimedDescriptorWhoseRecordSaysMine_IsRecordedAsNotMine()
+        {
+            var n = Build(Local, primary: Local);
+            n.Repo.SetAuthority<TkbIdentity>(n.E, false);          // the claim left by a path that did not write the record
+            n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
+            n.Frame();
+
+            Assert.False(n.RecordMine(Info));
+            Assert.Equal(OwnershipRecomputeSystem.UnknownOwner, n.Recorded(Info));
+        }
+
+        [Fact]
+        public void WhereClaimAndRecordAgree_NothingIsWritten()
+        {
+            var replica = Build(Local, primary: Remote);           // claims nothing, record follows the remote primary
+            replica.Repo.Bus.Publish(new ConstructionOrder { Entity = replica.E });
+            replica.Frame();
+
+            Assert.False(replica.Repo.HasManagedComponent<DescriptorOwnership>(replica.E));
+        }
+
+        [Fact]
+        public void APartlyClaimedDescriptor_IsLeftAlone_AndCounted()
+        {
+            var n = Build(Local, primary: Local);
+            n.Repo.SetAuthority<NetworkVelocity>(n.E, false);      // Kinematic split: Transform claimed, Velocity not
+            n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
+            n.Frame();
+
+            Assert.Null(n.Recorded(Kinematic));
+            Assert.Equal(1, n.Recompute.SplitDescriptorsSkipped);
+        }
+
+        // ── MasterOnly: every node keeps the other descriptors where they were (Transfer design §3) ─────────
+
+        [Theory]
+        [InlineData(Local)]     // the giver
+        [InlineData(Remote)]    // the receiver
+        [InlineData(3)]         // a third node
+        public void AMasterMove_LeavesEveryOtherDescriptorWithTheOldOwner_OnEveryNode(int node)
+        {
+            var n = Build(node, primary: Local);
+            n.Update(Master, Remote, Local);
+            n.Frame();
+
+            Assert.Equal(Remote, n.Repo.GetComponentRO<NetworkAuthority>(n.E).PrimaryOwnerId);
+            Assert.Equal(Local, n.Recorded(Info));
+            Assert.Equal(Local, n.Recorded(Kinematic));
+            Assert.Equal(node == Local, n.RecordMine(Info));       // the giver still publishes what it still writes
+            Assert.Equal(node == Local, n.Claims<TkbIdentity>());  // and the claim agrees: one truth
+        }
+
+        private static Entity EnsureRecord(Node n)
+        {
+            if (!n.Repo.HasManagedComponent<DescriptorOwnership>(n.E))
+                n.Repo.SetManagedComponent(n.E, new DescriptorOwnership());
+            return n.E;
+        }
+    }
+}

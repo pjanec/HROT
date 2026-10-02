@@ -81,6 +81,7 @@ public static class HrotSharedComponentRegistry
         // PendingAuthorityGrants: pre-genesis routing intent (Muscle role).
         world.RegisterManagedComponent<DescriptorOwnership>();
         world.RegisterManagedComponent<PendingAuthorityGrants>();
+        world.RegisterManagedComponent<OutgoingGrantsPending>();   // S5: the creator's unconfirmed grants (F7 window)
         world.RegisterManagedComponent<NetworkAckPeerSet>();   // CE-283: reliable-init barrier peer set
 
         // ── Lifecycle events (network entity construction / destruction) ──────
