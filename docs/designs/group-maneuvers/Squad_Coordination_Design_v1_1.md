@@ -1,3 +1,14 @@
+<!--STATUS
+state: LIVE
+updated: 2026-10-02
+current-answer: the whole document (what the squad layer IS)
+stale-below: none
+known-rot: none recorded; ⚠ the layer is built but its RUNTIME WIRING is owned elsewhere (see related-designs)
+related-designs:
+  - docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md — owns WHERE the layer runs (CE-454: which pack/system ticks it, the mapper registration, what stays unwired and why)
+  - docs/designs/utility-ai/Utility_AI_Design_v1_1.md — owns the scorer the commander tier recurses into (§8.0)
+-->
+
 # Squad Coordination — Design v1.1
 
 > **Changelog v1.0 → v1.1** (open questions resolved by architect review):

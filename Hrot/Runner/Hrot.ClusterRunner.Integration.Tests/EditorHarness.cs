@@ -272,9 +272,7 @@ public sealed class EditorHarness : IDisposable
 
         // ── Module registration (offline — no translator packs) ───────────────
         var simHostCorePack  = new SimHostCoreLogicPack(EntityMap);
-        var mapperRegistry = new TacticalIntentMapperRegistry();
-        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.DefendAreaMapper());
-        mapperRegistry.Register(new Hrot.AI.Behaviors.Mappers.HullDownAttackMapper());
+        var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();   // CE-454: the production list
         // ⭐ A4/O0 — the registry must exist BEFORE the pack, which now builds the tick system
         //   against it. (It used to be created further down, beside the old root splice.)
         BlueprintRegistry = new Fdp.Toolkit.Blueprints.BlueprintRegistry();

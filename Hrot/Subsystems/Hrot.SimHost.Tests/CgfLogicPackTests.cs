@@ -84,6 +84,64 @@ namespace Hrot.SimHost.Tests
         // -- Tests (PACK2-P001 existing, updated for new scenarioSource param) --
 
         /// <summary>
+        /// ⭐⭐ <b>CE-454 W4 — the squad layer runs through the REAL CGF pack.</b>
+        /// 📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §2.3.
+        /// <para>A commander with two members: a <c>ForceManeuver</c> intent reaches the commander's
+        /// <c>SquadCognitiveState</c> through the production mapper list (W3), and the members' perception is merged
+        /// into the commander's contact pool by the pack's own system list (W2) — nothing is called by hand.
+        /// ✅ Red-proofs: drop <c>SquadCoordinationSystem</c> from the pack ⇒ the pool stays empty; drop the
+        /// <c>ForceManeuver</c> mapper from <c>DefaultTacticalMappers</c> ⇒ the maneuver stays 0.</para>
+        /// </summary>
+        [Fact]
+        public void CE454_TheSquadLayerRunsThroughTheRealCgfPack()
+        {
+            using var world = CreateEmptyWorld();
+            world.RegisterComponent<Fdp.Toolkit.Squad.SquadCognitiveState>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitRoster>();
+            world.RegisterComponent<Fdp.Core.CommandHierarchy.UnitSubordinate>();
+            world.RegisterComponent<Fdp.Toolkit.Perception.Components.TargetMemory>();
+
+            var commander = world.CreateEntity();
+            world.AddComponent(commander, new Fdp.Toolkit.Behavior.Components.BehaviorState());
+            world.SetAuthority<Fdp.Toolkit.Behavior.Components.BehaviorState>(commander, true);
+            world.AddComponent(commander, new Fdp.Core.CommandHierarchy.UnitRoster());
+            world.AddComponent(commander, default(Fdp.Toolkit.Squad.SquadCognitiveState));
+
+            long[] seen = { 100L, 200L };
+            foreach (long contact in seen)
+            {
+                var m = world.CreateEntity();
+                world.AddComponent(m, new Fdp.Toolkit.Perception.Components.TargetMemory());
+                world.AddComponent(m, new Fdp.Core.CommandHierarchy.UnitSubordinate { Commander = commander });
+                Fdp.Core.CommandHierarchy.UnitRoster.Add(
+                    ref world.GetComponentRW<Fdp.Core.CommandHierarchy.UnitRoster>(commander), m);
+                Fdp.Toolkit.Perception.Components.TargetMemory.AddOrUpdateTarget(
+                    ref world.GetComponentRW<Fdp.Toolkit.Perception.Components.TargetMemory>(m), contact, 10f, 0f, 0.5f, tick: 1);
+            }
+
+            // ⭐ the production mapper list and the CGF gate, as CgfSubsystem builds them
+            var pack = new CgfLogicPack(new BehaviorRegistry(), new NetworkEntityMap(), new ScenarioEntityCreationRequestSource(),
+                Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create(), new Fdp.Toolkit.Blueprints.BlueprintRegistry(),
+                gateOnAuthority: true);
+
+            world.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignTacticalIntentEvent
+            {
+                Entity = commander, IntentId = "ForceManeuver", JsonParams = "{\"maneuverKind\":2,\"featureId\":7}",
+            });
+            world.Bus.SwapBuffers();
+
+            var view = (ISimulationView)world;
+            foreach (var s in pack.InputSystems)      s.Execute(view, 0.016f);
+            foreach (var s in pack.SimulationSystems) s.Execute(view, 0.016f);
+
+            var state = world.GetComponentRO<Fdp.Toolkit.Squad.SquadCognitiveState>(commander);
+            Assert.Equal((ushort)2, state.ManeuverKind);          // W3: ForceManeuver mapped
+            Assert.Equal(1u, state.Flags & 1u);                    //     mission override held
+            Assert.Equal(7u, state.ActiveFeatureId);
+            Assert.Equal(2, state.Contacts.Count);                 // W2: both members' contacts merged
+        }
+
+        /// <summary>
         /// All three sub-module system sets register without error and run on an
         /// empty world without throwing.
         /// </summary>
@@ -128,7 +186,10 @@ namespace Hrot.SimHost.Tests
             //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
             // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
-            Assert.Equal(16, pack.SimulationSystems.Count);
+            // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
+            //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
+            Assert.Equal(17, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
 
             // ⛔ Assert the REMOVAL too — a count alone is the kind of thing a later session
             //    re-baselines without reading why it moved.
@@ -328,7 +389,10 @@ namespace Hrot.SimHost.Tests
             //    ticked an always-empty query every frame. 📄 DESIGN_Occurrence_Scoped_Storage.md §31.5.
             // ⛔ O7c-④b (2026-09-23) — 1 FEWER again: BTreeTickSystem and
             //    HsmTickSystem<BrainHsm128> merged into ONE BrainTickSystem. 📄 §31.14 / §31.16.
-            Assert.Equal(16, pack.SimulationSystems.Count);
+            // ⭐ CE-454 (2026-10-02) — 1 MORE: SquadCoordinationSystem, the squad layer's frame driver.
+            //    📄 docs/designs/group-maneuvers/DESIGN_Squad_Wiring.md §3 W2.
+            Assert.Equal(17, pack.SimulationSystems.Count);
+            Assert.Contains(pack.SimulationSystems, x => x is Fdp.Toolkit.Squad.Systems.SquadCoordinationSystem);
         }
 
         /// <summary>
@@ -359,7 +423,8 @@ namespace Hrot.SimHost.Tests
             //    to a shared path, the SCHEDULING stayed in Hrot.Blueprints.Editor).
             // ⛔ O7c-① (2026-09-22): 20 → 19 — HsmTickSystem<BrainHsm64> deleted (§31.5).
             // ⛔ O7c-④b (2026-09-23): 19 → 18 — the two brain ticks merged (§31.14 / §31.16).
-            Assert.Equal(18, pack.InputSystems.Count + pack.SimulationSystems.Count);
+            // ⭐ CE-454 (2026-10-02): 18 → 19 — SquadCoordinationSystem (DESIGN_Squad_Wiring.md §3 W2).
+            Assert.Equal(19, pack.InputSystems.Count + pack.SimulationSystems.Count);
         }
 
         // ── CE-200: CGF composes from the capability seam (B4b step 2, host (c)) ──────

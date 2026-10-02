@@ -915,9 +915,8 @@ public sealed class CgfSubsystem : ISubsystem, Fdp.Toolkit.Runner.IMapCameraProv
         Hrot.Presentation.Renderers.BlueprintBlackboardRenderers.Registry = _blueprintRegistry;
 
         // ── Register CGF simulation logic (Brain-specific) ─────────────────────
-        var mapperRegistry = new TacticalIntentMapperRegistry();
-        mapperRegistry.Register(new DefendAreaMapper());
-        mapperRegistry.Register(new HullDownAttackMapper());
+        // ⭐ CE-454 (W3): the one mapper list both Brain hosts share.
+        var mapperRegistry = Hrot.AI.Behaviors.Mappers.DefaultTacticalMappers.Create();
         // ⭐⭐⭐ P3 step 3b's EXECUTION GATE, turned on HERE and only here.
         //    📄 docs/DESIGN_Role_Affinity_Ownership.md §3.5, §6f, §6i.
         //
