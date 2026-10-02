@@ -328,4 +328,72 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         Assert.Equal(1, LeafTicks(run, midKeys[0], leafKey));   // a fresh start, all the way down
     }
 
+
+    // ══ S5b step 2 — a hosted child's OWN stateful node keeps one working state per site ══════════
+
+    private const string StatefulName = "S5_Stateful";
+    private const int StatefulSlot = 0x5B0057A7;
+
+    /// <summary>Exactly the shape a generated stateful thunk has (BTreeBridgeEmitCore.AppendWorkingStateResolve).</summary>
+    private static NodeStatus CountInWorkingState(ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int p)
+    {
+        if (!OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self,
+                OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, StatefulSlot), out byte* ws))
+            return NodeStatus.Failure;
+        (*(int*)ws)++;
+        return NodeStatus.Running;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5b step 2 — the same STATEFUL child at two sites keeps TWO working states.</b> Its node slot is provisioned
+    /// under each site's occurrence key, and the node resolves it through <c>ctx.OccurrenceKey</c>, so each site counts its
+    /// own ticks. 🔴 Before: a hosted child's own stateful slots were never provisioned (the node returned Failure), and
+    /// had they been, both sites would have shared one.
+    /// <para>✅ Red-proof: resolve with the bare key (no <c>HostedKeyAt</c>) and the node finds no slot.</para>
+    /// </summary>
+    [Fact]
+    public void S5b_AStatefulChildAtTwoSites_KeepsTwoWorkingStates()
+    {
+        using var world = TestWorldFactory.Create();
+        BlueprintTierTable.RegisterAll(world);
+        var beh = new BehaviorRegistry();
+
+        var cb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(CountInWorkingState));
+        beh.Register(StatefulName, new BehaviorDefinition
+        {
+            Name = StatefulName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile(StatefulName), cb.GetRegistry()),
+            StatefulWorkingSlots = new[] { new StatefulSlotInfo(StatefulSlot, sizeof(int), 0x5B5Bu, typeof(int), "counter") },
+        });
+
+        var hb = new BTreeBuilder<byte, BTreeContext>().Parallel(0, p => p
+            .Subtree(StatefulName, visualId: SiteA)
+            .Subtree(StatefulName, visualId: SiteB));
+        var hostBlob = hb.Compile(HostName);
+        var plan = BTreeHostedSites.PlanFor(hostBlob, HostName);
+        beh.Register(HostId, HostName, new BehaviorDefinition
+        {
+            Name = HostName, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(hostBlob, hb.GetRegistry()) { SubtreeHost = OccurrenceSubtreeHost.Instance },
+            StatefulWorkingSlots = plan.Slots,
+        });
+        BTreeHostedSites.Bind(beh, hostBlob, plan);
+
+        var entity = world.CreateEntity();
+        world.AddComponent(entity, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = entity, BehaviorName = HostName, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(beh).Execute(world, 0.016f);
+
+        var brain = new BrainTickSystem(beh);
+        for (int f = 0; f < 3; f++) { brain.Execute(world, 0.016f); world.Bus.SwapBuffers(); }
+
+        byte* store = OccurrenceStoreAccess.TryGetStore(world, entity, out _);
+        foreach (var site in plan.Entries)
+        {
+            int key = OccurrenceSlots.HostedKeyAt(site.TreeStateSlotKey, StatefulSlot);
+            Assert.True(BlueprintBlackboardPartitions.TryGetSlotOffset(store, key, out int off), "the child's node slot must be provisioned per site");
+            Assert.Equal(3, *(int*)(store + off));
+        }
+    }
 }

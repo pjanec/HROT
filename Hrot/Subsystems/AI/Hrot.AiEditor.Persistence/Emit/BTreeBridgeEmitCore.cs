@@ -830,7 +830,9 @@ public static class BTreeBridgeEmitCore
 
         sb.AppendLine($"{pad}// Resolve this occurrence's WorkingState across every tier, in one call (A2b).");
         sb.AppendLine($"{pad}const int __slotKey = {slotKey};");
-        sb.AppendLine($"{pad}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))");
+        // ⭐ S5b (DESIGN_Unified_Behaviour_Run) — the baked key nested under the occurrence this tree runs as: unchanged at the
+        //   root (OccurrenceKey 0), distinct per site when this tree is a hosted child.
+        sb.AppendLine($"{pad}if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))");
         sb.AppendLine($"{pad}{{");
         sb.AppendLine($"{pad}{Indent}global::System.Diagnostics.Debug.Assert(false,");
         sb.AppendLine($"{pad}{Indent}{Indent}global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)");

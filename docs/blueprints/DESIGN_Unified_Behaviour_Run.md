@@ -265,7 +265,7 @@ at run time, not only nested run-slot keys.
 | sub-slice | delivers | key facts |
 |---|---|---|
 | **S5a** ✅ BUILT (CE-513 (behaviors)) any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
-| **S5b** 🟡 run slots BUILT (CE-2000); action slots next — recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
+| **S5b** ✅ BUILT for BTree children (CE-2000); HSM/inline residue CE-2002 — recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
 | **S5c** cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
 | **S5d** blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; the non-blocking host is S7's Behaviour Task node |
 
@@ -301,8 +301,24 @@ derived from the path, so the two never meet. Depth 1 is unchanged (the root fol
 | 🔴 **a defect that predated this work, found by the rail:** `BTreeHostedSites` keyed its site table by `blob.StructureHash`, which hashes node TYPES and child COUNTS only. Two trees of one shape (a host `Sequence(Subtree)` and its child `Sequence(Subtree)`) shared ONE map, and the last `Bind` won, so the child's site looked up the HOST's key. ⇒ keyed by the blob INSTANCE now (the interpreter hands the host its own blob; every registrar binds that instance). `HsmHostedSubtrees` got the same instance-keyed table for the runtime | `BTreeHostedSites.cs`, `HsmHostedSubtrees.cs`, `HsmRunner` |
 | rails `HostingMatrixTests.S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences` (red-proved by making `HostedKeyAt` ignore its parent) and `S5b_ResettingAChild_ResetsItsGrandchildToo` (it failed on the site-table collision before the fix) | |
 
-⚠ **Still open in S5b:** a hosted child's ACTION working-state slots are keyed at emit time (asset + node) and are not
-yet nested — step 2 makes the generated thunks resolve through the context's occurrence key. And the HSM `StructureHash`
+#### S5b step 2 as-built — a hosted child's OWN working state *(`2026-10-02`, CE-2000)*
+
+| piece | where |
+|---|---|
+| `BTreeContext.OccurrenceKey` (public) | `BTreeContext.cs` |
+| the generated stateful BTree thunk resolves `OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey)` (unchanged at the root) | `BTreeBridgeEmitCore.AppendWorkingStateResolve` |
+| the blueprint AiPrimitive standalone thunk does the same with its per-asset key | `AiPrimitiveEmitter.EmitStandaloneOccurrenceBody` |
+| `EffectiveSlots` provisions a hosted child's own working-state slots under the child's occurrence key | `HostedSubtree.AppendNested` |
+| ingress sizes the store for every hosted descendant's lazily-attached occurrences too (one per occurrence) | `BehaviorIngressSystem.WithDescendantDemand`, `HostedSubtree.HostedDescendants` |
+| rail `HostingMatrixTests.S5b_AStatefulChildAtTwoSites_KeepsTwoWorkingStates`, red-proved by not provisioning the child's slots. 🔴 Measured before: a hosted child's own stateful node found NO slot and returned `Failure` (only the root manifest was provisioned) | |
+
+⚠ **Deviation, argued:** a hosted child's working-state slots are NOT cleared at its START. Root working state survives
+a same-behaviour re-assign (`AttachSlotsToMemory`'s idempotent arm) and the generated thunk initialises only a FRESHLY
+attached slot, so zeroing would hand it a zero struct where it expects its defaults. ⇒ the same rule as the root.
+
+⚠ **Still open (CE-2002):** an HSM child's lazily-attached occurrences key by machine + region + state
+(`HsmOccurrence.KeyFor`), and an inline action in a blueprint behaviour keys by asset with no context. Neither is nested
+yet, so the same HSM or blueprint child at two sites shares those. And the HSM `StructureHash`
 is topology-only too, so two same-shape machines share a `MachineId` everywhere it is used (param bindings, occurrence
 keys, kernel validation) — filed as **CE-2001**, wider than hosting.
 

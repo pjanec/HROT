@@ -129,7 +129,13 @@ public static unsafe class HostedSubtree
         for (int i = 0; i < slots.Count; i++)
         {
             var c = slots[i];
-            if (!IsTreeStateSlot(c)) continue;
+            if (!IsTreeStateSlot(c))
+            {
+                // ⭐ S5b step 2 — the hosted child's OWN working-state slots (its stateful nodes), under the child's
+                //   occurrence key: its generated thunks resolve HostedKeyAt(ctx.OccurrenceKey, key), so each site gets its own.
+                (nested ??= new List<StatefulSlotInfo>()).Add(c with { SlotKey = OccurrenceSlots.HostedKeyAt(parentKey, c.SlotKey) });
+                continue;
+            }
             if (depth >= MaxNestingDepth)
                 throw new InvalidOperationException(
                     $"S5b: behaviour '{def!.Name}' hosts children more than {MaxNestingDepth} levels deep — a hosting cycle. " +
@@ -139,6 +145,29 @@ public static unsafe class HostedSubtree
             int actual = OccurrenceSlots.HostedKeyAt(parentKey, c.SlotKey);
             (nested ??= new List<StatefulSlotInfo>()).Add(Sized(c, actual, gc));
             AppendNested(ref nested, actual, gc, depth + 1);
+        }
+    }
+
+    /// <summary>
+    /// ⭐ S5b — every hosted child definition under <paramref name="slots"/>, at every depth, ONE ENTRY PER OCCURRENCE (so a
+    /// child at two sites appears twice). Ingress sizes the store from it: a child's lazily-attached occurrences cannot grow
+    /// the store mid-tick, so their demand is counted up front. ⚠ Ingress-only — it allocates.
+    /// </summary>
+    public static List<BehaviorDefinition> HostedDescendants(IReadOnlyList<StatefulSlotInfo>? slots)
+    {
+        var found = new List<BehaviorDefinition>();
+        Collect(found, slots, 0);
+        return found;
+
+        static void Collect(List<BehaviorDefinition> found, IReadOnlyList<StatefulSlotInfo>? slots, int depth)
+        {
+            if (slots is null || depth >= MaxNestingDepth) return;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (!IsTreeStateSlot(slots[i]) || !HostedChildren.TryGetDefinition(slots[i].SlotKey, out var child)) continue;
+                found.Add(child);
+                Collect(found, child.StatefulWorkingSlots, depth + 1);
+            }
         }
     }
 

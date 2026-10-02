@@ -324,6 +324,7 @@ namespace Fdp.Toolkit.Behavior.Systems
                 // O7b-3: the behaviour's HOSTED occurrences need room in the same tier.
                 // CE-302: and so does the ROOT PARAMS slot attached a few lines below.
                 _registry.TryGetHostedOccurrenceDemand(behaviorName, out var hosted);
+                hosted = WithDescendantDemand(hosted, def);   // ⭐ S5b — hosted children's lazy occurrences need room too
                 // ⭐ CE-431: hosted child slots sized from the CHILD's definition — known only now.
                 ProvisionStatefulSlots(repo, entity, effectiveSlots!, KindOf(def),
                                        hosted, RootParamsCost(def), RootBrainStateCost(def));
@@ -456,6 +457,25 @@ namespace Fdp.Toolkit.Behavior.Systems
         }
 
         private EntityRepository? _startRecordRegisteredOn;
+
+        /// <summary>
+        /// ⭐ S5b — the root's own lazy-occurrence demand PLUS every hosted descendant's (one per occurrence). ⛔ Nothing can
+        /// grow the store mid-tick, so a hosted HSM child whose states attach occurrences lazily must be counted HERE.
+        /// Returns the input unchanged when nothing is hosted.
+        /// </summary>
+        private HostedOccurrenceDemand? WithDescendantDemand(HostedOccurrenceDemand? own, BehaviorDefinition def)
+        {
+            var children = HostedSubtree.HostedDescendants(def.StatefulWorkingSlots);
+            if (children.Count == 0) return own;
+            int bytes = own?.PayloadBytes ?? 0, count = own?.SlotCount ?? 0;
+            bool any = own is not null;
+            foreach (var child in children)
+            {
+                if (!_registry.TryGetHostedOccurrenceDemand(child.Name, out var d) || d is null) continue;
+                bytes += d.PayloadBytes; count += d.SlotCount; any = true;
+            }
+            return any ? new HostedOccurrenceDemand(bytes, count) : null;
+        }
 
         /// <summary>Entities started BY NAME in the current <c>Execute</c> → the behaviour started (<c>CE-451</c>).</summary>
         private readonly Dictionary<int, int> _startedByNameThisFrame = new();
