@@ -1,9 +1,9 @@
 <!--STATUS
 state: LIVE
-updated: 2026-09-30 (§5 — runtime half built; lean A re-opened by measurement)
+updated: 2026-10-02 (§5.14 — one block-shape rule for all tiers, PROPOSED, awaiting the user)
 build-state: BUILDING (compiler + runtime built 2026-09-30, §5.9) — ✅ APPROVED by the user 2026-09-30, verbatim: "blueprint behavior also looks good!" — leans
   A–E adopted as written.
-current-answer: §3 (the decisions, each with a lean) and §4 (the UML). §1 is the inventory, §2 the claim table.
+current-answer: §3 (the decisions, each with a lean) and §4 (the UML); §5.14 is the open block-shape proposal. §1 is the inventory, §2 the claim table.
 stale-below: nothing.
 known-rot: ⚠ §3 A ("reuses the Instance emitter's tick") and §3 C ("[Cursor][Params][State], the Instance payload
   shape") are OVERTAKEN by measurement — see §5. §5.2 (hosting) was approved and is then OVERTAKEN by §5.6 (approved 2026-09-30); §5.3's first row is SUPERSEDED — the block is freed AT FINISH.
@@ -413,3 +413,96 @@ Filed as `CE-452` and replaced.
 | the technology shown as a label | ✅ `CE-462` (UI lane, `2026-09-30`): `BehaviorChoice(Name, Technology)` + `IMissionEditorService.GetAvailableBehaviorChoices`, shown in the assignment picker and the HSM action/guard combos. ⛔ SUPERSEDED: *"not built — returns bare names"* |
 | New Behaviour / Action / Condition with a technology choice (additive to New Asset) | ✅ `CE-460` + `CE-461` (UI lane, `2026-09-30`): File / New Behaviour… · New Action… · New Condition…, product first, technology second, plus the blueprint Behavior / Action / Condition blank templates. 📄 [`DESIGN_Product_First_Authoring.md`](DESIGN_Product_First_Authoring.md). Still open: C# as a technology (`CE-459`, design slice) and the stale method name (`CE-457`) |
 | the editor panels agree with the compiler about a behaviour | ✅ `CE-496` (`2026-10-01`): the Return-node panel shows Status for the behaviour's `Tick` (Outputs for its helper functions) by calling `BehaviorDispatch.IsTickGraph` — the rule Stage 5 uses; the EQS-spawn panel's dispatch guard mirrors `BP2030` |
+
+### 5.14 ⚖️ PROPOSED `2026-10-02` — ONE block-shape rule for all three tiers *(build-state: DESIGN — awaiting the user)*
+
+> **Why.** A running behaviour owns one root block (`R-151`), but it has two shapes. BTree and HSM use
+> `{Asset}_Block { In; St }`: the `Role=Input` part is a **prefix at offset 0**, described by a manifest
+> (`ManagedBlackboardVariables`) and an authored type (`JsonParamsDtoType`). A blueprint behaviour uses
+> `[Cursor 16][Params N][State M]` (§3 C) and declares **neither**. Every consumer that asks "where are the inputs?"
+> goes through the manifest seam, so for a blueprint it gets nothing or the wrong answer.
+
+**INVENTORY** (`2026-10-02`; codebase-memory `search_graph` for `.*ParamsOffset.*`, `.*CursorSize.*`,
+`.*BlockStructName.*`, plus grep of every `.JsonParamsDtoType` / `.ManagedBlackboardVariables` reader outside tests:
+**8 files**):
+
+| consumer | reads | blueprint behaviour today |
+|---|---|---|
+| `LiveBlackboardValueProvider.cs:85` (editor watch) | manifest, non-empty | ⛔ returns nothing ⇒ **watch is blind** |
+| `DtoJsonSchemaExtractor.cs:91-101` (`GET /behaviors` `paramSchema`, MX4a) | `JsonParamsDtoType`, else manifest | ⛔ **empty schema** |
+| `RootParamsProjection.cs:61-79` (inspector) | manifest arm, else the whole layout type | ⚠ renders the whole `State` including the **Cursor** as "Behaviour parameters" |
+| `RootParamsAccess.InputBytes:318` · `BehaviorRegistry.cs:699` | manifest extent = "the Input prefix" | ⚠ no manifest ⇒ the whole `State` counts as input |
+| `RootParamsAccess.RootParamsBytes:271` | `max(manifest, sizeof(layout))` | ✅ unaffected |
+| `BehaviorSchemaDiscovery`, `MoveToLocationParamsJsonDto` | curated `[BehaviorContract]` | n/a |
+| `BrainTickSystem.TickBlueprint` · `BlueprintDebugSession:683` (cursor capture) | tier branch | inherent: brain state differs per tier |
+| hosting (`HostedChildren.cs:121`) | BTree interpreter only | n/a — a blueprint behaviour can neither host nor be hosted |
+
+Shipped blueprint behaviours: **2** (`BlueprintBehaviourDemo` with a `Delay`, so it needs the cursor;
+`PlatoonHillAttackBp` with no latent node). Instance assets (296+) are not behaviours and are untouched.
+
+**CLAIM TABLE**
+
+| the lean rests on | code: how it IS | design: how it was MEANT |
+|---|---|---|
+| generated code reaches the cursor only by name | ✅ `StatementEmitter.cs:809-860` (`s.Cursor.*`), `InstanceEmitter.cs:142` | ✅ §3 C: "the cursor is lifecycle state", no offset named |
+| the Input part is a prefix at 0 for BTree/HSM, and consumers rely on it | ✅ `RootParamsAccess.InputBytes:318`, `BehaviorRegistry.cs:699` | ✅ `Q76` §4-`B` (`:895`): *"the Input region is a contiguous prefix by construction"* |
+| a blueprint's Params ARE its authored input (one struct) | ✅ `InstanceEmitter` `BehaviorParseParams` | ✅ §5.11: *"Parameters are ONE struct — the authored input AND the block's `Params`"* |
+| nothing at runtime reads a behaviour block's cursor at offset 0 | ✅ `TickBlueprint` passes `ref byte` to the generated tick; debugger reads the `Cursor` field by type (`BlueprintDebugSession.cs:678-717`) | ⛔ searched `docs/`+`.dev/`, none found |
+| no recorded intent to merge the two shapes | — | ⛔ searched `docs/`+`.dev/` ("one block shape", "In; St", "[Cursor][Params][State]"): none. `Q33:215` unifies Instance vs composition, not tiers |
+
+```mermaid
+classDiagram
+  class BlockShapeRule {
+    <<the ONE rule, all tiers>>
+    Input prefix at offset 0
+    then everything else
+  }
+  class BTreeHsmBlock { <<EXISTS>> In @0 ; St }
+  class BlueprintBehaviorState {
+    <<generated State, CHANGED>>
+    Params @0
+    Cursor @N
+    Variables ; graph-locals
+  }
+  class BehaviorDefinition {
+    <<EXISTS>>
+    BlackboardLayoutType
+    JsonParamsDtoType  NEW for blueprint
+    ManagedBlackboardVariables  NEW for blueprint
+  }
+  class FieldLayout { <<EXISTS, widened>> +ParamsStructBase(asset) 0 for Behavior }
+  class CSharpEmitter { <<EXISTS, widened>> +EmitBehaviorRegistration() }
+  BTreeHsmBlock ..|> BlockShapeRule
+  BlueprintBehaviorState ..|> BlockShapeRule
+  FieldLayout --> BlueprintBehaviorState : lays out
+  CSharpEmitter --> BehaviorDefinition : registers, now WITH the manifest
+```
+*What the picture shows that prose hid:* nothing new is invented. The blueprint adopts the BTree/HSM seam (manifest +
+authored type) and moves its Params to where that seam's contract already says inputs live. The cursor stays in the
+block (§3 C). Only its position changes, from first to after the inputs.
+
+```mermaid
+sequenceDiagram
+  participant W as watch / inspector / GET /behaviors
+  participant D as BehaviorDefinition
+  participant R as RootParamsAccess
+  W->>D: ManagedBlackboardVariables / JsonParamsDtoType
+  Note over W,D: today, blueprint: null, so blind / empty / whole State
+  D-->>W: Params fields at their block offsets (prefix @0)
+  W->>R: TryCopyRootParams(entity)
+  R-->>W: block bytes, read at manifest offsets, same as a BTree
+```
+
+| # | decision | lean | rejected |
+|---|---|---|---|
+| BS-1 | where the blueprint behaviour's Params sit | ⭐ **offset 0, cursor after them**: `[Params N][Cursor 16][Variables][locals]`, `Behavior` dispatch only (`FieldLayout.ParamsStructBase`). Then "Input is the prefix at 0" holds for every tier | **cursor out of the block** into a root-state slot (`R-151` literally): reverses §3 C, which the user approved after `R-151`, and adds a fourth slot kind for a fixed 16 bytes · **keep the layout and emit the manifest at +16**: `InputBytes` would count the cursor as input |
+| BS-2 | the blueprint registrar's description | ⭐ emit `JsonParamsDtoType = Params` (when declared) and `ManagedBlackboardVariables` = one entry per Parameter at its block offset; **empty manifest** when there are none (the BTree rule for "no `Role=Input`") | a tier branch in each of the 4 consumers: 4 copies of the rule |
+| BS-3 | stale text | ⭐ fix `BrainTickSystem.cs:381` and `BlueprintBehaviorTickDelegate.cs:12` (both say `[In][St]` for a blueprint), and §5.8/§5.9's shape prose to as-built | — |
+| BS-4 | what stays different on purpose | ⭐ brain state: BTree cursor / HSM instance outside the block, blueprint cursor inside (§3 C). Its readers already branch on tier, and must, because the brain-state types differ | — |
+
+**Blast radius:** compiler only (`FieldLayout`, `InstanceEmitter` cursor `FieldOffset`, `CSharpEmitter.EmitBehaviorRegistration`),
+gated on `Dispatch == Behavior`. Two assets' `StructureHash` change ⇒ a running one restarts once on hot reload (`CE-452`).
+Goldens: 2 assets. No runtime change.
+**Rails:** blueprint-behaviour `InputBytes == sizeof(Params)`; the watch provider returns the Params of a running blueprint
+behaviour; `paramSchema` non-empty; the latent demo still waits and finishes. Red-proof: emit Params at 16 ⇒ the
+`InputBytes` rail fails.
