@@ -36,7 +36,7 @@ namespace Hrot.Map.Common.Replication.Ingress
     /// async loop (<c>SenderRegistry.MonitorIdentitiesAsync</c>, a thread-pool continuation). Under thread-pool starvation
     /// an identity that has ARRIVED is not yet LOOKED UP, so a sample delivered in that window has no sender — measured:
     /// once in four full <c>Hrot.IG.Tests</c> runs, and in a starved-pool probe. Such a ghost keeps -1 and is resolved by
-    /// its writer's handle on a later poll. ⭐ Remove the retry once the library drains pending identities on a miss.
+    /// its writer's handle on a later poll. ⭐ Remove the retry once the library drains pending identities on a miss (CE-3000).
     /// A KNOWN owner is never overwritten here: a master move reaches every node as an <c>OwnershipUpdate</c> through
     /// <c>OwnershipApplier</c>, and an old writer's late sample must not flip it back.
     ///

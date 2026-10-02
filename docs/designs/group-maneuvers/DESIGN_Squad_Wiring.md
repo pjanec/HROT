@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILT (W1–W4, 2026-10-02); D2/D3/D5 open as CE-519, awaiting the user's decision (§5)
+build-state: BUILT (W1–W4, 2026-10-02); D2/D3/D5 open as CE-507 (behaviors), awaiting the user's decision (§5)
 current-answer: §2 (diagrams) and §5 (decisions)
 stale-below: none
 known-rot: Squad_Coordination_Design_v1_1.md and Hrot.SquadCoordination.md describe the layer as "fully implemented" — true of the code, never of its use (§1)

@@ -26,25 +26,14 @@ cd "$(dirname "$0")/.." || exit 0
 LEDGER=docs/blueprints/RULINGS.md
 
 # ── Which lane is this? ───────────────────────────────────────────────────────
-# The canon helps BOTH sessions. The written BRIEF is a coordinator obligation:
-# it exists so the user can check that the coordinator re-learned the design
-# after a compaction. An implementation session's first move is the rule-1b
-# started-marker, not a brief -- and on 2026-08-18 one of them dutifully wrote a
-# brief instead of starting Batch 84, because this hook did not distinguish.
-#
-# 2026-09-19 (user): lanes now run on STABLE, proper-named branches instead of the
-# harness's random-postfixed defaults -- the coordinator lane is 'coordinator'. This
-# ends the churn that had this line rewritten twice (it was "...-gm0akp", then
-# "...-6sr5ld"; each was correct for one session and stale the next). The harness may
-# append a postfix to a fresh session's branch, so match the bare name and any
-# "-<postfix>" / "<prefix>/" variant. HROT_LANE=coordinator forces the brief on any
-# branch (transition aid, and for a session that owns both roles on its own branch).
+# 2026-10-02 (user): lanes are PEERS -- "every lane can be a coordinator", and "keep
+# design brief, but per lane". The brief used to be printed only on the branch named
+# 'coordinator' and every other lane was told to skip it; now EVERY lane writes it,
+# scoped to its own work (its own resume doc, its own in-flight batch).
+# The harness may append a postfix to a session's branch, so the LANE is the branch
+# name with any "<prefix>/" and trailing "-<postfix>" removed. HROT_LANE overrides it.
 CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo unknown)"
-IS_COORDINATOR=0
-case "$CURRENT_BRANCH" in
-  coordinator|coordinator-*|*/coordinator|*/coordinator-*) IS_COORDINATOR=1 ;;
-esac
-[ "${HROT_LANE:-}" = "coordinator" ] && IS_COORDINATOR=1
+LANE="${HROT_LANE:-${CURRENT_BRANCH##*/}}"
 
 # ══ ACTION BLOCK -- FIRST, SMALL, SURVIVES TRUNCATION ═════════════════════════
 # These five are the ones measured to decay across compaction. Everything below
@@ -174,21 +163,8 @@ python3 scripts/rulings-check.py 2>/dev/null | tail -3
 # test is JOINING these to the work in hand, which is the exact step that failed
 # on 2026-08-17 (four times, each with the ruling sitting unread in the corpus).
 echo
-if [ "$IS_COORDINATOR" != "1" ]; then
-  echo "=============================================================="
-  echo " IMPLEMENTATION LANE -- do NOT write a design brief"
-  echo "=============================================================="
-  echo "Branch: $CURRENT_BRANCH (the coordinator lane runs on 'coordinator'; set"
-  echo "HROT_LANE=coordinator to force the brief on a branch that owns both roles)."
-  echo
-  echo "The canon above is context, not an assignment. The written DESIGN BRIEF"
-  echo "is a COORDINATOR obligation. Your first move is your handoff's: rule 7"
-  echo "(merge the coordinator branch), then rule 1b (push 'chore: started batch"
-  echo "N at <sha>'), then build. If a document above contradicts your handoff:"
-  echo "STOP AND REPORT -- do not adapt, do not revert; your scope is frozen at"
-  echo "the dispatch sha."
-  exit 0
-fi
+echo "Lane: $LANE (branch $CURRENT_BRANCH) -- the brief is PER LANE: 'in flight' is THIS lane's"
+echo "work, read from this lane's resume doc (docs/blueprints/RESUME_*.md), never another lane's."
 echo "=============================================================="
 echo " REQUIRED: your FIRST reply this session OPENS with this block"
 echo "=============================================================="
@@ -197,7 +173,7 @@ echo "/compact ends without an assistant turn, so this can only land on the next
 echo "thing the user types -- it is a HEADER on your reply, never a replacement."
 echo
 cat <<'FMT'
-DESIGN BRIEF (post-compaction)
+DESIGN BRIEF (post-compaction) -- lane: <lane>
   ledger      : <N rulings, N/N probes verifying, staleness warnings on <files or none>>
   in flight   : <batch + the sha its scope is frozen at, or "nothing">
   constrains  : <ruling ids that BIND what I am about to do, one line each>
