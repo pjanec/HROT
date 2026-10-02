@@ -169,6 +169,94 @@ public class EntityMasterTranslatorTests
         Assert.Null(exception);
     }
 
+    // ── CE-517 — the primary owner is the sample's writer ─────────────────────
+
+    private const int WriterNode = 5;
+
+    [Fact]
+    public void ProcessSample_NewEntity_RecordsTheWriterAsThePrimaryOwner()
+    {
+        var (repo, _, _, translator) = CreateFixture();
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var cmd = new RecordingCommandBuffer();
+
+        translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
+
+        Assert.Equal(WriterNode, cmd.LastNetworkAuthority!.Value.PrimaryOwnerId);
+        Assert.Equal(1, cmd.LastNetworkAuthority!.Value.LocalNodeId);
+    }
+
+    [Fact]
+    public void ProcessSample_AGhostWhoseOwnerIsUnknown_LearnsItFromTheNextSamplesWriter()
+    {
+        var (repo, entityMap, _, translator) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = -1, LocalNodeId = 1 });
+        entityMap.Register(TestNetworkId, entity);
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var cmd = new RecordingCommandBuffer();
+
+        translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
+
+        Assert.Equal(WriterNode, cmd.LastSetNetworkAuthority!.Value.PrimaryOwnerId);
+    }
+
+    [Fact]
+    public void ProcessSample_AKnownOwner_IsNeverOverwrittenByAnotherWriter()
+    {
+        // A master move reaches every node as an OwnershipUpdate (OwnershipApplier); an old writer's late sample
+        // must not flip the owner back.
+        var (repo, entityMap, _, translator) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        var entity = repo.CreateEntity();
+        repo.AddComponent(entity, new NetworkAuthority { PrimaryOwnerId = 3, LocalNodeId = 1 });
+        entityMap.Register(TestNetworkId, entity);
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+        var cmd = new RecordingCommandBuffer();
+
+        translator.ProcessSample(in master, cmd, repo, writerNodeId: WriterNode);
+
+        Assert.False(cmd.SetComponentCalled);
+    }
+
+    [Fact]
+    public void RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater()
+    {
+        // Measured: a sample written before the identity handshake has no sender on take; its publication handle
+        // resolves a few ms later. The resolver stands in for the sender registry (a live participant cannot force it).
+        const long handle = 7;
+        var (repo, entityMap, _, translator) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        repo.RegisterComponent<TkbIdentity>();
+        int? identity = null;
+        translator.WriterResolverForTests = h => h == handle ? identity : null;
+        var master = new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType };
+
+        using (var cmd = new EntityCommandBuffer())
+        {
+            translator.ProcessSample(in master, cmd, repo, writerNodeId: -1, publicationHandle: handle);
+            cmd.Playback(repo);
+        }
+        Assert.True(entityMap.TryGetEntity(TestNetworkId, out var ghost));
+        Assert.Equal(-1, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
+
+        using (var cmd = new EntityCommandBuffer())                 // identity not here yet: still unknown
+        {
+            translator.RetryUnresolvedOwners(cmd, repo);
+            cmd.Playback(repo);
+        }
+        Assert.Equal(-1, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
+
+        identity = WriterNode;                                       // the handshake arrives
+        using (var cmd = new EntityCommandBuffer())
+        {
+            translator.RetryUnresolvedOwners(cmd, repo);
+            cmd.Playback(repo);
+        }
+        Assert.Equal(WriterNode, repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId);
+    }
+
     private sealed class RecordingCommandBuffer : IEntityCommandBuffer
     {
         public bool AddComponentCalled { get; private set; }
@@ -187,7 +275,13 @@ public class EntityMasterTranslatorTests
                 LastNetworkAuthority = netAuth;
         }
         public void AddEmptyComponent<T>(Entity entity) where T : unmanaged { }
-        public void SetComponent<T>(Entity entity, in T component) where T : unmanaged => SetComponentCalled = true;
+        public void SetComponent<T>(Entity entity, in T component) where T : unmanaged
+        {
+            SetComponentCalled = true;
+            if (component is NetworkAuthority netAuth)
+                LastSetNetworkAuthority = netAuth;
+        }
+        public NetworkAuthority? LastSetNetworkAuthority { get; private set; }
         public void RemoveComponent<T>(Entity entity) where T : unmanaged { }
         public void AddManagedComponent<T>(Entity entity, T? component) where T : class { }
         public void SetManagedComponent<T>(Entity entity, T? component) where T : class { }
@@ -343,5 +437,46 @@ public class EntityMasterTranslatorTests
         Assert.NotNull(senderIdentity);
         // AppInstanceId maps to OwnerId in the application domain.
         Assert.Equal(ownerId, senderIdentity!.Value.AppInstanceId);
+    }
+
+    /// <summary>
+    /// ⭐ CE-517, end to end over DDS: the translator records the ghost's primary owner as the node that wrote its
+    /// <c>EntityMaster</c> (sender identity). Written ONCE, right after the writer's participant starts. ⚠ Whether that
+    /// sample's sender resolves on take or only later depends on timing (measured: both happen) — the late path is
+    /// railed deterministically by <see cref="RetryUnresolvedOwners_AGhostCreatedBeforeItsWritersIdentityArrived_LearnsTheOwnerLater"/>.
+    /// </summary>
+    [Fact]
+    public void PollIngress_RecordsTheEntityMastersWriter_AsTheGhostsPrimaryOwner()
+    {
+        const uint domain  = 171u;
+        const int  ownerId = 42;
+
+        using var receiverParticipant = new DdsParticipant(domain);
+        receiverParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = 99 });
+        var (repo, entityMap, eventBus, _) = CreateFixture();
+        repo.RegisterComponent<NetworkAuthority>();
+        repo.RegisterComponent<TkbIdentity>();
+        repo.RegisterComponent<ReportLifecycleOnActive>();
+        var translator = new EntityMasterIngressTranslator(receiverParticipant, entityMap, localNodeId: 99, eventBus,
+                                                           new GhostCreationSystem(entityMap));
+
+        using var senderParticipant = new DdsParticipant(domain);
+        senderParticipant.EnableSenderTracking(new SenderIdentityConfig { AppDomainId = (int)domain, AppInstanceId = ownerId });
+        using var writer = new DdsWriter<EntityMaster>(senderParticipant);
+        writer.Write(new EntityMaster { EntityId = (int)TestNetworkId, TkbType = TestTkbType });   // once, no re-send
+
+        int owner = int.MinValue;
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (owner != ownerId && DateTime.UtcNow < deadline)
+        {
+            using var cmd = new EntityCommandBuffer();
+            translator.PollIngress(cmd, repo);
+            cmd.Playback(repo);
+            if (entityMap.TryGetEntity(TestNetworkId, out var ghost) && repo.HasComponent<NetworkAuthority>(ghost))
+                owner = repo.GetComponentRO<NetworkAuthority>(ghost).PrimaryOwnerId;
+            Thread.Sleep(20);
+        }
+
+        Assert.Equal(ownerId, owner);
     }
 }

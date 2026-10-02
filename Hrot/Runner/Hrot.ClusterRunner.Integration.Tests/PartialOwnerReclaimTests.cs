@@ -146,8 +146,10 @@ public class PartialOwnerReclaimTests
         Assert.True(((ISimulationView)cgf).HasAuthority(cgfTank, worldPos));              // …and publishes it
         Assert.False(sim.HasAuthority<SimTransform>(simTank));                            // nobody else claims it…
         Assert.False(((ISimulationView)sim).HasAuthority(simTank, worldPos));             // …or publishes it
-        // ⚠ CE-517: a replica does not know the entity's primary owner (EntityMaster carries no owner, so its
-        //   NetworkAuthority.PrimaryOwnerId reads -1) — SimHost records the reclaimed key as -1 ("not me"), not 400.
+        // ⚠ CE-517 is fixed where each node has its own sender-tracked participant (production: the replica learns the
+        //   owner from the EntityMaster's writer — rail EntityMasterTranslatorTests.PollIngress_Records…). THIS harness
+        //   shares ONE untracked participant across its nodes, so no writer resolves to a node here: SimHost records
+        //   the reclaimed key as -1 ("not me"), not CGF's id.
     }
 
     private static string Describe(EntityRepository world, Entity e)
