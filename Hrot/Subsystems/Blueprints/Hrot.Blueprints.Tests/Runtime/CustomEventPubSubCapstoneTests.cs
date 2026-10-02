@@ -307,6 +307,63 @@ public sealed class CustomEventPubSubCapstoneTests
     }
 
     /// <summary>
+    /// ⭐⭐⭐ CE-2017 (<c>DESIGN_Typed_Event_Nodes</c> E6, T-3) — a node in a SHARED tail probes with its AUTHORED id from
+    /// every handler: Ping's run and Pong's run both report the tail's own id (never the clone's), the debug map's
+    /// entries for it name the authored graph, and it is a breakpoint target — so one breakpoint there pauses whichever
+    /// handler runs it, and the canvas lights the node the designer drew.
+    /// <para>✅ Red-proof: skip the Stage 5 debug-identity rewrite and Pong's run reports the clone's id.</para>
+    /// </summary>
+    [Fact]
+    public void ASharedTailNode_ProbesWithItsAuthoredId_FromEveryHandler()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BlueprintAssetBuilder.Instance("SharedTailProbes")
+            .WithVariable("Count", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        var t = new TypedEventGraph();
+        var ping = t.Event(typeof(PingDemoEvent).FullName!);
+        var pong = t.Event(typeof(PongDemoEvent).FullName!);
+        var tail = t.Increment(asset.Variables[0]);
+        t.Then(ping, tail).Then(pong, tail);
+        asset.Graphs.Add(t.Graph);
+        Guid cloneOfTail = Hrot.Blueprints.Core.Compiler.DeterministicIds.FromString($"event-handler:{pong.Id:N}:{tail.Id:N}");
+
+        var compiled = new Hrot.Blueprints.Core.Compiler.BlueprintCompiler().Compile(asset, new Hrot.Blueprints.Core.Compiler.CompileOptions(
+            Mode: Hrot.Blueprints.Core.Compiler.CompilerMode.Debug,
+            NodeRegistry: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInNodeRegistry.Instance,
+            TypeRegistry: Hrot.Blueprints.Core.Compiler.Catalogs.StaticTypeRegistry.Instance,
+            EngineEvents: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance,
+            ChannelCommands: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInChannelCommandCatalog.Instance,
+            WaitPrimitives: Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInWaitPrimitiveCatalog.Instance,
+            SiblingSignatures: System.Array.Empty<Hrot.Blueprints.Core.Compiler.BlueprintSignature>()));
+        Assert.True(compiled.Succeeded);
+        var map = compiled.DebugMap!;
+        Assert.True(map.BreakpointTargets.ContainsKey(tail.Id));
+        Assert.DoesNotContain(map.BreakpointTargets.Keys, k => k == cloneOfTail);
+        var tailEntries = map.Entries.Where(en => en.NodeId == tail.Id).ToList();
+        Assert.True(tailEntries.Count >= 2, "one debug-map entry per handler");
+        // ⚠ Some entries carry an empty GraphId (pre-existing: DebugOf leaves it default at many sites, every graph);
+        //   none may name the derived handler graph, and the named ones are the authored graph.
+        Guid handlerGraph = Hrot.Blueprints.Core.Compiler.DeterministicIds.FromString($"event-handler-graph:{t.Graph.Id:N}:{pong.Id:N}");
+        Assert.DoesNotContain(map.Entries, en => en.GraphId == handlerGraph);
+        Assert.Contains(tailEntries, en => en.GraphId == t.Graph.Id);
+        Assert.DoesNotContain(cloneOfTail.ToString("D"), compiled.GeneratedSource!);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity e = harness.SpawnAndAttach(asset);
+        fixture.World.Bus.Publish(new PongDemoEvent { Target = e, Value = 1 });
+        harness.Pump(1);
+
+        var ids = fixture.DebugSession.GetRecentNodeHistory(500).Select(h => h.NodeIdString).ToList();
+        Assert.Contains(tail.Id.ToString("D"), ids);
+        Assert.DoesNotContain(cloneOfTail.ToString("D"), ids);
+        Assert.Equal(1, harness.ReadIntField(e, asset, "Count"));
+    }
+
+    /// <summary>
     /// Builds the <c>OnPing</c> Event graph with explicit pins/links:
     /// <c>EventEntry.Out(exec) → SetVariable.In</c>, <c>EventEntry.Value(data) → SetVariable.Value(data)</c>,
     /// <c>SetVariable.Out(exec) → Return.In</c>. <c>Graph.Inputs=[Value:int]</c> so Stage5 matches the

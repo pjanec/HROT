@@ -101,7 +101,9 @@ internal static class Stage5_Schedule
             if (graph.Kind == GraphKind.Macro) continue;
 
             var scheduler = new GraphScheduler(graph, typedAsset, ctx);
-            irGraphs.Add(scheduler.Schedule());
+            var irGraph = scheduler.Schedule();
+            // ⭐ CE-2017 (DESIGN_Typed_Event_Nodes E6) — a split handler's debug identities name the AUTHORED nodes.
+            irGraphs.Add(graph.HandlerDebugIds is { } ids ? HandlerDebugIdentity.Apply(irGraph, ids) : irGraph);
         }
 
         var asset = typedAsset.Asset;

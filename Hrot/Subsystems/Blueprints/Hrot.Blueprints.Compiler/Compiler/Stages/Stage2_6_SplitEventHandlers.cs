@@ -14,8 +14,8 @@ namespace Hrot.Blueprints.Core.Compiler.Stages;
 /// A handler is the node's exec chain plus every node it pulls data from. ⭐ A node reached by an EARLIER handler too
 /// (a shared tail, T-3) is CLONED for this one, with ids derived from the original and the handler's event node:
 /// everything keyed by a node id — a When's memory, a Run Behaviour site, a per-node helper — is then that handler's
-/// own, and the clone carries <see cref="Node.OriginNodeId"/> / <see cref="Node.OriginGraphId"/> back to the authored
-/// node, the seam macro expansion already uses for the debugger.
+/// own, and the handler's <see cref="Graph.HandlerDebugIds"/> maps it back to the authored node, which Stage 5 applies
+/// to debug identities only (E6) — so the debugger sees the node the designer drew.
 /// </para>
 ///
 /// <para>
@@ -96,14 +96,11 @@ internal static class Stage2_6_SplitEventHandlers
             var shared = graph.Nodes.Where(n => mine.Contains(n.Id) && reached.Contains(n.Id)).ToList();
             var fragment = GraphFragmentCloner.Clone(shared, Array.Empty<Link>(),
                 id => DeterministicIds.FromString($"event-handler:{entry.Id:N}:{id:N}"));
+            // ⚠ A clone keeps the ORIGINAL's Origin* (a macro back-reference, if any) — its back-reference to the authored
+            //   node is the handler's debug-id map instead (E6), which Stage 5 applies to debug identities only.
             var cloneOf = new Dictionary<Guid, Node>();
             for (int i = 0; i < shared.Count; i++)
-            {
-                var clone = fragment.Nodes[i];
-                clone.OriginNodeId  = shared[i].OriginNodeId  ?? shared[i].Id;
-                clone.OriginGraphId = shared[i].OriginGraphId ?? graph.Id;
-                cloneOf[shared[i].Id] = clone;
-            }
+                cloneOf[shared[i].Id] = fragment.Nodes[i];
             Guid NodeIdOf(Guid id) => fragment.NodeMap.TryGetValue(id, out var c) ? c : id;
             Guid PinIdOf(Guid id)  => fragment.PinMap.TryGetValue(id, out var c) ? c : id;
 
@@ -128,6 +125,12 @@ internal static class Stage2_6_SplitEventHandlers
                 handler.Id   = DeterministicIds.FromString($"event-handler-graph:{graph.Id:N}:{entry.Id:N}");
                 handler.Name = FreshName(graph.Name, k, taken);
             }
+            // ⭐ CE-2017 (E6) — what the debugger must see instead of the clones' and the handler's own ids.
+            var debugIds = new Dictionary<Guid, Guid>();
+            foreach (var kv in fragment.NodeMap) debugIds[kv.Value] = kv.Key;
+            foreach (var kv in fragment.PinMap)  debugIds[kv.Value] = kv.Key;
+            if (handler.Id != graph.Id) debugIds[handler.Id] = graph.Id;
+            handler.HandlerDebugIds = debugIds.Count > 0 ? debugIds : null;
             handler.Inputs = HandlerInputs(graph, entry, links);
             yield return handler;
         }
