@@ -1,0 +1,242 @@
+{
+  "$meta": {
+    "docType": "Hrot.Blueprints",
+    "schemaVersion": 2
+  },
+  "Header": {},
+  "AssetId": "00000503-0000-0000-0000-000000000002",
+  "Name": "HsmResolverDemoResolver",
+  "Dispatch": "Library",
+  "TierHint": "Auto",
+  "IsWorldSingleton": false,
+  "Primitive": null,
+  "ResolverSubject": {
+    "BehaviorName": "HsmResolverDemo",
+    "BlockTypeId": "Hrot.AI.Behaviors.Machines.HsmResolverDemo_Block",
+    "StateVariables": [
+      "Doubled"
+    ]
+  },
+  "Declarations": [
+    {
+      "Kind": "Parameter",
+      "Id": "d5030003-0003-0003-0003-000000000003",
+      "Name": "HalfSpeed",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": "1.5",
+      "Tooltip": "CE-503: the AUTHORED input - what the intent JSON carries. The resolver converts it into block.In.Speed.",
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "d5030001-0001-0001-0001-000000000001",
+      "Name": "Speed",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    },
+    {
+      "Kind": "Variable",
+      "Id": "d5030002-0002-0002-0002-000000000002",
+      "Name": "Doubled",
+      "Type": {
+        "TypeId": "System.Single",
+        "IsArray": false,
+        "GenericArgs": []
+      },
+      "DefaultValueJson": null,
+      "IsEditable": false,
+      "IsExposedOnSpawn": false,
+      "Category": null,
+      "Tooltip": null,
+      "Comment": null
+    }
+  ],
+  "ParameterOrder": null,
+  "WorkingStateOrder": null,
+  "VariableOrder": null,
+  "EventDispatchers": [],
+  "CustomEvents": [],
+  "CallablePeers": [],
+  "Graphs": [
+    {
+      "Id": "10000503-0000-0000-0000-000000000001",
+      "Name": "ResolveHsmDemo",
+      "Kind": "Construction",
+      "Inputs": [],
+      "Outputs": [],
+      "ExecOutputs": [],
+      "ExecInputs": [],
+      "Nodes": [
+        {
+          "kind": "EventEntry",
+          "EventTypeId": "",
+          "Id": "20000503-0000-0000-0000-000000000001",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 200,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "GetAllParameters",
+          "Id": "20000503-0000-0000-0000-000000000002",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 400,
+            "Comment": "CE-443: the authored input (the resolver's Parameters) - parsed from the intent JSON by generated C#"
+          }
+        },
+        {
+          "kind": "Literal",
+          "TypeId": "System.Single",
+          "ValueJson": "2.0f",
+          "Id": "20000503-0000-0000-0000-000000000003",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 60,
+            "Y": 520,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "20000503-0000-0000-0000-000000000004",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 440,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "BinaryOp",
+          "Operator": "Multiply",
+          "Id": "20000503-0000-0000-0000-000000000008",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 380,
+            "Y": 300,
+            "Comment": null
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "d5030001-0001-0001-0001-000000000001",
+          "Id": "20000503-0000-0000-0000-000000000007",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 680,
+            "Y": 80,
+            "Comment": "writes block.In.Speed = HalfSpeed * 2 - nothing is copied onto In for it"
+          }
+        },
+        {
+          "kind": "SetVariable",
+          "VariableId": "d5030002-0002-0002-0002-000000000002",
+          "Id": "20000503-0000-0000-0000-000000000005",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 680,
+            "Y": 200,
+            "Comment": "writes block.St.Doubled = Speed * 2 - the behaviour's STATE half"
+          }
+        },
+        {
+          "kind": "Return",
+          "Status": "Success",
+          "Id": "20000503-0000-0000-0000-000000000006",
+          "Pins": [],
+          "EditorMetadata": {
+            "X": 1000,
+            "Y": 200,
+            "Comment": null
+          }
+        }
+      ],
+      "Links": [
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000001",
+          "FromPinId": "d56614d6-25c1-ec52-9cc7-079014a51653",
+          "ToNodeId": "20000503-0000-0000-0000-000000000007",
+          "ToPinId": "6cd3a4e3-0cd2-dc57-9925-49d74c21e9c6"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000007",
+          "FromPinId": "7754ba3a-3fcb-465b-ab47-74a36c08d974",
+          "ToNodeId": "20000503-0000-0000-0000-000000000005",
+          "ToPinId": "cdac7f7b-d1d4-6151-a4eb-d4e8d85d9cd4"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000005",
+          "FromPinId": "559fe399-88fb-e85e-bea5-7a464bfe6ee3",
+          "ToNodeId": "20000503-0000-0000-0000-000000000006",
+          "ToPinId": "7e6ecc89-1bca-b251-8c14-9da95a971bf9"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000002",
+          "FromPinId": "52694729-e938-a952-b60e-f2b29347476e",
+          "ToNodeId": "20000503-0000-0000-0000-000000000008",
+          "ToPinId": "00da7807-5adf-7658-8e4d-1509c9bcd01d"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000003",
+          "FromPinId": "3c9ab9d9-4803-745c-8733-e460b0f016c1",
+          "ToNodeId": "20000503-0000-0000-0000-000000000008",
+          "ToPinId": "e22892aa-5f9e-d556-8b4b-3d051beb4eb6"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000008",
+          "FromPinId": "506da138-25de-1455-8867-cf336506351e",
+          "ToNodeId": "20000503-0000-0000-0000-000000000007",
+          "ToPinId": "e3295d98-bae9-5f5a-8606-e3685b15db83"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000008",
+          "FromPinId": "506da138-25de-1455-8867-cf336506351e",
+          "ToNodeId": "20000503-0000-0000-0000-000000000004",
+          "ToPinId": "38b977ee-ce6c-bf50-98b9-53d116ff2986"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000003",
+          "FromPinId": "3c9ab9d9-4803-745c-8733-e460b0f016c1",
+          "ToNodeId": "20000503-0000-0000-0000-000000000004",
+          "ToPinId": "3c763ae1-0e98-0259-93b9-baa8af6aabd9"
+        },
+        {
+          "FromNodeId": "20000503-0000-0000-0000-000000000004",
+          "FromPinId": "d3e40b96-7056-a055-90d1-4abf751f187b",
+          "ToNodeId": "20000503-0000-0000-0000-000000000005",
+          "ToPinId": "ec43c60a-16e0-c058-9546-465c9a5c2c8b"
+        }
+      ],
+      "LocalVariables": [],
+      "Comments": [],
+      "EditorMetadata": {
+        "ViewportX": 0,
+        "ViewportY": 0,
+        "ViewportZoom": 0
+      }
+    }
+  ],
+  "EditorMetadata": {
+    "Description": "CE-428/CE-443 - a BEHAVIOUR RESOLVER asset for T40_BehaviorResolverAsset. Its Parameter HalfSpeed is the AUTHORED input (what the intent JSON carries); its Variables mirror the behaviour's block (Speed in block.In, Doubled in block.St). It runs once at start INSTEAD of the default copy: Speed = HalfSpeed * 2, Doubled = Speed * 2.",
+    "Category": "Demo",
+    "Recipe": null
+  }
+}

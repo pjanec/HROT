@@ -357,4 +357,13 @@ public sealed class HsmAssetDto
 
     // ── Blackboard (§5.4) ─────────────────────────────────────────────────────
     public HsmBlackboardBlockDto Blackboard { get; set; } = new();
+
+    /// <summary>
+    /// ⭐ <c>CE-503</c> — the bound blueprint RESOLVER asset (<c>CE-428</c>'s shape ③), or <c>null</c>: the same record a BTree
+    /// binds (<c>BehaviorResolverRefDto</c>). The HSM's block is emitted through <c>HsmBridgeEmitCore.BlackboardOwner</c>, which
+    /// forwards this, so the resolve stage is the BTree's own emission. Omitted when null ⇒ the corpus stays byte-identical.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(
+        Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto? Resolver { get; set; }
 }

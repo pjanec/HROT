@@ -95,4 +95,9 @@ public enum HsmDiagnosticCode
     // wrong behaviour run. ⛔ Exactly the silent TryGetValue miss E6 spent a batch on.
     // 📄 DESIGN_Hsm_Blueprint_Behaviour_Authoring.md §3.2, §9 ③. Hard-error.
     MethodAndBlueprintBothBound,
+
+    // ⭐ CE-503 (CE-434's BTree rule, shared) — a bound resolver asset whose recorded block-shape hash no longer matches
+    // the behaviour's block. ⚠ A WARNING on purpose: the C# compile of the resolver against the generated block is the
+    // backstop (BP1677), this is the ergonomic early notice. 📄 Q76 §12.21.
+    ResolverOutOfDate,
 }

@@ -420,8 +420,8 @@ public static class HsmBridgeEmitCore
 
     /// <summary>
     /// ⭐⭐⭐ <c>CE-416</c> (<c>Q76</c> §12.27) — this HSM as a <b>blackboard owner</b>: a <see cref="BehaviorTreeAssetDto"/>
-    /// carrying ONLY what the shared root-params / struct emitters read — name, asset id, namespace, blackboard (no nodes, no
-    /// resolver: an HSM cannot bind a resolver asset yet). ⭐ The namespace is the HSM's own (<c>Hrot.AI.Behaviors.Machines</c>
+    /// carrying ONLY what the shared root-params / struct emitters read — name, asset id, namespace, blackboard and (⭐ <c>CE-503</c>)
+    /// the bound resolver asset; no nodes. ⭐ The namespace is the HSM's own (<c>Hrot.AI.Behaviors.Machines</c>
     /// by default), so <c>{Asset}_Blackboard</c> / <c>_Block</c> land beside the registrar that names them.
     /// </summary>
     public static BehaviorTreeAssetDto BlackboardOwner(HsmAssetDto dto) => new()
@@ -435,6 +435,9 @@ public static class HsmBridgeEmitCore
             TypeName  = dto.Blackboard?.TypeName ?? string.Empty,
             Variables = dto.Blackboard?.Variables is { } vs ? new List<BlackboardVariableDto>(ToPackable(vs)) : new List<BlackboardVariableDto>(),
         },
+        // ⭐ CE-503 — the bound resolver asset rides the view, so the shared emission's resolve stage (CE-428/443) serves
+        //   the HSM unchanged: bake → the resolver INSTEAD of the default copy, published as ResolveStage + ResolverName.
+        Resolver        = dto.Resolver,
     };
 
     /// <summary>

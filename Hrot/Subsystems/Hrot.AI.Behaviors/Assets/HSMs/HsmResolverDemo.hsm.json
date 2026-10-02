@@ -1,0 +1,101 @@
+{
+  "$meta": {
+    "docType": "Hrot.Hsm",
+    "schemaVersion": 2
+  },
+  "AssetId": "00000503-0000-0000-0000-000000000001",
+  "Name": "HsmResolverDemo",
+  "TargetNamespace": "Hrot.AI.Behaviors.Machines",
+  "BlackboardTypeName": "HsmResolverDemo_Blackboard",
+  "States": [
+    {
+      "StableId": "53000000-0000-0000-0000-000000000000",
+      "Name": "__Root",
+      "ChildStableIds": [
+        "53000000-0000-0000-0000-00000000000a"
+      ],
+      "ParentStableId": null,
+      "IsInitial": false,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 0,
+      "Y": 0,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": null,
+      "IsCollapsed": false,
+      "ColorOverride": null
+    },
+    {
+      "StableId": "53000000-0000-0000-0000-00000000000a",
+      "Name": "Idle",
+      "ChildStableIds": [],
+      "ParentStableId": "53000000-0000-0000-0000-000000000000",
+      "IsInitial": true,
+      "IsHistory": false,
+      "IsDeepHistory": false,
+      "IsParallel": false,
+      "IsFinal": false,
+      "RegionIndex": 0,
+      "DeferredEventNames": [],
+      "X": 100,
+      "Y": 100,
+      "SizeOverrideX": null,
+      "SizeOverrideY": null,
+      "Comment": "CE-503: the one state; the demo is about the block the resolver writes at start, not the machine.",
+      "IsCollapsed": false,
+      "ColorOverride": null
+    }
+  ],
+  "Regions": [],
+  "Transitions": [],
+  "GlobalTransitions": [],
+  "Events": [],
+  "Canvas": {
+    "PanX": 0,
+    "PanY": 0,
+    "Zoom": 1
+  },
+  "Suppressions": {
+    "Conflict": [],
+    "Unused": []
+  },
+  "Blackboard": {
+    "Managed": true,
+    "TypeName": "HsmResolverDemo_Blackboard",
+    "HeavyDtoType": null,
+    "Variables": [
+      {
+        "Name": "Speed",
+        "Type": {
+          "TypeId": "System.Single",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": "3",
+        "Comment": "CE-503: Input. Its default (3) is what the block holds when NO resolver runs; the resolver overwrites it."
+      },
+      {
+        "Name": "Doubled",
+        "Type": {
+          "TypeId": "System.Single",
+          "IsArray": false,
+          "FixedLength": null
+        },
+        "DefaultValueJson": null,
+        "Comment": "CE-503: Role=State at Behavior scope - the block's St half, written only by the resolver.",
+        "Role": "State",
+        "Scope": "Behavior"
+      }
+    ]
+  },
+  "Resolver": {
+    "AssetId": "00000503-0000-0000-0000-000000000002",
+    "Name": "HsmResolverDemoResolver",
+    "ShapeHash": 0
+  }
+}

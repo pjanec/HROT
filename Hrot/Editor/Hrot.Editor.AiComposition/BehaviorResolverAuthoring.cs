@@ -6,6 +6,7 @@ using Hrot.AiEditor.Persistence.Emit;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Core.Compiler;
 using Hrot.BTree.Editor.Model;
+using Hrot.Editor.AiShared;
 
 namespace Hrot.Editor.AiComposition;
 
@@ -106,11 +107,32 @@ public static class BehaviorResolverAuthoring
 
     /// <summary>⭐ Binds <paramref name="resolver"/> to <paramref name="model"/>, recording the current block shape.</summary>
     public static void Bind(BehaviorTreeAsset model, BehaviorTreeAssetDto modelAsDto, BlueprintAsset resolver)
-        => model.Resolver = new BTreeResolverRef(resolver.AssetId, resolver.Name,
+        => model.Resolver = new BehaviorResolverRef(resolver.AssetId, resolver.Name,
                                                  BehaviorResolverShape.Of(modelAsDto).ShapeHash);
 
     /// <summary>Unbinds the resolver.</summary>
     public static void Clear(BehaviorTreeAsset model) => model.Resolver = null;
+
+    // ── ⭐ CE-503 — the HSM. ⭐ Not a second implementation: an HSM presents its block to the shared emitter as a BTree-shaped
+    //   blackboard OWNER (HsmBridgeEmitCore.BlackboardOwner), so the same derivation, the same shape hash and the same
+    //   resolver asset serve it — these overloads only take the view. ─────────────────────────────────────────────────────
+
+    /// <summary>Mints a resolver asset for an HSM behaviour (see <see cref="Create(BehaviorTreeAssetDto, Guid, string?)"/>).</summary>
+    public static BlueprintAsset Create(Hrot.AiEditor.Persistence.Hsm.HsmAssetDto behaviour, Guid assetId, string? name = null)
+        => Create(HsmBridgeEmitCore.BlackboardOwner(behaviour), assetId, name);
+
+    /// <summary>Re-mirrors <paramref name="resolver"/> onto an HSM behaviour's current block.</summary>
+    public static void Rederive(BlueprintAsset resolver, Hrot.AiEditor.Persistence.Hsm.HsmAssetDto behaviour)
+        => Rederive(resolver, HsmBridgeEmitCore.BlackboardOwner(behaviour));
+
+    /// <summary>⭐ Binds <paramref name="resolver"/> to an HSM, recording the current block shape.</summary>
+    public static void Bind(Hrot.Hsm.Editor.Model.HsmAsset model, Hrot.AiEditor.Persistence.Hsm.HsmAssetDto modelAsDto,
+                            BlueprintAsset resolver)
+        => model.Resolver = new BehaviorResolverRef(resolver.AssetId, resolver.Name,
+               BehaviorResolverShape.Of(HsmBridgeEmitCore.BlackboardOwner(modelAsDto)).ShapeHash);
+
+    /// <summary>Unbinds an HSM's resolver.</summary>
+    public static void Clear(Hrot.Hsm.Editor.Model.HsmAsset model) => model.Resolver = null;
 
     private static Graph EmptyConstructionGraph(Guid assetId)
     {

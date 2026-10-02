@@ -200,6 +200,12 @@ public static class HsmAssetMapper
         // Blackboard (§5.4)
         dto.Blackboard = BlackboardToDto(asset);
 
+        // ⭐ CE-503 — the bound resolver asset (the BTree's CE-428 field, now shared). ⚠ Must round-trip: an editor save that
+        //   dropped it would silently unbind the resolver — the defect CE-428 found on the BTree mapper.
+        dto.Resolver = asset.Resolver is { } resolver
+            ? new Hrot.AiEditor.Persistence.BTree.BehaviorResolverRefDto { AssetId = resolver.AssetId, Name = resolver.Name, ShapeHash = resolver.ShapeHash }
+            : null;
+
         return dto;
     }
 
@@ -428,6 +434,7 @@ public static class HsmAssetMapper
         // override with persisted value if it differs.
         // (BlackboardTypeName has a setter)
         asset.BlackboardTypeName = dto.BlackboardTypeName;
+        if (dto.Resolver is { } rr) asset.Resolver = new BehaviorResolverRef(rr.AssetId, rr.Name, rr.ShapeHash);   // ⭐ CE-503
 
         asset.CanvasPanOffset = new Vector2(dto.Canvas.PanX, dto.Canvas.PanY);
         asset.CanvasZoomLevel = dto.Canvas.Zoom;
