@@ -208,6 +208,16 @@ internal static class BTreeMethodCompatibilityValidator
                 ctxTypeName);
         }
 
+        // ⭐⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository): it must be a [SharedAi*] method of that
+        //   form; it binds no variable (an ExpressionTargetField on it is ignored, as for the whole-block shape).
+        if (delegateShape == BTreeDelegateShapeDto.NoParams)
+        {
+            var info = SharedAiMethodResolver.Make(compilation)(methodFqn);
+            return info is { HasParams: false }
+                ? null
+                : $"method '{methodFqn}' takes (Entity, EntityRepository) but is not marked [SharedAiAction]/[SharedAiCondition] (CE-504)";
+        }
+
         // I2/I3: AiPrimitiveTickCore composes a blueprint AiPrimitive as a host node. The bound method
         // is the blueprint's generated TickCore with the signature
         //   (ref Params, ref WorkingState, Fdp.Core.Entity self, Fdp.Core.EntityRepository world, float time)
@@ -435,6 +445,19 @@ internal static class BTreeMethodCompatibilityValidator
             return $"method '{methodFqn}' is not static";
         if (method.DeclaredAccessibility != Accessibility.Public)
             return $"method '{methodFqn}' is not public";
+
+        // ⭐⭐ CE-504 C-2 — the shared stateful form (ref P, ref WS, Entity, EntityRepository): the bridge calls it with ITS
+        //   signature (EmitStatefulActionThunks); the bound variable must BE its params type, as for the plain form.
+        var sharedAi = SharedAiMethodResolver.Make(compilation)(methodFqn);
+        if (sharedAi is { WorkingStateTypeFqn: not null })
+        {
+            string want = sharedAi.ParamTypeId.Replace('+', '.');
+            string have = (targetVar.Type?.TypeId ?? string.Empty).Replace('+', '.');
+            return string.Equals(want, have, StringComparison.Ordinal)
+                ? null
+                : $"[SharedAi] method '{methodFqn}' takes 'ref {sharedAi.ParamTypeId}' but is bound to variable " +
+                  $"'{expressionTargetField}' of type '{targetVar.Type?.TypeId}'; bind a variable of the method's ref type (CE-504)";
+        }
 
         // Return type must be NodeStatus.
         if (nodeStatusSymbol == null)

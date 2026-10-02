@@ -101,4 +101,63 @@ public sealed class CodeBuiltStatefulActionTests
                                   "Condition_IsAreaQueryResolved", "Action_DispatchWaveWithTargets", "Condition_IsWaveCompleted" })
             Assert.True(builder.GetRegistry().TryGetAction($"{fqn}.{m}@0@{stateOffset}", out _), $"{m} bound over the block");
     }
+
+    // ── CE-504 C-4: the shared C# node signature, bound by a curated tree ─────────────────────────────
+
+    private static int _noParamsCalls;
+
+    private static class SharedForms
+    {
+        public static bool Always(Entity self, EntityRepository world) => true;
+
+        public static NodeStatus Bump(ref DemoCounterNodes.DemoCursorParams p, Entity self, EntityRepository world)
+        { p.Limit += 10; return NodeStatus.Success; }
+
+        public static NodeStatus Step(ref DemoCounterNodes.DemoCursorParams p, ref DemoCounterNodes.DemoCursorState ws,
+                                      Entity self, EntityRepository world)
+        { ws.Cursor++; return NodeStatus.Success; }
+
+        public static NodeStatus Count(Entity self, EntityRepository world) { _noParamsCalls++; return NodeStatus.Success; }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-504</c> C-4 — a curated tree binds every shared form with the builder's own verbs: a param-less
+    /// condition, a plain action (writes its params field in place), a stateful action (advances its own state field) and
+    /// a param-less action. 📄 <c>DESIGN_BTree_Node_Call_Shapes.md</c> §4 C-4.
+    /// <para>✅ Red-proof: project the plain form 4 bytes off its field (onto the state) ⇒ the
+    /// Cfg assertion reddens.</para>
+    /// </summary>
+    [Fact]
+    public void CodeBuilt_SharedForms_BindThroughTheBuildersOwnVerbs()
+    {
+        _noParamsCalls = 0;
+        var builder = new BTreeBuilder<CursorBlackboard, BTreeContext>()
+            .Sequence(seq => seq
+                .Condition(SharedForms.Always)
+                .Action(bb => bb.Cfg, SharedForms.Bump)
+                .StatefulAction(bb => bb.Cfg, bb => bb.Other, SharedForms.Step)
+                .Action(SharedForms.Count));
+
+        var bb = Tick(builder, "CodeBuiltSharedForms");
+
+        Assert.Equal(11, bb.Cfg.Limit);       // Tick seeds Limit = 1; the plain form wrote its own field in place
+        Assert.Equal(1, bb.Other.Cursor);     // the stateful form advanced ITS state field …
+        Assert.Equal(0, bb.Shared.Cursor);    // … and no other
+        Assert.Equal(1, _noParamsCalls);
+
+        // ⭐ the keys a JSON asset would use for the same bindings
+        string fqn = typeof(SharedForms).FullName!;
+        int other = (int)Marshal.OffsetOf<CursorBlackboard>(nameof(CursorBlackboard.Other));
+        Assert.True(builder.GetRegistry().TryGetAction($"{fqn}.Bump@0", out _));
+        Assert.True(builder.GetRegistry().TryGetAction($"{fqn}.Step@0@{other}", out _));
+        Assert.True(builder.GetRegistry().TryGetAction($"{fqn}.Count", out _));
+    }
+
+    /// <summary>⛔ A lambda has no stable FQN to key by — refused, rather than registered under a compiler-generated name.</summary>
+    [Fact]
+    public void CodeBuilt_SharedForm_RefusesALambda()
+        => Assert.Throws<ArgumentException>(() =>
+               new BTreeBuilder<CursorBlackboard, BTreeContext>()
+                   .Action((Entity self, EntityRepository world) => NodeStatus.Success));
 }
+

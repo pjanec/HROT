@@ -47,6 +47,10 @@ public static class BTreeCallShapes
                 return BTreeDelegateShapeDto.FourParamFull;                              // the kernel NodeLogicDelegate
             case 4 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], BehaviorTreeState, true) && ps[3].IsRef:
                 return BTreeDelegateShapeDto.ThreeParamReusableStateful;                 // (ref P, ref WS, ref BTS, ref Ctx)
+            case 4 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], Entity, false) && Is(ps[3], EntityRepository, false):
+                return BTreeDelegateShapeDto.ThreeParamReusableStateful;                 // CE-504 shared stateful (ref P, ref WS, Entity, Repo)
+            case 2 when Is(ps[0], Entity, false) && Is(ps[1], EntityRepository, false):
+                return BTreeDelegateShapeDto.NoParams;                                   // CE-504 shared param-less (Entity, Repo): binds no variable
             case 5 when ps[0].IsRef && ps[1].IsRef && Is(ps[2], Entity, false) && Is(ps[3], EntityRepository, false)
                         && !ps[4].IsRef && ps[4].TypeFqn == "System.Single":
                 return BTreeDelegateShapeDto.AiPrimitiveTickCore;                        // TickCore(ref P, ref WS, Entity, Repo, float)

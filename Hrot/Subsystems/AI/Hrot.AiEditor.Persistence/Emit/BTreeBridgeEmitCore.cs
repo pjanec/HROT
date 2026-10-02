@@ -375,7 +375,7 @@ public static class BTreeBridgeEmitCore
             sb.AppendLine($"{pad2}// 2. Register baked-offset action/condition thunks before Interpreter construction.");
             EmitManagedActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
             EmitManagedConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
-            EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
+            EmitStatefulActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields, sharedAi);
             EmitBlueprintActionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
             EmitBlueprintConditionThunks(sb, dto, pad2, bbShort, ctxShort, packedFields);
         }
@@ -388,6 +388,9 @@ public static class BTreeBridgeEmitCore
             // BehaviorRegistry.RegisterAction/RegisterCondition stubs (always Success/true) were
             // never read by any binding path and have been removed.
         }
+
+        // ⭐ CE-504 C-2/C-3 — the shared param-less calls, keyed by bare FQN (the topology's NoParams key).
+        EmitNoParamsThunks(sb, dto, pad2, bbShort, ctxShort, sharedAi);
 
         // HAJSON-B: Register deactivator hooks for every action/condition key that has a
         // paired [BTreeDeactivator]-annotated method.
@@ -625,7 +628,8 @@ public static class BTreeBridgeEmitCore
     private static void EmitStatefulActionThunks(
         StringBuilder sb, BehaviorTreeAssetDto dto,
         string pad2, string bbShort, string ctxShort,
-        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields)
+        IReadOnlyList<BTreeBlackboardPackHelper.PackedField>? packedFields,
+        Func<string, SharedAiMethodInfo?>? sharedAi = null)
     {
         if (packedFields == null) return;
 
@@ -676,8 +680,58 @@ public static class BTreeBridgeEmitCore
             string dtoTypeFqn = DtoTypeToGlobal(dtoTypeId);
             string wsTypeFqn  = DtoTypeToGlobal(wsTypeId);
             string methodRef  = GlobalMethodRef(methodFqn);
+            // ⭐ CE-504 C-2 — the shared stateful form takes (ref P, ref WS, Entity, EntityRepository).
+            var shared = sharedAi?.Invoke(methodFqn);
+            string call = shared is { WorkingStateTypeFqn: not null }
+                ? (shared.ReturnsBool
+                    ? $"({methodRef}(ref dto, ref ws, ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure)"
+                    : $"{methodRef}(ref dto, ref ws, ctx.Self, ctx.World)")
+                : $"{methodRef}(ref dto, ref ws, ref st, ref ctx)";
             AppendReusableStatefulThunk(sb, dto, packedFields, pad2, bbShort, ctxShort, key, dtoTypeFqn, offset, slotKey, wsTypeFqn,
-                $"{methodRef}(ref dto, ref ws, ref st, ref ctx)");
+                call);
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐ <c>CE-504</c> C-2/C-3 — one call per shared PARAM-LESS method <c>(Entity self, EntityRepository world)</c> bound in
+    /// the asset, registered under its bare FQN (the key <c>BTreeEmitCore</c> writes for a <c>NoParams</c> node). A <c>bool</c>
+    /// becomes Success/Failure; a <c>[WritesChannel]</c> method releases its channels on Failure, as the plain form does.
+    /// </summary>
+    private static void EmitNoParamsThunks(
+        StringBuilder sb, BehaviorTreeAssetDto dto, string pad2, string bbShort, string ctxShort,
+        Func<string, SharedAiMethodInfo?>? sharedAi)
+    {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var entries = new List<(string Fqn, bool IsCondition)>();
+        foreach (var node in dto.Nodes)
+        {
+            var (b, shape, isCond) = node switch
+            {
+                BTreeActionNodeDto a    => (a.Action, a.DelegateShape, false),
+                BTreeConditionNodeDto c => (c.Condition, c.DelegateShape, true),
+                _                       => (null, default(BTreeDelegateShapeDto), false),
+            };
+            if (b is null || shape != BTreeDelegateShapeDto.NoParams || string.IsNullOrEmpty(b.MethodFqn)) continue;
+            if (seen.Add((isCond ? "c:" : "a:") + b.MethodFqn)) entries.Add((b.MethodFqn!, isCond));
+        }
+        if (entries.Count == 0) return;
+
+        sb.AppendLine();
+        sb.AppendLine($"{pad2}// CE-504: shared param-less node calls — keyed by bare FQN, no variable.");
+        foreach (var (fqn, isCond) in entries)
+        {
+            var info = sharedAi?.Invoke(fqn);
+            string ind = $"{pad2}{Indent}{Indent}";
+            sb.AppendLine($"{pad2}actionRegistry.{(isCond ? "RegisterCondition" : "Register")}(\"{fqn}\",");
+            sb.AppendLine($"{pad2}{Indent}static (ref {bbShort} bb, ref Fbt.BehaviorTreeState st, ref {ctxShort} ctx, int pi) =>");
+            sb.AppendLine($"{pad2}{Indent}{{");
+            sb.AppendLine(info is { ReturnsBool: true }
+                ? $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure;"
+                : $"{ind}var status = {GlobalMethodRef(fqn)}(ctx.Self, ctx.World);");
+            if (info is { WritesChannels.Count: > 0 })
+                ChannelClearEmit.Emit(sb, info.WritesChannels, ind);
+            sb.AppendLine($"{ind}return status;");
+            sb.AppendLine($"{pad2}{Indent}}});");
         }
     }
 

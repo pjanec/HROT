@@ -928,6 +928,13 @@ public static class BTreeEmitCore
                 "`.Action(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
                 "managed blackboard variable typed as the blueprint's generated Params struct).");
         }
+        else if (node.DelegateShape == BTreeDelegateShapeDto.NoParams)
+        {
+            // ⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository) is not a NodeLogicDelegate method
+            //   group: key it by its bare FQN; the bridge registers the call under the same key.
+            sb.AppendLine($"{pad}{methodPrefix}Action(\"{p.MethodFqn}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
+        }
         else
         {
             sb.AppendLine($"{pad}{methodPrefix}Action({methodRef},");
@@ -1003,6 +1010,13 @@ public static class BTreeEmitCore
                 "or the target variable isn't packed) — refusing to emit an uncompilable method-group " +
                 "`.Condition(TickCore, ...)` bind. Fix the asset in the editor (bind ExpressionTargetField to a " +
                 "managed blackboard variable typed as the blueprint's generated Params struct).");
+        }
+        else if (node.DelegateShape == BTreeDelegateShapeDto.NoParams)
+        {
+            // ⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository) is not a NodeLogicDelegate method
+            //   group: key it by its bare FQN; the bridge registers the call under the same key.
+            sb.AppendLine($"{pad}{methodPrefix}Condition(\"{p.MethodFqn}\",");
+            sb.AppendLine($"{pad}{Indent}{visualId}){term}");
         }
         else
         {

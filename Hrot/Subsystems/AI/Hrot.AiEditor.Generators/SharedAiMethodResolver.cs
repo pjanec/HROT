@@ -43,14 +43,20 @@ internal static class SharedAiMethodResolver
                                      && a.ConstructorArguments[0].Value is int kind) writes.Add(kind);
                         }
                         if (!isAction && !isCondition) continue;
-                        if (m.Parameters.Length == 0 || m.Parameters[0].RefKind != RefKind.Ref) continue;
-                        var p = m.Parameters[0].Type;
+                        // ⭐ CE-504 C-2 — the three shared forms, told apart by the leading ref parameters:
+                        //   (ref P, Entity, Repo) · (ref P, ref WS, Entity, Repo) · (Entity, Repo).
+                        var ps = m.Parameters;
+                        int refs = 0;
+                        while (refs < ps.Length && ps[refs].RefKind == RefKind.Ref) refs++;
+                        if (refs > 2 || ps.Length != refs + 2) continue;
+                        var p = refs > 0 ? ps[0].Type : null;
                         result = new SharedAiMethodInfo(
-                            p.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat),
-                            TypeIdOf(p),
+                            p?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "",
+                            p is null ? "" : TypeIdOf(p),
                             isCondition && !isAction,
                             m.ReturnType.SpecialType == SpecialType.System_Boolean,
-                            writes);
+                            writes,
+                            refs == 2 ? ps[1].Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) : null);
                         break;
                     }
                 }
