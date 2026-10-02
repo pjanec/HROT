@@ -47,7 +47,19 @@ internal sealed class TypedEventGraph
         {
             EventTypeId = fqn,
             Fields = intFields.Select(f => new PublishEventFieldDecl { Name = f, TypeId = "System.Int32" }).ToList(),
-        }, new[] { P("Out", "Out") }.Concat(intFields.Select(f => P(f, "Out", "System.Int32"))).ToArray());
+        }, new[] { P("Out", "Out") }.Concat(intFields.Select(f => P(f, "Out", "System.Int32")))
+              .Append(P("Event", "Out", "global::" + fqn)).ToArray());   // ⭐ CE-2014 — the whole-event pin (T-6)
+
+    /// <summary>Break Struct over <paramref name="fqn"/>: a "Value" struct in, one <c>int</c> out per field.</summary>
+    public BreakStructNode BreakStruct(string fqn, params string[] intFields) => BreakStructOf(fqn, "System.Int32", intFields);
+
+    /// <summary>Break Struct over <paramref name="fqn"/> with every field of <paramref name="typeId"/>.</summary>
+    public BreakStructNode BreakStructOf(string fqn, string typeId, params string[] fields)
+        => Add(new BreakStructNode
+        {
+            StructTypeId = fqn,
+            Fields = fields.Select(f => new StructFieldDecl { Name = f, TypeId = typeId }).ToList(),
+        }, new[] { P("Value", "In", "global::" + fqn) }.Concat(fields.Select(f => P(f, "Out", typeId))).ToArray());
 
     public SetVariableNode Set(VariableDecl variable)
         => Add(new SetVariableNode { VariableId = variable.Id.ToString() },

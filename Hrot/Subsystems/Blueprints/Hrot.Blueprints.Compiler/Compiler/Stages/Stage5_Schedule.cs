@@ -3883,10 +3883,14 @@ internal sealed class GraphScheduler
                 // Try name-match against graph.Inputs first.
                 int argIndex = ordinal;
                 var sourcePin = dataOutPins.Count > ordinal ? dataOutPins[ordinal] : null;
-                if (sourcePin is not null && _graph.Inputs.Count > 0)
+                // ⭐ CE-2014 (T-6) — the whole-event pin reads the reserved whole-event input (Stage2_6 adds it when wired).
+                var matchName = sourcePin is not null && sourcePin.Name == EventPayload.WholeEventPinName(entry)
+                    ? EventPayload.WholeEventInput
+                    : sourcePin?.Name;
+                if (matchName is not null && _graph.Inputs.Count > 0)
                 {
                     int nameMatch = _graph.Inputs.FindIndex(
-                        inp => string.Equals(inp.Name, sourcePin.Name, StringComparison.OrdinalIgnoreCase));
+                        inp => string.Equals(inp.Name, matchName, StringComparison.OrdinalIgnoreCase));
                     if (nameMatch >= 0) argIndex = nameMatch;
                 }
 
@@ -4917,6 +4921,10 @@ internal sealed class GraphScheduler
             IrTypeRef irType;
             if (!_ctx.TypeRegistry.TryResolve(d.Type, out irType))
                 irType = Stage5_Schedule.UnknownType;
+            // ⭐ CE-2014 (T-6) — the whole event is a project struct whose size the reflection-free registry does not know
+            //   (it assumes 4): a fiber record holding it must take the runtime-layout path.
+            if (d.Name == EventPayload.WholeEventInput)
+                irType = irType with { SizeReliable = false };
             result.Add(new IrField
             {
                 Id   = d.Id,

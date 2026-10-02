@@ -349,6 +349,30 @@ public static class EventPayload
     }
 
     /// <summary>
+    /// ⭐ CE-2014 (T-6) — the handler input that carries the WHOLE event struct, read by the node's whole-event pin. A
+    /// reserved name, so it can never collide with a payload field; the thunk passes the event itself for it.
+    /// </summary>
+    public const string WholeEventInput = "__event";
+
+    /// <summary>
+    /// ⭐ CE-2014 (T-6) — the name of <paramref name="node"/>'s whole-event data-out pin, or null when it has none. Only a
+    /// typed node with its own <see cref="EventEntryNode.Fields"/> has one (a legacy graph-carried payload keeps exactly
+    /// its old pins). Named <c>Event</c>, or <c>WholeEvent</c> when a field already is.
+    /// </summary>
+    public static string? WholeEventPinName(EventEntryNode node)
+    {
+        if (!IsTyped(node) || node.Fields is not { } fields) return null;
+        return fields.Any(f => string.Equals(f.Name, "Event", StringComparison.OrdinalIgnoreCase)) ? "WholeEvent" : "Event";
+    }
+
+    /// <summary>
+    /// ⭐ CE-2014 — the whole-event pin's TypeId: a project type, spelled with the <c>global::</c> sentinel the type
+    /// registry accepts for one (the same convention a struct-typed variable uses).
+    /// </summary>
+    public static string WholeEventTypeId(EventEntryNode node)
+        => node.EventTypeId.StartsWith("global::", StringComparison.Ordinal) ? node.EventTypeId : "global::" + node.EventTypeId;
+
+    /// <summary>
     /// ⭐ CE-2012 — the load-time migration (T-1): a bus-event Event graph that keeps its payload on the GRAPH (one
     /// typed event node, no <see cref="EventEntryNode.Fields"/>, not a custom-event body) has it moved onto its node.
     /// The generated code does not change: the handler's inputs are the same names, types and order. Returns whether

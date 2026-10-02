@@ -291,8 +291,12 @@ internal static class NodePinSchema
                           || isMacro)
                          && payload.Count > 0;
 
+        // ⭐ CE-2014 (T-6) — a typed node with its own Fields also projects the WHOLE event (parity: Stage0_Rehydrate).
+        var whole = EventPayload.WholeEventPinName(node);
         if (!isMacro && !wantsData)
-            return ExecOnly("Out");
+            return whole is null
+                ? ExecOnly("Out")
+                : new List<Pin> { MakeExec("Out", "Out"), MakeData(whole, "Out", EventPayload.WholeEventTypeId(node)) };
 
         var pins = isMacro
             ? MacroEntryExecPins(containingGraph)
@@ -306,6 +310,8 @@ internal static class NodePinSchema
                 pins.Add(MakeData(inp.Name, "Out", typeId));
             }
         }
+        if (whole is not null)
+            pins.Add(MakeData(whole, "Out", EventPayload.WholeEventTypeId(node)));
         return pins;
     }
 

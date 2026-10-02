@@ -813,6 +813,47 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.DoesNotContain("__fib_OnEvents1_qCount", src);
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>CE-2014 (T-6) — the WHOLE event survives a wait.</b> Hit's whole-event pin feeds Break Struct AFTER the handler
+    /// waits on its child, so the event struct rides the fiber's saved inputs (a project struct of unknown size: the runtime
+    /// layout path) and is read on resume: <c>Got = 7</c>.
+    /// <para>✅ Red-proof: resume with <c>default</c> saved inputs and <c>Got</c> stays 0 (as S6a's own red-proof).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void E3_TheWholeEvent_IsKeptAcrossAWait_AndSplitOnResume()
+    {
+        const string Host = "E3WholeHost", Child = "E3WholeChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = BlueprintAssetBuilder.Behavior(Host)
+            .WithVariable("Got", typeof(float))
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        string hitFqn = typeof(Runtime.WhenTestHitEvent).FullName!;
+        var t = new Runtime.TypedEventGraph();
+        var hit = t.Event(hitFqn);
+        var run = t.RunBehavior(Child);
+        var brk = t.BreakStructOf(hitFqn, "System.Single", "Damage");
+        var set = t.Set(asset.Variables.Single());
+        t.Then(hit, run).Then(run, set).Data(hit, "Event", brk, "Value").Data(brk, "Damage", set, "Value");
+        asset.Graphs.Add(t.Graph);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var (e, frame) = AssignAndFramer(Host);
+        float Got() => *(float*)(RootParamsAccessRoot(_fixture.World, e) + VarOffset(def!, "Got"));
+
+        _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 7f });
+        _fixture.World.Bus.SwapBuffers();
+        Assert.Null(frame());                       // f1: waits on the child, holding the event
+        Assert.Null(frame());
+        Assert.Null(frame());
+        Assert.Equal(0f, Got());
+        Assert.Null(frame());                       // f4: the child succeeds ⇒ resume ⇒ Break Struct ⇒ Got = 7
+        Assert.Equal(7f, Got());
+    }
+
     /// <summary>⭐ S6b — the policy limits are a blueprint diagnostic (a fixed layout needs a bounded compile-time N).</summary>
     [Theory]
     [CoversDiagnosticCode("BP1681")]

@@ -51,8 +51,28 @@ internal static class Stage2_6_SplitEventHandlers
     {
         if (entry.Fields is null) return graph;
         var copy = graph.WithNodesAndLinks(new List<Node>(graph.Nodes), new List<Link>(graph.Links));
-        copy.Inputs = EventPayload.FieldsOf(graph, entry).ToList();
+        copy.Inputs = HandlerInputs(graph, entry, copy.Links);
         return copy;
+    }
+
+    /// <summary>
+    /// A handler's inputs: the node's payload fields, then — ⭐ CE-2014 (T-6) — the whole event when its pin is wired.
+    /// ⇒ an unwired whole-event pin changes nothing in the generated code.
+    /// </summary>
+    private static List<ParameterDecl> HandlerInputs(Graph graph, EventEntryNode entry, IEnumerable<Link> links)
+    {
+        var inputs = EventPayload.FieldsOf(graph, entry).ToList();
+        var whole = EventPayload.WholeEventPinName(entry);
+        var pin = whole is null ? null
+            : entry.Pins.FirstOrDefault(p => !p.IsExec && p.Direction == "Out" && p.Name == whole);
+        if (pin is not null && links.Any(l => l.FromNodeId == entry.Id && l.FromPinId == pin.Id))
+            inputs.Add(new ParameterDecl
+            {
+                Id   = DeterministicIds.FromString($"event-whole:{entry.Id:N}"),
+                Name = EventPayload.WholeEventInput,
+                Type = new BlueprintTypeRef { TypeId = EventPayload.WholeEventTypeId(entry) },
+            });
+        return inputs;
     }
 
     private static IEnumerable<Graph> Split(
@@ -108,7 +128,7 @@ internal static class Stage2_6_SplitEventHandlers
                 handler.Id   = DeterministicIds.FromString($"event-handler-graph:{graph.Id:N}:{entry.Id:N}");
                 handler.Name = FreshName(graph.Name, k, taken);
             }
-            handler.Inputs = EventPayload.FieldsOf(graph, entry).ToList();
+            handler.Inputs = HandlerInputs(graph, entry, links);
             yield return handler;
         }
 

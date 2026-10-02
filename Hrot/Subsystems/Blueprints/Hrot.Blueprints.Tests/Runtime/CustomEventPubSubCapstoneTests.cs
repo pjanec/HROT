@@ -233,6 +233,46 @@ public sealed class CustomEventPubSubCapstoneTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-2014 (<c>DESIGN_Typed_Event_Nodes</c> E3, T-6) — the event node's WHOLE-EVENT pin carries the event struct;
+    /// Break Struct splits it. Ping's <c>Event</c> → Break Struct → <c>Value</c> → <c>First</c>, and Pong's handler (no
+    /// whole-event wire) still reads its field pin — both in one graph.
+    /// <para>✅ Red-proof: pass <c>__ev.__event</c> instead of <c>__ev</c> for the whole-event input and the generated class
+    /// does not compile; drop the pin's input and it reads the wrong argument.</para>
+    /// </summary>
+    [Fact]
+    public void TheWholeEventPin_CarriesTheEventStruct_AndBreakStructSplitsIt()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BlueprintAssetBuilder.Instance("WholeEventPin")
+            .WithVariable("First", typeof(int), "0")
+            .WithVariable("Second", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        string pingFqn = typeof(PingDemoEvent).FullName!;
+        var t = new TypedEventGraph();
+        var ping = t.Event(pingFqn, "Value");
+        var pong = t.Event(typeof(PongDemoEvent).FullName!, "Value");
+        var brk = t.BreakStruct(pingFqn, "Value");
+        var setFirst = t.Set(asset.Variables[0]);
+        var setSecond = t.Set(asset.Variables[1]);
+        t.Then(ping, setFirst).Data(ping, "Event", brk, "Value").Data(brk, "Value", setFirst, "Value");
+        t.Then(pong, setSecond).Data(pong, "Value", setSecond, "Value");
+        asset.Graphs.Add(t.Graph);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity e = harness.SpawnAndAttach(asset);
+
+        fixture.World.Bus.Publish(new PingDemoEvent { Target = e, Value = 42 });
+        fixture.World.Bus.Publish(new PongDemoEvent { Target = e, Value = 7 });
+        harness.Pump(1);
+
+        Assert.Equal(42, harness.ReadIntField(e, asset, "First"));
+        Assert.Equal(7, harness.ReadIntField(e, asset, "Second"));
+    }
+
+    /// <summary>
     /// Builds the <c>OnPing</c> Event graph with explicit pins/links:
     /// <c>EventEntry.Out(exec) → SetVariable.In</c>, <c>EventEntry.Value(data) → SetVariable.Value(data)</c>,
     /// <c>SetVariable.Out(exec) → Return.In</c>. <c>Graph.Inputs=[Value:int]</c> so Stage5 matches the

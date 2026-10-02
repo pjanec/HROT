@@ -282,7 +282,13 @@ internal static class Stage0_Rehydrate
         bool wantsData = (graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Event || isMacro)
                          && payload.Count > 0;
 
-        if (!isMacro && !wantsData) return;
+        if (!isMacro && !wantsData)
+        {
+            // ⭐ CE-2014 — a typed node with no fields still has its whole-event pin.
+            if (EventPayload.WholeEventPinName(node) is { } wholeOnly)
+                pins.Add(MakePin(wholeOnly, "Out", isExec: false, typeId: EventPayload.WholeEventTypeId(node)));
+            return;
+        }
         if (isMacro && !wantsData && graph.ExecInputs.Count == 0) return;   // nothing to change
 
         // Ensure we have the exec-Out from static; then add data-Out pins.
@@ -305,6 +311,9 @@ internal static class Stage0_Rehydrate
             var inpTypeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "Out", isExec: false, typeId: inpTypeId));
         }
+        // ⭐ CE-2014 (T-6) — the whole event, beside its fields (split it with Break Struct). Parity: NodePinSchema.
+        if (EventPayload.WholeEventPinName(node) is { } whole)
+            pins.Add(MakePin(whole, "Out", isExec: false, typeId: EventPayload.WholeEventTypeId(node)));
     }
 
     /// <summary>
