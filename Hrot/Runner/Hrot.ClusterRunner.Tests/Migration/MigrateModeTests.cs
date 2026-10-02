@@ -35,6 +35,18 @@ public sealed class MigrateModeTests
   }
 }";
 
+    /// <summary>
+    /// ⭐ CE-518 ⑤ — the CURRENT scenario version, read from the registry rather than written down. ⛔ These
+    /// facts said "current = 2" and went red when the designed v2→v3 step (<c>V2ToV3_RemoveBrainBlackboard</c>)
+    /// landed; asserting against the registry keeps them about the CLI, not about which bump is latest.
+    /// </summary>
+    private static int CurrentScenarioVersion => BuildServices().Registry.GetCurrentVersion("Hrot.Scenario");
+
+    /// <summary>The v2 fixture stamped at the current version — it carries no brain blackboard, so it is a
+    /// valid document at every version from 2 up.</summary>
+    private static string CurrentScenarioJson =>
+        V2ScenarioJson.Replace("\"schemaVersion\": 2", $"\"schemaVersion\": {CurrentScenarioVersion}");
+
     private const string NoMetaJson = @"{ ""data"": { ""value"": 42 } }";
 
     // ── Helpers ───────────────────────────────────────────────────────────
@@ -114,14 +126,13 @@ public sealed class MigrateModeTests
         string dir = CreateTempDir();
         try
         {
-            // Current registered version for Hrot.Scenario is 2.
             string filePath = Path.Combine(dir, "scenario.json");
-            File.WriteAllText(filePath, V2ScenarioJson, Encoding.UTF8);
+            File.WriteAllText(filePath, CurrentScenarioJson, Encoding.UTF8);
             string originalContent = File.ReadAllText(filePath);
 
             var services = BuildServices();
             var output = new StringWriter();
-            // target -1 resolves to current version = 2; file is already v2
+            // target -1 resolves to the current version; the file is already there
             var mode = CreateMode(services, dir, output, targetVersion: -1);
 
             int exitCode = await mode.RunAsync();
@@ -157,11 +168,12 @@ public sealed class MigrateModeTests
 
             string log = output.ToString();
             Assert.Equal(0, exitCode);
-            Assert.Contains("OK (v1 -> v2)", log);
+            // ⚠ The name says "V2"; the target is the CURRENT version (CE-518 ⑤).
+            Assert.Contains($"OK (v1 -> v{CurrentScenarioVersion})", log);
 
-            // Verify the written file has schemaVersion: 2.
+            // Verify the written file carries the current schemaVersion.
             var dom = JsonNode.Parse(File.ReadAllText(filePath))!.AsObject();
-            Assert.Equal(2, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
+            Assert.Equal(CurrentScenarioVersion, dom["$meta"]!["schemaVersion"]!.GetValue<int>());
         }
         finally
         {
@@ -188,7 +200,7 @@ public sealed class MigrateModeTests
 
             string log = output.ToString();
             Assert.Equal(0, exitCode);
-            Assert.Contains("OK (v1 -> v2) [dry-run]", log);
+            Assert.Contains($"OK (v1 -> v{CurrentScenarioVersion}) [dry-run]", log);
 
             // File on disk must still be v1.
             var dom = JsonNode.Parse(File.ReadAllText(filePath))!.AsObject();
@@ -273,9 +285,9 @@ public sealed class MigrateModeTests
         string dir = CreateTempDir();
         try
         {
-            // 1 v1 file (will migrate), 1 v2 file (skipped), 1 no-meta (skipped).
+            // 1 v1 file (will migrate), 1 current file (skipped), 1 no-meta (skipped).
             File.WriteAllText(Path.Combine(dir, "v1.json"), V1ScenarioJson, Encoding.UTF8);
-            File.WriteAllText(Path.Combine(dir, "v2.json"), V2ScenarioJson, Encoding.UTF8);
+            File.WriteAllText(Path.Combine(dir, "current.json"), CurrentScenarioJson, Encoding.UTF8);
             File.WriteAllText(Path.Combine(dir, "no-meta.json"), NoMetaJson, Encoding.UTF8);
 
             var services = BuildServices();

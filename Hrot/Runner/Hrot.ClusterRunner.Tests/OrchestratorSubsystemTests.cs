@@ -160,7 +160,7 @@ public sealed class OrchestratorSubsystemTests
         subsystem.Initialize(new SubsystemConfig { DomainId = TestDomain });
         try
         {
-            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
+            ResumeFromPausedBoot(subsystem);
 
             // Inject PauseTime via the ClusterMaster test hook (simulates what the UI button writes).
             subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
@@ -197,8 +197,8 @@ public sealed class OrchestratorSubsystemTests
 
         try
         {
-            // Verify initial state: not paused (button woud show "Pause").
-            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
+            // Verify the state the button is drawn in: running (it shows "Pause").
+            ResumeFromPausedBoot(subsystem);
 
             // Inject PauseTime via the ClusterMaster test hook (HEXAG2-S008: DDS translator
             // path removed; headless path uses HandleClusterOpRequest like the UI buttons do).
@@ -238,7 +238,7 @@ public sealed class OrchestratorSubsystemTests
         try
         {
             // Not paused — Step button is wrapped in BeginDisabled / EndDisabled.
-            Assert.False(subsystem.UiCacheForTest!.IsPaused, "Expected not paused initially.");
+            ResumeFromPausedBoot(subsystem);
 
             // Inject a StepTime request when not paused (the button is disabled, so this
             // simulates the guard: StepTime should also be processed, but the _isPaused guard
@@ -260,6 +260,26 @@ public sealed class OrchestratorSubsystemTests
         {
             subsystem.Shutdown();
         }
+    }
+
+    /// <summary>
+    /// ⭐ CE-518 ④ — the cluster BOOTS PAUSED (CE-101), so "not paused initially" is no longer true and these
+    /// time-control facts start by resuming. ⛔ The boot state is asserted, not assumed: a regression to a
+    /// running boot reddens here rather than silently making the resume a no-op.
+    /// </summary>
+    private static void ResumeFromPausedBoot(OrchestratorSubsystem subsystem)
+    {
+        Assert.True(subsystem.UiCacheForTest!.IsPaused, "CE-101: the cluster boots paused.");
+        subsystem.TestHook_ClusterMaster!.HandleClusterOpRequest(new ClusterOpRequest
+        {
+            RequestId     = Guid.NewGuid(),
+            OperationType = ClusterOpType.ResumeTime,
+            PayloadJson   = string.Empty,
+        });
+        subsystem.Update(1f / 60f);
+        subsystem.Update(1f / 60f);
+        subsystem.Update(1f / 60f);
+        Assert.False(subsystem.UiCacheForTest!.IsPaused, "After ResumeTime and 3 frames the cluster must be running.");
     }
 
     // ── S0503: ParseStepDelta ─────────────────────────────────────────────────

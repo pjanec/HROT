@@ -212,6 +212,17 @@ public class EcsPatchContextTests
         return repo;
     }
 
+    /// <summary>
+    /// ⭐ CE-518 ③ — Q59-E: the ordinals a patch dirties come from the WORLD's descriptor map, which the network
+    /// layer fills (<c>EcsPatchContext</c> ctor, <c>AttributeInterpreterProvider.GetDescriptorMap</c>) — ⛔ not
+    /// from the builder's <c>descriptorOrdinal:</c> argument these facts used to rely on. So the fixture says
+    /// what the network layer would, through the same call the translators feed (<c>RegisterFromTranslator</c>,
+    /// the only registration that fills the reverse index the patch reads).
+    /// </summary>
+    private static void CarryOnTheWire<T>(EntityRepository repo, long ordinal) where T : struct
+        => Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo)
+               .RegisterFromTranslator(ordinal, new[] { ComponentTypeRegistry.GetOrRegisterManaged(typeof(T)) });
+
     [Fact]
     public void EcsPatchContext_GetUnmanagedComponent_ReturnsRefToEcs()
     {
@@ -240,6 +251,7 @@ public class EcsPatchContextTests
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
         repo.SetComponent(entity, new EntityInfo { Name = "alpha" });
+        CarryOnTheWire<EntityInfo>(repo, TestOrdinal);
 
         var compiler = new AttributeCompilerBuilder()
             .RegisterValuePath<EntityInfo>("Name",
@@ -270,6 +282,7 @@ public class EcsPatchContextTests
         var repo = CreateRepo();
         var entity = repo.CreateEntity();
         repo.SetComponent(entity, new EntityInfo { Name = "beta" });
+        CarryOnTheWire<EntityInfo>(repo, SharedOrdinal);
 
         // Both "Name" and "Affiliation" map to the same ordinal (like dtEntityInfo).
         var compiler = new AttributeCompilerBuilder()

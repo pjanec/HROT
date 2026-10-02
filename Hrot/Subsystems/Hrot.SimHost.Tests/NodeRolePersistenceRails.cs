@@ -52,6 +52,10 @@ namespace Hrot.SimHost.Tests
             //   rail, but — unlike the two above — it is GATED (owner-only), so holding it is NOT a
             //   persistence-policy violation. IG holding it is CORRECT: its file is empty by the gate.
             "HrotScenarioSaveHandler",
+            // ⭐ CE-518 ② — ExCon's save handler (CE-277 c3): the no-ECS observer variant, writing a FOREIGN
+            //   `ExCon.Observer` document. 📄 DESIGN_Distributed_Scenario_Persistence.md (ExCon SAVE row).
+            //   ⛔ Not a checkpoint handler, so it is not in the passive-node list below.
+            "ExConScenarioSaveHandler",
         };
 
         /// <summary>
@@ -163,7 +167,10 @@ namespace Hrot.SimHost.Tests
                 if (normalised.Contains(".Tests/") || normalised.Contains(".Tests.")) continue;
 
                 var text = System.IO.File.ReadAllText(file);
-                if (!text.Contains("IClusterStateHandler") && !text.Contains("IClusterOpHandler")) continue;
+                // ⭐ CE-518 ② — a HANDLER is a class that IMPLEMENTS the interface. ⛔ Mentioning it is not
+                //   enough: SerializeLocalRegistrar and NodeBootstrapper take handlers as parameters and
+                //   matched the old file-level test without being handlers.
+                if (!ImplementsAClusterHandler.IsMatch(text)) continue;
                 if (!text.Contains("SerializeLocal")) continue;
 
                 found.Add(System.IO.Path.GetFileNameWithoutExtension(file));
@@ -173,6 +180,10 @@ namespace Hrot.SimHost.Tests
                 new SortedSet<string>(SaveCapableHandlers),
                 found);
         }
+
+        private static readonly System.Text.RegularExpressions.Regex ImplementsAClusterHandler = new(
+            @"\bclass\s+\w+[^{;]*:[^{;]*\b(IClusterStateHandler|IClusterOpHandler)\b",
+            System.Text.RegularExpressions.RegexOptions.Compiled);
 
         private static string FindRepoRoot()
         {
