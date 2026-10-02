@@ -171,7 +171,7 @@ and nesting the same mechanism.
 | S4 ✅ BUILT | one runner contract | see the as-built box below |
 | S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector. ⭐ Split in four, see below |
 | S6 | native concurrency in blueprints | a FIBER per top-level graph (Tick, each Event graph) and per branch of a new `Parallel` node; per-fiber cursor, locals and `When` memory; the 16 single-cursor sites (I10) rewritten against a fiber index |
-| S7 | **Behaviour Task** blueprint node (U-11) | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
+| S7 | **Behaviour Task** blueprint node (U-11) — ⭐ design below ("S7 design"), split S7a / S7b | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
 | (S8) | converge AiPrimitive suspension (I14) | `__phase`/`__waitUntilTime` → the same fiber cursor (Q33 §1.5.5). Separate design question, see §6 |
 
 
@@ -658,6 +658,84 @@ every queued event.
 because an Instance is not a behaviour. ⚠ Cost: every Instance's `StructureHash` and golden moves once.
 **Split:** S6a per-graph fibers (Tick + Event graphs; fixes I10–I12) · S6b event policies (U-6) · S6c Task-node
 completion fibers (lands with S7).
+
+#### S7 design — the Behaviour Task node *(`2026-10-02`, frame U-11; sub-decisions decided-and-logged by the behaviours lane, user: "run autonomously … continue next to S7")*
+
+📐 **Measured basis** *(inventory: `scripts/find.sh RunBehavior` — 35 C# sites, 0 JSON assets; codebase-memory index current)*:
+
+| # | fact | where |
+|---|---|---|
+| T1 | the node is `RunBehaviorNode` (kind `"RunBehavior"`), pins In / Out / OnFailure; no shipped asset uses it | `Assets/Nodes.cs:472`, `BuiltInNodeRegistry.RunBehaviorPins`; `git grep '"RunBehavior"' -- '*.json'` empty |
+| T2 | it is scheduled as a latent node: the fiber suspends at it; each frame the resume check re-invokes `IrOp_RunBehavior` (which ticks the child) and branches Running → plain return · Success → `success` block · Failure → `FailureBlock` | `Stage5_Schedule.cs:527`, `WaitLowering_Instance.cs:195-266` |
+| T3 | ⛔ the editor has NO palette entry and NO drawer for it (the S5d residue) | `grep RunBehavior Hrot.Blueprints.Editor` empty |
+| T4 | both production hosts own a `BehaviorRegistry` (`GetRegisteredNames()`), and both build the drawers through ONE binder | `EditorSubsystem.cs:1819`, `CgfSubsystem.cs:1518`, `AiBlueprintNodeAuthoringBinder.CreateDrawers` |
+| T5 | an exec link lands on a PIN, but the scheduler walks node to node (`GetSingleExecSuccessor` returns a node) ⇒ a second exec INPUT (Abort) is invisible to it | `Stage5_Schedule` |
+
+**Claim table** *(the rows the leans rest on)*
+
+| claim | code | design basis |
+|---|---|---|
+| S7 grows the S5d node, no second node | ✅ T1/T2 | ✅ U-11 + the S5d note above ("S7 GROWS THIS NODE") |
+| "run and wait" = only completion pins wired | ✅ T2 is exactly that | ✅ U-11 verbatim |
+| While Running is latent-free | — | ✅ U-11 ("latent-free — a BP2050-shaped rule") |
+| an Abort needs a continuation | — | ⚠ U-11 is silent; §7's Demo_MissionPlan chains *"Abort → Retreat"* ⇒ ⭐ lean: **Abort ⇒ Failed** (D2) |
+| cross-fiber abort is needed now | ⛔ no case in the corpus | ⛔ searched `docs/`+`.dev/`: only Demo_MissionPlan, which aborts from its OWN While Running |
+
+```mermaid
+classDiagram
+  class RunBehaviorNode { <<EXISTS, widened — "Behaviour Task">> +BehaviorName  kind "BehaviorTask" (reads "RunBehavior")  pins Start, Abort in · Started, WhileRunning, Succeeded, Failed out }
+  class BehaviorTaskAbortNode { <<NEW, compile-time only>> +TaskNodeId }
+  class Stage2_6_SplitEventHandlers { <<EXISTS, widened>> retargets each link into an Abort pin to an abort node }
+  class IrOp_RunBehavior { <<EXISTS>> }
+  class IrOp_AbortTask { <<NEW>> +TaskNodeId }
+  class IrOp_ResetHostedSite { <<NEW>> +SiteId }
+  class IrTerm_Suspend { <<EXISTS, widened>> +WhileRunningBlock }
+  class WaitLowering_Instance { <<EXISTS, widened>> Running ⇒ WhileRunning block · IrOp_AbortTask ⇒ reset + cursor to the task's ABORTED label }
+  class BehaviorTaskNodeDrawer { <<NEW>> child picker over the host's registered names }
+  RunBehaviorNode --> IrOp_RunBehavior : Stage 5
+  BehaviorTaskAbortNode --> IrOp_AbortTask : Stage 5
+  Stage2_6_SplitEventHandlers --> BehaviorTaskAbortNode
+  WaitLowering_Instance --> IrTerm_Suspend
+  WaitLowering_Instance --> IrOp_ResetHostedSite
+```
+
+```mermaid
+sequenceDiagram
+  participant F as the waiting fiber (Tick or an Event copy)
+  participant C as the child (any tier)
+  F->>F: Start: ResumeAt = k, return Running
+  loop each frame
+    F->>F: dispatch: ResumeAt == k ⇒ resume check
+    F->>C: re-invoke IrOp_RunBehavior (TickFromBlueprint)
+    alt Running
+      F->>F: run the While Running chain (latent-free), return Running
+      opt the chain reaches Abort
+        F->>C: HostedSubtree.Reset(site) (recursive)
+        F->>F: ResumeAt = aborted label of k
+      end
+    else Success
+      F->>F: ResumeAt = 0, continue on Succeeded
+    else Failure
+      F->>F: ResumeAt = 0, continue on Failed
+    end
+  end
+  Note over F: next frame on the aborted label ⇒ ResumeAt = 0, continue on Failed
+```
+
+| # | decision | lean | rejected — one line each |
+|---|---|---|---|
+| D1 | the node's identity | ⭐ keep the class `RunBehaviorNode` (a C# rename needs Roslyn, not text, and buys nothing); kind becomes `"BehaviorTask"`, `"RunBehavior"` still reads; pins renamed to U-11's (`Start`, `Abort`, `Started`, `WhileRunning`, `Succeeded`, `Failed`), old pin names still route | a second node class: two implementations of one concept |
+| D2 | what an Abort fires | ⭐ **Failed** (the task did not succeed), one frame later, on the waiting fiber | a silent stop: the demo's "Abort → Retreat" has no continuation; an `Aborted` pin: not in U-11 |
+| D3 | where an Abort may come from | ⭐ S7a: **the task's own While Running chain** (the only code of the waiting fiber that runs while it waits) — `BP1685` otherwise. Cross-fiber abort (an Event handler aborting the Tick's task) is demand-driven, with S7b's driver | build it now: a per-site state machine shared across fibers, no case yet |
+| D4 | how Abort reaches the scheduler (T5) | ⭐ a compile-time **abort node**: every link into an `Abort` pin is retargeted to one (Stage 2.6, per handler, after the split) | teach the scheduler entry pins: every node kind would grow an "entered by" axis |
+| D5 | the aborted state | ⭐ a second resume label per task (`n + k`): the dispatch routes it to a block that clears the cursor and continues on Failed | a flag field per task: new storage, and a stale flag would fail the next Start |
+| D6 | While Running | ⭐ the Running arm of the resume check jumps to the chain instead of returning; the chain's end returns (still Running, cursor unchanged). Latent nodes refused: `BP1684` | a separate generated method: needs the fiber's locals passed in, for nothing |
+| D7 | `Started` | ⭐ S7a: wiring it is `BP1686` ("arrives in S7b") — it makes the task run ALONGSIDE, which needs the per-frame task driver + completion fibers (S6c) | quietly run-and-wait: Started would never fire |
+| D8 | the editor | ⭐ a "Behaviour Task" palette entry + a drawer whose picker lists the host's registered behaviour names (`BehaviorRegistry.GetRegisteredNames`, passed by BOTH hosts through the shared binder) | a text box only: names are what authors cannot guess |
+
+**Sub-slices.** **S7a** = D1–D8 (run-and-wait with While Running and self-Abort, editor). **S7b** = `Started`: the per-frame
+task driver in `BehaviorTick` (tick every running task site, fire While Running, start a completion FIBER for Succeeded /
+Failed), Start-while-running ⇒ Restart, and Abort from any graph. ⭐ S7b is S6c.
 
 ## 5. Decisions — each with a lean
 
