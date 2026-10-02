@@ -683,6 +683,23 @@ internal sealed class V_LatentRules : IValidator
                 asset.AssetId, graph.Id, latent.Id));
         }
 
+        // ⭐ S6b (U-6) — an Event graph's arrival policy: a fixed layout needs a bounded compile-time N.
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+            foreach (var entry in graph.Nodes.OfType<EventEntryNode>())
+            {
+                string? why =
+                    entry.Capacity < 0 || entry.Capacity > Lowering.Fibers.MaxCapacity
+                        ? $"its Capacity is {entry.Capacity}; it must be 1 to {Lowering.Fibers.MaxCapacity}"
+                    : entry.Policy == EventFiberPolicy.Restart && entry.Capacity > 1
+                        ? "Restart runs one handler (the newest event wins), so it takes no Capacity above 1"
+                    : entry.Policy == EventFiberPolicy.Queue
+                        ? "the Queue policy is not built yet (it lands with the event ring); use Parallel or Restart"
+                    : null;
+                if (why is not null)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1681,
+                        $"Event graph '{graph.Name}': {why}.", asset.AssetId, graph.Id, entry.Id));
+            }
+
         // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
         //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)
         foreach (var graph in asset.Graphs)

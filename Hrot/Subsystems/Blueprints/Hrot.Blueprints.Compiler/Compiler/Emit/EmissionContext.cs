@@ -202,7 +202,7 @@ internal sealed class EmissionContext
         var prefix = CurrentGraph!.LocalSlotPrefix;
         return prefix is null
             ? LocalName(locals[index].Name)
-            : $"{ExecVar}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";   // ⭐ S2 — execution state
+            : $"{Lowering.Fibers.Container(this)}.{Lowering.LocalStorage.SlotName(prefix, locals[index].Name)}";   // ⭐ S2 — execution state; S6b — a fiber's own record
     }
 
     /// <summary>C# field name for a Parameters entry by index.</summary>

@@ -291,6 +291,28 @@ public sealed class EventEntryNode : Node
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? TargetFieldName { get; set; }
+
+    /// <summary>
+    /// ⭐ S6b (<c>DESIGN_Unified_Behaviour_Run</c> U-6) — what a behaviour's waiting Event graph does when its event
+    /// arrives again before the handler finished. Never silent. Default Parallel ⇒ omitted from JSON.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public EventFiberPolicy Policy { get; set; }
+
+    /// <summary>⭐ S6b — how many handlers may run at once (Parallel) or wait in line (Queue). 0 = 1. Limit 16 (BP1660).</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public int Capacity { get; set; }
+}
+
+/// <summary>⭐ S6b (U-6) — an Event graph's policy for an arrival while its handler still waits.</summary>
+public enum EventFiberPolicy
+{
+    /// <summary>One handler per arrival, up to <c>Capacity</c> at once; one more ⇒ <c>EventOverflow</c> fault.</summary>
+    Parallel = 0,
+    /// <summary>The newest arrival wins: the waiting handler (and every behaviour it hosts) is abandoned and restarted.</summary>
+    Restart = 1,
+    /// <summary>Arrivals wait in line (up to <c>Capacity</c>) and run one after another (S6b-2).</summary>
+    Queue = 2,
 }
 
 public sealed class ReturnNode : Node

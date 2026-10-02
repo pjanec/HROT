@@ -70,12 +70,22 @@ public sealed record IrGraph
     /// </summary>
     public string? LocalSlotPrefix { get; init; }
 
+    /// <summary>⭐ S6b (U-6) — the Event graph's policy for an arrival while its handler waits (from its entry node).</summary>
+    public Hrot.Blueprints.Core.Assets.EventFiberPolicy FiberPolicy { get; init; }
+
+    /// <summary>⭐ S6b — the entry node's Capacity (0 = 1).</summary>
+    public int FiberCapacity { get; init; }
+
     /// <summary>
-    /// ⭐ S6a (<c>DESIGN_Unified_Behaviour_Run</c> §4a) — the execution-state field holding this graph's OWN latent cursor
-    /// when it is a fiber of its own (a suspending Event graph of a behaviour). ⛔ <c>null</c> = the shared <c>Cursor</c>,
-    /// which the Tick graph keeps, so every existing asset is byte-identical. Read through <c>Fibers.CursorOf</c>.
+    /// ⭐ S6a/S6b (<c>DESIGN_Unified_Behaviour_Run</c> §4a) — set when this graph runs as a fiber of its own (a suspending
+    /// Event graph of a behaviour): the field-name base of its copies in <c>Exec</c> (<c>{base}_{k}</c>), each a generated
+    /// <c>_Fiber</c> record holding its cursor, locals and saved inputs. ⛔ <c>null</c> = the shared <c>Cursor</c>, which
+    /// the Tick graph keeps, so every existing asset is byte-identical. Read through <c>Fibers</c>.
     /// </summary>
-    public string? CursorField { get; init; }
+    public string? FiberBase { get; init; }
+
+    /// <summary>⭐ S6b — the fields of this graph's <c>_Fiber</c> record (cursor, promoted locals, saved inputs).</summary>
+    public IReadOnlyList<IrField> FiberRecordFields { get; init; } = Array.Empty<IrField>();
 
     public IReadOnlyList<IrBlock> Blocks { get; init; } = Array.Empty<IrBlock>();
     public IrBlockId Entry { get; init; }
