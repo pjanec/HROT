@@ -94,7 +94,7 @@ public static class T35_SharedWorkingStateRegistrar
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 935647214;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
                             global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)

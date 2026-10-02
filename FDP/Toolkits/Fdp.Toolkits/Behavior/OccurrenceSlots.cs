@@ -79,4 +79,11 @@ public static class OccurrenceSlots
     /// </summary>
     public static int StandaloneStateKeyFor(Guid assetId)
         => Shared.OccurrenceSlotKey.ComputeStandaloneStateKey(assetId);
+
+    /// <summary>
+    /// ⭐⭐ S5b — the ACTUAL slot key of a hosted occurrence registered under <paramref name="templateKey"/>, hosted by the
+    /// occurrence <paramref name="parentOccurrenceKey"/> (0 = the root ⇒ the template itself).
+    /// </summary>
+    public static int HostedKeyAt(int parentOccurrenceKey, int templateKey)
+        => Shared.OccurrenceSlotKey.ComputeHostedAt(parentOccurrenceKey, templateKey);
 }

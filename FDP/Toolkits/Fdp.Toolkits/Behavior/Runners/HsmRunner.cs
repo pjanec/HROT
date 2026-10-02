@@ -171,7 +171,7 @@ namespace Fdp.Toolkit.Behavior.Runners
             var blob = ctx.Definition.HsmDefinition;
             if (blob is null) return;
 
-            if (!HsmHostedSubtrees.TryGetForMachine(blob.Header.StructureHash, out var hosted))
+            if (!HsmHostedSubtrees.TryGetFor(blob, out var hosted))
                 return;   // ⭐ the common case — no shipped asset hosts anything
 
             ushort* activeLeafIds = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int regionCount);
@@ -187,6 +187,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 _intParams   = Array.Empty<int>(),
                 _instanceId  = ctx.InstanceId,
                 TraceBuffer  = null,
+                _occurrenceKey = ctx.OccurrenceKey,   // ⭐ S5b — this machine's children nest under it
             };
 
             for (int i = 0; i < hosted.Length; i++)
@@ -196,7 +197,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 if (!IsStateActive(blob, activeLeafIds, regionCount, entry.StateIndex))
                 {
                     // ⭐ F14 — the host abandoned a child that may still be Running. Unconditional and cheap.
-                    HostedSubtree.Reset(ctx.World, ctx.Self, entry.TreeStateSlotKey);
+                    HostedSubtree.Reset(ctx.World, ctx.Self, entry.TreeStateSlotKey, ctx.OccurrenceKey);
                     continue;
                 }
 

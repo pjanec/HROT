@@ -518,6 +518,13 @@ internal sealed class GraphScheduler
                     ScheduleWhenNode(wn, bb);
                     return;
 
+                // ⭐ S5d — Run Behaviour: latent like an inline action; Out on the child's Success, OnFailure on its Failure.
+                case RunBehaviorNode rb:
+                    ScheduleLatentNode(rb, bb, new IrOp_RunBehavior(rb.BehaviorName.Trim(), rb.Id),
+                        successSuccessor: GetExecSuccessorExcludingPinName(rb, "OnFailure"),
+                        failureSuccessor: GetExecSuccessorByPinName(rb, "OnFailure"));
+                    return;
+
                 // AN8: non-channel action node (ActionFqn set) — inline-latent invocation.
                 case ChannelCommandNode { ActionFqn: { } fqn } cc when !string.IsNullOrEmpty(fqn):
                     ScheduleInlineActionNode(cc, bb);

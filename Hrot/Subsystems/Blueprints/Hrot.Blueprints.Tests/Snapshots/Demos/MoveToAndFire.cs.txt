@@ -128,7 +128,7 @@ public static class MoveToAndFire_649F8F53_Bp
     {
         // O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence
         //          store — NOT Blackboard1024, and no longer the SHARED param region.
-        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);
+        int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId));
         ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(
             ctx.World, ctx.Self, occurrenceKey, StructureHash,
             global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);

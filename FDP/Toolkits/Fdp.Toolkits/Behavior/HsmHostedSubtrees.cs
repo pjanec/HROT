@@ -40,7 +40,11 @@ public static class HsmHostedSubtrees
                                         HostedSubtree.SiteBinding Binding = default);
 
     // machineId (the blob's StructureHash) -> the hosting states of that machine.
+    // ⚠ S5b / CE-2000: the HSM StructureHash hashes TOPOLOGY only (HsmEmitter.ComputeStructureHash), so two machines of the
+    //   same shape share an id and this table's last writer wins. Kept for its existing (test) readers; the runtime asks
+    //   _byBlob, keyed by the blob INSTANCE the registrar binds and the definition carries.
     private static readonly Dictionary<uint, Entry[]> _byMachine = new();
+    private static readonly Dictionary<HsmDefinitionBlob, Entry[]> _byBlob = new(ReferenceEqualityComparer.Instance);
     /// <summary>
     /// ⭐ <c>CE-442</c> — every WRITE takes this lock, so two registrars running at once (parallel test
     /// classes today) cannot corrupt the table. ⛔ Reads stay unlocked: registration finishes before the
@@ -95,7 +99,8 @@ public static class HsmHostedSubtrees
 
         if (resolved.Count == 0) return;
 
-        lock (WriteLock) _byMachine[blob.Header.StructureHash] = resolved.ToArray();
+        var array = resolved.ToArray();
+        lock (WriteLock) { _byMachine[blob.Header.StructureHash] = array; _byBlob[blob] = array; }
     }
 
     /// <summary>
@@ -110,8 +115,15 @@ public static class HsmHostedSubtrees
         => _byMachine.TryGetValue(machineId, out entries!);
 
     /// <summary>
+    /// ⭐ S5b — the hosting states of THIS blob (by instance). ⭐ What the runtime asks: unambiguous even when two machines
+    /// share a topology-only <c>StructureHash</c>. Same <c>false</c>-is-the-fast-path contract.
+    /// </summary>
+    public static bool TryGetFor(HsmDefinitionBlob blob, out Entry[] entries)
+        => _byBlob.TryGetValue(blob, out entries!);
+
+    /// <summary>
     /// ⚠ Test seam — drops every registration. ⛔ Production never calls this; the registries beside
     /// it are process-lifetime by design.
     /// </summary>
-    public static void ClearForTests() { lock (WriteLock) _byMachine.Clear(); }
+    public static void ClearForTests() { lock (WriteLock) { _byMachine.Clear(); _byBlob.Clear(); } }
 }

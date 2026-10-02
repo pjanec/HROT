@@ -638,8 +638,23 @@ internal sealed class CSharpEmitter
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
         WriteLine($"BlueprintStructureHash = {className}.StructureHash,");
+        // ⭐ S5d — each Run Behaviour site declares its hosted slot (ingress provisions it, recursively, S5b) …
+        var sites = InstanceEmitter.RunBehaviorSites(asset);
+        if (sites.Count > 0)
+        {
+            WriteLine("StatefulWorkingSlots = new global::Fdp.Toolkit.Behavior.StatefulSlotInfo[]");
+            WriteLine("{");
+            Indent();
+            foreach (var site in sites)
+                WriteLine($"global::Fdp.Toolkit.Behavior.HostedSubtree.SiteSlot({className}.{InstanceEmitter.RunSiteField(site)}, \"{site.BehaviorName}\"),");
+            Outdent();
+            WriteLine("},");
+        }
         Outdent();
         WriteLine("});");
+        // … and binds its child AFTER Register: resolution is lazy and order-independent (CE-377); a ring is refused (S5c).
+        foreach (var site in sites)
+            WriteLine($"global::Fdp.Toolkit.Behavior.HostedChildren.Register(beh, {className}.{InstanceEmitter.RunSiteField(site)}, \"{site.BehaviorName}\");");
     }
 
     private void EmitInstanceRegistration(string className, IrAsset asset)

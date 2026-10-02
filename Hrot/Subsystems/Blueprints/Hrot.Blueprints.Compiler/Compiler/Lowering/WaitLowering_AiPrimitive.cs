@@ -97,11 +97,11 @@ internal static class WaitLowering_AiPrimitive
             // Find the wait op for this suspend.
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
             // Filter out: the wait-op stmt and the resume-point Const stmt.
             var keptStmts = sb.Statements
-                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall))
+                .Where(s => !SuspendOps.Is(s.Operation))
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
@@ -203,7 +203,7 @@ internal static class WaitLowering_AiPrimitive
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
             if (waitOp is IrOp_InlineActionCall iac)
             {

@@ -84,6 +84,80 @@ public static class HostedChildren
         if (string.IsNullOrWhiteSpace(childName)) return;
 
         lock (WriteLock) _bySlotKey[treeStateSlotKey] = new Binding { Registry = registry, ChildName = childName };
+
+        // ⭐⭐ S5c (U-9) — this EDGE may be the one that closes a cycle. Its host is whichever registered definition
+        //   declares the slot; the cycle exists iff the child reaches that host again.
+        foreach (string hostName in registry.GetRegisteredNames())
+        {
+            if (!registry.TryGetId(hostName, out int id) || !registry.TryGetDefinition(id, out var hostDef)) continue;
+            if (!Declares(hostDef, treeStateSlotKey)) continue;
+            try { ThrowOnCycleThrough(registry, hostName); }
+            catch { lock (WriteLock) _bySlotKey.Remove(treeStateSlotKey); throw; }
+        }
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5d — a binding made against a STAGING registry follows the merge into the LIVE one.</b> Quick reload runs
+    /// every registrar against a throw-away staging <see cref="BehaviorRegistry"/> and then
+    /// <see cref="BehaviorRegistry.MergeFrom"/>s it into the live registry. ⛔ A binding that kept the staging instance could
+    /// only ever resolve a child registered in that SAME reload pass — 📌 measured: a reloaded host whose child was already
+    /// live threw <i>"does not resolve"</i> on its first tick. ⭐ Called by <c>MergeFrom</c>; drops each re-pointed binding's
+    /// cached definition so the live child is looked up afresh. ⚠ Startup/reload-only.
+    /// </summary>
+    internal static void Repoint(BehaviorRegistry from, BehaviorRegistry to)
+    {
+        if (ReferenceEquals(from, to)) return;
+        lock (WriteLock)
+            foreach (var binding in _bySlotKey.Values)
+                if (ReferenceEquals(binding.Registry, from))
+                {
+                    binding.Registry = to;
+                    binding.ResolvedDefinition = null;
+                }
+    }
+
+    private static bool Declares(BehaviorDefinition def, int slotKey)
+    {
+        var slots = def.StatefulWorkingSlots;
+        if (slots is null) return false;
+        for (int i = 0; i < slots.Count; i++)
+            if (slots[i].SlotKey == slotKey && HostedSubtree.IsTreeStateSlot(slots[i])) return true;
+        return false;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5c (<c>DESIGN_Unified_Behaviour_Run</c> U-9) — refuse a HOSTING CYCLE at registration.</b> Walks the real
+    /// hosting edges (a definition's hosted slots → the child each is bound to, by name) from <paramref name="hostName"/>
+    /// and throws, naming the ring, if a path returns to it. ⭐ Called when a definition registers AND when an edge binds:
+    /// registration order is arbitrary, and whichever of the two lands last is the one that closes the cycle. ⛔ A cycle
+    /// would otherwise recurse without a base case at the first tick (and at provisioning, which has a depth guard).
+    /// ⚠ Startup-only; it allocates.
+    /// </summary>
+    internal static void ThrowOnCycleThrough(BehaviorRegistry registry, string hostName)
+    {
+        var path = new List<string> { hostName };
+        Walk(registry, hostName, path);
+
+        static void Walk(BehaviorRegistry registry, string name, List<string> path)
+        {
+            if (!registry.TryGetId(name, out int id) || !registry.TryGetDefinition(id, out var def)) return;
+            var slots = def.StatefulWorkingSlots;
+            if (slots is null || path.Count > HostedSubtree.MaxNestingDepth) return;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                if (!HostedSubtree.IsTreeStateSlot(slots[i])) continue;
+                if (!_bySlotKey.TryGetValue(slots[i].SlotKey, out var edge) || !ReferenceEquals(edge.Registry, registry)) continue;
+                string child = edge.ChildName.Trim();
+                if (string.Equals(child, path[0], StringComparison.Ordinal))
+                    throw new InvalidOperationException(
+                        $"S5c: hosting cycle {string.Join(" → ", path)} → {child}. A behaviour may not host itself, directly or " +
+                        "through its children — the run would nest without end. Break the ring in one of these assets.");
+                if (path.Contains(child)) continue;   // a cycle not through the start; its own check reports it
+                path.Add(child);
+                Walk(registry, child, path);
+                path.RemoveAt(path.Count - 1);
+            }
+        }
     }
 
     /// <summary>⭐ The BTree interpreter of the child bound to this slot, or <c>false</c> (no binding, unresolved, or not a BTree).</summary>

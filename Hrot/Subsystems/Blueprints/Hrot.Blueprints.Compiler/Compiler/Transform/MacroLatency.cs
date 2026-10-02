@@ -36,7 +36,7 @@ internal static class MacroLatency
     /// </para>
     /// </summary>
     public static bool IsLatent(Node node) =>
-        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode
+        node is LatentDelayNode or WaitForChannelNode or WaitForEventNode or RunBehaviorNode   // ⭐ S5d
              || node is ChannelCommandNode { ActionFqn: { } fqn } && !string.IsNullOrEmpty(fqn);
 
     /// <summary>

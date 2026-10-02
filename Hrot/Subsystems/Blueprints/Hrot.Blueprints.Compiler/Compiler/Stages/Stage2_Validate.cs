@@ -681,6 +681,23 @@ internal sealed class V_LatentRules : IValidator
                 asset.AssetId, graph.Id, latent.Id));
         }
 
+        // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
+        //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)
+        foreach (var graph in asset.Graphs)
+            foreach (var node in graph.Nodes)
+            {
+                if (node is not RunBehaviorNode rb) continue;
+                if (asset.Dispatch != BlueprintDispatchKind.Behavior)
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1659,
+                        $"Run Behaviour '{rb.BehaviorName}' is in {asset.Dispatch} asset '{asset.Name}'. Only a behaviour can host a " +
+                        "behaviour: it needs a brain to run the child under. Make this asset a Behavior, or start the child another way.",
+                        asset.AssetId, graph.Id, rb.Id));
+                else if (string.IsNullOrWhiteSpace(rb.BehaviorName))
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1659,
+                        "A Run Behaviour node names no behaviour. Pick the behaviour it should run.",
+                        asset.AssetId, graph.Id, rb.Id));
+            }
+
         if (asset.Dispatch == BlueprintDispatchKind.Library)
         {
             foreach (var graph in asset.Graphs)

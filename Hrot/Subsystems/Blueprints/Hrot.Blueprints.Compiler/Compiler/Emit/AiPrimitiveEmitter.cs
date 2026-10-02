@@ -428,7 +428,8 @@ internal static class AiPrimitiveEmitter
     {
         e.WriteLine("// O7d/E3a: this asset's OWN params AND working state, in the entity's occurrence");
         e.WriteLine("//          store — NOT Blackboard1024, and no longer the SHARED param region.");
-        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId);");
+        // ⭐ S5b — nested under the occurrence the hosting tree runs as (unchanged at the root).
+        e.WriteLine("int occurrenceKey = global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(AssetId));");
         e.WriteLine("ref var ws = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<WorkingState>(");
         e.WriteLine("    ctx.World, ctx.Self, occurrenceKey, StructureHash,");
         e.WriteLine("    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool freshlyAttached);");

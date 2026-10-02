@@ -92,7 +92,11 @@ internal static class InlineActionLowering
             e.WriteLine("{");
             e.Indent();
 
-            e.WriteLine($"int __iaKey_{n} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(global::{classFqn}.AssetId);");
+            // ⭐ S5d / CE-2002 — inside a BEHAVIOUR the key nests under the occurrence the run is (unchanged at the root),
+            //   so the same blueprint hosted at two sites keeps two inline working states.
+            e.WriteLine(e.Ctx.IsBehavior
+                ? $"int __iaKey_{n} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(occurrenceKey, global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(global::{classFqn}.AssetId));"
+                : $"int __iaKey_{n} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.StandaloneStateKeyFor(global::{classFqn}.AssetId);");
             e.WriteLine($"ref var __ws_{n} = ref global::Fdp.Toolkit.Behavior.OccurrenceWorkingState.ResolveOrAttach<global::{classFqn}.WorkingState>(");
             e.WriteLine($"    {worldVar}, self, __iaKey_{n}, global::{classFqn}.StructureHash,");
             e.WriteLine($"    global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceKind.Blueprint, out bool __iaFresh_{n});");

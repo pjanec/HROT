@@ -512,6 +512,11 @@ namespace Fdp.Toolkit.Behavior
             if (definition.JsonParamsDtoType == null
                 && _jsonParamsDtoByName.TryGetValue(name, out var jsonDto))
                 definition.JsonParamsDtoType = jsonDto;
+
+            // ⭐⭐ S5c (U-9) — this DEFINITION may be the one that closes a hosting cycle (its edges, or edges into it,
+            //   were bound first). The edge-side twin runs in HostedChildren.Register.
+            if (definition.StatefulWorkingSlots is { Count: > 0 })
+                HostedChildren.ThrowOnCycleThrough(this, name);
         }
 
         /// <summary>
@@ -847,6 +852,9 @@ namespace Fdp.Toolkit.Behavior
                     _definitions[id] = def;
                 }
             }
+
+            // S5d: hosted-child bindings the staging registrars made now resolve through THIS (live) registry.
+            HostedChildren.Repoint(source, this);
         }
 
         /// <summary>

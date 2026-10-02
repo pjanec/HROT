@@ -791,6 +791,13 @@ internal static class StatementEmitter
                 InlineActionLowering.Emit(e, op, idx);
                 break;
 
+            // ⭐ S5d — step the behaviour this node hosts; its status is the latent result (behaviours only, BP1659).
+            case IrOp_RunBehavior rb:
+                e.WriteLine($"var __t{idx} = global::Fdp.Toolkit.Behavior.HostedSubtree.TickFromBlueprint("
+                    + "ref global::System.Runtime.CompilerServices.Unsafe.As<Block, byte>(ref __bb), "
+                    + $"{e.Ctx.WorldVar}, self, deltaTime, instanceVersion, occurrenceKey, {InstanceEmitter.RunSiteField(rb)});");
+                break;
+
             // ------------------------------------------------------------------
             // Wait primitives -- should not reach Stage 7
             // ------------------------------------------------------------------

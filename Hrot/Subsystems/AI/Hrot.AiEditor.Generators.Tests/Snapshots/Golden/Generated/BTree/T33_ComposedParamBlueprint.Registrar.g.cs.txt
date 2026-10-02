@@ -53,7 +53,7 @@ public static class T33_ComposedParamBlueprintRegistrar
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
                     // Resolve this occurrence's WorkingState across every tier, in one call (A2b).
                     const int __slotKey = 658677001;
-                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, __slotKey, out byte* __wsPtr))
+                    if (!global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.TryResolveOccurrence(ctx.World, ctx.Self, global::Fdp.Toolkit.Behavior.OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey), out byte* __wsPtr))
                     {
                         global::System.Diagnostics.Debug.Assert(false,
                             global::Fdp.Toolkit.Blueprints.Partitioning.OccurrenceStoreAccess.HasStore(ctx.World, ctx.Self)

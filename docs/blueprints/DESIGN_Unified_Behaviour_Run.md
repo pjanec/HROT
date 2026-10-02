@@ -265,9 +265,9 @@ at run time, not only nested run-slot keys.
 | sub-slice | delivers | key facts |
 |---|---|---|
 | **S5a** ✅ BUILT (CE-513 (behaviors)) any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
-| **S5b** recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
-| **S5c** cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
-| **S5d** blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; the non-blocking host is S7's Behaviour Task node |
+| **S5b** ✅ BUILT for BTree children (CE-2000); HSM/inline residue CE-2002 — recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
+| **S5c** ✅ runtime BUILT (CE-2003); editor half with S5d — cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
+| **S5d** ✅ compiler + runtime BUILT (CE-2004); editor palette open — blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; ⭐ it is U-11's Behaviour Task node with only the completion pins — S7 grows it in place |
 
 #### S5a as-built *(`2026-10-02`, CE-513 (behaviors))*
 
@@ -279,6 +279,135 @@ at run time, not only nested run-slot keys.
 | `HostedChildren` resolves ANY tier with a runner (`RequireDefinition`); the BTree-interpreter accessors stay for their existing callers | `HostedChildren.cs` |
 | the HSM host's "is the site bound" check asks for the definition, not a BTree interpreter | `HsmRunner.TickHostedChildren` |
 | rails `HostingMatrixTests.S5a_*` (3): a BTree host runs a blueprint child (its `Exec` is the slot's first region, persists, runs under the host's `InstanceId`, its Success ends the node and the host) and an HSM child (started in the slot with its `MachineId`, stepped; a terminating machine succeeds the node). Red-proved by resolving BTree children only | real ingress + `BrainTickSystem`, no hand attach |
+
+#### S5b step 1 as-built — nested RUN slots *(`2026-10-02`, CE-2000)*
+
+```mermaid
+graph TD
+  R["root (occurrence key 0)"] -->|"site A: key = template(A)"| M1["Mid @A"]
+  R -->|"site B: key = template(B)"| M2["Mid @B"]
+  M1 -->|"HostedKeyAt(key(Mid@A), template(Leaf))"| L1["Leaf under A"]
+  M2 -->|"HostedKeyAt(key(Mid@B), template(Leaf))"| L2["Leaf under B"]
+```
+*What it shows that prose hid:* the leaf has ONE registered (template) key, but TWO occurrences. Its slot key is
+derived from the path, so the two never meet. Depth 1 is unchanged (the root folds nothing).
+
+| piece | where |
+|---|---|
+| `OccurrenceSlots.HostedKeyAt(parent, template)` (`OccurrenceSlotKey.ComputeHostedAt`: parent 0 ⇒ the template, else `NestOver`) | `OccurrenceSlotKey.cs`, `OccurrenceSlots.cs` |
+| the occurrence key rides the context: `BTreeContext._occurrenceKey`, `BehaviorRunContext.OccurrenceKey` (0 at the root); `TickHosted` resolves the nested key and hands it to the child's run; both runners pass it into the contexts they build | `BTreeContext.cs`, `Runners/*.cs`, `HostedSubtree.cs` |
+| `EffectiveSlots` appends every descendant's run slot under its nested key, recursively (depth guard `MaxNestingDepth` = 16 throws: a cycle S5c will refuse at registration); ingress provisions from that list AND sweeps against it, and a behaviour change / clear detaches it | `HostedSubtree.cs`, `BehaviorIngressSystem.cs` |
+| reset is recursive: a child that is reset, started fresh or finishes takes its own hosted children with it (I7) | `HostedSubtree.ResetAt` / `ResetDescendants` |
+| 🔴 **a defect that predated this work, found by the rail:** `BTreeHostedSites` keyed its site table by `blob.StructureHash`, which hashes node TYPES and child COUNTS only. Two trees of one shape (a host `Sequence(Subtree)` and its child `Sequence(Subtree)`) shared ONE map, and the last `Bind` won, so the child's site looked up the HOST's key. ⇒ keyed by the blob INSTANCE now (the interpreter hands the host its own blob; every registrar binds that instance). `HsmHostedSubtrees` got the same instance-keyed table for the runtime | `BTreeHostedSites.cs`, `HsmHostedSubtrees.cs`, `HsmRunner` |
+| rails `HostingMatrixTests.S5b_TheSameChildAtTwoSites_GivesItsGrandchildTwoOccurrences` (red-proved by making `HostedKeyAt` ignore its parent) and `S5b_ResettingAChild_ResetsItsGrandchildToo` (it failed on the site-table collision before the fix) | |
+
+#### S5d design — a blueprint behaviour HOSTS a behaviour *(`2026-10-02`, BUILT — as-built below)*
+
+📐 **Measured basis.** An inline action (`ChannelCommandNode` with an `ActionFqn`) is already a latent call that returns a
+status each frame: `Stage5_Schedule.ScheduleInlineActionNode` → `ScheduleLatentNode` (Out on Success, `OnFailure` on
+Failure, Q#13) → `WaitLowering_Instance` re-invokes it in the resume check until it is not Running. ⇒ **Run Behaviour
+reuses that whole path; only the call differs.**
+
+```mermaid
+classDiagram
+  class RunBehaviorNode { <<NEW, kind "RunBehavior">> +BehaviorName  pins: In, Out (Success), OnFailure }
+  class IrOp_RunBehavior { <<NEW>> +BehaviorName +SiteId (= node id) }
+  class IrOp_InlineActionCall { <<EXISTS, the model>> }
+  class WaitLowering_Instance { <<EXISTS>> re-invokes either op in the resume check }
+  class InstanceEmitter { <<EXISTS, widened>> static readonly __RunSite_N key per site; Tick(..., occurrenceKey) }
+  class CSharpEmitter { <<EXISTS, widened>> registrar: StatefulWorkingSlots += site slot; HostedChildren.Register after Register }
+  class HostedSubtree { <<EXISTS, widened>> +TickFromBlueprint(ref hostBlock, world, self, dt, instanceId, occurrenceKey, siteKey) +SiteSlot(key, child) }
+  class BlueprintBehaviorTickDelegate { <<EXISTS, widened>> + int occurrenceKey }
+  RunBehaviorNode --> IrOp_RunBehavior : Stage5
+  IrOp_RunBehavior ..> IrOp_InlineActionCall : same suspend/resume shape
+  WaitLowering_Instance --> IrOp_RunBehavior
+  InstanceEmitter --> HostedSubtree : the emitted call
+  CSharpEmitter --> HostedSubtree : SiteSlot + HostedChildren.Register
+```
+*What it shows:* the node adds one op and one runtime entry point. The latent machinery, the hosted slot, nesting and
+the cycle check all already exist.
+
+```mermaid
+sequenceDiagram
+  participant BT as BlueprintRunner
+  participant T as generated Tick (cursor)
+  participant H as HostedSubtree.TickFromBlueprint
+  participant C as child Runner (any tier)
+  BT->>T: BehaviorTick(block, exec, ..., occurrenceKey)
+  T->>T: reach Run Behaviour: ResumeAt = k, return Running
+  loop each frame while the child runs
+    T->>H: TickFromBlueprint(ref block, ..., occurrenceKey, __RunSite_k)
+    H->>C: Start at a fresh start, then Tick(childBrain, childBlock)
+    C-->>H: status
+    H-->>T: Running ⇒ return Running
+  end
+  T->>T: Success ⇒ Out (cursor cleared), Failure ⇒ OnFailure
+```
+
+| decision | lean | why |
+|---|---|---|
+| where the occurrence key comes from | ⭐ a new `int occurrenceKey` parameter on `BehaviorTick` and the behaviour `Tick` | a static or an `Exec` field would be hidden state; the runner already has it (`BehaviorRunContext.OccurrenceKey`) |
+| the site key | a `static readonly int` per node, computed once from `OccurrenceSlots.TreeStateKeyFor(AssetId, nodeId, AssetIdFromName(child))` | the compiler cannot call the internal hash; computing at type init costs nothing per tick |
+| where it may appear | Tick graph of a `Behavior` asset only (a new diagnostic); latent ⇒ already refused in functions, Event graphs, loop bodies | an Instance has no brain tier to host from |
+| input binding | none in this step: the child starts from its own defaults | the host-variable binding (`SiteBinding`) is CE-439's shape and can follow |
+| abandonment | none needed yet: a blueprint leaves the node only when the child ends, or the run ends (clear detaches every slot) | S6 fibers / S7's Abort pin bring a real abandon; the recursive reset is ready for it |
+
+#### S5d as-built *(`2026-10-02`, CE-2004)*
+
+| piece | where |
+|---|---|
+| the node: `RunBehaviorNode` (kind `"RunBehavior"`, pins In / Out / OnFailure), latent (`MacroLatency`); `BP1659` refuses it outside a `Behavior` asset or with no `BehaviorName` | `Assets/Nodes.cs`, `BuiltInNodeRegistry`, `Stage2_Validate` |
+| `IrOp_RunBehavior(BehaviorName, SiteId)` scheduled through `ScheduleLatentNode` exactly as an inline action | `IrOperation.cs`, `Stage5_Schedule` |
+| ⭐ **one owner for "which ops suspend"**: `SuspendOps.Is`. 📐 Measured: the list was hand-written at SIX sites (`LocalStorage.CanSuspend`, two in `WaitLowering_Instance`, three in `WaitLowering_AiPrimitive`); the first S5d build missed one, and the result was *"IrTerm_Suspend reached Emit stage"* | `Lowering/SuspendOps.cs` |
+| the resume check re-invokes `IrOp_InlineActionCall` OR `IrOp_RunBehavior` (the same op, re-emitted) | `WaitLowering_Instance` |
+| the emitted call: `HostedSubtree.TickFromBlueprint(ref block, world, self, dt, instanceVersion, occurrenceKey, __RunSite_k)`; one `static readonly int __RunSite_k` per site from `OccurrenceSlots.TreeStateKeyFor(asset, node, child)` | `StatementEmitter`, `InstanceEmitter.RunBehaviorSites` |
+| the behaviour `Tick` / `BehaviorTick` and `BlueprintBehaviorTickDelegate` gain `int occurrenceKey`; `BlueprintRunner` passes `ctx.OccurrenceKey` | `InstanceEmitter`, `BlueprintBehaviorTickDelegate.cs`, `BlueprintRunner` |
+| the registrar declares each site's slot (`HostedSubtree.SiteSlot`, which `BTreeHostedSites.TreeStateSlot` now delegates to — one slot shape) and binds it after `Register` (`HostedChildren.Register`) | `CSharpEmitter.EmitBehaviorRegistration` |
+| an inline action in a blueprint BEHAVIOUR keys its standalone state by `HostedKeyAt(occurrenceKey, …)` — ⇒ **the inline half of CE-2002 is closed** (the HSM half stays open) | `InlineActionLowering` |
+| 🔴 **defect found by the rail, predates S5d, every host tier:** quick reload runs registrars into a STAGING registry and `MergeFrom`s it into the live one; a site binding kept the STAGING instance, so a host reloaded without its child threw *"does not resolve"* on its first hosted tick. ⇒ `MergeFrom` re-points those bindings (`HostedChildren.Repoint`) | `BehaviorRegistry.MergeFrom`, `HostedChildren.cs` |
+| 🔴 **Q#13 in a behaviour Tick:** an unwired `OnFailure` emitted a plain return, which in a behaviour Tick means RUNNING (CE-446), so the wait silently retried from Entry. ⇒ it returns `Failure` there, as [`Architect_Question_13`](Architect_Question_13_WaitForChannel_Failure_Handling.md) rules (Instance graphs keep the plain return: they have no status). Covers channel waits and inline actions too | `WaitLowering_Instance.UnwiredFailure` |
+| rails `BlueprintBehaviourTests.S5d_*` (3, real compile + ingress + `BrainTickSystem`): runs a BTree child three ticks, continues on its Success; a child Failure with `OnFailure` unwired fails the host; `BP1659`. `HostingMatrixTests.S5d_AHostReloadedAlone_ResolvesAChildThatIsAlreadyLive`. Red-proofs: no `Repoint` ⇒ both reload rails red; the plain return ⇒ the failure rail never finishes; no registrar bind ⇒ *"No hosted child is bound"* | |
+
+⭐⭐ **U-11 holds: S7 GROWS THIS NODE, it does not add a second one.** U-11 rejects *"two nodes (blocking +
+non-blocking)"* and says *"run and wait = only the completion pins wired"*. Run Behaviour is exactly that wiring:
+`In` = `Start`, `Out` = `Succeeded`, `OnFailure` = `Failed`. ⇒ S7 adds `Abort`, `Started` and `While Running` to
+`RunBehaviorNode` (and renames it to Behaviour Task, migrating the `"RunBehavior"` kind), on the same site slot, op and
+runtime entry point. ⛔ A second node beside it would be two implementations of one concept.
+
+⚠ **Not yet (editor):** the palette entry and child picker for Run Behaviour, widening the BTree/HSM pickers to every
+tier, and the blueprint arm of the editor cycle detector (U-9).
+
+#### S5c as-built — hosting cycles refused at registration *(`2026-10-02`, CE-2003)*
+
+| piece | where |
+|---|---|
+| `HostedChildren.ThrowOnCycleThrough(registry, host)`: a DFS over the REAL edges (a definition's hosted slots → the child each is bound to, by name); throws naming the ring | `HostedChildren.cs` |
+| it runs from BOTH events that can close a ring: a definition registering (`BehaviorRegistry.Register`, when it declares slots) and an edge binding (`HostedChildren.Register`, which finds the host that declares the slot and removes the edge before throwing) — registrar order is arbitrary | `BehaviorRegistry.cs`, `HostedChildren.cs` |
+| rails `HostingMatrixTests.S5c_*` (3): a two-behaviour ring and a self-host are refused, a chain is not; red-proved by disabling the edge-side check. The production scan loads cleanly (Editor manifest suite) ⇒ no shipped asset forms a ring | |
+
+⚠ The editor half of U-9 (the `SubtreeCycleDetector` covering blueprint assets) waits for S5d, when a blueprint can host.
+Provisioning's depth guard (`MaxNestingDepth`) stays as the backstop.
+
+#### S5b step 2 as-built — a hosted child's OWN working state *(`2026-10-02`, CE-2000)*
+
+| piece | where |
+|---|---|
+| `BTreeContext.OccurrenceKey` (public) | `BTreeContext.cs` |
+| the generated stateful BTree thunk resolves `OccurrenceSlots.HostedKeyAt(ctx.OccurrenceKey, __slotKey)` (unchanged at the root) | `BTreeBridgeEmitCore.AppendWorkingStateResolve` |
+| the blueprint AiPrimitive standalone thunk does the same with its per-asset key | `AiPrimitiveEmitter.EmitStandaloneOccurrenceBody` |
+| `EffectiveSlots` provisions a hosted child's own working-state slots under the child's occurrence key | `HostedSubtree.AppendNested` |
+| ingress sizes the store for every hosted descendant's lazily-attached occurrences too (one per occurrence) | `BehaviorIngressSystem.WithDescendantDemand`, `HostedSubtree.HostedDescendants` |
+| rail `HostingMatrixTests.S5b_AStatefulChildAtTwoSites_KeepsTwoWorkingStates`, red-proved by not provisioning the child's slots. 🔴 Measured before: a hosted child's own stateful node found NO slot and returned `Failure` (only the root manifest was provisioned) | |
+
+⚠ **Deviation, argued:** a hosted child's working-state slots are NOT cleared at its START. Root working state survives
+a same-behaviour re-assign (`AttachSlotsToMemory`'s idempotent arm) and the generated thunk initialises only a FRESHLY
+attached slot, so zeroing would hand it a zero struct where it expects its defaults. ⇒ the same rule as the root.
+
+⚠ **Still open (CE-2002):** an HSM child's lazily-attached occurrences key by machine + region + state
+(`HsmOccurrence.KeyFor`), not nested yet, so the same HSM child at two sites shares those. *(The inline-action half —
+a blueprint behaviour's inline action keyed by asset with no context — was closed by S5d.)* And the HSM `StructureHash`
+is topology-only too, so two same-shape machines share a `MachineId` everywhere it is used (param bindings, occurrence
+keys, kernel validation) — filed as **CE-2001**, wider than hosting.
 
 ⚠ **Not yet:** an HSM-hosts-HSM/blueprint rail (the HSM host's path is the same `TickHosted` call, but the matrix rail over
 all 9 pairs belongs with S5b, when nesting is real). Authoring: the BTree `Subtree` node and HSM state pickers still list

@@ -386,6 +386,15 @@ namespace Fdp.Toolkit.Behavior.Shared
             }
         }
 
+        /// <summary>
+        /// ⭐⭐ S5b (<c>DESIGN_Unified_Behaviour_Run</c> §4) — a hosted occurrence's ACTUAL key: its registered (template) key
+        /// nested under the occurrence that hosts it. ⭐ <paramref name="parentOccurrenceKey"/> 0 is the ROOT and returns the
+        /// template verbatim, so every depth-1 key is byte-identical to before; deeper ones are unique per PATH, so the same
+        /// child under two sites no longer collides.
+        /// </summary>
+        internal static int ComputeHostedAt(int parentOccurrenceKey, int templateKey)
+            => NestOver(parentOccurrenceKey, 0, templateKey);
+
         internal static int ComputeNested(
             int hostKey,
             int siteId,

@@ -147,6 +147,10 @@ internal static class BlueprintChannelDerivation
                     case IrOp_InlineActionCall ia:
                         opaque.Add(ia.ActionFqn);
                         break;
+                    // ⭐ S5d — a hosted child writes whatever channels IT writes; not derivable here.
+                    case IrOp_RunBehavior rb:
+                        opaque.Add($"behaviour {rb.BehaviorName}");
+                        break;
                     case IrOp_PureCall pc:
                         opaque.Add(pc.MethodFqn);
                         break;

@@ -29,6 +29,7 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
         LiteralNode lt  => LiteralPins(lt),
         CastNode ca     => CastPins(ca),
         LatentDelayNode => LatentDelayPins(),
+        RunBehaviorNode => RunBehaviorPins(),
 
         // Dynamic: return known static skeleton; Stage0_Rehydrate enriches from asset state.
         EventEntryNode  => new[] { ExecOut() },
@@ -291,6 +292,15 @@ public sealed class BuiltInNodeRegistry : INodeRegistry
             new PinSchema("In",  "In",  false, "System.Object"),
             new PinSchema("Out", "Out", false,
                 string.IsNullOrEmpty(ca.TargetTypeId) ? "System.Object" : ca.TargetTypeId),
+        };
+
+    /// <summary>⭐ S5d — Run Behaviour: exec In, exec Out (the child's Success), exec OnFailure (its Failure).</summary>
+    private static IReadOnlyList<PinSchema> RunBehaviorPins()
+        => new[]
+        {
+            new PinSchema("In",        "In",  true, ""),
+            new PinSchema("Out",       "Out", true, ""),
+            new PinSchema("OnFailure", "Out", true, ""),
         };
 
     /// <summary>LatentDelay: exec In/Out + data-In "Duration"/System.Single.</summary>

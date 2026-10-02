@@ -50,6 +50,7 @@ internal static class IrPrinter
         IrOp_WaitForEvent w   => $"wait_for_event {w.EventTypeFqn}",
         IrOp_ChannelCommand c    => $"channel_cmd {c.ChannelComponentTypeFqn}.{c.ActionIdConstantName}",
         IrOp_InlineActionCall a  => $"inline_action_call {a.ActionFqn}",
+        IrOp_RunBehavior rb      => $"run_behavior {rb.BehaviorName}",
         _                        => op.GetType().Name,
     };
 
