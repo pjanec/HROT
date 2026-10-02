@@ -698,13 +698,21 @@ internal sealed class V_LatentRules : IValidator
                         $"Event graph '{graph.Name}': {why}.", asset.AssetId, graph.Id, entry.Id));
             }
 
-        // ⭐ CE-2010 (DESIGN_Typed_Event_Nodes E1, I1) — FindEntryNode takes the FIRST event node of an Event graph, so a
-        //   second one compiled to nothing, silently. Named here, on every extra node, until E2's handler split.
+        // ⭐ CE-2010 / CE-2013 (DESIGN_Typed_Event_Nodes I1, T-7) — FindEntryNode takes a graph's FIRST event node. An Event
+        //   graph of TYPED event nodes is split into one handler per node (Stage2_6), so any number is legal there; an
+        //   untyped entry (a custom-event body, T-7: exactly one) beside other event nodes would compile to nothing, so it
+        //   is named on every extra node. ⚠ Function / Macro graphs are left as they were (a loose extra entry there is an
+        //   orphan, BP3010) — T-7 keeps their one entry and this batch adds no rule for them.
         foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
-            foreach (var extra in graph.Nodes.OfType<EventEntryNode>().Skip(1))
+        {
+            var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+            if (entries.Count < 2 || entries.All(EventPayload.IsTyped)) continue;
+            foreach (var extra in entries.Skip(1))
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1682,
-                    $"Event graph '{graph.Name}' holds more than one event node; only the first would run. Put each " +
-                    "event in its own Event graph.", asset.AssetId, graph.Id, extra.Id));
+                    $"Event graph '{graph.Name}' mixes a custom-event entry with other event nodes; a custom event's " +
+                    "body takes exactly one entry. Move the other events to their own Event graph.",
+                    asset.AssetId, graph.Id, extra.Id));
+        }
 
         // ⭐ S5d — Run Behaviour hosts a behaviour, so only a BEHAVIOUR (which has a brain tier and an occurrence) may use it,
         //   and it must name the child. (Latent placement — no functions, no Event graphs, no loop bodies — is already refused.)

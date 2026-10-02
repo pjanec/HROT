@@ -129,7 +129,7 @@ internal static class NodePinSchema
         return node switch
         {
             // ── Dynamic kinds: editor-side computation required ───────────────────
-            EventEntryNode      => EventEntryNodePins(containingGraph),
+            EventEntryNode een  => EventEntryNodePins(containingGraph, een),
             ReturnNode          => ReturnNodePins(containingGraph, asset),
             FunctionCallNode fc => FunctionCallPinsDispatch(fc, asset, containingGraph),
             MacroCallNode mc    => MacroCallPins(mc, asset),
@@ -263,10 +263,14 @@ internal static class NodePinSchema
     /// </para>
     /// Fallback to exec-only for Event/AiPrimitive graphs and Function graphs with no inputs.
     /// </summary>
-    private static IReadOnlyList<Pin> EventEntryNodePins(Graph? containingGraph)
+    private static IReadOnlyList<Pin> EventEntryNodePins(Graph? containingGraph, EventEntryNode node)
     {
         if (containingGraph is null)
             return ExecOnly("Out");
+
+        // ⭐ CE-2012 (DESIGN_Typed_Event_Nodes T-1) — the payload is the NODE's own Fields, or the graph's Inputs when
+        //   it is the graph's one entry. EventPayload owns that rule for both halves (Stage0_Rehydrate is the twin).
+        var payload = EventPayload.FieldsOf(containingGraph, node);
 
         // Function graphs expose their declared inputs; Event graphs (Q#14 custom-event subscribers)
         // expose the event PAYLOAD fields the same way — one data-Out per Graph.Inputs entry — so the
@@ -285,7 +289,7 @@ internal static class NodePinSchema
         bool wantsData = (containingGraph.Kind == GraphKind.Function
                           || containingGraph.Kind == GraphKind.Event
                           || isMacro)
-                         && containingGraph.Inputs.Count > 0;
+                         && payload.Count > 0;
 
         if (!isMacro && !wantsData)
             return ExecOnly("Out");
@@ -296,7 +300,7 @@ internal static class NodePinSchema
 
         if (wantsData)
         {
-            foreach (var inp in containingGraph.Inputs)
+            foreach (var inp in payload)
             {
                 var typeId = string.IsNullOrEmpty(inp.Type?.TypeId) ? "System.Object" : inp.Type.TypeId;
                 pins.Add(MakeData(inp.Name, "Out", typeId));

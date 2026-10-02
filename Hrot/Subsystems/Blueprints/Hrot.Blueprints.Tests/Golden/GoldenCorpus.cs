@@ -195,6 +195,7 @@ public static class GoldenCorpus
         if (!sink.HasErrors)
         {
             asset = Stage2_5_ExpandMacros.Run(asset, ctx);
+            if (!sink.HasErrors) asset = Stage2_6_SplitEventHandlers.Run(asset, ctx);   // CE-2013
             if (!sink.HasErrors)
             {
                 asset = Stage3_Normalize.Run(asset, ctx);

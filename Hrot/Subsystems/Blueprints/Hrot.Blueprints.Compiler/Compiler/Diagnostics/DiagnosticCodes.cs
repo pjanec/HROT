@@ -203,9 +203,12 @@ public static class DiagnosticCodes
     public const string BP1680 = "BP1680";  // JSON / intent node missing its DTO type or intent id
     public const string BP1681 = "BP1681";  // S6b / DESIGN_Unified_Behaviour_Run U-6: an Event graph's policy is out of range (Capacity 1..16, Restart is one handler)
 
-    // ⭐ CE-2010 (DESIGN_Typed_Event_Nodes E1, I1) — the compiler takes ONE entry per Event graph, so a second event
-    // node was silently dropped. Refused here until the handler split (E2) gives each event node its own handler.
-    public const string BP1682 = "BP1682";  // an Event graph holds more than one event node
+    // ⭐ CE-2010 (DESIGN_Typed_Event_Nodes E1, I1) — a second event node used to be silently dropped. ⭐ CE-2013 (E2)
+    // lifted it for TYPED event nodes in an Event graph (each becomes a handler); it still binds where one entry is the
+    // rule (T-7): an UNTYPED entry (a custom-event body) beside other event nodes.
+    public const string BP1682 = "BP1682";  // an untyped (custom-event) entry beside other event nodes
+    // ⭐ CE-2013 (T-3) — a node run by one event reads another event node's pin: that payload does not exist then.
+    public const string BP1683 = "BP1683";  // a handler reads data from another event node
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

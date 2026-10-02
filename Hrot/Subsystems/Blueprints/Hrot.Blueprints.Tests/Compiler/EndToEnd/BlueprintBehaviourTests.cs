@@ -739,6 +739,80 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(9f, got);
     }
 
+    // ── CE-2013 (DESIGN_Typed_Event_Nodes E2): several typed event nodes in one Event graph ─────────────────────────
+
+    /// <summary>One Event graph: Hit and Ping (no payload) both enter ONE tail, Run Behaviour(child) → Count = Count + 1.</summary>
+    private static BlueprintAsset SharedRunBehaviourTail(string name, string child,
+        EventFiberPolicy hitPolicy = EventFiberPolicy.Parallel, int hitCapacity = 0)
+    {
+        var asset = BlueprintAssetBuilder.Behavior(name)
+            .WithVariable("Count", typeof(int))
+            .WithGraph("Tick", g => g.Entry())
+            .Build();
+        var t = new Runtime.TypedEventGraph();
+        var hit  = t.Event(typeof(Runtime.WhenTestHitEvent).FullName!);
+        var ping = t.Event(typeof(Runtime.PingDemoEvent).FullName!);
+        hit.Policy = hitPolicy; hit.Capacity = hitCapacity;
+        var run = t.RunBehavior(child);
+        var inc = t.Increment(asset.Variables.Single());
+        t.Then(hit, run).Then(ping, run).Then(run, inc);
+        asset.Graphs.Add(t.Graph);
+        return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>CE-2013 (T-3) — a Run Behaviour in a SHARED tail keeps separate state per handler.</b> Hit and Ping arrive
+    /// together; each handler runs the tail's Run Behaviour in its OWN site slot, so the child runs twice (one occurrence
+    /// each, three ticks each) and both handlers count: <c>Count = 2</c>.
+    /// <para>✅ Red-proof: give the second handler the same node ids (no clone) and the generated class declares one site
+    /// field twice — it does not compile.</para>
+    /// </summary>
+    [Fact]
+    public void E2_ARunBehaviourInASharedTail_RunsInItsOwnSlotPerHandler()
+    {
+        const string Host = "E2SharedHost", Child = "E2SharedChild";
+        _ticksByOccurrence.Clear();
+        RegisterCountingChild(Child, perOccurrence: true);
+        var asset = SharedRunBehaviourTail(Host, Child);
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        Assert.Equal(2, System.Text.RegularExpressions.Regex.Matches(
+            compiled.GeneratedSource!, @"public static readonly int __RunSite_\w+ =").Count);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var (e, frame) = AssignAndFramer(Host);
+        int Count() => *(int*)(RootParamsAccessRoot(_fixture.World, e) + VarOffset(def!, "Count"));
+
+        _fixture.World.Bus.Publish(new Runtime.WhenTestHitEvent { Damage = 1f });
+        _fixture.World.Bus.Publish(new Runtime.PingDemoEvent { Value = 1 });
+        _fixture.World.Bus.SwapBuffers();
+        Assert.Null(frame());                      // f1: both handlers reach Run Behaviour and wait, each in its slot
+        Assert.Null(frame());                      // f2: each child's first tick
+        Assert.Equal(2, _ticksByOccurrence.Count); // two occurrences of the child — one per handler
+        Assert.Null(frame());                      // f3: second ticks
+        Assert.Equal(0, Count());
+        Assert.Null(frame());                      // f4: both children reach Success ⇒ both handlers count
+        Assert.Equal(2, Count());
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>CE-2013 — each handler keeps its OWN policy.</b> Hit is Queue(2), Ping the default Parallel(1): only Hit's
+    /// handler has a queue, and Ping's has its own fiber copy.
+    /// </summary>
+    [Fact]
+    public void E2_EachHandlerKeepsItsOwnPolicy()
+    {
+        var compiled = new BlueprintCompiler()
+            .Compile(SharedRunBehaviourTail("E2Policies", "AnyChild", EventFiberPolicy.Queue, 2), GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        var src = compiled.GeneratedSource!;
+        Assert.Contains("__fib_OnEvents_qCount", src);
+        Assert.Contains("__fib_OnEvents1_0", src);      // the second handler's own fiber (the name is sanitized)
+        Assert.DoesNotContain("__fib_OnEvents1_qCount", src);
+    }
+
     /// <summary>⭐ S6b — the policy limits are a blueprint diagnostic (a fixed layout needs a bounded compile-time N).</summary>
     [Theory]
     [CoversDiagnosticCode("BP1681")]

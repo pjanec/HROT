@@ -302,6 +302,75 @@ public sealed class EventEntryNode : Node
     /// <summary>⭐ S6b — how many handlers may run at once (Parallel) or wait in line (Queue). 0 = 1. Limit 16 (BP1660).</summary>
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public int Capacity { get; set; }
+
+    /// <summary>
+    /// ⭐ CE-2012 (<c>DESIGN_Typed_Event_Nodes</c> T-1) — the event's payload fields (name + pin TypeId), baked by the
+    /// editor exactly like <see cref="PublishEventNode.PayloadFields"/>. One data-out pin each; they are the handler's
+    /// inputs. ⇒ an Event graph can hold several event nodes, each with its own payload shape.
+    /// <para>
+    /// Null ⇒ the node has no payload of its own and is the graph's ONE entry, whose payload is
+    /// <see cref="Graph.Inputs"/> — a Function, Macro or custom-event body, and a legacy bus-event graph until
+    /// <see cref="EventPayload.MigrateLegacyInputs"/> moves its inputs here. Omitted from JSON when null.
+    /// </para>
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public List<PublishEventFieldDecl>? Fields { get; set; }
+}
+
+/// <summary>
+/// ⭐ CE-2012 (<c>DESIGN_Typed_Event_Nodes</c> T-1, T-7) — the ONE owner of "what payload does this event node carry",
+/// shared by the compiler (Stage 0 pins, the handler split) and the editor (its pin projection), so the two halves
+/// cannot drift.
+/// </summary>
+public static class EventPayload
+{
+    /// <summary>A node that subscribes to a bus event (it names one); an empty id is the entry of a Function, Macro or
+    /// custom-event body (T-7).</summary>
+    public static bool IsTyped(EventEntryNode node) => !string.IsNullOrWhiteSpace(node.EventTypeId);
+
+    /// <summary>
+    /// The payload of <paramref name="node"/>, in pin order: its own <see cref="EventEntryNode.Fields"/>, or — when it
+    /// has none and <paramref name="graph"/> holds no OTHER event node — the graph's <see cref="Graph.Inputs"/>.
+    /// Otherwise empty.
+    /// </summary>
+    public static IReadOnlyList<ParameterDecl> FieldsOf(Graph graph, EventEntryNode node)
+    {
+        if (node.Fields is { } fields)
+            return fields.Select(f => new ParameterDecl
+            {
+                Id   = Compiler.DeterministicIds.FromString($"event-field:{node.Id:N}:{f.Name}"),
+                Name = f.Name,
+                Type = new BlueprintTypeRef { TypeId = f.TypeId },
+            }).ToList();
+        // ⚠ "the only one" counts the OTHER event nodes: the editor projects a node's pins before it is added to the graph.
+        foreach (var n in graph.Nodes)
+            if (n is EventEntryNode && !ReferenceEquals(n, node) && n.Id != node.Id) return Array.Empty<ParameterDecl>();
+        return graph.Inputs;
+    }
+
+    /// <summary>
+    /// ⭐ CE-2012 — the load-time migration (T-1): a bus-event Event graph that keeps its payload on the GRAPH (one
+    /// typed event node, no <see cref="EventEntryNode.Fields"/>, not a custom-event body) has it moved onto its node.
+    /// The generated code does not change: the handler's inputs are the same names, types and order. Returns whether
+    /// anything moved.
+    /// </summary>
+    public static bool MigrateLegacyInputs(BlueprintAsset asset)
+    {
+        bool moved = false;
+        foreach (var graph in asset.Graphs)
+        {
+            if (graph.Kind != GraphKind.Event || graph.Inputs.Count == 0) continue;
+            var entries = graph.Nodes.OfType<EventEntryNode>().ToList();
+            if (entries.Count != 1 || entries[0].Fields is not null || !IsTyped(entries[0])) continue;
+            if (asset.CustomEvents.Any(e => string.Equals(e.Name, graph.Name, StringComparison.Ordinal))) continue;
+            entries[0].Fields = graph.Inputs
+                .Select(i => new PublishEventFieldDecl { Name = i.Name, TypeId = i.Type?.TypeId ?? "" })
+                .ToList();
+            graph.Inputs = new List<ParameterDecl>();
+            moved = true;
+        }
+        return moved;
+    }
 }
 
 /// <summary>⭐ S6b (U-6) — an Event graph's policy for an arrival while its handler still waits.</summary>

@@ -154,10 +154,20 @@ public static class BlueprintJsonServices
         {
             var dom = System.Text.Json.Nodes.JsonNode.Parse(json) as System.Text.Json.Nodes.JsonObject;
             if (dom is not null && BlueprintSchemaV2.IsV2(dom))
-                return JsonSerializer.Deserialize<BlueprintAsset>(
-                    BlueprintSchemaV2.Down(dom).ToJsonString(), _options);
+                return Migrated(JsonSerializer.Deserialize<BlueprintAsset>(
+                    BlueprintSchemaV2.Down(dom).ToJsonString(), _options));
         }
 
-        return JsonSerializer.Deserialize<BlueprintAsset>(json, _options);
+        return Migrated(JsonSerializer.Deserialize<BlueprintAsset>(json, _options));
+    }
+
+    /// <summary>
+    /// ⭐ CE-2012 (<c>DESIGN_Typed_Event_Nodes</c> T-1) — a bus-event graph's payload moves from the graph onto its event
+    /// node on load, so every reader sees one shape. The next save writes it there.
+    /// </summary>
+    private static BlueprintAsset? Migrated(BlueprintAsset? asset)
+    {
+        if (asset is not null) EventPayload.MigrateLegacyInputs(asset);
+        return asset;
     }
 }

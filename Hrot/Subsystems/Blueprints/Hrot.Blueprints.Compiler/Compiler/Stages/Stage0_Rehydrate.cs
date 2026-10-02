@@ -115,8 +115,8 @@ internal static class Stage0_Rehydrate
         // Enrich with dynamic pins for dynamic-pin node kinds.
         switch (node)
         {
-            case EventEntryNode:
-                EnrichEventEntryPins(pins, graph, staticShapes);
+            case EventEntryNode een:
+                EnrichEventEntryPins(pins, graph, een, staticShapes);
                 break;
 
             case GetAllParametersNode:
@@ -257,8 +257,11 @@ internal static class Stage0_Rehydrate
     // ── Dynamic pin enrichers ─────────────────────────────────────────────────
 
     private static void EnrichEventEntryPins(
-        List<Pin> pins, Graph graph, IReadOnlyList<PinSchema> staticShapes)
+        List<Pin> pins, Graph graph, EventEntryNode node, IReadOnlyList<PinSchema> staticShapes)
     {
+        // ⭐ CE-2012 (DESIGN_Typed_Event_Nodes T-1) — the payload is the NODE's (its baked Fields), or the graph's Inputs
+        //   when it is the graph's one entry (EventPayload owns that rule, shared with NodePinSchema).
+        var payload = EventPayload.FieldsOf(graph, node);
         // Static skeleton: exec-Out "Out" already added from registry.
         // Enrich: add one data-Out per Graph.Inputs entry. Function graphs expose their declared
         // inputs; Event graphs (Q#14 custom-event subscribers) expose the event PAYLOAD fields the
@@ -277,7 +280,7 @@ internal static class Stage0_Rehydrate
         // editor half projected N. Precisely the two-halves-drift this projection pair keeps hitting.
         bool isMacro   = graph.Kind == GraphKind.Macro;
         bool wantsData = (graph.Kind == GraphKind.Function || graph.Kind == GraphKind.Event || isMacro)
-                         && graph.Inputs.Count > 0;
+                         && payload.Count > 0;
 
         if (!isMacro && !wantsData) return;
         if (isMacro && !wantsData && graph.ExecInputs.Count == 0) return;   // nothing to change
@@ -297,7 +300,7 @@ internal static class Stage0_Rehydrate
 
         if (!wantsData) return;
 
-        foreach (var inp in graph.Inputs)
+        foreach (var inp in payload)
         {
             var inpTypeId = GetTypeId(inp.Type);
             pins.Add(MakePin(inp.Name, "Out", isExec: false, typeId: inpTypeId));

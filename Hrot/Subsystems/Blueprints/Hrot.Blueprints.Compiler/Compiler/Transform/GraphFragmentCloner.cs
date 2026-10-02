@@ -97,6 +97,14 @@ public static class GraphFragmentCloner
     /// </para>
     /// </summary>
     public static ClonedFragment Clone(IReadOnlyList<Node> nodes, IReadOnlyList<Link> links)
+        => Clone(nodes, links, _ => Guid.NewGuid());
+
+    /// <summary>
+    /// ⭐ CE-2013 (<c>DESIGN_Typed_Event_Nodes</c> T-3) — the same clone, with every fresh node and pin id taken from
+    /// <paramref name="freshId"/> (given the original id). The handler split derives them from the original, so the
+    /// generated code — whose state names come from node ids — is the same on every compile.
+    /// </summary>
+    public static ClonedFragment Clone(IReadOnlyList<Node> nodes, IReadOnlyList<Link> links, Func<Guid, Guid> freshId)
     {
         if (nodes is null) throw new ArgumentNullException(nameof(nodes));
         if (links is null) throw new ArgumentNullException(nameof(links));
@@ -108,13 +116,13 @@ public static class GraphFragmentCloner
 
         foreach (var node in clonedNodes)
         {
-            var freshNodeId = Guid.NewGuid();
+            var freshNodeId = freshId(node.Id);
             nodeMap[node.Id] = freshNodeId;
             node.Id = freshNodeId;
 
             foreach (var pin in node.Pins)
             {
-                var freshPinId = Guid.NewGuid();
+                var freshPinId = freshId(pin.Id);
                 pinMap[pin.Id] = freshPinId;
                 pin.Id = freshPinId;
             }

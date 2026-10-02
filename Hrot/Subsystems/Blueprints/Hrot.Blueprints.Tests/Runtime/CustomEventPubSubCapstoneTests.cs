@@ -154,6 +154,85 @@ public sealed class CustomEventPubSubCapstoneTests
     }
 
     /// <summary>
+    /// ⭐⭐ CE-2013 (<c>DESIGN_Typed_Event_Nodes</c> E2, T-2) — ONE Event graph handles TWO events: each typed event node
+    /// fires its own chain with its own payload. Ping writes <c>First</c>; Pong writes <c>Second</c>.
+    /// <para>✅ Red-proof: before the split the second node was dropped (E1: BP1682), so Pong never wrote.</para>
+    /// </summary>
+    [Fact]
+    public void OneEventGraph_TwoEventNodes_EachRunsOnItsOwnEvent()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BlueprintAssetBuilder.Instance("OneGraphTwoEvents")
+            .WithVariable("First", typeof(int), "0")
+            .WithVariable("Second", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        var t = new TypedEventGraph();
+        var ping = t.Event(typeof(PingDemoEvent).FullName!, "Value");
+        var pong = t.Event(typeof(PongDemoEvent).FullName!, "Value");
+        var setFirst = t.Set(asset.Variables[0]);
+        var setSecond = t.Set(asset.Variables[1]);
+        t.Then(ping, setFirst).Data(ping, "Value", setFirst, "Value");
+        t.Then(pong, setSecond).Data(pong, "Value", setSecond, "Value");
+        asset.Graphs.Add(t.Graph);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity e = harness.SpawnAndAttach(asset);
+
+        fixture.World.Bus.Publish(new PingDemoEvent { Target = e, Value = 42 });
+        harness.Pump(1);
+        Assert.Equal(42, harness.ReadIntField(e, asset, "First"));
+        Assert.Equal(0, harness.ReadIntField(e, asset, "Second"));
+
+        fixture.World.Bus.Publish(new PongDemoEvent { Target = e, Value = 7 });
+        harness.Pump(1);
+        Assert.Equal(42, harness.ReadIntField(e, asset, "First"));
+        Assert.Equal(7, harness.ReadIntField(e, asset, "Second"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-2013 (T-3) — two event nodes feed ONE exec chain: each event runs the shared tail (<c>Count = Count + 1</c>)
+    /// after its own head, so both arriving in one frame count twice. The tail is cloned for the second handler.
+    /// <para>✅ Red-proof: give the second handler the tail without cloning it (same node ids) and the generated class
+    /// does not compile — or with E1 alone, the second event never runs and <c>Count</c> is 1.</para>
+    /// </summary>
+    [Fact]
+    public void TwoEventNodesIntoOneExecChain_BothRunTheSharedTail()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        var asset = BlueprintAssetBuilder.Instance("SharedTail")
+            .WithVariable("First", typeof(int), "0")
+            .WithVariable("Second", typeof(int), "0")
+            .WithVariable("Count", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        var t = new TypedEventGraph();
+        var ping = t.Event(typeof(PingDemoEvent).FullName!, "Value");
+        var pong = t.Event(typeof(PongDemoEvent).FullName!, "Value");
+        var setFirst = t.Set(asset.Variables[0]);
+        var setSecond = t.Set(asset.Variables[1]);
+        var tail = t.Increment(asset.Variables[2]);
+        t.Then(ping, setFirst).Data(ping, "Value", setFirst, "Value").Then(setFirst, tail);
+        t.Then(pong, setSecond).Data(pong, "Value", setSecond, "Value").Then(setSecond, tail);
+        asset.Graphs.Add(t.Graph);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity e = harness.SpawnAndAttach(asset);
+
+        fixture.World.Bus.Publish(new PingDemoEvent { Target = e, Value = 42 });
+        fixture.World.Bus.Publish(new PongDemoEvent { Target = e, Value = 7 });
+        harness.Pump(1);
+
+        Assert.Equal(42, harness.ReadIntField(e, asset, "First"));
+        Assert.Equal(7, harness.ReadIntField(e, asset, "Second"));
+        Assert.Equal(2, harness.ReadIntField(e, asset, "Count"));
+    }
+
+    /// <summary>
     /// Builds the <c>OnPing</c> Event graph with explicit pins/links:
     /// <c>EventEntry.Out(exec) → SetVariable.In</c>, <c>EventEntry.Value(data) → SetVariable.Value(data)</c>,
     /// <c>SetVariable.Out(exec) → Return.In</c>. <c>Graph.Inputs=[Value:int]</c> so Stage5 matches the
