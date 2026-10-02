@@ -1417,6 +1417,22 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         
     }
     
+    /// <summary>S3: the behaviour's Input manifest (its Parameters at their offsets in the block).</summary>
+    public static global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[] InputManifest()
+    {
+        var __p = default(Params);
+        ref byte __o = ref global::System.Runtime.CompilerServices.Unsafe.As<Params, byte>(ref __p);
+        return new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]
+        {
+            new("FiringLineStart", typeof(global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint, byte>(ref __p.FiringLineStart))),
+            new("FiringLineEnd", typeof(global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint, byte>(ref __p.FiringLineEnd))),
+            new("BaselineStart", typeof(global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint, byte>(ref __p.BaselineStart))),
+            new("BaselineEnd", typeof(global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<global::Fdp.Toolkit.Behavior.Params.PickableGeoPoint, byte>(ref __p.BaselineEnd))),
+            new("TankSpacing", typeof(float), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<float, byte>(ref __p.TankSpacing))),
+            new("TargetAreaNetworkId", typeof(long), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, ref global::System.Runtime.CompilerServices.Unsafe.As<long, byte>(ref __p.TargetAreaNetworkId))),
+        };
+    }
+    
     /// <summary>CE-446: the behaviour's own resolver — reads its Parameters, writes its Variables. S2: it sees the block only.</summary>
     private static void Resolve_Resolve(ref Block __bb, global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
     {
@@ -1770,6 +1786,8 @@ public static class BlueprintRegistrar_PlatoonHillAttackBp_69D8FBD8_Bp
             BlackboardLayoutType = typeof(PlatoonHillAttackBp_69D8FBD8_Bp.Block),
             BrainStateLayoutType = typeof(PlatoonHillAttackBp_69D8FBD8_Bp.Exec),
             BrainStateBytes = PlatoonHillAttackBp_69D8FBD8_Bp.ExecSize,
+            JsonParamsDtoType = typeof(PlatoonHillAttackBp_69D8FBD8_Bp.Params),
+            ManagedBlackboardVariables = PlatoonHillAttackBp_69D8FBD8_Bp.InputManifest(),
             ParseParams = PlatoonHillAttackBp_69D8FBD8_Bp.BehaviorParseParams,
             BlueprintTick = PlatoonHillAttackBp_69D8FBD8_Bp.BehaviorTick,
             BlueprintStructureHash = PlatoonHillAttackBp_69D8FBD8_Bp.StructureHash,

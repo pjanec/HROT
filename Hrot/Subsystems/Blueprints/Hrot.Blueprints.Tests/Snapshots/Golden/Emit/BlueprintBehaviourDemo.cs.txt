@@ -110,6 +110,12 @@ public static class BlueprintBehaviourDemo_B50DE304_Bp
         
     }
     
+    /// <summary>S3: the behaviour's Input manifest (its Parameters at their offsets in the block).</summary>
+    public static global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[] InputManifest()
+    {
+        return global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>();
+    }
+    
     /// <summary>CE-446 / S2: bake the block, parse In, run the resolver over the block.</summary>
     public static unsafe void BehaviorParseParams(string json, byte* memory, int capacity,
         global::Fdp.Core.EntityRepository world, global::Fdp.Core.Entity self)
@@ -144,6 +150,7 @@ public static class BlueprintRegistrar_BlueprintBehaviourDemo_B50DE304_Bp
             BlackboardLayoutType = typeof(BlueprintBehaviourDemo_B50DE304_Bp.Block),
             BrainStateLayoutType = typeof(BlueprintBehaviourDemo_B50DE304_Bp.Exec),
             BrainStateBytes = BlueprintBehaviourDemo_B50DE304_Bp.ExecSize,
+            ManagedBlackboardVariables = BlueprintBehaviourDemo_B50DE304_Bp.InputManifest(),
             ParseParams = BlueprintBehaviourDemo_B50DE304_Bp.BehaviorParseParams,
             BlueprintTick = BlueprintBehaviourDemo_B50DE304_Bp.BehaviorTick,
             BlueprintStructureHash = BlueprintBehaviourDemo_B50DE304_Bp.StructureHash,

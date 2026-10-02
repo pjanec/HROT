@@ -589,6 +589,35 @@ internal static class InstanceEmitter
     /// </summary>
     private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
     {
+        // ⭐ S3 (DESIGN_Unified_Behaviour_Run) — the Input manifest, exactly what a BTree/HSM registrar publishes: one
+        //   entry per Parameter at its offset in the block (In sits at 0). The offsets are MEASURED on the real struct
+        //   (managed layout), never baked — right under either layout regime.
+        e.WriteLine("/// <summary>S3: the behaviour's Input manifest (its Parameters at their offsets in the block).</summary>");
+        e.WriteLine("public static global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[] InputManifest()");
+        e.WriteLine("{");
+        e.Indent();
+        if (asset.Parameters.Count == 0)
+            e.WriteLine("return global::System.Array.Empty<global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable>();");
+        else
+        {
+            e.WriteLine("var __p = default(Params);");
+            e.WriteLine("ref byte __o = ref global::System.Runtime.CompilerServices.Unsafe.As<Params, byte>(ref __p);");
+            e.WriteLine("return new global::Fdp.Toolkit.Behavior.ManagedBlackboardVariable[]");
+            e.WriteLine("{");
+            e.Indent();
+            foreach (var f in asset.Parameters)
+            {
+                string t = CSharpType(f.Type);
+                e.WriteLine($"new(\"{f.Name}\", typeof({t}), (int)global::System.Runtime.CompilerServices.Unsafe.ByteOffset(ref __o, "
+                          + $"ref global::System.Runtime.CompilerServices.Unsafe.As<{t}, byte>(ref __p.{f.Name}))),");
+            }
+            e.Outdent();
+            e.WriteLine("};");
+        }
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine();
+
         var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
         var resolver = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
         if (resolver is not null)

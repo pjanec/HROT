@@ -629,6 +629,12 @@ internal sealed class CSharpEmitter
         WriteLine($"BlackboardLayoutType = typeof({className}.Block),");
         WriteLine($"BrainStateLayoutType = typeof({className}.Exec),");
         WriteLine($"BrainStateBytes = {className}.ExecSize,");
+        // ⭐ S3 — the same two descriptions a BTree/HSM registrar publishes: the authored JSON contract (the Params
+        //   struct IS the authored input, Q77 §5.11) and the Input manifest. ⇒ the watch pane, GET /behaviors and the
+        //   inspector need no blueprint branch.
+        if (asset.Parameters.Count > 0)
+            WriteLine($"JsonParamsDtoType = typeof({className}.Params),");
+        WriteLine($"ManagedBlackboardVariables = {className}.InputManifest(),");
         WriteLine($"ParseParams = {className}.BehaviorParseParams,");
         WriteLine($"BlueprintTick = {className}.BehaviorTick,");
         WriteLine($"BlueprintStructureHash = {className}.StructureHash,");

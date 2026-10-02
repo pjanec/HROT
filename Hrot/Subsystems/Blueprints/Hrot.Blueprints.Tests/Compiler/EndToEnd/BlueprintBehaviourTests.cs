@@ -432,6 +432,49 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(7f, *(float*)(RootParamsAccessRoot(world, e) + VarOffset(def, "Mirrored")));
     }
 
+    /// <summary>
+    /// ⭐⭐ <b>S3</b> (<c>DESIGN_Unified_Behaviour_Run</c> §4) — a blueprint behaviour publishes the SAME two descriptions a
+    /// BTree/HSM registrar does: <c>JsonParamsDtoType</c> = the block's <c>In</c> struct, and an Input manifest with one
+    /// entry per Parameter at its offset. ⇒ <c>InputBytes</c> is the Params region, not the whole block.
+    /// ✅ Red-proof: drop the two registrar lines (<c>CSharpEmitter.EmitBehaviorRegistration</c>) and both are null.
+    /// </summary>
+    [Fact]
+    public void S3_ABlueprintBehaviour_PublishesItsParamsContract_AndItsInputManifest()
+    {
+        const string Name = "S3Manifest";
+        _fixture.CompileAndLoad(BehaviourWithResolver(Name), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+
+        Assert.NotNull(def!.JsonParamsDtoType);
+        Assert.Same(def.BlackboardLayoutType!.GetField("In")!.FieldType, def.JsonParamsDtoType);
+        var manifest = Assert.Single(def.ManagedBlackboardVariables!);
+        Assert.Equal("Speed", manifest.Name);
+        Assert.Equal(typeof(float), manifest.Type);
+        Assert.Equal(0, manifest.ByteOffset);
+        Assert.Equal(System.Runtime.InteropServices.Marshal.SizeOf(def.JsonParamsDtoType!), RootParamsAccess.InputBytes(def));
+        Assert.True(RootParamsAccess.InputBytes(def) < System.Runtime.InteropServices.Marshal.SizeOf(def.BlackboardLayoutType),
+            "the Input region is the Params half, not the whole block");
+    }
+
+    /// <summary>⭐ S3 — a parameterless blueprint behaviour declares an EMPTY manifest (0 Input bytes) and no JSON contract.</summary>
+    [Fact]
+    public void S3_AParameterlessBlueprintBehaviour_DeclaresAnEmptyManifest()
+    {
+        const string Name = "S3NoParams";
+        var asset = BlueprintAssetBuilder.Behavior(Name)
+            .WithVariable("Count", typeof(int))
+            .WithGraph("Tick", g => g.Entry().Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build();
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Name, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+
+        Assert.Null(def!.JsonParamsDtoType);
+        Assert.NotNull(def.ManagedBlackboardVariables);
+        Assert.Empty(def.ManagedBlackboardVariables!);
+        Assert.Equal(0, RootParamsAccess.InputBytes(def));
+    }
+
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)
     {
         Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
