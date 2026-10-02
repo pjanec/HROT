@@ -1,8 +1,8 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — measured and documented at the user's request ("yes, but measure and document it first");
-  awaiting the user's nod on §5 before building.
+build-state: READY-TO-BUILD — §5 decisions T-1..T-8 and slices E1-E6 APPROVED by the user 2026-10-02 ("approved").
+  Dispatched to a separate session: batches/HANDOFF_Typed_Event_Nodes.md.
 current-answer: §3 (diagrams) and §5 (decisions, each with a lean). §2 is the measured inventory.
 stale-below: nothing yet.
 known-rot: none.
@@ -117,6 +117,8 @@ thunk per event type that calls every handler of that type (I4), never two entri
 | E6 | debugger | step-over and probes per handler (I11) |
 
 ## 5. Decisions — each with a lean
+
+✅ **APPROVED by the user, 2026-10-02:** *"approved"* — every lean below as written, slices E1–E6 in order.
 
 | # | decision | lean | rejected — one line each |
 |---|---|---|---|
