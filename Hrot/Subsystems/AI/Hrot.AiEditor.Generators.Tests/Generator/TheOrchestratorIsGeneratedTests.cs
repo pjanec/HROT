@@ -174,7 +174,7 @@ public sealed class TheOrchestratorIsGeneratedTests
     ///
     /// <para>⭐⭐ HSM hosting now lives on the STATE: <c>StateNode.SubtreeName</c> +
     /// <c>SubtreeAssetId</c>, a slot declared by <c>HsmBridgeEmitCore</c>, and
-    /// <c>BrainTickSystem.TickHostedChildren</c> ticking the child every frame.</para>
+    /// <c>HsmRunner.TickHostedChildren</c> ticking the child every frame.</para>
     /// </summary>
     [Fact]
     public void AnHsmAliasEmitsNoOrchestrator_HostingIsPerState_CE333()

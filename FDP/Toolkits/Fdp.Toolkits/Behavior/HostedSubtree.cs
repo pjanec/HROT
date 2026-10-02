@@ -152,7 +152,7 @@ public static unsafe class HostedSubtree
     /// <summary>
     /// ⭐⭐⭐ <b><c>CE-431</c> — THE hosting call: the child ticks against ITS OWN block, seeded at its
     /// start.</b> 📄 <c>Architect_Question_76</c> §11.7. Both hosts reach it: a BTree node through
-    /// <c>OccurrenceSubtreeHost</c> and an HSM state through <c>BrainTickSystem.TickHostedChildren</c>.
+    /// <c>OccurrenceSubtreeHost</c> and an HSM state through <c>HsmRunner.TickHostedChildren</c>.
     ///
     /// <para>🔴 <b>What it replaces — <c>TickFromContext</c> (<c>CE-362</c>).</b> That handed every child
     /// the ENTITY's root params region, re-probed every tick: a child read its host's bytes LIVE and

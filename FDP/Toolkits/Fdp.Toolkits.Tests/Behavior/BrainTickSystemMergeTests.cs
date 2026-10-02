@@ -145,6 +145,31 @@ namespace Fdp.Toolkit.Behavior.Tests
             world.Dispose();
         }
 
+        // ── S4 ───────────────────────────────────────────────────────────────────
+
+        /// <summary>
+        /// ⭐⭐ <b>S4 (<c>DESIGN_Unified_Behaviour_Run</c> U-2) — every brain tier runs through ONE runner contract, and the
+        /// runners hold no state.</b> The definition derives its runner from its tier (it cannot disagree with it), and a
+        /// runner with an instance field would be per-run state living outside the two recorded slots.
+        /// <para>✅ Red-proof: give any runner a field, or map a tier to the wrong runner, and this fails.</para>
+        /// </summary>
+        [Fact]
+        public void S4_EveryTierRunsThroughItsRunner_AndRunnersHoldNoState()
+        {
+            Assert.Same(Runners.BTreeRunner.Instance,     new BehaviorDefinition { Name = "S4", BrainTier = BehaviorConstants.BrainTierBTree }.Runner);
+            Assert.Same(Runners.HsmRunner.Instance,       new BehaviorDefinition { Name = "S4", BrainTier = BehaviorConstants.BrainTierHsm }.Runner);
+            Assert.Same(Runners.BlueprintRunner.Instance, new BehaviorDefinition { Name = "S4", BrainTier = BehaviorConstants.BrainTierBlueprint }.Runner);
+            Assert.Null(new BehaviorDefinition { Name = "S4", BrainTier = 0 }.Runner);
+
+            foreach (var t in new[] { typeof(Runners.BTreeRunner), typeof(Runners.HsmRunner), typeof(Runners.BlueprintRunner) })
+            {
+                Assert.True(typeof(Runners.IBehaviorRunner).IsAssignableFrom(t));
+                var fields = t.GetFields(System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public
+                                         | System.Reflection.BindingFlags.NonPublic);
+                Assert.True(fields.Length == 0, $"{t.Name} holds per-instance state: {string.Join(", ", Array.ConvertAll(fields, f => f.Name))}");
+            }
+        }
+
         // ── O7_R47 ───────────────────────────────────────────────────────────────
 
         /// <summary>

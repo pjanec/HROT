@@ -73,7 +73,7 @@ public sealed class HsmOrchestratorEmitterTests
     ///
     /// <para>⭐⭐ <b>So the arm was ROUTED, not patched.</b> HSM sub-tree hosting is declared per STATE
     /// (<c>StateNode.SubtreeName</c> + <c>SubtreeAssetId</c>) and ticked every frame by
-    /// <c>BrainTickSystem.TickHostedChildren</c>. ⇒ this rail now pins the SUPERSESSION, so a future
+    /// <c>HsmRunner.TickHostedChildren</c>. ⇒ this rail now pins the SUPERSESSION, so a future
     /// author who re-adds an alias-driven emitter fails here and reads why.</para>
     /// </summary>
     [Fact]

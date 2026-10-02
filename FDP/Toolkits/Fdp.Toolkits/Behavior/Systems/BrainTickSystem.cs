@@ -11,6 +11,7 @@ using Fdp.Toolkit.Behavior.Diagnostics;
 using Fdp.Toolkit.Behavior.Events;
 using Fdp.Toolkit.Blueprints.Partitioning;
 using Fdp.Toolkit.Lifecycle.Events;
+using Fdp.Toolkit.Behavior.Runners;
 
 namespace Fdp.Toolkit.Behavior.Systems
 {
@@ -33,6 +34,12 @@ namespace Fdp.Toolkit.Behavior.Systems
     /// <c>BehaviorFinishedEvent</c> publish and the authority gate are shared by BOTH paradigms and
     /// are the BODY. ⭐ The arms differ in exactly three things: <b>where the state comes from</b>,
     /// <b>which kernel steps it</b>, and <b>how terminality is read</b>.</para>
+    ///
+    /// <para>⭐⭐⭐ <b>S4 (<c>DESIGN_Unified_Behaviour_Run</c> U-2) — the arms are now RUNNERS.</b> Each tier's kernel, brain
+    /// lookup, pause, trace and quirks (HSM's MobilityLost interrupt and hosted children) live in its
+    /// <see cref="Runners.IBehaviorRunner"/>; this system keeps ONE arm (<c>Run</c>) for what every tier shares — the
+    /// finished guard, the block and its reload restart, the finish and the fault. ⚠ The paragraph above is the O7c
+    /// history of how two systems became one.</para>
     ///
     /// <para>⛔ <b><c>BlueprintTickSystem</c> is deliberately NOT merged in</b>, on four measured
     /// grounds (§31.14.2): it is constructed by two roots outside <c>CognitiveRuntimeModule</c>, it
@@ -142,21 +149,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             SweepStaleDedupEntries(tiers.Count);
 
-            // ⭐⭐⭐ CE-324 (2026-09-23) — `Interrupt` PRIORITY, AND ITS ABSENCE WAS A REAL DEFECT.
-            //   🔴 `EventPriority.Low` is 0, so `new HsmEvent { EventId = … }` built a LOW-priority
-            //     event and MobilityLost — the one interrupt this system injects — went into the
-            //     SHARED NORMAL/LOW RING instead of the reserved interrupt slot that exists for it.
-            //   ⛔⛔ On the 128 tier that ring holds exactly ONE event (`Tier2_Ring_Capacity = 1`), so
-            //     a single queued normal event was enough to make the vehicle-disabled interrupt
-            //     fail to enqueue — and `EnqueueTier2` reports that by returning false, which this
-            //     call site discarded.
-            //   ⭐ The reserved slot CANNOT be crowded out by normal traffic, which is the guarantee
-            //     §9.4 claimed the system already had. It does now. 📄 §31.23.
-            var mobilityLostEvent = new HsmEvent
-            {
-                EventId  = BehaviorConstants.EventId_MobilityLost,
-                Priority = EventPriority.Interrupt,
-            };
+            // ⭐ S4 — the MobilityLost interrupt (CE-324) moved into HsmRunner with the rest of the HSM tier's quirks.
 
             for (int t = 0; t < tiers.Count; t++)
             {
@@ -174,12 +167,8 @@ namespace Fdp.Toolkit.Behavior.Systems
                     if (!_registry.TryGetDefinition(behavior.ActiveBehaviorHash, out var def))
                         continue;
 
-                    if (behavior.BrainTier == BehaviorConstants.BrainTierBTree)
-                        TickBTree(repo, entity, behavior, def, deltaTime);
-                    else if (behavior.BrainTier == BehaviorConstants.BrainTierHsm)
-                        TickHsm(repo, entity, behavior, def, deltaTime, mobilityLostEvent);
-                    else if (behavior.BrainTier == BehaviorConstants.BrainTierBlueprint)
-                        TickBlueprint(repo, entity, behavior, def, deltaTime);
+                    if (BehaviorRunners.For(behavior.BrainTier) is { } runner)
+                        Run(runner, repo, entity, behavior, def, deltaTime);
 
                     // ⭐ CE-482 — FAIL LOUD: a run that raised a fault this tick (and did not already finish) ends now, through
                     //   the normal finish — so its commands, channels and owned parts are released like any other end.
@@ -241,106 +230,45 @@ namespace Fdp.Toolkit.Behavior.Systems
                 _blueprintLayout.Remove(key);
         }
 
-        // ══ ARM 1 — BEHAVIOUR TREE ══════════════════════════════════════════════════════════
+        // ══ THE ONE ARM — every tier, through its runner (S4) ═════════════════════════════════
 
-        private void TickBTree(
-            EntityRepository repo, Entity entity, in BehaviorState behavior,
-            BehaviorDefinition def, float deltaTime)
+        /// <summary>
+        /// ⭐⭐⭐ <b>S4 (<c>DESIGN_Unified_Behaviour_Run</c> §3, U-2) — one arm for every tier.</b> The runner locates the
+        /// brain state and steps it; this body owns what every tier shares: the already-finished guard, the block and
+        /// its reload restart (<c>CE-452</c>), and the finish (<c>CE-449</c>). ⭐ The same <c>Runner.Tick</c> over the same
+        /// (brain, block) pair is what hosting will call (S5) — root = hosted with no host.
+        /// </summary>
+        private void Run(IBehaviorRunner runner, EntityRepository repo, Entity entity, in BehaviorState behavior,
+                         BehaviorDefinition def, float deltaTime)
         {
-            if (def.BTreeInterpreter == null)
-            {
-                // ⭐ CE-482: a definition that cannot run is a FAULT, not a silent skip (it used to be a DEBUG-only line).
-                BehaviorFault.Raise(repo, entity, BehaviorFaultCode.NoDefinition,
-                    $"Behavior hash {behavior.ActiveBehaviorHash} has no BTree interpreter.");
-                return;
-            }
-
-            // ⭐⭐⭐ THE CURSOR COMES FROM THE ENTITY'S ROOT STATE SLOT (O7c-② / CE-319).
-            //   ⛔ RequireStateRef THROWS on a miss rather than handing back a scratch cursor: a
-            //   BTree-tier entity that reaches the tick with no slot means ingress never provisioned
-            //   one, and ticking a stack local would restart the tree every frame — forever,
-            //   silently, looking like a behaviour that never progresses.
-            //
-            //   ⚠ LIFETIME: this ref points INTO the tier component, under OccurrenceStoreAccess's
-            //   rule — valid for this call, invalid across anything that adds or removes a component
-            //   on this entity. ⛔ Nothing in this method does: slots attach LAZILY during the tick,
-            //   and TryAttach bump-allocates or reuses a free block without moving an existing
-            //   payload. ⭐ Only CopyToLargerTier moves payloads, and that is structural —
-            //   ingress-only, never mid-tick.
-            ref var btState = ref RootStateAccess.RequireStateRef(repo, entity);
-
-            // Entity is held by the debugger. Skip ticking the interpreter to prevent
-            // trace log spam and state mutation.
-            if ((btState.InstanceFlags & BehaviorInstanceFlags.Paused) != 0)
+            // ⭐ Finished runs never tick again: Finish clears (BrainTier = 0), and this guards the same frame.
+            if (_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint doneFor)
+                && doneFor == behavior.InstanceId)
                 return;
 
-            // ⭐⭐⭐ P4-② — THE BLACKBOARD IS THE ROOT PARAMS SLOT, RESOLVED ONCE PER ENTITY PER TICK
-            //   and handed down as a `ref byte`.
-            //
-            // ⛔⛔ THE NO-PARAMS CASE IS GATED ON A CHECKABLE PREDICATE, NOT A NULL-GUESS.
-            //   A behaviour that declares no parameters has NO root slot — ingress attaches one only
-            //   when rootBytes > 0 — so RootRef would THROW. ⚠ Asking "did the lookup fail?" cannot
-            //   tell "this behaviour has no params" from "the slot should exist and does not".
-            // ⭐ CE-431: "no block" is the shared SENTINEL, never a stack byte — thunks now project from
-            //   bb, and BehaviorBlock.Require turns a projection from the sentinel into a loud failure.
-            ref byte blackboard = ref BehaviorBlock.None;
+            if (!runner.TryGetRootBrain(repo, entity, def, out byte* brain, out int brainBytes))
+                return;
+
+            // ⭐⭐⭐ P4-② — THE BLACKBOARD IS THE ROOT PARAMS SLOT, resolved once per entity per tick and handed down
+            //   as a `ref byte`. ⛔ The no-block case is gated on a checkable predicate (RootParamsBytes), never a
+            //   null-guess; "no block" is the shared SENTINEL, so a projection from it fails loudly (CE-431).
+            ref byte block = ref BehaviorBlock.None;
             int blockBytes = RootParamsAccess.RootParamsBytes(def);
             if (blockBytes > 0)
             {
-                // ⭐ CE-452: a reload that changed the block's width restarts the behaviour instead of ticking it.
+                // ⭐ CE-452: a reload that changed the block's width or layout restarts the behaviour instead of ticking it.
                 if (!RestartIfRelaidOut(repo, entity, behavior, def, blockBytes)) return;
-                blackboard = ref RootParamsAccess.RootRef(repo, entity);
+                block = ref RootParamsAccess.RootRef(repo, entity);
             }
 
-            // Resolve the optional per-entity trace ring buffer.
-            BTreeTraceWorkingMemory1024* tracePtr = null;
-            bool emitToLog = false;
-            if (repo.HasComponent<DebugState>(entity))
+            var ctx = new BehaviorRunContext
             {
-                ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
-                emitToLog = (dbg.Behavior & BehaviorDebugFlags.EmitToLog) != 0;
-                if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0
-                    && repo.HasComponent<BTreeTraceWorkingMemory1024>(entity))
-                {
-                    ref var traceMem = ref repo.GetComponentRW<BTreeTraceWorkingMemory1024>(entity);
-                    traceMem.LastInstanceId = behavior.InstanceId;
-                    tracePtr = (BTreeTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMem);
-                }
-            }
-
-            ushort startWritePos = tracePtr != null ? tracePtr->WritePos : (ushort)0;
-
-            // Stack-allocate context -- zero heap allocation.
-            var context = new BTreeContext
-            {
-                Self         = entity,
-                World        = repo,
-                _deltaTime   = deltaTime,
-                _frameCount  = (int)repo.SimulationTick,
-                _floatParams = Array.Empty<float>(),
-                _intParams   = Array.Empty<int>(),
-                _instanceId  = behavior.InstanceId,
-                TraceBuffer  = tracePtr,
+                World = repo, Self = entity, Definition = def, Behavior = behavior, Ecb = _ecb, DeltaTime = deltaTime,
             };
+            var status = runner.Tick(ref ctx, brain, brainBytes, ref block);
 
-            var rootResult = def.BTreeInterpreter!.Tick(ref blackboard, ref btState, ref context);
-
-            if (tracePtr != null && emitToLog
-                && BehaviorTraceLog.Instance is { IsTraceEnabled: true } emitter)
-            {
-                int bytesWritten = tracePtr->WritePos - startWritePos;
-                if (bytesWritten < 0)
-                    bytesWritten += BTreeTraceWorkingMemory1024.PayloadBytes;
-                int recordsWritten = bytesWritten / BTreeTraceWorkingMemory1024.RecordStride;
-                if (recordsWritten > 0)
-                    EmitBTreeRecordsToLog(entity, repo, tracePtr, startWritePos, recordsWritten,
-                        def.BTreeInterpreter.Blob, emitter);
-            }
-
-            // ⭐ TERMINALITY, BTREE FORM: the root's returned status. Published exactly once per
-            //   terminal transition per behaviour instance.
-            if (rootResult == NodeStatus.Success || rootResult == NodeStatus.Failure)
-                Finish(repo, entity, behavior, rootResult);
+            if (status == NodeStatus.Success || status == NodeStatus.Failure)
+                Finish(repo, entity, behavior, status);
         }
 
         /// <summary>
@@ -372,63 +300,8 @@ namespace Fdp.Toolkit.Behavior.Systems
             BehaviorIngressSystem.Clear(repo, entity, _registry);
         }
 
-        // ══ ARM 3 — BLUEPRINT (CE-446, Q77) ═════════════════════════════════════════════════
-
-        /// <summary>
-        /// ⭐⭐ <b>A behaviour implemented by a blueprint.</b> 📄 <c>Architect_Question_77</c> §3 C/D.
-        ///
-        /// <para>
-        /// ⭐ The block is the root params slot (<c>{ In; St }</c>), resolved exactly as the BTree arm resolves it; the brain
-        /// state (latent cursor, When memory, suspended locals) is the root STATE slot, as a BTree cursor is (S2,
-        /// <c>DESIGN_Unified_Behaviour_Run</c> U-1). ⭐ Ending is the returned status (<c>Q33</c> ruling 2: latent ≠ ended):
-        /// <c>Success</c>/<c>Failure</c> publishes <see cref="BehaviorFinishedEvent"/> once per <c>InstanceId</c>.
-        /// </para>
-        ///
-        /// <para>
-        /// ⭐ <b>Finishing runs <see cref="Finish"/></b> (<c>CE-449</c>): the block is freed and the behaviour cleared. Unlike a BTree
-        /// root — which the interpreter restarts — a blueprint's tick has no restart semantics: calling it again would
-        /// re-run the graph from phase 0 and re-issue its commands after it said it was done.
-        /// </para>
-        /// </summary>
+        /// <summary>⭐ CE-446: the frame's command buffer, handed to every runner (a blueprint tick records into it).</summary>
         private Fdp.Interfaces.IEntityCommandBuffer? _ecb;
-
-        private void TickBlueprint(
-            EntityRepository repo, Entity entity, in BehaviorState behavior,
-            BehaviorDefinition def, float deltaTime)
-        {
-            if (def.BlueprintTick == null)
-            {
-                // ⭐ CE-482: a definition that cannot run is a FAULT, not a silent skip (it used to be a DEBUG-only line).
-                BehaviorFault.Raise(repo, entity, BehaviorFaultCode.NoDefinition,
-                    $"Behavior hash {behavior.ActiveBehaviorHash} has no blueprint tick.");
-                return;
-            }
-
-            if (_publishedTerminalForInstanceId.TryGetValue(entity.Index, out uint doneFor)
-                && doneFor == behavior.InstanceId)
-                return;
-
-            // ⭐ Same predicate as the BTree arm: no params and no state ⇒ no block, and the sentinel makes a
-            //   projection from it fail loudly rather than read a stack byte.
-            ref byte block = ref BehaviorBlock.None;
-            int blockBytes = RootParamsAccess.RootParamsBytes(def);
-            if (blockBytes > 0)
-            {
-                if (!RestartIfRelaidOut(repo, entity, behavior, def, blockBytes))
-                    return;
-                block = ref RootParamsAccess.RootRef(repo, entity);
-            }
-
-            // ⭐ S2 — the brain state is its own slot; RequireRootBytesRef throws (names the cause) rather than ticking a stand-in.
-            ref byte exec = ref BehaviorBlock.None;
-            if (def.BrainStateBytes > 0)
-                exec = ref RootStateAccess.RequireRootBytesRef(repo, entity, def.BrainStateBytes);
-
-            var status = def.BlueprintTick(ref block, ref exec, repo, _ecb!, entity, repo.SimulationTime, deltaTime, behavior.InstanceId);
-
-            if (status == NodeStatus.Success || status == NodeStatus.Failure)
-                Finish(repo, entity, behavior, status);
-        }
 
         /// <summary>The layout each running behaviour started with — keyed by <c>entity.Index</c>, valid only for the recorded
         /// <c>(InstanceId, behaviour hash)</c>; <c>Pending</c> = a restart was requested for that instance. Swept with the
@@ -502,378 +375,5 @@ namespace Fdp.Toolkit.Behavior.Systems
             return false;
         }
 
-        // ══ ARM 2 — HIERARCHICAL STATE MACHINE ══════════════════════════════════════════════
-
-        private void TickHsm(
-            EntityRepository repo, Entity entity, in BehaviorState behavior,
-            BehaviorDefinition def, float deltaTime, in HsmEvent mobilityLostEvent)
-        {
-            if (def.HsmDefinition == null) return;
-
-            // ⭐ CE-452: the root params block is read by the machine's actions and hosted children — same restart rule.
-            int hsmBlockBytes = RootParamsAccess.RootParamsBytes(def);
-            if (hsmBlockBytes > 0 && !RestartIfRelaidOut(repo, entity, behavior, def, hsmBlockBytes)) return;
-
-            // ⭐⭐⭐ THE INSTANCE COMES FROM THE ENTITY'S ROOT HSM SLOT, WITH ITS SIZE (O7c-④a).
-            //
-            //   ⛔⛔ A MISS IS A SKIP HERE, NOT A THROW, AND THE ASYMMETRY WITH THE BTREE ARM IS
-            //     MEASURED RATHER THAN CHOSEN. 📄 §31.16.2. Provisioning for an HSM brain happens at
-            //     INGRESS only — the translator cannot size the slot, because TkbTranslatorSet.Base()
-            //     holds no BehaviorRegistry and therefore cannot reach the blob. ⇒ an entity that
-            //     spawned with a default HSM behaviour and never received an assign legitimately has
-            //     no instance, and that is EXACTLY the state the component version was in: a zeroed
-            //     BrainHsm128 has MachineId == 0, which HsmKernelCore.ValidateInstance rejects by
-            //     `continue`. ⭐ Skipping reproduces that behaviour byte for byte; throwing would turn
-            //     a long-standing silent no-op into a crash.
-            //
-            //   ⚠ Every BTree behaviour has a cursor and the translator DOES provision it, so a miss
-            //     there is a genuine fault — which is why RequireStateRef throws and this does not.
-            if (!RootHsmAccess.TryGetInstance(repo, entity, out byte* instance, out int instanceSize))
-                return;
-
-            var header = (InstanceHeader*)instance;
-
-            // BHU-009: inject the MobilityLost interrupt if the interrupt register is set.
-            if (repo.HasComponent<BrainInterrupts>(entity))
-            {
-                ref var bb = ref repo.GetComponentRW<BrainInterrupts>(entity);
-                if (bb.Interrupt_MobilityLost == 1
-                    && !HsmEventQueue.TryEnqueue(instance, instanceSize, mobilityLostEvent))
-                {
-                    // ⛔⛔ CE-324: THE RETURN VALUE IS NO LONGER DISCARDED. A false here means the
-                    //   reserved interrupt slot still holds an UNCONSUMED interrupt — the kernel
-                    //   drains it inside the Update below, so within one tick this should not
-                    //   happen. ⚠ It is reported rather than fixed up: silently dropping the event
-                    //   that tells a disabled vehicle to stop is exactly the silent-non-execution
-                    //   shape this programme keeps filing (CE-315, CE-321, CE-323).
-                    //   ⚠ DEBUG-only on purpose: this sits in the per-entity, per-tick path, and a
-                    //   production log here would spam once per frame for as long as the condition
-                    //   holds. The rail O7_R58 is what proves the enqueue succeeds.
-#if DEBUG
-                    System.Diagnostics.Debug.WriteLine(
-                        $"[BrainTickSystem] entity {entity.Index}: MobilityLost interrupt DROPPED — " +
-                        $"the reserved interrupt slot was still occupied (instance {instanceSize} B).");
-#endif
-                }
-            }
-
-            // Resolve the optional per-entity HSM trace context.
-            HsmTraceContext  traceCtx    = default;
-            HsmTraceContext* traceCtxPtr = null;
-            HsmTraceWorkingMemory1024* hsmTracePtr = null;
-            bool emitToLog = false;
-            if (repo.HasComponent<DebugState>(entity))
-            {
-                ref readonly var dbg = ref repo.GetComponentRO<DebugState>(entity);
-                emitToLog = (dbg.Behavior & BehaviorDebugFlags.EmitToLog) != 0;
-                if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) != 0
-                    && repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
-                {
-                    ref var traceMem = ref repo.GetComponentRW<HsmTraceWorkingMemory1024>(entity);
-                    traceMem.LastInstanceId = behavior.InstanceId;
-                    hsmTracePtr            = (HsmTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMem);
-                    traceCtx.Buffer        = (byte*)Unsafe.AsPointer(ref traceMem.Buffer[0]);
-                    traceCtx.WritePos      = (ushort*)Unsafe.AsPointer(ref traceMem.WritePos);
-                    traceCtx.RecordCount   = (ushort*)Unsafe.AsPointer(ref traceMem.RecordCount);
-                    traceCtx.CapacityBytes = HsmTraceWorkingMemory1024.PayloadBytes;
-                    traceCtx.MaxRecords    = HsmTraceWorkingMemory1024.CapacityRecords;
-                    traceCtx.FilterLevel   = ResolveTraceLevel(dbg.Behavior);
-                    traceCtx.CurrentTick   = (ushort)repo.SimulationTick;
-                    traceCtx.InstanceId    = behavior.InstanceId;
-                    traceCtxPtr = &traceCtx;
-
-                    // Honor the per-instance gate inside the kernel.
-                    header->Flags |= InstanceFlags.DebugTrace;
-                }
-                else if ((dbg.Behavior & BehaviorDebugFlags.EnableTraceBuffer) == 0)
-                {
-                    // Clear the gate when the bit flips off so a stale instance flag does not keep
-                    // producing dead traces.
-                    header->Flags &= unchecked((InstanceFlags)(byte)~(byte)InstanceFlags.DebugTrace);
-                }
-            }
-
-            ushort startWritePos = hsmTracePtr != null ? hsmTracePtr->WritePos : (ushort)0;
-
-            // DEBT-007 full resolution: WorldHandle carries the GCHandle IntPtr so that action
-            // delegates can recover the EntityRepository via GCHandle.FromIntPtr.
-            var bridge = new HsmKernelBridge
-            {
-                Self         = entity,
-                WorldHandle  = repo.UnmanagedHandle,
-                TraceContext = traceCtxPtr,
-            };
-
-            // ⭐⭐⭐ THE SIZE COMES FROM THE SLOT, NEVER FROM A TYPE. §9.4: with occurrence payloads
-            //   packed adjacently, a generic overload whose sizeof(TInstance) exceeds the slot reads
-            //   into the NEXT OCCURRENCE'S bytes — no compiler check, no runtime check.
-            var dummyPage = new CommandPage();
-            HsmKernel.Update(
-                def.HsmDefinition, instance, instanceSize, &bridge, deltaTime, &dummyPage, traceCtxPtr);
-
-            // ⭐⭐⭐ E5 — the hosted children, ticked HERE and not by a generated [HsmAction].
-            //   📄 DESIGN_Occurrence_Scoped_Storage.md §32.3 (user, 2026-09-23: "go with b").
-            // ⛔ AFTER Update, deliberately: the active-leaf set must be THIS frame's.
-            TickHostedChildren(repo, entity, behavior, def, instance, instanceSize, deltaTime);
-
-            if (hsmTracePtr != null && emitToLog
-                && BehaviorTraceLog.Instance is { IsTraceEnabled: true } emitter)
-            {
-                int bytesWritten = hsmTracePtr->WritePos - startWritePos;
-                if (bytesWritten < 0)
-                    bytesWritten += HsmTraceWorkingMemory1024.PayloadBytes;
-                int recordsWritten = bytesWritten / HsmTraceWorkingMemory1024.RecordStride;
-                if (recordsWritten > 0)
-                    EmitHsmRecordsToLog(entity, repo, hsmTracePtr, startWritePos, recordsWritten,
-                        def.HsmMetadata, emitter);
-            }
-
-            // ⭐ TERMINALITY, HSM FORM: a flag in the instance header, not a returned status.
-            // ⛔ CE-449: the latch is NO LONGER cleared here — clearing it is what let the kernel run a finished
-            //   machine again (HsmKernelCore refuses a Terminated instance). Finish's clear detaches the whole
-            //   instance, so no later assign can inherit the flag (BHU-007's concern).
-            if ((header->Flags & InstanceFlags.Terminated) != 0)
-                Finish(repo, entity, behavior, NodeStatus.Success);
-        }
-
-        /// <summary>
-        /// ⭐⭐⭐ <b><c>E5</c> — tick the BTree each ACTIVE hosting state owns, and reset the ones whose
-        /// host is no longer active.</b> 📄 <c>DESIGN_Occurrence_Scoped_Storage.md</c> §32.3, §32.5.
-        ///
-        /// <para>🔴🔴 <b>Why the host is HERE and not a generated <c>[HsmAction]</c>.</b> 📐 Measured
-        /// <c>2026-09-23</c> (§32.2.1): <c>HsmKernelCore.UpdateBatchCore</c> advances an instance by
-        /// ONE PHASE PER TICK, <c>Idle</c> leaves only on a non-empty event queue, and <c>Activity</c>
-        /// ends by setting <c>Idle</c> ⇒ on a quiescent machine an <c>ActivityAction</c> runs
-        /// <b>exactly once</b>. ⛔ That is not a frame hook, and a hosted BTree is a cursor that must
-        /// advance every frame. 📋 The one-shot itself is <c>CE-334</c>; this routes around it.</para>
-        ///
-        /// <para>⭐⭐ <b>The <c>else</c> arm IS <c>F14</c>, and it needs no deactivator.</b> The BTree
-        /// host must register one because a tick-driven hook cannot observe its own abandonment
-        /// (<c>HostedSubtree.Reset</c>'s remarks). Here the set of hosting states is iterated every
-        /// frame, so <i>"my host is not active"</i> is DIRECTLY observable — ⛔ no
-        /// <c>SweepExitedNodes</c> analogue, no <c>IsResourceOwning</c> bit, and no remembered state:
-        /// the active-leaf set is the memory. ⚠ HSM has no deactivator registry at all, so the
-        /// alternative was an <c>OnExitAction</c> that may already be authored.</para>
-        ///
-        /// <para>⭐ <b>The child's blackboard is the entity's ROOT PARAMS slot</b> — the same
-        /// <c>ref byte</c> the BTree arm passes at <c>:262-264</c>, guard included.
-        /// <c>BehaviorDefinition.BTreeInterpreter</c> is <c>Interpreter&lt;byte, BTreeContext&gt;</c>
-        /// (<c>BehaviorRegistry.cs:151</c>), so there is exactly one blackboard shape to supply and no
-        /// per-asset struct is needed — which matters because ⛔ <b>HSM assets emit no blackboard
-        /// struct at all</b>. ⚠ A hosted child's own actions resolve their occurrence by
-        /// <c>AssetId</c>, so they ignore these bytes; §32.9 names that asset-scoping as the
-        /// inherited <c>E3</c> hazard.</para>
-        ///
-        /// <para>⛔ <b>One dictionary miss is the whole cost for a machine that hosts nothing</b>,
-        /// which is every shipped asset.</para>
-        /// </summary>
-        private void TickHostedChildren(
-            EntityRepository repo,
-            Entity entity,
-            in BehaviorState behavior,
-            BehaviorDefinition def,
-            byte* instance,
-            int instanceSize,
-            float deltaTime)
-        {
-            var blob = def.HsmDefinition;
-            if (blob is null) return;
-
-            if (!HsmHostedSubtrees.TryGetForMachine(blob.Header.StructureHash, out var hosted))
-                return;   // ⭐ the common case — no shipped asset hosts anything
-
-            ushort* activeLeafIds = HsmKernel.GetActiveLeafIds(instance, instanceSize, out int regionCount);
-            if (activeLeafIds == null) return;
-
-            // ⭐ The child's blackboard, resolved once for all hosted children on this entity.
-            //   ⛔ Same predicate as the BTree arm: a behaviour with no params has NO root slot, so
-            //      RootRef would throw — "did the lookup fail?" cannot tell that from a real miss.
-            // ⭐ CE-431: this is the HOST's block — the SUPPLY source for a bound site. Each child ticks
-            //   against its OWN block inside TickHosted. ⛔ It used to BE the child's blackboard.
-            ref byte hostBlock = ref BehaviorBlock.None;
-            if (RootParamsAccess.RootParamsBytes(def) > 0)
-                hostBlock = ref RootParamsAccess.RootRef(repo, entity);
-
-            var context = new BTreeContext
-            {
-                Self         = entity,
-                World        = repo,
-                _deltaTime   = deltaTime,
-                _frameCount  = (int)repo.SimulationTick,
-                _floatParams = Array.Empty<float>(),
-                _intParams   = Array.Empty<int>(),
-                _instanceId  = behavior.InstanceId,
-                TraceBuffer  = null,
-            };
-
-            for (int i = 0; i < hosted.Length; i++)
-            {
-                var entry = hosted[i];
-
-                if (!IsStateActive(blob, activeLeafIds, regionCount, entry.StateIndex))
-                {
-                    // ⭐ F14 — the host abandoned a child that may still be Running.
-                    //   ⛔ Unconditional and cheap: Reset is a slot lookup and a zeroing write, and a
-                    //      child that was already default stays default.
-                    HostedSubtree.Reset(repo, entity, entry.TreeStateSlotKey);
-                    continue;
-                }
-
-                // ⛔ Resolved through the SAME table the BTree orchestrator's alias hosting uses —
-                //   one answer per slot, not two resolution policies (ruling 9). The name→interpreter
-                //   step happened at registration, because a generated thunk has no registry to ask.
-                // ⚠ A missing binding is SKIPPED here rather than thrown on: the HSM arm's documented
-                //   policy is to skip where the BTree arm throws (§31.16.2, a measured asymmetry), and
-                //   this runs inside a frame loop over every entity.
-                if (!HostedChildren.TryGet(entry.TreeStateSlotKey, out _)) continue;
-
-                // ⭐⭐ The status is DISCARDED, and that is settled: Q33 §1.5.4 rules a hosted subtree
-                //   NON-BLOCKING — it does not gate its host state's transitions, and completion is
-                //   raised through the child's own actions.
-                HostedSubtree.TickHosted(ref hostBlock, ref context, entry.TreeStateSlotKey, entry.Binding);
-            }
-        }
-
-        /// <summary>
-        /// ⭐ Is <paramref name="stateIndex"/> on the active path of any region — as a leaf or as an
-        /// ancestor of one?
-        ///
-        /// <para>⭐⭐ <b>The ancestor walk is not optional.</b> A hosting state may be a COMPOSITE, in
-        /// which case it is never itself a leaf; the kernel's own <c>ProcessActivityPhase</c> walks
-        /// leaf → root for exactly this reason (<c>HsmKernelCore.cs:444-456</c>). ⛔ Testing leaves
-        /// only would silently never tick a composite host.</para>
-        ///
-        /// <para>⚠ <c>0xFFFF</c> is the kernel's "no active leaf" sentinel in BOTH places it appears —
-        /// an unentered region, and the root's <c>ParentIndex</c> terminator.</para>
-        /// </summary>
-        private static bool IsStateActive(
-            HsmDefinitionBlob blob, ushort* activeLeafIds, int regionCount, ushort stateIndex)
-        {
-            for (int r = 0; r < regionCount; r++)
-            {
-                ushort current = activeLeafIds[r];
-                if (current == 0xFFFF) continue;
-
-                // ⚠ Bounded by the state count, not by trust in the data: a malformed ParentIndex
-                //   cycle would otherwise hang the tick, and a hang in a frame loop is worse than a
-                //   missed host.
-                int guard = 0;
-                while (current != 0xFFFF && guard++ <= blob.Header.StateCount)
-                {
-                    if (current == stateIndex) return true;
-                    current = blob.GetState(current).ParentIndex;
-                }
-            }
-            return false;
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private static TraceLevel ResolveTraceLevel(BehaviorDebugFlags flags)
-        {
-            // Highest-tier wins (Tier3 implies Tier2 implies Tier1).
-            if ((flags & BehaviorDebugFlags.HsmTraceTier3) != 0) return TraceLevel.Tier3;
-            if ((flags & BehaviorDebugFlags.HsmTraceTier2) != 0) return TraceLevel.Tier2;
-            if ((flags & BehaviorDebugFlags.HsmTraceTier1) != 0) return TraceLevel.Tier1;
-            // Default when EnableTraceBuffer is on but no tier specified — pick Tier1
-            // (transitions + events + state changes) so the buffer is not silent.
-            return TraceLevel.Tier1;
-        }
-
-        // ══ TRACE DECODING — unchanged, one copy each ═══════════════════════════════════════
-
-        /// <summary>
-        /// Decode the per-frame BTree trace delta into BehaviorLog strings. Allocates strings, but is
-        /// only entered after explicit <c>EmitToLog</c> + <c>IsTraceEnabled</c> gates, so the
-        /// steady-state simulation path remains allocation-free.
-        /// </summary>
-        private static void EmitBTreeRecordsToLog(
-            Entity entity,
-            EntityRepository repo,
-            BTreeTraceWorkingMemory1024* traceData,
-            ushort startWritePos,
-            int recordCount,
-            BehaviorTreeBlob blob,
-            IBehaviorTraceLogEmitter emitter)
-        {
-            int payloadBytes = BTreeTraceWorkingMemory1024.PayloadBytes;
-            int stride       = BTreeTraceWorkingMemory1024.RecordStride;
-            byte* bufferPtr  = (byte*)Unsafe.AsPointer(ref traceData->Buffer[0]);
-
-            for (int i = 0; i < recordCount; i++)
-            {
-                int offset = (startWritePos + (i * stride)) % payloadBytes;
-                var rec = (BTreeTraceRecord*)(bufferPtr + offset);
-
-                string nodeLabel = "?";
-                if (blob.DebugMetadata != null && rec->NodeIndex < blob.DebugMetadata.Length)
-                {
-                    var lbl = blob.DebugMetadata[rec->NodeIndex].Label;
-                    if (!string.IsNullOrEmpty(lbl)) nodeLabel = lbl;
-                }
-
-                string msg = rec->OpCode switch
-                {
-                    BTreeTraceOpCode.NodeEvaluated =>
-                        $"Node [{rec->NodeIndex}] {nodeLabel} -> {rec->Status}",
-                    BTreeTraceOpCode.WaitStarted =>
-                        $"Wait started [{rec->NodeIndex}] {nodeLabel} duration={rec->Duration:F2}s",
-                    BTreeTraceOpCode.WaitCompleted =>
-                        $"Wait completed [{rec->NodeIndex}] {nodeLabel}",
-                    BTreeTraceOpCode.ChannelMutated =>
-                        $"Channel mutated [{rec->NodeIndex}] {nodeLabel}: ch={(Fbt.Kernel.ChannelKind)rec->Channel} action={rec->ActiveAction} status={rec->ChannelStatus}",
-                    BTreeTraceOpCode.Error =>
-                        $"ERROR [{rec->NodeIndex}] {nodeLabel}: code={rec->ErrorCode}",
-                    BTreeTraceOpCode.ScopePushed =>
-                        $"Scope pushed depth={rec->StackDepth}",
-                    BTreeTraceOpCode.ScopePopped =>
-                        $"Scope popped depth={rec->StackDepth}",
-                    _ => $"OpCode {rec->OpCode}",
-                };
-
-                emitter.EmitTrace(entity, repo, msg, "BTreeTrace");
-            }
-        }
-
-        /// <summary>Decode the per-frame HSM trace delta into BehaviorLog strings. Same gating.</summary>
-        private static void EmitHsmRecordsToLog(
-            Entity entity,
-            EntityRepository repo,
-            HsmTraceWorkingMemory1024* traceData,
-            ushort startWritePos,
-            int recordCount,
-            MachineMetadata? meta,
-            IBehaviorTraceLogEmitter emitter)
-        {
-            int payloadBytes = HsmTraceWorkingMemory1024.PayloadBytes;
-            int stride       = HsmTraceWorkingMemory1024.RecordStride;
-            byte* bufferPtr  = (byte*)Unsafe.AsPointer(ref traceData->Buffer[0]);
-
-            for (int i = 0; i < recordCount; i++)
-            {
-                int offset = (startWritePos + (i * stride)) % payloadBytes;
-                var rec = (TraceRecord*)(bufferPtr + offset);
-
-                string msg = rec->OpCode switch
-                {
-                    TraceOpCode.StateEnter =>
-                        $"State enter [{rec->StateIndex}] {meta?.GetStateName(rec->StateIndex) ?? "?"}",
-                    TraceOpCode.StateExit =>
-                        $"State exit [{rec->StateIndex}] {meta?.GetStateName(rec->StateIndex) ?? "?"}",
-                    TraceOpCode.Transition =>
-                        $"Transition {meta?.GetStateName(rec->StateIndex) ?? "?"} -> {meta?.GetStateName(rec->TargetStateIndex) ?? "?"} on {meta?.GetEventName(rec->TriggerEventId) ?? "?"}",
-                    TraceOpCode.EventHandled =>
-                        $"Event handled [{rec->EventId}] {meta?.GetEventName(rec->EventId) ?? "?"}",
-                    TraceOpCode.ActionExecuted =>
-                        $"Action [{rec->ActionId}] {meta?.GetActionName(rec->ActionId) ?? "?"}",
-                    TraceOpCode.GuardEvaluated =>
-                        $"Guard [{rec->GuardId}] {meta?.GetActionName(rec->GuardId) ?? "?"} -> {(rec->GuardResult != 0 ? "PASS" : "FAIL")}",
-                    TraceOpCode.Error =>
-                        $"ERROR code={rec->ErrorCode}",
-                    _ => $"OpCode {rec->OpCode}",
-                };
-
-                emitter.EmitTrace(entity, repo, msg, "HsmTrace");
-            }
-        }
     }
 }

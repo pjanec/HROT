@@ -166,8 +166,8 @@ and nesting the same mechanism.
 | S1 ✅ BUILT | rails first for I11–I13 | all three PROVED, then fixed (§2 rows I11–I13) |
 | S2 ✅ BUILT | blueprint block / `Exec` split | see the as-built box below |
 | S3 ✅ BUILT | manifest | see the as-built box below |
-| S4 | one runner contract | `IBehaviorRunner` + `BrainStateBytes`; `BrainTickSystem` collapses to one arm; per-tier quirks (Paused, trace, interrupt) move into their runner |
-| S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector |
+| S4 ✅ BUILT | one runner contract | see the as-built box below |
+| S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector. ⭐ Split in four, see below |
 | S6 | native concurrency in blueprints | a FIBER per top-level graph (Tick, each Event graph) and per branch of a new `Parallel` node; per-fiber cursor, locals and `When` memory; the 16 single-cursor sites (I10) rewritten against a fiber index |
 | S7 | **Behaviour Task** blueprint node (U-11) | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
 | (S8) | converge AiPrimitive suspension (I14) | `__phase`/`__waitUntilTime` → the same fiber cursor (Q33 §1.5.5). Separate design question, see §6 |
@@ -204,6 +204,70 @@ and nesting the same mechanism.
 
 ⚠ The manifest lists Parameters only, as BTree/HSM manifests list Role=Input only. A blueprint's Variables (`St`) stay
 visible through the blueprint debugger (`CaptureLiveBehaviorState`), not through the params inspector.
+
+### S4 as-built *(`2026-10-02`, CE-512)*
+
+```mermaid
+classDiagram
+  class IBehaviorRunner {
+    <<interface>>
+    +TryGetRootBrain(world, self, def, out brain, out bytes) bool
+    +Tick(ref BehaviorRunContext, brain, bytes, ref block) NodeStatus
+  }
+  class BTreeRunner { <<singleton, no fields>> cursor = root STATE slot; Paused; BTree trace }
+  class HsmRunner { <<singleton, no fields>> instance = root HSM slot; MobilityLost; hosted children; HSM trace; Terminated = Success }
+  class BlueprintRunner { <<singleton, no fields>> Exec = root STATE slot, BrainStateBytes }
+  class BehaviorRunners { +For(brainTier) IBehaviorRunner }
+  class BehaviorDefinition { +Runner = BehaviorRunners.For(BrainTier) }
+  class BrainTickSystem { -Run(runner, ...)  finished guard, block + CE-452 restart, Finish, fault }
+  IBehaviorRunner <|.. BTreeRunner
+  IBehaviorRunner <|.. HsmRunner
+  IBehaviorRunner <|.. BlueprintRunner
+  BehaviorRunners --> IBehaviorRunner
+  BehaviorDefinition --> BehaviorRunners
+  BrainTickSystem --> IBehaviorRunner : one arm
+```
+*What it shows that prose hid:* the split of ownership. Everything a tier does differently is in its runner; the system's
+one arm holds only what all three share. The runners carry no fields, so all run state stays in the two recorded slots.
+
+| piece | where |
+|---|---|
+| contract + context (`BehaviorRunContext`, a stack value) + tier map | `Fdp.Toolkits/Behavior/Runners/IBehaviorRunner.cs` |
+| the three runners: the former arms' bodies moved over unchanged, with their trace decoders, HSM's MobilityLost interrupt and `TickHostedChildren` | `Runners/BTreeRunner.cs`, `HsmRunner.cs`, `BlueprintRunner.cs` |
+| `BehaviorDefinition.Runner` (derived from `BrainTier`, never stored) | `BehaviorRegistry.cs` |
+| `BrainTickSystem.Run`: finished guard → `TryGetRootBrain` → block (+ `RestartIfRelaidOut`) → `Tick` → `Finish` on a terminal status; the fault check after it is unchanged. 879 → ~380 lines | `Systems/BrainTickSystem.cs` |
+| rail `BrainTickSystemMergeTests.S4_EveryTierRunsThroughItsRunner_AndRunnersHoldNoState`, red-proved by giving `BlueprintRunner` a field; the existing per-tier arm suites, including their zero-allocation tick rails, pass unchanged | |
+
+⚠ **Deviations and findings, argued:**
+- `Start`/`Abort` are NOT on the contract yet. At the root, start is ingress's reset and abort is `Finish`'s clear, and
+  neither has a second caller until hosting (S5) gives them one. ⇒ they arrive with S5, against a real caller.
+- ORDER: the brain is located BEFORE the block's reload restart. Before, the BTree arm checked Paused first, and the HSM arm
+  restarted before looking for its instance. ⇒ a debugger-paused BTree whose block was re-laid-out by a hot reload now
+  restarts instead of staying paused; an HSM entity with no instance yet is skipped before the restart check. Both are
+  edge cases; neither has a rail that moved.
+- the finished-run guard (was blueprint-only) now covers every tier. It is a no-op for BTree/HSM, because `Finish` already
+  sets `BrainTier = 0`.
+- **the two managed dictionaries in `BrainTickSystem`, checked as planned.** Neither is recorded, and neither has to be.
+  `_publishedTerminalForInstanceId` only guards a same-frame second finish; a run that has finished is cleared and never
+  ticks again. `_blueprintLayout` is a cache of the layout each run started with. After a seek or restore it is empty and
+  re-learns the layout on the next tick, so a reload landing exactly across a restore would be missed, but nothing is
+  corrupted. Left in place: the stale-entry rails (`O7_R47`) pin the first; the second is S6's to revisit when fibers
+  make the brain state carry its own layout hash.
+
+### S5 split *(`2026-10-02`, from measuring the hosting code after S4)*
+
+📐 **Measured before splitting.** A hosted BTree child's per-node action state (e.g. `T20_MultiStateful`'s two cursor
+slots) is a keyed occurrence slot whose key is baked at emit time from the child's ASSET and NODE
+(`BTreeBridgeEmitCore.ComputeStatefulSlotKey`). The same child under two sites therefore shares that state, whatever its
+own run slot's key is. ⇒ *"the same child under two sites does not collide"* (§7) needs the OCCURRENCE key carried down
+at run time, not only nested run-slot keys.
+
+| sub-slice | delivers | key facts |
+|---|---|---|
+| **S5a** any tier as a child | the runner gains `BrainBytes(def)` + `Start(def, brain, bytes)`; the hosted slot becomes `[brain][start][block]` sized by the CHILD's runner; `HostedChildren` resolves any tier; `HostedSubtree.TickHosted` steps the child through its runner; `Reset` zeroes the child's brain | a BTree child's slot stays byte-identical (64 / 64 / 72); an HSM child's `Start` is `HsmInstanceManager.Initialize` (stamps `MachineId`); hosts = the existing BTree `Subtree` node and HSM state |
+| **S5b** recursion | the context carries the parent OCCURRENCE key; a depth-1 key is unchanged, a deeper one is `NestOver(parent, template)`; ingress provisions recursively from the definitions; reset/abort recurse; a hosted child's action slots nest through the same key | the root folds nothing, so every existing key stays byte-identical |
+| **S5c** cycles | registration walks the hosting edges by child name and throws on a cycle; the editor detector covers blueprints | U-9 |
+| **S5d** blueprint as a host | a blocking **Run Behaviour** latent node | compiler + editor; the non-blocking host is S7's Behaviour Task node |
 
 ### 4a. What fibers take *(S6, the largest slice — split in three)*
 
