@@ -56,16 +56,27 @@ public sealed class BlueprintEventCatalog
 /// <summary>
 /// Q#14 slice 1e — unified event discovery: C# <c>[BlueprintEvent]</c> structs (2a) + editor-authored defs (2b),
 /// both projected to the single <see cref="DiscoveredBlueprintEvent"/> shape the picker + node-baking consume.
+/// ⭐ CE-2016 (Q14-A2, <c>DESIGN_Typed_Event_Nodes</c> E5) — and the SYSTEM events (the engine event catalog), their
+/// fields reflected the same way, so "On: HitEvent" comes from the one source. An FQN met twice is listed once (first
+/// wins: an attributed struct over its catalog row).
 /// </summary>
 public static class UnifiedEventDiscovery
 {
     public static IEnumerable<DiscoveredBlueprintEvent> All(BlueprintEventCatalog? editorCatalog = null)
     {
+        var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var e in BlueprintEventDiscovery.Discover())
-            yield return e;
+            if (seen.Add(e.EventTypeFqn)) yield return e;
 
         if (editorCatalog != null)
             foreach (var d in editorCatalog.Events)
-                yield return d.ToDiscovered();
+            {
+                var e = d.ToDiscovered();
+                if (seen.Add(e.EventTypeFqn)) yield return e;
+            }
+
+        foreach (var e in BlueprintEventDiscovery.DiscoverSystemEvents(
+                     Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance))
+            if (seen.Add(e.EventTypeFqn)) yield return e;
     }
 }

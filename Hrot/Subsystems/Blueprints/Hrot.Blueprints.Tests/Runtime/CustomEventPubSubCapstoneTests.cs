@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using Fdp.Core;
 using Hrot.Blueprints.Core.Assets;
 using Hrot.Blueprints.Tests.Builders;
@@ -270,6 +271,39 @@ public sealed class CustomEventPubSubCapstoneTests
 
         Assert.Equal(42, harness.ReadIntField(e, asset, "First"));
         Assert.Equal(7, harness.ReadIntField(e, asset, "Second"));
+    }
+
+    /// <summary>
+    /// ⭐⭐ CE-2016 (<c>DESIGN_Typed_Event_Nodes</c> E5, Q14-A2) — a SYSTEM event subscribed from the palette: the
+    /// "On: HitEvent" node (fields reflected from the engine type, no hand-baked list) runs its handler when a real
+    /// <c>HitEvent</c> is published — twice published, counted twice.
+    /// <para>✅ Red-proof: before E5 the palette had no "On: HitEvent" (system events reached the When node only).</para>
+    /// </summary>
+    [Fact]
+    public void ASystemEvent_FromThePalette_RunsItsHandler()
+    {
+        using var fixture = new BlueprintTestFixture(
+            new BlueprintTestFixtureOptions { VerifyAlcUnloadOnDispose = false });
+        _ = typeof(Fdp.Toolkit.Combat.Contracts.HitEvent);   // loaded, so discovery can reflect it
+        var asset = BlueprintAssetBuilder.Instance("OnHitFromPalette")
+            .WithVariable("Hits", typeof(int), "0")
+            .WithGraph("Tick", g => g.Entry().Return())
+            .Build();
+        var t = new TypedEventGraph();
+        var onHit = t.Adopt((EventEntryNode)Hrot.Blueprints.Editor.NodeDrawers.BlueprintEventPaletteEntries
+            .SubscribeEntries().Single(d => d.DisplayName == "On: HitEvent").CreateInstance());
+        t.Then(onHit, t.Increment(asset.Variables[0]));
+        asset.Graphs.Add(t.Graph);
+
+        fixture.CompileAndLoad(asset);
+        var harness = new BlueprintRunHarness(fixture);
+        Entity e = harness.SpawnAndAttach(asset);
+
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.HitEvent { HitEntity = e, HitT = 0.5f });
+        fixture.World.Bus.Publish(new Fdp.Toolkit.Combat.Contracts.HitEvent { HitEntity = e, HitT = 0.7f });
+        harness.Pump(1);
+
+        Assert.Equal(2, harness.ReadIntField(e, asset, "Hits"));
     }
 
     /// <summary>

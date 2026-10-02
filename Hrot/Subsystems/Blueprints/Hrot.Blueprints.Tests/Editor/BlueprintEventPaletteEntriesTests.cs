@@ -156,4 +156,30 @@ public sealed class BlueprintEventPaletteEntriesTests
         svc.Undos[^1]();
         Assert.False(node.TargetFilterSelf);
     }
+
+    /// <summary>
+    /// ⭐⭐ CE-2016 (Q14-A2) — system events come from the SAME source as <c>[BlueprintEvent]</c> structs: "On: HitEvent"
+    /// is listed with its fields reflected from the engine type. And the When node's source (the engine catalog) and
+    /// the palette's agree: every subscribable catalog event (blittable, brain-visible, loaded) is in the unified list.
+    /// </summary>
+    [Fact]
+    public void SystemEvents_AreInTheUnifiedSource_AndAgreeWithTheWhenNodesCatalog()
+    {
+        _ = typeof(Fdp.Toolkit.Combat.Contracts.HitEvent);   // make sure the engine type is loaded
+        var unified = UnifiedEventDiscovery.All().ToDictionary(e => e.EventTypeFqn);
+
+        var hit = unified["Fdp.Toolkit.Combat.Contracts.HitEvent"];
+        Assert.Equal("HitEvent", hit.DisplayName);
+        Assert.Contains(hit.Fields, f => f.Name == "HitT" && f.TypeId == "System.Single");
+        Assert.Contains(BlueprintEventPaletteEntries.SubscribeEntries(), d => d.DisplayName == "On: HitEvent");
+
+        var catalog = Hrot.Blueprints.Core.Compiler.Catalogs.BuiltInEngineEventCatalog.Instance.GetEntries();
+        foreach (var entry in catalog.Where(c => !c.Managed && c.PropagatesAcrossNodes))
+        {
+            bool loaded = AppDomain.CurrentDomain.GetAssemblies().Any(a => a.GetType(entry.EventTypeFqn) is { IsValueType: true });
+            if (loaded) Assert.True(unified.ContainsKey(entry.EventTypeFqn), $"{entry.Name} is not in the unified source");
+        }
+        // ⛔ a Muscle-local notify is not brain-visible, so it is not offered to subscribe
+        Assert.DoesNotContain(unified.Values, e => e.EventTypeFqn.EndsWith(".FootstepEvent", StringComparison.Ordinal));
+    }
 }

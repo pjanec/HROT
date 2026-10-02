@@ -41,6 +41,14 @@ internal sealed class TypedEventGraph
         return node;
     }
 
+    /// <summary>Adds a node made elsewhere (e.g. by a palette entry), projecting its pins as the editor canvas does.</summary>
+    public T Adopt<T>(T node) where T : Node
+    {
+        Graph.Nodes.Add(node);
+        node.Pins.AddRange(Hrot.Blueprints.Editor.Host.NodePinSchema.GetCanonicalPins(node, containingGraph: Graph));
+        return node;
+    }
+
     /// <summary>An event node for <paramref name="fqn"/> with one <c>int</c> field per name.</summary>
     public EventEntryNode Event(string fqn, params string[] intFields)
         => Add(new EventEntryNode
