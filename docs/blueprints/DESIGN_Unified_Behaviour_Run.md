@@ -570,7 +570,16 @@ sequenceDiagram
 | `BP1681` (BP1660–1667 are reserved for macros): Capacity outside 1..16, Restart with Capacity > 1, Queue until S6b-2 | `Stage2_Validate`, `DiagnosticCodes` |
 | rails `BlueprintBehaviourTests.S6b_*`: Parallel(2) runs two handlers at once, each writing the event it started on (9 then 7); Restart — only the newest event is ever written; `BP1681` ×3. Red-proofs: one copy only ⇒ the second hit faults; Restart as Parallel ⇒ faults; copies sharing one child key ⇒ the handlers interfere | |
 
-⚠⚠ **DEVIATION from the ring ruling, argued — and OPEN for the user** *(the "Recording and replay" block below)*. The
+✅ **RESOLVED `2026-10-02` — user:** *"i just need the blueprint state to be correctly saved to the recordings and
+restored on replay, you are free to choose performance optimal implementation."* ⇒ ⭐ **the requirement is the
+round-trip, not the storage shape**: in-flight copies keep their inputs in their records (as built); the ring is
+built in S6b-2 only for Queue(N) and managed payloads. 🔒 **Proved by rail**
+`BlueprintBehaviourTests.S6_AWaitingHandler_IsSavedToTheRecording_AndResumesAfterReplay` — a keyframe recorded
+through the real `AsyncRecorder` mid-wait, `PlaybackController.SeekToFrame` back to it, and the restored handler
+finishes and writes the event it held (red-proved by marking the blueprint storage tiers `NoReplay`). ⇒ every later
+storage change (S6b-2's ring included) must keep this rail green.
+
+⚠ *Prior state, kept for the record:* **DEVIATION from the ring ruling, argued — and OPEN for the user** *(the "Recording and replay" block below)*. The
 ruling says ONE byte ring holds every pending event, *including the event a waiting fiber still holds*. As built
 (S6a/S6b-1), a waiting copy keeps its event's **declared inputs** in its own fixed record instead. Why: for unmanaged
 inputs the record is laid out at compile time, sits in the same recorded slot (so replay and checkpoints carry it — the

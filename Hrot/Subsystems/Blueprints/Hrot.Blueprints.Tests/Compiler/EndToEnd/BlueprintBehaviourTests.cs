@@ -747,6 +747,56 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
     public void S6b_APolicyOutOfRange_IsBP1681(EventFiberPolicy policy, int capacity)
         => Assert.Contains(Diagnose(WaitingEventHandler("S6bBad", "AnyChild", policy, capacity)), d => d.Code == "BP1681");
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>S6 — a WAITING handler is saved to the recording and restored on replay</b> (user, 2026-10-02: "the blueprint
+    /// state [must be] correctly saved to the recordings and restored on replay"). Through the real Flight Recorder: hit 7
+    /// starts the handler, one child tick later a KEYFRAME is recorded; the run then carries on and writes <c>Got = 7</c>.
+    /// Seeking back to the keyframe restores the mid-wait state — <c>Got</c> is 0 again and the handler is still waiting,
+    /// holding its event — and two more ticks finish it on the restored copy, writing 7 again.
+    /// <para>⚠ The child's tick COUNTER is test scaffolding (a static), not behaviour state, so it is put back by hand.</para>
+    /// <para>✅ Red-proof: mark the blackboard tier components <c>NoReplay</c> and the seek restores nothing (Got stays 7).</para>
+    /// </summary>
+    [Fact]
+    public unsafe void S6_AWaitingHandler_IsSavedToTheRecording_AndResumesAfterReplay()
+    {
+        const string Host = "S6RecHost", Child = "S6RecChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        _fixture.CompileAndLoad(WaitingEventHandler(Host, Child), GoldenCorpus.Options());
+        Assert.True(_fixture.BehaviorRegistry.TryGetId(Host, out int id));
+        Assert.True(_fixture.BehaviorRegistry.TryGetDefinition(id, out var def));
+        var world = _fixture.World;
+        var (e, frame) = AssignAndFramer(Host);
+        var hit = HitFramer(Host, e, def!, frame);
+
+        Assert.Equal(0f, hit(7f));     // the handler starts and waits
+        Assert.Equal(0f, hit(null));   // child tick 1 — still waiting
+
+        var path = System.IO.Path.Combine(System.IO.Path.GetTempPath(), $"S6Rec_{Guid.NewGuid():N}.fdp");
+        try
+        {
+            using (var rec = new Fdp.Core.FlightRecorder.AsyncRecorder(path))
+                rec.CaptureKeyframe(world, DateTime.UtcNow.Ticks, blocking: true, eventBus: world.Bus);
+            int ticksAtKeyframe = _childTicks;
+
+            Assert.Equal(0f, hit(null));   // child tick 2
+            Assert.Equal(7f, hit(null));   // child tick 3 ⇒ Success ⇒ the handler writes Got = 7 and ends
+
+            using (var playback = new Fdp.Core.FlightRecorder.PlaybackController(path))
+                playback.SeekToFrame(world, 0);
+            _childTicks = ticksAtKeyframe;
+
+            float Got() => *(float*)(RootParamsAccessRoot(world, e) + (int)VarOffset(def!, "Got"));
+            Assert.Equal(0f, Got());       // restored mid-wait: nothing written yet
+            Assert.Equal(0f, hit(null));   // the restored handler resumes: child tick 2
+            Assert.Equal(7f, hit(null));   // child tick 3 ⇒ it writes the event it was holding
+        }
+        finally
+        {
+            try { System.IO.File.Delete(path); System.IO.File.Delete(path + ".meta.json"); } catch { }
+        }
+    }
+
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)
     {
         Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));
