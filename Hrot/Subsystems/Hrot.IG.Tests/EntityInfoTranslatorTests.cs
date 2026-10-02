@@ -81,8 +81,17 @@ namespace Hrot.IG.Tests
 			Assert.DoesNotContain( commands[0].ComponentsToUpdate, c => c is Hrot.NED.Descriptors.EntityInfo );
         }
 
-        [Fact]
-        public void ApplyToEntity_SetsIgEntityData()
+        /// <summary>
+        /// Every wire force maps to a NAMED ECS force. ⚠ The enums do not share numbering (wire NEUTRAL = 3, ECS has
+        /// no 3): a direct cast once gave every replica of a neutral entity <c>(ForceId)3</c>, which the debug API
+        /// could not serialize (measured on <c>ClusterRunner --mode all</c>).
+        /// </summary>
+        [Theory]
+        [InlineData(eForceIdentifier.FORCE_FRIENDLY, ForceId.Friend)]
+        [InlineData(eForceIdentifier.FORCE_OPPOSING, ForceId.Hostile)]
+        [InlineData(eForceIdentifier.FORCE_NEUTRAL,  ForceId.Neutral)]
+        [InlineData(eForceIdentifier.FORCE_UNKNOWN,  ForceId.Neutral)]
+        public void ApplyToEntity_SetsIgEntityData(eForceIdentifier wire, ForceId expected)
         {
             var (repo, _, _, translator) = CreateFixture();
             var entity = repo.CreateEntity();
@@ -91,7 +100,7 @@ namespace Hrot.IG.Tests
             {
                 EntityId = 1,
                 Name = "Bravo",
-                ForceIdentifier = eForceIdentifier.FORCE_OPPOSING,
+                ForceIdentifier = wire,
                 CommanderId = 3
             }, repo);
 
@@ -99,8 +108,16 @@ namespace Hrot.IG.Tests
             ref readonly var data = ref view.GetComponentRO<Fdp.Core.EntityInfo>( entity );
 
             Assert.Equal("Bravo", data.Name.ToString());
-            Assert.Equal(ForceId.Hostile, data.ForceId);
+            Assert.Equal(expected, data.ForceId);
         }
+
+        [Theory]
+        [InlineData(ForceId.Friend)]
+        [InlineData(ForceId.Hostile)]
+        [InlineData(ForceId.Neutral)]
+        public void EveryForce_SurvivesTheWireRoundTrip(ForceId force)
+            => Assert.Equal(force, Hrot.Map.Common.Replication.Utils.ForceIdMapping.FromWire(
+                                       Hrot.Map.Common.Replication.Utils.ForceIdMapping.ToWire(force)));
 
         // ── Loopback prevention: RECORDED ownership only ──────────────────────
 

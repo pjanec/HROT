@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); S8 next.
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 🔴 CE-3002; S8 next.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -426,3 +426,21 @@ exactly ONE node, and that node is the descriptor's recorded owner (claim == rec
 1. ✅ DONE with S3: `POST /entities/create-request` resolves the ACTIVE perspective's pack on every node (`IEntityCreationHost`, implemented by the SimHost, IG, CGF and editor subsystems; Stride passes its own; `ClusterDebugApiComposition.EntityCreation`). It was IG only (`OfType<IgSubsystem>`).
 2. ✅ DONE with S3, part instances with S6 (`parts[]`): `GET /entities/{id}/ownership` now reports, per descriptor, its `group` and the CLAIM (`claims[]`, `claimMatchesRecord`) beside the record.
 3. `POST /entities/spawn` publishes a raw `SpawnEntityCommand` and bypasses the grant. Under push-only that creates entities nobody is granted to. ⭐ Lean: route it through the pack's `RequestEntityCreation` so there is one creation path (R-174).
+4. ⚠ **No debug route writes through `EntityWriteRouter`** (`CE-3003`): `POST /entities/{id}/attribute` compiles the patch onto the active node's world and drops it when that node does not own the target (measured: no `UpdateEntityAttributeRequest` sent by any node). ⇒ E4/E6's routed edit cannot be driven over HTTP yet.
+
+#### 5.7.1 First run — `2026-10-02`, `ClusterRunner --mode all` *(nodes: SimHost 1 · IG 100 · CGF 400)*
+
+Driven over HTTP only (`create-request`, `/ownership` from SimHost, IG and Scenario/CGF, `/missions`, `/entities`, `/diagnostics/architecture`). The invariant checked per descriptor: all three nodes record the same owner, only that owner claims, and it claims every member it has (a member present only on a replica — e.g. IG's `ActiveMissionPlan` display copy — is claimed by nobody, correctly).
+
+| # | result | measured |
+|---|---|---|
+| E1 IG tank | ✅ | Brain → CGF · MuscleGround + Perception → SimHost · rest → IG; a `MoveToLocation` task moved it to its target (+80, +60 m) identically on all three nodes |
+| E2 SimHost tank | ✅ | Brain → CGF · rest SimHost; ⭐ `CE-500` closed live: the CGF brain drove a SimHost-created tank to its target |
+| E3 CGF tank | ✅ | Brain + rest → CGF · MuscleGround + Perception → SimHost; moved |
+| E4 CGF area symbol | ✅ ownership · ⛔ edit not drivable | everything on CGF; the routed edit needs prerequisite 4 |
+| E5 CGF platoon | ✅ | everything on CGF, never granted to a MuscleGround node; position unchanged over 6.6 s sim on all nodes |
+| E6 IG area symbol | ✅ ownership · ⛔ edit not drivable | everything on IG; as E4 |
+| E7 EQS parts (`hill-attack`, CGF-created) | 🔴 **`CE-3002`** | the platoon commander (tkb 303, brain, no sensors) runs an EQS sensor: config part → CGF and the config reaches SimHost (2 samples), but its PERCEPTION group was never granted (G-4 keys on `VisionRange > 0`), so the result part falls back to CGF and SimHost's result egress — gated on the part since S6 (F-12) — publishes **0** results |
+| E8 | not run | needs the multi-process launch |
+
+⚠ Found on the way: `CE-3001` — a component added after birth to a descriptor this node already owns (a blueprint's `BlueprintBlackboard256`) stays UNCLAIMED on its owner: S5's late-component rule runs only on ownership/construction events (every hill-attack tank, entity 1000 of `test-move`). Latent today (nothing gates on those claims; egress gates on the record), not after S8's ingress skip. `CE-3005` (fixed): replicas of a neutral entity held `(ForceId)3` — ingress cast the wire enum, which numbers differently — and the debug API could not serialize them. `CE-3004`: mission edits over HTTP apply but the route reports "not acknowledged within 15 s" on `--mode all`.

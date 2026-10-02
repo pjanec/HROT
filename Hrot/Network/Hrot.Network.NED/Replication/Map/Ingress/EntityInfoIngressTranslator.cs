@@ -133,7 +133,7 @@ namespace Hrot.Map.Common.Replication.Ingress
                 repo.SetComponent(entity, new Fdp.Core.EntityInfo
                 {
                     Name    = info.Name,
-                    ForceId = (ForceId)(int)info.ForceIdentifier,
+                    ForceId = Utils.ForceIdMapping.FromWire(info.ForceIdentifier),
                 });
             }
         }
@@ -164,7 +164,7 @@ namespace Hrot.Map.Common.Replication.Ingress
             var igData = new Fdp.Core.EntityInfo
             {
                 Name    = info.Name,
-                ForceId = (ForceId)(int)info.ForceIdentifier,
+                ForceId = Utils.ForceIdMapping.FromWire(info.ForceIdentifier),
             };
 
             bool hasAuthority = false;
