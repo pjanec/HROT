@@ -14,10 +14,15 @@ namespace Fbt.Kernel
     public sealed class SharedAiConditionAttribute : Attribute
     {
         /// <summary>The parent DTO struct that contains the projected field.</summary>
-        public Type DtoType { get; }
+        public Type? DtoType { get; }
 
         /// <summary>Name of the field within <see cref="DtoType"/> that TValue is projected from.</summary>
-        public string FieldName { get; }
+        public string? FieldName { get; }
+
+        /// <summary>⭐ <c>CE-504</c> C-2 — the shared C# node needs no arguments: the method's own parameters say what it takes —
+        /// <c>(ref P, Entity, EntityRepository)</c>, stateful <c>(ref P, ref WS, Entity, EntityRepository)</c>, or param-less
+        /// <c>(Entity, EntityRepository)</c> — and the asset binding says where the variable lives (CE-417).</summary>
+        public SharedAiConditionAttribute() { }
 
         public SharedAiConditionAttribute(Type dtoType, string fieldName)
         {
@@ -36,10 +41,15 @@ namespace Fbt.Kernel
     public sealed class SharedAiActionAttribute : Attribute
     {
         /// <summary>The parent DTO struct that contains the projected field.</summary>
-        public Type DtoType { get; }
+        public Type? DtoType { get; }
 
         /// <summary>Name of the field within <see cref="DtoType"/> that TValue is projected from.</summary>
-        public string FieldName { get; }
+        public string? FieldName { get; }
+
+        /// <summary>⭐ <c>CE-504</c> C-2 — the shared C# node needs no arguments: the method's own parameters say what it takes —
+        /// <c>(ref P, Entity, EntityRepository)</c>, stateful <c>(ref P, ref WS, Entity, EntityRepository)</c>, or param-less
+        /// <c>(Entity, EntityRepository)</c> — and the asset binding says where the variable lives (CE-417).</summary>
+        public SharedAiActionAttribute() { }
 
         public SharedAiActionAttribute(Type dtoType, string fieldName)
         {

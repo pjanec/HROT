@@ -153,6 +153,83 @@ namespace Probe
                     "one expression, one spelling — BP-306 was two spellings of it, and one was wrong");
         }
 
+        // ---- CE-504 C-2/C-3: the stateful and the param-less shared forms ----------------------
+
+        private const string FormsSource = @"
+using System.Runtime.InteropServices;
+using Fbt;
+using Fbt.Kernel;
+using Fdp.Core;
+
+namespace Probe
+{
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StepParams { public int Limit; }
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct StepState { public int Cursor; }
+
+    public static class FormNodes
+    {
+        [SharedAiAction]
+        public static NodeStatus SharedStep(ref StepParams p, ref StepState ws, Entity self, EntityRepository world)
+            => ++ws.Cursor >= p.Limit ? NodeStatus.Success : NodeStatus.Running;
+
+        [SharedAiAction]
+        public static NodeStatus SharedWander(Entity self, EntityRepository world) => NodeStatus.Running;
+
+        [SharedAiCondition]
+        public static bool SharedAlways(Entity self, EntityRepository world) => true;
+    }
+}";
+
+        private const string FormsAsset = """
+            { "$meta": { "docType": "Hrot.BTree", "schemaVersion": 2 },
+              "AssetId": "bb000504-0000-0000-0000-0000000000aa", "Name": "SharedFormsProbeTree",
+              "TargetNamespace": "Probe.Trees",
+              "BlackboardTypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard",
+              "ContextTypeName": "Fdp.Toolkit.Behavior.BTreeContext",
+              "Nodes": [
+                { "kind": "Root", "VisualId": "bb000504-0000-0000-0000-000000000001", "ChildVisualIds": [ "bb000504-0000-0000-0000-000000000002" ] },
+                { "kind": "Sequence", "VisualId": "bb000504-0000-0000-0000-000000000002",
+                  "ChildVisualIds": [ "bb000504-0000-0000-0000-000000000003", "bb000504-0000-0000-0000-000000000004", "bb000504-0000-0000-0000-000000000005" ] },
+                { "kind": "Condition", "VisualId": "bb000504-0000-0000-0000-000000000003", "ChildVisualIds": [],
+                  "Condition": { "MethodFqn": "Probe.FormNodes.SharedAlways" } },
+                { "kind": "Action", "VisualId": "bb000504-0000-0000-0000-000000000004", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.FormNodes.SharedStep", "ExpressionTargetField": "step",
+                              "WorkingStateTypeId": "Probe.StepState" } },
+                { "kind": "Action", "VisualId": "bb000504-0000-0000-0000-000000000005", "ChildVisualIds": [],
+                  "Action": { "MethodFqn": "Probe.FormNodes.SharedWander" } } ],
+              "Blackboard": { "Managed": true, "TypeName": "Fdp.Toolkit.Behavior.Components.BrainBlackboard", "Variables": [
+                { "Name": "sentinel", "Type": { "TypeId": "Probe.StepParams" } },
+                { "Name": "step",     "Type": { "TypeId": "Probe.StepParams" } } ] } }
+            """;
+
+        /// <summary>
+        /// ⭐⭐ <b><c>CE-504</c> slice 2 — a BTree asset binds the shared STATEFUL form <c>(ref P, ref WS, Entity, EntityRepository)</c>
+        /// and the shared PARAM-LESS form <c>(Entity, EntityRepository)</c>; both compile to a call with the method's own
+        /// signature, and the attributes need no arguments.</b> 📄 <c>DESIGN_BTree_Node_Call_Shapes.md</c> §4 C-2/C-3, §5.
+        /// <para>✅ Red-proof: drop the shared arm from <c>EmitStatefulActionThunks</c> ⇒ the stateful call is emitted with the old
+        /// 4-param argument list and the compilation fails.</para>
+        /// </summary>
+        [Fact]
+        public void TheSharedStatefulAndParamLessForms_CompileToCallsWithTheirOwnSignatures()
+        {
+            var (compilation, generated, diagnostics) = Run(FormsSource, FormsAsset);
+            string all = string.Join("\n", generated.Select(t => t.ToString()));
+
+            diagnostics.Where(d => d.Id == "BTREE0002").Select(d => d.GetMessage(null))
+                .Should().BeEmpty("all three bindings are valid shared forms");
+            all.Should().Contain("Probe.FormNodes.SharedStep(ref dto, ref ws, ctx.Self, ctx.World)");
+            all.Should().Contain("Probe.FormNodes.SharedWander(ctx.Self, ctx.World)");
+            all.Should().Contain("Probe.FormNodes.SharedAlways(ctx.Self, ctx.World) ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Failure");
+            all.Should().Contain("Action(\"Probe.FormNodes.SharedWander\"", "a param-less node is keyed by its bare FQN");
+
+            var errors = compilation.GetDiagnostics().Where(d => d.Severity == DiagnosticSeverity.Error).ToList();
+            errors.Should().BeEmpty("the calls must compile: " + Environment.NewLine +
+                                    string.Join(Environment.NewLine, errors.Select(d => d.ToString())));
+        }
+
         // ---- helpers -----------------------------------------------------------
 
         private static readonly Regex ProjectionRegex = new(

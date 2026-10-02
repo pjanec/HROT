@@ -243,6 +243,14 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
         //   CS1503 in generated code (or, before CE-417, a silent type-pun — F7, HsmVariableShowcase).
         var sharedAi = SharedAiMethodResolver.Make(compilation);
         bool sharedAiOk = true;
+        // ⭐ CE-504 — the HSM binds the plain shared form only; a stateful or param-less one is an error, never a silent skip.
+        foreach (var (site, fqn) in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.NonPlainBindings(dto, sharedAi))
+        {
+            spc.ReportDiagnostic(MakeSharedAiTypeDiagnostic(path,
+                $"{site} binds '{fqn}', a stateful or param-less shared method; the HSM binds only (ref P, Entity, EntityRepository) " +
+                "today (CE-504, design S8)."));
+            sharedAiOk = false;
+        }
         foreach (var e in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Collect(
                      dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi))
         {

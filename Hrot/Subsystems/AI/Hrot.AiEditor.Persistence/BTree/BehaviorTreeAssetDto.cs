@@ -169,6 +169,10 @@ public enum BTreeDelegateShapeDto
     /// <see cref="BehaviorActionBindingDto.WorkingStateTypeId"/> is the generated <c>WorkingState</c> FQN.
     /// </summary>
     AiPrimitiveTickCore = 3,
+
+    /// <summary>⭐ <c>CE-504</c> C-2/C-3 — the shared param-less C# node <c>(Entity self, EntityRepository world)</c>: binds no
+    /// variable, keyed by its bare FQN. Derived (never persisted), like every shape since CE-504 slice 1.</summary>
+    NoParams = 4,
 }
 
 // ⭐ CE-417: BTreeActionPayloadDto / BTreeConditionPayloadDto are retired — both nodes carry the ONE

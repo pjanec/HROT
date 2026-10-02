@@ -171,6 +171,10 @@ public sealed class ActionSchemaExporter : IActionSchemaExporter
         // If the method has no ref parameter, fall back to the DtoType property on the HSM
         // attribute (DEBT-01 fix for void* unsafe interop signatures).
         Type? dtoType = ExtractFirstRefParamType(method);
+        // ⭐ CE-504 C-3 — a shared param-less node (Entity, EntityRepository) binds no variable: typeof(void) says so, and keeps
+        //   it pickable (it would otherwise be skipped for having no ref parameter).
+        if (dtoType == null && (hosting & ActionHosting.Shared) != 0)
+            dtoType = typeof(void);
         if (dtoType == null)
         {
             dtoType = ExtractHsmAttributeDtoType(method);

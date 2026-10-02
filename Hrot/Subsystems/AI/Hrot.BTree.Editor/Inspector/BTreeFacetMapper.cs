@@ -203,7 +203,8 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
     private static BehaviorActionBindingFacet BindingFacet(BTreeEditorNode node, Hrot.Editor.AiShared.BehaviorActionBinding? binding)
         => BehaviorActionBindingEditor.ToFacet(
                binding, node.VisualId.ToString(),
-               targetsWholeBlackboard: binding is not null && node.DelegateShape == BTreeActionDelegateShape.FourParamFull);
+               targetsWholeBlackboard: binding is not null && node.DelegateShape is BTreeActionDelegateShape.FourParamFull
+                                                                         or BTreeActionDelegateShape.NoParams);
 
     private static BTreeActionFacet BuildActionFacet(BTreeEditorNode node) =>
         new BTreeActionFacet

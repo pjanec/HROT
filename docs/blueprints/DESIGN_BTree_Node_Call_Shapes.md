@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — C-1 … C-4 APPROVED by the user 2026-10-02 ("Approved"). Slice 1 BUILT (§5 box); slices 2–4 next.
+build-state: BUILDING — C-1 … C-4 APPROVED by the user 2026-10-02 ("Approved"). Slices 1–2 BUILT (§5 boxes); slices 3–4 next.
 current-answer: §4 (the four decisions, each with a lean) and §5 (slices).
 stale-below: nothing.
 known-rot: none.
@@ -148,7 +148,7 @@ filed separately when wanted.
 | # | slice | moves |
 |---|---|---|
 | 1 | ✅ **C-1** classifier (one rule, generator + editor) · validator and emitter dispatch on it · stop writing `DelegateShape` · rail: every corpus binding classifies to its persisted shape *(the equivalence that makes dropping the field safe)* | `btree-persistence-shape.txt`; ⛔ no emitted source |
-| 2 | **C-2 accept** — BTree emits the stateful and param-less `(…, Entity, EntityRepository)` calls; `C-4` adapter overloads | additive; no golden |
+| 2 | ✅ **C-2 accept** — BTree emits the stateful and param-less `(…, Entity, EntityRepository)` calls; `C-4` adapter overloads | additive; no golden |
 | 3 | **C-2/C-3 migrate** — the 30 methods + 12 deactivators + `Action_Wander`; curated sites onto the adapters | BTree goldens (call text); `Hrot.AI.Behaviors` |
 | 4 | **retire** — the 3-param/4-param BTree author paths (`ReusableStatefulActionDelegate`, the registrar's 3-param adapter, the validator's three BTree checks, `BTreeActionDelegateShape`/`BTreeDelegateShapeDto`) | deletions |
 
@@ -160,6 +160,19 @@ filed separately when wanted.
 > | **editor** | `BTreeCallShapeResolver`: on open (`BTreeDocumentFactory`, not a heal — nothing persisted moves), on an inspector pick (`BTreeFacetMapper.ApplyShape`) and on a palette drop (`BTreeCommandSink`). A method this process cannot resolve keeps the node's shape |
 > | **format** | `DelegateShape` is `[JsonIgnore]` on both DTOs; stripped from all 25 corpus files (40 lines); the v1→v2 migrator now drops it. ⭐ Emitted source unchanged (every generated-source golden green without regeneration); only `btree-persistence-shape.txt` moved — 18 files, each smaller by exactly its removed entries |
 > | **rails** | `BTreeCallShapeTests` (Persistence, 4): all 40 corpus bindings classify to the shape their files recorded — the table was captured from the files by a script independent of the classifier, before the field was removed. `BTreeCallShapeEditorTests` (BTree editor, 3): a stateful pick makes the node stateful (S6, red before this slice); open derives; an unresolvable method keeps its shape. `ActionBindingMigrationTests` rule renamed to "the payload's DelegateShape is dropped". 🔴 Red-proved by mutation: classifier maps stateful → plain ⇒ the corpus rail reddens; the pick's derive arm removed ⇒ the editor rail reddens; the generator's `Apply` call removed ⇒ the real `Hrot.AI.Behaviors` build skips every non-plain binding (`BTREE0002`) and fails to compile |
+
+> ⭐⭐ **Slice 2 AS-BUILT (`2026-10-02`) — C-2 accepted, C-4 adapters.** Additive: no method migrated, no golden moved.
+> | | |
+> |---|---|
+> | **the attribute** | `[SharedAiAction]` / `[SharedAiCondition]` gain a parameterless form (`Fbt.Kernel`); the `(Type, field)` form stays legal. Every reader already tolerated missing arguments |
+> | **the forms** | `SharedAiMethodInfo` gains `WorkingStateTypeFqn` / `HasParams` / `IsPlain`; `SharedAiMethodResolver` reads the three forms from the leading `ref` parameters. `BTreeCallShapes` classifies `(ref P, ref WS, Entity, Repo)` as stateful and `(Entity, Repo)` as a new derived shape **`NoParams` = 4** (both enums; never persisted) |
+> | ⭐ **deviation: `NoParams`, not `FourParamFull`** | the plan let the param-less form ride the whole-block shape. ⛔ It cannot: `FourParamFull` is emitted as a method-group bind to the kernel delegate, which an `(Entity, Repo)` method does not satisfy. ⇒ its own shape, keyed by bare FQN in the topology (`BTreeEmitCore`) and registered by the bridge (`EmitNoParamsThunks`). The inspector treats it like the whole-block shape: no variable |
+> | **emit** | the stateful thunk calls `M(ref dto, ref ws, ctx.Self, ctx.World)` for the shared form (`bool` → Success/Failure); param-less calls `M(ctx.Self, ctx.World)` with the plain form's channel release on Failure. Validator: the stateful arm accepts the shared form (params type must match the variable); a `NoParams` node must be a `[SharedAi*]` `(Entity, Repo)` method |
+> | **HSM** | binds the plain form only; a stateful or param-less shared method bound in an HSM is now an `HSM0003` error (`SharedAiBindings.NonPlainBindings`) — never a silently skipped node. The stateful HSM action stays out of scope (§4 "Kept") |
+> | **editor** | the exporter lists a param-less shared method with `DtoType = typeof(void)` (it was skipped for having no `ref` parameter) |
+> | **C-4** | `SharedNodeBinder` (`Fdp.Toolkits`): four delegates (`SharedNodeAction<P>`, `SharedNodeCondition<P>`, `SharedNodeStatefulAction<P,WS>`, `SharedNodeNoParams` + its `bool` twin) curried ONCE into the kernel delegate, registered under the JSON keys (`fqn@off`, `fqn@po@so`, `fqn`). `SharedNodeBuilderExtensions` (`Hrot.AI.Behaviors`) exposes them as the builder's own verbs — `.Action(bb => bb.P, M)`, `.Condition(M)`, `.StatefulAction(…)`. A lambda is refused (no stable FQN to key by) |
+> | **rails** | `SharedAiBindingCompilesTests.TheSharedStatefulAndParamLessForms_…` (stateful + param-less action + `bool` param-less condition compile with their own signatures, no `BTREE0002`, bare-FQN topology key); `CodeBuiltStatefulActionTests.CodeBuilt_SharedForms_…` (a curated tree ticks all four forms on a real interpreter: params written in place, the right state field advanced, the JSON keys registered) + the lambda refusal |
+> | **deferred to slice 3** | shared-signature DEACTIVATORS (they mirror their action's shape and migrate with it); the inspector composing a working-state variable when a stateful method is picked |
 
 **Rails owed:** classifier = persisted shape for every corpus binding (slice 1, then deleted with the field) · the editor
 authors a stateful binding by a pick (red today, S6) · each migrated method's behaviour unchanged through its feature

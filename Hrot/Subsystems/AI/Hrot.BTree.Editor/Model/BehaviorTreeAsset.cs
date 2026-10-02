@@ -34,6 +34,10 @@ public enum BTreeActionDelegateShape
     /// Explicit value 3 to match BTreeDelegateShapeDto.AiPrimitiveTickCore (the persisted DTO enum).
     /// </summary>
     AiPrimitiveTickCore = 3,
+
+    /// <summary>⭐ <c>CE-504</c> — the shared param-less C# node <c>(Entity, EntityRepository)</c>; binds no variable. Value 4 to
+    /// match <c>BTreeDelegateShapeDto.NoParams</c>.</summary>
+    NoParams = 4,
 }
 
 // ⭐⭐⭐ CE-417 (slice 4a) — BTreeActionPayload / BTreeConditionPayload are RETIRED: an Action or Condition node carries

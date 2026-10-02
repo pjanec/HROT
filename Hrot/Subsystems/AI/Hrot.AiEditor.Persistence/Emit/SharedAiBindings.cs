@@ -13,11 +13,21 @@ namespace Hrot.AiEditor.Persistence.Emit;
 public sealed class SharedAiMethodInfo
 {
     public SharedAiMethodInfo(string paramTypeFqn, string paramTypeId, bool isCondition, bool returnsBool,
-        IReadOnlyList<int>? writesChannels = null)
+        IReadOnlyList<int>? writesChannels = null, string? workingStateTypeFqn = null)
     {
         ParamTypeFqn = paramTypeFqn; ParamTypeId = paramTypeId; IsCondition = isCondition; ReturnsBool = returnsBool;
         WritesChannels = writesChannels ?? Array.Empty<int>();
+        WorkingStateTypeFqn = workingStateTypeFqn;
     }
+
+    /// <summary>⭐ <c>CE-504</c> C-2 — the stateful form <c>(ref P, ref WS, Entity, EntityRepository)</c>: WS's <c>global::</c> type.</summary>
+    public string? WorkingStateTypeFqn { get; }
+
+    /// <summary>⭐ <c>CE-504</c> C-2 — false for the param-less form <c>(Entity, EntityRepository)</c>; its param types are empty.</summary>
+    public bool HasParams => ParamTypeFqn.Length > 0;
+
+    /// <summary>The plain form <c>(ref P, Entity, EntityRepository)</c> — the only one the HSM binds today.</summary>
+    public bool IsPlain => HasParams && WorkingStateTypeFqn == null;
     public IReadOnlyList<int> WritesChannels { get; }
     public string ParamTypeFqn { get; }
     public string ParamTypeId  { get; }
@@ -72,7 +82,7 @@ public static class SharedAiBindings
             if (b == null || string.IsNullOrEmpty(b.MethodFqn) || string.IsNullOrEmpty(b.ExpressionTargetField)) return;
             if (!byName.TryGetValue(b.ExpressionTargetField!, out var field)) return;
             var info = sharedAi(b.MethodFqn!);
-            if (info == null) return;
+            if (info == null || !info.IsPlain) return;   // CE-504: the HSM binds the plain form only (stateful: out of scope, S8)
             string key = b.MethodFqn + "@" + field.ByteOffset;   // MIRROR of HsmActionKey.CompoundKeyName
             if (!seen.Add(key)) return;
             result.Add(new Entry
@@ -98,6 +108,37 @@ public static class SharedAiBindings
         {
             Add(g.Guard,  $"global transition '{g.EventName}' guard");
             Add(g.Action, $"global transition '{g.EventName}' action");
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-504</c> — every HSM binding that names a stateful or param-less shared method. The HSM binds the plain form
+    /// only (the stateful C# HSM action is a separate item, design S8); <see cref="Collect"/> skips these, so the generator
+    /// must REPORT them — a skipped binding is otherwise an unbound node at run time.
+    /// </summary>
+    public static IReadOnlyList<(string Site, string MethodFqn)> NonPlainBindings(
+        HsmAssetDto dto, Func<string, SharedAiMethodInfo?>? sharedAi)
+    {
+        var result = new List<(string, string)>();
+        if (sharedAi == null) return result;
+        void Check(BehaviorActionBindingDto? b, string site)
+        {
+            if (b == null || string.IsNullOrEmpty(b.MethodFqn)) return;
+            if (sharedAi(b.MethodFqn!) is { IsPlain: false }) result.Add((site, b.MethodFqn!));
+        }
+        foreach (var s in dto.States)
+        {
+            Check(s.OnEntry, $"state '{s.Name}' OnEntry"); Check(s.OnExit, $"state '{s.Name}' OnExit");
+            Check(s.Activity, $"state '{s.Name}' Activity"); Check(s.Timer, $"state '{s.Name}' Timer");
+        }
+        foreach (var t in dto.Transitions)
+        {
+            Check(t.Guard, $"transition '{t.EventName}' guard"); Check(t.Action, $"transition '{t.EventName}' action");
+        }
+        foreach (var g in dto.GlobalTransitions)
+        {
+            Check(g.Guard, $"global transition '{g.EventName}' guard"); Check(g.Action, $"global transition '{g.EventName}' action");
         }
         return result;
     }
