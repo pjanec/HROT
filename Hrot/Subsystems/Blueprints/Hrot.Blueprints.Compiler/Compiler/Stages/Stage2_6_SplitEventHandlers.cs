@@ -41,9 +41,214 @@ internal static class Stage2_6_SplitEventHandlers
             else
                 graphs.AddRange(Split(asset, graph, entries, taken, ctx));
         }
+        // ⭐ S7b — a Started task runs ALONGSIDE: lifted into a task fiber of its own (after the split, so each handler
+        //   lifts its own copy; before the abort retarget, so the fiber's own While Running aborts are S7a's).
+        graphs = LiftStartedTasks(asset, graphs, taken, ctx);
         // ⭐ S7a — after the split, so each handler's links point at its own task (a shared tail's clone included).
         asset.Graphs = graphs.Select(RetargetAborts).ToList();
         return asset;
+    }
+
+    /// <summary>
+    /// ⭐⭐ S7b (<c>DESIGN_Unified_Behaviour_Run</c> "S7b design" B1) — a Behaviour Task whose <c>Started</c> pin is wired
+    /// runs ALONGSIDE the graph that starts it: the task and its While Running / Succeeded / Failed chains (plus the pure
+    /// data they read) are cloned into a compile-time TASK FIBER — an Event graph with no event, policy Restart (B2) —
+    /// and in the starting graph the task becomes a <see cref="BehaviorTaskStartNode"/>. ⇒ every later stage sees one
+    /// more ordinary fiber (S6), not a new kind of thing. A task fiber may itself start tasks (the list is a work-list).
+    /// </summary>
+    private static List<Graph> LiftStartedTasks(BlueprintAsset asset, List<Graph> graphs, HashSet<string> taken, ValidationContext ctx)
+    {
+        if (asset.Dispatch != BlueprintDispatchKind.Behavior) return graphs;
+        var result = new List<Graph>(graphs.Count);
+        var work = new Queue<Graph>(graphs);
+        while (work.Count > 0)
+        {
+            var graph = work.Dequeue();
+            var task = graph.Nodes.OfType<RunBehaviorNode>().FirstOrDefault(t => StartedWired(graph, t));
+            if (task is null) { result.Add(graph); continue; }
+            var (rest, fiber) = Lift(asset, graph, task, taken, ctx);
+            work.Enqueue(rest);                 // another Started task in the same graph
+            if (fiber is not null) work.Enqueue(fiber);
+        }
+        return result;
+    }
+
+    private static Pin? ExecPin(Node n, string name, string dir)
+        => n.Pins.FirstOrDefault(p => p.IsExec && p.Direction == dir && p.Name == name);
+
+    private static bool StartedWired(Graph graph, RunBehaviorNode task)
+        => ExecPin(task, RunBehaviorNode.StartedPin, "Out") is { } p
+        && graph.Links.Any(l => l.FromNodeId == task.Id && l.FromPinId == p.Id);
+
+    private static (Graph Starting, Graph? Fiber) Lift(
+        BlueprintAsset asset, Graph graph, RunBehaviorNode task, HashSet<string> taken, ValidationContext ctx)
+    {
+        var pinById = new Dictionary<Guid, Pin>();
+        foreach (var n in graph.Nodes) foreach (var p in n.Pins) pinById[p.Id] = p;
+        bool IsExec(Link l) => pinById.TryGetValue(l.FromPinId, out var fp) ? fp.IsExec
+                             : pinById.TryGetValue(l.ToPinId, out var tp) && tp.IsExec;
+        var nodeById = graph.Nodes.ToDictionary(n => n.Id);
+        var started = ExecPin(task, RunBehaviorNode.StartedPin, "Out")!;
+        var abortIn = ExecPin(task, RunBehaviorNode.AbortPin, "In");
+        var startIn = task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "In" && p.Name != RunBehaviorNode.AbortPin);
+
+        // ① the lifted set: the task + every exec node its While Running / Succeeded / Failed reach …
+        var lifted = new HashSet<Guid> { task.Id };
+        var stack = new Stack<Guid>();
+        foreach (var l in graph.Links.Where(l => l.FromNodeId == task.Id && l.FromPinId != started.Id && IsExec(l)))
+            stack.Push(l.ToNodeId);
+        while (stack.Count > 0)
+        {
+            var at = stack.Pop();
+            if (!lifted.Add(at)) continue;
+            foreach (var l in graph.Links.Where(l => l.FromNodeId == at && IsExec(l))) stack.Push(l.ToNodeId);
+        }
+        // … ② and the PURE data they read (B4). An exec node's output or an event's payload does not exist in the
+        //   task fiber: BP1687.
+        bool failed = false;
+        foreach (var at in lifted.ToList()) stack.Push(at);
+        while (stack.Count > 0)
+        {
+            var at = stack.Pop();
+            foreach (var l in graph.Links.Where(l => l.ToNodeId == at && !IsExec(l)))
+            {
+                if (lifted.Contains(l.FromNodeId) || !nodeById.TryGetValue(l.FromNodeId, out var src)) continue;
+                if (src is EventEntryNode || src.Pins.Any(p => p.IsExec))
+                {
+                    failed = true;
+                    ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1687,
+                        $"Behaviour Task '{task.BehaviorName}' runs alongside (Started is wired), so its While Running / " +
+                        $"Succeeded / Failed chains run in a fiber of their own and cannot read the value '{src.GetType().Name}' " +
+                        "computes in the graph that starts it. Store it in a Variable before Start and read the Variable.",
+                        asset.AssetId, graph.Id, at));
+                    continue;
+                }
+                lifted.Add(src.Id);
+                stack.Push(src.Id);
+            }
+        }
+        // ③ a graph-local is the starting invocation's own: a lifted chain sharing one with the starting graph is BP1687.
+        var localIds = new HashSet<string>(graph.LocalVariables.Select(v => v.Id.ToString()), StringComparer.OrdinalIgnoreCase);
+        string? LocalOf(Node n) => n switch
+        {
+            GetVariableNode g when localIds.Contains(g.VariableId) => g.VariableId,
+            SetVariableNode s when localIds.Contains(s.VariableId) => s.VariableId,
+            _ => null,
+        };
+
+        // the starting graph keeps what is still reachable without the lifted chains (B7)
+        var name = FreshName(graph.Name + "_Task", 0, taken);
+        var startNode = new BehaviorTaskStartNode
+        {
+            Id = task.Id, TaskNodeId = task.Id, BehaviorName = task.BehaviorName, FiberGraph = name,
+        };
+        if (startIn is not null) startNode.Pins.Add(startIn);
+        startNode.Pins.Add(started);
+        var keptLinks = graph.Links.Where(l => !(l.FromNodeId == task.Id && l.FromPinId != started.Id)).ToList();
+        var restNodes = graph.Nodes.Select(n => n.Id == task.Id ? startNode : n).ToList();
+        // ⚠ the probe ignores links INTO the task from lifted nodes (a While Running abort, a loop back to Start): they
+        //   would pull the lifted chains back in through the start node.
+        var probe = graph.WithNodesAndLinks(restNodes,
+            keptLinks.Where(l => !(l.ToNodeId == task.Id && lifted.Contains(l.FromNodeId) && l.FromNodeId != task.Id)).ToList());
+        var reachable = new HashSet<Guid>();
+        if (V_GraphStructure.FindEntryNode(probe) is { } entryNode) Connected(probe, entryNode.Id, reachable);
+        restNodes = restNodes.Where(n => n.Id == task.Id || !lifted.Contains(n.Id) || reachable.Contains(n.Id)).ToList();
+        var restIds = new HashSet<Guid>(restNodes.Select(n => n.Id));
+
+        foreach (var n in graph.Nodes.Where(n => lifted.Contains(n.Id) && n.Id != task.Id))
+            if (LocalOf(n) is { } local && restNodes.Any(r => !lifted.Contains(r.Id) && LocalOf(r) == local))
+            {
+                failed = true;
+                ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1687,
+                    $"Behaviour Task '{task.BehaviorName}' runs alongside (Started is wired): its chains run in a fiber of " +
+                    "their own and do not share the starting graph's local variables. Use a Variable.",
+                    asset.AssetId, graph.Id, n.Id));
+            }
+
+        // the task fiber — a clone of the lifted set, ids derived from the task (deterministic)
+        var liftedNodes = graph.Nodes.Where(n => lifted.Contains(n.Id)).ToList();
+        var internalLinks = graph.Links.Where(l => lifted.Contains(l.FromNodeId) && lifted.Contains(l.ToNodeId)
+                                                 && !(l.FromNodeId == task.Id && l.FromPinId == started.Id)).ToList();
+        var fragment = GraphFragmentCloner.Clone(liftedNodes, internalLinks,
+            id => DeterministicIds.FromString($"task-fiber:{task.Id:N}:{id:N}"));
+        var taskClone = fragment.NodeMap[task.Id];
+        var entry = new EventEntryNode
+        {
+            Id = DeterministicIds.FromString($"task-fiber-entry:{task.Id:N}"),
+            EventTypeId = "", Policy = EventFiberPolicy.Restart,
+        };
+        var entryOut = new Pin
+        {
+            Id = DeterministicIds.PinId(entry.Id, "Out", "Out"), Name = "Out", Direction = "Out", IsExec = true,
+            TypeRef = new BlueprintTypeRef(),
+        };
+        entry.Pins.Add(entryOut);
+        var fiberLinks = fragment.Links.ToList();
+        if (startIn is not null && fragment.PinMap.TryGetValue(startIn.Id, out var startClone))
+            fiberLinks.Add(new Link { FromNodeId = entry.Id, FromPinId = entryOut.Id, ToNodeId = taskClone, ToPinId = startClone });
+
+        var fiber = graph.WithNodesAndLinks(new List<Node> { entry }.Concat(fragment.Nodes).ToList(), fiberLinks);
+        fiber.Id   = DeterministicIds.FromString($"task-fiber-graph:{task.Id:N}");
+        fiber.Name = name;
+        fiber.Kind = GraphKind.Event;
+        fiber.Inputs = new List<ParameterDecl>();
+        fiber.Outputs = new List<ParameterDecl>();
+        fiber.LiftedTaskSite = taskClone;
+        Guid Authored(Guid id) => graph.HandlerDebugIds is { } h && h.TryGetValue(id, out var a) ? a : id;
+        var debugIds = new Dictionary<Guid, Guid>();
+        foreach (var kv in fragment.NodeMap) debugIds[kv.Value] = Authored(kv.Key);
+        foreach (var kv in fragment.PinMap)  debugIds[kv.Value] = Authored(kv.Key);
+        debugIds[entry.Id] = Authored(task.Id);
+        debugIds[fiber.Id] = Authored(graph.Id);
+        fiber.HandlerDebugIds = debugIds;
+
+        // an Abort from the starting chain (B3) stops the task FIBER
+        Node? stop = null;
+        if (abortIn is not null)
+        {
+            var stopNode = new BehaviorTaskAbortNode
+            {
+                Id = DeterministicIds.FromString($"task-stop:{task.Id:N}"), TaskNodeId = taskClone, FiberGraph = name,
+            };
+            stopNode.Pins.Add(new Pin
+            {
+                Id = DeterministicIds.PinId(stopNode.Id, "In", "In"), Name = "In", Direction = "In", IsExec = true,
+                TypeRef = new BlueprintTypeRef(),
+            });
+            stop = stopNode;
+        }
+        var restLinks = keptLinks.Where(l => restIds.Contains(l.FromNodeId) && restIds.Contains(l.ToNodeId))
+            .Select(l => stop is not null && l.ToNodeId == task.Id && l.ToPinId == abortIn!.Id
+                ? new Link { FromNodeId = l.FromNodeId, FromPinId = l.FromPinId, ToNodeId = stop.Id, ToPinId = stop.Pins[0].Id, Waypoints = l.Waypoints }
+                : l)
+            .ToList();
+        if (stop is not null && restLinks.Any(l => l.ToNodeId == stop.Id)) restNodes.Add(stop);
+        var rest = graph.WithNodesAndLinks(restNodes, restLinks);
+        if (rest.HandlerDebugIds is not null || stop is not null)
+        {
+            var ids = new Dictionary<Guid, Guid>();
+            if (graph.HandlerDebugIds is { } h) foreach (var kv in h) ids[kv.Key] = kv.Value;
+            if (stop is not null) ids[stop.Id] = Authored(task.Id);
+            rest.HandlerDebugIds = ids;
+        }
+        return (rest, failed ? null : fiber);
+    }
+
+    /// <summary>Stage 3's reachability (exec or data, either direction) — what its orphan pass would keep.</summary>
+    private static void Connected(Graph graph, Guid start, HashSet<Guid> seen)
+    {
+        var stack = new Stack<Guid>();
+        stack.Push(start);
+        while (stack.Count > 0)
+        {
+            var at = stack.Pop();
+            if (!seen.Add(at)) continue;
+            foreach (var l in graph.Links)
+            {
+                if (l.FromNodeId == at) stack.Push(l.ToNodeId);
+                if (l.ToNodeId == at) stack.Push(l.FromNodeId);
+            }
+        }
     }
 
     /// <summary>

@@ -24,8 +24,8 @@ internal sealed class TypedEventGraph
     private static readonly BlueprintTypeRef Exec = new();
     public Graph Graph { get; }
 
-    public TypedEventGraph(string name = "OnEvents")
-        => Graph = new Graph { Id = Guid.NewGuid(), Name = name, Kind = GraphKind.Event };
+    public TypedEventGraph(string name = "OnEvents", GraphKind kind = GraphKind.Event)
+        => Graph = new Graph { Id = Guid.NewGuid(), Name = name, Kind = kind };
 
     private static Pin P(string name, string dir, string? typeId = null) => new()
     {
@@ -90,8 +90,13 @@ internal sealed class TypedEventGraph
                P(RunBehaviorNode.StartedPin, "Out"), P(RunBehaviorNode.WhileRunningPin, "Out"),
                P(RunBehaviorNode.SucceededPin, "Out"), P(RunBehaviorNode.FailedPin, "Out"));
 
-    /// <summary>A Delay (latent) with exec in/out — for the "nothing latent in While Running" rail.</summary>
-    public LatentDelayNode Delay() => Add(new LatentDelayNode(), P("In", "In"), P("Out", "Out"));
+    /// <summary>A Delay (latent) with exec in/out and its Duration (seconds) as the pin default.</summary>
+    public LatentDelayNode Delay(float seconds = 0f)
+    {
+        var duration = P("Duration", "In", "System.Single");
+        duration.DefaultValue = seconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return Add(new LatentDelayNode(), P("In", "In"), P("Out", "Out"), duration);
+    }
 
     /// <summary>Exec wire into a NAMED exec-in (e.g. a Behaviour Task's Abort).</summary>
     public TypedEventGraph ThenInto(Node from, string fromPin, Node to, string toPin)

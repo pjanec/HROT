@@ -121,7 +121,8 @@ public static class BlueprintNodePaletteEntries
         //   (BP1659); its child is picked in the node's Details.
         yield return Make<RunBehaviorNode>(
             "BehaviorTask", "Behaviour Task", Categories.Latent,
-            "Latent: run a behaviour (BTree, HSM or blueprint) here and wait — Succeeded / Failed when it ends, While Running each frame.");
+            "Run a behaviour (BTree, HSM or blueprint) here: wait for it (Succeeded / Failed, While Running each frame), " +
+            "or wire Started to run it alongside.");
 
         // ── Variables ──────────────────────────────────────────────────────
         yield return Make<GetVariableNode>(

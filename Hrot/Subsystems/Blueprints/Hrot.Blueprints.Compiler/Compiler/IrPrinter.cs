@@ -53,6 +53,8 @@ internal static class IrPrinter
         IrOp_RunBehavior rb      => $"run_behavior {rb.BehaviorName}",
         IrOp_AbortTask at        => $"abort_task {at.TaskNodeId:N}",
         IrOp_ResetHostedSite rs  => $"reset_hosted_site {rs.SiteId:N}",
+        IrOp_StartTask st        => $"start_task {st.FiberGraph}",
+        IrOp_AbortStartedTask ab => $"abort_started_task {ab.FiberGraph} {ab.SiteId:N}",
         _                        => op.GetType().Name,
     };
 

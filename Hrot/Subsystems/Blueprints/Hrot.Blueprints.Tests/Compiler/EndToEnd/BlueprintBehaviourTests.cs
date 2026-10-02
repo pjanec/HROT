@@ -1045,13 +1045,6 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
                t.Then(task, done, RunBehaviorNode.SucceededPin).ThenInto(done, "Out", task, RunBehaviorNode.AbortPin);
            })), d => d.Code == "BP1685");
 
-    /// <summary>⛔ S7a — Started (run alongside) is S7b: wiring it now is BP1686, never a silent no-op.</summary>
-    [Fact]
-    [CoversDiagnosticCode("BP1686")]
-    public void S7a_WiringStarted_IsBP1686_UntilS7b()
-        => Assert.Contains(Diagnose(TaskHost("S7aStarted", "AnyChild", (t, task, v) =>
-               t.Then(task, t.Increment(v("Done")), RunBehaviorNode.StartedPin))), d => d.Code == "BP1686");
-
     /// <summary>
     /// ⭐⭐ <b>S7a (D1) — an S5d asset still loads.</b> The retired kind <c>"RunBehavior"</c> reads as a Behaviour Task, and
     /// its <c>In</c>/<c>Out</c>/<c>OnFailure</c> pins (and the links that name them by deterministic id) become
@@ -1082,6 +1075,168 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Contains(links, l => l.FromNodeId == task.Id && l.FromPinId == Old(RunBehaviorNode.FailedPin, "Out"));
         Assert.DoesNotContain(links, l => l.ToPinId == Old("In", "In") || l.FromPinId == Old("OnFailure", "Out"));
     }
+
+    // ── S7b (DESIGN_Unified_Behaviour_Run "S7b design"): Started — a task that runs ALONGSIDE ──────────────────────────
+
+    private static int _aCalls, _bTicks;
+
+    private static Fbt.NodeStatus ChildStepA(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
+    { _aCalls++; _bTicks = 0; return Fbt.NodeStatus.Success; }   // a (re)started run counts B afresh
+
+    private static Fbt.NodeStatus ChildStepB(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
+        => ++_bTicks >= 3 ? Fbt.NodeStatus.Success : Fbt.NodeStatus.Running;
+
+    /// <summary>A BTree child: Sequence(A, B) — A succeeds at once (counted), B runs until its third tick. A reset child
+    /// starts over at A, so <see cref="_aCalls"/> counts the (re)starts.</summary>
+    private void RegisterTwoStepChild(string name)
+    {
+        var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>()
+            .Sequence(seq => seq.Action(ChildStepA).Action(ChildStepB));
+        _fixture.BehaviorRegistry.Register(name, new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S7b (B1) — a Started task runs ALONGSIDE: the graph continues at once, the task finishes later.</b> The hit
+    /// starts the task and its Started chain counts in the SAME frame (the handler does not wait — it is not even a fiber);
+    /// the task runs in its own task fiber, ticking the child on frames 2–4, and its Succeeded chain counts on frame 4.
+    /// <para>✅ Red-proof: skip the lift (Stage 2.6) and the Started chain never runs (the task is run-and-wait again).</para>
+    /// </summary>
+    [Fact]
+    public void S7b_AStartedTask_RunsAlongside_TheGraphContinuesAtOnce()
+    {
+        const string Host = "S7bAlongHost", Child = "S7bAlongChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = TaskHost(Host, Child, (t, task, v) =>
+        {
+            t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.StartedPin);
+            t.Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+        });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+        var src = compiled.GeneratedSource!;
+        Assert.Contains("__fib_OnEventsTask0", src);                // the task fiber (its name sanitized)
+        Assert.DoesNotContain("__fib_OnEvents_0", src);             // the handler itself never waits
+        Assert.DoesNotContain("__EvtId_OnEvents_Task_0", src);      // a task fiber has no event (B5's dead edge)
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        Hit();
+        Assert.Null(frame());                                       // f1: start ⇒ Started chain runs at once
+        Assert.Equal((1, 0), (read("Ticks"), read("Done")));
+        Assert.Null(frame());                                       // f2: child tick 1
+        Assert.Null(frame());                                       // f3: child tick 2
+        Assert.Equal(0, read("Done"));
+        Assert.Null(frame());                                       // f4: child tick 3 ⇒ Succeeded (in the task fiber)
+        Assert.Equal((1, 1), (read("Ticks"), read("Done")));
+        Assert.Equal(3, _childTicks);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S7b (B2) — Start while it runs RESTARTS the task.</b> A second hit while the child is mid-way resets the child
+    /// (it starts over at its first step) and the task finishes once, on the second start's schedule.
+    /// <para>✅ Red-proof: drop the reset from the shared Restart helper and the child continues instead (A runs once).</para>
+    /// </summary>
+    [Fact]
+    public void S7b_StartWhileRunning_RestartsTheTask()
+    {
+        const string Host = "S7bRestartHost", Child = "S7bRestartChild";
+        _aCalls = 0; _bTicks = 0;
+        RegisterTwoStepChild(Child);
+        var asset = TaskHost(Host, Child, (t, task, v) =>
+        {
+            t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.StartedPin);
+            t.Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+        });
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        Hit();
+        Assert.Null(frame());                                       // f1: start
+        Assert.Null(frame());                                       // f2: A ✓, B tick 1
+        Assert.Equal(1, _aCalls);
+        Hit();
+        Assert.Null(frame());                                       // f3: B tick 2 · then the second hit ⇒ RESTART
+        Assert.Equal(2, read("Ticks"));
+        Assert.Null(frame());                                       // f4: the reset child starts over: A again
+        Assert.Equal(2, _aCalls);
+        Assert.Equal(0, read("Done"));
+        int done = 0;
+        for (int f = 0; f < 4 && done == 0; f++) { Assert.Null(frame()); done = read("Done"); }
+        Assert.Equal(1, done);
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S7b (B3) — the timeout shape: Started → Delay → Abort stops the task and takes Failed.</b> The handler waits
+    /// on a zero Delay after starting the task; when it fires it aborts the task, whose fiber continues on Failed next
+    /// frame — never Succeeded, and the child is not ticked again.
+    /// <para>✅ Red-proof: emit the abort op as a no-op and the task runs on to Succeeded.</para>
+    /// </summary>
+    [Fact]
+    public void S7b_AbortFromTheStartedChain_StopsTheTask_AndTakesFailed()
+    {
+        const string Host = "S7bTimeoutHost", Child = "S7bTimeoutChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = TaskHost(Host, Child, (t, task, v) =>
+        {
+            var wait = t.Delay(0f);
+            t.Then(task, wait, RunBehaviorNode.StartedPin).ThenInto(wait, "Out", task, RunBehaviorNode.AbortPin);
+            t.Then(task, t.Increment(v("Done")), RunBehaviorNode.SucceededPin);
+            t.Then(task, t.Increment(v("Failed")), RunBehaviorNode.FailedPin);
+        });
+        var compiled = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Assert.True(compiled.Succeeded, string.Join(", ", compiled.Diagnostics.Select(d => d.Code + ": " + d.Message)));
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (e, frame) = AssignAndFramer(Host);
+        var read = IntReader(Host, e);
+
+        Hit();
+        int failed = 0;
+        for (int f = 0; f < 6 && failed == 0; f++) { Assert.Null(frame()); failed = read("Failed"); }
+        Assert.Equal(1, failed);
+        for (int f = 0; f < 4; f++) Assert.Null(frame());
+        Assert.Equal((0, 1), (read("Done"), read("Failed")));
+        Assert.True(_childTicks < 3, $"the child ran to its end ({_childTicks} ticks) — the abort did not stop it");
+    }
+
+    /// <summary>⛔ S7b (B4) — a Started task's chains run in their own fiber: reading the EVENT that started it is BP1687.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1687")]
+    public void S7b_AStartedTaskReadingTheStartingEvent_IsBP1687()
+    {
+        string hitFqn = typeof(Runtime.WhenTestHitEvent).FullName!;
+        var asset = BlueprintAssetBuilder.Behavior("S7bReadsEvent")
+            .WithVariable("Got", typeof(float)).WithGraph("Tick", g => g.Entry()).Build();
+        var t = new Runtime.TypedEventGraph();
+        var hit = t.Event(hitFqn);
+        var task = t.RunBehavior("AnyChild");
+        var brk = t.BreakStructOf(hitFqn, "System.Single", "Damage");
+        var set = t.Set(asset.Variables.Single());
+        t.Then(hit, task).Then(task, t.Increment(asset.Variables.Single()), RunBehaviorNode.StartedPin)
+         .Then(task, set, RunBehaviorNode.SucceededPin)
+         .Data(hit, "Event", brk, "Value").Data(brk, "Damage", set, "Value");
+        asset.Graphs.Add(t.Graph);
+        Assert.Contains(Diagnose(asset), d => d.Code == "BP1687");
+    }
+
+    /// <summary>⛔ S7b (B3) — with Started wired, an Abort from the Succeeded chain (the task has ended) is still BP1685.</summary>
+    [Fact]
+    public void S7b_AnAbortFromTheSucceededChain_IsStillBP1685()
+        => Assert.Contains(Diagnose(TaskHost("S7bAbortAfterEnd", "AnyChild", (t, task, v) =>
+           {
+               t.Then(task, t.Increment(v("Ticks")), RunBehaviorNode.StartedPin);
+               var done = t.Increment(v("Done"));
+               t.Then(task, done, RunBehaviorNode.SucceededPin).ThenInto(done, "Out", task, RunBehaviorNode.AbortPin);
+           })), d => d.Code == "BP1685");
 
     /// <summary>⭐ S6b — the policy limits are a blueprint diagnostic (a fixed layout needs a bounded compile-time N).</summary>
     [Theory]

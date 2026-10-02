@@ -76,6 +76,14 @@ public sealed record IrGraph
     /// <summary>⭐ S6b — the entry node's Capacity (0 = 1).</summary>
     public int FiberCapacity { get; init; }
 
+    /// <summary>⭐ S7b — set on a TASK FIBER (a Started Behaviour Task lifted by Stage 2.6): the task it runs. It has no
+    /// event — no bus dispatch, no thunk; its task's start op starts it.</summary>
+    public Guid? LiftedTaskSite { get; init; }
+
+    /// <summary>⭐ S7b — per Behaviour Task site that can be aborted: its wait label and its aborted label (Stage 6). An
+    /// abort from ANOTHER graph (<c>IrOp_AbortStartedTask</c>) is emitted from these.</summary>
+    public IReadOnlyDictionary<Guid, (int Wait, int Aborted)>? TaskLabels { get; init; }
+
     /// <summary>
     /// ⭐ S6a/S6b (<c>DESIGN_Unified_Behaviour_Run</c> §4a) — set when this graph runs as a fiber of its own (a suspending
     /// Event graph of a behaviour): the field-name base of its copies in <c>Exec</c> (<c>{base}_{k}</c>), each a generated

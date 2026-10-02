@@ -2730,10 +2730,9 @@ internal static class BehaviorTaskRules
         Pin? Exec(string name, string dir) => task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == dir && p.Name == name);
         bool Wired(Pin? outPin) => outPin is not null && graph.Links.Any(l => l.FromNodeId == task.Id && l.FromPinId == outPin.Id);
 
-        if (Wired(Exec(RunBehaviorNode.StartedPin, "Out")))
-            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1686,
-                $"Behaviour Task '{task.BehaviorName}': 'Started' runs the task ALONGSIDE the graph, which is not built yet " +
-                "(S7b). Leave it unwired to run the task and wait for it.", asset.AssetId, graph.Id, task.Id));
+        // ⭐ S7b — Started wired ⇒ the task runs ALONGSIDE (Stage 2.6 lifts it into a task fiber). BP1686 is retired.
+        var startedPin = Exec(RunBehaviorNode.StartedPin, "Out");
+        bool alongside = Wired(startedPin);
 
         var abort = Exec(RunBehaviorNode.AbortPin, "In");
         var pinById = new Dictionary<Guid, Pin>();
@@ -2757,6 +2756,28 @@ internal static class BehaviorTaskRules
                 if (!IntoAbort(l))
                     work.Push(l.ToNodeId);
         }
+        // ⭐ S7b (B3) — a Started task may also be aborted from the chain after Started (the timeout shape), but not from
+        //   its Succeeded / Failed chains (by then the task has ended).
+        HashSet<Guid> Forward(Pin? from)
+        {
+            var seen = new HashSet<Guid>();
+            var todo = new Stack<Guid>();
+            if (from is not null)
+                foreach (var l in graph.Links.Where(l => l.FromNodeId == task.Id && l.FromPinId == from.Id && !IntoAbort(l)))
+                    todo.Push(l.ToNodeId);
+            while (todo.Count > 0)
+            {
+                var at = todo.Pop();
+                if (!seen.Add(at)) continue;
+                foreach (var l in graph.Links.Where(l => l.FromNodeId == at && IsExecLink(l)))
+                    if (!IntoAbort(l)) todo.Push(l.ToNodeId);
+            }
+            return seen;
+        }
+        var startedReach = alongside ? Forward(startedPin) : new HashSet<Guid>();
+        var endedReach = new HashSet<Guid>(Forward(Exec(RunBehaviorNode.SucceededPin, "Out")));
+        endedReach.UnionWith(Forward(task.Pins.FirstOrDefault(p => p.IsExec && p.Direction == "Out" && RunBehaviorNode.IsFailedPin(p.Name))));
+
         foreach (var latent in graph.Nodes.Where(n => reach.Contains(n.Id) && MacroLatency.IsLatent(n)))
             ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1684,
                 $"Behaviour Task '{task.BehaviorName}': its While Running chain reaches latent node '{latent.GetType().Name}'. " +
@@ -2764,10 +2785,16 @@ internal static class BehaviorTaskRules
 
         if (abort is null) return;
         foreach (var l in graph.Links.Where(l => l.ToNodeId == task.Id && l.ToPinId == abort.Id))
-            if (!reach.Contains(l.FromNodeId) && !(wr is not null && l.FromNodeId == task.Id && l.FromPinId == wr.Id))
+        {
+            bool fromWhileRunning = reach.Contains(l.FromNodeId) || (wr is not null && l.FromNodeId == task.Id && l.FromPinId == wr.Id);
+            bool fromStarted = alongside && !endedReach.Contains(l.FromNodeId)
+                && (startedReach.Contains(l.FromNodeId) || (l.FromNodeId == task.Id && l.FromPinId == startedPin!.Id));
+            if (!fromWhileRunning && !fromStarted)
                 ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1685,
-                    $"Behaviour Task '{task.BehaviorName}' is aborted from outside its own While Running chain. A task can be " +
-                    "aborted only from its While Running pin for now (an abort from another chain is not built).",
-                    asset.AssetId, graph.Id, task.Id));
+                    $"Behaviour Task '{task.BehaviorName}' is aborted from outside its own While Running chain" +
+                    (alongside ? " and outside the chain after its Started pin" : "") + ". A task can be aborted only from its " +
+                    "While Running chain, or — when Started is wired — from the chain after Started (an abort from another " +
+                    "chain or graph is not built).", asset.AssetId, graph.Id, task.Id));
+        }
     }
 }

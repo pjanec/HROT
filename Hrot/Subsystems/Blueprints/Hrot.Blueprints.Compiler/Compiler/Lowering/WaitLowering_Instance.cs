@@ -53,6 +53,13 @@ internal static class WaitLowering_Instance
             int k = TaskK(op.TaskNodeId);
             if (!abortedTasks.Contains(k)) abortedTasks.Add(k);
         }
+        // ⭐ S7b — a task fiber's own task can be aborted from the graph that STARTED it (IrOp_AbortStartedTask, emitted
+        //   elsewhere), so it always has an aborted label.
+        if (graph.LiftedTaskSite is { } liftedSite)
+        {
+            int k = TaskK(liftedSite);
+            if (!abortedTasks.Contains(k)) abortedTasks.Add(k);
+        }
         int m = abortedTasks.Count;
         int total = n + m;
 
@@ -523,7 +530,12 @@ internal static class WaitLowering_Instance
         // to prevent CS0162/CS0164.
         var finalBlocks = FilterDeadBlocks(allCandidateBlocks, dispatchBlockId);
 
-        return graph with { Blocks = finalBlocks, Entry = dispatchBlockId };
+        // ⭐ S7b — each abortable task's labels, for an abort emitted from another graph.
+        var taskLabels = new Dictionary<Guid, (int Wait, int Aborted)>();
+        for (int j = 0; j < abortedTasks.Count; j++)
+            taskLabels[taskOfK[abortedTasks[j]].SiteId] = (abortedTasks[j], n + j + 1);
+
+        return graph with { Blocks = finalBlocks, Entry = dispatchBlockId, TaskLabels = taskLabels.Count > 0 ? taskLabels : null };
     }
 
     /// <summary>Every operation of every block, nested loop / branch bodies included.</summary>

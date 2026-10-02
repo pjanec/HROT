@@ -134,6 +134,7 @@ public sealed class Graph
         Nodes          = nodes,
         Links          = links,
         HandlerDebugIds = HandlerDebugIds,
+        LiftedTaskSite  = LiftedTaskSite,
     };
 
     /// <summary>
@@ -145,6 +146,14 @@ public sealed class Graph
     /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
     public IReadOnlyDictionary<Guid, Guid>? HandlerDebugIds { get; set; }
+
+    /// <summary>
+    /// ⭐ S7b (<c>DESIGN_Unified_Behaviour_Run</c> "S7b design" B1) — compile-time only: set on a TASK FIBER, the Event
+    /// graph Stage 2.6 lifts a Started Behaviour Task into; the id of the task (clone) it runs. Such a graph has no event:
+    /// it is started by its task's <see cref="BehaviorTaskStartNode"/>, never by the bus. ⛔ Never serialized.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Guid? LiftedTaskSite { get; set; }
 
     /// <summary>
     /// Unreal-style comment boxes ("Add Comment" on the canvas). Pure editor annotation —

@@ -63,6 +63,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
 [JsonDerivedType(typeof(RunBehaviorNode),        "BehaviorTask")]   // ⭐ S7a — was "RunBehavior" (still read, BehaviorTaskMigration)
 [JsonDerivedType(typeof(BehaviorTaskAbortNode),  "BehaviorTaskAbort")]   // compile-time only (Stage 2.6); never authored
+[JsonDerivedType(typeof(BehaviorTaskStartNode),  "BehaviorTaskStart")]   // ⭐ S7b — compile-time only (Stage 2.6); never authored
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -465,10 +466,16 @@ public sealed class ArrayGetNode : Node { }
 public sealed class LatentDelayNode : Node { }
 
 /// <summary>
-/// ⭐⭐ S5d (<c>DESIGN_Unified_Behaviour_Run</c> §4) — <b>Run Behaviour</b>: this behaviour HOSTS another behaviour of any tier
-/// (BTree, HSM, blueprint) at this site, and waits for it. Latent: <c>Out</c> on the child's Success, <c>OnFailure</c> on its
-/// Failure (Q#13 — unwired ⇒ this behaviour's Tick returns Failure). The child runs in this node's own hosted slot, under
-/// this run's occurrence key, so the same child at two nodes keeps two runs.
+/// ⭐⭐ <b>Behaviour Task</b> (U-11; S5d's Run Behaviour grown by S7a/S7b, <c>DESIGN_Unified_Behaviour_Run</c>): this behaviour
+/// HOSTS another behaviour of any tier (BTree, HSM, blueprint) at this site. The child runs in this node's own hosted slot,
+/// under this run's occurrence key, so the same child at two nodes keeps two runs.
+/// <list type="bullet">
+/// <item>Run and wait (only Start + completion pins wired) — latent: <c>Succeeded</c> / <c>Failed</c> when the child ends
+/// (Q#13 — Failed unwired ⇒ a Tick returns Failure), <c>While Running</c> on each frame it is still running.</item>
+/// <item>⭐ S7b — <c>Started</c> wired: the task runs ALONGSIDE in a task fiber of its own (Stage 2.6), and the graph
+/// continues on Started at once; a second Start while it runs restarts it.</item>
+/// <item><c>Abort</c> — from its own While Running, or (Started wired) from the chain after Started ⇒ <c>Failed</c>.</item>
+/// </list>
 /// </summary>
 public sealed class RunBehaviorNode : Node
 {
@@ -499,8 +506,29 @@ public sealed class RunBehaviorNode : Node
 /// </summary>
 public sealed class BehaviorTaskAbortNode : Node
 {
-    /// <summary>The id of the Behaviour Task node this aborts (in the same graph).</summary>
+    /// <summary>The id of the Behaviour Task node this aborts (in the same graph — or, with <see cref="FiberGraph"/>, the
+    /// task's clone in its task fiber).</summary>
     public Guid TaskNodeId { get; set; }
+
+    /// <summary>⭐ S7b — set when the task runs ALONGSIDE (Started wired): the name of the task fiber graph it was lifted
+    /// into. The abort then stops that fiber (<c>IrOp_AbortStartedTask</c>) instead of the graph's own wait.</summary>
+    public string? FiberGraph { get; set; }
+}
+
+/// <summary>
+/// ⭐ S7b (<c>DESIGN_Unified_Behaviour_Run</c> "S7b design" B1) — compile-time only: what a Behaviour Task whose
+/// <c>Started</c> pin is wired becomes in the graph that starts it, once Stage 2.6 has lifted the task and its
+/// completion chains into a task fiber. Start in, Started out: it (re)starts the fiber (Restart, B2) and continues at
+/// once. Lowers to <c>IrOp_StartTask</c>. Never authored, never saved.
+/// </summary>
+public sealed class BehaviorTaskStartNode : Node
+{
+    /// <summary>The authored task's id (this node keeps it, so a breakpoint on the task pauses here).</summary>
+    public Guid TaskNodeId { get; set; }
+    public string BehaviorName { get; set; } = "";
+
+    /// <summary>The task fiber graph this starts.</summary>
+    public string FiberGraph { get; set; } = "";
 }
 
 /// <summary>⭐ S7a — the load-time migration of a pre-S7 Run Behaviour node: the kind and the three S5d pin names.</summary>

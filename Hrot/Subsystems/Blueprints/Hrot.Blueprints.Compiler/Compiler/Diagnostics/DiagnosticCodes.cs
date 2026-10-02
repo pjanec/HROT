@@ -213,7 +213,8 @@ public static class DiagnosticCodes
     // ⭐ S7a (DESIGN_Unified_Behaviour_Run "S7 design") — the Behaviour Task node.
     public const string BP1684 = "BP1684";  // a latent node in a Behaviour Task's While Running chain (it runs inside one frame)
     public const string BP1685 = "BP1685";  // a Behaviour Task's Abort driven from outside its own While Running chain (D3)
-    public const string BP1686 = "BP1686";  // a Behaviour Task's Started wired — running alongside arrives in S7b (D7)
+    public const string BP1686 = "BP1686";  // [retired] a Behaviour Task's Started wired — S7b (CE-2020) built it
+    public const string BP1687 = "BP1687";  // S7b: a Started task's chains read a value or a graph-local of the graph that starts it
 
     // Stage 2 -- Validate (WhenNode rules)
     public const string BP2001 = "BP2001";  // WhenNode in unsupported dispatch

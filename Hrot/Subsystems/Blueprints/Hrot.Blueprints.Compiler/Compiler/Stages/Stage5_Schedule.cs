@@ -419,6 +419,8 @@ internal sealed class GraphScheduler
             // ⭐ S6b (U-6): the Event graph's arrival policy, carried from its entry node.
             FiberPolicy   = (entryNode as EventEntryNode)?.Policy ?? EventFiberPolicy.Parallel,
             FiberCapacity = (entryNode as EventEntryNode)?.Capacity ?? 0,
+            // ⭐ S7b — a task fiber (no event; started by its task's start op).
+            LiftedTaskSite = _graph.LiftedTaskSite,
             Inputs  = irInputs,
             Outputs = irOutputs,
             Blocks  = _blockBuilders.Select(b => b.Build()).ToList().AsReadOnly(),
@@ -539,7 +541,10 @@ internal sealed class GraphScheduler
                     int before = bb.Statements.Count;
                     bb.Statements.Add(new IrStatement
                     {
-                        Operation = new IrOp_AbortTask(abortNode.TaskNodeId),
+                        // ⭐ S7b — the abort of a STARTED task stops its task fiber (emitted from that fiber's labels).
+                        Operation = abortNode.FiberGraph is { } fiberGraph
+                            ? new IrOp_AbortStartedTask(fiberGraph, abortNode.TaskNodeId)
+                            : new IrOp_AbortTask(abortNode.TaskNodeId),
                         Debug     = DebugOf(abortNode),
                     });
                     TagFirstNewStatement(bb.Statements, before, abortNode.Id);
@@ -550,6 +555,28 @@ internal sealed class GraphScheduler
                         return;
                     }
                     node = abortNext;
+                    continue;
+                }
+
+                // ⭐ S7b — a Started Behaviour Task (lifted by Stage 2.6): (re)start its task fiber, continue on Started.
+                case BehaviorTaskStartNode taskStart:
+                {
+                    _execNodeToBlockId[taskStart.Id] = blockId;
+                    bb.SourceNodeId ??= taskStart.Id;
+                    int before = bb.Statements.Count;
+                    bb.Statements.Add(new IrStatement
+                    {
+                        Operation = new IrOp_StartTask(taskStart.FiberGraph),
+                        Debug     = DebugOf(taskStart),
+                    });
+                    TagFirstNewStatement(bb.Statements, before, taskStart.Id);
+                    var startedNext = GetSingleExecSuccessor(taskStart);
+                    if (startedNext is null)
+                    {
+                        SealFallThrough(blockId, bb, DebugOf(taskStart));
+                        return;
+                    }
+                    node = startedNext;
                     continue;
                 }
 

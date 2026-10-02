@@ -79,6 +79,7 @@ internal sealed class V_ResolverPurity : IValidator
         typeof(WaitForEventNode),
         typeof(RunBehaviorNode),          // S5d: runs a child behaviour across frames
         typeof(BehaviorTaskAbortNode),    // S7a: compile-time only (Stage 2.6) — stops a Behaviour Task's child
+        typeof(BehaviorTaskStartNode),    // S7b: compile-time only (Stage 2.6) — starts a task fiber
         typeof(WhenNode),
 
         // ── see gap ② in the class doc ────────────────────────────────────────

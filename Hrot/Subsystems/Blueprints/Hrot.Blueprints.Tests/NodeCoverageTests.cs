@@ -128,6 +128,10 @@ public sealed class NodeCoverageTests
                 "Compile-time only BY DESIGN (S7a, DESIGN_Unified_Behaviour_Run \"S7 design\" D4) -- never authored: " +
                 "Stage2_6_SplitEventHandlers.RetargetAborts makes one per Behaviour Task whose Abort pin is wired. " +
                 "Compiled and run by BlueprintBehaviourTests.S7a_AbortFromWhileRunning_* and S7a_ATaskInATickGraph_*.",
+            [typeof(BehaviorTaskStartNode)] =
+                "Compile-time only BY DESIGN (S7b, DESIGN_Unified_Behaviour_Run \"S7b design\" B1) -- never authored: " +
+                "Stage2_6_SplitEventHandlers.LiftStartedTasks makes one per Behaviour Task whose Started pin is wired. " +
+                "Compiled and run by BlueprintBehaviourTests.S7b_*.",
             [typeof(MacroCallNode)] =
                 "No compiling fixture BY DESIGN, not a gap -- a MacroCallNode's pins are derived " +
                 "ENTIRELY by projection from its target macro graph (NodePinSchema.MacroCallPins / " +
@@ -185,10 +189,12 @@ public sealed class NodeCoverageTests
     //                                   falls into the generic default: branch that emits BP4004)
     //   - BehaviorTaskAbortNode     -> BlueprintBehaviourTests.S7a_* (compile-time only: it LOWERS, via its own
     //                                   Stage5 arm, and is never authored, so it has no fixture to compile)
+    //   - BehaviorTaskStartNode     -> BlueprintBehaviourTests.S7b_* (the same, for a Started task)
     private static readonly HashSet<Type> SeparatelyCharacterizedExceptions = new()
     {
         typeof(WaitForEventNode),
         typeof(BehaviorTaskAbortNode),
+        typeof(BehaviorTaskStartNode),
         typeof(ArrayMakeNode),
         typeof(ArrayGetNode),
         typeof(MacroCallNode),

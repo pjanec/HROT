@@ -49,6 +49,10 @@ public sealed class V_AllValidatorsCoverageTests
         // number is not reused; the retirement is asserted by
         // V_DispatchKindCompatibilityTests.Instance_WithParams_NoLongerEmitsBP1031.
         "BP1031",
+        // RETIRED, not reserved (S7b, CE-2020): BP1686 refused a Behaviour Task's Started pin while running a task
+        // ALONGSIDE was not built. Stage 2.6 now lifts a Started task into a task fiber of its own; kept defined so
+        // the number is not reused — the retirement is asserted by BlueprintBehaviourTests.S7b_* (Started compiles).
+        "BP1686",
         // BP-80: allocated and emitted, but only reachable once MacroCallNode can be AUTHORED into a
         // compiled graph. It IS covered -- see MacroSurfaceTests -- so it is NOT listed here.
     };

@@ -91,8 +91,9 @@ internal sealed class BehaviorTaskNodeSession : INodeEditSession
         else if (IsUnlisted())
             ImGui.TextColored(EditorColors.Warning, $"(not registered on this host now — kept: {_node.BehaviorName})");
 
-        ImGui.TextDisabled("Start runs it and waits: Succeeded / Failed when it ends, While Running each frame;");
-        ImGui.TextDisabled("an Abort from While Running stops it and continues on Failed.");
+        ImGui.TextDisabled("Start runs it and waits: Succeeded / Failed when it ends, While Running each frame.");
+        ImGui.TextDisabled("Wire Started to run it alongside (a second Start restarts it).");
+        ImGui.TextDisabled("Abort (from While Running, or after Started) stops it and continues on Failed.");
     }
 
     public void ResetDirty() => IsDirty = false;

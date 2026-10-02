@@ -814,6 +814,14 @@ internal static class StatementEmitter
             case IrOp_AbortTask:
                 throw new InvalidOperationException("IrOp_AbortTask reached Emit stage — WaitLowering_Instance replaces it (S7a).");
 
+            // ⭐ S7b — a Started Behaviour Task: (re)start its task fiber · abort it from the chain that started it.
+            case IrOp_StartTask st:
+                InstanceEmitter.EmitTaskStart(e, e.Ctx.Asset, st);
+                break;
+            case IrOp_AbortStartedTask ab:
+                InstanceEmitter.EmitTaskAbort(e, e.Ctx.Asset, ab);
+                break;
+
             // ------------------------------------------------------------------
             // Wait primitives -- should not reach Stage 7
             // ------------------------------------------------------------------

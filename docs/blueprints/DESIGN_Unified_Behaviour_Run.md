@@ -5,7 +5,8 @@ build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this
   Concurrency should be natively supported, and we should remove any blockers that prevent it. cycles needs
   checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
   U-7 deferred, U-11 Behaviour Task node).
-current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory.
+current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory. The
+  per-slice "design" / "as-built" sections under §4 are the build record (latest: S7a + S7b, the Behaviour Task).
 stale-below: nothing yet.
 known-rot: none.
 known-conflict: Architect_Question_77 §3 C ("a root blueprint keeps its cursor in its root block") — SUPERSEDED here
@@ -171,7 +172,7 @@ and nesting the same mechanism.
 | S4 ✅ BUILT | one runner contract | see the as-built box below |
 | S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector. ⭐ Split in four, see below |
 | S6 | native concurrency in blueprints | a FIBER per top-level graph (Tick, each Event graph) and per branch of a new `Parallel` node; per-fiber cursor, locals and `When` memory; the 16 single-cursor sites (I10) rewritten against a fiber index |
-| S7 | **Behaviour Task** blueprint node (U-11) — ⭐ design below ("S7 design"), split S7a / S7b | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
+| S7 | **Behaviour Task** blueprint node (U-11) — ⭐ design below ("S7 design"), split S7a / S7b — ✅ BOTH BUILT (CE-2019, CE-2020; "S7a as-built", "S7b as-built") | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
 | (S8) | converge AiPrimitive suspension (I14) | `__phase`/`__waitUntilTime` → the same fiber cursor (Q33 §1.5.5). Separate design question, see §6 |
 
 
@@ -756,7 +757,7 @@ Rails: `BlueprintBehaviourTests.S7a_WhileRunning_RunsEachFrameTheChildRuns_ThenS
 `…S7a_WiringStarted_IsBP1686_UntilS7b`, `…S7a_AnS5dRunBehaviourAsset_MigratesToABehaviourTask`; `BehaviorTaskNodeDrawerTests` (5, incl. the
 registry→drawer forwarding rail); `TheEqsBrainStartupIsSharedTests` (both hosts pass `BehaviourNames`).
 
-#### S7b design — `Started`: a task that runs ALONGSIDE *(`2026-10-02`, CE-2020; decided-and-logged by the behaviours lane)*
+#### S7b design — `Started`: a task that runs ALONGSIDE *(`2026-10-02`, CE-2020; decided-and-logged by the behaviours lane; BUILT — as-built below)*
 
 📐 **Measured basis** — what already exists that a running-alongside task needs:
 
@@ -841,6 +842,29 @@ graph TD
 | B6 | `BP1686` | ⭐ **retired** (number kept, `[retired]`), its rail becomes the Started rail | keep it for "Started and Succeeded both wired": that is the main use |
 | B7 | the lifted originals in the starting graph | ⭐ removed by the lift (they would only be Stage 3 orphans, one `BP3010` warning each) | leave them to Stage 3: warning noise for an authored, valid graph |
 | B8 | the debugger | ⭐ the task fiber's clones map to the authored ids (E6 `HandlerDebugIds`); the start node keeps the task's id | — |
+
+#### S7b as-built *(`2026-10-02`, CE-2020)*
+
+⭐ Built as B1–B8; the three diagrams above are true as drawn. What the build pinned down:
+
+| # | as-built fact | where |
+|---|---|---|
+| C1 | the lift is a WORK-LIST over the graphs (after the handler split, before `RetargetAborts`): one Started task per pass, and a task fiber is lifted again if it starts tasks itself | `Stage2_6_SplitEventHandlers.LiftStartedTasks` |
+| C2 | names and ids are derived from the task: fiber graph `{graph}_Task_0` (fiber field `__fib_{graph}Task0` after sanitising), clone ids `task-fiber:{task}:{node}`, entry `task-fiber-entry:{task}`, the starting chain's abort node `task-stop:{task}` ⇒ the same generated code on every compile | same |
+| C3 | the start node keeps the task's own id and its Start / Started pin ids ⇒ the starting graph's links are untouched | same |
+| C4 | `BP1687` covers TWO crossings: a non-pure value (an exec node's output, the starting event's payload), and a graph-local used by both the starting graph and the lifted chains | same |
+| C5 | only lifted ORIGINALS that the starting graph no longer reaches are removed; any other orphan is still Stage 3's (with its `BP3010`) | same, `Connected` |
+| C6 | `WaitLowering_Instance` always gives a task fiber's own task an aborted label and records `IrGraph.TaskLabels`; the abort op emits `if (ResumeAt == wait) { reset; ResumeAt = aborted; }` | `WaitLowering_Instance`, `InstanceEmitter.EmitTaskAbort` |
+| C7 | the Restart arrival and the start op share `InstanceEmitter.EmitRestart` | `InstanceEmitter` |
+| C8 | `BP1685` widened: an Abort is legal from the task's own While Running, or (Started wired) from the chain after Started — never from its Succeeded / Failed chains | `Stage2_Validate` `BehaviorTaskRules` |
+
+⚠ **Not built (demand-driven, each refused loudly):** an Abort from another handler or graph (`BP1685`) · capturing a
+starting value as the task fiber's input (`BP1687`) · passing PARAMETERS to the task's child (a Behaviour Task has no
+params input yet — the child runs on its defaults; see §7's note).
+
+Rails: `BlueprintBehaviourTests.S7b_AStartedTask_RunsAlongside_TheGraphContinuesAtOnce`, `…S7b_StartWhileRunning_RestartsTheTask`,
+`…S7b_AbortFromTheStartedChain_StopsTheTask_AndTakesFailed`, `…S7b_AStartedTaskReadingTheStartingEvent_IsBP1687`,
+`…S7b_AnAbortFromTheSucceededChain_IsStillBP1685`.
 
 ## 5. Decisions — each with a lean
 

@@ -119,7 +119,7 @@ internal static class InstanceEmitter
 
         // ⭐ S2 — a behaviour dispatches its events inline in BehaviorTick (two state refs cannot ride the shared
         //   Span<byte> handler delegate); the handler-table thunks are an Instance concern.
-        foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event))
+        foreach (var evtGraph in asset.Graphs.Where(g => g.Kind == IrGraphKind.Event && g.LiftedTaskSite is null))
         {
             EmitEventThunk(e, asset, evtGraph, behaviour: IsBehavior(asset));
             e.WriteLine();
@@ -748,7 +748,10 @@ internal static class InstanceEmitter
         e.WriteLine("}");
         e.WriteLine();
 
-        var events = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
+        // ⭐ S7b — a task fiber has no event: it gets no type id and no bus dispatch (it is started by its task's op).
+        var allEvents = asset.Graphs.Where(g => g.Kind == IrGraphKind.Event).ToList();
+        var taskFibers = allEvents.Where(g => g.LiftedTaskSite is not null).ToList();
+        var events = allEvents.Where(g => g.LiftedTaskSite is null).ToList();
         var resolver = asset.Graphs.FirstOrDefault(g => g.Kind == IrGraphKind.Construction);
         if (resolver is not null)
         {
@@ -798,6 +801,14 @@ internal static class InstanceEmitter
         e.Indent();
         e.WriteLine("ref var __bb = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Block>(ref block);");
         e.WriteLine("ref var __ex = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Exec>(ref exec);");
+        // ⭐ S7b (B5) — task fibers resume before everything else, innermost (lifted last) first: a task started anywhere
+        //   this frame first ticks its child NEXT frame, exactly as a run-and-wait task does.
+        foreach (var g in Enumerable.Reverse(taskFibers).Where(Lowering.Fibers.IsOwnFiber))
+        {
+            var copy = Lowering.Fibers.CopyField(g, 0);
+            e.WriteLine($"if (__ex.{copy}.Cursor.ResumeAt != 0)");
+            e.WriteLine($"    Event_{g.Name}(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey, ref __ex.{copy}, 0);");
+        }
         // ⭐ S6a — resume every waiting Event fiber FIRST, with the inputs it started on: a fiber started below this frame
         //   is then not stepped twice in one frame, and one that finishes here is free for an event arriving this frame.
         foreach (var g in events.Where(Lowering.Fibers.IsOwnFiber))
@@ -999,18 +1010,7 @@ internal static class InstanceEmitter
 
         if (g.FiberPolicy == Hrot.Blueprints.Core.Assets.EventFiberPolicy.Restart)
         {
-            // Restart — the newest event wins: abandon the waiting handler and every behaviour it hosts, then start over.
-            var c0 = Lowering.Fibers.CopyField(g, 0);
-            e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt != 0)");
-            e.WriteLine("{");
-            e.Indent();
-            e.WriteLine($"__ex.{c0} = default;");
-            foreach (var (site, _) in RunBehaviorSitesByGraph(asset).Where(t => t.Graph.Name == g.Name))
-                e.WriteLine("global::Fdp.Toolkit.Behavior.HostedSubtree.Reset((global::Fdp.Core.EntityRepository)view, self, "
-                          + $"{RunSiteKey("", site, 0)}, occurrenceKey);");
-            e.Outdent();
-            e.WriteLine("}");
-            e.WriteLine(Start(0));
+            EmitRestart(e, asset, g, Start(0));
             return;
         }
 
@@ -1051,6 +1051,57 @@ internal static class InstanceEmitter
         e.WriteLine("    " + Fault(n == 1
             ? "arrived while its handler was still waiting (one handler at a time)."
             : $"arrived while all {n} of its handlers were still waiting."));
+    }
+
+    /// <summary>
+    /// Restart — the newest start wins: abandon the waiting copy and every behaviour it hosts, then start over. ⭐ S7b (B2)
+    /// — ONE helper for a Restart event's arrival and a Behaviour Task's start op, so the two cannot drift apart.
+    /// </summary>
+    private static void EmitRestart(CSharpEmitter e, IrAsset asset, IrGraph g, string start)
+    {
+        var c0 = Lowering.Fibers.CopyField(g, 0);
+        e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt != 0)");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine($"__ex.{c0} = default;");
+        foreach (var (site, _) in RunBehaviorSitesByGraph(asset).Where(t => t.Graph.Name == g.Name))
+            e.WriteLine("global::Fdp.Toolkit.Behavior.HostedSubtree.Reset((global::Fdp.Core.EntityRepository)view, self, "
+                      + $"{RunSiteKey("", site, 0)}, occurrenceKey);");
+        e.Outdent();
+        e.WriteLine("}");
+        e.WriteLine(start);
+    }
+
+    /// <summary>The task fiber graph a task op names (Stage 2.6 made it; Stage 6 made it a fiber).</summary>
+    private static IrGraph TaskFiber(IrAsset asset, string name)
+        => asset.Graphs.FirstOrDefault(g => g.Name == name && g.LiftedTaskSite is not null && Lowering.Fibers.IsOwnFiber(g))
+           ?? throw new InvalidOperationException($"task fiber '{name}' is not a lowered fiber graph (S7b).");
+
+    /// <summary>⭐ S7b (B1/B2) — <c>IrOp_StartTask</c>: the Restart arrival of a task fiber, from inside a graph body.</summary>
+    internal static void EmitTaskStart(CSharpEmitter e, IrAsset asset, IrOp_StartTask op)
+    {
+        var g = TaskFiber(asset, op.FiberGraph);
+        var c0 = Lowering.Fibers.CopyField(g, 0);
+        EmitRestart(e, asset, g,
+            $"Event_{g.Name}(ref __bb, ref __ex, view, ecb, self, time, deltaTime, instanceVersion, occurrenceKey, ref __ex.{c0}, 0);");
+    }
+
+    /// <summary>⭐ S7b (B3) — <c>IrOp_AbortStartedTask</c>: only while the task fiber waits ON the task, reset its site and
+    /// move its cursor to the task's aborted label ⇒ the fiber continues on Failed when it next resumes.</summary>
+    internal static void EmitTaskAbort(CSharpEmitter e, IrAsset asset, IrOp_AbortStartedTask op)
+    {
+        var g = TaskFiber(asset, op.FiberGraph);
+        if (g.TaskLabels is null || !g.TaskLabels.TryGetValue(op.SiteId, out var labels))
+            throw new InvalidOperationException($"task fiber '{g.Name}' has no labels for task {op.SiteId:N} (S7b).");
+        var c0 = Lowering.Fibers.CopyField(g, 0);
+        e.WriteLine($"if (__ex.{c0}.Cursor.ResumeAt == {labels.Wait})");
+        e.WriteLine("{");
+        e.Indent();
+        e.WriteLine("global::Fdp.Toolkit.Behavior.HostedSubtree.Reset((global::Fdp.Core.EntityRepository)view, self, "
+                  + $"{RunSiteField(op.SiteId)}, occurrenceKey);");
+        e.WriteLine($"__ex.{c0}.Cursor.ResumeAt = {labels.Aborted};");
+        e.Outdent();
+        e.WriteLine("}");
     }
 
     private static string CSharpType(IrTypeRef t) => StatementEmitter.TypeRefToCSharp(t);

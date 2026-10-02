@@ -425,6 +425,15 @@ public sealed record IrOp_AbortTask(Guid TaskNodeId) : IrOperation;
 /// recursively; inside a fiber graph, the running copy's site.</summary>
 public sealed record IrOp_ResetHostedSite(Guid SiteId) : IrOperation;
 
+/// <summary>⭐ S7b — (re)start the task fiber <paramref name="FiberGraph"/>: if it still waits, reset every site it hosts
+/// and clear it (Restart), then run it to its first wait. Emitted directly (it is the Restart arrival, B2).</summary>
+public sealed record IrOp_StartTask(string FiberGraph) : IrOperation;
+
+/// <summary>⭐ S7b — abort the Started task <paramref name="SiteId"/> running in the task fiber <paramref name="FiberGraph"/>:
+/// only while that fiber waits ON the task, reset the site and move its cursor to the task's aborted label (⇒ Failed next
+/// frame). Emitted from the fiber graph's <c>IrGraph.TaskLabels</c>.</summary>
+public sealed record IrOp_AbortStartedTask(string FiberGraph, Guid SiteId) : IrOperation;
+
 // Channel command (lowered from ChannelCommandNode in Stage 6)
 public sealed record IrOp_ChannelCommand(
     string ChannelComponentTypeFqn,
