@@ -666,13 +666,29 @@ internal sealed class V_LatentRules : IValidator
 {
     public void Validate(BlueprintAsset asset, ValidationContext ctx)
     {
+        // ⭐ S1 / I11 (DESIGN_Unified_Behaviour_Run §2) — a payload has ONE latent cursor, shared by every graph, and an
+        //   Event method has no instanceVersion: a latent node in an Event graph used to fail as a Roslyn CS0103 in
+        //   GENERATED code. ⇒ refused here, naming the node, until fibers (S6a) give each graph its own cursor.
+        var macrosById = asset.Graphs.Where(g => g.Kind == GraphKind.Macro).ToDictionary(g => g.Id);
+        foreach (var graph in asset.Graphs.Where(g => g.Kind == GraphKind.Event))
+        {
+            var latent = MacroLatency.FindLatentInNodes(graph.Nodes, macrosById);
+            if (latent is null) continue;
+            ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1658,
+                $"Event graph '{graph.Name}' contains latent node '{FriendlyNodeName(latent)}'. An Event graph cannot " +
+                $"wait yet: a blueprint has one latent cursor shared by every graph. Move the waiting logic into the " +
+                $"Tick graph (for example, set a variable here and react to it there).",
+                asset.AssetId, graph.Id, latent.Id));
+        }
+
         if (asset.Dispatch == BlueprintDispatchKind.Library)
         {
             foreach (var graph in asset.Graphs)
             {
                 foreach (var node in graph.Nodes)
                 {
-                    if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
+                    // ⭐ S1 / I13 — the ONE latent detector (an inline action suspends too; a hand-written list missed it).
+                    if (MacroLatency.IsLatent(node))
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1101,
                             $"A Function Library cannot contain latent nodes: its graphs compile to plain " +
                             $"static methods, which have nowhere to suspend. Remove " +
@@ -2277,7 +2293,8 @@ internal sealed class V_FunctionGraphCallRules : IValidator
         {
             foreach (var node in targetGraph.Nodes)
             {
-                if (node is LatentDelayNode or WaitForChannelNode or WaitForEventNode)
+                // ⭐ S1 / I13 — the ONE latent detector (an inline action suspends too; a hand-written list missed it).
+                if (MacroLatency.IsLatent(node))
                 {
                     ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP1650,
                         $"Function graph '{targetGraph.Name}' (id={targetGraph.Id}) is called via FunctionCallNode " +
@@ -2565,7 +2582,8 @@ internal sealed class V_FlowForEachRules : IValidator
                     // P1b: BranchNode is now allowed in the body (lowers to a nested inline if/else).
                     // Latent nodes remain forbidden -- they need a suspend/resume block split the
                     // inline for-body cannot span.
-                    if (n is LatentDelayNode or WaitForChannelNode or WaitForEventNode or WhenNode)
+                    // ⭐ S1 / I13 — the ONE latent detector, plus When (it needs a block split too).
+                    if (MacroLatency.IsLatent(n) || n is WhenNode)
                         ctx.Diagnostics.Add(Diagnostic.Error(DiagnosticCodes.BP2050,
                             $"{loopKind} body must be latent-free: a latent '{n.GetType().Name}' is reachable from the loop 'Body'.",
                             asset.AssetId, graph.Id, n.Id));

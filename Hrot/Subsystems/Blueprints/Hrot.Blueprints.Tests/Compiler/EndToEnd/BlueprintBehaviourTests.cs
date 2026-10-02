@@ -296,4 +296,78 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(0, world.GetComponent<BehaviorState>(e).BrainTier);
         Assert.False(RootParamsAccess.TryGetRootBytes(world, e, out _), "the block is freed by the clear");
     }
+
+    // ── S1 (DESIGN_Unified_Behaviour_Run §2 I11–I12): latent correctness, measured before fibers ──
+
+    private const string LocomotionChannelFqn = "LocomotionChannel";   // a wait target is named by its short type name (BP1402)
+
+    private (Fdp.Core.Entity Entity, BrainTickSystem Brain) AssignBehaviour(BlueprintAsset asset)
+    {
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var world = _fixture.World;
+        var e = _fixture.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = asset.Name, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
+        return (e, new BrainTickSystem(_fixture.BehaviorRegistry));
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S1 / I12 — after a <c>WaitForChannel</c> SUCCEEDS, the next pass starts the graph from the TOP.</b>
+    /// Tick: publish <see cref="Runtime.PingDemoEvent"/> (BEFORE the wait) → wait on the locomotion channel → publish
+    /// <see cref="Runtime.WhenTestHitEvent"/> (AFTER) → fall off the end (Running, so the Tick graph runs again next frame).
+    /// With the channel held at Success, every pass is "before, suspend, after": the two counts stay in step.
+    /// <para>🔴 Measured 2026-10-02: the success path resumed without clearing <c>ResumeAt</c>
+    /// (<c>WaitLowering_Instance.cs</c>), so every later frame re-entered the resume check and re-ran ONLY the code
+    /// after the wait — 5 "after" against 1 "before" in 5 frames. The Failure and Delay paths already cleared it.</para>
+    /// </summary>
+    [Fact]
+    public void S1_AfterAChannelWaitSucceeds_TheNextPassStartsFromTheTop()
+    {
+        var asset = BlueprintAssetBuilder.Behavior("S1ChannelOnce")
+            .WithGraph("Tick", g => g.Entry()
+                .PublishCustomEvent(typeof(Runtime.PingDemoEvent).FullName!, targetFieldName: "Target")
+                .WaitForChannel(LocomotionChannelFqn)
+                .PublishCustomEvent(typeof(Runtime.WhenTestHitEvent).FullName!, targetFieldName: "Target"))
+            .Build();
+        var (e, brain) = AssignBehaviour(asset);
+        var world = _fixture.World;
+        world.AddComponent(e, new Fdp.Toolkit.Behavior.Components.LocomotionChannel { Status = Fbt.NodeStatus.Success });
+
+        int before = 0, after = 0;
+        for (int i = 0; i < 6; i++)
+        {
+            brain.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            foreach (var evt in world.Bus.Read<Runtime.PingDemoEvent>())  if (evt.Target.Index == e.Index) before++;
+            foreach (var evt in world.Bus.Read<Runtime.WhenTestHitEvent>()) if (evt.Target.Index == e.Index) after++;
+        }
+
+        Assert.True(after > 0, "the wait never completed");
+        Assert.Equal(before, after);
+    }
+
+    /// <summary>
+    /// ⭐⭐ <b>S1 / I11 — a latent node in an EVENT graph.</b> Until fibers (S6a) give each graph its own cursor, it must be
+    /// refused by a blueprint diagnostic naming the node — never a C# compile error in generated code.
+    /// <para>🔴 Measured suspicion: the Event method has no <c>instanceVersion</c> parameter while its latent lowering uses one.</para>
+    /// </summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1658")]
+    public void S1_ALatentNodeInAnEventGraph_IsABlueprintDiagnostic_NotAGeneratedCodeError()
+    {
+        var asset = BlueprintAssetBuilder.Behavior("S1EventDelay")
+            .WithGraph("Tick", g => g.Entry())
+            .WithEventGraph("OnHit", g => g.Entry(typeof(Runtime.WhenTestHitEvent).FullName!).Delay(1f))
+            .Build();
+
+        var result = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options());
+        Exception? roslyn = null;
+        if (result.Succeeded)
+            roslyn = Record.Exception(() => _fixture.CompileAndLoad(asset, GoldenCorpus.Options()));
+
+        Assert.True(roslyn == null, "generated code failed to compile: " + roslyn?.Message);
+        Assert.Contains(result.Diagnostics, d => d.IsError && d.Code == "BP1658");
+    }
 }

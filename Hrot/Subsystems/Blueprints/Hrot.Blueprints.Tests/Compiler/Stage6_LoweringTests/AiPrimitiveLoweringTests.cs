@@ -88,6 +88,31 @@ public sealed class AiPrimitiveLoweringTests
         Assert.Equal("dispatch", entryBlock.Label);
     }
 
+    /// <summary>
+    /// ⭐ S1 / I12 (<c>DESIGN_Unified_Behaviour_Run</c> §2) — when a wait SUCCEEDS, the resume path clears <c>__phase</c>
+    /// before it continues, exactly as the Failure path does. 🔴 It used to go straight to the continuation with
+    /// <c>__phase</c> still set, so the next entry to this node skipped everything before the wait.
+    /// ✅ Red-proof: route the not-running branch back to the continuation directly ⇒ no block writes phase 0 on success.
+    /// </summary>
+    [Fact]
+    public void AiPrimitive_ASuccessfulWait_ClearsThePhase_BeforeItContinues()
+    {
+        var asset = BlueprintAssetBuilder
+            .AiPrimitive("Action")
+            .WithHostings(AiPrimitiveHosting.BTreeAction)
+            .WithGraph("Main", g => g.Entry().WaitForChannel("Chan").Return())
+            .Build();
+
+        var sink  = new DiagnosticSink();
+        var graph = Assert.Single(RunLower(asset, sink).Graphs);
+        Assert.False(sink.HasErrors);
+
+        var success = Assert.Single(graph.Blocks, b => b.Label == "phase1_success");
+        Assert.Contains(success.Statements, st => st.Operation is IrOp_WriteWorkingStatePhase { PhaseValue: 0 });
+        var notRunning = Assert.Single(graph.Blocks, b => b.Label == "phase1_not_running");
+        Assert.Equal(success.Id, Assert.IsType<IrTerm_Branch>(notRunning.Terminator).IfFalse);
+    }
+
     [Fact]
     public void AiPrimitive_NoSuspendAfterLowering()
     {

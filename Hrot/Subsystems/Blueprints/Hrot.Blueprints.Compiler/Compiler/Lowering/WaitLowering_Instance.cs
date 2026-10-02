@@ -61,6 +61,14 @@ internal static class WaitLowering_Instance
         for (int k = 1; k <= n - 1; k++)
             chainBlockId[k] = NewBlk();
 
+        // ⭐ S1 / I12 (DESIGN_Unified_Behaviour_Run §2) — a SUCCESS resume clears the cursor before it continues, exactly as
+        //   the Failure and Delay paths already do. 🔴 It used to jump straight to the continuation with ResumeAt still k,
+        //   so the next pass re-entered this resume check and re-ran ONLY the code after the wait. Allocated after the
+        //   chain blocks so every pre-existing block keeps its id.
+        var successBlockId = new IrBlockId[n + 1];
+        for (int k = 1; k <= n; k++)
+            successBlockId[k] = NewBlk();
+
         // ---------------------------------------------------------------
         // Modify each suspend block to become the "initial" block:
         //   remove wait-op + resume-point const
@@ -230,7 +238,15 @@ internal static class WaitLowering_Instance
                                               new[] { statusV, constFailV2 }, BoolType)),
                     },
                     Terminator = new IrTerm_Branch(isFailV2,
-                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                        failureBlockId[k], successBlockId[k]) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = successBlockId[k],
+                    Label      = $"resume_{k}_success",
+                    Statements = new[] { Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
+                    Terminator = new IrTerm_Goto(resumeBlockId) { Debug = Synth() },
                 });
 
                 synthesizedBlocks.Add(new IrBlock
@@ -365,7 +381,15 @@ internal static class WaitLowering_Instance
                                              new[] { statusV2, constFailV }, BoolType)),
                     },
                     Terminator = new IrTerm_Branch(isFailV,
-                        failureBlockId[k], resumeBlockId) { Debug = Synth() },
+                        failureBlockId[k], successBlockId[k]) { Debug = Synth() },
+                });
+
+                synthesizedBlocks.Add(new IrBlock
+                {
+                    Id         = successBlockId[k],
+                    Label      = $"resume_{k}_success",
+                    Statements = new[] { Stmt(null, new IrOp_WriteCursorResumeAt(0)) },
+                    Terminator = new IrTerm_Goto(resumeBlockId) { Debug = Synth() },
                 });
 
                 synthesizedBlocks.Add(new IrBlock
@@ -409,6 +433,9 @@ internal static class WaitLowering_Instance
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == notRunningBlockId[k].Value));
             if (synthesizedBlocks.Any(b => b.Id.Value == failureBlockId[k].Value))
                 allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == failureBlockId[k].Value));
+            // ⭐ S1 / I12 — the success block (clears the cursor, then continues).
+            if (synthesizedBlocks.Any(b => b.Id.Value == successBlockId[k].Value))
+                allCandidateBlocks.Add(synthesizedBlocks.First(b => b.Id.Value == successBlockId[k].Value));
         }
 
         // Filter dead blocks (e.g. _unused blocks from LatentDelay path)
