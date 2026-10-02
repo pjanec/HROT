@@ -203,7 +203,7 @@ internal static class StatementEmitter
             }
 
             // ⭐ CE-472 — the ONE JSON emitter (DESIGN_Typed_Intent_And_Json_Nodes §4 C): the same options every
-            // behaviour parse reads with, so what a blueprint writes is what BehaviorParams.FromJson reads.
+            // behaviour parse reads with, so what a blueprint writes is what every behaviour parse (BehaviorParams.JsonOptions) reads.
             case IrOp_ToJson op:
                 if (idx >= 0)
                     e.WriteLine($"var __t{idx} = global::System.Text.Json.JsonSerializer.Serialize(__t{op.Value.Index}, "

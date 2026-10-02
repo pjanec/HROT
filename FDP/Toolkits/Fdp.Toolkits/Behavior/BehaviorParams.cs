@@ -6,20 +6,6 @@ using Fdp.Core;
 namespace Fdp.Toolkit.Behavior
 {
     /// <summary>
-    /// ⭐⭐ <c>G1</c> — the RESOLVE half of a parameter supply, as a typed callback.
-    ///
-    /// <para>
-    /// Runs after the authored DTO has been deserialized and before it is written into the params
-    /// region. ⭐ For the overwhelmingly common case — the authored DTO and the usable params are the
-    /// same shape — there is nothing to do and this is <c>null</c>; the resolve step then <i>is</i> the
-    /// deserialize, exactly as 📄 <c>DESIGN_Parameter_Model.md</c> §3.1 says.
-    /// </para>
-    /// </summary>
-    public delegate void ResolveParams<TDto>(
-        ref TDto dto, EntityRepository world, Entity self)
-        where TDto : unmanaged;
-
-    /// <summary>
     /// ⭐⭐⭐ <c>CE-427</c> — <b>the ROOT behaviour's resolve stage over its whole block.</b> 📄 <c>Q76</c>
     /// §12.4c, <c>Behavior_Parameter_Resolver_Detailed_Design</c> §3.3's logical signature
     /// <i>"resolve(in TAuthored authored, ref TUsable usable, …)"</i>.
@@ -83,31 +69,10 @@ namespace Fdp.Toolkit.Behavior
         public static JsonSerializerOptions JsonOptions
             => Fdp.Core.Serialization.FdpJsonOptionsRegistry.DefaultRelaxed;
 
-        /// <summary>
-        /// Builds the behaviour's <see cref="ParseParamsDelegate"/> from its DTO type: deserialize the
-        /// authored JSON, optionally <paramref name="resolve"/> it against world/self, then write
-        /// it at the start of the params region.
-        ///
-        /// <para>
-        /// ⚠ <b>An absent or empty payload is <c>default(TDto)</c>, not a failure.</b> Defaults are
-        /// baked and the scenario JSON only overlays them (architect-approved <c>2026-06-06</c>), so a
-        /// behaviour with nothing to override supplies no JSON at all.
-        /// </para>
-        /// </summary>
-        public static unsafe ParseParamsDelegate FromJson<TDto>(ResolveParams<TDto>? resolve = null)
-            where TDto : unmanaged
-        {
-            return (string json, byte* memory, int capacity, EntityRepository world, Entity self) =>
-            {
-                TDto dto = string.IsNullOrWhiteSpace(json)
-                    ? default
-                    : JsonSerializer.Deserialize<TDto>(json, JsonOptions);
-
-                resolve?.Invoke(ref dto, world, self);
-
-                Unsafe.Write(memory, dto);
-            };
-        }
+        // ⛔ CE-416 ③ (2026-10-02) — FromJson<TDto>(ResolveParams<TDto>?) and the ResolveParams delegate are RETIRED.
+        //   📐 Zero production callers since CE-426/CE-427: every behaviour's supply is the bake + FromBlockResolver's
+        //   typed resolve stage, and FromJson wrote the DTO OVER the baked defaults — a second, older supply shape.
+        //   Its identity case is FromBlockResolver<T, T>((in a, ref b, w, s) => b = a).
 
         /// <summary>
         /// ⭐⭐⭐ <c>CE-427</c> — <b>SUPPLY + RESOLVE for a typed block resolver</b>, as the one

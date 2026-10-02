@@ -33,7 +33,7 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// </para>
         ///
         /// <para>
-        /// ⭐ <c>BehaviorParams.FromJson</c> does NOT count as a second mechanism and that is the point
+        /// ⭐ <c>BehaviorParams.FromBlockResolver</c> does NOT count as a second mechanism and that is the point
         /// of its shape: it is a FACTORY that returns the same <see cref="ParseParamsDelegate"/>, so
         /// the split exists without the ingress learning a second path.
         /// </para>
@@ -66,10 +66,16 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// deserialize. ⛔ Before <c>G1</c> there was no generic deserializer at all: every behaviour
         /// hand-rolled both halves into one opaque delegate.
         /// </summary>
+        // ⭐ CE-416 ③ (2026-10-02): these four rails used to pin BehaviorParams.FromJson, retired with zero production
+        //   callers. Each claim is RE-HOMED onto the surviving supply, FromBlockResolver — the identity resolver below is
+        //   the "no hand-written resolver" case.
+        private static readonly ResolveBlock<DemoParams, DemoParams> Identity =
+            static (in DemoParams authored, ref DemoParams block, EntityRepository w, Entity s) => block = authored;
+
         [Fact]
-        public void FromJson_WithNoResolver_WritesTheDeserializedDto()
+        public void FromBlockResolver_IdentityResolver_WritesTheDeserializedDto()
         {
-            var parse = BehaviorParams.FromJson<DemoParams>();
+            var parse = BehaviorParams.FromBlockResolver(Identity);
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
             parse("{\"Count\":7,\"Speed\":2.5}", buffer, Marshal.SizeOf<DemoParams>(), null!, default);
@@ -85,13 +91,13 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// network id vs <c>Entity</c>, derived fields) — without owning the JSON.
         /// </summary>
         [Fact]
-        public void FromJson_RunsTheResolverOverTheDeserializedValue()
+        public void FromBlockResolver_RunsTheResolverOverTheDeserializedValue()
         {
-            var parse = BehaviorParams.FromJson<DemoParams>(
-                static (ref DemoParams dto, EntityRepository w, Entity s) =>
+            var parse = BehaviorParams.FromBlockResolver<DemoParams, DemoParams>(
+                static (in DemoParams authored, ref DemoParams block, EntityRepository w, Entity s) =>
                 {
-                    Assert.Equal(7, dto.Count);      // ⭐ the resolver sees the authored value…
-                    dto.Speed = dto.Count * 10f;     // …and derives from it
+                    Assert.Equal(7, authored.Count);         // ⭐ the resolver sees the authored value…
+                    block.Speed = authored.Count * 10f;      // …and derives from it
                 });
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
@@ -101,20 +107,26 @@ namespace Fdp.Toolkit.Behavior.Tests
         }
 
         /// <summary>
-        /// ⚠ <b>An absent payload is <c>default</c>, not a failure.</b> Defaults are baked and scenario
+        /// ⚠ <b>An absent payload is <c>default(TAuthored)</c>, not a failure.</b> Defaults are baked and scenario
         /// JSON only overlays them (architect-approved <c>2026-06-06</c>), so a behaviour with nothing
-        /// to override supplies no JSON at all — and that must not look like a parse error.
+        /// to override supplies no JSON at all — and that must not look like a parse error. ⭐ The resolver decides
+        /// what an absent intent means; the block it receives is the BAKED one, untouched until it writes.
         /// </summary>
         [Fact]
-        public void FromJson_WithNoPayload_WritesTheDefault()
+        public void FromBlockResolver_WithNoPayload_HandsTheResolverTheDefault_OverTheBakedBlock()
         {
-            var parse = BehaviorParams.FromJson<DemoParams>();
+            var parse = BehaviorParams.FromBlockResolver<DemoParams, DemoParams>(
+                static (in DemoParams authored, ref DemoParams block, EntityRepository w, Entity s) =>
+                {
+                    Assert.Equal(0, authored.Count);         // absent ⇒ default(TAuthored)
+                    Assert.Equal(99, block.Count);           // ⭐ the baked block, not cleared
+                });
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
-            *(DemoParams*)buffer = new DemoParams { Count = 99, Speed = 99f };   // pre-dirty the region
+            *(DemoParams*)buffer = new DemoParams { Count = 99, Speed = 99f };   // the bake
             parse("", buffer, Marshal.SizeOf<DemoParams>(), null!, default);
 
-            Assert.Equal(0, ((DemoParams*)buffer)->Count);
+            Assert.Equal(99, ((DemoParams*)buffer)->Count);
         }
 
         // ── §8: parse-before-commit ──────────────────────────────────────────
@@ -131,9 +143,9 @@ namespace Fdp.Toolkit.Behavior.Tests
         /// </para>
         /// </summary>
         [Fact]
-        public void FromJson_MalformedPayload_Throws_SoIngressCanKeepTheOldBehaviour()
+        public void FromBlockResolver_MalformedPayload_Throws_SoIngressCanKeepTheOldBehaviour()
         {
-            var parse = BehaviorParams.FromJson<DemoParams>();
+            var parse = BehaviorParams.FromBlockResolver(Identity);
 
             byte* buffer = stackalloc byte[Marshal.SizeOf<DemoParams>()];
             Assert.ThrowsAny<Exception>(() => parse("{ not json", buffer, Marshal.SizeOf<DemoParams>(), null!, default));

@@ -10,6 +10,9 @@ build-state: ⛔ DESIGN — SUBSUMED 2026-09-29 BY Q76 §12, WHICH IS APPROVED A
     · C / S2 (one whole-behaviour BehaviorParams.FromJson replacing the two emitted lambdas) is
       SUBSUMED by Q76's CE-426 — one bake→supply→resolve helper. CE-419 (three claimants on two
       emit sites) is RESOLVED: E8c is WITHDRAWN by R-152 and CE-426 is the survivor.
+    · ⛔ 2026-10-02 (CE-416 ③): BehaviorParams.FromJson<TDto> + ResolveParams<TDto> are DELETED — zero
+      production callers; its rails were re-homed onto FromBlockResolver (identity resolver = the identity case).
+      Every mention of FromJson below is HISTORY.
     · A / B / D still stand as this document's own decisions and are NOT re-litigated by Q76.
   ⛔ DO NOT START ANY SLICE FROM THIS DOCUMENT. Its live work now has tracker rows under Q76 §12.6.
   (Historic: DESIGN — REVISED 2026-09-28 BY A SECOND MEASUREMENT PASS, AND S1/S2 ARE BLOCKED.)
@@ -523,6 +526,16 @@ whole-behaviour arm. ⇒ ⭐⭐ **both grains exist; the question is which one t
 that is per-variable.**
 
 ### D — a behaviour with no resolver ⚖️ **LEAN REVISED — the first lean was wrong**
+
+> ✅ **BUILT `2026-10-02` (`CE-416` ②), and measuring it found the state was a CRASH, not a silent drop.** Through the real
+> curated registrar → ingress → `BrainTickSystem`: `JoinFormation` (state ④) assigned, got NO root block because the ingress
+> gated the attach on `ParseParams != null`, and the next tick THREW *"no ROOT PARAMS slot"* — `BrainTickSystem` gates on
+> `RootParamsBytes(def) > 0`. ⇒ **one predicate** now: the block exists iff it has a width (ingress attach, `RootParamsCost`,
+> tick); without a parser it holds the baked defaults. ⭐ State ② for curated behaviours: `CuratedBehaviorGenerator` emits the
+> identity parse (`FromBlockResolver<P,P>`) when no `[BehaviorResolver]` names the behaviour — decided at GENERATION time (D.1).
+> ⇒ `JoinFormation` now parses its reserved fields from JSON instead of the build-warning this section proposed; ⚠ that
+> warning (*"layout declares members the contract does not"*) is NOT built — with the identity parse nothing is lost, so it
+> became a contract-hygiene nicety rather than a guard.
 
 > 🔒 **User, `2026-09-28`:** *"there are behaviors having no parameters. There are also behavior not
 > requiring any special resolver (their behavior parameter DTO == the parameter DTO in the blackboard,

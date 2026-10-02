@@ -156,7 +156,7 @@ internal static class BTreeDeactivatorScanner
     {
         if (d.Form == BTreeBridgeEmitCore.DeactivatorForm.NoParams) return null;
 
-        bool hasParams = shape == BTreeDelegateShapeDto.ThreeParamReusable || shape == BTreeDelegateShapeDto.ThreeParamReusableStateful;
+        bool hasParams = shape == BTreeDelegateShapeDto.Plain || shape == BTreeDelegateShapeDto.Stateful;
         if (!hasParams)
             return $"deactivator '{d.DeactivatorFqn}' takes params, but '{b.MethodFqn}' is bound as {shape}; use (Entity, EntityRepository) (CE-504)";
 
@@ -168,7 +168,7 @@ internal static class BTreeDeactivatorScanner
 
         if (d.Form == BTreeBridgeEmitCore.DeactivatorForm.Stateful)
         {
-            if (shape != BTreeDelegateShapeDto.ThreeParamReusableStateful)
+            if (shape != BTreeDelegateShapeDto.Stateful)
                 return $"deactivator '{d.DeactivatorFqn}' takes a working state, but '{b.MethodFqn}' is not stateful (CE-504)";
             var info = SharedAiMethodResolver.Make(compilation)(b.MethodFqn!);
             if (info?.WorkingStateTypeFqn != null && !SameType(d.WorkingStateTypeFqn, info.WorkingStateTypeFqn))

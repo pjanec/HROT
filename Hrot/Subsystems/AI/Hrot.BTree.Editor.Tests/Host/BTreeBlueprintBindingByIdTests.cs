@@ -190,7 +190,7 @@ public sealed class BTreeBlueprintBindingByIdTests
         fake.Seed(tick, new ActionSchemaEntry(tick, typeof(FakeGeneratedAiPrimitive_Bp.Params), ActionHosting.BTree,
                                               BlackboardAccess.Unknown, IsCondition: false, DtoFields: null, IsAiPrimitive: true));
         var bp    = new FakeBlueprint { Name = "Fake", GeneratedClassName = "Fake_1A2B3C4D_Bp" };
-        var asset = AssetWith(new BehaviorActionBinding { MethodFqn = "Ns.Plain" }, BTreeActionDelegateShape.ThreeParamReusable, out var node);
+        var asset = AssetWith(new BehaviorActionBinding { MethodFqn = "Ns.Plain" }, BTreeActionDelegateShape.Plain, out var node);
         var mapper = new BTreeFacetMapper(asset, new Catalog(bp), fake);
         var sel    = new BTreeNodeSelection(node.VisualId);
 
@@ -211,7 +211,7 @@ public sealed class BTreeBlueprintBindingByIdTests
         ActionBindingDrawer.PickBlueprint(ref facet.Action, null);
         mapper.ApplyFacet(sel, facet);
 
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.ThreeParamReusable);
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.Plain);
         asset.BlackboardVariables.Should().BeEmpty("both composed variables were editor-owned");
         node.Action!.WorkingStateTargetField.Should().BeNull();
         node.Action.WorkingStateTypeId.Should().BeNull();

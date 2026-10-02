@@ -133,8 +133,8 @@ internal static class BTreeMethodCompatibilityValidator
     {
         switch (delegateShape)
         {
-            case BTreeDelegateShapeDto.ThreeParamReusable:
-            case BTreeDelegateShapeDto.ThreeParamReusableStateful:
+            case BTreeDelegateShapeDto.Plain:
+            case BTreeDelegateShapeDto.Stateful:
                 return CheckSharedWithParams(methodFqn, delegateShape, expressionTargetField, blackboard, compilation, sharedAi);
 
             // ⭐⭐ CE-504 C-2/C-3 — a shared param-less node (Entity, EntityRepository): it binds no variable.
@@ -195,7 +195,7 @@ internal static class BTreeMethodCompatibilityValidator
         if (method.DeclaredAccessibility != Accessibility.Public)
             return $"method '{methodFqn}' is not public";
 
-        bool stateful = shape == BTreeDelegateShapeDto.ThreeParamReusableStateful;
+        bool stateful = shape == BTreeDelegateShapeDto.Stateful;
         var info = sharedAi(methodFqn);
         if (info == null || !info.HasParams || (info.WorkingStateTypeFqn != null) != stateful)
             return $"method '{methodFqn}' is not a [SharedAiAction]/[SharedAiCondition] method of the form " +

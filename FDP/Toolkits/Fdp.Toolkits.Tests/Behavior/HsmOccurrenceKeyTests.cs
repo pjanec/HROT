@@ -1602,7 +1602,8 @@ public sealed unsafe class HsmOccurrenceKeyTests
             BrainTier            = brainTier,
             StatefulWorkingSlots = Array.Empty<StatefulSlotInfo>(),
             BlackboardLayoutType = typeof(DemoParams),
-            ParseParams          = BehaviorParams.FromJson<DemoParams>(),
+            ParseParams          = BehaviorParams.FromBlockResolver<DemoParams, DemoParams>(   // CE-416 ③: was FromJson
+                static (in DemoParams a, ref DemoParams b, EntityRepository w, Entity e) => b = a),
         };
 
     /// <summary>

@@ -49,18 +49,19 @@ public static class ActionFixtures
     [SharedAiCondition(typeof(TestSharedDto), "Flag")]
     public static void SharedConditionMethod(ref TestSharedDto dto) { }
 
-    // Access annotation fixtures
-    [BTreeAction]
+    // Access annotation fixtures — ⭐ CE-504 residue: [SharedAiAction], the form a BTree binds (a bare [BTreeAction] is
+    //   no longer offered); the claims these pin (access annotations, DtoFields) are attribute-agnostic.
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void ReadOnlyParamMethod([BlackboardReadOnly] ref TestBTreeDto dto) { }
 
-    [BTreeAction]
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void ReadWriteParamMethod([BlackboardReadWrite] ref TestBTreeDto dto) { }
 
-    [BTreeAction]
+    [SharedAiAction(typeof(TestBTreeDto), "Value")]
     public static void UnannotatedParamMethod(ref TestBTreeDto dto) { }
 
-    // S1-1 fixture: BTree action with FooDto (used to verify DtoFields reflection)
-    [BTreeAction]
+    // S1-1 fixture: an action with FooDto (used to verify DtoFields reflection)
+    [SharedAiAction(typeof(FooDto), "Health")]
     public static void FooDtoAction(ref FooDto dto) { }
 
     // DEBT-01 fixtures: void* parameters with DtoType on the attribute
@@ -136,43 +137,29 @@ public sealed class ActionSchemaExporterTests
     // TASK-BB-1a-01: Reflection-based population
     // -------------------------------------------------------------------------
 
+    /// <summary>
+    /// ⭐⭐ CE-504 residue — <b>a bare <c>[BTreeAction]</c>/<c>[BTreeCondition]</c> is NOT offered.</b> Since CE-504 binding
+    /// one reports BTREE0002, so the picker must not list it. ✅ Red-proof: restore the exporter's bare-attribute arm ⇒ red.
+    /// (⛔ HISTORY: this used to assert the opposite — discovered, BTree hosting, DtoType from the ref param.)
+    /// </summary>
     [Fact]
-    public void Rebuild_DiscoversBTreeAction_ByFqn()
+    public void Rebuild_ABareBTreeActionOrCondition_IsNotOffered()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        Assert.True(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeActionMethod))));
+        Assert.False(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeActionMethod))));
+        Assert.False(exporter.All.ContainsKey(Fqn(nameof(ActionFixtures.BTreeConditionMethod))));
     }
 
     [Fact]
-    public void Rebuild_BTreeAction_HasBTreeHosting()
+    public void Rebuild_SharedAction_DtoTypeExtractedFromRefParam()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
-    }
-
-    [Fact]
-    public void Rebuild_BTreeAction_DtoTypeExtractedFromRefParam()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
-        Assert.Equal(typeof(TestBTreeDto), entry.DtoType);
-    }
-
-    [Fact]
-    public void Rebuild_BTreeCondition_HasBTreeHosting()
-    {
-        var exporter = new ActionSchemaExporter();
-        exporter.Rebuild();
-
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
-        Assert.True(entry.Hosting.HasFlag(ActionHosting.BTree));
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
+        Assert.Equal(typeof(TestSharedDto), entry.DtoType);
     }
 
     [Fact]
@@ -323,7 +310,7 @@ public sealed class ActionSchemaExporterTests
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var fqn   = Fqn(nameof(ActionFixtures.BTreeActionMethod));
+        var fqn   = Fqn(nameof(ActionFixtures.SharedActionMethod));
         var entry = exporter.Lookup(fqn);
         Assert.NotNull(entry);
         Assert.Equal(fqn, entry.Fqn);
@@ -556,22 +543,22 @@ public sealed class ActionSchemaExporterTests
     // -------------------------------------------------------------------------
 
     [Fact]
-    public void Rebuild_BTreeAction_IsCondition_False()
+    public void Rebuild_SharedAction_IsCondition_False()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
         Assert.False(entry.IsCondition);
     }
 
     [Fact]
-    public void Rebuild_BTreeCondition_IsCondition_True()
+    public void Rebuild_SharedCondition_IsCondition_True()
     {
         var exporter = new ActionSchemaExporter();
         exporter.Rebuild();
 
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeConditionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedConditionMethod))];
         Assert.True(entry.IsCondition);
     }
 
@@ -632,7 +619,7 @@ public sealed class ActionSchemaExporterTests
         exporter.Rebuild();
 
         // Regression: hand-written attributed methods must keep IsAiPrimitive == false.
-        var entry = exporter.All[Fqn(nameof(ActionFixtures.BTreeActionMethod))];
+        var entry = exporter.All[Fqn(nameof(ActionFixtures.SharedActionMethod))];
         Assert.False(entry.IsAiPrimitive);
     }
 }

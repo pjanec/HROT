@@ -195,7 +195,7 @@ public sealed class BTreeFacetMapper : IFacetDispatcher
                 b, Hrot.AiEditor.Persistence.Emit.BTreeCallShapes.LoadedAssemblySignatures()) is { } derived)
             node.DelegateShape = derived;
         else if (NamesBlueprint(b)) node.DelegateShape = BTreeActionDelegateShape.AiPrimitiveTickCore;
-        else if (hadBlueprint) node.DelegateShape = BTreeActionDelegateShape.ThreeParamReusable;
+        else if (hadBlueprint) node.DelegateShape = BTreeActionDelegateShape.Plain;
     }
 
     /// <summary>The node's binding as the inspector shows it. ⚠ A param-less (<c>NoParams</c>) method binds no variable, so

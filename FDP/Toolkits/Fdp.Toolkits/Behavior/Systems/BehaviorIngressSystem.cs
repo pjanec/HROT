@@ -222,10 +222,22 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   below. ⛔ It used to be BrainBlackboardByteSize (100) — the OLD component's width —
             //   which made a >100-byte behaviour a STACK SMASH in ParseParams and a silent
             //   truncation in the carry-over. Impossible only because the analyzer capped at 100.
-            int rootBytes = def.ParseParams != null ? RootParamsAccess.RootParamsBytes(def) : 0;
-            Span<byte> shadow = def.ParseParams != null ? EnsureShadow(rootBytes) : default;
+            // ⭐⭐⭐ CE-416 ② (2026-10-02) — ONE predicate for "this behaviour has a root block": its WIDTH.
+            //   🔴 This used to be gated on `ParseParams != null` while BrainTickSystem (and RootParamsAccess)
+            //   gate on RootParamsBytes(def) > 0 — so a behaviour with a layout and no parser (the curated
+            //   `JoinFormation`) got NO block here and the very next tick THREW "no ROOT PARAMS slot". Measured
+            //   through the real curated registrar, ingress and tick. ⇒ the block exists iff it has a width;
+            //   the PARSE is the optional part (baked defaults, or zeros, when there is no parser).
+            int rootBytes = RootParamsAccess.RootParamsBytes(def);
+            Span<byte> shadow = rootBytes > 0 ? EnsureShadow(rootBytes) : default;
 
-            if (def.ParseParams != null)
+            if (rootBytes > 0 && def.ParseParams == null)
+            {
+                shadow.Clear();
+                if (def.BakeDefaults != null)
+                    fixed (byte* dst = shadow) def.BakeDefaults(dst, shadow.Length);
+            }
+            else if (def.ParseParams != null)
             {
                 // ⭐⭐⭐ CE-421 + CE-426 (2026-09-29) — STAGE 0: THE SHADOW STARTS EMPTY, ALWAYS.
                 //   🔒 User, 2026-09-28: "why would re-assigning the same behaviour deserve special
@@ -350,7 +362,7 @@ namespace Fdp.Toolkit.Behavior.Systems
             //   swept the root slot away on the very same assign that created it. ⛔ Harmless only
             //   while the blackboard commit still ran; after P3-C it is total params loss on every
             //   HSM brain. ⚠ Do NOT move this block back above the sweep.
-            if (def.ParseParams != null)
+            if (rootBytes > 0)   // ⭐ CE-416 ②: the block's existence, not the parser's (see the shadow above)
             {
                 // ⚠ CE-307: `rootBytes` is the SAME value the shadow was sized from, hoisted to
                 //   the top of this iteration. ⛔ Recomputing it here would let the two drift.
@@ -734,7 +746,8 @@ namespace Fdp.Toolkit.Behavior.Systems
 
         private static int RootParamsCost(BehaviorDefinition def)
         {
-            if (def?.ParseParams == null) return 0;
+            // ⭐ CE-416 ②: costed whenever the block EXISTS (the attach's predicate), parser or not.
+            if (def == null) return 0;
 
             int bytes = RootParamsAccess.RootParamsBytes(def);
             if (bytes <= 0) return 0;

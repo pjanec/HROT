@@ -189,8 +189,8 @@ namespace Fhsm.Tests.Kernel
             var state0 = new StateDef { ParentIndex = 0xFFFF, FirstTransitionIndex = 0, TransitionCount = 2 };
             var state1 = new StateDef { ParentIndex = 0xFFFF };
             
-            var trans1 = new TransitionDef { EventId = 1, TargetStateIndex = 0, Flags = (TransitionFlags)(0 << 12) };
-            var trans2 = new TransitionDef { EventId = 1, TargetStateIndex = 1, Flags = (TransitionFlags)(1 << 12) };
+            var trans1 = new TransitionDef { EventId = 1, TargetStateIndex = 0, Priority = 0 };   // CE-395: the field, not bits 12-15
+            var trans2 = new TransitionDef { EventId = 1, TargetStateIndex = 1, Priority = 1 };
             
             var blob = CreateBlob(new[] { state0, state1 }, new[] { trans1, trans2 }, Array.Empty<GlobalTransitionDef>());
                 

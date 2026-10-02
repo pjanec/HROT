@@ -98,7 +98,7 @@
           "EditorMetadata": {
             "X": 60,
             "Y": 400,
-            "Comment": "CE-443: the authored input (the resolver's Parameters) - parsed from the intent JSON by generated C#"
+            "Comment": "CE-443: the authored input (the resolver\u0027s Parameters) - parsed from the intent JSON by generated C#"
           }
         },
         {
@@ -154,7 +154,7 @@
           "EditorMetadata": {
             "X": 680,
             "Y": 200,
-            "Comment": "writes block.St.Doubled = Speed * 2 - the behaviour's STATE half"
+            "Comment": "writes block.St.Doubled = Speed * 2 - the behaviour\u0027s STATE half"
           }
         },
         {
@@ -235,7 +235,7 @@
     }
   ],
   "EditorMetadata": {
-    "Description": "CE-428/CE-443 - a BEHAVIOUR RESOLVER asset for T40_BehaviorResolverAsset. Its Parameter HalfSpeed is the AUTHORED input (what the intent JSON carries); its Variables mirror the behaviour's block (Speed in block.In, Doubled in block.St). It runs once at start INSTEAD of the default copy: Speed = HalfSpeed * 2, Doubled = Speed * 2.",
+    "Description": "CE-428/CE-443/CE-503 - a BEHAVIOUR RESOLVER asset for the HSM HsmResolverDemo (CE-503: the first resolver an HSM binds). Its Parameter HalfSpeed is the AUTHORED input (what the intent JSON carries); its Variables mirror the behaviour\u0027s block (Speed in block.In, Doubled in block.St). It runs once at start INSTEAD of the default copy: Speed = HalfSpeed * 2, Doubled = Speed * 2.",
     "Category": "Demo",
     "Recipe": null
   }

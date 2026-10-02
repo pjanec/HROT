@@ -66,5 +66,44 @@ namespace Hrot.SimHost.Tests
             Assert.True(registry.TryGet("FollowRoute",    out _), "FollowRoute should be registered");
             Assert.True(registry.TryGet("MoveToLocation", out _), "MoveToLocation should be registered");
         }
+
+        /// <summary>
+        /// ⭐⭐⭐ <c>CE-416</c> ② — <b>a curated behaviour with a layout and NO resolver runs, and its JSON is parsed.</b>
+        /// <para>🔴 Measured before the fix, through this exact path: <c>JoinFormation</c> assigned fine, got NO root block
+        /// (the ingress gated the attach on <c>ParseParams != null</c>), and the next brain tick THREW "no ROOT PARAMS
+        /// slot". Two fixes, two red-proofs: the ingress attaches whenever the block has a width (gate rail in
+        /// <c>BehaviorIngressSystemTests</c>), and the curated generator emits the identity parse when no
+        /// <c>[BehaviorResolver]</c> names the behaviour (Q75 decision D, state ②) — remove it and the 42 below is 0.</para>
+        /// </summary>
+        [Fact]
+        public unsafe void CE416_ACuratedBehaviourWithNoResolver_RunsAndParsesItsJson()
+        {
+            using var repo = new Fdp.Core.EntityRepository();
+            Hrot.SimHost.SimHostComponentRegistry.RegisterAll(repo);
+            Hrot.SimHost.CognitiveComponentRegistry.RegisterAll(repo);
+            Fdp.Toolkit.Blueprints.Partitioning.BlueprintTierTable.RegisterAll(repo);
+
+            var registry = new Fdp.Toolkit.Behavior.BehaviorRegistry();
+            CgfBehaviorSetup.LoadFromAiAssembly(registry);
+            Assert.True(registry.TryGetId("JoinFormation", out int id));
+            Assert.True(registry.TryGetDefinition(id, out var def));
+            Assert.NotNull(def.ParseParams);   // ⭐ generated identity parse (no [BehaviorResolver] names it)
+
+            var ingress = new Fdp.Toolkit.Behavior.Systems.BehaviorIngressSystem(registry);
+            var tick    = new Fdp.Toolkit.Behavior.Systems.BrainTickSystem(registry);
+            var e = repo.CreateEntity();
+            repo.AddComponent<Fdp.Toolkit.Behavior.Components.BehaviorState>(e, default);
+
+            repo.Bus.PublishManaged(new Fdp.Toolkit.Behavior.Events.AssignBehaviorEvent
+                { Entity = e, BehaviorName = "JoinFormation", JsonParams = "{\"LeaderNetworkId\":42}" });
+            repo.Bus.SwapBuffers();
+            ingress.Execute(repo, 0.1f);
+
+            Assert.True(Fdp.Toolkit.Behavior.RootParamsAccess.TryGetRootBytes(repo, e, out byte* root, out int len));
+            Assert.Equal(sizeof(Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams), len);
+            Assert.Equal(42, ((Hrot.AI.Behaviors.Brains.CgfNodes.JoinFormationParams*)root)->LeaderNetworkId);
+
+            Assert.Null(Record.Exception(() => tick.Execute(repo, 0.1f)));   // ⛔ it threw "no ROOT PARAMS slot"
+        }
     }
 }

@@ -15,22 +15,22 @@ public enum BTreeActionDelegateShape
 {
     /// <summary>The plain shared C# node <c>(ref P, Entity, EntityRepository)</c>, bound to one variable (the name predates
     /// <c>CE-504</c>, which made the signature the shared one).</summary>
-    ThreeParamReusable,
+    Plain,
 
     // ⛔ CE-504 slice 4 — value 1 was FourParamFull (the whole-block kernel method). Retired as an asset-binding shape (C-3);
     //   the value is left unused rather than renumbering the others.
 
     /// <summary>
     /// Stateful three-parameter shape: the bound variable plus the node's own working memory.
-    /// Explicit value 2 to match <c>BTreeDelegateShapeDto.ThreeParamReusableStateful</c>.
+    /// Explicit value 2 to match <c>BTreeDelegateShapeDto.Stateful</c>.
     /// ⭐ <c>CE-417</c> (Q75 §5.1b) named it — it used to exist only as a numeric cast.
     /// </summary>
-    ThreeParamReusableStateful = 2,
+    Stateful = 2,
 
     /// <summary>
     /// I2/I3/E2: a blueprint-authored AiPrimitive action composed as a host-BTree node. The host
     /// owns the Params layout (bin-packed into the blackboard at a baked offset, like
-    /// ThreeParamReusable) plus a partition slot for the blueprint's WorkingState; the node
+    /// Plain) plus a partition slot for the blueprint's WorkingState; the node
     /// dispatches to the blueprint's generated
     /// <c>TickCore(ref Params, ref WorkingState, Entity self, EntityRepository world, float time)</c>.
     /// Explicit value 3 to match BTreeDelegateShapeDto.AiPrimitiveTickCore (the persisted DTO enum).
@@ -433,14 +433,14 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
     ///
     /// <para>
     /// 📄 <c>DEBT-AIB-028</c>'s activation recipe names this method by name: <i>"a
-    /// <c>BehaviorTreeAsset.HasAnyStatefulNode()</c> (any <c>ThreeParamReusableStateful</c> action) +
+    /// <c>BehaviorTreeAsset.HasAnyStatefulNode()</c> (any <c>Stateful</c> action) +
     /// HSM equivalent, wire <c>id => catalog.TryFind(id, out a) &amp;&amp; a.HasAnyStatefulNode()</c>
     /// through the production validator ctor."</i> ⛔ Not re-derived here — the recipe was already
     /// filed, and Batch 67's <c>W7c</c> boundary is what found it.
     /// </para>
     ///
     /// <para>
-    /// ⚠ <b>TWO shapes count, not one.</b> The recipe names <c>ThreeParamReusableStateful</c>, but
+    /// ⚠ <b>TWO shapes count, not one.</b> The recipe names <c>Stateful</c>, but
     /// <c>AiPrimitiveTickCore</c> also carries a WorkingState — <c>BTreeBridgeEmitCore</c> emits a
     /// partition slot for <b>both</b> (<i>"both ride the partition-slot rail"</i>, I2/I3/E2). ⇒
     /// checking only the named one would call a composed blueprint action stateless and let two of
@@ -453,7 +453,7 @@ public sealed class BehaviorTreeAsset : IEditableAsset, IBlackboardManagedAsset,
         {
             var shape = node.Action is not null || node.Condition is not null ? node.DelegateShape : (BTreeActionDelegateShape?)null;   // CE-417: shape on the node
             if (shape is null) continue;
-            if (shape == BTreeActionDelegateShape.ThreeParamReusableStateful
+            if (shape == BTreeActionDelegateShape.Stateful
              || shape == BTreeActionDelegateShape.AiPrimitiveTickCore) return true;
         }
         return false;

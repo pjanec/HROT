@@ -169,7 +169,7 @@ public sealed class BTreeValidatorDanglingBlueprintTests
             {
                 MethodFqn     = methodFqn,
             },
-            DelegateShape = BTreeActionDelegateShape.ThreeParamReusable,   // CE-417: the shape sits on the node
+            DelegateShape = BTreeActionDelegateShape.Plain,   // CE-417: the shape sits on the node
         };
         root.ChildVisualIds.Add(action.VisualId);
         asset.ReplaceAll(new List<BTreeEditorNode> { root, action }, new List<BTreeEditorPill>(), EmptyBlob());

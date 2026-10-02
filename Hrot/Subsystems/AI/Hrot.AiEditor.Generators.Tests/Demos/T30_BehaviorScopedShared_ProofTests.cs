@@ -137,7 +137,7 @@ public sealed class T30_BehaviorScopedShared_ProofTests : IDisposable
             WorkingStateTargetField = StateVarName,
             WorkingStateTypeId = StateTypeId,
         },
-        DelegateShape = BTreeDelegateShapeDto.ThreeParamReusableStateful,
+        DelegateShape = BTreeDelegateShapeDto.Stateful,
     };
 
     // ── Generator + Roslyn pipeline (mirrors S3_BehaviorScopedThunkTests) ──

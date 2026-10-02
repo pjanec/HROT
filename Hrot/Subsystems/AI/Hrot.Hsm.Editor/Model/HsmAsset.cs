@@ -99,7 +99,7 @@ public sealed class HsmAsset : IEditableAsset, IBlackboardManagedAsset, IStitcha
     ///
     /// <para>
     /// ⚠ <b>An HSM has no per-node delegate SHAPE to inspect</b> — there is no
-    /// <c>ThreeParamReusableStateful</c> on a state. ⇒ the honest equivalent is the one Batch 67's
+    /// <c>Stateful</c> on a state. ⇒ the honest equivalent is the one Batch 67's
     /// <c>E1</c> already established: an HSM asset maintains per-instance working state exactly when it
     /// declares a <c>Role = State</c> variable scoped <c>Behavior</c> or <c>Entity</c>, because that is
     /// precisely the set <c>HsmBridgeEmitCore</c> emits <c>StatefulSlotInfo</c> entries for.

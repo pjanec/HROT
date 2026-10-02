@@ -63,7 +63,7 @@ public sealed class BTreeCallShapeTests
            {
                new CallParam("Demo.P", true), new CallParam("Fdp.Core.Entity", false),
                new CallParam("Fdp.Core.EntityRepository", false),
-           }).Should().Be(BTreeDelegateShapeDto.ThreeParamReusable);
+           }).Should().Be(BTreeDelegateShapeDto.Plain);
 
     private static string CorpusDir()
     {
@@ -79,20 +79,20 @@ public sealed class BTreeCallShapeTests
     //   param-less shared form `(Entity, EntityRepository)`, so they now derive `NoParams`.
     private static readonly (string File, string VisualId, BTreeDelegateShapeDto Shape)[] Recorded =
     {
-        ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000003", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000004", BTreeDelegateShapeDto.ThreeParamReusable),
+        ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Plain),
+        ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Plain),
         ("T04_DecoratorRepeater.btree.json", "b5030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("T05_DecoratorStack.btree.json", "b6030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("T06_ObserverSelector.btree.json", "b7030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("T08_ActionLeaf.btree.json", "b9020000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
-        ("T10_MultiAction.btree.json", "ba030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T10_MultiAction.btree.json", "ba040000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T10_MultiAction.btree.json", "ba050000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T11_Aliasing.btree.json", "bb030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T11_Aliasing.btree.json", "bb040000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.ThreeParamReusable),
+        ("T10_MultiAction.btree.json", "ba030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.Plain),
+        ("T10_MultiAction.btree.json", "ba040000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.Plain),
+        ("T10_MultiAction.btree.json", "ba050000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.Plain),
+        ("T11_Aliasing.btree.json", "bb030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.Plain),
+        ("T11_Aliasing.btree.json", "bb040000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.Plain),
+        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.Stateful),
+        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.Stateful),
+        ("T20_MultiStateful.btree.json", "bb200000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.Plain),
         ("T31_ComposedAiPrimitive.btree.json", "bb310000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.AiPrimitiveTickCore),
         ("T32_ComposedGeneratedBlueprint.btree.json", "bb320000-0000-0000-0000-000000000002", BTreeDelegateShapeDto.AiPrimitiveTickCore),
         ("T33_ComposedParamBlueprint.btree.json", "bb330000-0000-0000-0000-000000000011", BTreeDelegateShapeDto.AiPrimitiveTickCore),
@@ -106,18 +106,18 @@ public sealed class BTreeCallShapeTests
         ("BTreeRenderShowcase.btree.json", "bb060000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("BTreeRenderShowcase.btree.json", "bb080000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("CombatShowcase.btree.json", "50000000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b2", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b3", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b4", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.ThreeParamReusableStateful),
-        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a5", BTreeDelegateShapeDto.ThreeParamReusable),
+        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Plain),
+        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Plain),
+        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
+        ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.Plain),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.Plain),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b1", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b2", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b3", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000b4", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a4", BTreeDelegateShapeDto.Stateful),
+        ("PlatoonHillAttack.btree.json", "1a000000-0000-0000-0000-0000000000a5", BTreeDelegateShapeDto.Plain),
     };
 }

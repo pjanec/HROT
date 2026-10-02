@@ -100,7 +100,7 @@ public static class BTreeBridgeEmitCore
 
     /// <summary>
     /// ⭐ <c>CE-417</c> B-2 (a′) — as above, with the compilation's answer to "is this FQN a <c>[SharedAi*]</c> method?".
-    /// A <c>ThreeParamReusable</c> binding of such a method is emitted as ONE call per binding with the method's own
+    /// A <c>Plain</c> binding of such a method is emitted as ONE call per binding with the method's own
     /// signature <c>(ref T, Entity, EntityRepository)</c> (F8). Null ⇒ every binding uses the BTree 3-param shape.
     /// </summary>
     public static string EmitBridge(BehaviorTreeAssetDto dto, SizeResolverDelegate? sizeResolver,
@@ -487,7 +487,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.Plain) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -544,7 +544,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeConditionNodeDto condNode) continue;
             var p = condNode.Condition;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (condNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusable) continue;
+            if (condNode.DelegateShape != BTreeDelegateShapeDto.Plain) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -577,7 +577,7 @@ public static class BTreeBridgeEmitCore
     }
 
     /// <summary>
-    /// ⭐⭐ <c>CE-417</c> B-2 (a′), F8 — the call inside a <c>ThreeParamReusable</c> thunk, with <c>dto</c> already projected
+    /// ⭐⭐ <c>CE-417</c> B-2 (a′), F8 — the call inside a <c>Plain</c> thunk, with <c>dto</c> already projected
     /// at the binding's host offset. A <c>[SharedAi*]</c> method is called with ITS signature
     /// <c>(ref T, Entity, EntityRepository)</c> (a <c>bool</c> becomes Success/Failure) and releases its
     /// <c>[WritesChannel]</c> channels on <c>Failure</c> (<see cref="ChannelClearEmit"/>, the block the analyzer's 4-param
@@ -638,7 +638,7 @@ public static class BTreeBridgeEmitCore
             if (node is not BTreeActionNodeDto actNode) continue;
             var p = actNode.Action;
             if (p == null || string.IsNullOrEmpty(p.MethodFqn)) continue;
-            if (actNode.DelegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful) continue;
+            if (actNode.DelegateShape != BTreeDelegateShapeDto.Stateful) continue;
             string? targetField = p.ExpressionTargetField;
             if (string.IsNullOrEmpty(targetField)) continue;
             if (!offsetMap.TryGetValue(targetField!, out var field)) continue;
@@ -1136,7 +1136,7 @@ public static class BTreeBridgeEmitCore
             // Both reusable-stateful shapes and composed blueprint AiPrimitive actions/conditions
             // ride the partition-slot rail, so both contribute a StatefulWorkingSlots manifest
             // entry (I2/I3/E2).
-            if (delegateShape != BTreeDelegateShapeDto.ThreeParamReusableStateful &&
+            if (delegateShape != BTreeDelegateShapeDto.Stateful &&
                 delegateShape != BTreeDelegateShapeDto.AiPrimitiveTickCore) continue;
 
             // S3-4: scope-aware key so co-bound Behavior-scoped nodes dedup onto one shared slot.
@@ -1345,7 +1345,7 @@ public static class BTreeBridgeEmitCore
     /// </summary>
     private static string DeriveWorkingStateTypeFromMethod(string methodFqn)
     {
-        // Fallback: WorkingStateTypeId should always be set on ThreeParamReusableStateful payloads.
+        // Fallback: WorkingStateTypeId should always be set on Stateful payloads.
         // When missing, derive by convention: "Namespace.Class.Action_AdvanceCursor"
         //   → "Namespace.Class+AdvanceCursorState"
         // This is fragile but gives a compilable default; emitter tests always set WorkingStateTypeId.
@@ -1453,7 +1453,7 @@ public static class BTreeBridgeEmitCore
     ///   <c>BehaviorIngressSystem</c> parses into a stack shadow and commits only on success, so a
     ///   throw is exactly what leaves the entity on its old behaviour. ⚠ Swallowing would look tidier
     ///   and hand it a successful-looking all-zero params region — the same reasoning as
-    ///   <c>BehaviorParams.FromJson</c> (<c>G1</c>)</description></item>
+    ///   <c>BehaviorParams.FromBlockResolver</c></description></item>
     /// </list>
     ///
     /// <para>
@@ -1838,7 +1838,7 @@ public static class BTreeBridgeEmitCore
 
         // S2-1: stateful thunks need Debug.Assert for fail-loud missing-slot guard.
         bool hasStateful = dto.Blackboard.Managed && dto.Nodes.OfType<BTreeActionNodeDto>()
-            .Any(n => n.Action != null && n.DelegateShape == BTreeDelegateShapeDto.ThreeParamReusableStateful);
+            .Any(n => n.Action != null && n.DelegateShape == BTreeDelegateShapeDto.Stateful);
         if (hasStateful)
         {
             set.Add("System.Diagnostics");
@@ -1902,12 +1902,12 @@ public static class BTreeBridgeEmitCore
             int offset = 0, slotKey = 0;
             if (shape == BTreeDelegateShapeDto.NoParams)
                 key = b.MethodFqn!;
-            else if ((shape == BTreeDelegateShapeDto.ThreeParamReusable || shape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+            else if ((shape == BTreeDelegateShapeDto.Plain || shape == BTreeDelegateShapeDto.Stateful)
                      && !string.IsNullOrEmpty(b.ExpressionTargetField) && offsetMap.TryGetValue(b.ExpressionTargetField!, out var field))
             {
                 offset = field.ByteOffset;
                 key = $"{b.MethodFqn}@{offset}";
-                if (shape == BTreeDelegateShapeDto.ThreeParamReusableStateful)
+                if (shape == BTreeDelegateShapeDto.Stateful)
                 {
                     slotKey = ResolveStatefulSlotKey(dto, StatefulScopeVariable(b), node.VisualId);
                     key += $"@{slotKey}";
