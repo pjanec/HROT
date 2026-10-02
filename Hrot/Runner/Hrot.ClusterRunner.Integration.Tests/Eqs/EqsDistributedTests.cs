@@ -797,14 +797,42 @@ public sealed class EqsDistributedTests
         public EntityRepository Sim => H.SimHost.World!;
         public EntityRepository Cgf => H.Cgf!.World!;
 
-        public LifecycleRig()
+        /// <param name="createdThroughThePack">⭐ R-179: create the commander as production does — a request to CGF's
+        /// creation pack, so the ownership strategy decides the grants — instead of the split-authority hook, which
+        /// grants the Perception group to the Muscle by hand.</param>
+        public LifecycleRig(long? createdThroughThePack = null)
         {
             H = new HrotRunnerHarness("simhost,cgf", Interlocked.Increment(ref _lifecycleDomain));
-            Commander = H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
+            Commander = createdThroughThePack is long tkb
+                ? CreateThroughThePack(tkb)
+                : H.Cgf!.TestHook_SpawnEntityWithSplitAuthority(TkbEntityTypes.Tank_M1Abrams, muscleNodeId: 1);
             Assert.True(H.PumpUntil(() => H.SimHost.TestHook_EntityMap.TryGetEntity(Commander, out _)
                                        && H.Cgf!.GhostEntityMap!.TryGetEntity(Commander, out _), timeoutFrames: 3000),
                 "The commander must exist on both nodes.");
         }
+
+        private long CreateThroughThePack(long tkb)
+        {
+            var creation = ((Hrot.Common.EntityCreation.IEntityCreationHost)H.Cgf!).EntityCreation!;
+            creation.LocalRequests.Enqueue(new Hrot.Core.Network.EntityCreationRequest
+            {
+                RequestId = Guid.NewGuid(), OwnerAppInstanceId = H.Cgf!.TestHook_NodeId, TkbType = tkb,
+            });
+            long net = 0;
+            Assert.True(H.PumpUntil(() =>
+            {
+                foreach (var e in Cgf.Query().With<TkbIdentity>().With<NetworkIdentity>().Build())
+                    if (Cgf.GetComponentRO<TkbIdentity>(e).TkbType == tkb) { net = Cgf.GetComponentRO<NetworkIdentity>(e).Value; return true; }
+                return false;
+            }, timeoutFrames: 3000), $"CGF must create tkb {tkb} through its pack.");
+            return net;
+        }
+
+        /// <summary>The recorded owner of result part <paramref name="part"/> of the commander on a node.</summary>
+        public static int? ResultOwner(EntityRepository world, Entity parent, int part)
+            => world.HasManagedComponent<DescriptorOwnership>(parent) &&
+               world.GetComponent<DescriptorOwnership>(parent).TryGetOwner(
+                   OwnershipExtensions.PackKey((long)Hrot.NED.Descriptors.EDescriptorType.dtEqsResult, part), out int o) ? o : null;
 
         public void Dispose() => H.Dispose();
 
@@ -1103,6 +1131,74 @@ public sealed class EqsDistributedTests
         Assert.False(rig.CarrierSensor(13).Suspended, "A stale SUSPEND from the old owner must not silence the new owner's sensor.");
 
         Assert.Equal(2, ingress.StaleSampleCount);
+    }
+
+    /// <summary>
+    /// ⭐ <c>CE-3002</c> / <c>R-179</c> — the live defect (§5.7.1 E7): a brain WITHOUT vision sensors, created through the
+    /// pack as production does, gets no Perception group grant — yet its EQS sensor is answered, because the brain names
+    /// the solver (the least-loaded Perception node) in the config, and every node records it as the owner of the result
+    /// part. 🔴 Before: the result part fell back to the creator (CGF, no solver) and SimHost's gated egress published 0.
+    /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.8.
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R179_ABrainWithoutVisionSensors_IsAnswered_ByTheSolverItsBrainNamed()
+    {
+        using var rig = new LifecycleRig(createdThroughThePack: TkbEntityTypes.Unit_TankPlatoon);
+        const int part = 4;
+        var sensor = rig.Sensor(part, epoch: 1, radius: 25f);
+
+        Assert.True(rig.H.PumpUntil(() => rig.Ready(sensor), timeoutFrames: 3000),
+            "A brain without vision sensors must still get its EQS answer.");
+
+        rig.H.Cgf!.GhostEntityMap!.TryGetEntity(rig.Commander, out Entity onCgf);
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+        int simNode = rig.Sim.GetComponentRO<NetworkAuthority>(onSim).LocalNodeId;
+        Assert.Equal(simNode, LifecycleRig.ResultOwner(rig.Cgf, onCgf, part));    // the brain recorded its pick…
+        Assert.Equal(simNode, LifecycleRig.ResultOwner(rig.Sim, onSim, part));    // …and so did the solver, from the config
+    }
+
+    /// <summary>
+    /// ⭐ <c>R-179</c> — a Perception node builds a carrier ONLY for a sensor whose config names it; a config naming
+    /// another node builds none here, and moving the solver away stops the carrier this node had. Every node records the
+    /// named solver as the result part's owner. (Driven into a Muscle ingress over the rig's real Muscle world, as the
+    /// CE-492 rail does — real DDS gives no control over who is named.)
+    /// </summary>
+    [Fact(Timeout = 120_000)]
+    public void R179_OnlyTheNamedSolverBuildsACarrier_AndEveryNodeRecordsIt()
+    {
+        using var rig = new LifecycleRig();
+        rig.H.SimHost.TestHook_EntityMap.TryGetEntity(rig.Commander, out Entity onSim);
+        Assert.True(rig.H.PumpUntil(() => rig.Sim.HasComponent<NetworkAuthority>(onSim), timeoutFrames: 3000));
+        int me = rig.Sim.GetComponentRO<NetworkAuthority>(onSim).LocalNodeId;
+        const int elsewhere = 999;
+        var ingress = new Hrot.Network.NED.SimHost.EqsSensorConfigIngressTranslator(participant: null,
+                                                                                    rig.H.SimHost.TestHook_EntityMap, me);
+        long t = 0;
+        void Arrive(int part, int solver)
+        {
+            var cmd = new EntityCommandBuffer();
+            ingress.Receive(cmd, new EqsSensorConfigTopic
+            {
+                ParentNetworkId = rig.Commander, LocalChildIndex = part, BlueprintId = 1u, Epoch = 1u, SearchRadius = 25f,
+                SolverNodeId = solver,
+            }, valid: true, disposed: false, ++t);
+            ingress.ApplyPendingForRail(cmd, rig.Sim);
+            cmd.Playback(rig.Sim);
+        }
+
+        Arrive(21, elsewhere);
+        Assert.True(rig.Carrier(21).IsNull, "Another node's sensor must get no carrier here.");
+        Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 21));
+
+        Arrive(22, me);
+        Arrive(22, me);   // a second sample finds the carrier the first one's playback created
+        Assert.False(rig.Carrier(22).IsNull, "This node's sensor must get a carrier.");
+        Assert.False(rig.CarrierSensor(22).Suspended);
+        Assert.Equal(me, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
+
+        Arrive(22, elsewhere);
+        Assert.True(rig.CarrierSensor(22).Suspended, "A carrier whose sensor moved to another solver must stop solving.");
+        Assert.Equal(elsewhere, LifecycleRig.ResultOwner(rig.Sim, onSim, 22));
     }
 
     private static int CountAnswers(CycloneDDS.Runtime.DdsReader<EqsResultTopic> reader, long parent, int part)

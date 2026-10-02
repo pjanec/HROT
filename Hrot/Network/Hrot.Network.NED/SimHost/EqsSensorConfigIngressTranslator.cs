@@ -55,10 +55,22 @@ namespace Hrot.Network.NED.SimHost
         public long SentSampleCount { get; private set; }
         public TranslatorDirection Direction => TranslatorDirection.Ingress;
 
-        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap)
+        // ⭐ CE-3002 / R-179 — the config names its solver; only that node builds a carrier. 📄
+        //   DESIGN_Ownership_Groups_And_Grants.md §5.8.
+        private readonly int _localNodeId;
+        private readonly Dictionary<(long ParentNetId, int ChildIndex), int> _recordedSolver = new();
+        private OwnershipApplier? _applier;
+
+        /// <summary>Sensors this node was told another node solves (diagnostics and rails).</summary>
+        public long SolvedElsewhereCount { get; private set; }
+
+        /// <param name="localNodeId">⭐ R-179: this node — a child sensor whose config names another solver gets no
+        /// carrier here.</param>
+        public EqsSensorConfigIngressTranslator(DdsParticipant? participant, NetworkEntityMap entityMap, int localNodeId = 0)
         {
             if (entityMap == null) throw new ArgumentNullException(nameof(entityMap));
-            _entityMap = entityMap;
+            _entityMap   = entityMap;
+            _localNodeId = localNodeId;
             _reader = participant != null
                 ? new DdsReader<EqsSensorConfigTopic>(participant, DdsTopicName)
                 : null;
@@ -171,7 +183,7 @@ namespace Hrot.Network.NED.SimHost
                 {
                     // A carrier created by an earlier poll is not in the world until that command
                     // buffer plays back — wait for it rather than create a second one.
-                    if (!Apply(cmd, view, key, parentGhost, sensor)) continue;
+                    if (!Apply(cmd, view, key, parentGhost, sensor, pending.Data.SolverNodeId)) continue;
                     pending.Applied          = true;
                     pending.ResolvedSlotMask = mask;
                     _pending[key]            = pending;
@@ -185,7 +197,7 @@ namespace Hrot.Network.NED.SimHost
 
         // Returns false when the sample must wait (its carrier is created but not yet played back).
         private bool Apply(IEntityCommandBuffer cmd, ISimulationView view, (long ParentNetId, int ChildIndex) key,
-                           Entity parentGhost, EqsSensor sensor)
+                           Entity parentGhost, EqsSensor sensor, int solverNodeId = 0)
         {
             if (key.ChildIndex == 0)
             {
@@ -193,6 +205,26 @@ namespace Hrot.Network.NED.SimHost
                 cmd.SetComponent(parentGhost, sensor);
                 _childGhostCache[key] = parentGhost;
                 return true;
+            }
+
+            // ⭐ R-179 — the config is the per-sensor grant: every node records the named solver as the owner of result
+            //   part n (the S6 result gate reads it). Another node's sensor gets no carrier here, and a carrier left from
+            //   an earlier assignment stops solving.
+            if (solverNodeId != 0)
+            {
+                if (view is EntityRepository repo) RecordSolver(repo, parentGhost, key, solverNodeId);
+                if (solverNodeId != _localNodeId)
+                {
+                    SolvedElsewhereCount++;
+                    _awaitingPlayback.Remove(key);
+                    if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var stale))
+                    {
+                        var stopped = sensor;
+                        stopped.Suspended = true;
+                        cmd.SetComponent(stale, stopped);
+                    }
+                    return true;
+                }
             }
 
             if (TryFindCarrier(view, parentGhost, key.ChildIndex, out var child))
@@ -226,6 +258,16 @@ namespace Hrot.Network.NED.SimHost
             cmd.AddComponent(child, default(EqsCognitiveBuffer));
             _awaitingPlayback.Add(key);
             return true;
+        }
+
+        private void RecordSolver(EntityRepository repo, Entity parentGhost, (long ParentNetId, int ChildIndex) key, int solver)
+        {
+            if (_recordedSolver.TryGetValue(key, out int recorded) && recorded == solver) return;
+            _applier ??= new OwnershipApplier(_localNodeId,
+                Fdp.Toolkit.Replication.Attributes.AttributeInterpreterProvider.GetDescriptorMap(repo));
+            _applier.Apply(repo, parentGhost,
+                Fdp.Toolkit.Replication.Extensions.OwnershipExtensions.PackKey((long)EDescriptorType.dtEqsResult, key.ChildIndex), solver);
+            _recordedSolver[key] = solver;
         }
 
         // The carrier ghost for (parent, childIndex) as it exists in the WORLD — never an ECB placeholder.

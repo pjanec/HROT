@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 🔴 CE-3002; S8 next.
+build-state: BUILDING — §5.5 D-4..D-7 approved (R-173, 2026-10-02); S1–S7 built and green (CE-500 and CE-507 fixed, one ownership truth on both creation paths and on parts, a departed node's ownership returns to the primary owner); §5.7 first live run 2026-10-02 (§5.7.1): E1–E6 ownership ✅, E7 🔴 CE-3002 → fixed by §5.8 (the brain names each EQS sensor's solver); S8 next.
 current-answer: §5 the design (UML, decisions, build order) · §2 the ownership groups — one per NodeRole (R-172) + CREATOR remainder + LOCAL · §1 the classification they are derived from · §3 findings · §4 decisions (resolved, R-171).
 stale-below: nothing yet.
 known-rot: none.
@@ -13,7 +13,8 @@ related-designs:
   - docs/DESIGN_Entity_Ownership_Transfer.md — owns transfer INITIATION (CE-276); groups move by its OwnershipUpdate after creation.
   - docs/DESIGN_Node_Roles_And_Policies.md — §4.1 the creation legs; this doc decides which group each leg grants.
   - docs/reference/BDC_NED_SST_Descriptor_Rules.md — the wire spec (per-descriptor owners, OwnershipUpdate, disposal).
-  - docs/DESIGN_Behaviour_Fault_And_Teardown.md — §1 D5 the EQS part id (parts follow their descriptor type's group, Q79 §0.10).
+  - docs/blueprints/DESIGN_Behaviour_Fault_And_Teardown.md — §1 D5 the EQS part id (parts follow their descriptor type's group, Q79 §0.10).
+  - docs/designs/eqs-2/EQS_Design_v1.3_final.md — owns the EQS solve, the child-sensor wire and its lifecycle; §5.8 here decides only WHICH node solves (R-179).
 -->
 
 # Ownership groups and grants — the build design
@@ -186,7 +187,7 @@ graph TD
 | F-10 | ✅ FIXED in S2b (every host registers the handlers). Was: 🔴 **Only SimHost can apply an edit request from another node.** The owner-side handlers (`UpdateEntityAttributeRequestSystem`, `UpdateEntityDescriptorRequestSystem`) are built by `CreateSimHostAttributeUpdateSystems` and registered ONLY at `SimHostNodeBootstrapper.cs:297`. A non-owner's edit (a gizmo drag) goes through `EntityWriteRouter` as a change REQUEST to the owner (design intent: *"owner receives → applies, ownership-gated"*, `DESIGN_Cgf_AxisB_Rotation_Slice.md` §311). ⇒ today map-symbol drags work only because the type-blind strategy grants every position to SimHost (Q79 F14); once G-4 leaves a non-vehicle position with its creator (CGF or IG), those requests would land on a node with no handler and be lost | `NedNetworkFactory.cs:155-165`; `SimHostNodeBootstrapper.cs:297` | **S2b** — the handlers on every host, BEFORE S3 |
 | F-7 | Stale comment: `CognitiveComponentRegistry` says SimHost receives mission data; `EntityMissionIngressTranslator` is Brain-only | `CognitiveTranslatorPack.cs:60` | fix the comment in the build |
 | F-11 | ✅ FIXED `2026-10-02`. Ingress translators treated an entity with NO `NetworkAuthority` as locally OWNED (the raw gate's "no record ⇒ AllInOne" fallback), but on an ingress that entity is a replica still being built from the wire. ⇒ `EntityDamageIngressTranslator` dropped the first health of every entity first seen through `dtEntityDamage`, and `EntityInfoIngressTranslator` dropped a ghost's commander assignment (its 2026-09-30 loopback fix covered the component, not the hierarchy). Found by making the 6 red IG translator tests pass, not by deleting them. Fix: ONE shared helper `AuthorityExtensions.IsRecordedOwner` (owner only when the record exists and says so); both translators use it | `AuthorityExtensions.cs`; `EntityDamageIngressTranslator.cs:100`; `EntityInfoIngressTranslator.cs:172` | ⭐ F-5's skip-when-owned sweep (S8) uses `IsRecordedOwner`, never the raw gate |
-| F-12 | ✅ FIXED in S6. `EqsResultEventEgressTranslator` published every local EQS solver result with NO ownership gate, and every MuscleGround node builds a carrier for every sensor config it hears ⇒ with two Muscle nodes both would publish one sensor's result (two writers of one Perception-group descriptor) | `EqsResultEventEgressTranslator.cs` (no `HasAuthority`); `SimHostAuxiliaryTranslatorPack.cs:86-87` (role-gated on MuscleGround only) | gate on the owner of `(dtEqsResult, part)`; ⚠ the non-owner still solves (S8's ingress skip-when-not-owned) |
+| F-12 | ✅ FIXED in S6. `EqsResultEventEgressTranslator` published every local EQS solver result with NO ownership gate, and every MuscleGround node builds a carrier for every sensor config it hears ⇒ with two Muscle nodes both would publish one sensor's result (two writers of one Perception-group descriptor) | `EqsResultEventEgressTranslator.cs` (no `HasAuthority`); `SimHostAuxiliaryTranslatorPack.cs:86-87` (role-gated on MuscleGround only) | gate on the owner of `(dtEqsResult, part)`; ⭐ since §5.8 (`R-179`) a child sensor's config NAMES its solver, so a non-named node builds no carrier and solves nothing (a legacy instance-0 sensor and a config naming no solver still solve everywhere, gated on publish) |
 
 ## 4. Decisions before the UML *(all resolved `2026-10-02`)*
 
@@ -396,6 +397,53 @@ are the hosts where no grant is ever executed: the offline editor (correct — o
 | S7 ✅ | `PartialOwnerReclaim` (B7) with the P10 guard (`CE-512 (backend)` (b)(c); (a) stays with `CE-520`) | ✅ `PartialOwnerReclaimTests` (toolkit: the departed grantee's keys, a part instance included, return to the primary owner on the primary and on a bystander; a former owner's exit moves nothing it handed on (P10); an entity whose master owner left is not reclaimed; a grant whose target left before taking over is taken back) and `Hrot.ClusterRunner.Integration.Tests.PartialOwnerReclaimTests` (a foreign participant, node 77, heartbeats then disposes its heartbeat: ① CGF takes back the kinematic grant it had pending to 77; ② after 77 was handed `dtWorldPos` by an external `OwnershipUpdate`, CGF and SimHost both record CGF again and only CGF claims it). As built: ⛔ the trigger is the node LEAVING (its `NodeHeartbeat` or durable `NodeCapabilities` instance not alive → `NodeDeparted`, raised once per departure by `ClusterCapabilityIngestSystem` on every NED host), not a not-alive descriptor sample — §5.3 says why. `PartialOwnerReclaimSystem` (toolkit, every NED host) applies each key whose record names the departed node to the entity's primary owner through `OwnershipApplier` (R-167: a direct call, no message); entities whose primary owner left are skipped (the master's departure deletes them). ⭐ Q79 P2 partly closed: `OutgoingGrantsPending` now records each grant's TARGET, and a grant whose target left before taking over is taken back by its creator. Both cluster caches forget a departed node (`SimpleClusterStateCache.RemoveNode`; nothing ever pruned before — measured: `PruneStale` had no caller), so the grant strategy no longer picks it. ⭐ A REPLICA records a reclaimed key as the primary owner it learned from the `EntityMaster`'s writer (`CE-517`, fixed — see §5.6 S7a); where no writer resolves to a node (an untracked participant, e.g. the integration harness's shared one) it records `-1` ("not me"). Gating is correct either way. ⚠ The cluster rails needed a WALL-CLOCK alive phase for the leaving node: a dispose for a heartbeat instance a reader never received ends nothing (measured: 150 × ~5 ms frames failed, 3 s passed). ⚠ Not built: a real multi-process crash run (§5.7 E8); `CE-512 (backend)` (a), two initiators, stays with `CE-520` |
 | S7a ✅ | a replica knows each entity's primary owner (`CE-517`, `R-177`) | ✅ `EntityMasterTranslatorTests` (`PollIngress_RecordsTheEntityMastersWriter_AsTheGhostsPrimaryOwner` end to end over two sender-tracked participants; `ProcessSample_*` — a new ghost records its writer, an unknown owner is filled, a known one is never overwritten). As built: the primary owner of a ghost is the node that WROTE its `EntityMaster` (spec `BDC_NED_SST_Descriptor_Rules.md`: *"Ownership is determined by the most recent writer"*), read from CycloneDDS sender identity — every production participant already enables it with `AppInstanceId` = node id (`BUG2-DESIGN.md` §1.2). No message changes. `RetryUnresolvedOwners_*` (the late path, through a resolver seam). 📐 Measured: with an idle thread pool every sample resolves on delivery (a node joining a running cluster: 50/50 durable samples, 5 runs). ⚠ But CycloneDDS.NET 0.3.2 moves an ARRIVED identity into its lookup only from an async thread-pool loop (`SenderRegistry.MonitorIdentitiesAsync`; decompiled), so under thread-pool starvation a delivered sample has no sender — measured once in four full `Hrot.IG.Tests` runs and in a starved-pool probe. Such a ghost keeps -1 and is resolved by its writer's publication handle on a later poll; ⭐ the right fix is in the library (drain pending identities synchronously on a lookup miss — `CE-3000` ①), after which the retry goes. A KNOWN owner is never overwritten from a writer — a master move reaches every node as an `OwnershipUpdate` through `OwnershipApplier`, and an old writer's late sample must not flip it back. ⚠ Spec line 141 says `OwnershipUpdate` is *"for the current and the new owner only"*: a third node is meant to learn a move from the writer — following the most recent writer after a move is NOT built (our nodes apply every `OwnershipUpdate`, so it is not needed between our nodes) |
 | S8 | `HealthApplicationSystem` gate (`CE-523`); ingress skip-when-owned for group descriptors (F-5) | damage rail on a SimHost-created entity |
+
+### 5.8 EQS — the brain names the solver of each sensor (`CE-3002`, `R-179`) *(build-state: BUILT)*
+
+🔒 **User, `2026-10-02`:** *"Isnt the chisen simhost id already traveling with sensor config? So target simhost knows exactly he will own the result child entiry?"* — then *"Approved, least loaded"*.
+
+```mermaid
+classDiagram
+    class EqsSensorConfigTopic { <<wire · changed>> +ParentNetworkId +LocalChildIndex +SolverNodeId NEW … }
+    class EqsSensorConfigEgressTranslator { <<Brain · changed>> -solverOf: key → node · picks once per sensor, re-picks if gone }
+    class EqsSensorConfigIngressTranslator { <<Perception node · changed>> carrier ONLY when SolverNodeId == me }
+    class EqsResultEventEgressTranslator { <<Perception node · unchanged>> S6 gate on (dtEqsResult, part) }
+    class IClusterStateCache { <<existing>> +GetLeastLoadedNode(role) +AllNodeIds() }
+    class OwnershipApplier { <<existing>> +Apply(repo, entity, PackKey(d,i), node) — instance key ⇒ record only }
+    EqsSensorConfigEgressTranslator ..> IClusterStateCache : least-loaded Perception node
+    EqsSensorConfigEgressTranslator ..> OwnershipApplier : record (dtEqsResult, n) = solver
+    EqsSensorConfigIngressTranslator ..> OwnershipApplier : record (dtEqsResult, n) = solver
+    EqsResultEventEgressTranslator ..> OwnershipApplier : reads the record it wrote
+```
+
+```mermaid
+sequenceDiagram
+    participant B as Brain (CGF) config egress
+    participant C as cluster cache
+    participant P1 as Perception node chosen
+    participant P2 as other Perception node
+    B->>C: GetLeastLoadedNode(Perception) — once per sensor
+    B->>B: record (dtEqsResult, n) = P1
+    B->>P1: EqsSensorConfig[n] SolverNodeId = P1
+    B->>P2: EqsSensorConfig[n] SolverNodeId = P1
+    P1->>P1: record = P1 · build carrier · solve · publish EqsResult[n]
+    P2->>P2: record = P1 · no carrier (an existing one is suspended)
+    Note over B,C: P1 leaves ⇒ not in the cache any more ⇒ the brain re-picks and rewrites the config
+```
+
+*What the pictures show that prose hid:* the config **is** the per-sensor grant — the solver learns it owns result
+part `n` from the same sample that tells it what to solve, so there is no second message to race; the S6 result gate
+reads a record the config wrote, so the gate itself is unchanged. ⭐ The entity's Perception GROUP no longer decides who
+solves its EQS — which is why a brain without vision sensors (the platoon commander, §5.7.1 E7) works.
+
+| why, not what | |
+|---|---|
+| ⭐ sticky per sensor, re-picked only when the node leaves the cluster cache | a moving solver would restart the query; departure already removes the node from the cache (S7) |
+| ⭐ a new brain owner adopts the solver already on the wire | the config topic is TransientLocal, so the last sample names it |
+| ⭐ `SolverNodeId = 0` keeps the old behaviour (every Perception node solves, the record gates the publish) | configs from rails and from any writer that does not name a solver; legacy instance-0 sensors keep their group |
+| ⭐ the Muscle-side EQS translators register on the **Perception** role | the solver is registered by the Perception capability (EQS §17.3); they were gated on MuscleGround only (F-12 row) |
+| ⛔ rejected: grant Perception to every brain | one solver for all of an entity's sensors, and a grant round trip |
+| ⛔ rejected: a per-sensor `OwnershipUpdate` | a second topic, so the solver could hear the config before it knows it owns it |
 
 ### 5.7 End-to-end acceptance on `ClusterRunner --mode all` *(user `2026-10-02`)*
 

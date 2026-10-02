@@ -42,12 +42,16 @@ public static class SimHostAuxiliaryTranslatorPack
     /// <param name="eventBus">Application event bus (required for time-sync translators).</param>
     /// <param name="localNodeId">Local DDS node identifier (required for lockstep translator).</param>
     /// <param name="role">Node role; used to gate combat translators by simulation authority.</param>
+    /// <param name="clusterCache">⭐ R-179: where the Brain picks each EQS sensor's solver (least-loaded Perception node).
+    /// ⛔ A production host that has one must pass it — without it no solver is named and every Perception node
+    /// solves.</param>
     public static List<IDescriptorTranslator> Create(
         DdsParticipant   participant,
         NetworkEntityMap entityMap,
         FdpEventBus      eventBus,
         int              localNodeId,
-        NodeRole         role)
+        NodeRole         role,
+        Hrot.Network.Routing.IClusterStateCache? clusterCache = null)
     {
         var translators = new List<IDescriptorTranslator>();
 
@@ -61,7 +65,7 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new TacticalIntentEgressTranslator(participant, entityMap));
             translators.Add(new TacticalIntentIngressTranslator(participant, entityMap));
             // EQS pipeline — Brain side.
-            translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap));
+            translators.Add(new EqsSensorConfigEgressTranslator(participant, entityMap, clusterCache, localNodeId));
             translators.Add(new EqsResultIngressTranslator(participant, entityMap));
         }
 
@@ -82,8 +86,13 @@ public static class SimHostAuxiliaryTranslatorPack
             translators.Add(new AudioTargetDetectedEgressTranslator(participant, entityMap));
             translators.Add(new WeaponFireRequestIngressTranslator(participant, entityMap));
             translators.Add(new MunitionDetonationIngressTranslator(participant, entityMap));
-            // EQS pipeline — Muscle side.
-            translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap));
+        }
+
+        // ── EQS pipeline — solver side. ⭐ R-179: keyed on PERCEPTION, the role whose capability registers the solver
+        //    (EQS design §17.3) and the role the Brain picks from; MuscleGround kept so no host that solves today stops.
+        if (role.HasFlag(NodeRole.Perception) || role.HasFlag(NodeRole.MuscleGround))
+        {
+            translators.Add(new EqsSensorConfigIngressTranslator(participant, entityMap, localNodeId));
             translators.Add(new EqsResultEventEgressTranslator(participant, entityMap));
         }
 

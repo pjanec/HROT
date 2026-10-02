@@ -144,7 +144,7 @@ public sealed class NedNetworkFactory : INetworkFactory
     {
         if (_participant == null) return new NullSimHostAuxiliaryTranslators();
         return new NedSimHostAuxiliaryTranslators(
-            _participant, _entityMap, _eventBus, _localNodeId, _role);
+            _participant, _entityMap, _eventBus, _localNodeId, _role, SharedClusterCache);   // R-179: names each EQS solver (the cache the adapters feed and prune)
     }
 
     /// <inheritdoc/>

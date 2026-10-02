@@ -46,6 +46,14 @@ namespace Fdp.Toolkit.Spatial.Eqs.Topics
         /// lives; the Brain writes the sensor's last config with this set, and the Muscle's carrier stops solving.
         /// </summary>
         public bool Suspended;
+        /// <summary>
+        /// ⭐ <c>CE-3002</c> / <c>R-179</c> — the node that solves this sensor and publishes its result (non-key). The
+        /// Brain picks the least-loaded Perception node once per sensor; every node records it as the owner of result
+        /// part <see cref="LocalChildIndex"/>, and only that node builds a carrier. <c>0</c> = not named: every
+        /// Perception node solves and the ownership record gates the publish (the pre-<c>R-179</c> behaviour).
+        /// 📄 <c>docs/DESIGN_Ownership_Groups_And_Grants.md</c> §5.8.
+        /// </summary>
+        public int SolverNodeId;
     }
 
     // ── Muscle to Brain: ranked results ──────────────────────────────────────────
