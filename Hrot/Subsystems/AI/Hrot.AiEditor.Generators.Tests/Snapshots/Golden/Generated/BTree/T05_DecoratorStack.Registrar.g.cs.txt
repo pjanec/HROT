@@ -26,6 +26,14 @@ public static class T05_DecoratorStackRegistrar
         var blob = T05_DecoratorStack.Build();
 
 
+        // CE-504: shared param-less node calls — keyed by bare FQN, no variable.
+        actionRegistry.Register("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
+            static (ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int pi) =>
+            {
+                var status = global::Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander(ctx.Self, ctx.World);
+                return status;
+            });
+
         // 3. Construct the Interpreter — BindActions runs here; registry must be populated above.
         var interpreter = new Interpreter<byte, BTreeContext>(blob, actionRegistry);
 

@@ -136,7 +136,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -159,7 +159,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Failure, result);
         }
@@ -188,7 +188,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Running, result);
         }
@@ -215,7 +215,7 @@ namespace Hrot.SimHost.Tests
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
             // Overshoot = dot((110-50), (0,1)) = 60 > 50 => Failure
-            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Failure, result);
         }
@@ -241,7 +241,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
 
             ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
             MoveToParams written;
@@ -271,7 +271,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
 
             ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
             MoveToParams written;
@@ -303,10 +303,10 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
             uint idAfterFirst = repo.GetComponentRO<LocomotionChannel>(tank).ActionInstanceId;
 
-            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_CreepToAndBeyondSlot(ref p, ctx.Self, ctx.World);
             uint idAfterSecond = repo.GetComponentRO<LocomotionChannel>(tank).ActionInstanceId;
 
             Assert.Equal(idAfterFirst, idAfterSecond);
@@ -337,7 +337,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
 
             var weapon = repo.GetComponent<WeaponChannel>(tank);
             Assert.Equal(1u, weapon.ActionInstanceId);
@@ -364,7 +364,7 @@ namespace Hrot.SimHost.Tests
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
             // First call — activates.
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
 
             // Simulate running status.
             ref var weapon = ref repo.GetComponentRW<WeaponChannel>(tank);
@@ -373,7 +373,7 @@ namespace Hrot.SimHost.Tests
             uint idAfterFirst = weapon.ActionInstanceId;
 
             // Second call — should NOT write again.
-            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
 
             uint idAfterSecond = repo.GetComponent<WeaponChannel>(tank).ActionInstanceId;
             Assert.Equal(idAfterFirst, idAfterSecond);
@@ -401,7 +401,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -430,7 +430,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Action_AimAndFireSpecific(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -451,7 +451,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            HillAttackTankNodes.Action_ReverseToBaseline(ref p, ref state, ref ctx);
+            HillAttackTankNodes.Action_ReverseToBaseline(ref p, ctx.Self, ctx.World);
 
             ref readonly var loco = ref repo.GetComponentRO<LocomotionChannel>(tank);
             MoveToParams written;
@@ -475,7 +475,7 @@ namespace Hrot.SimHost.Tests
         ///
         /// <para>⭐⭐ <b>This drives the REAL chain:</b> <c>AssignBehaviorEvent</c> → the real
         /// <c>BehaviorIngressSystem</c> → the root params occurrence slot → the REAL generated thunk
-        /// out of <c>FbtActionRegistrar</c>, dispatched with the same <c>ref byte</c> the
+        /// out of the HullDownAttackRun asset bridge (CE-504: formerly <c>FbtActionRegistrar</c>), dispatched with the same <c>ref byte</c> the
         /// kernel gets (<c>BTreeTickSystem.cs:123</c>). ⛔ Nothing here constructs a
         /// <c>HullDownAttackParams</c> — if the addressing is wrong the destination is zero.</para>
         ///
@@ -512,8 +512,12 @@ namespace Hrot.SimHost.Tests
             ingress.Execute(repo, 0.016f);
 
             // The thunk exactly as the Interpreter resolves it — key, delegate and all.
+            // ⭐ CE-504 slice 3: Action_ReverseToBaseline is a shared C# node now; the call the runtime makes is the
+            //   HullDownAttackRun asset bridge's per-binding thunk (the analyzer's per-method FbtActionRegistrar adapter is
+            //   gone with the [BTreeAction] attribute). Same key, same projection, same root slot.
             var actions = new ActionRegistry<byte, BTreeContext>();
-            FbtActionRegistrar.RegisterAll(actions);
+            Hrot.AI.Behaviors.Trees.HullDownAttackRunRegistrar.Register(
+                new BehaviorRegistry(), new Fdp.Toolkit.Blueprints.BlueprintRegistryStaging(), actions);
             Assert.True(actions.TryGetAction(
                 "Hrot.AI.Behaviors.Brains.HillAttackTankNodes.Action_ReverseToBaseline@0",
                 out var thunk));
@@ -553,7 +557,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = tank, World = repo };
 
-            var result = HillAttackTankNodes.Action_ReverseToBaseline(ref p, ref state, ref ctx);
+            var result = HillAttackTankNodes.Action_ReverseToBaseline(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -619,7 +623,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
             ref var s  = ref GetHeavyState(repo, commander);
 
             Assert.Equal(NodeStatus.Success, result);
@@ -646,7 +650,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
             ref var s = ref GetHeavyState(repo, commander);
 
             Assert.Equal(1, s.TotalSlots);
@@ -669,7 +673,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_CalculateSegments(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
             ref var s = ref GetHeavyState(repo, commander);
 
             Assert.Equal(16, s.TotalSlots);
@@ -700,7 +704,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
             repo.Bus.SwapBuffers();
             var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
 
@@ -735,7 +739,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Running, result);
         }
@@ -759,7 +763,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -785,7 +789,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -834,7 +838,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World));
             var sensor = EqsChildSensor.Find(repo, commander, HillAttackCommanderNodes.AreaSensorInstanceId);
             Assert.False(sensor.IsNull);
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);   // created at once — no placeholder
@@ -844,13 +848,13 @@ namespace Hrot.SimHost.Tests
             Assert.Equal(1u << (int)ForceId.Hostile, cfg.FactionFilter);
 
             // in flight: found, cached, not yet answered
-            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World));
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
 
             // answered, consumed by the dispatch (-1) ⇒ the next ask refreshes the same sensor
             repo.GetComponentRW<EqsCognitiveBuffer>(sensor).LastUpdateTick = 7u;
             s.CachedEqsRequestId = -1;
-            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World));
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(sensor).Epoch & 0xFFFFu);
             Assert.False(repo.GetComponentRO<EqsCognitiveBuffer>(sensor).IsReady);   // no older answer counts
@@ -883,7 +887,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Action_RequestAreaQuery(ref p, ref s, ctx.Self, ctx.World));
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
         }
 
@@ -902,7 +906,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Running, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ctx.Self, ctx.World));
         }
 
         /// <summary>SC-HA011-4: ready with 0 targets ⇒ Failure (area clear), CachedEqsRequestId = -1, the sensor destroyed.</summary>
@@ -919,7 +923,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            Assert.Equal(NodeStatus.Failure, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Failure, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ctx.Self, ctx.World));
             Assert.Equal(-1L, s.CachedEqsRequestId);
             Playback(repo);
             Assert.False(repo.IsAlive(sensor));
@@ -940,7 +944,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ref state, ref ctx));
+            Assert.Equal(NodeStatus.Success, HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref p, ref s, ctx.Self, ctx.World));
             Assert.Equal((long)sensor.PackedValue, s.CachedEqsRequestId);
             Playback(repo);
             Assert.True(repo.IsAlive(sensor));
@@ -981,7 +985,7 @@ namespace Hrot.SimHost.Tests
 
             try
             {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
                 // Count how many subs have even Entity.Index among all 4.
                 int expectedEven = 0;
@@ -1028,7 +1032,7 @@ namespace Hrot.SimHost.Tests
 
             try
             {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
                 Assert.Equal(3, s.ActiveAttackerCount);
             }
@@ -1076,7 +1080,7 @@ namespace Hrot.SimHost.Tests
 
             try
             {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
                 repo.Bus.SwapBuffers();
                 var events = repo.Bus.ReadManaged<AssignTacticalIntentEvent>();
 
@@ -1114,7 +1118,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -1148,7 +1152,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
             Assert.Equal(0, s.ActiveAttackerCount);
@@ -1191,7 +1195,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
             Assert.Equal(0, s.ActiveAttackerCount);
@@ -1223,7 +1227,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref p, ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, result);
         }
@@ -1257,7 +1261,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var result = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Running, result);
             Assert.Equal(1, s.ActiveAttackerCount);
@@ -1292,13 +1296,13 @@ namespace Hrot.SimHost.Tests
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
             // Tick T: hash == 3013, sets HasStartedRun = 1, returns Running.
-            var r1 = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var r1 = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
             Assert.Equal(NodeStatus.Running, r1);
             unsafe { Assert.Equal(1, s.HasStartedRun[0]); }
 
             // Tick T+1: hash no longer == 3013, run considered finished.
             repo.GetComponentRW<BehaviorState>(attacker).ActiveBehaviorHash = BehaviorHash.FromName(BehaviorNames.Idle);  // Idle
-            var r2 = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            var r2 = HillAttackCommanderNodes.Condition_IsWaveCompleted(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(NodeStatus.Success, r2);
             Assert.Equal(0, s.ActiveAttackerCount);
@@ -1386,7 +1390,7 @@ namespace Hrot.SimHost.Tests
 
             try
             {
-                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+                HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
                 // Verify none of the SoA entries used slot 0.
                 for (int i = 0; i < s.ActiveAttackerCount; i++)
@@ -1431,7 +1435,7 @@ namespace Hrot.SimHost.Tests
             var state = new BehaviorTreeState();
             var ctx   = new BTreeContext { Self = commander, World = repo };
 
-            HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ref state, ref ctx);
+            HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref p, ref GetHeavyState(repo, commander), ctx.Self, ctx.World);
 
             Assert.Equal(-1L, s.CachedEqsRequestId);
             Playback(repo);

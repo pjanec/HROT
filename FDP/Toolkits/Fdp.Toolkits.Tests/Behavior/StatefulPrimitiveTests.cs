@@ -119,7 +119,7 @@ public sealed unsafe class StatefulPrimitiveTests
                                 return NodeStatus.Failure;
                             }
                             ref var ws = ref Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + wsOff);
-                            return DemoCounterNodes.Action_AdvanceCursor(ref p, ref ws, ref st, ref ctx);
+                            return DemoCounterNodes.Action_AdvanceCursor(ref p, ref ws, ctx.Self, ctx.World);
                         }
                     }
                     System.Diagnostics.Debug.Assert(false, "S2-1: no tier component");
@@ -236,7 +236,7 @@ public sealed unsafe class StatefulPrimitiveTests
                             if (!BlueprintBlackboardPartitions.TryGetSlotOffset(mem, sk, out int wsOff))
                                 return NodeStatus.Failure;
                             ref var ws = ref Unsafe.AsRef<DemoCounterNodes.DemoCursorState>(mem + wsOff);
-                            return DemoCounterNodes.Action_AdvanceCursor(ref p, ref ws, ref st, ref ctx);
+                            return DemoCounterNodes.Action_AdvanceCursor(ref p, ref ws, ctx.Self, ctx.World);
                         }
                     }
                     return NodeStatus.Failure;

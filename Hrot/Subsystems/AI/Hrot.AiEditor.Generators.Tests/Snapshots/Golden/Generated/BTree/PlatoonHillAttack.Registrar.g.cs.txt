@@ -44,7 +44,8 @@ public static class PlatoonHillAttackRegistrar
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.PlatoonHillAttackParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)0));
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref dto, ref st, ref ctx);
+                    var status = global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_AreAllAtBaseline(ref dto, ctx.Self, ctx.World);
+                    return status;
                 }
             });
 
@@ -61,7 +62,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_CalculateSegments(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline@0@1299152117",
@@ -75,7 +76,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchAllToBaseline(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery@0@1299152117",
@@ -89,7 +90,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_RequestAreaQuery(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved@0@1299152117",
@@ -103,7 +104,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsAreaQueryResolved(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets@0@1299152117",
@@ -117,7 +118,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Action_DispatchWaveWithTargets(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted@0@1299152117",
@@ -131,7 +132,7 @@ public static class PlatoonHillAttackRegistrar
                     // CE-437/CE-431: 'State' is Role=State, Scope=Behavior ⇒ it lives in this behaviour's OWN block,
                     //   which is the bb it was ticked with — the root block, or a hosted child's own block.
                     ref var ws = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Trees.PlatoonHillAttack_Block>(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb)).St.State;
-                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.HillAttackCommanderNodes.Condition_IsWaveCompleted(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
 

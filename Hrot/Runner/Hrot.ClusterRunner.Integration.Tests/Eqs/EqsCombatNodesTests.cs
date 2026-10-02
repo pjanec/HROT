@@ -67,7 +67,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         // Add LocomotionChannel (default zero state)
         _repo.AddComponent(_entity, new LocomotionChannel());
 
-        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ref state, ref ctx);
+        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ctx.Self, ctx.World);
 
         Assert.Equal(NodeStatus.Running, result);
 
@@ -98,7 +98,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         _repo.AddComponent(_entity, new EqsCognitiveBuffer { Count = 0, LastUpdateTick = 0 });
         _repo.AddComponent(_entity, new LocomotionChannel());
 
-        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ref state, ref ctx);
+        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ctx.Self, ctx.World);
 
         Assert.Equal(NodeStatus.Failure, result);
     }
@@ -128,7 +128,7 @@ public sealed class EqsCombatNodesTests : IDisposable
             Status       = NodeStatus.Success,
         });
 
-        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ref state, ref ctx);
+        var result = EqsCombatNodes.Action_MoveToOptimalCover(ref p, ctx.Self, ctx.World);
 
         Assert.Equal(NodeStatus.Success, result);
     }
@@ -148,19 +148,19 @@ public sealed class EqsCombatNodesTests : IDisposable
 
         // Step 1: no TargetMemory component
         Assert.Equal(NodeStatus.Failure,
-            EqsCombatNodes.Condition_HasTarget(ref p, ref state, ref ctx));
+            EqsCombatNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World));
 
         // Step 2: component present but Count=0 (no entries)
         _repo.AddComponent(_entity, new TargetMemory());
         Assert.Equal(NodeStatus.Failure,
-            EqsCombatNodes.Condition_HasTarget(ref p, ref state, ref ctx));
+            EqsCombatNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World));
 
         // Step 3: add a live threat entry
         ref var mem = ref _repo.GetComponentRW<TargetMemory>(_entity);
         unsafe { mem.ThreatScores[0] = 1.5f; }
         mem.Count = 1;
         Assert.Equal(NodeStatus.Success,
-            EqsCombatNodes.Condition_HasTarget(ref p, ref state, ref ctx));
+            EqsCombatNodes.Condition_HasTarget(ref p, ctx.Self, ctx.World));
     }
 
     // ── T-COV5: HideInCover node sequence smoke test ──────────────────────────
@@ -189,7 +189,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         _repo.AddComponent(_entity, mem);
 
         // Step 2: simulate Action_MaintainEqsSensor (adds EqsSensor on first tick)
-        var maintainResult = EqsLifecycleNodes.Action_MaintainEqsSensor(ref eqsParams, ref state, ref ctx);
+        var maintainResult = EqsLifecycleNodes.Action_MaintainEqsSensor(ref eqsParams, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, maintainResult);
         Assert.True(_repo.HasComponent<EqsSensor>(_entity));
 
@@ -202,7 +202,7 @@ public sealed class EqsCombatNodesTests : IDisposable
         _repo.AddComponent(_entity, new LocomotionChannel());
 
         // Step 5: call Action_MoveToOptimalCover
-        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref moveParams, ref state, ref ctx);
+        var moveResult = EqsCombatNodes.Action_MoveToOptimalCover(ref moveParams, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Running, moveResult);
         Assert.Equal(NavigationConstants.ActionIdMoveTo,
             _repo.GetComponentRO<LocomotionChannel>(_entity).ActiveAction);

@@ -15,6 +15,7 @@ using Fdp.Toolkit.Navigation;
 using Fdp.Toolkit.Perception.Components;
 using Fdp.Toolkit.Replication.Services;
 using Hrot.AI.Behaviors.Logging;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -82,12 +83,12 @@ namespace Hrot.AI.Behaviors.Brains
             System.Runtime.CompilerServices.Unsafe.As<byte, T>(ref ch.Params[0]) = value;
         }
 
-        private static void ClearWeaponActionIfActive(ref BTreeContext ctx)
+        private static void ClearWeaponActionIfActive(Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))
+            if (!world.HasComponent<WeaponChannel>(self))
                 return;
 
-            ref var wc = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
+            ref var wc = ref world.GetComponentRW<WeaponChannel>(self);
             if (wc.ActiveAction != 0)
             {
                 wc.ActiveAction = 0;
@@ -109,34 +110,31 @@ namespace Hrot.AI.Behaviors.Brains
         ///     threat score is zero.</item>
         /// </list>
         /// </summary>
-        [BTreeCondition]
-        public static NodeStatus Condition_HasTarget(
-            ref HullDownAttackParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiCondition]
+        public static NodeStatus Condition_HasTarget(ref HullDownAttackParams p, Entity self, EntityRepository world)
         {
             // Resolve the network-stable target ID to a local entity.
-            if (!ctx.World.HasSingletonManaged<NetworkEntityMap>())
+            if (!world.HasSingletonManaged<NetworkEntityMap>())
             {
-                BehaviorLog.Warn(ref ctx, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
+                BehaviorLog.Warn(self, world, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
                 return NodeStatus.Failure;
             }
 
-            var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
+            var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
             if (entityMap == null || !entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
             {
-                BehaviorLog.Warn(ref ctx, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet.");
+                BehaviorLog.Warn(self, world, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet.");
                 return NodeStatus.Failure;
             }
 
-            if (!ctx.World.HasComponent<TargetMemory>(ctx.Self))
+            if (!world.HasComponent<TargetMemory>(self))
             {
-                BehaviorLog.Warn(ref ctx, "Entity is missing TargetMemory component; cannot evaluate target tracking.");
+                BehaviorLog.Warn(self, world, "Entity is missing TargetMemory component; cannot evaluate target tracking.");
                 return NodeStatus.Failure;
             }
 
             long targetPacked = (long)targetEntity.PackedValue;
-            ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
+            ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
 
             // Scan TargetMemory for the resolved entity with a positive threat score.
             // Loop is bounded by MaxTrackedTargets (4) — no heap allocation.
@@ -147,13 +145,13 @@ namespace Hrot.AI.Behaviors.Brains
                     if (mem.EntityIds[i] == targetPacked && mem.ThreatScores[i] > 0f)
                     {
                         if (BehaviorLog.IsTraceEnabled)
-                            BehaviorLog.Trace(ref ctx, "Target acquired in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
+                            BehaviorLog.Trace(self, world, "Target acquired in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
                         return NodeStatus.Success;
                     }
                 }
             }
             if (BehaviorLog.IsTraceEnabled)
-                BehaviorLog.Trace(ref ctx, "Target not found in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
+                BehaviorLog.Trace(self, world, "Target not found in memory. TargetNetworkId=" + p.TargetNetworkId + ".");
             return NodeStatus.Failure;
         }
 
@@ -179,21 +177,18 @@ namespace Hrot.AI.Behaviors.Brains
         /// <para>Channel cleanup on Failure is done explicitly here because
         /// <c>[WritesChannel]</c> cleanup is only generated for 4-param delegates.</para>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_CreepToAndBeyondSlot(
-            ref HullDownAttackParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_CreepToAndBeyondSlot(ref HullDownAttackParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self)
-                || !ctx.World.HasComponent<SimTransform>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self)
+                || !world.HasComponent<SimTransform>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing LocomotionChannel or SimTransform; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing LocomotionChannel or SimTransform; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
-            ref readonly var tf = ref ctx.World.GetComponentRO<SimTransform>(ctx.Self);
+            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
+            ref readonly var tf = ref world.GetComponentRO<SimTransform>(self);
 
             var slotPos = new Vector2(p.SlotX, p.SlotY);
             var attackDir = new Vector2(p.AttackDirX, p.AttackDirY);
@@ -207,7 +202,7 @@ namespace Hrot.AI.Behaviors.Brains
             float overshootMeters = Vector2.Dot(delta, attackDir);
             if (BehaviorLog.IsTraceEnabled)
             {
-                BehaviorLog.Trace(ref ctx,
+                BehaviorLog.Trace(self, world,
                     "Creep progress: distToSlot=" + distToSlot.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
                     + "m overshoot=" + overshootMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture)
                     + "m limit=" + HillAttackConstants.MaxOvershootMeters.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "m.");
@@ -219,26 +214,26 @@ namespace Hrot.AI.Behaviors.Brains
                 loco.ActiveAction = 0;
                 loco.Status = NodeStatus.Failure;
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "Creep failed due to overshoot. Overshoot=" + overshootMeters.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + "m.");
+                    BehaviorLog.Debug(self, world, "Creep failed due to overshoot. Overshoot=" + overshootMeters.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + "m.");
                 return NodeStatus.Failure;
             }
 
             // Determine which phase we are in.
             bool isFarPhase = distToSlot > HillAttackConstants.SlotArrivalThresholdMeters && overshootMeters <= 0f;
 
-            if (!isFarPhase && ctx.World.HasComponent<TargetMemory>(ctx.Self) && ctx.World.HasSingletonManaged<NetworkEntityMap>())
+            if (!isFarPhase && world.HasComponent<TargetMemory>(self) && world.HasSingletonManaged<NetworkEntityMap>())
             {
-                var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
+                var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
                 if (entityMap != null && entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
                 {
-                    ref readonly var mem = ref ctx.World.GetComponentRO<TargetMemory>(ctx.Self);
+                    ref readonly var mem = ref world.GetComponentRO<TargetMemory>(self);
                     unsafe
                     {
                         for (int i = 0; i < mem.Count; i++)
                         {
                             if (mem.EntityIds[i] == (long)targetEntity.PackedValue && mem.ThreatScores[i] > 0f)
                             {
-                                ref var locoChannel = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+                                ref var locoChannel = ref world.GetComponentRW<LocomotionChannel>(self);
                                 locoChannel.ActiveAction = 0;
                                 unchecked { locoChannel.ActionInstanceId++; }
                                 return NodeStatus.Success;
@@ -265,9 +260,9 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Sync BehaviorInstanceId so ChannelArbitrationSystem does not clear the channel.
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behav = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behav = world.GetComponent<BehaviorState>(self);
                 loco.BehaviorInstanceId = behav.InstanceId;
             }
 
@@ -290,7 +285,7 @@ namespace Hrot.AI.Behaviors.Brains
                     {
                         needsWrite = true;
                         if (BehaviorLog.IsDebugEnabled)
-                            BehaviorLog.Debug(ref ctx, "Creep phase transition speed update. Previous=" + lastParams.Speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " New=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + ".");
+                            BehaviorLog.Debug(self, world, "Creep phase transition speed update. Previous=" + lastParams.Speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " New=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + ".");
                     }
                 }
             }
@@ -307,7 +302,7 @@ namespace Hrot.AI.Behaviors.Brains
                     Speed         = speed,
                 });
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "Issued MoveTo action. Speed=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " destination=(" + destination.X.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," + destination.Y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ").");
+                    BehaviorLog.Debug(self, world, "Issued MoveTo action. Speed=" + speed.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) + " destination=(" + destination.X.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + "," + destination.Y.ToString("F1", System.Globalization.CultureInfo.InvariantCulture) + ").");
             }
 
             return NodeStatus.Running;
@@ -330,30 +325,27 @@ namespace Hrot.AI.Behaviors.Brains
         ///     status transitions to <see cref="NodeStatus.Success"/>.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_AimAndFireSpecific(
-            ref HullDownAttackParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_AimAndFireSpecific(ref HullDownAttackParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasSingletonManaged<NetworkEntityMap>())
+            if (!world.HasSingletonManaged<NetworkEntityMap>())
             {
-                BehaviorLog.Warn(ref ctx, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
+                BehaviorLog.Warn(self, world, "NetworkEntityMap singleton not found; cannot resolve TargetNetworkId.");
                 return NodeStatus.Failure;
             }
 
-            var entityMap = ctx.World.GetSingletonManaged<NetworkEntityMap>();
+            var entityMap = world.GetSingletonManaged<NetworkEntityMap>();
             if (entityMap == null || !entityMap.TryGetEntity(p.TargetNetworkId, out var targetEntity))
             {
-                BehaviorLog.Warn(ref ctx, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet or was destroyed.");
+                BehaviorLog.Warn(self, world, "TargetNetworkId=" + p.TargetNetworkId + " not found in entity map; target may not have replicated yet or was destroyed.");
                 return NodeStatus.Failure;
             }
-            if (!CombatLife.IsAlive(ctx.World, targetEntity))   // CE-466: knocked out (Health <= 0) or gone
+            if (!CombatLife.IsAlive(world, targetEntity))   // CE-466: knocked out (Health <= 0) or gone
                 return NodeStatus.Success;
 
-            if (ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (world.HasComponent<LocomotionChannel>(self))
             {
-                ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+                ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
                 if (loco.ActiveAction != 0)
                 {
                     loco.ActiveAction = 0;
@@ -363,24 +355,24 @@ namespace Hrot.AI.Behaviors.Brains
 
             if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
             {
-                ClearWeaponActionIfActive(ref ctx);
+                ClearWeaponActionIfActive(self, world);
                 return NodeStatus.Success;
             }
 
-            if (!ctx.World.HasComponent<WeaponChannel>(ctx.Self))
+            if (!world.HasComponent<WeaponChannel>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing WeaponChannel; blueprint may be misconfigured.");
+                BehaviorLog.Error(self, world, "Entity is missing WeaponChannel; blueprint may be misconfigured.");
                 return NodeStatus.Failure;
             }
 
-            if (!ctx.World.HasComponent<WeaponState>(ctx.Self))
+            if (!world.HasComponent<WeaponState>(self))
             {
-                BehaviorLog.Error(ref ctx, "Entity is missing WeaponState; cannot track rounds fired.");
+                BehaviorLog.Error(self, world, "Entity is missing WeaponState; cannot track rounds fired.");
                 return NodeStatus.Failure;
             }
 
-            ref var weapon = ref ctx.World.GetComponentRW<WeaponChannel>(ctx.Self);
-            var ws = ctx.World.GetComponent<WeaponState>(ctx.Self);
+            ref var weapon = ref world.GetComponentRW<WeaponChannel>(self);
+            var ws = world.GetComponent<WeaponState>(self);
 
             if (p.LastObservedAmmo < 0)
             {
@@ -392,7 +384,7 @@ namespace Hrot.AI.Behaviors.Brains
                 p.LastObservedAmmo = ws.Ammo;
                 if (p.MaxRounds > 0 && p.RoundsFired >= p.MaxRounds)
                 {
-                    ClearWeaponActionIfActive(ref ctx);
+                    ClearWeaponActionIfActive(self, world);
                     return NodeStatus.Success;
                 }
             }
@@ -402,9 +394,9 @@ namespace Hrot.AI.Behaviors.Brains
             }
 
             // Sync BehaviorInstanceId to prevent ChannelArbitrationSystem clearing the channel.
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behav = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behav = world.GetComponent<BehaviorState>(self);
                 weapon.BehaviorInstanceId = behav.InstanceId;
             }
 
@@ -412,7 +404,7 @@ namespace Hrot.AI.Behaviors.Brains
             if (weapon.ActiveAction == CombatConstants.ActionIdAimAndFire)
             {
                 if (BehaviorLog.IsTraceEnabled)
-                    BehaviorLog.Trace(ref ctx, "Weapon channel active. Status=" + weapon.Status + ".");
+                    BehaviorLog.Trace(self, world, "Weapon channel active. Status=" + weapon.Status + ".");
                 if (weapon.Status == NodeStatus.Success) return NodeStatus.Success;
                 if (weapon.Status == NodeStatus.Failure) return NodeStatus.Failure;
             }
@@ -431,7 +423,7 @@ namespace Hrot.AI.Behaviors.Brains
                 unchecked { weapon.ActionInstanceId++; }
                 weapon.ActiveAction = CombatConstants.ActionIdAimAndFire;
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "Engaging target. TargetEntity=" + targetEntity.Index + " TargetNetworkId=" + p.TargetNetworkId + ".");
+                    BehaviorLog.Debug(self, world, "Engaging target. TargetEntity=" + targetEntity.Index + " TargetNetworkId=" + p.TargetNetworkId + ".");
             }
 
             return NodeStatus.Running;
@@ -452,21 +444,18 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item>Returns <see cref="NodeStatus.Failure"/> on locomotion failure.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_ReverseToBaseline(
-            ref HullDownAttackParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_ReverseToBaseline(ref HullDownAttackParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<LocomotionChannel>(ctx.Self))
+            if (!world.HasComponent<LocomotionChannel>(self))
                 return NodeStatus.Failure;
 
-            ref var loco = ref ctx.World.GetComponentRW<LocomotionChannel>(ctx.Self);
+            ref var loco = ref world.GetComponentRW<LocomotionChannel>(self);
 
             // Sync BehaviorInstanceId.
-            if (ctx.World.HasComponent<BehaviorState>(ctx.Self))
+            if (world.HasComponent<BehaviorState>(self))
             {
-                var behav = ctx.World.GetComponent<BehaviorState>(ctx.Self);
+                var behav = world.GetComponent<BehaviorState>(self);
                 loco.BehaviorInstanceId = behav.InstanceId;
             }
 
@@ -475,12 +464,12 @@ namespace Hrot.AI.Behaviors.Brains
             {
                 if (loco.Status == NodeStatus.Success)
                 {
-                    ctx.World.Bus.Publish(new ClearBehaviorEvent { Entity = ctx.Self });
+                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self });
                     return NodeStatus.Success;
                 }
                 if (loco.Status == NodeStatus.Failure)
                 {
-                    ctx.World.Bus.Publish(new ClearBehaviorEvent { Entity = ctx.Self });
+                    world.Bus.Publish(new ClearBehaviorEvent { Entity = self });
                     return NodeStatus.Failure;
                 }
             }
@@ -501,7 +490,7 @@ namespace Hrot.AI.Behaviors.Brains
                     ReverseAllowed = 1,
                 });
                 if (BehaviorLog.IsDebugEnabled)
-                    BehaviorLog.Debug(ref ctx, "Retreating to baseline. Destination=(" + p.BaselineX + "," + p.BaselineY + ").");
+                    BehaviorLog.Debug(self, world, "Retreating to baseline. Destination=(" + p.BaselineX + "," + p.BaselineY + ").");
             }
 
             return NodeStatus.Running;
@@ -513,11 +502,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// <c>Action_ReverseToBaseline</c> is guaranteed to run regardless of whether
         /// the engagement path succeeded or overshot.
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_AbortEngagement(
-            ref HullDownAttackParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_AbortEngagement(ref HullDownAttackParams p, Entity self, EntityRepository world)
         {
             return NodeStatus.Success;
         }

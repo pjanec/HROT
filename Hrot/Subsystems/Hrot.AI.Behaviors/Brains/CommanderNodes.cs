@@ -4,6 +4,7 @@ using Fbt.Runtime;
 using Fdp.Core;
 using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Events;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -63,11 +64,8 @@ namespace Hrot.AI.Behaviors.Brains
         /// for the TODO items needed for full production use.
         /// </para>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_IssueTacticalIntent(
-            ref IssueTacticalIntentParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_IssueTacticalIntent(ref IssueTacticalIntentParams p, Entity self, EntityRepository world)
         {
             if (p.SubordinatePacked == 0)
                 return NodeStatus.Failure;
@@ -79,7 +77,7 @@ namespace Hrot.AI.Behaviors.Brains
             // is used as a compile-time constant.
             const string intentId = "DefendArea";
 
-            ctx.World.Bus.PublishManaged(new AssignTacticalIntentEvent
+            world.Bus.PublishManaged(new AssignTacticalIntentEvent
             {
                 Entity     = subordinate,
                 IntentId   = intentId,

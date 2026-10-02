@@ -18,7 +18,7 @@ public static class T06_ObserverSelector
         new BTreeBuilder<byte, BTreeContext>()
             .ObserverSelector(obs =>
             {
-                obs.Action(CgfNodes.Action_Wander,
+                obs.Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                     visualId: new Guid("b7030000-0000-0000-0000-000000000001"));
                 obs.Wait(1f,
                     visualId: new Guid("b7040000-0000-0000-0000-000000000001"));

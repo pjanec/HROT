@@ -20,7 +20,7 @@ public static class T05_DecoratorStack
             {
                 seq.Cooldown(2f, d4 => d4
                     .Inverter(d5 => d5
-                        .Action(CgfNodes.Action_Wander,
+                        .Action("Hrot.AI.Behaviors.Brains.CgfNodes.Action_Wander",
                             visualId: new Guid("b6030000-0000-0000-0000-000000000001")),
                         visualId: new Guid("b6110000-0000-0000-0000-000000000001")),
                     visualId: new Guid("b6120000-0000-0000-0000-000000000001"));

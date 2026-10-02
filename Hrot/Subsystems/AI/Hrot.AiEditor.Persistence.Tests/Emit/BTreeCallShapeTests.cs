@@ -75,14 +75,16 @@ public sealed class BTreeCallShapeTests
         throw new DirectoryNotFoundException("BTree corpus not found above " + AppContext.BaseDirectory);
     }
 
+    // ⭐ CE-504 slice 3 — the seven `CgfNodes.Action_Wander` rows were recorded `FourParamFull`; C-3 moved Wander to the
+    //   param-less shared form `(Entity, EntityRepository)`, so they now derive `NoParams`.
     private static readonly (string File, string VisualId, BTreeDelegateShapeDto Shape)[] Recorded =
     {
         ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000003", BTreeDelegateShapeDto.ThreeParamReusable),
         ("BTreeCuratedBindingDemo.btree.json", "bb000417-0000-0000-0000-000000000004", BTreeDelegateShapeDto.ThreeParamReusable),
-        ("T04_DecoratorRepeater.btree.json", "b5030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
-        ("T05_DecoratorStack.btree.json", "b6030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
-        ("T06_ObserverSelector.btree.json", "b7030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
-        ("T08_ActionLeaf.btree.json", "b9020000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
+        ("T04_DecoratorRepeater.btree.json", "b5030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
+        ("T05_DecoratorStack.btree.json", "b6030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
+        ("T06_ObserverSelector.btree.json", "b7030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
+        ("T08_ActionLeaf.btree.json", "b9020000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("T10_MultiAction.btree.json", "ba030000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
         ("T10_MultiAction.btree.json", "ba040000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
         ("T10_MultiAction.btree.json", "ba050000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.ThreeParamReusable),
@@ -101,9 +103,9 @@ public sealed class BTreeCallShapeTests
         ("T39_TwoDistinctPrimitives.btree.json", "bb390000-0000-0000-0000-000000000003", BTreeDelegateShapeDto.AiPrimitiveTickCore),
         ("T39_TwoDistinctPrimitives.btree.json", "bb390000-0000-0000-0000-000000000004", BTreeDelegateShapeDto.AiPrimitiveTickCore),
         ("T39_TwoDistinctPrimitives.btree.json", "bb390000-0000-0000-0000-000000000005", BTreeDelegateShapeDto.AiPrimitiveTickCore),
-        ("BTreeRenderShowcase.btree.json", "bb060000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
-        ("BTreeRenderShowcase.btree.json", "bb080000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
-        ("CombatShowcase.btree.json", "50000000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.FourParamFull),
+        ("BTreeRenderShowcase.btree.json", "bb060000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
+        ("BTreeRenderShowcase.btree.json", "bb080000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
+        ("CombatShowcase.btree.json", "50000000-0000-0000-0000-000000000001", BTreeDelegateShapeDto.NoParams),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a1", BTreeDelegateShapeDto.ThreeParamReusable),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a2", BTreeDelegateShapeDto.ThreeParamReusable),
         ("HullDownAttackRun.btree.json", "2b000000-0000-0000-0000-0000000000a3", BTreeDelegateShapeDto.ThreeParamReusable),

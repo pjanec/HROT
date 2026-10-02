@@ -8,6 +8,7 @@ using Fdp.Toolkit.Behavior;
 using Fdp.Toolkit.Behavior.Components;
 using Fdp.Toolkit.Replication.Components;
 using Fdp.Toolkit.Spatial.Eqs;
+using Fbt.Kernel;
 
 namespace Hrot.AI.Behaviors.Brains
 {
@@ -86,15 +87,12 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item>Always returns Running — the deactivator cleans up on abort.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_MaintainEqsSensor(
-            ref EqsParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_MaintainEqsSensor(ref EqsParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<EqsSensor>(ctx.Self))
+            if (!world.HasComponent<EqsSensor>(self))
             {
-                ctx.World.AddComponent(ctx.Self, new EqsSensor
+                world.AddComponent(self, new EqsSensor
                 {
                     BlueprintId          = p.BlueprintId,
                     Epoch                = 1,
@@ -109,7 +107,7 @@ namespace Hrot.AI.Behaviors.Brains
                 return NodeStatus.Running;
             }
 
-            ref var sensor = ref ctx.World.GetComponentRW<EqsSensor>(ctx.Self);
+            ref var sensor = ref world.GetComponentRW<EqsSensor>(self);
             if (sensor.BlueprintId    != p.BlueprintId    ||
                 sensor.SearchRadius   != p.SearchRadius   ||
                 sensor.FactionFilter  != p.FactionFilter  ||
@@ -163,16 +161,13 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item><see cref="EqsCognitiveBuffer.IsReady"/> is true: returns Success.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_WaitForSensor(
-            ref EqsParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WaitForSensor(ref EqsParams p, Entity self, EntityRepository world)
         {
-            if (!ctx.World.HasComponent<EqsCognitiveBuffer>(ctx.Self))
+            if (!world.HasComponent<EqsCognitiveBuffer>(self))
                 return NodeStatus.Running;
 
-            ref readonly var buffer = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(ctx.Self);
+            ref readonly var buffer = ref world.GetComponentRO<EqsCognitiveBuffer>(self);
             return buffer.IsReady ? NodeStatus.Success : NodeStatus.Running;
         }
 
@@ -191,17 +186,14 @@ namespace Hrot.AI.Behaviors.Brains
         /// <para>The deactivator <see cref="Deactivate_SpawnEqsSensorChild"/> destroys the child when the enclosing sub-tree is
         /// aborted.</para>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_SpawnEqsSensorChild(
-            ref EqsSpawnParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_SpawnEqsSensorChild(ref EqsSpawnParams p, Entity self, EntityRepository world)
         {
             // Idempotency: if previously spawned and still alive, reuse existing handle.
-            if (p.SpawnedHandle.IsValid && ctx.World.IsAlive(p.SpawnedHandle.ChildId))
+            if (p.SpawnedHandle.IsValid && world.IsAlive(p.SpawnedHandle.ChildId))
                 return NodeStatus.Success;
 
-            var child = EqsChildSensor.Ensure(ctx.World, ctx.Self, p.ChildSlotIndex, new EqsSensor
+            var child = EqsChildSensor.Ensure(world, self, p.ChildSlotIndex, new EqsSensor
             {
                 BlueprintId         = p.SensorConfig.BlueprintId,
                 Epoch               = 1,
@@ -248,17 +240,14 @@ namespace Hrot.AI.Behaviors.Brains
         ///   <item><see cref="EqsCognitiveBuffer.IsReady"/> is true: returns Success.</item>
         /// </list>
         /// </summary>
-        [BTreeAction]
-        public static NodeStatus Action_WaitForChildSensor(
-            ref EqsSpawnParams p,
-            ref BehaviorTreeState state,
-            ref BTreeContext ctx)
+        [SharedAiAction]
+        public static NodeStatus Action_WaitForChildSensor(ref EqsSpawnParams p, Entity self, EntityRepository world)
         {
-            if (!p.SpawnedHandle.IsValid || !ctx.World.IsAlive(p.SpawnedHandle.ChildId))
+            if (!p.SpawnedHandle.IsValid || !world.IsAlive(p.SpawnedHandle.ChildId))
                 return NodeStatus.Running;
-            if (!ctx.World.HasComponent<EqsCognitiveBuffer>(p.SpawnedHandle.ChildId))
+            if (!world.HasComponent<EqsCognitiveBuffer>(p.SpawnedHandle.ChildId))
                 return NodeStatus.Running;
-            ref readonly var buf = ref ctx.World.GetComponentRO<EqsCognitiveBuffer>(p.SpawnedHandle.ChildId);
+            ref readonly var buf = ref world.GetComponentRO<EqsCognitiveBuffer>(p.SpawnedHandle.ChildId);
             return buf.IsReady ? NodeStatus.Success : NodeStatus.Running;
         }
     }

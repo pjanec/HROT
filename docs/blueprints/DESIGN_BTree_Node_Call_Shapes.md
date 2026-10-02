@@ -1,7 +1,7 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: BUILDING — C-1 … C-4 APPROVED by the user 2026-10-02 ("Approved"). Slices 1–2 BUILT (§5 boxes); slices 3–4 next.
+build-state: BUILDING — C-1 … C-4 APPROVED by the user 2026-10-02 ("Approved"). Slices 1–3 BUILT (§5 boxes); slice 4 next.
 current-answer: §4 (the four decisions, each with a lean) and §5 (slices).
 stale-below: nothing.
 known-rot: none.
@@ -149,7 +149,7 @@ filed separately when wanted.
 |---|---|---|
 | 1 | ✅ **C-1** classifier (one rule, generator + editor) · validator and emitter dispatch on it · stop writing `DelegateShape` · rail: every corpus binding classifies to its persisted shape *(the equivalence that makes dropping the field safe)* | `btree-persistence-shape.txt`; ⛔ no emitted source |
 | 2 | ✅ **C-2 accept** — BTree emits the stateful and param-less `(…, Entity, EntityRepository)` calls; `C-4` adapter overloads | additive; no golden |
-| 3 | **C-2/C-3 migrate** — the 30 methods + 12 deactivators + `Action_Wander`; curated sites onto the adapters | BTree goldens (call text); `Hrot.AI.Behaviors` |
+| 3 | ✅ **C-2/C-3 migrate** — the 30 methods + 12 deactivators + `Action_Wander`; curated sites onto the adapters | BTree goldens (call text); `Hrot.AI.Behaviors` |
 | 4 | **retire** — the 3-param/4-param BTree author paths (`ReusableStatefulActionDelegate`, the registrar's 3-param adapter, the validator's three BTree checks, `BTreeActionDelegateShape`/`BTreeDelegateShapeDto`) | deletions |
 
 > ⭐⭐ **Slice 1 AS-BUILT (`2026-10-02`) — C-1, the shape is derived.**
@@ -173,6 +173,16 @@ filed separately when wanted.
 > | **C-4** | `SharedNodeBinder` (`Fdp.Toolkits`): four delegates (`SharedNodeAction<P>`, `SharedNodeCondition<P>`, `SharedNodeStatefulAction<P,WS>`, `SharedNodeNoParams` + its `bool` twin) curried ONCE into the kernel delegate, registered under the JSON keys (`fqn@off`, `fqn@po@so`, `fqn`). `SharedNodeBuilderExtensions` (`Hrot.AI.Behaviors`) exposes them as the builder's own verbs — `.Action(bb => bb.P, M)`, `.Condition(M)`, `.StatefulAction(…)`. A lambda is refused (no stable FQN to key by) |
 > | **rails** | `SharedAiBindingCompilesTests.TheSharedStatefulAndParamLessForms_…` (stateful + param-less action + `bool` param-less condition compile with their own signatures, no `BTREE0002`, bare-FQN topology key); `CodeBuiltStatefulActionTests.CodeBuilt_SharedForms_…` (a curated tree ticks all four forms on a real interpreter: params written in place, the right state field advanced, the JSON keys registered) + the lambda refusal |
 > | **deferred to slice 3** | shared-signature DEACTIVATORS (they mirror their action's shape and migrate with it); the inspector composing a working-state variable when a stateful method is picked |
+
+> ⭐⭐ **Slice 3 AS-BUILT (`2026-10-02`) — the methods moved.**
+> | | |
+> |---|---|
+> | **migrated** | 29 node methods in `Hrot.AI.Behaviors` (`CgfNodes` 6 incl. `Action_Wander` → param-less, `CommanderNodes` 1, `DemoCounterNodes` 4, `EqsCombatNodes` 4, `EqsLifecycleNodes` 4, `HillAttackCommanderNodes` 7, `HillAttackTankNodes` 5) to `[SharedAiAction]`/`[SharedAiCondition]` `(ref P[, ref WS], Entity self, EntityRepository world)`; bodies read `self`/`world` (`ctx` was used only for those, §2 S2); two private helpers followed. Direct test callers rewritten to pass `ctx.Self, ctx.World` |
+> | **kept, on purpose** | the 6 production `[BTreeDeactivator]`s keep their old signatures — ⚠ two of their test suites live in `Hrot.IG.Tests` (another lane's path), and slice 2 had already deferred the shared deactivator form. `HideInCoverBehavior.BindSensorHandle` and the `FDP/Examples` nodes are whole-block KERNEL-delegate methods registered directly (`registry.Register(name, M)` / `.Action(M)`), which C-3 leaves alone |
+> | 🔴 **deviation: C-4's runtime half was missing** | 📐 the zero-fallback rail (`BTreeActionRegistryFactoryTests.Scan_BindsEveryNode_…`) went RED: MoveToLocation/FollowRoute/JoinFormation/FireAtTarget unbound. ⭐ Cause, measured: a curated tree runs on the **`byte`** interpreter bound to the assembly-wide registry, and the curated registrar **discards** the builder's registry (typed by the tree's blackboard struct, unusable at `byte`). Those nodes had worked only because the retired per-method `FbtActionRegistrar` adapters registered `fqn@0`. ⭐ Fix: `SharedNodeBinder` also builds each binding's **runtime `byte` thunk** (the old adapter's projection, `BehaviorBlock.Require(ref bb) + offset`), held per builder registry in a `ConditionalWeakTable` (precedent: `AttributeInterpreterProvider`); `BTreeDefinitionGenerator` emits `FbtTreeCatalog.Get{Tree}(isResourceOwning, runtimeActions)` which copies them; `CuratedBehaviorGenerator` calls it. The rail is the red-proof (red before, green after) |
+> | **consequence** | `Hrot.AI.Behaviors` no longer generates an `FbtActionRegistrar` (no `[BTreeAction]` left). `BTreeActionRegistryFactoryTests` re-homed onto the curated registrar filling the runtime registry (the registry hot reload hands it); the SimHost `CE304` rail re-homed onto the HullDownAttackRun asset bridge's thunk |
+> | **tripwire** | `HsmDtoBoundActionTripwireTests` now counts only the legacy `(Type, field)` attribute form — its hazard (an HSM per-method thunk at a baked offset) was retired by CE-417 slice 3a, and the parameterless form binds no DTO |
+> | **goldens** | BTree generated sources: 17 files, +83/−25 — call text only (`(ref dto[, ref ws], ctx.Self, ctx.World)`), plus `Action_Wander` keyed by bare FQN through a bridge thunk. No migrated method carries `[WritesChannel]`, so no channel-release behaviour changed |
 
 **Rails owed:** classifier = persisted shape for every corpus binding (slice 1, then deleted with the field) · the editor
 authors a stateful binding by a pick (red today, S6) · each migrated method's behaviour unchanged through its feature

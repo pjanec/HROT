@@ -46,7 +46,8 @@ public static class T20_MultiStatefulRegistrar
                 {
                     ref var dto = ref Unsafe.As<byte, global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCounterParams>(
                         ref Unsafe.AddByteOffset(ref global::Fdp.Toolkit.Behavior.BehaviorBlock.Require(ref bb), (nint)8));
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ref st, ref ctx);
+                    var status = global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_IncrementCounter(ref dto, ctx.Self, ctx.World);
+                    return status;
                 }
             });
 
@@ -71,7 +72,7 @@ public static class T20_MultiStatefulRegistrar
                         return Fbt.NodeStatus.Failure;
                     }
                     ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(__wsPtr);
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
         actionRegistry.Register("Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor@4@1614982265",
@@ -93,7 +94,7 @@ public static class T20_MultiStatefulRegistrar
                         return Fbt.NodeStatus.Failure;
                     }
                     ref var ws = ref Unsafe.AsRef<global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.DemoCursorState>(__wsPtr);
-                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ref st, ref ctx);
+                    return global::Hrot.AI.Behaviors.Brains.DemoCounterNodes.Action_AdvanceCursor(ref dto, ref ws, ctx.Self, ctx.World);
                 }
             });
 

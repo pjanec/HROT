@@ -154,22 +154,22 @@ public sealed class EqsScoreDeltaTests : IDisposable
             var ctx    = new BTreeContext { Self = entity, World = repo };
 
             // First tick: sensor added with Epoch=1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(0.1f, repo.GetComponentRO<EqsSensor>(entity).ScoreDeltaThreshold);
 
             // Second tick with same params: Epoch stays at 1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
 
             // Third tick: change ScoreDeltaThreshold only. Epoch must increment to 2.
             p.ScoreDeltaThreshold = 0.25f;
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(0.25f, repo.GetComponentRO<EqsSensor>(entity).ScoreDeltaThreshold);
 
             // Fourth tick: same params again. Epoch stays at 2.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
         }
         finally

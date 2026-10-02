@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq.Expressions;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -38,6 +39,35 @@ namespace Fdp.Toolkit.Behavior
     /// </summary>
     public static class SharedNodeBinder
     {
+        // ⭐⭐ CE-504 slice 3 — the RUNTIME half. 📐 Measured: a curated tree runs on the BYTE interpreter
+        //   (`Interpreter<byte, BTreeContext>`, P4-②) bound to the assembly-wide registry, and the builder's own registry —
+        //   typed by the tree's blackboard struct — is DISCARDED by the curated registrar. ⇒ each binding also gets the
+        //   byte thunk the runtime calls (the projection the retired per-method adapters used:
+        //   `BehaviorBlock.Require(ref bb) + offset`), held per builder registry until the generated catalogue copies it
+        //   into the runtime registry (`CopyRuntimeThunks`, called by `FbtTreeCatalog.Get{Tree}(…, runtimeActions)`).
+        private static readonly System.Runtime.CompilerServices.ConditionalWeakTable<object, List<(string Key, NodeLogicDelegate<byte, BTreeContext> Thunk)>>
+            RuntimeThunks = new();
+
+        private static void AddRuntime(object builderRegistry, string key, NodeLogicDelegate<byte, BTreeContext> thunk)
+        {
+            var list = RuntimeThunks.GetOrCreateValue(builderRegistry);
+            lock (list) list.Add((key, thunk));
+        }
+
+        /// <summary>
+        /// Copies every runtime (<c>byte</c>) thunk the shared-node verbs registered while building a curated tree into the
+        /// registry its interpreter is bound to. <paramref name="builderRegistry"/> is <c>builder.GetRegistry()</c>.
+        /// <returns>How many thunks were copied.</returns>
+        /// </summary>
+        public static int CopyRuntimeThunks(object builderRegistry, ActionRegistry<byte, BTreeContext> into)
+        {
+            if (builderRegistry == null) throw new ArgumentNullException(nameof(builderRegistry));
+            if (into == null) throw new ArgumentNullException(nameof(into));
+            if (!RuntimeThunks.TryGetValue(builderRegistry, out var list)) return 0;
+            lock (list) foreach (var (key, thunk) in list) into.Register(key, thunk);
+            return list.Count;
+        }
+
         /// <summary>The plain form, projected at the selected field. Key <c>{Fqn}@{offset}</c>.</summary>
         public static string RegisterAction<TBB, TParams>(
             ActionRegistry<TBB, BTreeContext> registry, Expression<Func<TBB, TParams>> paramSelector,
@@ -49,6 +79,8 @@ namespace Fdp.Toolkit.Behavior
             string key = $"{Fqn(logic)}@{offset}";
             registry.Register(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World));
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World));
             return key;
         }
 
@@ -63,6 +95,9 @@ namespace Fdp.Toolkit.Behavior
             string key = $"{Fqn(logic)}@{offset}";
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, offset)), ctx.Self, ctx.World)
+                    ? NodeStatus.Success : NodeStatus.Failure);
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), offset)), ctx.Self, ctx.World)
                     ? NodeStatus.Success : NodeStatus.Failure);
             return key;
         }
@@ -81,6 +116,10 @@ namespace Fdp.Toolkit.Behavior
                 logic(ref Unsafe.As<TBB, TParams>(ref Unsafe.AddByteOffset(ref bb, po)),
                       ref Unsafe.As<TBB, TWorkingState>(ref Unsafe.AddByteOffset(ref bb, so)),
                       ctx.Self, ctx.World));
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ref Unsafe.As<byte, TParams>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), po)),
+                      ref Unsafe.As<byte, TWorkingState>(ref Unsafe.AddByteOffset(ref BehaviorBlock.Require(ref bb), so)),
+                      ctx.Self, ctx.World));
             return key;
         }
 
@@ -95,6 +134,7 @@ namespace Fdp.Toolkit.Behavior
                 (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => logic(ctx.Self, ctx.World);
             if (isCondition) registry.RegisterCondition(key, thunk);
             else             registry.Register(key, thunk);
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) => logic(ctx.Self, ctx.World));
             return key;
         }
 
@@ -106,6 +146,8 @@ namespace Fdp.Toolkit.Behavior
             Require(registry, logic);
             string key = Fqn(logic);
             registry.RegisterCondition(key, (ref TBB bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
+                logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
+            AddRuntime(registry, key, (ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int _) =>
                 logic(ctx.Self, ctx.World) ? NodeStatus.Success : NodeStatus.Failure);
             return key;
         }

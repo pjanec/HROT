@@ -298,22 +298,22 @@ public sealed class EqsContextSlotTests : IDisposable
             var ctx    = new BTreeContext { Self = entity, World = repo };
 
             // First tick: sensor added with Epoch=1 and ContextSlot1=entityA.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(entityA, repo.GetComponentRO<EqsSensor>(entity).ContextSlot1);
 
             // Second tick: same params, Epoch stays at 1.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(1u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
 
             // Third tick: change ContextSlot1 to entityB. Epoch must increment to 2.
             p.ContextSlot1 = entityB;
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
             Assert.Equal(entityB, repo.GetComponentRO<EqsSensor>(entity).ContextSlot1);
 
             // Fourth tick: same params again. Epoch stays at 2.
-            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ref state, ref ctx);
+            EqsLifecycleNodes.Action_MaintainEqsSensor(ref p, ctx.Self, ctx.World);
             Assert.Equal(2u, repo.GetComponentRO<EqsSensor>(entity).Epoch);
         }
         finally

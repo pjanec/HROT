@@ -120,7 +120,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: queues CreateEntity + AddComponent via ECB.
-        var result = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        var result = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
 
         Assert.Equal(NodeStatus.Success, result);
 
@@ -156,7 +156,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Tick 1: spawn via ECB.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity realChild = FindChildByMeta(_parent, expectedInstanceId);
@@ -166,7 +166,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         p.SpawnedHandle = new EqsSensorHandle(realChild);
 
         // Tick 2 (steady-state): valid handle -- must return Success without queuing anything.
-        var result2 = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        var result2 = EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         Assert.Equal(NodeStatus.Success, result2);
 
         // ECB must be empty (no new CreateEntity).
@@ -190,12 +190,12 @@ public sealed class EqsChildSensorActionTests : IDisposable
 
         // Slot 0.
         var p0 = MakeParams(0);
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p0, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p0, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         // Slot 1.
         var p1 = MakeParams(1);
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p1, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p1, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         int id0 = LocalChildIndex(_parent, 0);
@@ -226,7 +226,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity child = FindChildByMeta(_parent, expectedInstanceId);
@@ -262,7 +262,7 @@ public sealed class EqsChildSensorActionTests : IDisposable
         var ctx   = new BTreeContext { Self = _parent, World = _repo };
 
         // Spawn and materialise.
-        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ref state, ref ctx);
+        EqsLifecycleNodes.Action_SpawnEqsSensorChild(ref p, ctx.Self, ctx.World);
         PlaybackAndClearEcb();
 
         Entity child = FindChildByMeta(_parent, expectedInstanceId);

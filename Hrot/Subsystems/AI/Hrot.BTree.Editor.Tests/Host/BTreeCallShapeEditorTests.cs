@@ -72,7 +72,8 @@ public sealed class BTreeCallShapeEditorTests
 
         BTreeCallShapeResolver.Resolve(asset, BTreeCallShapes.LoadedAssemblySignatures()).Should().Be(1);
 
-        node.DelegateShape.Should().Be(BTreeActionDelegateShape.FourParamFull);
+        // ⭐ CE-504 slice 3 — C-3 moved Wander to the param-less shared form, so it derives NoParams (was FourParamFull).
+        node.DelegateShape.Should().Be(BTreeActionDelegateShape.NoParams);
     }
 
     [Fact]
