@@ -108,11 +108,15 @@ public static class MoveToAndFire_649F8F53_Bp
         if (__t13)
             goto __block_phase1_failure;
         else
-            goto __block_wait_resume_0;
+            goto __block_phase1_success;
         
         __block_phase1_failure:
         ws.__phase = 0;
         return global::Fbt.NodeStatus.Failure;
+        
+        __block_phase1_success:
+        ws.__phase = 0;
+        goto __block_wait_resume_0;
         
     }
     

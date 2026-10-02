@@ -145,11 +145,15 @@ public static class ChannelMoveAndWaitDemo_FF75553A_Bp
         if (__t22)
             goto __block_phase1_failure;
         else
-            goto __block_wait_resume_0;
+            goto __block_phase1_success;
         
         __block_phase1_failure:
         ws.__phase = 0;
         goto __block_wait_fail_0;
+        
+        __block_phase1_success:
+        ws.__phase = 0;
+        goto __block_wait_resume_0;
         
     }
     

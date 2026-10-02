@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — direction approved by the user 2026-10-02 ("this enforces a true unification. great. Concurrency
-  should be natively supported, and we should remove any blockers that prevent it. cycles needs checking."); the
-  decisions in §5 await the user's answer.
+build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this enforces a true unification. great.
+  Concurrency should be natively supported, and we should remove any blockers that prevent it. cycles needs
+  checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
+  U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory.
 stale-below: nothing yet.
 known-rot: none.
@@ -52,9 +53,9 @@ it one way. Three things are missing:
 | I8 | ⛔ **keys fold the host ASSET, not the host occurrence** ⇒ the same grandchild under two sites collides. `ComputeNested` exists and is unused here | `OccurrenceSlotKey.cs:104-124, 168-176` |
 | I9 | concurrency today: BTree Parallel with two subtree nodes ✅ (distinct site keys); HSM parallel regions ✅ | `BTreeHostedSites.cs:82-109`; `BrainTickSystem.cs:703-728` |
 | I10 | ⛔ a blueprint has **ONE cursor for every graph**, and resume indices restart at 1 in each graph. 16 sites assume one suspension per payload | sweep table, e.g. `WaitLowering_Instance.cs:89,126-169`; `StatementEmitter.cs:808-861` |
-| I11 | ⛔ an Event graph's method has no `instanceVersion` while its latent lowering uses it (suspected compile error, unproved) | `InstanceEmitter.cs:440-446` vs `StatementEmitter.cs:809,852` |
-| I12 | ⛔ a channel/inline-action SUCCESS resumes without clearing `ResumeAt` (suspected re-run of the continuation, unproved) | `WaitLowering_Instance.cs:229-233` vs `:240,293,375` |
-| I13 | ⛔ three hand-written latent-node lists (`BP1650`, `BP1101`-library, `BP2050`) miss inline actions; `MacroLatency.IsLatent` is the one detector | `Stage2_Validate.cs:2280, 665-684, 2566`; `MacroLatency.cs:38-40` |
+| I11 | ✅ **MEASURED + interim fix (S1, CE-522 — filed as `CE-509`, renumbered at merge):** a latent node in an Event graph failed as Roslyn `CS0103 'instanceVersion'` in GENERATED code. Now refused by **BP1658**, which names the node; the rule is removed when fibers land (S6a) | `InstanceEmitter.cs:440-446` vs `StatementEmitter.cs:809,852`; rail `BlueprintBehaviourTests.S1_ALatentNodeInAnEventGraph_…` |
+| I12 | ✅ **MEASURED + FIXED (S1, CE-522 — filed as `CE-509`, renumbered at merge):** a channel/event/inline-action SUCCESS resumed without clearing the cursor, so every later pass re-ran ONLY the code after the wait (measured: 1 pass before the wait, 5 after, in 5 frames). Both lowerings (Instance `ResumeAt` and AiPrimitive `__phase`) now go through a `success` block that clears it, like Failure and Delay already did | `WaitLowering_Instance.cs`, `WaitLowering_AiPrimitive.cs`; rails `S1_AfterAChannelWaitSucceeds_…`, `AiPrimitive_ASuccessfulWait_ClearsThePhase_…` |
+| I13 | ✅ **FIXED (S1, CE-522 — filed as `CE-509`, renumbered at merge):** the three rules (`BP1650`, library `BP1101`, `BP2050`) now ask `MacroLatency.IsLatent`, so an inline action is caught. The library rule had NO test before | `Stage2_Validate.cs`; rails in `BATCH03B_…`, `Stage1To5Tests`, `V_FlowForEachValidatorTests` |
 | I14 | two suspension mechanisms: Instance cursor vs AiPrimitive `__phase` + `__waitUntilTime` | `AiPrimitiveLowering.cs:50-84`; Q33 §1.5.5 |
 | I15 | cycles: an editor DFS for BTree/HSM assets only (`SubtreeCycleDetector`); ⛔ nothing for blueprints, nothing at registration, nothing for curated hosts | `SubtreeCycleDetector.cs:45-93`; `BTreeValidator.cs:92-115`; `HsmValidator.cs:516-538` |
 | I16 | no Parallel/Fork node in blueprints; Sequence is sequential; fan-out of one exec pin is `BP1412` | `Nodes.cs:193`; `Stage5_Schedule.cs:837-916, 4122-4144` |
@@ -162,14 +163,71 @@ and nesting the same mechanism.
 
 | # | slice | delivers |
 |---|---|---|
-| S1 | rails first for I11–I13 | prove or refute the event-graph latent compile failure and the success-path cursor; one latent detector (`MacroLatency.IsLatent`) for all three rules |
+| S1 ✅ BUILT | rails first for I11–I13 | all three PROVED, then fixed (§2 rows I11–I13) |
 | S2 | blueprint block / `Exec` split | block = `{In; St}`; `Exec` = cursor + locals + `When` memory in the brain-state slot; the own resolver gets `(in Params authored, ref Block block)`. Q77 §3 C superseded |
 | S3 | manifest | blueprint registrar emits `JsonParamsDtoType` + `ManagedBlackboardVariables` ⇒ watch, `GET /behaviors`, inspector work with no tier branch |
 | S4 | one runner contract | `IBehaviorRunner` + `BrainStateBytes`; `BrainTickSystem` collapses to one arm; per-tier quirks (Paused, trace, interrupt) move into their runner |
 | S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector |
 | S6 | native concurrency in blueprints | a FIBER per top-level graph (Tick, each Event graph) and per branch of a new `Parallel` node; per-fiber cursor, locals and `When` memory; the 16 single-cursor sites (I10) rewritten against a fiber index |
-| S7 | `Run Behaviour` blueprint node | latent, blocking, any tier as child; concurrency = several of them in parallel fibers |
+| S7 | **Behaviour Task** blueprint node (U-11) | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
 | (S8) | converge AiPrimitive suspension (I14) | `__phase`/`__waitUntilTime` → the same fiber cursor (Q33 §1.5.5). Separate design question, see §6 |
+
+
+### 4a. What fibers take *(S6, the largest slice — split in three)*
+
+| step | change | measured site it removes |
+|---|---|---|
+| ① find the fibers at compile time | the Tick graph; each latent Event graph × its policy's N; each Task node's completion pins. Each gets a fixed index | I10 (one cursor for all graphs) |
+| ② lay them out | `Exec` = one record per fiber: cursor + that fiber's locals + its `When` memory (+ the event payload for an Event fiber that suspends). Fixed size ⇒ no allocation | I3, Q27's per-graph locals, the 8-hex `When` key |
+| ③ lowering by index | the cursor IR ops carry a fiber index ⇒ `x.F2.ResumeAt` instead of `s.Cursor.ResumeAt`; each graph dispatches on its OWN fiber's cursor; version check and reset per fiber | `WaitLowering_Instance.cs:89,126-169,240,293,375`, `StatementEmitter.cs:808-861` (incl. the I12 success path) |
+| ④ the generated scheduler | `BehaviorTick` = dispatch events to a free fiber per policy (overflow ⇒ fault) → resume each active fiber in index order → tick Task sites, fire `While Running`, start a completion fiber when a task ends. Straight-line generated code, deterministic | `BlueprintEventDispatch.cs:42-53`, I11 |
+| ⑤ abort | clear a fiber's record + abort the Task sites it started (recursively); `Finish` aborts all | U-8 |
+| ⑥ the readers | debugger / inspector show a fiber list; `StructureHash` covers fiber layout and resume numbering (hot reload) | sweep rows 13, 15 |
+
+⭐⭐ **Recording and replay** *(user, 2026-10-02: "the event queue needs to be saved as part of the blueprint state,
+serializable to recording so that replay reconstructs the queue")*. All of a blueprint's execution state lives in its
+`Exec` record **inside the occurrence store**: every fiber's cursor, locals and `When` memory, every waiting fiber's copy
+of its event, and the Queue(N) ring. The store components are `[DataPolicy(NoScenario)]` only
+(`BlueprintBlackboard1024.cs:16`). Per `DataPolicyAttribute.cs`, that means **recorded by the Flight Recorder and
+binary checkpoints, and omitted from scenario JSON**, so a replay or checkpoint restore reconstructs every fiber and
+every queued event.
+⛔ **Hard rules that keep this true:**
+- the queue and payload copies are fixed-size and blittable;
+- ⛔ **no managed side structure** (no `List`/`Dictionary` of pending events);
+- ⛔ ~~an event type a waiting handler copies must be unmanaged (bus events already are)~~ — **WRONG, corrected
+  2026-10-02** (user: *"the events might be managed objects"*). The bus has a managed channel (`PublishManaged`). Today a
+  blueprint Event graph receives **unmanaged events only** (`BlueprintEventDispatch.cs:47`, `ReadRawByTypeId`), so a
+  managed event handler is new capability that S6b must add. The rule is therefore:
+  - ⭐⭐ **ONE BYTE RING inside the blueprint's brain-state slot holds EVERY pending event** *(user ruling 2026-10-02:
+    "serialize to a ring byte buffer within the blackboard slot" — supersedes a per-event-type generated managed
+    component, rejected by the user)*. Each record is `[eventTypeId][length][bytes][state]`:
+    - an **unmanaged** event is copied in raw (a memcpy, no allocation);
+    - a **managed** event is serialized into the ring by the same serializer the recorder uses for managed state
+      (`FdpAutoSerializer`), written straight into the ring span; it is deserialized when its handler runs.
+  - **One ring, two users:** a Queue(N) handler's waiting events, AND the event a waiting fiber is still holding (a
+    fiber keeps the offset of its record). A record is marked free when its fiber ends; the ring's head advances over
+    freed records, so out-of-order completion (Parallel(N)) needs no compaction.
+  - **Capacity** is fixed per blueprint at compile time (derived from the declared policies, author-adjustable).
+    Overflow ⇒ `BehaviorFault` + log, never a silent drop.
+  - ⭐ The ring is ordinary bytes in the recorded store ⇒ **replay and checkpoints reconstruct it with no special
+    handler**, managed events included.
+  - ⚠ **Cost, stated honestly:** a managed event allocates when its handler deserializes it. A managed event already
+    allocates when it is published, so this adds one object per handled managed event, not a per-frame cost.
+    Unmanaged events stay allocation-free.
+  - ⛔ rejected: holding managed references in a generated per-event-type managed component (a component per type,
+    per-type fixed capacities: user, 2026-10-02 *"Come on"*); a custom serializer hook on the slot.
+  - ⚠ to check in S6b: `FdpAutoSerializer` can write into a caller-supplied span without an intermediate
+    `MemoryStream` (otherwise a small adapter over the ring).
+- the queue layout is part of `StructureHash`.
+
+📋 **Rail (S6b):** fill a queue, checkpoint, restore into a fresh world, tick; the same events are handled in the same order.
+⚠ Pre-existing, outside this design: `BrainTickSystem` keeps two managed dictionaries (`_publishedTerminalForInstanceId`,
+`_blueprintLayout`) that are not recorded. Recorded to check in S4, when that system is collapsed.
+
+⭐ **Instances use the same lowering** (one compiler path, no fork); their `Exec` stays inside their single payload
+because an Instance is not a behaviour. ⚠ Cost: every Instance's `StructureHash` and golden moves once.
+**Split:** S6a per-graph fibers (Tick + Event graphs; fixes I10–I12) · S6b event policies (U-6) · S6c Task-node
+completion fibers (lands with S7).
 
 ## 5. Decisions — each with a lean
 
@@ -177,16 +235,25 @@ and nesting the same mechanism.
 |---|---|---|---|
 | U-1 | blueprint brain state | ⭐ out of the block (R-151 literal) | cursor in the block (Q77 §3 C): leaks into resolvers, needs its own hosting slot |
 | U-2 | the run contract | ⭐ one `IBehaviorRunner` per tier on the definition; root = hosted with no host | per-pair hosting paths: up to 9 |
-| U-3 | blocking | ⭐ the HOST decides: BTree node and blueprint latent node block; HSM state does not (Q33 §1.5.4, unchanged) | a child-side flag |
+| U-3 | ~~blocking~~ ⛔ **DROPPED 2026-10-02** | the Behaviour Task node (U-11) makes "waiting" a matter of which pins are wired; a BTree node still reports the child's status; an HSM state stays non-blocking (Q33 §1.5.4) and gets an automatic `ChildFinished(Success/Failure)` event | — |
 | U-4 | an HSM child's "finish" | ⭐ `Terminated` ⇒ Success, exactly as the root arm reads it | a new HSM status |
 | U-5 | fibers | ⭐ a fixed set known at compile time (top-level graphs + `Parallel` branches), each with its own cursor, locals and `When` memory, laid out in `Exec` ⇒ no allocation | a dynamic fiber pool: allocation on the hot path |
-| U-6 | an Event graph that fires while its fiber is suspended | ⭐ **ignored** (the fiber is busy; a later event can re-enter it once it ends). Deterministic, no queue | restart it (drops the in-flight wait) · queue (needs storage per event type) |
-| U-7 | `Parallel` node | ⭐ one node, mode `All` / `Any`; on `Any` the losing fibers are ABORTED (their hosted children recursively) | two nodes |
+| U-6 | an Event graph that fires while its fiber is suspended | ⭐ **author's policy on the Event node, never silent** (revised 2026-10-02 — user: *"events carry information, can't be just ignored"*): **Parallel(N)** default (one fiber per arrival, N fixed at compile time), **Restart** (newest wins), **Queue(N)**; overflow ⇒ `BehaviorFault` + log. A latent-free handler is unaffected (runs to completion per event) | ignore (Unreal `Delay` semantics: the event is lost) |
+| U-7 | `Parallel` node | ⏸ **DEFERRED** (demand-driven): the Behaviour Task node already gives native concurrency. When built: one node, `All` (join) / `Any` (race, losers aborted recursively) | two nodes |
 | U-8 | the behaviour finishes while fibers are live | ⭐ the Tick fiber's `Return` finishes it; every other fiber is aborted (CE-449: finish = clear) | wait for all fibers: a run that cannot end |
 | U-9 | cycle checking | ⭐ at registration over the real hosting edges (throws, catches curated hosts) + the editor detector extended to blueprints | a runtime depth counter on the hot path |
 | U-10 | a child's `InstanceId` | ⭐ the host's (unchanged: channels reset with the host) | its own |
+| U-11 | how a blueprint hosts a behaviour | ⭐ ONE **Behaviour Task** node: in `Start`, `Abort`; out `Started` (immediately), `While Running` (every tick, latent-free — a BP2050-shaped rule), `Succeeded`/`Failed` (once, each a fiber). "Run and wait" = only the completion pins wired. Start while running ⇒ **Restart** (newest order wins) | two nodes (blocking + non-blocking) |
 
 ## 6. What this opens, not decided here
+
+**The mission plan as a blueprint** (user, 2026-10-02: *"implement the mission plan as a simple graphical blueprint, a
+sequence of individual behavior nodes (mission tasks), with branching depending on the results of the task, with
+triggers"*). Today `DomainMissionPlan` is a LINEAR task list advanced by `MissionDirectorSystem` on a hard-coded
+`MissionTrigger` enum (TimerElapsed / UnderAttack / HealthCritical / BehaviorFinished). A mission blueprint of Behaviour
+Task nodes would retire both. ⛔ Separate design (agreed): it touches the `MissionTask` DDS messages, scenario
+persistence, the ExCon mission editor (UI lane) and `MissionAdapterSystem`.
+
 
 An AiPrimitive (a blueprint used as a BTree action) has the same shape as a hosted blueprint behaviour run by a
 blocking host:
@@ -196,3 +263,24 @@ blocking host:
 
 S8 could make it **the same thing**. Conditions and guards stay separate, since they must answer in one tick
 (Q33 §1.5.4). This is filed for a follow-up design, not this one.
+
+## 7. The demonstration set *(user, 2026-10-02: "create sample blueprints demonstrating the whole system with behaviors and events")*
+
+Every demo ships as a corpus asset under `Hrot.AI.Behaviors/Assets/` (compiled by the production generator, with a golden
+file) and has a **rail that runs it through the real `BrainTickSystem`**, placed in the feature's own suite (`T-1`). The
+capstone also ships as a scenario and is run on a real cluster (`RUNBOOK_Cluster_Debugging_Over_Http.md`). The child
+behaviours are existing curated ones (`MoveToLocation`, `FollowRoute`, `FireAtTarget`, `Idle`, `WanderMilitary`) plus small
+demo children, so the demos exercise the production paths.
+
+| demo | lands with | shows | proven by |
+|---|---|---|---|
+| **Demo_PatrolAndReact** (blueprint behaviour) | S1 + S6a | Tick: patrol with `Delay`s · Event graph `OnDamaged`: wait 2 s, then react — **both suspended at once** | rail: a hit arrives mid-`Delay`; the patrol and the reaction both resume correctly (red today: one shared cursor) |
+| **Demo_BlockAndWatch** (blueprint behaviour) | S2 + S3 | Params + Variables in the block; its own resolver sees only the blackboard | rails: the resolver's signature has no cursor; the watch pane and `GET /behaviors` show its params |
+| **Demo_HostMatrix** (3 tiny children + 3 hosts) | S4 + S5 | BTree hosts HSM · HSM hosts blueprint · blueprint hosts BTree, plus a 3-deep chain | rail: one test over all 9 host×child pairs; abort mid-run frees the whole chain; the same child under two sites does not collide |
+| **cycle fixture** (test-only, not shipped) | S5 | A hosts B hosts A | rail: registration throws; the editor validator reports it |
+| **Demo_EventPolicies** (blueprint behaviour) | S6b | `OnHit` Parallel(3) · `OnNewTarget` Restart · `OnRadio` Queue(4) | rail: a burst of each event type; counters show every event handled; the 4th parallel hit raises a fault, it is not dropped; ⭐ checkpoint with events queued and handlers waiting → restore → the same events are handled in the same order |
+| **Demo_TaskChain** (blueprint behaviour) | S6c + S7 | Behaviour Task nodes: MoveTo ─Succeeded→ FireAtTarget ─→ Idle; Failed → Retreat | rail: each pin fires once, in order; `Abort` stops a running task and its children |
+| ⭐ **Demo_MissionPlan** + scenario `scenarios/mission-demo-bp` (capstone) | after S7 | a mission as a blueprint: MoveTo → Defend (While Running: health < 30% → Abort → Retreat) → Return; an `OnDamaged` reaction running alongside | rail through the real pack + a `--mode all` cluster run over HTTP, read back per task |
+
+⚠ Demo_MissionPlan demonstrates the CONCEPT only. Replacing `MissionDirectorSystem` / the networked mission plan is the
+separate design in §6.

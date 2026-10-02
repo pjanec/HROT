@@ -94,6 +94,7 @@ public static class DiagnosticCodes
     // Warning also keeps the pipeline reaching emit, which is what lets the authoring-path matrix
     // prove `return default;` through Roslyn -- as an Error that code path was unprovable.
     public const string BP1657 = "BP1657";  // [Warning] Library graph declares outputs but an exec path ends with no Return node
+    public const string BP1658 = "BP1658";  // S1 / DESIGN_Unified_Behaviour_Run I11: a latent node in an Event graph (one cursor per payload until fibers, S6a)
 
     // BP-80 / Macro_Implementation_Design §4. BP1660-BP1667 are RESERVED for the macro rails
     // (BP-81/BP-82) and are deliberately not defined yet — the implementing slice defines them.
