@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution (user: "Solution agreed", 2026-10-02) · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.10 parts · §0.11 crash = dispose · §0.12 external nodes · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
+current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution (user: "Solution agreed", 2026-10-02) · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.10 parts · §0.11 crash = dispose · §0.12 external nodes · §0.13 BUILD READINESS (scope + what is missing) · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -280,6 +280,35 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | E5 | ⚠ **Confirm-write:** spec says the new owner writes the descriptor to confirm. Not measured whether our egress publishes a newly gained, unchanged descriptor at once or waits for the throttled refresh |
 
 ✅ **O6 answered (R-166):** `SST_OwnershipUpdate`.
+
+### 0.13 ⭐⭐ BUILD READINESS *(checked `2026-10-02`)* — what the build contains, and what is missing before it can start
+
+**Build scope** (everything §0.7–§0.12 settled):
+
+| # | item | ids |
+|---|---|---|
+| B1 | one creation composition on every ECS node (adapters + strategy on SimHost/Stride; yield ungated) | `CE-508`, `CE-509` |
+| B2 | ownership GROUPS defined once, network-agnostic; NED maps descriptors to them; brain-only components linked to the brain descriptor | G2, G3, G6, R-165 |
+| B3 | the strategy shards per group: brain group → a Brain node, kinematic group → a Muscle node; group-aware, template-aware (`BrainTier`) | G1, G5, P8 |
+| B4 | retire the promote-leg claim (`GhostPromotionSystem.cs:313-324`) | ③, R-164 |
+| B5 | record follows claim (R-159), treating descriptors with an unconfirmed outgoing grant as still the creator's | ④, P6 |
+| B6 | parts: gate lookup `(d,i)`→`(d,0)`→primary; part's own claim from its root at creation; per-instance `OwnershipUpdate` sets the PART's claim; drop `PartMetadata.DescriptorOrdinal`; fix `CE-507` | §0.10, R-168 |
+| B7 | crash reclaim: on a non-master non-alive sample, every node calls the ownership-apply logic directly (no message), guarded by "current owner is the departed node" | §0.11, R-167, P10 |
+| B8 | rails: `CE-500` (SimHost-created entity, CGF brain publishes); "no component claimed by two nodes" on every creation path (§10 probe as a rail); partial-owner crash; external `OwnershipUpdate` hand-in/hand-back | — |
+
+**Missing before code can start:**
+
+| # | what | blocks | lean |
+|---|---|---|---|
+| M1 | ⛔ **the owning DESIGN doc with UML** — class, sequence and module diagrams, INVENTORY, `build-state: READY-TO-BUILD`. Q79's §2 diagrams are the superseded proposal (known-rot) | everything (CLAUDE.md: no implementation without UML) | a NEW `docs/DESIGN_Ownership_Groups_And_Grants.md`; Role-Affinity keeps only its §0a-banner "kept" sections |
+| M2 | ⛔ **the classification pass** — every component on a CGF-/SimHost-created entity → which systems write it, on which host → its group (O1, O3, G6) | B2, B3, the UML | do it as step 1 of the build session (§0.6) |
+| M3 | ⚠ **O2 — `dtWorldPos` whole or split**; Role-Affinity §3.1 vs Node_Roles §4.1 disagree on `SimVelocity` | B2 | WHOLE: a group must be whole descriptors (P4, E2), so `SimTransform`, `SimVelocity`, `VehicleState`, `VehicleParams`, `NavState` move together as the kinematic group; reconcile both docs to that |
+| M4 | ⚠ **O4 — claim readers** that change behaviour when the promote leg goes (attribute changes on IG-created entities, F2) | B4 | list them in M2's table; each gets a rail or a note |
+| M5 | ⚠ **phasing of `CE-506`** (the one authority for moves after creation: late joiners P2/G4, load rebalancing P7) | B3's later half | **phase 2.** Phase 1 = the creator decides at creation only (already how grants work); rails stay green because nothing moves later today |
+
+**Measure during the build (not blocking):** C1 (which DDS state a hard crash produces) · P10 (writer auto-dispose: the C# wrapper exposes no QoS for it ⇒ Cyclone's default, auto-dispose ON; the runtime does expose a `PublicationHandle`, usable for the guard) · E5 (does a newly gained, unchanged descriptor publish at once).
+**Already in place:** feature suites `SplitAuthoritySpawnTests`, `RoleAffinityPolicyTests`, `HrotRoleComponentSetsTests`; a foreign-process harness `ExternalHostConformanceTests` (opt-in, `DESIGN_Cross_Node_Construction_Barrier.md` §3d) to reuse for the external rails. No `CE-500` rail exists yet.
+**Lane fences:** the scope measured so far touches `Fdp.Toolkits/Replication`, `Hrot.Core`, `Hrot.Network.NED`, the bootstrappers — no `Behavior/**`, `Hrot.AI.Behaviors/**` or blueprint-compiler edits (brain component TYPES are read for the group masks, not changed).
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
