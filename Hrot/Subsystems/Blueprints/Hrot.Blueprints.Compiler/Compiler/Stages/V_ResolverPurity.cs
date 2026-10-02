@@ -77,6 +77,7 @@ internal sealed class V_ResolverPurity : IValidator
         typeof(LatentDelayNode),
         typeof(WaitForChannelNode),
         typeof(WaitForEventNode),
+        typeof(RunBehaviorNode),          // S5d: runs a child behaviour across frames
         typeof(WhenNode),
 
         // ── see gap ② in the class doc ────────────────────────────────────────

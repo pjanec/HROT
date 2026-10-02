@@ -554,7 +554,8 @@ internal static class InstanceEmitter
         e.WriteLine("global::Fdp.Core.Entity self,");
         e.WriteLine("float time,");
         e.WriteLine("float deltaTime,");
-        e.WriteLine("uint instanceVersion)");
+        // ⭐ S5d — a behaviour's Tick knows the occurrence it runs as, for the children it hosts (Run Behaviour).
+        e.WriteLine(behaviour ? "uint instanceVersion, int occurrenceKey)" : "uint instanceVersion)");
         e.Outdent();
         e.WriteLine("{");
         e.Indent();
@@ -587,8 +588,24 @@ internal static class InstanceEmitter
     /// enumerator allocation), then the Tick, whose status ends the behaviour.</item>
     /// </list>
     /// </summary>
+    /// <summary>⭐ S5d — every Run Behaviour site in the asset (one per node), from the lowered IR.</summary>
+    internal static IReadOnlyList<IrOp_RunBehavior> RunBehaviorSites(IrAsset asset)
+        => asset.Graphs.SelectMany(g => g.Blocks).SelectMany(b => b.Statements)
+               .Select(st => st.Operation).OfType<IrOp_RunBehavior>()
+               .GroupBy(op => op.SiteId).Select(grp => grp.First()).OrderBy(op => op.SiteId).ToList();
+
+    /// <summary>⭐ S5d — the generated field holding a Run Behaviour site's hosted-slot key.</summary>
+    internal static string RunSiteField(IrOp_RunBehavior op) => $"__RunSite_{op.SiteId:N}";
+
     private static void EmitBehaviorEntryPoints(CSharpEmitter e, IrAsset asset)
     {
+        // ⭐ S5d — each Run Behaviour site's hosted-slot key, computed ONCE (the hash is internal to the runtime): the same
+        //   function a BTree host's key comes from (host asset, site node, child asset).
+        foreach (var site in RunBehaviorSites(asset))
+            e.WriteLine($"public static readonly int {RunSiteField(site)} = global::Fdp.Toolkit.Behavior.OccurrenceSlots.TreeStateKeyFor("
+                + $"new global::System.Guid(\"{asset.AssetId}\"), new global::System.Guid(\"{site.SiteId}\"), "
+                + $"global::Fdp.Toolkit.Behavior.BTreeHostedSites.AssetIdFromName(\"{site.BehaviorName}\"));");
+
         // ⭐ S3 (DESIGN_Unified_Behaviour_Run) — the Input manifest, exactly what a BTree/HSM registrar publishes: one
         //   entry per Parameter at its offset in the block (In sits at 0). The offsets are MEASURED on the real struct
         //   (managed layout), never baked — right under either layout regime.
@@ -663,7 +680,7 @@ internal static class InstanceEmitter
         e.WriteLine("/// <summary>CE-446 / S2: this frame's events, then the Tick — its status ends the behaviour.</summary>");
         e.WriteLine("public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block, ref byte exec,");
         e.WriteLine("    global::Fdp.Core.EntityRepository world, global::Fdp.Interfaces.IEntityCommandBuffer ecb,");
-        e.WriteLine("    global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId)");
+        e.WriteLine("    global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId, int occurrenceKey)");
         e.WriteLine("{");
         e.Indent();
         e.WriteLine("ref var __bb = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Block>(ref block);");
@@ -680,7 +697,7 @@ internal static class InstanceEmitter
             e.Outdent();
             e.WriteLine("}");
         }
-        e.WriteLine("return Tick(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId);");
+        e.WriteLine("return Tick(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey);");
         e.Outdent();
         e.WriteLine("}");
     }

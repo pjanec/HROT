@@ -19,7 +19,10 @@ internal static class WaitLowering_Instance
     private static readonly IrTypeRef EntityType =
         new IrTypeRef { FullName = "Hrot.Blueprints.Core.Assets.Entity", IsUnmanaged = true, SizeBytes = 4 };
 
-    public static IrGraph Apply(IrGraph graph)
+    /// <param name="behaviorTick">⭐ S5d — the graph is a behaviour's <c>Tick</c>, where a plain return means RUNNING
+    /// (<c>CE-446</c>). ⇒ an unwired <c>OnFailure</c> must return <c>Failure</c> explicitly, as Q#13 rules, rather than
+    /// fall off into Running and silently retry the wait from Entry next frame.</param>
+    public static IrGraph Apply(IrGraph graph, bool behaviorTick = false)
     {
         var suspendBlocks = graph.Blocks
             .Where(b => b.Terminator is IrTerm_Suspend)
@@ -87,10 +90,10 @@ internal static class WaitLowering_Instance
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
             var keptStmts = sb.Statements
-                .Where(s => s.Operation is not (IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall))
+                .Where(s => !SuspendOps.Is(s.Operation))
                 .Where(s => !(s.ResultValue.HasValue && s.ResultValue.Value.Index == resumePointIdx))
                 .ToList();
 
@@ -187,10 +190,11 @@ internal static class WaitLowering_Instance
 
             IrOperation? waitOp = sb.Statements
                 .Select(s => s.Operation)
-                .FirstOrDefault(o => o is IrOp_WaitForChannel or IrOp_WaitForEvent or IrOp_LatentDelay or IrOp_InlineActionCall);
+                .FirstOrDefault(SuspendOps.Is);
 
-            if (waitOp is IrOp_InlineActionCall iac)
+            if (waitOp is IrOp_InlineActionCall or IrOp_RunBehavior)
             {
+                // ⭐ S5d — Run Behaviour shares this path: the op is re-invoked each frame and its status routes the resume.
                 // AN8 inline-latent: cursor-based re-invoke (Instance blueprint).
                 // Check block: CheckCursorVersion + re-call action + branch on Running.
                 var statusV    = Alloc(NodeStatusType);
@@ -200,7 +204,7 @@ internal static class WaitLowering_Instance
                 var checkStmts = new List<IrStatement>
                 {
                     Stmt(null,      new IrOp_CheckCursorVersion()),
-                    Stmt(statusV,   new IrOp_InlineActionCall(iac.ActionFqn, iac.ParamsTypeFqn, iac.ParamFields, iac.IsAiPrimitive)),
+                    Stmt(statusV,   waitOp),   // records are immutable ⇒ the same op, re-emitted here
                     Stmt(constRunV, new IrOp_Const("NodeStatus.Running", NodeStatusType)),
                     Stmt(isRunV,    new IrOp_PureCall("op_Eq_NodeStatus",
                                         new[] { statusV, constRunV }, BoolType)),
@@ -258,7 +262,7 @@ internal static class WaitLowering_Instance
                     // present; null FailureBlock (inline-action / unwired OnFailure) ⇒ plain return.
                     Terminator = suspend.FailureBlock is { } onFailBlk
                         ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
-                        : new IrTerm_Return(null) { Debug = Synth() },
+                        : UnwiredFailure(behaviorTick, Synth()),
                 });
             }
             else if (waitOp is IrOp_LatentDelay)
@@ -401,7 +405,7 @@ internal static class WaitLowering_Instance
                     // present; null FailureBlock (inline-action / unwired OnFailure) ⇒ plain return.
                     Terminator = suspend.FailureBlock is { } onFailBlk
                         ? new IrTerm_Goto(onFailBlk) { Debug = Synth() }
-                        : new IrTerm_Return(null) { Debug = Synth() },
+                        : UnwiredFailure(behaviorTick, Synth()),
                 });
             }
         }
@@ -529,5 +533,12 @@ internal static class WaitLowering_Instance
 
         return candidates.Where(b => reachable.Contains(b.Id.Value)).ToList();
     }
+
+    /// <summary>Q#13 — an unwired <c>OnFailure</c>: a behaviour Tick returns <c>Failure</c>; any other graph has no
+    /// status to report and simply returns.</summary>
+    private static IrTerminator UnwiredFailure(bool behaviorTick, IrDebugAnnotation debug)
+        => behaviorTick
+            ? new IrTerm_ReturnStatus(Hrot.Blueprints.Core.Assets.NodeStatus.Failure) { Debug = debug }
+            : new IrTerm_Return(null) { Debug = debug };
 }
 

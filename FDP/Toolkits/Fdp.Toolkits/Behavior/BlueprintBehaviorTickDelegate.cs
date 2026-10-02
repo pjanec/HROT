@@ -19,7 +19,9 @@ namespace Fdp.Toolkit.Behavior
     /// <para>⭐ <paramref name="ecb"/> — the frame's command buffer, as an Instance tick receives it (EQS spawns etc.);
     /// <paramref name="instanceId"/> — <c>BehaviorState.InstanceId</c>, the latent cursor's version (bumps on every assign).</para>
     /// </summary>
-    public delegate NodeStatus BlueprintBehaviorTickDelegate(
+    public // ⭐ S5d (DESIGN_Unified_Behaviour_Run) — occurrenceKey: the occurrence this run IS (0 = root, else its hosted slot's
+    //   key). A blueprint that hosts (Run Behaviour) nests its children under it, as a BTree does through BTreeContext.
+    delegate NodeStatus BlueprintBehaviorTickDelegate(
         ref byte block, ref byte exec, EntityRepository world, IEntityCommandBuffer ecb, Entity self,
-        float time, float deltaTime, uint instanceId);
+        float time, float deltaTime, uint instanceId, int occurrenceKey);
 }

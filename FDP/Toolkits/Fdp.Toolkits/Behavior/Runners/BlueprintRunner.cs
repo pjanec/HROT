@@ -51,7 +51,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 : ref BehaviorBlock.None;
             var repo = ctx.World;
             return ctx.Definition.BlueprintTick!(ref block, ref exec, repo, ctx.Ecb!, ctx.Self,
-                                                 repo.SimulationTime, ctx.DeltaTime, ctx.InstanceId);
+                                                 repo.SimulationTime, ctx.DeltaTime, ctx.InstanceId, ctx.OccurrenceKey);
         }
     }
 }

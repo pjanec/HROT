@@ -307,6 +307,38 @@ public sealed class GraphBuilder
         return this;
     }
 
+    /// <summary>⭐ S5d — adds a Run Behaviour node hosting <paramref name="behaviorName"/>; the chain continues on its Success.</summary>
+    public GraphBuilder RunBehavior(string behaviorName)
+    {
+        var nodeId = MakeNodeId("RunBehavior", _nodes.Count);
+        RegisterNode(new RunBehaviorNode { Id = nodeId, BehaviorName = behaviorName }, hasExecIn: true, hasExecOut: true);
+        return this;
+    }
+
+    /// <summary>⭐ S5d — a Run Behaviour node with its OnFailure exec-out wired to a sub-chain (as <see cref="WaitForChannelWithFailure"/>).</summary>
+    public GraphBuilder RunBehaviorWithFailure(string behaviorName, Action<GraphBuilder> onFailure)
+    {
+        var nodeId = MakeNodeId("RunBehavior", _nodes.Count);
+        var node = new RunBehaviorNode { Id = nodeId, BehaviorName = behaviorName };
+        var execInPinId    = MakePinId(nodeId, "ExecIn");
+        var execOutPinId   = MakePinId(nodeId, "ExecOut");
+        var onFailurePinId = MakePinId(nodeId, "OnFailure");
+        node.Pins.Add(new Pin { Id = execInPinId,    Name = "ExecIn",    Direction = "In",  IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = execOutPinId,   Name = "ExecOut",   Direction = "Out", IsExec = true, TypeRef = new() });
+        node.Pins.Add(new Pin { Id = onFailurePinId, Name = "OnFailure", Direction = "Out", IsExec = true, TypeRef = new() });
+        LinkExec(_lastNodeId, _lastExecOutPinId, nodeId, execInPinId);
+        _nodes.Add(node);
+        var failBuilder = new GraphBuilder(_name + "_OnFailure", _kind, _assetId);
+        failBuilder._lastNodeId = nodeId;
+        failBuilder._lastExecOutPinId = onFailurePinId;
+        onFailure(failBuilder);
+        _nodes.AddRange(failBuilder._nodes);
+        _links.AddRange(failBuilder._links);
+        _lastNodeId = nodeId;
+        _lastExecOutPinId = execOutPinId;
+        return this;
+    }
+
     /// <summary>Adds a ChannelCommandNode and calls the configure callback for data pins.</summary>
     public GraphBuilder ChannelCommand(string channelType, string actionId, Action<NodeBuilder>? configure = null)
     {

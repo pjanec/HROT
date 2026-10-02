@@ -213,27 +213,5 @@ public static class BTreeHostedSites
     /// would drift.
     /// </summary>
     private static StatefulSlotInfo TreeStateSlot(int key, string childName)
-    {
-        int size = HostedSubtree.TreeStatePayloadSize;
-        return new StatefulSlotInfo(
-            key,
-            size,
-            unchecked(TypeNameHash("Fbt.BehaviorTreeState") ^ (uint)size),
-            typeof(Fbt.BehaviorTreeState),
-            childName + " (hosted)",
-            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State,
-            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
-    }
-
-    /// <summary>FNV-1a-32 over the type name — the same shape the emitters bake.</summary>
-    private static uint TypeNameHash(string typeName)
-    {
-        uint hash = 2166136261u;
-        foreach (char c in typeName)
-        {
-            hash ^= (byte)c;
-            hash *= 16777619u;
-        }
-        return hash;
-    }
+        => HostedSubtree.SiteSlot(key, childName);   // ⭐ S5d — one spelling, shared with the blueprint host
 }

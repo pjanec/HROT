@@ -296,6 +296,47 @@ public static unsafe class HostedSubtree
     }
 
     /// <summary>
+    /// ⭐⭐ S5d (<c>DESIGN_Unified_Behaviour_Run</c> §4) — <b>a blueprint behaviour's Run Behaviour node steps its child.</b> The
+    /// same body every host uses (<see cref="TickHosted"/>); the BTree context a blueprint does not have is built here, on the
+    /// stack, carrying the blueprint run's own occurrence key so the child nests under it.
+    /// </summary>
+    public static NodeStatus TickFromBlueprint(ref byte hostBlock, EntityRepository world, Entity self, float deltaTime,
+                                               uint instanceId, int occurrenceKey, int siteKey)
+    {
+        var ctx = new BTreeContext
+        {
+            Self = self, World = world, _deltaTime = deltaTime, _frameCount = (int)world.SimulationTick,
+            _floatParams = Array.Empty<float>(), _intParams = Array.Empty<int>(), _instanceId = instanceId,
+            _occurrenceKey = occurrenceKey,
+        };
+        return TickHosted(ref hostBlock, ref ctx, siteKey, SiteBinding.Unbound);
+    }
+
+    /// <summary>
+    /// ⭐⭐ One hosted child's slot declaration, for a host's manifest. ⛔ <b>Role=State / Scope=Behavior with
+    /// <c>WorkingStateType == typeof(BehaviorTreeState)</c></b> is the marker <see cref="IsTreeStateSlot"/> tests (the size is
+    /// re-derived from the child at ingress, <see cref="EffectiveSlots"/>). ⭐ S5d: public so a blueprint registrar declares its
+    /// Run Behaviour sites with the SAME shape a BTree host's plan does — one spelling, not two.
+    /// </summary>
+    public static StatefulSlotInfo SiteSlot(int key, string childName)
+    {
+        int size = TreeStatePayloadSize;
+        return new StatefulSlotInfo(
+            key, size, unchecked(TypeNameHash("Fbt.BehaviorTreeState") ^ (uint)size), typeof(BehaviorTreeState),
+            childName + " (hosted)",
+            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotRole.State,
+            (byte)Fdp.Toolkit.Blueprints.Partitioning.StatefulSlotScope.Behavior);
+    }
+
+    /// <summary>FNV-1a-32 over a type name — the same shape the emitters bake.</summary>
+    private static uint TypeNameHash(string typeName)
+    {
+        uint hash = 2166136261u;
+        foreach (char c in typeName) { hash ^= (byte)c; hash *= 16777619u; }
+        return hash;
+    }
+
+    /// <summary>
     /// ⭐⭐⭐ <c>CE-431</c>/<c>CE-443</c> — <b>the child's start pipeline, run at every START</b>: clear → bake →
     /// EITHER the default copy OR the child's resolver, which is handed the SOURCE.
     /// 📄 <c>DESIGN_Parameter_Model.md</c> §P.2 (<c>R-155</c>); "every start from empty" is <c>R-153</c>.

@@ -407,6 +407,13 @@ public sealed record IrOp_InlineActionCall(
     IReadOnlyList<(string FieldName, IrValue Value)> ParamFields,
     bool IsAiPrimitive) : IrOperation;
 
+/// <summary>
+/// ⭐ S5d (<c>DESIGN_Unified_Behaviour_Run</c> §4) — step the behaviour hosted at site <paramref name="SiteId"/> (the Run Behaviour
+/// node's id) one frame; returns its <c>NodeStatus</c>. Latent exactly like <see cref="IrOp_InlineActionCall"/>: WaitLowering
+/// re-invokes it in the resume check until it is not Running.
+/// </summary>
+public sealed record IrOp_RunBehavior(string BehaviorName, Guid SiteId) : IrOperation;
+
 // Channel command (lowered from ChannelCommandNode in Stage 6)
 public sealed record IrOp_ChannelCommand(
     string ChannelComponentTypeFqn,

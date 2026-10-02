@@ -611,6 +611,11 @@ public sealed class NodeCoverageTests
         // Hrot.Core, loaded here via Hrot.AI.Behaviors) — the round-trip library and the sender are the coverage fixtures.
         yield return ("Inline/ToJsonFromJson", new[] { Hrot.Blueprints.Tests.Compiler.CE472_IntentAndJsonNodeTests.CoverageRoundTrip() }, null, CoverageMode.FullRoslynPipeline);
         yield return ("Inline/SendIntent", new[] { Hrot.Blueprints.Tests.Compiler.CE472_IntentAndJsonNodeTests.CoverageSender() }, null, CoverageMode.FullRoslynPipeline);
+        // S5d (DESIGN_Unified_Behaviour_Run): a blueprint behaviour hosting a child. The child need not exist to compile
+        // and load — the registrar's binding resolves lazily (CE-377); BlueprintBehaviourTests.S5d_* run it.
+        yield return ("Inline/RunBehavior", new[] { Hrot.Blueprints.Tests.Builders.BlueprintAssetBuilder.Behavior("CoverageRunBehaviour")
+            .WithGraph("Tick", g => g.Entry().RunBehavior("CoverageAnyChild").Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build() },
+            Hrot.Blueprints.Tests.Golden.GoldenCorpus.Options(), CoverageMode.FullRoslynPipeline);
         yield return ("Inline/GetTime", new[] { Hrot.Blueprints.Tests.Compiler.CE470_GetTimeNodeTests.Build(TimeKind.DeltaTime) }, null, CoverageMode.FullRoslynPipeline);
         // BP-108: Print String / Format String -- both compile as pure C# (Fdp.Core.Logging.BlueprintLog +
         // Fdp.Core.FixedString32), no game-assembly deps, so this is FULL Roslyn coverage.

@@ -322,7 +322,7 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
         global::Fdp.Core.Entity self,
         float time,
         float deltaTime,
-        uint instanceVersion)
+        uint instanceVersion, int occurrenceKey)
     {
         var __t0 = __bb.St.Phase;
         var __t1 = global::Hrot.AI.Behaviors.Brains.HillAttackPhase.Setup;
@@ -1765,11 +1765,11 @@ public static class PlatoonHillAttackBp_69D8FBD8_Bp
     /// <summary>CE-446 / S2: this frame's events, then the Tick — its status ends the behaviour.</summary>
     public static unsafe global::Fbt.NodeStatus BehaviorTick(ref byte block, ref byte exec,
         global::Fdp.Core.EntityRepository world, global::Fdp.Interfaces.IEntityCommandBuffer ecb,
-        global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId)
+        global::Fdp.Core.Entity self, float time, float deltaTime, uint instanceId, int occurrenceKey)
     {
         ref var __bb = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Block>(ref block);
         ref var __ex = ref global::System.Runtime.CompilerServices.Unsafe.As<byte, Exec>(ref exec);
-        return Tick(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId);
+        return Tick(ref __bb, ref __ex, world, ecb, self, time, deltaTime, instanceId, occurrenceKey);
     }
     
 }

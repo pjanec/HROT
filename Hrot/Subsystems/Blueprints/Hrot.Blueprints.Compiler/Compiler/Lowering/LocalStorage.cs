@@ -48,8 +48,7 @@ internal static class LocalStorage
     public static bool CanSuspend(IrGraph graph)
         => graph.Blocks
             .SelectMany(b => b.Statements)
-            .Any(s => s.Operation is IrOp_LatentDelay or IrOp_WaitForChannel or IrOp_WaitForEvent
-                                  or IrOp_InlineActionCall);
+            .Any(s => SuspendOps.Is(s.Operation));
 
     /// <summary>
     /// The emitted identifier for one blackboard-resident local. ⭐ <b>Graph-qualified</b>: two graphs

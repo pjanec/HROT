@@ -16,7 +16,7 @@ internal static class InstanceLowering
 
         var newGraphs = new List<IrGraph>(asset.Graphs.Count);
         foreach (var graph in asset.Graphs)
-            newGraphs.Add(LocalStorage.CanSuspend(graph) ? WaitLowering_Instance.Apply(graph) : graph);
+            newGraphs.Add(LocalStorage.CanSuspend(graph) ? WaitLowering_Instance.Apply(graph, BehaviorDispatch.IsTickGraph(asset, graph)) : graph);
         return asset with { Graphs = newGraphs };
     }
 }

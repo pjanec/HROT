@@ -852,6 +852,9 @@ namespace Fdp.Toolkit.Behavior
                     _definitions[id] = def;
                 }
             }
+
+            // S5d: hosted-child bindings the staging registrars made now resolve through THIS (live) registry.
+            HostedChildren.Repoint(source, this);
         }
 
         /// <summary>

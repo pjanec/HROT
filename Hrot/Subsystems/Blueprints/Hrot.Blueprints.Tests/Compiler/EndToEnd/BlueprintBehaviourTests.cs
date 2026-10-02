@@ -475,6 +475,99 @@ public sealed unsafe class BlueprintBehaviourTests : IDisposable
         Assert.Equal(0, RootParamsAccess.InputBytes(def));
     }
 
+    // ── S5d (DESIGN_Unified_Behaviour_Run §4): a blueprint behaviour HOSTS a behaviour ──────────────────────
+
+    private static int _childTicks;
+    private static Fbt.NodeStatus _childEnds = Fbt.NodeStatus.Success;
+
+    private static Fbt.NodeStatus ChildCounts(ref byte bb, ref Fbt.BehaviorTreeState st, ref BTreeContext ctx, int p)
+        => ++_childTicks >= 3 ? _childEnds : Fbt.NodeStatus.Running;
+
+    /// <summary>Registers a BTree child that runs three ticks, then ends with <see cref="_childEnds"/>.</summary>
+    private void RegisterCountingChild(string name)
+    {
+        var b = new Fbt.Compiler.BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(ChildCounts));
+        _fixture.BehaviorRegistry.Register(name, new BehaviorDefinition
+        {
+            Name = name, BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Fbt.Runtime.Interpreter<byte, BTreeContext>(b.Compile(name), b.GetRegistry()),
+        });
+    }
+
+    private (Fdp.Core.Entity e, Func<Fbt.NodeStatus?> frame) AssignAndFramer(string name)
+    {
+        var world = _fixture.World;
+        var e = _fixture.CreateEntity();
+        world.AddComponent(e, new BehaviorState());
+        world.Bus.PublishManaged(new AssignBehaviorEvent { Entity = e, BehaviorName = name, JsonParams = string.Empty });
+        world.Bus.SwapBuffers();
+        new BehaviorIngressSystem(_fixture.BehaviorRegistry).Execute(world, 0.016f);
+        var brain = new BrainTickSystem(_fixture.BehaviorRegistry);
+        return (e, () =>
+        {
+            brain.Execute(world, 0.016f);
+            world.Bus.SwapBuffers();
+            foreach (var evt in world.Bus.Read<BehaviorFinishedEvent>())
+                if (evt.Entity.Index == e.Index) return evt.Result;
+            return null;
+        });
+    }
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5d — a compiled blueprint behaviour RUNS ANOTHER BEHAVIOUR and waits for it.</b> Tick: Run Behaviour(child) →
+    /// Return(Success). The child (a BTree) runs in the host's own site slot — provisioned by ingress from the registrar's
+    /// declaration — for its three ticks; on its Success the host continues on Out and finishes.
+    /// <para>✅ Red-proof: drop the registrar's <c>HostedChildren.Register</c> line and the first child tick throws (no binding).</para>
+    /// </summary>
+    [Fact]
+    public void S5d_ABlueprintBehaviour_RunsAChildBehaviour_AndContinuesOnItsSuccess()
+    {
+        const string Host = "S5dHost", Child = "S5dChild";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Success;
+        RegisterCountingChild(Child);
+        var asset = BlueprintAssetBuilder.Behavior(Host)
+            .WithGraph("Tick", g => g.Entry().RunBehavior(Child).Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build();
+        var src = new BlueprintCompiler().Compile(asset, GoldenCorpus.Options()).GeneratedSource!;
+        Assert.Contains("HostedSubtree.TickFromBlueprint(", src);
+        Assert.Contains("HostedChildren.Register(beh, ", src);
+
+        _fixture.CompileAndLoad(asset, GoldenCorpus.Options());
+        var (_, frame) = AssignAndFramer(Host);
+
+        Assert.Null(frame());          // reaches the node and suspends
+        Assert.Null(frame());          // child tick 1
+        Assert.Null(frame());          // child tick 2
+        Assert.Equal(Fbt.NodeStatus.Success, frame());   // child tick 3 ⇒ Success ⇒ Out ⇒ Return(Success)
+        Assert.Equal(3, _childTicks);
+    }
+
+    /// <summary>⭐⭐ S5d — the child's Failure takes OnFailure; unwired, the host's Tick fails (Q#13, as a channel wait).</summary>
+    [Fact]
+    public void S5d_AChildsFailure_FailsAHostWithNoOnFailure()
+    {
+        const string Host = "S5dHostF", Child = "S5dChildF";
+        _childTicks = 0; _childEnds = Fbt.NodeStatus.Failure;
+        RegisterCountingChild(Child);
+        _fixture.CompileAndLoad(BlueprintAssetBuilder.Behavior(Host)
+            .WithGraph("Tick", g => g.Entry().RunBehavior(Child).Return(Hrot.Blueprints.Core.Assets.NodeStatus.Success)).Build(),
+            GoldenCorpus.Options());
+        var (_, frame) = AssignAndFramer(Host);
+
+        Fbt.NodeStatus? result = null;
+        for (int f = 0; f < 6 && result is null; f++) result = frame();
+        Assert.Equal(Fbt.NodeStatus.Failure, result);
+    }
+
+    /// <summary>⭐ S5d — Run Behaviour outside a behaviour is BP1659: only a behaviour has a brain to run a child under.</summary>
+    [Fact]
+    [CoversDiagnosticCode("BP1659")]
+    public void S5d_RunBehaviourInAnInstance_IsBP1659()
+    {
+        var asset = BlueprintAssetBuilder.Instance("S5dInInstance")
+            .WithGraph("Tick", g => g.Entry().RunBehavior("Anything")).Build();
+        Assert.Contains(Diagnose(asset), d => d.Code == "BP1659");
+    }
+
     private static byte* RootParamsAccessRoot(Fdp.Core.EntityRepository world, Fdp.Core.Entity e)
     {
         Assert.True(RootParamsAccess.TryGetRootBytes(world, e, out byte* root));

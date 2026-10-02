@@ -96,6 +96,26 @@ public static class HostedChildren
         }
     }
 
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5d — a binding made against a STAGING registry follows the merge into the LIVE one.</b> Quick reload runs
+    /// every registrar against a throw-away staging <see cref="BehaviorRegistry"/> and then
+    /// <see cref="BehaviorRegistry.MergeFrom"/>s it into the live registry. ⛔ A binding that kept the staging instance could
+    /// only ever resolve a child registered in that SAME reload pass — 📌 measured: a reloaded host whose child was already
+    /// live threw <i>"does not resolve"</i> on its first tick. ⭐ Called by <c>MergeFrom</c>; drops each re-pointed binding's
+    /// cached definition so the live child is looked up afresh. ⚠ Startup/reload-only.
+    /// </summary>
+    internal static void Repoint(BehaviorRegistry from, BehaviorRegistry to)
+    {
+        if (ReferenceEquals(from, to)) return;
+        lock (WriteLock)
+            foreach (var binding in _bySlotKey.Values)
+                if (ReferenceEquals(binding.Registry, from))
+                {
+                    binding.Registry = to;
+                    binding.ResolvedDefinition = null;
+                }
+    }
+
     private static bool Declares(BehaviorDefinition def, int slotKey)
     {
         var slots = def.StatefulWorkingSlots;

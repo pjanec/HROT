@@ -100,7 +100,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     private static uint _seenInstanceId;
 
     private static NodeStatus BlueprintChildTick(ref byte block, ref byte exec, EntityRepository world,
-        IEntityCommandBuffer ecb, Entity self, float time, float deltaTime, uint instanceId)
+        IEntityCommandBuffer ecb, Entity self, float time, float deltaTime, uint instanceId, int occurrenceKey)
     {
         _execAddress = (long)Unsafe.AsPointer(ref exec);
         _seenInstanceId = instanceId;
@@ -216,7 +216,7 @@ public sealed unsafe class HostingMatrixTests : IDisposable
     private static readonly Guid SiteMid = new("05b00000-0000-0000-0000-0000000000c0");
 
     private static NodeStatus LeafCounts(ref byte block, ref byte exec, EntityRepository world,
-        IEntityCommandBuffer ecb, Entity self, float time, float deltaTime, uint instanceId)
+        IEntityCommandBuffer ecb, Entity self, float time, float deltaTime, uint instanceId, int occurrenceKey)
     {
         Unsafe.As<byte, int>(ref exec)++;
         return NodeStatus.Running;
@@ -447,4 +447,40 @@ public sealed unsafe class HostingMatrixTests : IDisposable
         RegisterHostOf(beh, "S5c_C1", "S5c_C2", SiteA);
         RegisterHostOf(beh, "S5c_C2", "S5c_C3", SiteB);
     }
+
+    // ══ S5d — a binding made in a quick-reload STAGING registry resolves through the LIVE one ══════════════════════
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5d — a host reloaded ALONE still reaches a child that is already live.</b> Quick reload runs registrars
+    /// against a throw-away staging registry, then <c>MergeFrom</c>s it into the live one; the host's site binding must
+    /// follow. 📌 Measured before the fix: the binding kept the staging registry and the first hosted tick threw
+    /// <i>"does not resolve"</i> — for every host tier, whenever its child was not in the same reload pass.
+    /// <para>✅ Red-proof: remove <c>HostedChildren.Repoint</c> from <c>BehaviorRegistry.MergeFrom</c> and the binding
+    /// still resolves through staging, where the child is absent.</para>
+    /// </summary>
+    [Fact]
+    public void S5d_AHostReloadedAlone_ResolvesAChildThatIsAlreadyLive()
+    {
+        var live = new BehaviorRegistry();
+        var cb = new BTreeBuilder<byte, BTreeContext>().Sequence(seq => seq.Action(Succeed));
+        live.Register("S5d_RChild", new BehaviorDefinition
+        {
+            Name = "S5d_RChild", BrainTier = BehaviorConstants.BrainTierBTree,
+            BTreeInterpreter = new Interpreter<byte, BTreeContext>(cb.Compile("S5d_RChild"), cb.GetRegistry()),
+        });
+
+        var staging = new BehaviorRegistry();
+        RegisterHostOf(staging, "S5d_RHost", "S5d_RChild", SiteA);
+        Assert.True(staging.TryGetId("S5d_RHost", out int hostId));
+        Assert.True(staging.TryGetDefinition(hostId, out var host));
+        int siteKey = host.StatefulWorkingSlots![0].SlotKey;
+        Assert.False(HostedChildren.TryGetDefinition(siteKey, out _));   // staging alone cannot see the live child
+
+        live.MergeFrom(staging);
+
+        Assert.True(HostedChildren.TryGetDefinition(siteKey, out var child));
+        Assert.Equal("S5d_RChild", child.Name);
+    }
+
+    private static NodeStatus Succeed(ref byte bb, ref BehaviorTreeState st, ref BTreeContext ctx, int p) => NodeStatus.Success;
 }

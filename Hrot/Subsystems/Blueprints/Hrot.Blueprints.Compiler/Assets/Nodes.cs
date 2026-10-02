@@ -61,6 +61,7 @@ namespace Hrot.Blueprints.Core.Assets;
 [JsonDerivedType(typeof(BreakStructNode),        "BreakStruct")]
 [JsonDerivedType(typeof(SetMembersNode),         "SetMembers")]
 [JsonDerivedType(typeof(MacroCallNode),          "MacroCall")]
+[JsonDerivedType(typeof(RunBehaviorNode),        "RunBehavior")]
 public abstract class Node
 {
     public Guid Id { get; set; }
@@ -342,6 +343,18 @@ public sealed class ArrayMakeNode : Node
 public sealed class ArrayGetNode : Node { }
 
 public sealed class LatentDelayNode : Node { }
+
+/// <summary>
+/// ⭐⭐ S5d (<c>DESIGN_Unified_Behaviour_Run</c> §4) — <b>Run Behaviour</b>: this behaviour HOSTS another behaviour of any tier
+/// (BTree, HSM, blueprint) at this site, and waits for it. Latent: <c>Out</c> on the child's Success, <c>OnFailure</c> on its
+/// Failure (Q#13 — unwired ⇒ this behaviour's Tick returns Failure). The child runs in this node's own hosted slot, under
+/// this run's occurrence key, so the same child at two nodes keeps two runs.
+/// </summary>
+public sealed class RunBehaviorNode : Node
+{
+    /// <summary>The child behaviour's REGISTRY name.</summary>
+    public string BehaviorName { get; set; } = "";
+}
 
 public sealed class CallEventDispatcherNode : Node
 {
