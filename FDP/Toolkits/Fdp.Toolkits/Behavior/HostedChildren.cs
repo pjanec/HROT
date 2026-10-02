@@ -43,8 +43,7 @@ public static class HostedChildren
     {
         public required BehaviorRegistry Registry;
         public required string ChildName;
-        public Interpreter<byte, BTreeContext>? Resolved;
-        public BehaviorDefinition? ResolvedDefinition;   // CE-431: the child's block comes from its definition
+        public BehaviorDefinition? ResolvedDefinition;   // CE-431: the child's block comes from its definition; S5a: any tier
     }
 
     // tree-state slot key -> what the host asked for, and the interpreter once it exists.
@@ -87,58 +86,60 @@ public static class HostedChildren
         lock (WriteLock) _bySlotKey[treeStateSlotKey] = new Binding { Registry = registry, ChildName = childName };
     }
 
-    /// <summary>⭐ The child bound to this slot, or <c>false</c>.</summary>
+    /// <summary>⭐ The BTree interpreter of the child bound to this slot, or <c>false</c> (no binding, unresolved, or not a BTree).</summary>
     public static bool TryGet(int treeStateSlotKey, out Interpreter<byte, BTreeContext> interpreter)
     {
         interpreter = null!;
         if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding)) return false;
-
-        var resolved = Resolve(binding);
-        if (resolved is null) return false;
-
+        if (ResolveDefinition(binding)?.BTreeInterpreter is not { } resolved) return false;
         interpreter = resolved;
         return true;
     }
 
     /// <summary>
-    /// ⭐⭐ The child bound to this slot. ⛔ <b>THROWS rather than returning null</b> — the same
-    /// choice <c>HostedSubtree.Tick</c> makes for a missing slot (§19.6 ⑤): a host that silently
-    /// does nothing reads as <i>"the subtree just fails"</i>, which is the exact silent miss this
-    /// programme keeps paying for.
-    ///
-    /// <para>⚠ <b>Two distinct failures, two messages</b>, because they have different fixes: no
-    /// binding at all means the HOST's registrar never called <see cref="Register"/>; a binding that
-    /// will not resolve means the CHILD is absent from the registry or is not a BTree behaviour.</para>
+    /// ⭐⭐ The BTree interpreter of the child bound to this slot. ⛔ <b>THROWS rather than returning null</b> — the same
+    /// choice <c>HostedSubtree.Tick</c> makes for a missing slot (§19.6 ⑤). ⚠ BTree-only; the tier-neutral form is
+    /// <see cref="RequireDefinition"/>.
     /// </summary>
     public static Interpreter<byte, BTreeContext> Require(int treeStateSlotKey)
+        => RequireDefinition(treeStateSlotKey).BTreeInterpreter
+           ?? throw new InvalidOperationException(
+               $"The hosted child bound to tree-state slot {treeStateSlotKey} is not a BTree behaviour.");
+
+    /// <summary>
+    /// ⭐⭐⭐ <b>S5a — the child bound to this slot, of ANY tier</b> (<c>DESIGN_Unified_Behaviour_Run</c> §4 S5a).
+    /// ⛔ Throws rather than returning null. ⚠ <b>Two distinct failures, two messages</b>, because they have different
+    /// fixes: no binding at all means the HOST's registrar never called <see cref="Register"/>; a binding that will not
+    /// resolve means the CHILD is absent from the registry or has no runner (no brain tier).
+    /// </summary>
+    public static BehaviorDefinition RequireDefinition(int treeStateSlotKey)
     {
         if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding))
             throw new InvalidOperationException(
                 $"No hosted child is bound to tree-state slot {treeStateSlotKey}. The host's generated " +
                 "Register() binds it with HostedChildren.Register(beh, key, childName).");
 
-        return Resolve(binding)
+        return ResolveDefinition(binding)
             ?? throw new InvalidOperationException(
                 $"The hosted child '{binding.ChildName}' bound to tree-state slot {treeStateSlotKey} does " +
-                "not resolve: it is not registered in that BehaviorRegistry, or it is not a BTree " +
-                "behaviour (an HSM child cannot be hosted this way).");
+                "not resolve: it is not registered in that BehaviorRegistry, or it has no brain tier to run on.");
     }
 
     /// <summary>
     /// ⚠ Resolve-and-cache. ⛔ A failed resolve is NOT cached — the child may simply not have been
     /// registered yet, which is the entire reason this is lazy.
+    /// ⭐ S5a: any tier with a runner resolves (BTree, HSM, blueprint); it used to require a BTree interpreter.
     /// </summary>
-    private static Interpreter<byte, BTreeContext>? Resolve(Binding binding)
+    private static BehaviorDefinition? ResolveDefinition(Binding binding)
     {
-        if (binding.Resolved is { } cached) return cached;
+        if (binding.ResolvedDefinition is { } cached) return cached;
 
         if (!binding.Registry.TryGetId(binding.ChildName, out int id)) return null;
         if (!binding.Registry.TryGetDefinition(id, out var def)) return null;
-        if (def.BTreeInterpreter is not { } interpreter) return null;   // an HSM child cannot be hosted this way
+        if (def.Runner is null) return null;
 
-        binding.Resolved = interpreter;
         binding.ResolvedDefinition = def;
-        return interpreter;
+        return def;
     }
 
     /// <summary>
@@ -149,8 +150,8 @@ public static class HostedChildren
     {
         definition = null!;
         if (!_bySlotKey.TryGetValue(treeStateSlotKey, out var binding)) return false;
-        if (Resolve(binding) is null) return false;
-        definition = binding.ResolvedDefinition!;
+        if (ResolveDefinition(binding) is not { } def) return false;
+        definition = def;
         return true;
     }
 

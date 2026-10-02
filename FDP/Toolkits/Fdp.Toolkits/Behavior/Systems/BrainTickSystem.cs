@@ -263,7 +263,7 @@ namespace Fdp.Toolkit.Behavior.Systems
 
             var ctx = new BehaviorRunContext
             {
-                World = repo, Self = entity, Definition = def, Behavior = behavior, Ecb = _ecb, DeltaTime = deltaTime,
+                World = repo, Self = entity, Definition = def, InstanceId = behavior.InstanceId, Ecb = _ecb, DeltaTime = deltaTime,
             };
             var status = runner.Tick(ref ctx, brain, brainBytes, ref block);
 

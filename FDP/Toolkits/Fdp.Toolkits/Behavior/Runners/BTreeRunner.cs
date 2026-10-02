@@ -41,6 +41,11 @@ namespace Fdp.Toolkit.Behavior.Runners
             return true;
         }
 
+        public int BrainBytes(BehaviorDefinition def) => sizeof(BehaviorTreeState);
+
+        public void Start(BehaviorDefinition def, byte* brain, int brainBytes)
+            => new Span<byte>(brain, brainBytes).Clear();
+
         public NodeStatus Tick(ref BehaviorRunContext ctx, byte* brain, int brainBytes, ref byte block)
         {
             ref var btState = ref Unsafe.AsRef<BehaviorTreeState>(brain);
@@ -62,7 +67,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                     && repo.HasComponent<BTreeTraceWorkingMemory1024>(entity))
                 {
                     ref var traceMem = ref repo.GetComponentRW<BTreeTraceWorkingMemory1024>(entity);
-                    traceMem.LastInstanceId = ctx.Behavior.InstanceId;
+                    traceMem.LastInstanceId = ctx.InstanceId;
                     tracePtr = (BTreeTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMem);
                 }
             }
@@ -78,7 +83,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 _frameCount  = (int)repo.SimulationTick,
                 _floatParams = Array.Empty<float>(),
                 _intParams   = Array.Empty<int>(),
-                _instanceId  = ctx.Behavior.InstanceId,
+                _instanceId  = ctx.InstanceId,
                 TraceBuffer  = tracePtr,
             };
 

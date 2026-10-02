@@ -1,7 +1,6 @@
 using Fbt;
 using Fdp.Core;
 using Fdp.Interfaces;
-using Fdp.Toolkit.Behavior.Components;
 
 namespace Fdp.Toolkit.Behavior.Runners
 {
@@ -33,6 +32,16 @@ namespace Fdp.Toolkit.Behavior.Runners
         /// Returns <c>Running</c>, or the terminal status.
         /// </summary>
         NodeStatus Tick(ref BehaviorRunContext ctx, byte* brain, int brainBytes, ref byte block);
+
+        /// <summary>⭐ S5a — how many brain-state bytes a run of <paramref name="def"/> needs (its hosted slot's first region).</summary>
+        int BrainBytes(BehaviorDefinition def);
+
+        /// <summary>
+        /// ⭐ S5a — make <paramref name="brain"/> a FRESH run of <paramref name="def"/>: zeroed, and for an HSM initialised from its
+        /// blob (which stamps the <c>MachineId</c> the kernel validates). Called by a host at every START of a hosted child; the
+        /// root's equivalent is ingress's reset.
+        /// </summary>
+        void Start(BehaviorDefinition def, byte* brain, int brainBytes);
     }
 
     /// <summary>⭐ S4 — what a runner is handed each tick. A stack value: no allocation.</summary>
@@ -41,8 +50,8 @@ namespace Fdp.Toolkit.Behavior.Runners
         public EntityRepository World;
         public Entity Self;
         public BehaviorDefinition Definition;
-        /// <summary>The run's <see cref="BehaviorState"/> as read this tick (its <c>InstanceId</c> identifies the run).</summary>
-        public BehaviorState Behavior;
+        /// <summary>The run's <c>BehaviorState.InstanceId</c> — a hosted child shares its host's (U-10).</summary>
+        public uint InstanceId;
         public IEntityCommandBuffer? Ecb;
         public float DeltaTime;
     }

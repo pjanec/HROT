@@ -37,6 +37,13 @@ namespace Fdp.Toolkit.Behavior.Runners
             return true;
         }
 
+        public int BrainBytes(BehaviorDefinition def) => def.BrainStateBytes;
+
+        public void Start(BehaviorDefinition def, byte* brain, int brainBytes)
+        {
+            if (brain != null) new System.Span<byte>(brain, brainBytes).Clear();
+        }
+
         public NodeStatus Tick(ref BehaviorRunContext ctx, byte* brain, int brainBytes, ref byte block)
         {
             ref byte exec = ref brain != null
@@ -44,7 +51,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 : ref BehaviorBlock.None;
             var repo = ctx.World;
             return ctx.Definition.BlueprintTick!(ref block, ref exec, repo, ctx.Ecb!, ctx.Self,
-                                                 repo.SimulationTime, ctx.DeltaTime, ctx.Behavior.InstanceId);
+                                                 repo.SimulationTime, ctx.DeltaTime, ctx.InstanceId);
         }
     }
 }

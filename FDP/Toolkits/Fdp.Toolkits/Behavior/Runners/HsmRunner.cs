@@ -48,6 +48,16 @@ namespace Fdp.Toolkit.Behavior.Runners
             return true;
         }
 
+        public int BrainBytes(BehaviorDefinition def) => RootHsmAccess.InstanceBytes(def.HsmDefinition);
+
+        public void Start(BehaviorDefinition def, byte* brain, int brainBytes)
+        {
+            // ⭐ The same init ingress runs for a root (RootHsmAccess.ResetInstance): it stamps MachineId, without which
+            //   HsmKernelCore.ValidateInstance skips the instance every tick.
+            if (def.HsmDefinition is { } blob) HsmInstanceManager.Initialize(brain, brainBytes, blob);
+            else new Span<byte>(brain, brainBytes).Clear();
+        }
+
         public NodeStatus Tick(ref BehaviorRunContext ctx, byte* instance, int instanceSize, ref byte block)
         {
             var repo = ctx.World;
@@ -85,7 +95,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                     && repo.HasComponent<HsmTraceWorkingMemory1024>(entity))
                 {
                     ref var traceMem = ref repo.GetComponentRW<HsmTraceWorkingMemory1024>(entity);
-                    traceMem.LastInstanceId = ctx.Behavior.InstanceId;
+                    traceMem.LastInstanceId = ctx.InstanceId;
                     hsmTracePtr            = (HsmTraceWorkingMemory1024*)Unsafe.AsPointer(ref traceMem);
                     traceCtx.Buffer        = (byte*)Unsafe.AsPointer(ref traceMem.Buffer[0]);
                     traceCtx.WritePos      = (ushort*)Unsafe.AsPointer(ref traceMem.WritePos);
@@ -94,7 +104,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                     traceCtx.MaxRecords    = HsmTraceWorkingMemory1024.CapacityRecords;
                     traceCtx.FilterLevel   = ResolveTraceLevel(dbg.Behavior);
                     traceCtx.CurrentTick   = (ushort)repo.SimulationTick;
-                    traceCtx.InstanceId    = ctx.Behavior.InstanceId;
+                    traceCtx.InstanceId    = ctx.InstanceId;
                     traceCtxPtr = &traceCtx;
 
                     // Honor the per-instance gate inside the kernel.
@@ -175,7 +185,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 _frameCount  = (int)ctx.World.SimulationTick,
                 _floatParams = Array.Empty<float>(),
                 _intParams   = Array.Empty<int>(),
-                _instanceId  = ctx.Behavior.InstanceId,
+                _instanceId  = ctx.InstanceId,
                 TraceBuffer  = null,
             };
 
@@ -191,7 +201,7 @@ namespace Fdp.Toolkit.Behavior.Runners
                 }
 
                 // ⚠ A missing binding is SKIPPED (the HSM arm skips where the BTree arm throws, §31.16.2).
-                if (!HostedChildren.TryGet(entry.TreeStateSlotKey, out _)) continue;
+                if (!HostedChildren.TryGetDefinition(entry.TreeStateSlotKey, out _)) continue;
 
                 // ⭐⭐ The status is DISCARDED: Q33 §1.5.4 rules a hosted subtree NON-BLOCKING.
                 HostedSubtree.TickHosted(ref hostBlock, ref context, entry.TreeStateSlotKey, entry.Binding);

@@ -47,6 +47,19 @@ public static unsafe class HostedSubtree
     public static int BlockOffset => (sizeof(BehaviorTreeState) + sizeof(int) + 7) & ~7;
 
     /// <summary>
+    /// ⭐⭐ S5a (<c>DESIGN_Unified_Behaviour_Run</c> §4) — the child's BRAIN width, from ITS runner: a BTree cursor (64), an
+    /// HSM instance (64/128/256), a blueprint's <c>Exec</c>. ⚠ An unresolved child counts as a BTree cursor, as before.
+    /// </summary>
+    public static int BrainBytesFor(BehaviorDefinition? childDef)
+        => childDef?.Runner is { } runner ? runner.BrainBytes(childDef) : sizeof(BehaviorTreeState);
+
+    /// <summary>⭐ S5a — the start word's offset for this child: right after its brain. ⭐ A BTree child: 64, as before.</summary>
+    public static int StartWordOffsetFor(BehaviorDefinition? childDef) => BrainBytesFor(childDef);
+
+    /// <summary>⭐ S5a — the child's block offset: <c>[brain][start word][block]</c>, 8-aligned. ⭐ A BTree child: 72, as before.</summary>
+    public static int BlockOffsetFor(BehaviorDefinition? childDef) => (BrainBytesFor(childDef) + sizeof(int) + 7) & ~7;
+
+    /// <summary>
     /// ⭐⭐ <c>CE-431</c> — which bytes of the HOST's block seed this site's child, baked by the host's
     /// registrar. <see cref="Length"/> must equal the child's <c>RootParamsAccess.InputBytes</c>.
     /// ⭐ <c>default</c> is UNBOUND: the child starts from its own authored defaults.
@@ -66,7 +79,8 @@ public static unsafe class HostedSubtree
     public static int SlotPayloadSizeFor(BehaviorDefinition? childDef)
     {
         int block = childDef is null ? 0 : RootParamsAccess.RootParamsBytes(childDef);
-        return block > 0 ? BlockOffset + block : BlockOffset;
+        int blockOffset = BlockOffsetFor(childDef);   // ⭐ S5a — after the CHILD's brain, whatever its tier
+        return block > 0 ? blockOffset + block : blockOffset;
     }
 
     /// <summary>
@@ -167,36 +181,45 @@ public static unsafe class HostedSubtree
     /// </summary>
     public static NodeStatus TickHosted(ref byte hostBlock, ref BTreeContext ctx, int treeStateSlotKey, SiteBinding binding)
     {
-        var child = HostedChildren.Require(treeStateSlotKey);
-        HostedChildren.TryGetDefinition(treeStateSlotKey, out var childDef);
+        // ⭐⭐⭐ S5a — the child may be ANY tier; its runner says how wide its brain is, how to start it and how to step it.
+        var childDef = HostedChildren.RequireDefinition(treeStateSlotKey);
+        var runner = childDef.Runner!;
 
         byte* payload = ResolvePayload(ref ctx, treeStateSlotKey, out int payloadSize);
-        int blockBytes = childDef is null ? 0 : RootParamsAccess.RootParamsBytes(childDef);
+        int brainBytes = runner.BrainBytes(childDef);
+        int blockBytes = RootParamsAccess.RootParamsBytes(childDef);
+        int blockOffset = BlockOffsetFor(childDef);
         int needed = SlotPayloadSizeFor(childDef);
         if (payloadSize < needed)
             throw new InvalidOperationException(
-                $"CE-431: hosted slot {treeStateSlotKey} for child '{childDef?.Name}' holds {payloadSize} bytes " +
-                $"but [cursor][start][block] needs {needed}. It was provisioned from the raw manifest — " +
+                $"CE-431: hosted slot {treeStateSlotKey} for child '{childDef.Name}' holds {payloadSize} bytes " +
+                $"but [brain][start][block] needs {needed}. It was provisioned from the raw manifest — " +
                 "BehaviorIngressSystem must provision HostedSubtree.EffectiveSlots.");
 
-        ref var cursor = ref Unsafe.AsRef<BehaviorTreeState>(payload);
-        ref int start  = ref Unsafe.AsRef<int>(payload + StartWordOffset);
-        ref byte block = ref blockBytes > 0 ? ref Unsafe.AsRef<byte>(payload + BlockOffset) : ref BehaviorBlock.None;
+        ref int start  = ref Unsafe.AsRef<int>(payload + brainBytes);
+        ref byte block = ref blockBytes > 0 ? ref Unsafe.AsRef<byte>(payload + blockOffset) : ref BehaviorBlock.None;
 
         if (start == 0)
         {
-            StartChild(treeStateSlotKey, childDef, payload + BlockOffset, blockBytes, ref hostBlock, binding,
+            runner.Start(childDef, payload, brainBytes);
+            StartChild(treeStateSlotKey, childDef, payload + blockOffset, blockBytes, ref hostBlock, binding,
                        ctx.World, ctx.Self);
             start = 1;
         }
 
-        var status = child.Tick(ref block, ref cursor, ref ctx);
+        // ⭐ U-10 — the child runs under its HOST's InstanceId, so its channels reset with the host.
+        var run = new Runners.BehaviorRunContext
+        {
+            World = ctx.World, Self = ctx.Self, Definition = childDef, InstanceId = ctx._instanceId,
+            Ecb = ((Fdp.ModuleHost.Abstractions.ISimulationView)ctx.World).GetCommandBuffer(), DeltaTime = ctx._deltaTime,
+        };
+        var status = runner.Tick(ref run, payload, brainBytes, ref block);
 
         // ⭐ D4, HALF ONE + CE-431 — completed ⇒ the next entry is a fresh START.
         if (status != NodeStatus.Running)
         {
-            cursor = default;
-            start  = 0;
+            new Span<byte>(payload, brainBytes).Clear();
+            start = 0;
         }
         return status;
     }
@@ -316,10 +339,13 @@ public static unsafe class HostedSubtree
         {
             ref var entry = ref BlueprintBlackboardPartitions.GetSlot(store, index);
             byte* payload = store + entry.PayloadOffset;
-            Unsafe.AsRef<BehaviorTreeState>(payload) = default;
+            // ⭐ S5a — zero the CHILD's brain at its own width (a BTree cursor, an HSM instance, a blueprint Exec).
+            HostedChildren.TryGetDefinition(treeStateSlotKey, out var childDef);
+            int brainBytes = Math.Min(BrainBytesFor(childDef), entry.PayloadSize);
+            new Span<byte>(payload, brainBytes).Clear();
             // ⭐ CE-431 — an abandoned child's next entry is a fresh START.
-            if (entry.PayloadSize >= StartWordOffset + sizeof(int))
-                Unsafe.AsRef<int>(payload + StartWordOffset) = 0;
+            if (entry.PayloadSize >= brainBytes + sizeof(int))
+                Unsafe.AsRef<int>(payload + brainBytes) = 0;
         }
     }
 
