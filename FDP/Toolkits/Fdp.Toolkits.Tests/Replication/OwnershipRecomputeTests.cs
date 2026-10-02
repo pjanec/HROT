@@ -149,16 +149,26 @@ namespace Fdp.Toolkit.Replication.Tests
             Assert.Equal(Local, n.Recorded(Info));
         }
 
+        /// <summary>
+        /// ⚠ Measured (<c>EqsTranslatorTests.T8</c> red after S6): <c>AddComponent</c> sets no claim, so a component the
+        /// owner adds after birth is unclaimed. The record says "mine" — the claim follows it. (The first S5 rule wrote
+        /// "not me" here and the owner stopped publishing what it owns.)
+        /// </summary>
         [Fact]
-        public void AnUnclaimedDescriptorWhoseRecordSaysMine_IsRecordedAsNotMine()
+        public void AComponentTheOwnerAddsAfterBirth_TakesTheRecordsClaim_AndTheRecordStaysMine()
         {
             var n = Build(Local, primary: Local);
-            n.Repo.SetAuthority<TkbIdentity>(n.E, false);          // the claim left by a path that did not write the record
-            n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
+            n.Repo.RemoveComponent<TkbIdentity>(n.E);
+            n.Repo.AddComponent(n.E, new TkbIdentity { TkbType = 2 });       // added later: no claim
+            Assert.False(n.Claims<TkbIdentity>());
+
+            n.Update(Kinematic, Remote, Remote);                              // any ownership change for the entity
             n.Frame();
 
-            Assert.False(n.RecordMine(Info));
-            Assert.Equal(OwnershipRecomputeSystem.UnknownOwner, n.Recorded(Info));
+            Assert.True(n.Claims<TkbIdentity>());
+            Assert.True(n.RecordMine(Info));
+            Assert.Null(n.Recorded(Info));
+            Assert.Equal(1, n.Recompute.LateComponentsClaimed);
         }
 
         [Fact]
@@ -172,14 +182,16 @@ namespace Fdp.Toolkit.Replication.Tests
         }
 
         [Fact]
-        public void APartlyClaimedDescriptor_IsLeftAlone_AndCounted()
+        public void APartlyClaimedDescriptorRecordedElsewhere_IsLeftAlone_AndCounted()
         {
             var n = Build(Local, primary: Local);
+            EnsureRecord(n);
+            n.Repo.GetComponent<DescriptorOwnership>(n.E).SetOwner(Key(Kinematic), Remote);
             n.Repo.SetAuthority<NetworkVelocity>(n.E, false);      // Kinematic split: Transform claimed, Velocity not
             n.Repo.Bus.Publish(new ConstructionOrder { Entity = n.E });
             n.Frame();
 
-            Assert.Null(n.Recorded(Kinematic));
+            Assert.Equal(Remote, n.Recorded(Kinematic));
             Assert.Equal(1, n.Recompute.SplitDescriptorsSkipped);
         }
 

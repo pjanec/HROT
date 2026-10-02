@@ -21,7 +21,12 @@ namespace Fdp.Toolkit.Replication.Systems
     /// components are on the entity, the record is made to agree with the claim:</para>
     /// <list type="bullet">
     ///   <item>all of the descriptor's present components claimed, record not "mine" ⇒ <c>Map[d] = this node</c>;</item>
-    ///   <item>none claimed, record "mine" ⇒ <c>Map[d] = </c><see cref="UnknownOwner"/> ("not me").</item>
+    ///   <item>record "mine", some present component unclaimed ⇒ that component is CLAIMED. ⚠ Measured
+    ///     (<c>EqsTranslatorTests.T8</c> red): <c>EntityRepository.AddComponent</c> sets no claim, so a component the
+    ///     owner adds after birth starts unclaimed. Writing "not me" for it (the first S5 rule) stopped the owner
+    ///     publishing a descriptor it owns. Since S5 every path that clears a claim also writes the record (the shared
+    ///     applier) or marks the handover (<see cref="OutgoingGrantsPending"/>), so "unclaimed but recorded mine" can
+    ///     only be a late component.</item>
     /// </list>
     /// <para>It writes only where the two disagree, so a record that already names the right remote owner keeps that
     /// owner. It never sends anything: the record is this node's local view.</para>
@@ -51,8 +56,6 @@ namespace Fdp.Toolkit.Replication.Systems
     [UpdateAfter(typeof(OwnershipIngressSystem))]
     public sealed class OwnershipRecomputeSystem : IEcsModuleSystem
     {
-        /// <summary>The owner written when this node stops owning a descriptor and no remote owner is recorded.</summary>
-        public const int UnknownOwner = -1;
 
         private readonly NetworkEntityMap       _entityMap;
         private readonly int                    _localNodeId;
@@ -74,6 +77,9 @@ namespace Fdp.Toolkit.Replication.Systems
 
         /// <summary>Diagnostics: descriptors skipped because their present components were only partly claimed.</summary>
         public int SplitDescriptorsSkipped { get; private set; }
+
+        /// <summary>Diagnostics: components added after birth that took the record's "mine".</summary>
+        public int LateComponentsClaimed { get; private set; }
 
         /// <summary>Diagnostics: part component claims the parts pass changed.</summary>
         public int PartClaimsChanged { get; private set; }
@@ -183,13 +189,29 @@ namespace Fdp.Toolkit.Replication.Systems
                     if (repo.HasAuthority(entity, componentId)) claimed++;
                 }
                 if (present == 0) continue;
-                if (claimed != 0 && claimed != present) { SplitDescriptorsSkipped++; continue; }
 
                 long key        = OwnershipExtensions.PackKey(ordinal, 0);
-                bool isClaimed  = claimed == present;
                 bool recordMine = ((ISimulationView)repo).HasAuthority(entity, key);
-                if (isClaimed == recordMine) continue;
 
+                if (recordMine)
+                {
+                    // ⭐ The record says this node owns d: any present component it does not claim was added AFTER
+                    //   birth (AddComponent sets no claim) — it takes the record's answer. Since S5 no path clears a claim
+                    //   without writing the record or marking the handover pending, so this is never a stale record.
+                    if (claimed == present) continue;
+                    foreach (int componentId in _descriptorMap.GetComponentIdsForDescriptor(ordinal))
+                        if (repo.HasComponentByTypeId(entity, componentId) && !repo.HasAuthority(entity, componentId))
+                        {
+                            repo.SetAuthority(entity, componentId, true);
+                            LateComponentsClaimed++;
+                        }
+                    continue;
+                }
+
+                if (claimed == 0) continue;                                       // not mine, nothing claimed: agree
+                if (claimed != present) { SplitDescriptorsSkipped++; continue; }  // a split has no single owner
+
+                // Every present component claimed, record not mine ⇒ the record follows the claim.
                 if (ownership == null)
                 {
                     if (repo.HasManagedComponent<DescriptorOwnership>(entity))
@@ -200,7 +222,7 @@ namespace Fdp.Toolkit.Replication.Systems
                         repo.SetManagedComponent(entity, ownership);
                     }
                 }
-                ownership.Map[key] = isClaimed ? _localNodeId : UnknownOwner;
+                ownership.Map[key] = _localNodeId;
             }
 
             if (pending != null && pending.Descriptors.Count == 0)
