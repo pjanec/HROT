@@ -416,10 +416,18 @@ namespace Fhsm.Compiler
         {
             // ARCHITECT Q7: Separate table for global transitions
             var result = new GlobalTransitionDef[graph.GlobalTransitions.Count];
-            
-            for (int i = 0; i < graph.GlobalTransitions.Count; i++)
+
+            // ⭐ CE-506 — the kernel tries global transitions in array order and takes the first whose event and guard
+            //   match, so priority is expressed as ORDER: highest first, ties in declaration order (a stable sort). Every
+            //   global defaulted to the same priority before CE-506, so existing blobs keep their order.
+            var ordered = graph.GlobalTransitions
+                .Select((node, index) => (node, index))
+                .OrderByDescending(p => p.node.Priority).ThenBy(p => p.index)
+                .Select(p => p.node).ToList();
+
+            for (int i = 0; i < ordered.Count; i++)
             {
-                var node = graph.GlobalTransitions[i];
+                var node = ordered[i];
                 var def = new GlobalTransitionDef();
                 
                 def.TargetStateIndex = node.Target.FlatIndex;
@@ -439,7 +447,8 @@ namespace Fhsm.Compiler
                     ? node.ActionId
                     : (node.ActionFunction != null ? actionTable[node.ActionFunction] : (ushort)0xFFFF);
                 def.Flags = BuildTransitionFlags(node);
-                
+                def.Priority = node.Priority;   // ⭐ CE-506 — recorded; the ORDER above is what the kernel acts on
+
                 result[i] = def;
             }
             

@@ -209,8 +209,42 @@ sequenceDiagram
 > | **§6 rails, all four now exist** | **one carrier** — `ActionBindingTests.OneCarrier_OnlyTheBindingRecordCarriesAMethodAndATargetField` (reflection over the five assemblies that author, persist or emit a binding, each named by an anchor type so a dropped reference fails the compile; allowed: `BehaviorActionBinding`, `BehaviorActionBindingDto`, `BehaviorActionBindingFacet`). **transition split** — `HsmStateParamBindingEmissionTests.TransitionSplit_GuardBlueprintAndCSharpAction_EachUseTheirOwnVariable` (guard blueprint → `Beta` sited at `(source, guard asset)`, C# `[SharedAi*]` action → `Alpha` as `Fqn@0` in both the registrar and the blob; neither borrows the other's, no state-wide entry appears). **F4** — `CE417_R2` (slice 3a). **migrator round-trips** — `ActionBindingMigrationTests` (slice 2) |
 > | **retired** | the `StateNode.StateWideTargetField` setter — the v1 "one field to every slot" write path; after 4b only tests wrote it. The getter (the seed, derived exactly as `HsmBridgeEmitCore.StateWideField`) stays. Tests now author the seed on a slot binding |
 > | **golden** | `GeneratedEmitGoldenTests.TheGeneratedRegistrarIsUnchanged` now requires produced hints == baselined hints, like the BTree tier since 4c. ⚠ Measured: with ONE baseline its `NotEmpty` already covered a vanished part, so it was not blind *today*; it would have been at the second baseline |
-> | ⚠ **found, filed, not fixed: `CE-506`** | a **global** transition's guard and action are authorable (`GlobalTransitionFacet`, 4b) but **dropped at emit**: `HsmEmitCore` emits `builder.GlobalTransition(event, target, visualId)` and `HsmBuilder.GlobalTransition` has no guard/action/priority parameter, although the kernel's `GlobalTransitionDef` carries `GuardId`/`ActionId`/`Priority`. Pre-existing (the 3a box's *"not covered"* row); it is a FastHSM builder + emitter change, not binding cleanup |
+> | ✅ **found, filed — FIXED by `CE-506` (§5.3a)** | a **global** transition's guard and action are authorable (`GlobalTransitionFacet`, 4b) but **dropped at emit**: `HsmEmitCore` emits `builder.GlobalTransition(event, target, visualId)` and `HsmBuilder.GlobalTransition` has no guard/action/priority parameter, although the kernel's `GlobalTransitionDef` carries `GuardId`/`ActionId`/`Priority`. Pre-existing (the 3a box's *"not covered"* row); it is a FastHSM builder + emitter change, not binding cleanup |
 > | **kept on purpose** | `HsmOccurrence.KeyForCurated` (no production caller since 3a) — the 3a box keeps it for the stateful C# HSM action; `CE-504` (BTree call shapes) decides its fate |
+
+## 5.3a `CE-506` — a global transition's guard and action reach the kernel *(build-state: BUILT `2026-10-02`)*
+
+> 🔴 Filed from the slice-5 box above: the facet drew a global transition's guard/action, the DTO saved them, and
+> `HsmEmitCore` emitted `builder.GlobalTransition(event, target, visualId)` and nothing else — while the kernel's
+> `GlobalTransitionDef` always had `GuardId`/`ActionId`/`Priority` and `HsmKernelCore.SelectTransition` already evaluates the
+> guard (against the ACTIVE leaf, region 0 — B-3's *"reads the active state's site"*) and `ExecuteTransition` already runs the
+> action. ⇒ only the AUTHORING half was missing.
+
+```mermaid
+sequenceDiagram
+    participant Emit as HsmEmitCore
+    participant Namer as BindingNamer
+    participant B as HsmBuilder.GlobalTransition
+    participant F as HsmFlattener
+    participant K as HsmKernelCore
+    Emit->>Namer: Name(gt.Guard) / Name(gt.Action, legacyCompound)
+    Namer-->>Emit: the names CollectGuards / CollectActions register
+    Emit->>B: (event, target, visualId, guard:, action:, priority:)
+    B->>F: TransitionNode{GuardFunction, ActionFunction, Priority}
+    F->>F: order globals by priority (desc, stable), hash guard/action ids
+    F-->>K: GlobalTransitionDef[] (GuardId, ActionId, Priority)
+    K->>K: first global whose event + guard match (active leaf) wins, then ExecuteTransition runs ActionId
+```
+*Caption:* the right half (flattener → kernel) existed; the diagram's new edges are the emitter's three named arguments and
+the flattener's priority ORDER — the kernel takes the first match, so priority can only be expressed as order.
+
+| | |
+|---|---|
+| **builder** | `HsmBuilder.GlobalTransition(event, target, visualId, guard?, action?, priority?)` — optional, so every existing caller compiles unchanged |
+| **flattener** | globals ordered by priority, highest first, ties in declaration order; `GlobalTransitionDef.Priority` recorded. Every global defaulted to one priority before, so existing blobs keep their order |
+| **emitter** | the guard and action named by the SAME `BindingNamer` call `CollectGuards`/`CollectActions` register under (the global action now uses `legacyCompound`, as a transition's does — the two used to differ); `priority:` only when non-zero, as for a transition |
+| **refused** | a BLUEPRINT on a global guard/action is `HSM0004` (asset not emitted): a global has no source state, so there is no `(state, site)` to seed the blueprint's params from (§28.6c). The facet never offered one (`[ActionBinding(Guard)]` without `allowsBlueprint`) — this catches a hand-edited file |
+| **rails** | `Fhsm.Tests` `GlobalTransitionGuardActionTests` (a REAL machine through the builder): R1 the ids are compiled; R2 the guard gates and the action runs once; R3 the higher priority wins when declared second. `HsmJsonGeneratorTests` `CE506_*`: emitted with the registered names; a blueprint global is `HSM0004`. 🔴 Red-proved: the builder dropping guard/action ⇒ R1/R2 redden; the flattener ignoring priority ⇒ R3; the emitter dropping the guard ⇒ the emitter rail |
 
 ## 5.4 Slice 4 — the editor side *(design, `2026-10-01`; build-state: BUILT — diagrams below are the AS-BUILT, see the 4b box for what moved)*
 

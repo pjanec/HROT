@@ -26,6 +26,10 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
     /// <summary>⭐ CE-417 — a C# [SharedAi*] binding whose variable is not the method's <c>ref</c> type.</summary>
     public const string SharedAiTypeErrorId = "HSM0003";
 
+    /// <summary>⭐ <c>CE-506</c> — a global transition binds a BLUEPRINT guard/action: it has no source state, so there is no
+    /// (state, site) the blueprint's params could be seeded from (§28.6c). Methods only.</summary>
+    public const string GlobalBlueprintErrorId = "HSM0004";
+
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         // Provider: raw file text from *.hsm.json AdditionalTexts
@@ -250,6 +254,21 @@ public sealed class HsmJsonGenerator : IIncrementalGenerator
                 $"{site} binds '{fqn}', a stateful or param-less shared method; the HSM binds only (ref P, Entity, EntityRepository) " +
                 "today (CE-504, design S8)."));
             sharedAiOk = false;
+        }
+        // ⭐ CE-506 — a global transition binds methods only (the facet offers no blueprint there): reported, never dropped.
+        foreach (var gt in dto.GlobalTransitions)
+        {
+            foreach (var (b, slot) in new[] { (gt.Guard, "guard"), (gt.Action, "action") })
+            {
+                if (b == null || b.BlueprintAssetId == Guid.Empty) continue;
+                spc.ReportDiagnostic(Diagnostic.Create(new DiagnosticDescriptor(
+                        GlobalBlueprintErrorId, "HSM global transition binds a blueprint", "'{0}': {1}", "HsmJsonGenerator",
+                        DiagnosticSeverity.Error, isEnabledByDefault: true),
+                    Location.None, path,
+                    $"global transition '{gt.EventName}' {slot} binds blueprint {b.BlueprintAssetId:D}; a global transition " +
+                    "has no source state to seed a blueprint's params from — bind a method (CE-506)."));
+                sharedAiOk = false;
+            }
         }
         foreach (var e in Hrot.AiEditor.Persistence.Emit.SharedAiBindings.Collect(
                      dto, HsmBridgeEmitCore.PackParamsFor(dto, sizeResolver), sharedAi))
