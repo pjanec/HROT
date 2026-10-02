@@ -33,6 +33,14 @@ public class PartialOwnerReclaimTests
             NodeId = FakeNode, SubsystemName = "fake-leaver", WallTicksUtc = DateTime.UtcNow.Ticks, SubsystemsJson = "[]",
         });
 
+    /// <summary>Node 77 joins as every node does: one durable capabilities sample (Reliable + TransientLocal).</summary>
+    private static DdsWriter<NodeCapabilitiesTopic> Join(DdsParticipant fake)
+    {
+        var caps = new DdsWriter<NodeCapabilitiesTopic>(fake);
+        caps.Write(new NodeCapabilitiesTopic { NodeId = FakeNode, CapabilitiesJson = "[]" });
+        return caps;
+    }
+
     /// <summary>Pumps while node 77 keeps heartbeating (and runs <paramref name="alsoEachTick"/>), as a live node does —
     /// a sample written before discovery has matched the readers is simply lost.</summary>
     private static bool PumpAlive(HrotRunnerHarness harness, DdsWriter<NodeHeartbeat> hb, Func<bool> condition,
@@ -54,7 +62,8 @@ public class PartialOwnerReclaimTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         using var fake = new DdsParticipant((uint)domainId);
-        var hb = new DdsWriter<NodeHeartbeat>(fake);   // deleted below: node 77 leaves
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
         Heartbeat(hb);
 
         var matched = DateTime.UtcNow.AddSeconds(2);                                // let discovery match node 77
@@ -75,10 +84,11 @@ public class PartialOwnerReclaimTests
         PumpAlive(harness, hb, () => DateTime.UtcNow > until, timeoutFrames: 5000);
         Assert.True(cgf.HasManagedComponent<OutgoingGrantsPending>(tank), "Node 77 never takes over, so the grant stays pending.");
 
-        // Node 77 leaves: its heartbeat WRITER goes away, as on an exit or a crash. ⚠ Not a single DisposeInstance:
-        // NodeHeartbeat is BestEffort, so one dispose sample can be lost (measured: 1 run in 7); a deleted writer
-        // reaches every reader through DDS discovery, which is reliable.
+        // Node 77 leaves: its writers go away, as on an exit or a crash. ⚠ The durable capabilities instance is the
+        // reliable half of the signal — the BestEffort heartbeat alone was missed 1 run in 10, by a reader that had
+        // not yet received one of its samples.
         hb.Dispose();
+        caps.Dispose();
 
         Assert.True(harness.PumpUntil(() => cgf.HasAuthority<SimTransform>(tank), timeoutFrames: 2000),
             $"CGF must take back the kinematic group once its grantee has left. {Describe(cgf, tank)}");
@@ -94,7 +104,8 @@ public class PartialOwnerReclaimTests
         int domainId = Interlocked.Increment(ref _domainCounter);
         using var harness = new HrotRunnerHarness("simhost,cgf", domainId);
         using var fake  = new DdsParticipant((uint)domainId);
-        var hb = new DdsWriter<NodeHeartbeat>(fake);   // deleted below: node 77 leaves
+        var hb   = new DdsWriter<NodeHeartbeat>(fake);           // both deleted below: node 77 leaves
+        var caps = Join(fake);
         using var owner = new DdsWriter<WireOwnershipUpdate>(fake);
         Heartbeat(hb);
 
@@ -120,10 +131,11 @@ public class PartialOwnerReclaimTests
             "Both nodes must record node 77 as the position's owner.");
         Assert.False(sim.HasAuthority<SimTransform>(simTank));
 
-        // Node 77 leaves: its heartbeat WRITER goes away, as on an exit or a crash. ⚠ Not a single DisposeInstance:
-        // NodeHeartbeat is BestEffort, so one dispose sample can be lost (measured: 1 run in 7); a deleted writer
-        // reaches every reader through DDS discovery, which is reliable.
+        // Node 77 leaves: its writers go away, as on an exit or a crash. ⚠ The durable capabilities instance is the
+        // reliable half of the signal — the BestEffort heartbeat alone was missed 1 run in 10, by a reader that had
+        // not yet received one of its samples.
         hb.Dispose();
+        caps.Dispose();
 
         int cgfNode = harness.Cgf!.TestHook_NodeId;
         Assert.True(harness.PumpUntil(() => Recorded(cgf, cgfTank, worldPos) == cgfNode

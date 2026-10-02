@@ -32,6 +32,7 @@ namespace Hrot.Network.Routing
         private readonly DdsReader<NodeCapabilitiesTopic> _capabilitiesReader;
         private readonly SimpleClusterStateCache _cache;
         private readonly Dictionary<int, string[]> _nodeCapabilities = new();
+        private readonly HashSet<int> _departed = new();
 
         public ClusterCapabilityIngestSystem(
             DdsReader<NodeHeartbeat> heartbeatReader,
@@ -50,7 +51,17 @@ namespace Hrot.Network.Routing
             using (var capLoan = _capabilitiesReader.Take())
                 foreach (var sample in capLoan)
                 {
-                    if (!sample.IsValid) continue;
+                    if (!sample.IsValid)
+                    {
+                        // ⭐ S7 — the durable capabilities instance is the RELIABLE half of the departure signal: every
+                        //   node writes it once at join (Reliable + TransientLocal), so every reader holds the instance
+                        //   and its writer's end always arrives. The BestEffort heartbeat alone was measured to miss it
+                        //   (1 run in 10) when a reader had not yet received a heartbeat sample.
+                        if (IsNotAlive(sample.Info.InstanceState))
+                            Departed(view, DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId,
+                                     sample.Info.InstanceState);
+                        continue;
+                    }
                     _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
                 }
 
@@ -60,23 +71,13 @@ namespace Hrot.Network.Routing
                 if (!sample.IsValid)
                 {
                     // ⭐ S7 — the node LEFT: its heartbeat instance has one writer, so not-alive means that node crashed
-                    //   (lease expiry) or exited (dispose). Forget it, and tell the ownership reclaim (R-167: every node
-                    //   sees the same departure and takes back the same keys, no message). The managed .Data throws on
-                    //   a not-alive sample, so the key is read from the native buffer. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
-                    if (sample.Info.InstanceState == DdsInstanceState.NotAliveDisposed ||
-                        sample.Info.InstanceState == DdsInstanceState.NotAliveNoWriters)
-                    {
-                        int departed = DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId;
-                        _cache.RemoveNode(departed);
-                        Fdp.Core.Logging.FdpLog<ClusterCapabilityIngestSystem>.Info(
-                            "[ClusterCapabilityIngest] node {0} left ({1}).", departed, sample.Info.InstanceState);
-                        // Raised even for a node the cache never knew: a record can name a node no grant strategy chose
-                        // (a test hook, an external hand-in). A repeat (disposed, then no-writers) moves nothing.
-                        if (view is EntityRepository repo)
-                            repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = departed });
-                    }
+                    //   (lease expiry) or exited. The managed .Data throws on a not-alive sample, so the key is read
+                    //   from the native buffer. 📄 docs/DESIGN_Ownership_Groups_And_Grants.md §5.6 S7.
+                    if (IsNotAlive(sample.Info.InstanceState))
+                        Departed(view, DdsTypeSupport.FromNative<NodeHeartbeat>(sample.NativePtr).NodeId, sample.Info.InstanceState);
                     continue;
                 }
+                _departed.Remove(sample.Data.NodeId);   // a node that comes back can leave again
                 var tokens = _nodeCapabilities.TryGetValue(sample.Data.NodeId, out var t) ? t : Array.Empty<string>();
                 _cache.UpdateNode(new NodeCapability
                 {
@@ -88,6 +89,26 @@ namespace Hrot.Network.Routing
                     LastSeenUtcSeconds = (double)sample.Data.WallTicksUtc / TimeSpan.TicksPerSecond,
                 });
             }
+        }
+
+        private static bool IsNotAlive(DdsInstanceState state)
+            => state == DdsInstanceState.NotAliveDisposed || state == DdsInstanceState.NotAliveNoWriters;
+
+        /// <summary>
+        /// A node left: forget it and tell the ownership reclaim (R-167 — every node sees the same departure and takes
+        /// back the same keys, no message). Raised once per node per departure (both topics report it), and also for a
+        /// node the cache never knew — a record can name a node no grant strategy chose (a test hook, an external
+        /// hand-in). A repeat moves nothing.
+        /// </summary>
+        private void Departed(ISimulationView view, int nodeId, DdsInstanceState state)
+        {
+            if (!_departed.Add(nodeId)) return;
+            _cache.RemoveNode(nodeId);
+            _nodeCapabilities.Remove(nodeId);
+            Fdp.Core.Logging.FdpLog<ClusterCapabilityIngestSystem>.Info(
+                "[ClusterCapabilityIngest] node {0} left ({1}).", nodeId, state);
+            if (view is EntityRepository repo)
+                repo.Bus.Publish(new Fdp.Toolkit.Replication.Messages.NodeDeparted { NodeId = nodeId });
         }
 
         private static string[] DeserializeTokens(string? json)

@@ -441,7 +441,15 @@ internal sealed class NedCgfEntityLifecycleAdapters : ICgfEntityLifecycleAdapter
         using (var capLoan = _capabilitiesReader.Take())
             foreach (var sample in capLoan)
             {
-                if (!sample.IsValid) continue;
+                if (!sample.IsValid)
+                {
+                    // ⭐ S7 — a departed node leaves the strategy's cache (the reliable half of the signal, see
+                    //   ClusterCapabilityIngestSystem).
+                    if (sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveDisposed ||
+                        sample.Info.InstanceState == CycloneDDS.Runtime.DdsInstanceState.NotAliveNoWriters)
+                        _clusterCache.RemoveNode(CycloneDDS.Runtime.DdsTypeSupport.FromNative<NodeCapabilitiesTopic>(sample.NativePtr).NodeId);
+                    continue;
+                }
                 _nodeCapabilities[sample.Data.NodeId] = DeserializeTokens(sample.Data.CapabilitiesJson);
             }
 
