@@ -1,9 +1,10 @@
 <!--STATUS
 state: LIVE
 updated: 2026-10-02
-build-state: DESIGN — direction approved by the user 2026-10-02 ("this enforces a true unification. great. Concurrency
-  should be natively supported, and we should remove any blockers that prevent it. cycles needs checking."); the
-  decisions in §5 await the user's answer.
+build-state: READY-TO-BUILD — direction approved by the user 2026-10-02 ("this enforces a true unification. great.
+  Concurrency should be natively supported, and we should remove any blockers that prevent it. cycles needs
+  checking."); §5 decisions APPROVED 2026-10-02 ("agreed to your leans") as revised there (U-3 dropped, U-6 revised,
+  U-7 deferred, U-11 Behaviour Task node).
 current-answer: §3 (the target, diagrams) and §5 (the decisions, each with a lean). §2 is the measured inventory.
 stale-below: nothing yet.
 known-rot: none.
@@ -168,8 +169,25 @@ and nesting the same mechanism.
 | S4 | one runner contract | `IBehaviorRunner` + `BrainStateBytes`; `BrainTickSystem` collapses to one arm; per-tier quirks (Paused, trace, interrupt) move into their runner |
 | S5 | the hosting matrix | slot `[brain][start][block]` from the child's definition; HSM and blueprint children; recursive provisioning and abort; nested keys via `ComputeNested`; cycle check at registration + blueprints in the editor detector |
 | S6 | native concurrency in blueprints | a FIBER per top-level graph (Tick, each Event graph) and per branch of a new `Parallel` node; per-fiber cursor, locals and `When` memory; the 16 single-cursor sites (I10) rewritten against a fiber index |
-| S7 | `Run Behaviour` blueprint node | latent, blocking, any tier as child; concurrency = several of them in parallel fibers |
+| S7 | **Behaviour Task** blueprint node (U-11) | pins Start/Abort in, Started/While Running/Succeeded/Failed out; any tier as the task; each completion pin is a fiber |
 | (S8) | converge AiPrimitive suspension (I14) | `__phase`/`__waitUntilTime` → the same fiber cursor (Q33 §1.5.5). Separate design question, see §6 |
+
+
+### 4a. What fibers take *(S6, the largest slice — split in three)*
+
+| step | change | measured site it removes |
+|---|---|---|
+| ① find the fibers at compile time | the Tick graph; each latent Event graph × its policy's N; each Task node's completion pins. Each gets a fixed index | I10 (one cursor for all graphs) |
+| ② lay them out | `Exec` = one record per fiber: cursor + that fiber's locals + its `When` memory (+ the event payload for an Event fiber that suspends). Fixed size ⇒ no allocation | I3, Q27's per-graph locals, the 8-hex `When` key |
+| ③ lowering by index | the cursor IR ops carry a fiber index ⇒ `x.F2.ResumeAt` instead of `s.Cursor.ResumeAt`; each graph dispatches on its OWN fiber's cursor; version check and reset per fiber | `WaitLowering_Instance.cs:89,126-169,240,293,375`, `StatementEmitter.cs:808-861` (incl. the I12 success path) |
+| ④ the generated scheduler | `BehaviorTick` = dispatch events to a free fiber per policy (overflow ⇒ fault) → resume each active fiber in index order → tick Task sites, fire `While Running`, start a completion fiber when a task ends. Straight-line generated code, deterministic | `BlueprintEventDispatch.cs:42-53`, I11 |
+| ⑤ abort | clear a fiber's record + abort the Task sites it started (recursively); `Finish` aborts all | U-8 |
+| ⑥ the readers | debugger / inspector show a fiber list; `StructureHash` covers fiber layout and resume numbering (hot reload) | sweep rows 13, 15 |
+
+⭐ **Instances use the same lowering** (one compiler path, no fork); their `Exec` stays inside their single payload
+because an Instance is not a behaviour. ⚠ Cost: every Instance's `StructureHash` and golden moves once.
+**Split:** S6a per-graph fibers (Tick + Event graphs; fixes I10–I12) · S6b event policies (U-6) · S6c Task-node
+completion fibers (lands with S7).
 
 ## 5. Decisions — each with a lean
 
@@ -177,16 +195,25 @@ and nesting the same mechanism.
 |---|---|---|---|
 | U-1 | blueprint brain state | ⭐ out of the block (R-151 literal) | cursor in the block (Q77 §3 C): leaks into resolvers, needs its own hosting slot |
 | U-2 | the run contract | ⭐ one `IBehaviorRunner` per tier on the definition; root = hosted with no host | per-pair hosting paths: up to 9 |
-| U-3 | blocking | ⭐ the HOST decides: BTree node and blueprint latent node block; HSM state does not (Q33 §1.5.4, unchanged) | a child-side flag |
+| U-3 | ~~blocking~~ ⛔ **DROPPED 2026-10-02** | the Behaviour Task node (U-11) makes "waiting" a matter of which pins are wired; a BTree node still reports the child's status; an HSM state stays non-blocking (Q33 §1.5.4) and gets an automatic `ChildFinished(Success/Failure)` event | — |
 | U-4 | an HSM child's "finish" | ⭐ `Terminated` ⇒ Success, exactly as the root arm reads it | a new HSM status |
 | U-5 | fibers | ⭐ a fixed set known at compile time (top-level graphs + `Parallel` branches), each with its own cursor, locals and `When` memory, laid out in `Exec` ⇒ no allocation | a dynamic fiber pool: allocation on the hot path |
-| U-6 | an Event graph that fires while its fiber is suspended | ⭐ **ignored** (the fiber is busy; a later event can re-enter it once it ends). Deterministic, no queue | restart it (drops the in-flight wait) · queue (needs storage per event type) |
-| U-7 | `Parallel` node | ⭐ one node, mode `All` / `Any`; on `Any` the losing fibers are ABORTED (their hosted children recursively) | two nodes |
+| U-6 | an Event graph that fires while its fiber is suspended | ⭐ **author's policy on the Event node, never silent** (revised 2026-10-02 — user: *"events carry information, can't be just ignored"*): **Parallel(N)** default (one fiber per arrival, N fixed at compile time), **Restart** (newest wins), **Queue(N)**; overflow ⇒ `BehaviorFault` + log. A latent-free handler is unaffected (runs to completion per event) | ignore (Unreal `Delay` semantics: the event is lost) |
+| U-7 | `Parallel` node | ⏸ **DEFERRED** (demand-driven): the Behaviour Task node already gives native concurrency. When built: one node, `All` (join) / `Any` (race, losers aborted recursively) | two nodes |
 | U-8 | the behaviour finishes while fibers are live | ⭐ the Tick fiber's `Return` finishes it; every other fiber is aborted (CE-449: finish = clear) | wait for all fibers: a run that cannot end |
 | U-9 | cycle checking | ⭐ at registration over the real hosting edges (throws, catches curated hosts) + the editor detector extended to blueprints | a runtime depth counter on the hot path |
 | U-10 | a child's `InstanceId` | ⭐ the host's (unchanged: channels reset with the host) | its own |
+| U-11 | how a blueprint hosts a behaviour | ⭐ ONE **Behaviour Task** node: in `Start`, `Abort`; out `Started` (immediately), `While Running` (every tick, latent-free — a BP2050-shaped rule), `Succeeded`/`Failed` (once, each a fiber). "Run and wait" = only the completion pins wired. Start while running ⇒ **Restart** (newest order wins) | two nodes (blocking + non-blocking) |
 
 ## 6. What this opens, not decided here
+
+**The mission plan as a blueprint** (user, 2026-10-02: *"implement the mission plan as a simple graphical blueprint, a
+sequence of individual behavior nodes (mission tasks), with branching depending on the results of the task, with
+triggers"*). Today `DomainMissionPlan` is a LINEAR task list advanced by `MissionDirectorSystem` on a hard-coded
+`MissionTrigger` enum (TimerElapsed / UnderAttack / HealthCritical / BehaviorFinished). A mission blueprint of Behaviour
+Task nodes would retire both. ⛔ Separate design (agreed): it touches the `MissionTask` DDS messages, scenario
+persistence, the ExCon mission editor (UI lane) and `MissionAdapterSystem`.
+
 
 An AiPrimitive (a blueprint used as a BTree action) has the same shape as a hosted blueprint behaviour run by a
 blocking host:
