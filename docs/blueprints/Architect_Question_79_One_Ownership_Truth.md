@@ -2,7 +2,7 @@
 state: LIVE
 updated: 2026-10-01
 build-state: DESIGN — nothing built. NO interim fix (user: "skip the interim fix").
-current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
+current-answer: §0 ONLY — rulings · measured facts · design intent · §0.7 the PUSH-ONLY solution (user: "Solution agreed", 2026-10-02) · §0.8 the GRANT definition · §0.9 gaps and flaws · §0.10 parts · §0.11 crash = dispose · §0.12 external nodes · §0.5 open questions · §0.6 the next session's task. (§0.4 is superseded by §0.7.)
 stale-below: EVERYTHING under "⛔ HISTORY" — the trail of proposals (§4 §8 §9 §9a §9a′ §9b §9c §11.x). Cite §7 (proofs) and §10 (probe) only via §0.
 known-rot: §2's diagrams describe the superseded "one derived gate" proposal, not §0's direction.
 known-conflict: DESIGN_Role_Affinity_Ownership.md §3.9c (complement tables used on BOTH legs) and DESIGN_Node_Roles_And_Policies.md §4.1 (IG declines non-role components at create) conflict with the user's rule R-160 — not yet reconciled in those docs beyond pointers.
@@ -85,6 +85,7 @@ direction, into the ownership model itself. ⛔ **No interim fix** — user: *"y
 | O3 | which components does NO role claim (stay with the creator) — and is that right for each? | O1's complement, reviewed |
 | O4 | does changing the claim break any CLAIM READER (F2) — esp. attribute changes on IG-created entities | per reader, after O1 |
 | O5 | the shard IMPLEMENTATION (R-162, R-163): one authority, load-driven reassignment as transfers, current assignment readable by late joiners | `CE-506` — orchestrator-published assignment vs the creator's per-entity decision; measure what the orchestrator already publishes |
+| O6 | which ownership topic and node-id scheme do EXTERNAL nodes speak — the spec `OwnershipUpdate` (`hrot-generic-msgs`, `NodeId{AppDomainId, AppInstanceId}`)? | the user; then §0.12 E3 |
 
 ### 0.7 ⭐⭐⭐ PROPOSED SOLUTION — **PUSH-ONLY** *(`2026-10-01`, user-directed; awaiting final approval; UML goes in a DESIGN doc before build)*
 
@@ -182,7 +183,7 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 
 | # | gap / flaw | evidence | direction |
 |---|---|---|---|
-| P1 | **No failover.** A grantee that crashes leaves its groups orphaned: the wire spec's *"non-master disposed by partial owner ⇒ ownership returns to the master's owner"* is NOT implemented | searched NED/Cyclone/replication toolkit: dispose only removes components; `DisposalMonitoringSystem` only prunes the entity map | master owner reclaims on partial-owner dispose (spec rule, existing message), then the authority re-grants by transfer |
+| P1 | **No failover.** A grantee that crashes leaves its groups orphaned: the wire spec's *"non-master disposed by partial owner ⇒ ownership returns to the master's owner"* is NOT implemented | searched NED/Cyclone/replication toolkit: dispose only removes components; `DisposalMonitoringSystem` only prunes the entity map | master owner reclaims on partial-owner dispose (spec rule, existing message), then the authority re-grants by transfer — ⭐ worked out in §0.11 |
 | P2 | **A grant can be lost.** Target unknown at creation (`CE-256`) or already dead (1 Hz heartbeat cache) ⇒ no takeover, no `OwnershipUpdate`; `DeferredTakeOwnership` is Volatile and unacknowledged | `BrainMuscleOwnershipStrategy.cs:43-46`; `DeferredTakeOwnership.cs` QoS | the authority detects "granted, never confirmed" and re-decides by transfer (G4/`CE-506`) |
 | P3 | **Concurrent transfers race.** `OwnershipIngressSystem` applies updates last-write-wins in arrival order, no epoch | `OwnershipIngressSystem.cs:57-67` | ONE initiator per entity after creation (rule, not protocol — an epoch would change the message, R-158) |
 | P4 | **A group is not atomic on the wire.** Grants and `OwnershipUpdate` are per descriptor; a group spanning several descriptors can be half-moved; a component may sit in two descriptors (Transfer §1 many-to-many) | `DeferredTakeoverSystem.cs:100-128`; Transfer design §1 | every component in exactly ONE group; a group moves as one command (grants already batch per entity) |
@@ -191,6 +192,66 @@ pending grant. **Used once.** The creator meanwhile keeps publishing the granted
 | P7 | **Who decides after creation is undefined.** "The owner" moves with transfers (a `MasterOnly` transfer moves the entity master); load rebalancing by a separate authority makes two deciders | R-163, R-164 | creator decides ONLY at creation; every later move by the one load authority (`CE-506`) — closes P3 |
 | P8 | **The strategy is not group- or entity-aware** — hard-coded descriptor list, ignores entity type | `BrainMuscleOwnershipStrategy.cs:40-55` | drive it from the shared groups (G6) and the template (G5) |
 | P9 | **A group can land where it cannot run.** No Brain node known ⇒ the creator keeps the brain group; a creator that does not register brain components (SimHost) leaves the entity brainless, silently | Role-Affinity §5 ② boot warning (step 3c) NOT built | warn once (3c); the authority grants when a Brain appears (P2) |
+| P10 | ⚠ **A FORMER owner's clean exit can look like a crash.** DDS `autodispose_unregistered_instances` (default true) disposes every instance a deleted writer registered — including ones it already handed away ⇒ the master owner would "reclaim" from a live current owner (§0.11) | ⛔ not measured: our writer QoS, and whether `SampleInfo` exposes the publication handle | reclaim only when the record's current owner for that key is gone (roster) — see §0.11 C2 |
+
+> P1 → §0.11 (crash). P5 → §0.10 (parts). External nodes → §0.12.
+
+### 0.10 ⭐ PARTS (multi-instance descriptors) *(measured `2026-10-02`)*
+
+**Two different things are called "child". Only the second is a part.**
+
+| | TKB child (`ChildBlueprints`) | **part** (`PartMetadata`) |
+|---|---|---|
+| what it is | a full network entity: own network id, own `EntityMaster` | an ECS entity with `PartMetadata{ParentEntity, InstanceId, DescriptorOrdinal}` and its own components; NO `NetworkIdentity`/`TkbIdentity`/ghost tracker (`EqsSensorConfigIngressTranslator.cs:212-226`) |
+| wire key | its own `EntityId` | `(parent's EntityId, InstanceId)` of a multi-instance descriptor (spec §"Descriptors as DDS topic instances") |
+| lifecycle (LCM) | ✅ full: `SpawnEntityCommand` → ELM (`CreateEntityRequestSystem.cs:441-457`) | ⛔ none. Created directly (`EqsChildSensor.Ensure` → `repo.CreateEntity`; Muscle carrier via `cmd.CreateEntity`); destroyed by `SubEntityCleanupSystem` when the parent dies; while the parent lives an ended part is written `Suspended`, never disposed (`EqsSensorConfigEgressTranslator.cs:126-166`, BDC no-dispose rule) |
+| deferred takeover | ✅ its own grant, same strategy, parent's owner (`CreateEntityRequestSystem.cs:466-477`) | ⛔ none. A grant has no instance id; the takeover keys instance 0 (`DeferredTakeoverSystem.cs:108`) |
+| record (send gate) | its own | **the parent's**: `HasAuthority` resolves `PartMetadata` to the root and looks up `Map[PackKey(d, i)]`, else the root's `PrimaryOwnerId` (`AuthorityExtensions.cs:22-55`) |
+| claim (`AuthorityMask`) | its own | **empty** — the mask is cleared on create (`EntityIndex.cs:97,170,464`) and no production claim writer touches parts (grep `SetAuthority` ∩ `PartMetadata`: none) |
+| production users | squad members etc. | **EQS sensors only.** The generic `MultiInstanceCycloneTranslator` (per-instance `PackKey(d,i)`) is used by tests only |
+
+⛔ **Two measured defects in the part path:**
+- **No type-level default.** `DescriptorOwnership.TryGetOwner` is an exact-key lookup (`DescriptorOwnership.cs:25-28`) ⇒ a group record at `(d,0)` does NOT cover instances `1..n`; they fall to the root's `PrimaryOwnerId`.
+- **`CE-507`:** the EQS senders pass the raw ordinal `d` as the key — that is `PackKey(0, d)`, which matches no entry ⇒ every EQS part publishes iff the node is the parent's PRIMARY owner, whatever was granted. Same class as `CE-500` for an entity created off-Brain.
+
+⭐ **Lean (P5 resolved without a protocol change):**
+1. **A part belongs to the group of its descriptor TYPE on its root.** A grant/transfer of that group covers every instance. Gate lookup becomes `(d,i)` → `(d,0)` → `PrimaryOwnerId` — a change in the toolkit gate only, no message change.
+2. **Parts carry no claim of their own**; a claim question on a part resolves to the root, as the record gate already does.
+3. **Per-instance split** (two instances of ONE descriptor type on two nodes) only by `OwnershipUpdate`, which already carries `DescrInstanceId`. ⛔ Not built: the ingress drops the instance (`OwnershipIngressSystem.cs:65`) and sets the claim on the root. ⭐ **Defer** — no production case needs it (EQS config and EQS result are different descriptor TYPES, so the type-level rule covers them).
+
+### 0.11 ⭐ CRASH = DISPOSE *(the spec's rule; closes P1)*
+
+| who crashed | what happens | today |
+|---|---|---|
+| **master owner** | `EntityMaster` instance not alive ⇒ entity deleted on every node; spec: *"must be created anew"* | ✅ `EntityMasterIngressTranslator.cs:72` treats ANY non-alive state (disposed or no-writers) as delete; DER the same (`DdsIngressHandlers.cs:54`) |
+| **partial owner** *(a grantee: Muscle with `dtWorldPos`, Brain with the brain group)* | spec: the master's owner detects the dispose and takes ownership *"as if `UpdateOwnership` was received"*; every other node ignores it | ⛔ not built — non-master ingress translators skip non-valid samples (e.g. `NavigationIntentIngressTranslator.cs:61`) |
+
+⭐ **Lean:** on a non-alive sample of a non-master descriptor, the node whose `PrimaryOwnerId == local` publishes the **existing** bus `OwnershipUpdate{key, NewOwner = local, Origin = local}`. `OwnershipIngressSystem` applies it (claim + record) and `OwnershipUpdateTranslator` sends it, so every node's record converges. No new message. Later re-sharding is a normal transfer by the authority (P7).
+
+| caveat | |
+|---|---|
+| C1 | Treat disposed and no-writers the same, as `EntityMaster` already does. ⚠ Not measured which state a hard crash produces on our Cyclone config; lease expiry normally gives no-writers |
+| C2 | P10: a former owner's clean exit can dispose. Reclaim only if the record's current owner for that key is not alive |
+| C3 | Brain-group components were never on the wire (R-165) ⇒ a reclaimed brain restarts from its initial state |
+| C4 | A dispose by the master owner itself is entity deletion: it knows it is deleting; everyone else ignores non-master disposes |
+
+### 0.12 ⭐ NON-CONFORMANT EXTERNAL NODES *(no LCM, no grants, no brain/muscle split; spec `OwnershipUpdate` only)*
+
+**Measured today:**
+- Their entity becomes a ghost with `PrimaryOwnerId = -1` ("unknown") (`EntityMasterIngressTranslator.cs:146-152`). Our own LCM still runs locally on that ghost; it needs nothing from them.
+- No grant ever arrives ⇒ under push-only (③, promote-leg claim retired) we claim nothing of it. ✅ correct by construction. Today the promote-leg claim (`GhostPromotionSystem.cs:313-324`) would make our nodes claim role components of an external entity; the send gate still blocks (record falls to `-1`), so it costs local compute, not a wire violation.
+- ⛔ **We do not speak the spec's ownership message.** We read and write only `SST_OwnershipUpdate` (`Fdp.Network.Cyclone/Topics/OwnershipUpdate.cs:10`: int `NewOwner`, plus `Timestamp`, `OriginNodeId`). The spec-shaped `OwnershipUpdate` (topic `"OwnershipUpdate"`, `NodeId{AppDomainId, AppInstanceId}`, `GenericMessages.cs:33-57`) has no reader and no writer. ⇒ an external node can neither hand us a descriptor nor receive one. `DESIGN_Distributed_Scenario_Persistence.md` §6c assumes it can (known-conflict recorded there).
+
+⭐ **Lean:**
+| # | rule |
+|---|---|
+| E1 | **Only the master's owner shards.** External master ⇒ we never grant it; we own only what the external node hands us |
+| E2 | **The external unit is ONE descriptor.** On receipt, the claim of that descriptor's components flips (existing ingress step), and components LINKED to it (R-165) follow ⇒ handed the brain descriptor, our Brain runs the brain; handed `dtWorldPos`, our Muscle simulates. Requires our groups to be whole descriptors (P4) |
+| E3 | **One bridge translator for the spec topic:** ingress maps `NodeId` → our int and publishes the same bus `OwnershipUpdate`; egress mirrors our transfers onto the spec topic. Adds a reader/writer for an existing spec message; deferred takeover and `SST_OwnershipUpdate` stay unchanged (R-158) |
+| E4 | **Crashes:** their master crashes ⇒ entity deleted (spec). Their partial owner crashes on OUR entity ⇒ §0.11 reclaims (it keys on dispose, not on our protocol). We crash holding part of THEIR entity ⇒ their master reclaims (their job) |
+| E5 | ⚠ **Confirm-write:** spec says the new owner writes the descriptor to confirm. Not measured whether our egress publishes a newly gained, unchanged descriptor at once or waits for the throttled refresh |
+
+⚠ **Open (O6):** which topic and node-id scheme do the external nodes actually use — the spec `OwnershipUpdate` in `hrot-generic-msgs`? E3 assumes yes.
 
 ### 0.6 ⭐ THE NEXT SESSION'S TASK — **complete before proposing anything**
 
